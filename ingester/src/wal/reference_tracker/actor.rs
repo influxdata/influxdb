@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use data_types::{
-    sequence_number_set::{self, SequenceNumberSet},
-    SequenceNumber,
-};
+use data_types::sequence_number_set::{self, SequenceNumberSet};
 use hashbrown::HashMap;
 use metric::U64Gauge;
 use observability_deps::tracing::{debug, info};
@@ -36,7 +33,7 @@ pub(crate) struct WalReferenceActor<T = Arc<wal::Wal>> {
     persisted: SequenceNumberSet,
 
     /// The set of closed WAL segment files, and the set of unpersisted
-    /// [`SequenceNumber`] they contain.
+    /// [`data_types::SequenceNumber`] they contain.
     ///
     /// These [`SequenceNumberSet`] are slowly drained / have IDs removed in
     /// response to persisted data notifications. Once the set is of length 0,
@@ -57,7 +54,7 @@ pub(crate) struct WalReferenceActor<T = Arc<wal::Wal>> {
     /// [`WalReferenceHandle`]: super::WalReferenceHandle
     file_rx: mpsc::Receiver<(SegmentId, SequenceNumberSet, oneshot::Sender<()>)>,
     persist_rx: mpsc::Receiver<Arc<CompletedPersist>>,
-    unbuffered_rx: mpsc::Receiver<SequenceNumber>,
+    unbuffered_rx: mpsc::Receiver<SequenceNumberSet>,
 
     /// A metric tracking the number of rotated WAL files being reference
     /// tracked.
@@ -83,7 +80,7 @@ where
         wal: T,
         file_rx: mpsc::Receiver<(SegmentId, SequenceNumberSet, oneshot::Sender<()>)>,
         persist_rx: mpsc::Receiver<Arc<CompletedPersist>>,
-        unbuffered_rx: mpsc::Receiver<SequenceNumber>,
+        unbuffered_rx: mpsc::Receiver<SequenceNumberSet>,
         empty_waker: Arc<Notify>,
         metrics: &metric::Registry,
     ) -> Self {
@@ -250,17 +247,12 @@ where
     /// Handle a write that has been added to the WAL, but that did not complete
     /// / buffer.
     ///
-    /// Because the write was added to the WAL, its ID will be part of the WAL
+    /// Because the write was added to the WAL, its ID set will be part of the WAL
     /// file's [`SequenceNumberSet`], but because the write was not buffered, it
     /// will never be persisted and therefore the WAL set will always have an
     /// outstanding reference unless it is accounted for here.
-    async fn handle_unbuffered(&mut self, id: SequenceNumber) {
-        debug!(sequence_number = id.get(), "notified of unbuffered write");
-
-        // Delegate to the same code as persisted by presenting this ID as a set
-        // - the same behaviour is required.
-        let mut set = SequenceNumberSet::with_capacity(1);
-        set.add(id);
+    async fn handle_unbuffered(&mut self, set: SequenceNumberSet) {
+        debug!(sequence_number_set = ?set, "notified of unbuffered write");
 
         self.remove(set).await;
     }

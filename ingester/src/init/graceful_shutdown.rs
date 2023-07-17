@@ -10,6 +10,7 @@ use crate::{
     partition_iter::PartitionIter,
     persist::{drain_buffer::persist_partitions, queue::PersistQueue},
     query::projection::OwnedProjection,
+    wal::reference_tracker::WalReferenceHandle,
 };
 
 /// Defines how often the shutdown task polls the partition buffers for
@@ -41,6 +42,7 @@ pub(super) async fn graceful_shutdown_handler<F, T, P>(
     buffer: T,
     persist: P,
     wal: Arc<wal::Wal>,
+    wal_reference_handle: WalReferenceHandle,
 ) where
     F: Future<Output = CancellationToken> + Send,
     T: PartitionIter + Sync,
@@ -96,30 +98,33 @@ pub(super) async fn graceful_shutdown_handler<F, T, P>(
         tokio::time::sleep(SHUTDOWN_POLL_INTERVAL).await;
     }
 
+    // Register interest with the WAL reference handle to notify this thread
+    // when there are no tracked inactive WAL segments, ensuring they are
+    // deleted before shutdown (so as not to be replayed).
+    //
+    // This future MUST be created before the active WAL segment is rotated
+    // out and enqueued, but `await`ed on afterwards. Failure to do so may
+    // cause the notifier to deadlock if the inactive segment tracking set
+    // empties before the notifier is created.
+    //
+    // TL;DR: Please read the docs for [`WalReferenceHandle::empty_inactive_notifier()`]
+    // before moving this about.
+    let empty_waker = wal_reference_handle.empty_inactive_notifier();
+
     // There is now no data buffered in the ingester - all data has been
     // persisted to object storage.
     //
-    // Therefore there are no ops that need replaying to rebuild the (now empty)
-    // buffer state, therefore all WAL segments can be deleted to prevent
-    // spurious replay and re-uploading of the same data.
-    //
-    // This should be made redundant by persist-driven WAL dropping:
-    //
-    //  https://github.com/influxdata/influxdb_iox/issues/6566
-    //
-    wal.rotate().expect("failed to rotate wal");
-    for file in wal.closed_segments() {
-        if let Err(error) = wal.delete(file.id()).await {
-            // This MAY occur due to concurrent segment deletion driven by the
-            // WAL rotation task.
-            //
-            // If this is a legitimate failure to delete (not a "not found")
-            // then this causes the data to be re-uploaded - an acceptable
-            // outcome, and preferable to panicking here and not dropping the
-            // rest of the deletable files.
-            warn!(%error, "failed to drop WAL segment");
-        }
-    }
+    // We can rotate the open WAL segment and notify the reference handle
+    // that the segment's file can be deleted because everything has been
+    // persisted.
+    let (closed_segment, sequence_number_set) = wal.rotate().expect("failed to rotate wal");
+    wal_reference_handle
+        .enqueue_rotated_file(closed_segment.id(), sequence_number_set)
+        .await;
+
+    // Wait for the file rotation to be processed and the tracked set
+    // to drop to empty.
+    empty_waker.await;
 
     info!("persisted all data - stopping ingester");
 
@@ -164,23 +169,33 @@ mod tests {
         Arc::new(Mutex::new(partition))
     }
 
-    // Initialise a WAL with > 1 segment.
+    // Initialise a WAL.
     async fn new_wal() -> (tempfile::TempDir, Arc<wal::Wal>) {
         let dir = tempfile::tempdir().expect("failed to get temporary WAL directory");
         let wal = wal::Wal::new(dir.path())
             .await
             .expect("failed to initialise WAL to write");
 
-        wal.rotate().expect("failed to rotate WAL");
-
         (dir, wal)
     }
 
     #[tokio::test]
     async fn test_graceful_shutdown() {
-        let persist = Arc::new(MockPersistQueue::default());
         let ingest_state = Arc::new(IngestState::default());
         let (_tempdir, wal) = new_wal().await;
+        let (wal_reference_handle, wal_reference_actor) =
+            WalReferenceHandle::new(Arc::clone(&wal), &metric::Registry::default());
+        let persist = Arc::new(MockPersistQueue::new_with_observer(
+            wal_reference_handle.clone(),
+        ));
+        tokio::spawn(wal_reference_actor.run());
+
+        // Ensure there is always more than 1 segment in the test, but notify the ref tracker.
+        let (closed_segment, set) = wal.rotate().expect("failed to rotate WAL");
+        wal_reference_handle
+            .enqueue_rotated_file(closed_segment.id(), set)
+            .await;
+
         let partition = new_partition();
 
         let rpc_stop = CancellationToken::new();
@@ -192,6 +207,7 @@ mod tests {
             vec![Arc::clone(&partition)],
             Arc::clone(&persist),
             Arc::clone(&wal),
+            wal_reference_handle,
         )
         .await;
 
@@ -214,9 +230,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_graceful_shutdown_concurrent_persist() {
-        let persist = Arc::new(MockPersistQueue::default());
         let ingest_state = Arc::new(IngestState::default());
         let (_tempdir, wal) = new_wal().await;
+        let (wal_reference_handle, wal_reference_actor) =
+            WalReferenceHandle::new(Arc::clone(&wal), &metric::Registry::default());
+        let persist = Arc::new(MockPersistQueue::new_with_observer(
+            wal_reference_handle.clone(),
+        ));
+        tokio::spawn(wal_reference_actor.run());
+
+        // Ensure there is always more than 1 segment in the test, but notify the ref tracker.
+        let (closed_segment, set) = wal.rotate().expect("failed to rotate WAL");
+        wal_reference_handle
+            .enqueue_rotated_file(closed_segment.id(), set)
+            .await;
+
         let partition = new_partition();
 
         // Mark the partition as persisting
@@ -236,6 +264,7 @@ mod tests {
             vec![Arc::clone(&partition)],
             Arc::clone(&persist),
             Arc::clone(&wal),
+            wal_reference_handle,
         ));
 
         // Wait a small duration of time for the first buffer emptiness check to
@@ -316,9 +345,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_graceful_shutdown_concurrent_new_writes() {
-        let persist = Arc::new(MockPersistQueue::default());
         let ingest_state = Arc::new(IngestState::default());
         let (_tempdir, wal) = new_wal().await;
+        let (wal_reference_handle, wal_reference_actor) =
+            WalReferenceHandle::new(Arc::clone(&wal), &metric::Registry::default());
+        let persist = Arc::new(MockPersistQueue::new_with_observer(
+            wal_reference_handle.clone(),
+        ));
+        tokio::spawn(wal_reference_actor.run());
+
+        // Ensure there is always more than 1 segment in the test, but notify the ref tracker.
+        let (closed_segment, set) = wal.rotate().expect("failed to rotate WAL");
+        wal_reference_handle
+            .enqueue_rotated_file(closed_segment.id(), set)
+            .await;
 
         // Initialise a buffer that keeps yielding more and more newly wrote
         // data, up until the maximum.
@@ -336,6 +376,7 @@ mod tests {
             Arc::clone(&buffer),
             Arc::clone(&persist),
             Arc::clone(&wal),
+            wal_reference_handle.clone(),
         ));
 
         // Wait for the shutdown to complete.

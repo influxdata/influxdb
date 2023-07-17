@@ -208,6 +208,8 @@ use criterion as _;
 use influxdb_iox_client as _;
 #[cfg(test)]
 use ingester_test_ctx as _;
+#[cfg(test)]
+use itertools as _;
 use workspace_hack as _;
 
 /// Ingester initialisation methods & types.

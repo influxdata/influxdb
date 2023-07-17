@@ -1,4 +1,4 @@
-use data_types::NamespaceId;
+use data_types::{sequence_number_set::SequenceNumberSet, NamespaceId};
 use trace::ctx::SpanContext;
 
 use super::write::WriteOperation;
@@ -23,6 +23,17 @@ impl IngestOp {
     pub fn span_context(&self) -> Option<&SpanContext> {
         match self {
             Self::Write(w) => w.span_context(),
+        }
+    }
+
+    /// Construct a new [`SequenceNumberSet`] containing all the sequence
+    /// numbers in this op.
+    pub fn sequence_number_set(&self) -> SequenceNumberSet {
+        match self {
+            Self::Write(w) => w
+                .tables()
+                .map(|(_, t)| t.partitioned_data().sequence_number())
+                .collect(),
         }
     }
 }

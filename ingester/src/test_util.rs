@@ -1,8 +1,8 @@
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use data_types::{
-    partition_template::TablePartitionTemplateOverride, NamespaceId, PartitionId, PartitionKey,
-    SequenceNumber, TableId,
+    partition_template::TablePartitionTemplateOverride, ColumnId, ColumnSet, NamespaceId,
+    ParquetFileParams, PartitionId, PartitionKey, SequenceNumber, TableId, Timestamp,
 };
 use hashbrown::HashSet;
 use iox_catalog::{interface::Catalog, test_helpers::arbitrary_namespace};
@@ -25,6 +25,7 @@ use crate::{
     },
     deferred_load::DeferredLoad,
     dml_payload::write::{PartitionedData, TableData, WriteOperation},
+    persist::completion_observer::CompletedPersist,
 };
 
 pub(crate) const ARBITRARY_PARTITION_ID: PartitionId = PartitionId::new(1);
@@ -357,6 +358,35 @@ pub(crate) fn make_multi_table_write_op<
         .collect();
 
     WriteOperation::new(namespace_id, tables_by_id, partition_key.clone(), None)
+}
+
+/// Return a persist completion notification for the given
+/// sequence numbers.
+pub(crate) fn new_persist_notification<T>(sequence_numbers: T) -> Arc<CompletedPersist>
+where
+    T: IntoIterator<Item = u64>,
+{
+    Arc::new(CompletedPersist::new(
+        ParquetFileParams {
+            namespace_id: NamespaceId::new(1),
+            table_id: TableId::new(2),
+            partition_id: PartitionId::new(3),
+            partition_hash_id: None,
+            object_store_id: Default::default(),
+            min_time: Timestamp::new(42),
+            max_time: Timestamp::new(42),
+            file_size_bytes: 42424242,
+            row_count: 24,
+            compaction_level: data_types::CompactionLevel::Initial,
+            created_at: Timestamp::new(1234),
+            column_set: ColumnSet::new([1, 2, 3, 4].into_iter().map(ColumnId::new)),
+            max_l0_created_at: Timestamp::new(42),
+        },
+        sequence_numbers
+            .into_iter()
+            .map(SequenceNumber::new)
+            .collect(),
+    ))
 }
 
 pub(crate) async fn populate_catalog(
