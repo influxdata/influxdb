@@ -278,7 +278,7 @@ mod tests {
         let _ = endpoints
             .next()
             .unwrap()
-            .write(WriteRequest::default())
+            .write(WriteRequest::default(), None)
             .await;
         assert!((circuit_err_1.ok_count() == 1) ^ (circuit_err_2.ok_count() == 1));
         assert!(circuit_ok.ok_count() == 0);
@@ -287,7 +287,7 @@ mod tests {
         let _ = endpoints
             .next()
             .unwrap()
-            .write(WriteRequest::default())
+            .write(WriteRequest::default(), None)
             .await;
         assert!((circuit_err_1.ok_count() == 1) ^ (circuit_err_2.ok_count() == 1));
         assert!(circuit_ok.ok_count() == 1);
@@ -296,7 +296,7 @@ mod tests {
         let _ = endpoints
             .next()
             .unwrap()
-            .write(WriteRequest::default())
+            .write(WriteRequest::default(), None)
             .await;
         assert!((circuit_err_1.ok_count() == 2) ^ (circuit_err_2.ok_count() == 2));
         assert!(circuit_ok.ok_count() == 1);
@@ -305,7 +305,7 @@ mod tests {
         let _ = endpoints
             .next()
             .unwrap()
-            .write(WriteRequest::default())
+            .write(WriteRequest::default(), None)
             .await;
         assert!((circuit_err_1.ok_count() == 2) ^ (circuit_err_2.ok_count() == 2));
         assert!(circuit_ok.ok_count() == 2);
@@ -352,7 +352,7 @@ mod tests {
             endpoints
                 .next()
                 .expect("should yield healthy client")
-                .write(WriteRequest::default())
+                .write(WriteRequest::default(), None)
                 .await
                 .expect("should succeed");
 
@@ -409,7 +409,7 @@ mod tests {
             endpoints
                 .next()
                 .expect("should yield healthy client")
-                .write(WriteRequest::default())
+                .write(WriteRequest::default(), None)
                 .await
                 .expect("should succeed");
         }
@@ -456,7 +456,7 @@ mod tests {
                 .unwrap()
                 .next()
                 .expect("should yield healthy client")
-                .write(WriteRequest::default())
+                .write(WriteRequest::default(), None)
                 .await
                 .expect("should succeed");
         }

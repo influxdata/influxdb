@@ -183,7 +183,7 @@ mod tests {
     fn test_no_chunks() {
         let schema = chunk(1).schema().clone();
         let plan = dedup_plan(schema, vec![]);
-        let opt = DedupSortOrder::default();
+        let opt = DedupSortOrder;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -204,7 +204,7 @@ mod tests {
         let chunk = chunk(1).with_dummy_parquet_file();
         let schema = chunk.schema().clone();
         let plan = dedup_plan(schema, vec![chunk]);
-        let opt = DedupSortOrder::default();
+        let opt = DedupSortOrder;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -233,7 +233,7 @@ mod tests {
             ]));
         let schema = chunk.schema().clone();
         let plan = dedup_plan(schema, vec![chunk]);
-        let opt = DedupSortOrder::default();
+        let opt = DedupSortOrder;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -262,7 +262,7 @@ mod tests {
             ]));
         let schema = chunk.schema().clone();
         let plan = dedup_plan_with_chunk_order_col(schema, vec![chunk]);
-        let opt = DedupSortOrder::default();
+        let opt = DedupSortOrder;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -291,7 +291,7 @@ mod tests {
             ]));
         let schema = chunk.schema().clone();
         let plan = dedup_plan(schema, vec![chunk]);
-        let opt = DedupSortOrder::default();
+        let opt = DedupSortOrder;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -320,7 +320,7 @@ mod tests {
             ]));
         let schema = chunk.schema().clone();
         let plan = dedup_plan(schema, vec![chunk]);
-        let opt = DedupSortOrder::default();
+        let opt = DedupSortOrder;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -353,7 +353,7 @@ mod tests {
             .build()
             .unwrap();
         let plan = dedup_plan(schema, vec![chunk]);
-        let opt = DedupSortOrder::default();
+        let opt = DedupSortOrder;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -389,7 +389,7 @@ mod tests {
             ]));
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2]);
-        let opt = DedupSortOrder::default();
+        let opt = DedupSortOrder;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -424,7 +424,7 @@ mod tests {
             ]));
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2]);
-        let opt = DedupSortOrder::default();
+        let opt = DedupSortOrder;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -454,7 +454,7 @@ mod tests {
         let chunk2 = chunk(2).with_dummy_parquet_file();
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2]);
-        let opt = DedupSortOrder::default();
+        let opt = DedupSortOrder;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -511,7 +511,7 @@ mod tests {
             ]));
         let schema = chunk3.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3]);
-        let opt = DedupSortOrder::default();
+        let opt = DedupSortOrder;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -562,7 +562,7 @@ mod tests {
             ]));
         let schema = chunk3.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3]);
-        let opt = DedupSortOrder::default();
+        let opt = DedupSortOrder;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -615,7 +615,7 @@ mod tests {
             ]));
         let schema = chunk3.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3]);
-        let opt = DedupSortOrder::default();
+        let opt = DedupSortOrder;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"

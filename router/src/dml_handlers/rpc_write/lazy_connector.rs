@@ -20,8 +20,9 @@ use tonic::{
     transport::{Channel, Endpoint},
     Code,
 };
+use trace::ctx::SpanContext;
 
-use super::client::{RpcWriteClientError, WriteClient};
+use super::client::{RpcWriteClientError, TracePropagatingWriteClient, WriteClient};
 
 const RETRY_INTERVAL: Duration = Duration::from_secs(1);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
@@ -57,11 +58,18 @@ pub struct LazyConnector {
     /// A task that periodically opens a new connection to `addr` when
     /// `consecutive_errors` is more than [`RECONNECT_ERROR_COUNT`].
     connection_task: JoinHandle<()>,
+
+    trace_context_header_name: String,
 }
 
 impl LazyConnector {
     /// Lazily connect to `addr`.
-    pub fn new(addr: Endpoint, request_timeout: Duration, max_outgoing_msg_bytes: usize) -> Self {
+    pub fn new(
+        addr: Endpoint,
+        request_timeout: Duration,
+        max_outgoing_msg_bytes: usize,
+        trace_context_header_name: String,
+    ) -> Self {
         let addr = addr
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(request_timeout);
@@ -79,6 +87,7 @@ impl LazyConnector {
                 Arc::clone(&consecutive_errors),
             )),
             consecutive_errors,
+            trace_context_header_name,
         }
     }
 
@@ -94,17 +103,24 @@ impl LazyConnector {
 
 #[async_trait]
 impl WriteClient for LazyConnector {
-    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError> {
+    async fn write(
+        &self,
+        op: WriteRequest,
+        span_ctx: Option<SpanContext>,
+    ) -> Result<(), RpcWriteClientError> {
         let conn = self.connection.lock().clone();
         let conn = conn.ok_or_else(|| {
             RpcWriteClientError::UpstreamNotConnected(self.addr.uri().to_string())
         })?;
 
-        match WriteServiceClient::new(conn)
-            .max_encoding_message_size(self.max_outgoing_msg_bytes)
-            .max_decoding_message_size(MAX_INCOMING_MSG_BYTES)
-            .write(op)
-            .await
+        match TracePropagatingWriteClient::new(
+            WriteServiceClient::new(conn)
+                .max_encoding_message_size(self.max_outgoing_msg_bytes)
+                .max_decoding_message_size(MAX_INCOMING_MSG_BYTES),
+            &self.trace_context_header_name,
+        )
+        .write(op, span_ctx)
+        .await
         {
             Err(e) if is_envoy_unavailable_error(&e) => {
                 warn!(error=%e, "detected envoy proxy upstream network error translation, reconnecting");
@@ -141,6 +157,8 @@ fn is_envoy_unavailable_error(e: &RpcWriteClientError) -> bool {
             .map(|v| v == AsciiMetadataValue::from_static("envoy"))
             .unwrap_or(false),
         RpcWriteClientError::Upstream(_) => false,
+        RpcWriteClientError::MisconfiguredMetadataKey(_) => false,
+        RpcWriteClientError::MisconfiguredMetadataValue(_) => false,
         RpcWriteClientError::UpstreamNotConnected(_) => unreachable!(),
     }
 }

@@ -1,16 +1,12 @@
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use futures::{Future, FutureExt};
-use parking_lot::Mutex;
-use tokio::{
-    sync::{Barrier, Notify},
-    task::JoinHandle,
-};
+use tokio::{sync::Barrier, task::JoinHandle};
 
 use crate::{
     cache::{CacheGetStatus, CachePeekStatus},
-    loader::Loader,
+    loader::test_util::TestLoader,
 };
 
 use super::Cache;
@@ -69,23 +65,26 @@ async fn test_answers_are_correct<T>(adapter: Arc<T>)
 where
     T: TestAdapter,
 {
-    let (cache, _loader) = setup(adapter.as_ref());
+    let (cache, loader) = setup(adapter.as_ref());
+
+    loader.mock_next(1, "res_1".to_owned());
+    loader.mock_next(2, "res_2".to_owned());
 
     assert_eq!(
         cache.get(1, adapter.get_extra(true)).await,
-        String::from("1_true")
+        String::from("res_1")
     );
     assert_eq!(
         cache.peek(1, adapter.peek_extra()).await,
-        Some(String::from("1_true"))
+        Some(String::from("res_1"))
     );
     assert_eq!(
         cache.get(2, adapter.get_extra(false)).await,
-        String::from("2_false")
+        String::from("res_2")
     );
     assert_eq!(
         cache.peek(2, adapter.peek_extra()).await,
-        Some(String::from("2_false"))
+        Some(String::from("res_2"))
     );
 }
 
@@ -95,37 +94,40 @@ where
 {
     let (cache, loader) = setup(adapter.as_ref());
 
+    loader.mock_next(1, "res_1".to_owned());
+    loader.mock_next(2, "res_2".to_owned());
+
     assert_eq!(cache.peek_with_status(1, adapter.peek_extra()).await, None,);
     assert_eq!(
         cache.get_with_status(1, adapter.get_extra(true)).await,
-        (String::from("1_true"), CacheGetStatus::Miss),
+        (String::from("res_1"), CacheGetStatus::Miss),
     );
     assert_eq!(
         cache.get_with_status(1, adapter.get_extra(false)).await,
-        (String::from("1_true"), CacheGetStatus::Hit),
+        (String::from("res_1"), CacheGetStatus::Hit),
     );
     assert_eq!(
         cache.peek_with_status(1, adapter.peek_extra()).await,
-        Some((String::from("1_true"), CachePeekStatus::Hit)),
+        Some((String::from("res_1"), CachePeekStatus::Hit)),
     );
     assert_eq!(
         cache.get_with_status(2, adapter.get_extra(false)).await,
-        (String::from("2_false"), CacheGetStatus::Miss),
+        (String::from("res_2"), CacheGetStatus::Miss),
     );
     assert_eq!(
         cache.get_with_status(2, adapter.get_extra(false)).await,
-        (String::from("2_false"), CacheGetStatus::Hit),
+        (String::from("res_2"), CacheGetStatus::Hit),
     );
     assert_eq!(
         cache.get_with_status(1, adapter.get_extra(true)).await,
-        (String::from("1_true"), CacheGetStatus::Hit),
+        (String::from("res_1"), CacheGetStatus::Hit),
     );
     assert_eq!(
         cache.peek_with_status(1, adapter.peek_extra()).await,
-        Some((String::from("1_true"), CachePeekStatus::Hit)),
+        Some((String::from("res_1"), CachePeekStatus::Hit)),
     );
 
-    assert_eq!(loader.loaded(), vec![1, 2]);
+    assert_eq!(loader.loaded(), vec![(1, true), (2, false)]);
 }
 
 async fn test_concurrent_query_loads_once<T>(adapter: Arc<T>)
@@ -134,7 +136,7 @@ where
 {
     let (cache, loader) = setup(adapter.as_ref());
 
-    loader.block();
+    loader.block_global();
 
     let adapter_captured = Arc::clone(&adapter);
     let cache_captured = Arc::clone(&cache);
@@ -171,24 +173,25 @@ where
     });
 
     barrier_pending_2.wait().await;
+    loader.mock_next(1, "res_1".to_owned());
     // Shouldn't issue concurrent load requests for the same key
-    let n_blocked = loader.unblock();
+    let n_blocked = loader.unblock_global();
     assert_eq!(n_blocked, 1);
 
     assert_eq!(
         handle_1.await.unwrap(),
-        (String::from("1_true"), CacheGetStatus::Miss),
+        (String::from("res_1"), CacheGetStatus::Miss),
     );
     assert_eq!(
         handle_2.await.unwrap(),
-        (String::from("1_true"), CacheGetStatus::MissAlreadyLoading),
+        (String::from("res_1"), CacheGetStatus::MissAlreadyLoading),
     );
     assert_eq!(
         handle_3.await.unwrap(),
-        Some((String::from("1_true"), CachePeekStatus::MissAlreadyLoading)),
+        Some((String::from("res_1"), CachePeekStatus::MissAlreadyLoading)),
     );
 
-    assert_eq!(loader.loaded(), vec![1]);
+    assert_eq!(loader.loaded(), vec![(1, true)]);
 }
 
 async fn test_queries_are_parallelized<T>(adapter: Arc<T>)
@@ -197,7 +200,7 @@ where
 {
     let (cache, loader) = setup(adapter.as_ref());
 
-    loader.block();
+    loader.block_global();
 
     let barrier = Arc::new(Barrier::new(4));
 
@@ -231,14 +234,17 @@ where
 
     barrier.wait().await;
 
-    let n_blocked = loader.unblock();
+    loader.mock_next(1, "res_1".to_owned());
+    loader.mock_next(2, "res_2".to_owned());
+
+    let n_blocked = loader.unblock_global();
     assert_eq!(n_blocked, 2);
 
-    assert_eq!(handle_1.await.unwrap(), String::from("1_true"));
-    assert_eq!(handle_2.await.unwrap(), String::from("1_true"));
-    assert_eq!(handle_3.await.unwrap(), String::from("2_false"));
+    assert_eq!(handle_1.await.unwrap(), String::from("res_1"));
+    assert_eq!(handle_2.await.unwrap(), String::from("res_1"));
+    assert_eq!(handle_3.await.unwrap(), String::from("res_2"));
 
-    assert_eq!(loader.loaded(), vec![1, 2]);
+    assert_eq!(loader.loaded(), vec![(1, true), (2, false)]);
 }
 
 async fn test_cancel_request<T>(adapter: Arc<T>)
@@ -247,7 +253,7 @@ where
 {
     let (cache, loader) = setup(adapter.as_ref());
 
-    loader.block();
+    loader.block_global();
 
     let barrier_pending_1 = Arc::new(Barrier::new(2));
     let barrier_pending_1_captured = Arc::clone(&barrier_pending_1);
@@ -275,12 +281,14 @@ where
     // abort first handle
     handle_1.abort_and_wait().await;
 
-    let n_blocked = loader.unblock();
+    loader.mock_next(1, "res_1".to_owned());
+
+    let n_blocked = loader.unblock_global();
     assert_eq!(n_blocked, 1);
 
-    assert_eq!(handle_2.await.unwrap(), String::from("1_true"));
+    assert_eq!(handle_2.await.unwrap(), String::from("res_1"));
 
-    assert_eq!(loader.loaded(), vec![1]);
+    assert_eq!(loader.loaded(), vec![(1, true)]);
 }
 
 async fn test_panic_request<T>(adapter: Arc<T>)
@@ -289,8 +297,7 @@ where
 {
     let (cache, loader) = setup(adapter.as_ref());
 
-    loader.panic_once(1);
-    loader.block();
+    loader.block_global();
 
     // set up initial panicking request
     let barrier_pending_get_panic = Arc::new(Barrier::new(2));
@@ -341,7 +348,11 @@ where
 
     barrier_pending_others.wait().await;
 
-    let n_blocked = loader.unblock();
+    loader.panic_next(1);
+    loader.mock_next(1, "res_1".to_owned());
+    loader.mock_next(2, "res_2".to_owned());
+
+    let n_blocked = loader.unblock_global();
     assert_eq!(n_blocked, 2);
 
     // panic of initial request
@@ -352,17 +363,17 @@ where
     handle_peek_while_loading_panic.await.unwrap_err();
 
     // unrelated request should succeed
-    assert_eq!(handle_get_other_key.await.unwrap(), String::from("2_false"));
+    assert_eq!(handle_get_other_key.await.unwrap(), String::from("res_2"));
 
     // failing key was tried exactly once (and the other unrelated key as well)
-    assert_eq!(loader.loaded(), vec![1, 2]);
+    assert_eq!(loader.loaded(), vec![(1, true), (2, false)]);
 
     // loading after panic just works (no poisoning)
     assert_eq!(
         cache.get(1, adapter.get_extra(false)).await,
-        String::from("1_false")
+        String::from("res_1")
     );
-    assert_eq!(loader.loaded(), vec![1, 2, 1]);
+    assert_eq!(loader.loaded(), vec![(1, true), (2, false), (1, false)]);
 }
 
 async fn test_drop_cancels_loader<T>(adapter: Arc<T>)
@@ -371,7 +382,7 @@ where
 {
     let (cache, loader) = setup(adapter.as_ref());
 
-    loader.block();
+    loader.block_global();
 
     let barrier_pending = Arc::new(Barrier::new(2));
     let barrier_pending_captured = Arc::clone(&barrier_pending);
@@ -395,7 +406,7 @@ where
 {
     let (cache, loader) = setup(adapter.as_ref());
 
-    loader.block();
+    loader.block_global();
 
     cache.set(1, String::from("foo")).await;
 
@@ -407,7 +418,7 @@ where
     .await
     .unwrap();
     assert_eq!(res, String::from("foo"));
-    assert_eq!(loader.loaded(), Vec::<u8>::new());
+    assert_eq!(loader.loaded(), Vec::<(u8, bool)>::new());
 }
 
 async fn test_set_during_request<T>(adapter: Arc<T>)
@@ -416,7 +427,7 @@ where
 {
     let (cache, loader) = setup(adapter.as_ref());
 
-    loader.block();
+    loader.block_global();
 
     let adapter_captured = Arc::clone(&adapter);
     let cache_captured = Arc::clone(&cache);
@@ -438,7 +449,7 @@ where
         .unwrap()
         .unwrap();
     assert_eq!(res, String::from("foo"));
-    assert_eq!(loader.loaded(), vec![1]);
+    assert_eq!(loader.loaded(), vec![(1, true)]);
 
     // still cached
     let res = tokio::time::timeout(
@@ -448,77 +459,7 @@ where
     .await
     .unwrap();
     assert_eq!(res, String::from("foo"));
-    assert_eq!(loader.loaded(), vec![1]);
-}
-
-/// Flexible loader function for testing.
-#[derive(Debug, Default)]
-pub struct TestLoader {
-    loaded: Mutex<Vec<u8>>,
-    blocked: Mutex<Option<Arc<Notify>>>,
-    panic: Mutex<HashSet<u8>>,
-}
-
-impl TestLoader {
-    /// Panic when loading value for `k`.
-    ///
-    /// If this is used together with [`block`](Self::block), the panic will occur AFTER
-    /// blocking.
-    pub fn panic_once(&self, k: u8) {
-        self.panic.lock().insert(k);
-    }
-
-    /// Block all [`load`](Self::load) requests until [`unblock`](Self::unblock) is called.
-    ///
-    /// If this is used together with [`panic_once`](Self::panic_once), the panic will occur
-    /// AFTER blocking.
-    pub fn block(&self) {
-        let mut blocked = self.blocked.lock();
-        assert!(blocked.is_none());
-        *blocked = Some(Arc::new(Notify::new()));
-    }
-
-    /// Unblock all requests.
-    ///
-    /// Returns number of requests that were blocked.
-    pub fn unblock(&self) -> usize {
-        let handle = self.blocked.lock().take().unwrap();
-        let blocked_count = Arc::strong_count(&handle) - 1;
-        handle.notify_waiters();
-        blocked_count
-    }
-
-    /// List all keys that were loaded.
-    ///
-    /// Contains duplicates if keys were loaded multiple times.
-    pub fn loaded(&self) -> Vec<u8> {
-        self.loaded.lock().clone()
-    }
-}
-
-#[async_trait]
-impl Loader for TestLoader {
-    type K = u8;
-    type V = String;
-    type Extra = bool;
-
-    async fn load(&self, k: u8, extra: bool) -> String {
-        self.loaded.lock().push(k);
-
-        // need to capture the cloned notify handle, otherwise the lock guard leaks into the
-        // generator
-        let maybe_block = self.blocked.lock().clone();
-        if let Some(block) = maybe_block {
-            block.notified().await;
-        }
-
-        // maybe panic
-        if self.panic.lock().remove(&k) {
-            panic!("test");
-        }
-
-        format!("{k}_{extra}")
-    }
+    assert_eq!(loader.loaded(), vec![(1, true)]);
 }
 
 #[async_trait]

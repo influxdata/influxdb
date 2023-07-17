@@ -1,7 +1,7 @@
 //! QueryableParquetChunk for building query plan
 use std::{any::Any, sync::Arc};
 
-use data_types::{ChunkId, ChunkOrder, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId, TransitionPartitionId};
 use datafusion::physical_plan::Statistics;
 use iox_query::{util::create_basic_summary, QueryChunk, QueryChunkData};
 use observability_deps::tracing::debug;
@@ -17,6 +17,7 @@ pub struct QueryableParquetChunk {
     // Data of the parquet file
     data: Arc<ParquetChunk>,
     partition_id: PartitionId,
+    transition_partition_id: TransitionPartitionId,
     sort_key: Option<SortKey>,
     order: ChunkOrder,
     stats: Arc<Statistics>,
@@ -26,6 +27,7 @@ impl QueryableParquetChunk {
     /// Initialize a QueryableParquetChunk
     pub fn new(
         partition_id: PartitionId,
+        transition_partition_id: TransitionPartitionId,
         data: Arc<ParquetChunk>,
         sort_key: Option<SortKey>,
         order: ChunkOrder,
@@ -38,6 +40,7 @@ impl QueryableParquetChunk {
         Self {
             data,
             partition_id,
+            transition_partition_id,
             sort_key,
             order,
             stats,
@@ -70,6 +73,10 @@ impl QueryChunk for QueryableParquetChunk {
 
     fn partition_id(&self) -> PartitionId {
         self.partition_id
+    }
+
+    fn transition_partition_id(&self) -> &TransitionPartitionId {
+        &self.transition_partition_id
     }
 
     fn sort_key(&self) -> Option<&SortKey> {
@@ -170,5 +177,11 @@ fn to_queryable_parquet_chunk(
     );
 
     let parquet_chunk = ParquetChunk::new(Arc::new(file.file.clone()), schema, store);
-    QueryableParquetChunk::new(partition_id, Arc::new(parquet_chunk), sort_key, file.order)
+    QueryableParquetChunk::new(
+        partition_id,
+        partition_info.transition_partition_id(),
+        Arc::new(parquet_chunk),
+        sort_key,
+        file.order,
+    )
 }

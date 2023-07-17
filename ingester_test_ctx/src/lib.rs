@@ -49,6 +49,7 @@ use test_helpers::timeout::FutureTimeout;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tonic::Request;
+use trace::ctx::SpanContext;
 
 /// The default max persist queue depth - configurable with
 /// [`TestContextBuilder::with_max_persist_queue_depth()`].
@@ -56,7 +57,11 @@ pub const DEFAULT_MAX_PERSIST_QUEUE_DEPTH: usize = 5;
 /// The default partition hot persist cost - configurable with
 /// [`TestContextBuilder::with_persist_hot_partition_cost()`].
 pub const DEFAULT_PERSIST_HOT_PARTITION_COST: usize = 20_000_000;
-
+/// The default write-ahead log rotation period - configurable with
+/// [`TestContextBuilder::with_wal_rotation_period()`].
+/// This value is high to effectively stop the test ingester from
+/// performing WAL rotations and the associated time-based persistence.
+pub const DEFAULT_WAL_ROTATION_PERIOD: Duration = Duration::from_secs(1_000_000);
 /// Construct a new [`TestContextBuilder`] to make a [`TestContext`] for an [`ingester`] instance.
 pub fn test_context() -> TestContextBuilder {
     TestContextBuilder::default()
@@ -70,6 +75,7 @@ pub struct TestContextBuilder {
 
     max_persist_queue_depth: usize,
     persist_hot_partition_cost: usize,
+    wal_rotation_period: Duration,
 }
 
 impl Default for TestContextBuilder {
@@ -79,6 +85,7 @@ impl Default for TestContextBuilder {
             catalog: None,
             max_persist_queue_depth: DEFAULT_MAX_PERSIST_QUEUE_DEPTH,
             persist_hot_partition_cost: DEFAULT_PERSIST_HOT_PARTITION_COST,
+            wal_rotation_period: DEFAULT_WAL_ROTATION_PERIOD,
         }
     }
 }
@@ -113,6 +120,14 @@ impl TestContextBuilder {
         self
     }
 
+    /// Configure the ingester to rotate the write-ahead log at the regular
+    /// interval specified by [`Duration`]. Defaults to
+    /// [`DEFAULT_WAL_ROTATION_PERIOD`].
+    pub fn with_wal_rotation_period(mut self, period: Duration) -> Self {
+        self.wal_rotation_period = period;
+        self
+    }
+
     /// Initialise the [`ingester`] instance and return a [`TestContext`] for it.
     pub async fn build(self) -> TestContext<impl IngesterRpcInterface> {
         let Self {
@@ -120,6 +135,7 @@ impl TestContextBuilder {
             catalog,
             max_persist_queue_depth,
             persist_hot_partition_cost,
+            wal_rotation_period,
         } = self;
 
         test_helpers::maybe_start_logging();
@@ -134,9 +150,6 @@ impl TestContextBuilder {
             Arc::new(object_store::memory::InMemory::default());
         let storage =
             ParquetStorage::new(object_store, parquet_file::storage::StorageId::from("iox"));
-
-        // Settings so that the ingester will effectively never persist by itself, only on demand
-        let wal_rotation_period = Duration::from_secs(1_000_000);
 
         let persist_background_fetch_time = Duration::from_secs(10);
         let persist_executor = Arc::new(iox_query::exec::Executor::new_testing());
@@ -243,6 +256,7 @@ where
         lp: &str,
         partition_key: PartitionKey,
         sequence_number: u64,
+        span_ctx: Option<SpanContext>,
     ) {
         // Resolve the namespace ID needed to construct the DML op
         let namespace_id = self.namespace_id(namespace).await;
@@ -313,12 +327,18 @@ where
             ),
         );
 
+        let mut req = tonic::Request::new(WriteRequest {
+            payload: Some(encode_write(namespace_id.get(), &op)),
+        });
+
+        // Mock out the trace extraction middleware by inserting the given
+        // span context straight into the requests extensions
+        span_ctx.map(|span_ctx| req.extensions_mut().insert(span_ctx));
+
         self.ingester
             .rpc()
             .write_service()
-            .write(tonic::Request::new(WriteRequest {
-                payload: Some(encode_write(namespace_id.get(), &op)),
-            }))
+            .write(req)
             .await
             .unwrap();
 

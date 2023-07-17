@@ -190,7 +190,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = PredicatePushdown::default();
+        let opt = PredicatePushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -215,7 +215,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = PredicatePushdown::default();
+        let opt = PredicatePushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -245,7 +245,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = PredicatePushdown::default();
+        let opt = PredicatePushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -280,7 +280,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = PredicatePushdown::default();
+        let opt = PredicatePushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -328,7 +328,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = PredicatePushdown::default();
+        let opt = PredicatePushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -358,7 +358,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = PredicatePushdown::default();
+        let opt = PredicatePushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -390,7 +390,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = PredicatePushdown::default();
+        let opt = PredicatePushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -429,7 +429,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = PredicatePushdown::default();
+        let opt = PredicatePushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"

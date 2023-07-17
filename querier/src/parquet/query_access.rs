@@ -1,5 +1,5 @@
 use crate::parquet::QuerierParquetChunk;
-use data_types::{ChunkId, ChunkOrder, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId, TransitionPartitionId};
 use datafusion::physical_plan::Statistics;
 use iox_query::{QueryChunk, QueryChunkData};
 use schema::{sort::SortKey, Schema};
@@ -16,6 +16,10 @@ impl QueryChunk for QuerierParquetChunk {
 
     fn partition_id(&self) -> PartitionId {
         self.meta().partition_id()
+    }
+
+    fn transition_partition_id(&self) -> &TransitionPartitionId {
+        self.meta().transition_partition_id()
     }
 
     fn sort_key(&self) -> Option<&SortKey> {

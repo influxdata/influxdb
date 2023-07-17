@@ -636,6 +636,10 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&catalog),
         Arc::clone(&object_store),
         &router_config,
+        router_run_config
+            .tracing_config()
+            .traces_jaeger_trace_context_header_name
+            .clone(),
     )
     .await?;
 

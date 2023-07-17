@@ -1,8 +1,9 @@
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use data_types::{
-    partition_template::TablePartitionTemplateOverride, NamespaceId, PartitionId, PartitionKey,
-    SequenceNumber, TableId,
+    partition_template::TablePartitionTemplateOverride, ColumnId, ColumnSet, NamespaceId,
+    ParquetFileParams, PartitionHashId, PartitionId, PartitionKey, SequenceNumber, TableId,
+    Timestamp, TransitionPartitionId,
 };
 use hashbrown::HashSet;
 use iox_catalog::{interface::Catalog, test_helpers::arbitrary_namespace};
@@ -25,6 +26,7 @@ use crate::{
     },
     deferred_load::DeferredLoad,
     dml_payload::write::{PartitionedData, TableData, WriteOperation},
+    persist::completion_observer::CompletedPersist,
 };
 
 pub(crate) const ARBITRARY_PARTITION_ID: PartitionId = PartitionId::new(1);
@@ -74,12 +76,19 @@ lazy_static! {
             ARBITRARY_TABLE_NAME.clone(),
             TablePartitionTemplateOverride::default()
         )));
+    pub(crate) static ref ARBITRARY_PARTITION_HASH_ID: PartitionHashId =
+        PartitionHashId::new(ARBITRARY_TABLE_ID, &ARBITRARY_PARTITION_KEY);
+    pub(crate) static ref ARBITRARY_TRANSITION_PARTITION_ID: TransitionPartitionId =
+        TransitionPartitionId::Deterministic(ARBITRARY_PARTITION_HASH_ID.clone());
 }
 
 /// Build a [`PartitionData`] with mostly arbitrary-yet-valid values for tests.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PartitionDataBuilder {
     partition_id: Option<PartitionId>,
+    // Whether to send `None` to simulate an older partition without a hash id in the database.
+    // Defaults to `false`, which creates `PartitionData` with a hash ID from the table ID and partition key.
+    remove_partition_hash_id: bool,
     partition_key: Option<PartitionKey>,
     namespace_id: Option<NamespaceId>,
     table_id: Option<TableId>,
@@ -95,6 +104,11 @@ impl PartitionDataBuilder {
 
     pub(crate) fn with_partition_id(mut self, partition_id: PartitionId) -> Self {
         self.partition_id = Some(partition_id);
+        self
+    }
+
+    pub(crate) fn without_partition_hash_id(mut self) -> Self {
+        self.remove_partition_hash_id = true;
         self
     }
 
@@ -137,15 +151,23 @@ impl PartitionDataBuilder {
     /// Generate a valid [`PartitionData`] for use in tests where the exact values (or at least
     /// some of them) don't particularly matter.
     pub(crate) fn build(self) -> PartitionData {
+        let table_id = self.table_id.unwrap_or(ARBITRARY_TABLE_ID);
+        let partition_key = self
+            .partition_key
+            .unwrap_or_else(|| ARBITRARY_PARTITION_KEY.clone());
+
         PartitionData::new(
             self.partition_id.unwrap_or(ARBITRARY_PARTITION_ID),
-            None,
-            self.partition_key
-                .unwrap_or_else(|| ARBITRARY_PARTITION_KEY.clone()),
+            if self.remove_partition_hash_id {
+                None
+            } else {
+                Some(PartitionHashId::new(table_id, &partition_key))
+            },
+            partition_key,
             self.namespace_id.unwrap_or(ARBITRARY_NAMESPACE_ID),
             self.namespace_loader
                 .unwrap_or_else(defer_namespace_name_1_sec),
-            self.table_id.unwrap_or(ARBITRARY_TABLE_ID),
+            table_id,
             self.table_loader.unwrap_or_else(defer_table_metadata_1_sec),
             self.sort_key.unwrap_or(SortKeyState::Provided(None)),
         )
@@ -230,7 +252,10 @@ macro_rules! make_partition_stream {
             )+
         ) => {{
             use arrow::datatypes::Schema;
-            use $crate::query::{response::PartitionStream, partition_response::PartitionResponse};
+            use $crate::{
+                query::{response::PartitionStream, partition_response::PartitionResponse},
+                test_util::ARBITRARY_PARTITION_KEY,
+            };
             use futures::stream;
 
             PartitionStream::new(stream::iter([
@@ -357,6 +382,35 @@ pub(crate) fn make_multi_table_write_op<
         .collect();
 
     WriteOperation::new(namespace_id, tables_by_id, partition_key.clone(), None)
+}
+
+/// Return a persist completion notification for the given
+/// sequence numbers.
+pub(crate) fn new_persist_notification<T>(sequence_numbers: T) -> Arc<CompletedPersist>
+where
+    T: IntoIterator<Item = u64>,
+{
+    Arc::new(CompletedPersist::new(
+        ParquetFileParams {
+            namespace_id: NamespaceId::new(1),
+            table_id: TableId::new(2),
+            partition_id: PartitionId::new(3),
+            partition_hash_id: None,
+            object_store_id: Default::default(),
+            min_time: Timestamp::new(42),
+            max_time: Timestamp::new(42),
+            file_size_bytes: 42424242,
+            row_count: 24,
+            compaction_level: data_types::CompactionLevel::Initial,
+            created_at: Timestamp::new(1234),
+            column_set: ColumnSet::new([1, 2, 3, 4].into_iter().map(ColumnId::new)),
+            max_l0_created_at: Timestamp::new(42),
+        },
+        sequence_numbers
+            .into_iter()
+            .map(SequenceNumber::new)
+            .collect(),
+    ))
 }
 
 pub(crate) async fn populate_catalog(

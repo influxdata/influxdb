@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use data_types::{ChunkId, ChunkOrder, ColumnId, ParquetFile, PartitionId};
+use data_types::{ChunkId, ChunkOrder, ColumnId, ParquetFile, PartitionId, TransitionPartitionId};
 use futures::StreamExt;
 use hashbrown::HashSet;
 use iox_catalog::interface::Catalog;
@@ -170,11 +170,18 @@ impl ChunkAdapter {
 
         let order = ChunkOrder::new(parquet_file.file.max_l0_created_at.get());
 
+        let partition_id = parquet_file.file.partition_id;
+        let transition_partition_id = TransitionPartitionId::from((
+            partition_id,
+            parquet_file.file.partition_hash_id.as_ref(),
+        ));
+
         let meta = Arc::new(QuerierParquetChunkMeta {
             chunk_id,
             order,
             sort_key: Some(sort_key),
-            partition_id: parquet_file.file.partition_id,
+            partition_id,
+            transition_partition_id,
         });
 
         let parquet_chunk = Arc::new(ParquetChunk::new(

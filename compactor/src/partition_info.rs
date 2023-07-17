@@ -45,9 +45,6 @@ impl PartitionInfo {
     /// If this partition has a `PartitionHashId` stored in the catalog, use that. Otherwise, use
     /// the database-assigned `PartitionId`.
     pub fn transition_partition_id(&self) -> TransitionPartitionId {
-        self.partition_hash_id
-            .clone()
-            .map(TransitionPartitionId::Deterministic)
-            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.partition_id))
+        TransitionPartitionId::from((self.partition_id, self.partition_hash_id.as_ref()))
     }
 }

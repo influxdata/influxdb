@@ -301,10 +301,7 @@ impl Context {
     }
 
     pub(super) fn transition_partition_id(&self) -> TransitionPartitionId {
-        self.partition_hash_id
-            .clone()
-            .map(TransitionPartitionId::Deterministic)
-            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.partition_id))
+        TransitionPartitionId::from((self.partition_id, self.partition_hash_id.as_ref()))
     }
 
     pub(super) fn partition_key(&self) -> &PartitionKey {

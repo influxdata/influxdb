@@ -112,7 +112,7 @@ mod tests {
     fn test_no_chunks() {
         let schema = chunk(1).schema().clone();
         let plan = dedup_plan(schema, vec![]);
-        let opt = TimeSplit::default();
+        let opt = TimeSplit;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -137,7 +137,7 @@ mod tests {
             .with_timestamp_min_max(8, 9);
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3]);
-        let opt = TimeSplit::default();
+        let opt = TimeSplit;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -176,7 +176,7 @@ mod tests {
             .with_timestamp_min_max(0, 0);
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3, chunk4, chunk5, chunk6]);
-        let opt = TimeSplit::default();
+        let opt = TimeSplit;
         let mut config = ConfigOptions::default();
         config.execution.target_partitions = 2;
         insta::assert_yaml_snapshot!(
@@ -210,7 +210,7 @@ mod tests {
         let chunk3 = chunk(3).with_timestamp_min_max(3, 3);
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3]);
-        let opt = TimeSplit::default();
+        let opt = TimeSplit;
         let mut config = ConfigOptions::default();
         config.extensions.insert(IoxConfigExt {
             max_dedup_time_split: 2,

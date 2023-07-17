@@ -5,17 +5,11 @@ pub mod client;
 pub mod lazy_connector;
 mod upstream_snapshot;
 
-use crate::dml_handlers::rpc_write::client::WriteClient;
+use std::fmt::Debug;
+use std::num::NonZeroUsize;
+use std::sync::Arc;
+use std::time::Duration;
 
-use self::{
-    balancer::Balancer,
-    circuit_breaker::CircuitBreaker,
-    circuit_breaking_client::{CircuitBreakerState, CircuitBreakingClient},
-    client::RpcWriteClientError,
-    upstream_snapshot::UpstreamSnapshot,
-};
-
-use super::{DmlHandler, Partitioned};
 use async_trait::async_trait;
 use data_types::{NamespaceName, NamespaceSchema, TableId};
 use dml::{DmlMeta, DmlWrite};
@@ -25,9 +19,18 @@ use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
 use mutable_batch_pb::encode::encode_write;
 use observability_deps::tracing::*;
-use std::{fmt::Debug, num::NonZeroUsize, sync::Arc, time::Duration};
 use thiserror::Error;
 use trace::ctx::SpanContext;
+
+use self::{
+    balancer::Balancer,
+    circuit_breaker::CircuitBreaker,
+    circuit_breaking_client::{CircuitBreakerState, CircuitBreakingClient},
+    client::RpcWriteClientError,
+    upstream_snapshot::UpstreamSnapshot,
+};
+use super::{DmlHandler, Partitioned};
+use crate::dml_handlers::rpc_write::client::WriteClient;
 
 /// The bound on RPC request duration.
 ///
@@ -193,7 +196,9 @@ where
             namespace_id,
             writes,
             partition_key.clone(),
-            DmlMeta::unsequenced(span_ctx.clone()),
+            // The downstream ingester does not receive the [`DmlMeta`] type,
+            // so the span context must be passed in the request.
+            DmlMeta::unsequenced(None),
         );
 
         // Serialise this write into the wire format.
@@ -223,7 +228,8 @@ where
                 // invariant.
                 let mut snap = snap.clone();
                 let req = req.clone();
-                async move { write_loop(&mut snap, &req).await }
+                let span_ctx = span_ctx.clone();
+                async move { write_loop(&mut snap, &req, span_ctx).await }
             })
             .collect::<FuturesUnordered<_>>()
             .enumerate();
@@ -286,6 +292,7 @@ where
 async fn write_loop<T>(
     endpoints: &mut UpstreamSnapshot<T>,
     req: &WriteRequest,
+    span_ctx: Option<SpanContext>,
 ) -> Result<(), RpcWriteError>
 where
     T: WriteClient,
@@ -308,7 +315,7 @@ where
                 .next()
                 .expect("not enough replicas in snapshot to satisfy replication factor");
 
-            match client.write(req.clone()).await {
+            match client.write(req.clone(), span_ctx.clone()).await {
                 Ok(()) => {
                     endpoints.remove(client);
                     return Ok(());

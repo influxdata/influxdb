@@ -192,6 +192,20 @@ impl<'a> DataSourceSchema<'a> {
             DataSourceSchema::Subquery(q) => q.tag_set.contains(name),
         }
     }
+
+    /// Returns `true` if the specified name is a tag from the perspective of an outer
+    /// query consuming the results of this subquery or table. If a subquery has aliases
+    /// on its SELECT list, then those aliases are considered to be the names of the
+    /// columns in the outer query.
+    pub(super) fn is_projected_tag_field(&self, name: &str) -> bool {
+        match self {
+            DataSourceSchema::Table(_) => self.is_tag_field(name),
+            DataSourceSchema::Subquery(q) => q
+                .fields
+                .iter()
+                .any(|f| f.name == name && f.data_type == Some(InfluxColumnType::Tag)),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

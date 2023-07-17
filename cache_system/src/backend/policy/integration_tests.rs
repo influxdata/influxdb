@@ -12,15 +12,13 @@ use crate::{
         policy::refresh::test_util::{backoff_cfg, NotifyExt},
         CacheBackend,
     },
+    loader::test_util::TestLoader,
     resource_consumption::{test_util::TestSize, ResourceEstimator},
 };
 
 use super::{
     lru::{LruPolicy, ResourcePool},
-    refresh::{
-        test_util::{TestLoader, TestRefreshDurationProvider},
-        RefreshPolicy,
-    },
+    refresh::{test_util::TestRefreshDurationProvider, RefreshPolicy},
     remove_if::{RemoveIfHandle, RemoveIfPolicy},
     ttl::{test_util::TestTtlProvider, TtlPolicy},
     PolicyBackend,
@@ -317,7 +315,7 @@ struct TestStateTtlAndRefresh {
     ttl_provider: Arc<TestTtlProvider>,
     refresh_duration_provider: Arc<TestRefreshDurationProvider>,
     time_provider: Arc<MockProvider>,
-    loader: Arc<TestLoader>,
+    loader: Arc<TestLoader<u8, String, ()>>,
     notify_idle: Arc<Notify>,
 }
 
@@ -367,7 +365,7 @@ struct TestStateLRUAndRefresh {
     size_estimator: Arc<TestSizeEstimator>,
     refresh_duration_provider: Arc<TestRefreshDurationProvider>,
     time_provider: Arc<MockProvider>,
-    loader: Arc<TestLoader>,
+    loader: Arc<TestLoader<u8, String, ()>>,
     pool: Arc<ResourcePool<TestSize>>,
     notify_idle: Arc<Notify>,
 }
@@ -507,7 +505,7 @@ struct TestStateLruAndRefresh {
     size_estimator: Arc<TestSizeEstimator>,
     refresh_duration_provider: Arc<TestRefreshDurationProvider>,
     time_provider: Arc<MockProvider>,
-    loader: Arc<TestLoader>,
+    loader: Arc<TestLoader<u8, String, ()>>,
     notify_idle: Arc<Notify>,
 }
 

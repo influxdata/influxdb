@@ -85,7 +85,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_v1_always_errors() {
-        let unifier = MultiTenantRequestUnifier::default();
+        let unifier = MultiTenantRequestUnifier;
 
         let got = unifier.parse_v1(&Request::default()).await;
         assert_matches!(got, Err(Error::NoHandler));
@@ -100,7 +100,7 @@ mod tests {
             paste::paste! {
                 #[tokio::test]
                 async fn [<test_parse_v2_ $name>]() {
-                    let unifier = MultiTenantRequestUnifier::default();
+                    let unifier = MultiTenantRequestUnifier;
 
                     let query = $query_string;
                     let request = Request::builder()

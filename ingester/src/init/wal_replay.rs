@@ -285,7 +285,7 @@ mod tests {
             ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
             ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
         },
-        wal::wal_sink::WalSink,
+        wal::wal_sink::{mock::MockUnbufferedWriteNotifier, WalSink},
     };
 
     use super::*;
@@ -377,8 +377,13 @@ mod tests {
             let wal = Wal::new(dir.path())
                 .await
                 .expect("failed to initialise WAL");
+            let notifier_handle = Arc::new(MockUnbufferedWriteNotifier::default());
 
-            let wal_sink = WalSink::new(Arc::clone(&inner), Arc::clone(&wal));
+            let wal_sink = WalSink::new(
+                Arc::clone(&inner),
+                Arc::clone(&wal),
+                Arc::clone(&notifier_handle),
+            );
 
             // Apply the first op through the decorator
             wal_sink

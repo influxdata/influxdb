@@ -1,6 +1,6 @@
 use std::{fmt::Debug, sync::Arc};
 
-use data_types::{sequence_number_set::SequenceNumberSet, SequenceNumber};
+use data_types::sequence_number_set::SequenceNumberSet;
 use futures::Future;
 use observability_deps::tracing::warn;
 use tokio::sync::{
@@ -21,7 +21,7 @@ use super::WalReferenceActor;
 ///
 ///   * The [`SequenceNumberSet`] and ID of rotated out WAL segment files
 ///   * The [`SequenceNumberSet`] of each completed persistence task
-///   * All [`SequenceNumber`] of writes that failed to buffer
+///   * All [`data_types::SequenceNumber`] of writes that failed to buffer
 ///
 /// ```text
 ///             ┌  Write Processing ─ ─ ─ ─ ─ ─ ─ ─ ─
@@ -72,7 +72,7 @@ use super::WalReferenceActor;
 #[derive(Debug, Clone)]
 pub(crate) struct WalReferenceHandle {
     /// A stream of newly rotated segment files and the set of
-    /// [`SequenceNumber`] within them.
+    /// [`data_types::SequenceNumber`] within them.
     ///
     /// The provided channel should be sent on once the file has been processed.
     file_tx: mpsc::Sender<(SegmentId, SequenceNumberSet, oneshot::Sender<()>)>,
@@ -82,11 +82,11 @@ pub(crate) struct WalReferenceHandle {
     /// longer requires WAL entries for.
     persist_tx: mpsc::Sender<Arc<CompletedPersist>>,
 
-    /// A stream of [`SequenceNumber`] identifying operations that have been (or
+    /// A stream of [`SequenceNumberSet`] identifying operations that have been (or
     /// will be) added to the WAL, but failed to buffer/complete. These should
     /// be treated as if they were "persisted", as they will never be persisted,
     /// and are not expected to remain durable (user did not get an ACK).
-    unbuffered_tx: mpsc::Sender<SequenceNumber>,
+    unbuffered_tx: mpsc::Sender<SequenceNumberSet>,
 
     /// A semaphore to wake tasks waiting for the number inactive WAL segement
     /// files reaches 0.
@@ -156,14 +156,14 @@ impl WalReferenceHandle {
     /// important to track these unusual cases to ensure the WAL file is not
     /// kept forever due to an outstanding reference, waiting for the unbuffered
     /// write to be persisted (which it never will).
-    pub(crate) async fn enqueue_unbuffered_write(&self, id: SequenceNumber) {
-        Self::send(&self.unbuffered_tx, id).await
+    pub(crate) async fn enqueue_unbuffered_write(&self, set: SequenceNumberSet) {
+        Self::send(&self.unbuffered_tx, set).await
     }
 
     /// A future that resolves when there are no partially persisted / inactive
     /// WAL segment files known to the reference tracker.
     ///
-    /// NOTE: the active WAL segement file may contain unpersisted operations!
+    /// NOTE: the active WAL segment file may contain unpersisted operations!
     /// The tracker is only aware of inactive/rotated-out WAL files.
     ///
     /// NOTE: the number of references may reach 0 multiple times over the
@@ -204,17 +204,18 @@ impl WalReferenceHandle {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test_util::{ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_TABLE_ID};
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use data_types::{ColumnId, ColumnSet, ParquetFileParams, Timestamp};
+    use data_types::SequenceNumber;
     use futures::{task::Context, Future, FutureExt};
     use metric::{assert_counter, U64Gauge};
     use parking_lot::Mutex;
     use std::{pin::Pin, task::Poll, time::Duration};
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::Notify;
+
+    use super::*;
+    use crate::test_util::new_persist_notification;
 
     /// A mock file deleter that records the IDs it was asked to delete.
     #[derive(Debug, Default)]
@@ -253,32 +254,6 @@ mod tests {
         vals.into_iter().map(SequenceNumber::new).collect()
     }
 
-    /// Return a persist completion notification with the given
-    /// [`SequenceNumberSet`] values.
-    fn new_note<T>(vals: T) -> Arc<CompletedPersist>
-    where
-        T: IntoIterator<Item = u64>,
-    {
-        Arc::new(CompletedPersist::new(
-            ParquetFileParams {
-                namespace_id: ARBITRARY_NAMESPACE_ID,
-                table_id: ARBITRARY_TABLE_ID,
-                partition_id: ARBITRARY_PARTITION_ID,
-                partition_hash_id: None,
-                object_store_id: Default::default(),
-                min_time: Timestamp::new(42),
-                max_time: Timestamp::new(42),
-                file_size_bytes: 42424242,
-                row_count: 24,
-                compaction_level: data_types::CompactionLevel::Initial,
-                created_at: Timestamp::new(1234),
-                column_set: ColumnSet::new([1, 2, 3, 4].into_iter().map(ColumnId::new)),
-                max_l0_created_at: Timestamp::new(42),
-            },
-            new_set(vals),
-        ))
-    }
-
     /// Test in-order notifications:
     ///
     ///   * WAL file is rotated and the tracker notified
@@ -298,29 +273,31 @@ mod tests {
 
         // Add a file with IDs 1 through 5
         handle
-            .enqueue_rotated_file(SEGMENT_ID, new_set([1, 2, 3, 4, 5]))
+            .enqueue_rotated_file(SEGMENT_ID, new_set([1, 2, 3, 4, 5, 6]))
             .with_timeout_panic(Duration::from_secs(5))
             .flatten()
             .await
             .expect("did not receive file processed notification");
 
         // Submit a persist notification that removes refs 1 & 2.
-        handle.enqueue_persist_notification(new_note([1, 2])).await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([1, 2]))
+            .await;
 
         // Ensure the file was not deleted
         assert!(wal.calls().is_empty());
 
         // Enqueue a unbuffered notification (out of order)
-        handle
-            .enqueue_unbuffered_write(SequenceNumber::new(5))
-            .await;
+        handle.enqueue_unbuffered_write(new_set([5, 6])).await;
 
         // Ensure the file was not deleted
         assert!(wal.calls().is_empty());
 
         // Finally release the last IDs
         let deleted_file_waker = wal.deleted_file_waker();
-        handle.enqueue_persist_notification(new_note([3, 4])).await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([3, 4]))
+            .await;
 
         // Wait for it to be processed
         deleted_file_waker.await;
@@ -374,9 +351,15 @@ mod tests {
 
         // Submit a persist notification for the entire set of IDs [1,2,3,4] in
         // the upcoming first WAL, and partially the second WAL
-        handle.enqueue_persist_notification(new_note([2])).await;
-        handle.enqueue_persist_notification(new_note([1])).await;
-        handle.enqueue_persist_notification(new_note([3, 4])).await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([2]))
+            .await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([1]))
+            .await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([3, 4]))
+            .await;
 
         // Add a file with IDs 1, 2, 3
         let deleted_file_waker = wal.deleted_file_waker();
@@ -406,7 +389,9 @@ mod tests {
         assert_eq!(wal.calls().len(), 1);
 
         // Release one of the remaining two refs
-        handle.enqueue_persist_notification(new_note([6])).await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([6]))
+            .await;
 
         // Still no deletion
         assert_eq!(wal.calls().len(), 1);
@@ -414,9 +399,7 @@ mod tests {
         // And finally release the last ref via an unbuffered notification
         let empty_waker = handle.empty_inactive_notifier();
         let deleted_file_waker = wal.deleted_file_waker();
-        handle
-            .enqueue_unbuffered_write(SequenceNumber::new(5))
-            .await;
+        handle.enqueue_unbuffered_write(new_set([5])).await;
         deleted_file_waker.await;
 
         // Validate the correct ID was deleted
@@ -523,7 +506,9 @@ mod tests {
             .expect("did not receive file processed notification");
 
         // Reduce the reference count for file 1 (leaving 3 references)
-        handle.enqueue_persist_notification(new_note([1, 2])).await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([1, 2]))
+            .await;
 
         // Enqueue the second file.
         handle
@@ -545,7 +530,9 @@ mod tests {
 
         // Release the references to file 2
         let deleted_file_waker = wal.deleted_file_waker();
-        handle.enqueue_persist_notification(new_note([6])).await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([6]))
+            .await;
 
         deleted_file_waker.await;
 
@@ -609,26 +596,28 @@ mod tests {
 
             // Add a file
             handle
-                .enqueue_rotated_file(SEGMENT_ID_1, new_set([1, 2, 3]))
+                .enqueue_rotated_file(SEGMENT_ID_1, new_set([1, 2, 3, 4]))
                 .with_timeout_panic(Duration::from_secs(5))
                 .flatten()
                 .await
                 .expect("did not receive file processed notification");
 
             // Remove some file references, leaving 1 reference
-            handle.enqueue_persist_notification(new_note([1, 2])).await;
+            handle
+                .enqueue_persist_notification(new_persist_notification([1, 2]))
+                .await;
 
             // The tracker is not empty, so the future must not resolve.
             assert_matches!(Pin::new(&mut empty_waker).poll(&mut cx), Poll::Pending);
 
             // Add a persist notification, populating the "persisted" set.
-            handle.enqueue_persist_notification(new_note([5])).await;
+            handle
+                .enqueue_persist_notification(new_persist_notification([5]))
+                .await;
 
             // Release the file reference, leaving only the above reference
             // remaining (id=5)
-            handle
-                .enqueue_unbuffered_write(SequenceNumber::new(3))
-                .await;
+            handle.enqueue_unbuffered_write(new_set([3, 4])).await;
 
             // The tracker is not empty, so the future must not resolve.
             assert_matches!(Pin::new(&mut empty_waker).poll(&mut cx), Poll::Pending);
@@ -645,9 +634,7 @@ mod tests {
             assert_matches!(Pin::new(&mut empty_waker).poll(&mut cx), Poll::Pending);
 
             // Finally release the last reference (id=6)
-            handle
-                .enqueue_unbuffered_write(SequenceNumber::new(6))
-                .await;
+            handle.enqueue_unbuffered_write(new_set([6])).await;
 
             // The future MUST now resolve.
             empty_waker.with_timeout_panic(Duration::from_secs(5)).await;

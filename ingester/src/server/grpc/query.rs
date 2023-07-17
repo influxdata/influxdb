@@ -402,13 +402,101 @@ mod tests {
             mock_query_exec::MockQueryExec, partition_response::PartitionResponse,
             response::PartitionStream,
         },
-        test_util::ARBITRARY_PARTITION_KEY,
+        test_util::ARBITRARY_PARTITION_HASH_ID,
     };
     use arrow::array::{Float64Array, Int32Array};
     use arrow_flight::decode::{DecodedPayload, FlightRecordBatchStream};
     use assert_matches::assert_matches;
     use bytes::Bytes;
     use tonic::Code;
+
+    #[tokio::test]
+    async fn sends_partition_hash_id_if_present() {
+        let ingester_id = IngesterId::new();
+        // let partition_hash_id = PartitionHashId::new(TableId::new(3), &ARBITRARY_PARTITION_KEY);
+
+        let flight = FlightService::new(
+            MockQueryExec::default().with_result(Ok(QueryResponse::new(PartitionStream::new(
+                futures::stream::iter([PartitionResponse::new(
+                    vec![],
+                    PartitionId::new(2),
+                    Some(ARBITRARY_PARTITION_HASH_ID.clone()),
+                    42,
+                )]),
+            )))),
+            ingester_id,
+            100,
+            &metric::Registry::default(),
+        );
+
+        let req = tonic::Request::new(Ticket {
+            ticket: Bytes::new(),
+        });
+        let response_stream = flight
+            .do_get(req)
+            .await
+            .unwrap()
+            .into_inner()
+            .map_err(FlightError::Tonic);
+        let flight_decoder =
+            FlightRecordBatchStream::new_from_flight_data(response_stream).into_inner();
+        let flight_data = flight_decoder.try_collect::<Vec<_>>().await.unwrap();
+
+        // partition info
+        assert_matches!(flight_data[0].payload, DecodedPayload::None);
+        let md_actual =
+            proto::IngesterQueryResponseMetadata::decode(flight_data[0].app_metadata()).unwrap();
+        let md_expected = proto::IngesterQueryResponseMetadata {
+            partition_id: 2,
+            partition_hash_id: Some(ARBITRARY_PARTITION_HASH_ID.as_bytes().to_vec()),
+            ingester_uuid: ingester_id.to_string(),
+            completed_persistence_count: 42,
+        };
+        assert_eq!(md_actual, md_expected);
+    }
+
+    #[tokio::test]
+    async fn doesnt_send_partition_hash_id_if_not_present() {
+        let ingester_id = IngesterId::new();
+        let flight = FlightService::new(
+            MockQueryExec::default().with_result(Ok(QueryResponse::new(PartitionStream::new(
+                futures::stream::iter([PartitionResponse::new(
+                    vec![],
+                    PartitionId::new(2),
+                    None,
+                    42,
+                )]),
+            )))),
+            ingester_id,
+            100,
+            &metric::Registry::default(),
+        );
+
+        let req = tonic::Request::new(Ticket {
+            ticket: Bytes::new(),
+        });
+        let response_stream = flight
+            .do_get(req)
+            .await
+            .unwrap()
+            .into_inner()
+            .map_err(FlightError::Tonic);
+        let flight_decoder =
+            FlightRecordBatchStream::new_from_flight_data(response_stream).into_inner();
+        let flight_data = flight_decoder.try_collect::<Vec<_>>().await.unwrap();
+
+        // partition info
+        assert_matches!(flight_data[0].payload, DecodedPayload::None);
+        let md_actual =
+            proto::IngesterQueryResponseMetadata::decode(flight_data[0].app_metadata()).unwrap();
+        let md_expected = proto::IngesterQueryResponseMetadata {
+            partition_id: 2,
+            partition_hash_id: None,
+            ingester_uuid: ingester_id.to_string(),
+            completed_persistence_count: 42,
+        };
+        assert_eq!(md_actual, md_expected);
+    }
 
     #[tokio::test]
     async fn limits_concurrent_queries() {
@@ -446,10 +534,7 @@ mod tests {
     #[tokio::test]
     async fn test_chunks_with_different_schemas() {
         let ingester_id = IngesterId::new();
-        let partition_hash_id = Some(PartitionHashId::new(
-            TableId::new(3),
-            &ARBITRARY_PARTITION_KEY,
-        ));
+        let partition_hash_id = Some(ARBITRARY_PARTITION_HASH_ID.clone());
         let (batch1, schema1) = make_batch!(
             Float64Array("float" => vec![1.1, 2.2, 3.3]),
             Int32Array("int" => vec![1, 2, 3]),

@@ -46,14 +46,24 @@ where
 #[cfg(feature = "benches")]
 pub use mock::*;
 
+/// This needs to be pub for the benchmarks but should not be used outside the crate.
+#[cfg(feature = "benches")]
+pub use crate::persist::completion_observer::*;
+
 #[cfg(any(test, feature = "benches"))]
 pub(crate) mod mock {
     use std::{sync::Arc, time::Duration};
 
+    use data_types::{
+        ColumnId, ColumnSet, NamespaceId, ParquetFileParams, PartitionId, TableId, Timestamp,
+    };
     use test_helpers::timeout::FutureTimeout;
     use tokio::task::JoinHandle;
 
     use super::*;
+    use crate::persist::completion_observer::{
+        CompletedPersist, NopObserver, PersistCompletionObserver,
+    };
 
     #[derive(Debug, Default)]
     struct State {
@@ -73,12 +83,34 @@ pub(crate) mod mock {
     }
 
     /// A mock [`PersistQueue`] implementation.
-    #[derive(Debug, Default)]
-    pub struct MockPersistQueue {
+    #[derive(Debug)]
+    pub struct MockPersistQueue<O> {
         state: Mutex<State>,
+        completion_observer: O,
     }
 
-    impl MockPersistQueue {
+    impl Default for MockPersistQueue<NopObserver> {
+        fn default() -> Self {
+            Self {
+                state: Default::default(),
+                completion_observer: Default::default(),
+            }
+        }
+    }
+
+    impl<O> MockPersistQueue<O>
+    where
+        O: PersistCompletionObserver + 'static,
+    {
+        /// Creates a queue that notifies the [`PersistCompletionObserver`]
+        /// on persist enqueue completion.
+        pub fn new_with_observer(completion_observer: O) -> Self {
+            Self {
+                state: Default::default(),
+                completion_observer,
+            }
+        }
+
         /// Return all observed [`PartitionData`].
         pub fn calls(&self) -> Vec<Arc<Mutex<PartitionData>>> {
             self.state.lock().calls.clone()
@@ -97,7 +129,10 @@ pub(crate) mod mock {
     }
 
     #[async_trait]
-    impl PersistQueue for MockPersistQueue {
+    impl<O> PersistQueue for MockPersistQueue<O>
+    where
+        O: PersistCompletionObserver + Clone + 'static,
+    {
         #[allow(clippy::async_yields_async)]
         async fn enqueue(
             &self,
@@ -109,6 +144,7 @@ pub(crate) mod mock {
             let mut guard = self.state.lock();
             guard.calls.push(Arc::clone(&partition));
 
+            let completion_observer = self.completion_observer.clone();
             // Spawn a persist task that randomly completes (soon) in the
             // future.
             //
@@ -118,7 +154,27 @@ pub(crate) mod mock {
             guard.handles.push(tokio::spawn(async move {
                 let wait_ms: u64 = rand::random::<u64>() % 100;
                 tokio::time::sleep(Duration::from_millis(wait_ms)).await;
-                partition.lock().mark_persisted(data);
+                let sequence_numbers = partition.lock().mark_persisted(data);
+                completion_observer
+                    .persist_complete(Arc::new(CompletedPersist::new(
+                        ParquetFileParams {
+                            namespace_id: NamespaceId::new(1),
+                            table_id: TableId::new(2),
+                            partition_id: PartitionId::new(3),
+                            partition_hash_id: None,
+                            object_store_id: Default::default(),
+                            min_time: Timestamp::new(42),
+                            max_time: Timestamp::new(42),
+                            file_size_bytes: 42424242,
+                            row_count: 24,
+                            compaction_level: data_types::CompactionLevel::Initial,
+                            created_at: Timestamp::new(1234),
+                            column_set: ColumnSet::new([1, 2, 3, 4].into_iter().map(ColumnId::new)),
+                            max_l0_created_at: Timestamp::new(42),
+                        },
+                        sequence_numbers,
+                    )))
+                    .await;
                 let _ = tx.send(());
             }));
 

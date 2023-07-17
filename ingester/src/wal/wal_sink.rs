@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use data_types::TableId;
+use data_types::{sequence_number_set::SequenceNumberSet, TableId};
 use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::watch::Receiver;
@@ -11,7 +11,10 @@ use crate::{
     dml_sink::{DmlError, DmlSink},
 };
 
-use super::traits::WalAppender;
+use super::{
+    reference_tracker::WalReferenceHandle,
+    traits::{UnbufferedWriteNotifier, WalAppender},
+};
 
 /// [`DELEGATE_APPLY_TIMEOUT`] defines how long the inner [`DmlSink`] is given
 /// to complete the write [`DmlSink::apply()`] call.
@@ -27,34 +30,46 @@ const DELEGATE_APPLY_TIMEOUT: Duration = Duration::from_secs(15);
 /// A [`DmlSink`] decorator that ensures any [`IngestOp`] is committed to
 /// the write-ahead log before passing the operation to the inner [`DmlSink`].
 #[derive(Debug)]
-pub(crate) struct WalSink<T, W = wal::Wal> {
+pub(crate) struct WalSink<T, W = wal::Wal, N = WalReferenceHandle> {
     /// The inner chain of [`DmlSink`] that a [`IngestOp`] is passed to once
     /// committed to the write-ahead log.
     inner: T,
 
     /// The write-ahead log implementation.
     wal: W,
+
+    /// A notifier handle to report the sequence numbers of writes that enter
+    /// the write-ahead log but fail to buffer.
+    notifier_handle: N,
 }
 
-impl<T, W> WalSink<T, W> {
+impl<T, W, N> WalSink<T, W, N> {
     /// Initialise a new [`WalSink`] that appends [`IngestOp`] to `W` and
-    /// on success, passes the op through to `T`.
-    pub(crate) fn new(inner: T, wal: W) -> Self {
-        Self { inner, wal }
+    /// on success, passes the op through to `T`, using `N` to keep `W` informed
+    /// of writes that fail to buffer.
+    pub(crate) fn new(inner: T, wal: W, notifier_handle: N) -> Self {
+        Self {
+            inner,
+            wal,
+            notifier_handle,
+        }
     }
 }
 
 #[async_trait]
-impl<T, W> DmlSink for WalSink<T, W>
+impl<T, W, N> DmlSink for WalSink<T, W, N>
 where
     T: DmlSink + Clone + 'static,
     W: WalAppender + 'static,
+    N: UnbufferedWriteNotifier + 'static,
 {
     type Error = DmlError;
 
     async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
         // Append the operation to the WAL
         let mut write_result = self.wal.append(&op);
+
+        let set = op.sequence_number_set();
 
         // Pass it to the inner handler while we wait for the write to be made
         // durable.
@@ -73,14 +88,18 @@ where
         //  https://github.com/influxdata/influxdb_iox/issues/7111
         //
         let inner = self.inner.clone();
-        CancellationSafe::new(async move {
+        let inner_result = CancellationSafe::new(async move {
             let res = tokio::time::timeout(DELEGATE_APPLY_TIMEOUT, inner.apply(op))
                 .await
                 .map_err(|_| DmlError::ApplyTimeout)?;
 
             res.map_err(Into::into)
         })
-        .await?;
+        .await;
+        if inner_result.is_err() {
+            self.notifier_handle.notify_failed_write_buffer(set).await;
+        }
+        inner_result?;
 
         // Wait for the write to be durable before returning to the user
         write_result
@@ -122,73 +141,89 @@ impl WalAppender for Arc<wal::Wal> {
     }
 }
 
+#[async_trait]
+impl UnbufferedWriteNotifier for WalReferenceHandle {
+    async fn notify_failed_write_buffer(&self, set: SequenceNumberSet) {
+        self.enqueue_unbuffered_write(set).await;
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod mock {
+    use parking_lot::Mutex;
+
+    use super::*;
+
+    #[derive(Debug, Default)]
+    pub(crate) struct MockUnbufferedWriteNotifier {
+        calls: Mutex<Vec<SequenceNumberSet>>,
+    }
+
+    impl MockUnbufferedWriteNotifier {
+        pub(crate) fn calls(&self) -> Vec<SequenceNumberSet> {
+            self.calls.lock().clone()
+        }
+    }
+
+    #[async_trait]
+    impl UnbufferedWriteNotifier for Arc<MockUnbufferedWriteNotifier> {
+        async fn notify_failed_write_buffer(&self, set: SequenceNumberSet) {
+            self.calls.lock().push(set);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use core::{future::Future, marker::Send, pin::Pin};
+    use std::{future, sync::Arc};
+
+    use assert_matches::assert_matches;
+    use data_types::{SequenceNumber, TableId};
+    use lazy_static::lazy_static;
+    use wal::Wal;
+
     use super::*;
     use crate::{
-        dml_payload::write::{PartitionedData, TableData, WriteOperation},
         dml_sink::mock_sink::MockDmlSink,
         test_util::{
-            make_write_op, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
-            ARBITRARY_TABLE_NAME,
+            make_multi_table_write_op, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY,
+            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
         },
     };
-    use assert_matches::assert_matches;
-    use core::{future::Future, marker::Send, pin::Pin};
-    use data_types::{SequenceNumber, TableId};
-    use mutable_batch_lp::lines_to_batches;
-    use std::{future, sync::Arc};
-    use wal::Wal;
+
+    lazy_static! {
+        static ref ALTERNATIVE_TABLE_NAME: &'static str = "arán";
+        static ref ALTERNATIVE_TABLE_ID: TableId = TableId::new(ARBITRARY_TABLE_ID.get() + 1);
+    }
 
     #[tokio::test]
     async fn test_append() {
         let dir = tempfile::tempdir().unwrap();
 
-        const SECOND_TABLE_ID: TableId = TableId::new(45);
-        const SECOND_TABLE_NAME: &str = "banani";
         // Generate a test op containing writes for multiple tables that will
         // be appended and read back
-        let mut tables_by_name = lines_to_batches(
-            &format!(
-                "{},region=Madrid temp=35 4242424242\n\
-             banani,region=Iceland temp=25 7676767676",
-                &*ARBITRARY_TABLE_NAME
-            ),
-            0,
-        )
-        .expect("invalid line proto");
-        let op = WriteOperation::new(
+        let op = make_multi_table_write_op(
+            &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             [
                 (
+                    ARBITRARY_TABLE_NAME.to_string().as_str(),
                     ARBITRARY_TABLE_ID,
-                    TableData::new(
-                        ARBITRARY_TABLE_ID,
-                        PartitionedData::new(
-                            SequenceNumber::new(42),
-                            tables_by_name
-                                .remove(ARBITRARY_TABLE_NAME.as_ref())
-                                .expect("table does not exist in LP"),
-                        ),
-                    ),
+                    SequenceNumber::new(42),
                 ),
                 (
-                    SECOND_TABLE_ID,
-                    TableData::new(
-                        SECOND_TABLE_ID,
-                        PartitionedData::new(
-                            SequenceNumber::new(42),
-                            tables_by_name
-                                .remove(SECOND_TABLE_NAME)
-                                .expect("second table does not exist in LP"),
-                        ),
-                    ),
+                    &ALTERNATIVE_TABLE_NAME,
+                    *ALTERNATIVE_TABLE_ID,
+                    SequenceNumber::new(43),
                 ),
             ]
-            .into_iter()
-            .collect(),
-            ARBITRARY_PARTITION_KEY.clone(),
-            None,
+            .into_iter(),
+            &format!(
+                r#"{},region=Madrid temp=35,climate="dry" 4242424242
+                {},region=Belfast temp=14,climate="wet" 4242424242"#,
+                &*ARBITRARY_TABLE_NAME, &*ALTERNATIVE_TABLE_NAME,
+            ),
         );
 
         // The write portion of this test.
@@ -197,8 +232,9 @@ mod tests {
             let wal = Wal::new(dir.path())
                 .await
                 .expect("failed to initialise WAL");
+            let notifier_handle = Arc::new(mock::MockUnbufferedWriteNotifier::default());
 
-            let wal_sink = WalSink::new(Arc::clone(&inner), wal);
+            let wal_sink = WalSink::new(Arc::clone(&inner), wal, Arc::clone(&notifier_handle));
 
             // Apply the op through the decorator
             wal_sink
@@ -206,8 +242,10 @@ mod tests {
                 .await
                 .expect("wal should not error");
 
-            // Assert the mock inner sink saw the call
+            // Assert the mock inner sink saw the call and that no unbuffered
+            // write notification was sent
             assert_eq!(inner.get_calls().len(), 1);
+            assert_eq!(notifier_handle.calls().len(), 0);
         }
 
         // Read the op back
@@ -230,7 +268,7 @@ mod tests {
         let read_op = assert_matches!(&*ops, [op] => op, "expected 1 DML operation");
         assert_eq!(
             read_op.table_write_sequence_numbers,
-            [(ARBITRARY_TABLE_ID, 42), (SECOND_TABLE_ID, 42)]
+            [(ARBITRARY_TABLE_ID, 42), (*ALTERNATIVE_TABLE_ID, 43)]
                 .into_iter()
                 .collect::<std::collections::HashMap<TableId, u64>>()
         );
@@ -268,24 +306,35 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
 
         // Generate the test op
-        let op = make_write_op(
+        let op = make_multi_table_write_op(
             &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
-            &ARBITRARY_TABLE_NAME,
-            ARBITRARY_TABLE_ID,
-            42,
+            [
+                (
+                    ARBITRARY_TABLE_NAME.to_string().as_str(),
+                    ARBITRARY_TABLE_ID,
+                    SequenceNumber::new(42),
+                ),
+                (
+                    &ALTERNATIVE_TABLE_NAME,
+                    *ALTERNATIVE_TABLE_ID,
+                    SequenceNumber::new(43),
+                ),
+            ]
+            .into_iter(),
             &format!(
-                r#"{},region=Madrid temp=35 4242424242"#,
-                &*ARBITRARY_TABLE_NAME
+                r#"{},region=Madrid temp=35,climate="dry" 4242424242
+                {},region=Belfast temp=14,climate="wet" 4242424242"#,
+                &*ARBITRARY_TABLE_NAME, &*ALTERNATIVE_TABLE_NAME,
             ),
-            None,
         );
 
         let wal = Wal::new(dir.path())
             .await
             .expect("failed to initialise WAL");
+        let notifier_handle = Arc::new(mock::MockUnbufferedWriteNotifier::default());
 
-        let wal_sink = WalSink::new(BlockingDmlSink::default(), wal);
+        let wal_sink = WalSink::new(BlockingDmlSink, wal, Arc::clone(&notifier_handle));
 
         // Allow tokio to automatically advance time past the timeout duration,
         // when all threads are blocked on await points.
@@ -308,5 +357,17 @@ mod tests {
         // before erroring.
         let duration = tokio::time::Instant::now().duration_since(start);
         assert!(duration > DELEGATE_APPLY_TIMEOUT);
+
+        // Assert that an unbuffered write notification was sent for the
+        // correct [`SequenceNumberSet`]
+        assert_eq!(
+            notifier_handle.calls(),
+            [SequenceNumberSet::from_iter([
+                SequenceNumber::new(42),
+                SequenceNumber::new(43)
+            ])]
+            .into_iter()
+            .collect::<Vec<_>>()
+        );
     }
 }

@@ -157,6 +157,12 @@ impl From<&DmlError> for StatusCode {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             DmlError::RpcWrite(RpcWriteError::Client(
+                RpcWriteClientError::MisconfiguredMetadataKey(_),
+            )) => StatusCode::INTERNAL_SERVER_ERROR,
+            DmlError::RpcWrite(RpcWriteError::Client(
+                RpcWriteClientError::MisconfiguredMetadataValue(_),
+            )) => StatusCode::INTERNAL_SERVER_ERROR,
+            DmlError::RpcWrite(RpcWriteError::Client(
                 RpcWriteClientError::UpstreamNotConnected(_),
             )) => StatusCode::SERVICE_UNAVAILABLE,
             DmlError::RpcWrite(RpcWriteError::Timeout(_)) => StatusCode::GATEWAY_TIMEOUT,

@@ -5,6 +5,8 @@ use data_types::{
     sequence_number_set::SequenceNumberSet, NamespaceId, ParquetFileParams, PartitionId, TableId,
 };
 
+use crate::wal::reference_tracker::WalReferenceHandle;
+
 /// An abstract observer of persistence completion events.
 ///
 /// This call is made synchronously by the persist worker, after
@@ -17,7 +19,7 @@ use data_types::{
 /// [`PartitionData::mark_persisted()`]:
 ///     crate::buffer_tree::partition::PartitionData::mark_persisted()
 #[async_trait]
-pub(crate) trait PersistCompletionObserver: Send + Sync + Debug {
+pub trait PersistCompletionObserver: Send + Sync + Debug {
     /// Observe the [`CompletedPersist`] notification for the newly persisted
     /// data.
     async fn persist_complete(&self, note: Arc<CompletedPersist>);
@@ -106,8 +108,8 @@ impl CompletedPersist {
 }
 
 /// A no-op implementation of the [`PersistCompletionObserver`] trait.
-#[derive(Debug, Default)]
-pub(crate) struct NopObserver;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NopObserver;
 
 #[async_trait]
 impl PersistCompletionObserver for NopObserver {
@@ -123,6 +125,13 @@ where
 {
     async fn persist_complete(&self, note: Arc<CompletedPersist>) {
         (**self).persist_complete(note).await
+    }
+}
+
+#[async_trait]
+impl PersistCompletionObserver for WalReferenceHandle {
+    async fn persist_complete(&self, note: Arc<CompletedPersist>) {
+        self.enqueue_persist_notification(note).await
     }
 }
 

@@ -132,6 +132,7 @@ where
 
         if round_info.is_many_small_files() {
             return file_classification_for_many_files(
+                round_info.max_total_file_size_to_group().unwrap(),
                 round_info.max_num_files_to_group().unwrap(),
                 files_to_compact,
                 target_level,
@@ -178,7 +179,9 @@ where
     }
 }
 
+// ManySmallFiles assumes the L0 files are tiny and aims to do L0-> L0 compaction to reduce the number of tiny files.
 fn file_classification_for_many_files(
+    max_total_file_size_to_group: usize,
     max_num_files_to_group: usize,
     files: Vec<ParquetFile>,
     target_level: CompactionLevel,
@@ -199,12 +202,21 @@ fn file_classification_for_many_files(
     // Enforce max_num_files_to_group
     if files.len() > max_num_files_to_group {
         let ordered_files = order_files(files, target_level.prev());
+
         ordered_files
             .chunks(max_num_files_to_group)
             .for_each(|chunk| {
-                if files_to_compact.is_empty() {
+                let this_chunk_bytes: usize =
+                    chunk.iter().map(|f| f.file_size_bytes as usize).sum();
+                if this_chunk_bytes > max_total_file_size_to_group {
+                    // This chunk of files are plenty big and don't fit the ManySmallFiles characteristics.
+                    // If we let ManySmallFiles handle them, it may get stuck with unproductive compactions.
+                    // So set them aside for later (when we're not in ManySmallFiles mode).
+                    files_to_keep.append(chunk.to_vec().as_mut());
+                } else if files_to_compact.is_empty() {
                     files_to_compact = chunk.to_vec();
                 } else {
+                    // We've already got a batch of files to compact, these can wait.
                     files_to_keep.append(chunk.to_vec().as_mut());
                 }
             });
