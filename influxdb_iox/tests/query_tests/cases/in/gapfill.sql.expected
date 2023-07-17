@@ -248,3 +248,7 @@ Error during planning: gap-filling query is missing lower time bound
 | 2023-06-10T12:03:00Z | pod2 | {value: imageB, time: 2023-06-10T12:00:02} |
 | 2023-06-10T12:04:00Z | pod2 | {value: imageB, time: 2023-06-10T12:00:02} |
 +----------------------+------+--------------------------------------------+
+-- SQL: select date_bin_gapfill('60 seconds'::interval, time)::bigint as time, sum(idle) from cpu WHERE time >= '2020-06-11T16:52:00Z' AND time < '2020-06-11T16:54:00Z' group by 1;
+Error while planning query: Optimizer rule 'handle_gap_fill' failed
+caused by
+Error during planning: DATE_BIN_GAPFILL must a top-level expression in the GROUP BY clause when gap filling. It cannot be part of another expression or cast

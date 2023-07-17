@@ -151,3 +151,12 @@ FROM
   ) AS data(time, pod, image)
 WHERE time >= timestamp '2023-06-10T11:55:00Z' AND time < timestamp '2023-06-10T12:05:00Z'
 GROUP BY _time, pod;
+
+-- This is not supported since the grouping is not on the values produced by
+-- date_bin_gapfill. The query should fail with a reasonable message.
+select
+  date_bin_gapfill('60 seconds'::interval, time)::bigint as time,
+  sum(idle)
+from cpu
+WHERE time >= '2020-06-11T16:52:00Z' AND time < '2020-06-11T16:54:00Z'
+group by 1;

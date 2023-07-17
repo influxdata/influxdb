@@ -8,7 +8,7 @@ use datafusion::{
     common::tree_node::{RewriteRecursion, TreeNode, TreeNodeRewriter, VisitRecursion},
     error::{DataFusionError, Result},
     logical_expr::{
-        expr::{ScalarFunction, ScalarUDF},
+        expr::{Alias, ScalarFunction, ScalarUDF},
         utils::expr_to_columns,
         Aggregate, BuiltinScalarFunction, Extension, LogicalPlan, Projection,
     },
@@ -293,13 +293,26 @@ fn replace_date_bin_gapfill(group_expr: &[Expr]) -> Result<Option<RewriteInfo>> 
         })?;
     match date_bin_gapfill_count {
         0 => return Ok(None),
-        2.. => {
+        1 => {
+            // Make sure that the call to DATE_BIN_GAPFILL is root expression
+            // excluding aliases.
+            let dbg_idx = dbg_idx.expect("should have found exactly one call");
+            if !matches_udf(
+                unwrap_alias(&group_expr[dbg_idx]),
+                DATE_BIN_GAPFILL_UDF_NAME,
+            ) {
+                return Err(DataFusionError::Plan(
+                    "DATE_BIN_GAPFILL must a top-level expression in the GROUP BY clause when gap filling. It cannot be part of another expression or cast".to_string(),
+                ));
+            }
+        }
+        _ => {
             return Err(DataFusionError::Plan(
                 "DATE_BIN_GAPFILL specified more than once".to_string(),
             ))
         }
-        _ => (),
     }
+
     let date_bin_gapfill_index = dbg_idx.expect("should be found exactly one call");
 
     let mut rewriter = DateBinGapfillRewriter { args: None };
@@ -321,6 +334,15 @@ fn replace_date_bin_gapfill(group_expr: &[Expr]) -> Result<Option<RewriteInfo>> 
         date_bin_gapfill_index,
         date_bin_gapfill_args,
     }))
+}
+
+fn unwrap_alias(mut e: &Expr) -> &Expr {
+    loop {
+        match e {
+            Expr::Alias(Alias { expr, .. }) => e = expr.as_ref(),
+            e => break e,
+        }
+    }
 }
 
 struct DateBinGapfillRewriter {
@@ -486,15 +508,19 @@ impl FillFnRewriter {
 fn count_udf(e: &Expr, name: &str) -> Result<usize> {
     let mut count = 0;
     e.apply(&mut |expr| {
-        match expr {
-            Expr::ScalarUDF(ScalarUDF { fun, .. }) if fun.name == name => {
-                count += 1;
-            }
-            _ => (),
-        };
+        if matches_udf(expr, name) {
+            count += 1;
+        }
         Ok(VisitRecursion::Continue)
     })?;
     Ok(count)
+}
+
+fn matches_udf(e: &Expr, name: &str) -> bool {
+    matches!(
+        e,
+        Expr::ScalarUDF(ScalarUDF { fun, .. }) if fun.name == name
+    )
 }
 
 fn check_node(node: &LogicalPlan) -> Result<()> {
