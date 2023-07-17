@@ -209,7 +209,7 @@ fn file_classification_for_many_files(
                 let this_chunk_bytes: usize =
                     chunk.iter().map(|f| f.file_size_bytes as usize).sum();
                 if this_chunk_bytes > max_total_file_size_to_group {
-                    // This chunk of files are plenty big and don't fit the ManySmallFiles charactoristics.
+                    // This chunk of files are plenty big and don't fit the ManySmallFiles characteristics.
                     // If we let ManySmallFiles handle them, it may get stuck with unproductive compactions.
                     // So set them aside for later (when we're not in ManySmallFiles mode).
                     files_to_keep.append(chunk.to_vec().as_mut());
