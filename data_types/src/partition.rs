@@ -9,7 +9,7 @@ use thiserror::Error;
 
 /// Unique ID for a `Partition` during the transition from catalog-assigned sequential
 /// `PartitionId`s to deterministic `PartitionHashId`s.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TransitionPartitionId {
     /// The old catalog-assigned sequential `PartitionId`s that are in the process of being
     /// deprecated.
@@ -31,12 +31,32 @@ impl TransitionPartitionId {
     }
 }
 
+impl From<(PartitionId, Option<&PartitionHashId>)> for TransitionPartitionId {
+    fn from((partition_id, partition_hash_id): (PartitionId, Option<&PartitionHashId>)) -> Self {
+        partition_hash_id
+            .cloned()
+            .map(TransitionPartitionId::Deterministic)
+            .unwrap_or_else(|| TransitionPartitionId::Deprecated(partition_id))
+    }
+}
+
 impl std::fmt::Display for TransitionPartitionId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Deprecated(old_partition_id) => write!(f, "{}", old_partition_id.0),
             Self::Deterministic(partition_hash_id) => write!(f, "{}", partition_hash_id),
         }
+    }
+}
+
+impl TransitionPartitionId {
+    /// Create a new `TransitionPartitionId` for cases in tests where you need some value but the
+    /// value doesn't matter. Public and not test-only so that other crates' tests can use this.
+    pub fn arbitrary_for_testing() -> Self {
+        Self::Deterministic(PartitionHashId::new(
+            TableId::new(0),
+            &PartitionKey::from("arbitrary"),
+        ))
     }
 }
 
@@ -161,7 +181,7 @@ impl sqlx::Decode<'_, sqlx::Sqlite> for PartitionKey {
 const PARTITION_HASH_ID_SIZE_BYTES: usize = 32;
 
 /// Uniquely identify a partition based on its table ID and partition key.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::FromRow)]
 #[sqlx(transparent)]
 pub struct PartitionHashId(Arc<[u8; PARTITION_HASH_ID_SIZE_BYTES]>);
 
@@ -232,6 +252,12 @@ impl PartitionHashId {
     /// Size in bytes including `Self`.
     pub fn size(&self) -> usize {
         std::mem::size_of::<Self>() + self.0.len()
+    }
+
+    /// Create a new `PartitionHashId` for cases in tests where you need some value but the value
+    /// doesn't matter. Public and not test-only so that other crates' tests can use this.
+    pub fn arbitrary_for_testing() -> Self {
+        Self::new(TableId::new(0), &PartitionKey::from("arbitrary"))
     }
 }
 
@@ -377,10 +403,7 @@ impl Partition {
     /// If this partition has a `PartitionHashId` stored in the catalog, use that. Otherwise, use
     /// the database-assigned `PartitionId`.
     pub fn transition_partition_id(&self) -> TransitionPartitionId {
-        self.hash_id
-            .clone()
-            .map(TransitionPartitionId::Deterministic)
-            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.id))
+        TransitionPartitionId::from((self.id, self.hash_id.as_ref()))
     }
 
     /// The unique hash derived from the table ID and partition key, if it exists in the catalog.

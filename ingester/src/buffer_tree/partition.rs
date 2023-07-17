@@ -194,7 +194,11 @@ impl PartitionData {
         // is upheld by the FSM, which ensures only non-empty snapshots /
         // RecordBatch are generated. Because `data` contains at least one
         // RecordBatch, this invariant holds.
-        Some(QueryAdaptor::new(self.partition_id, data))
+        Some(QueryAdaptor::new(
+            self.partition_id,
+            self.transition_partition_id(),
+            data,
+        ))
     }
 
     /// Snapshot and mark all buffered data as persisting.
@@ -234,6 +238,7 @@ impl PartitionData {
         let data = PersistingData::new(
             QueryAdaptor::new(
                 self.partition_id,
+                self.transition_partition_id(),
                 fsm.get_query_data(&OwnedProjection::default()),
             ),
             batch_ident,
@@ -296,10 +301,7 @@ impl PartitionData {
     }
 
     pub(crate) fn transition_partition_id(&self) -> TransitionPartitionId {
-        self.partition_hash_id
-            .clone()
-            .map(TransitionPartitionId::Deterministic)
-            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.partition_id))
+        TransitionPartitionId::from((self.partition_id, self.partition_hash_id.as_ref()))
     }
 
     /// Return the count of persisted Parquet files for this [`PartitionData`] instance.

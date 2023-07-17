@@ -12,7 +12,9 @@ use arrow_flight::decode::DecodedPayload;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
-use data_types::{ChunkId, ChunkOrder, NamespaceId, PartitionHashId, PartitionId};
+use data_types::{
+    ChunkId, ChunkOrder, NamespaceId, PartitionHashId, PartitionId, TransitionPartitionId,
+};
 use datafusion::physical_plan::Statistics;
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use ingester_query_grpc::{
@@ -627,8 +629,9 @@ impl IngesterStreamDecoder {
         self.flush_partition()?;
 
         let mut partitions = self.finished_partitions.into_values().collect::<Vec<_>>();
+
         // deterministic order
-        partitions.sort_by_key(|p| p.partition_id);
+        partitions.sort_by(|a, b| a.partition_id.cmp(&b.partition_id));
         self.span_recorder.ok("finished");
         Ok(partitions)
     }
@@ -737,7 +740,7 @@ impl IngesterConnection for IngesterConnectionImpl {
             .flatten()
             .collect();
 
-        ingester_partitions.sort_by_key(|p| p.partition_id);
+        ingester_partitions.sort_by(|a, b| a.partition_id.cmp(&b.partition_id));
         span_recorder.ok("done");
         Ok(ingester_partitions)
     }
@@ -824,6 +827,7 @@ impl IngesterPartition {
         let chunk = IngesterChunk {
             chunk_id,
             partition_id: self.partition_id,
+            transition_partition_id: self.transition_partition_id(),
             schema: expected_schema,
             batches,
             stats: None,
@@ -859,6 +863,10 @@ impl IngesterPartition {
         self.partition_id
     }
 
+    pub(crate) fn transition_partition_id(&self) -> TransitionPartitionId {
+        TransitionPartitionId::from((self.partition_id, self.partition_hash_id.as_ref()))
+    }
+
     pub(crate) fn ingester_uuid(&self) -> Uuid {
         self.ingester_uuid
     }
@@ -880,6 +888,7 @@ impl IngesterPartition {
 pub struct IngesterChunk {
     chunk_id: ChunkId,
     partition_id: PartitionId,
+    transition_partition_id: TransitionPartitionId,
     schema: Schema,
 
     /// The raw table data
@@ -925,6 +934,10 @@ impl QueryChunk for IngesterChunk {
 
     fn partition_id(&self) -> PartitionId {
         self.partition_id
+    }
+
+    fn transition_partition_id(&self) -> &TransitionPartitionId {
+        &self.transition_partition_id
     }
 
     fn sort_key(&self) -> Option<&SortKey> {

@@ -20,7 +20,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
-use data_types::{ChunkId, ChunkOrder, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId, TransitionPartitionId};
 use datafusion::{error::DataFusionError, physical_plan::Statistics, prelude::SessionContext};
 use exec::IOxSessionContext;
 use hashbrown::HashMap;
@@ -70,6 +70,9 @@ pub trait QueryChunk: Debug + Send + Sync + 'static {
 
     /// Return partition id for this chunk
     fn partition_id(&self) -> PartitionId;
+
+    /// Return partition identifier for this chunk
+    fn transition_partition_id(&self) -> &TransitionPartitionId;
 
     /// return a reference to the sort key if any
     fn sort_key(&self) -> Option<&SortKey>;
@@ -248,6 +251,10 @@ where
         self.as_ref().partition_id()
     }
 
+    fn transition_partition_id(&self) -> &TransitionPartitionId {
+        self.as_ref().transition_partition_id()
+    }
+
     fn sort_key(&self) -> Option<&SortKey> {
         self.as_ref().sort_key()
     }
@@ -289,6 +296,10 @@ impl QueryChunk for Arc<dyn QueryChunk> {
 
     fn partition_id(&self) -> PartitionId {
         self.as_ref().partition_id()
+    }
+
+    fn transition_partition_id(&self) -> &TransitionPartitionId {
+        self.as_ref().transition_partition_id()
     }
 
     fn sort_key(&self) -> Option<&SortKey> {

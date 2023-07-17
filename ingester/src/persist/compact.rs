@@ -109,7 +109,7 @@ mod tests {
     use schema::Projection;
 
     use super::*;
-    use crate::test_util::ARBITRARY_PARTITION_ID;
+    use crate::test_util::{ARBITRARY_PARTITION_ID, ARBITRARY_TRANSITION_PARTITION_ID};
 
     // this test was added to guard against https://github.com/influxdata/influxdb_iox/issues/3782
     // where if sending in a single row it would compact into an output of two batches, one of
@@ -124,7 +124,11 @@ mod tests {
             .to_arrow(Projection::All)
             .unwrap();
 
-        let batch = QueryAdaptor::new(ARBITRARY_PARTITION_ID, vec![batch]);
+        let batch = QueryAdaptor::new(
+            ARBITRARY_PARTITION_ID,
+            ARBITRARY_TRANSITION_PARTITION_ID.clone(),
+            vec![batch],
+        );
 
         // verify PK
         let schema = batch.schema();
@@ -160,6 +164,7 @@ mod tests {
         // create input data
         let batch = QueryAdaptor::new(
             ARBITRARY_PARTITION_ID,
+            ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_one_record_batch_with_influxtype_no_duplicates().await,
         );
 
@@ -209,6 +214,7 @@ mod tests {
         // create input data
         let batch = QueryAdaptor::new(
             ARBITRARY_PARTITION_ID,
+            ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_different_cardinality().await,
         );
 
@@ -263,6 +269,7 @@ mod tests {
         // create input data
         let batch = QueryAdaptor::new(
             ARBITRARY_PARTITION_ID,
+            ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_different_cardinality().await,
         );
 
@@ -322,6 +329,7 @@ mod tests {
         // create input data
         let batch = QueryAdaptor::new(
             ARBITRARY_PARTITION_ID,
+            ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_different_cardinality().await,
         );
 
@@ -385,6 +393,7 @@ mod tests {
         // create input data
         let batch = QueryAdaptor::new(
             ARBITRARY_PARTITION_ID,
+            ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_different_cardinality().await,
         );
 
@@ -447,6 +456,7 @@ mod tests {
         // create input data
         let batch = QueryAdaptor::new(
             ARBITRARY_PARTITION_ID,
+            ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_one_row_record_batch_with_influxtype().await,
         );
 
@@ -487,6 +497,7 @@ mod tests {
         // create input data
         let batch = QueryAdaptor::new(
             ARBITRARY_PARTITION_ID,
+            ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_one_record_batch_with_influxtype_duplicates().await,
         );
 
@@ -535,6 +546,7 @@ mod tests {
         // create many-batches input data
         let batch = QueryAdaptor::new(
             ARBITRARY_PARTITION_ID,
+            ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype().await,
         );
 
@@ -581,6 +593,7 @@ mod tests {
         // create many-batches input data
         let batch = QueryAdaptor::new(
             ARBITRARY_PARTITION_ID,
+            ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_different_columns().await,
         );
 
@@ -631,6 +644,7 @@ mod tests {
         // create many-batches input data
         let batch = QueryAdaptor::new(
             ARBITRARY_PARTITION_ID,
+            ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_different_columns_different_order().await,
         );
 
@@ -684,6 +698,7 @@ mod tests {
         // create many-batches input data
         let batch = QueryAdaptor::new(
             ARBITRARY_PARTITION_ID,
+            ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_same_columns_different_type().await,
         );
 

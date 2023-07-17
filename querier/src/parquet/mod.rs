@@ -1,6 +1,6 @@
 //! Querier Chunks
 
-use data_types::{ChunkId, ChunkOrder, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId, TransitionPartitionId};
 use datafusion::physical_plan::Statistics;
 use iox_query::chunk_statistics::{create_chunk_statistics, ColumnRanges};
 use parquet_file::chunk::ParquetChunk;
@@ -26,6 +26,9 @@ pub struct QuerierParquetChunkMeta {
 
     /// Partition ID.
     partition_id: PartitionId,
+
+    /// Transition partition ID.
+    transition_partition_id: TransitionPartitionId,
 }
 
 impl QuerierParquetChunkMeta {
@@ -42,6 +45,11 @@ impl QuerierParquetChunkMeta {
     /// Partition ID.
     pub fn partition_id(&self) -> PartitionId {
         self.partition_id
+    }
+
+    /// Partition ID.
+    pub fn transition_partition_id(&self) -> &TransitionPartitionId {
+        &self.transition_partition_id
     }
 }
 
