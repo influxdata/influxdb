@@ -1,8 +1,11 @@
 //! How to load new cache entries.
 use async_trait::async_trait;
-use std::{fmt::Debug, future::Future, hash::Hash, marker::PhantomData};
+use std::{fmt::Debug, future::Future, hash::Hash, marker::PhantomData, sync::Arc};
 
 pub mod metrics;
+
+#[cfg(test)]
+pub(crate) mod test_util;
 
 /// Loader for missing [`Cache`](crate::cache::Cache) entries.
 #[async_trait]
@@ -26,6 +29,23 @@ where
     K: Debug + Hash + Send + 'static,
     V: Debug + Send + 'static,
     Extra: Debug + Send + 'static,
+{
+    type K = K;
+    type V = V;
+    type Extra = Extra;
+
+    async fn load(&self, k: Self::K, extra: Self::Extra) -> Self::V {
+        self.as_ref().load(k, extra).await
+    }
+}
+
+#[async_trait]
+impl<K, V, Extra, L> Loader for Arc<L>
+where
+    K: Debug + Hash + Send + 'static,
+    V: Debug + Send + 'static,
+    Extra: Debug + Send + 'static,
+    L: Loader<K = K, V = V, Extra = Extra>,
 {
     type K = K;
     type V = V;
