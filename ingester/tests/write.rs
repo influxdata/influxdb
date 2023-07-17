@@ -1,3 +1,9 @@
+use std::ffi::OsString;
+use std::fs::read_dir;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
+
 use arrow_util::assert_batches_sorted_eq;
 use assert_matches::assert_matches;
 use data_types::{PartitionKey, TableId, Timestamp};
@@ -9,8 +15,8 @@ use metric::{
     assert_counter, assert_histogram, DurationHistogram, U64Counter, U64Gauge, U64Histogram,
 };
 use parquet_file::ParquetFilePath;
-use std::{ffi::OsString, fs::read_dir, path::Path, sync::Arc, time::Duration};
 use test_helpers::timeout::FutureTimeout;
+use trace::{ctx::SpanContext, RingBufferTraceCollector};
 
 // Write data to an ingester through the RPC interface and persist the data.
 #[tokio::test]
@@ -25,6 +31,7 @@ async fn write_persist() {
         r#"bananas count=42,greatness="inf" 200"#,
         partition_key.clone(),
         42,
+        None,
     )
     .await;
 
@@ -193,6 +200,7 @@ async fn wal_replay() {
             "bananas greatness=\"unbounded\" 10",
             partition_key.clone(),
             0,
+            None,
         )
         .await;
 
@@ -202,6 +210,7 @@ async fn wal_replay() {
             "cpu bar=2 20\ncpu bar=3 30",
             partition_key.clone(),
             7,
+            None,
         )
         .await;
 
@@ -212,6 +221,7 @@ async fn wal_replay() {
             "bananas count=42 200",
             partition_key.clone(),
             42,
+            None,
         )
         .await;
 
@@ -285,6 +295,7 @@ async fn graceful_shutdown() {
         "bananas greatness=\"unbounded\" 10",
         partition_key.clone(),
         0,
+        None,
     )
     .await;
 
@@ -297,6 +308,7 @@ async fn graceful_shutdown() {
         "cpu bar=2 20\ncpu bar=3 30",
         partition_key.clone(),
         7,
+        None,
     )
     .await;
 
@@ -307,6 +319,7 @@ async fn graceful_shutdown() {
         "bananas count=42 200",
         partition_key.clone(),
         42,
+        None,
     )
     .await;
 
@@ -390,6 +403,7 @@ async fn wal_reference_dropping() {
         "bananas greatness=\"unbounded\" 10",
         partition_key.clone(),
         0,
+        None,
     )
     .await;
 
@@ -399,6 +413,7 @@ async fn wal_reference_dropping() {
         "cpu bar=2 20\ncpu bar=3 30",
         partition_key.clone(),
         7,
+        None,
     )
     .await;
 
@@ -409,6 +424,7 @@ async fn wal_reference_dropping() {
         "bananas count=42 200",
         partition_key.clone(),
         42,
+        None,
     )
     .await;
 
@@ -475,4 +491,62 @@ fn get_file_names_in_dir(dir: &Path) -> Result<Vec<OsString>, std::io::Error> {
             None
         })
         .collect::<Result<Vec<_>, std::io::Error>>()
+}
+
+#[tokio::test]
+async fn write_tracing() {
+    let namespace_name = "write_tracing_test_namespace";
+    let mut ctx = TestContextBuilder::default().build().await;
+    let ns = ctx.ensure_namespace(namespace_name, None).await;
+
+    let trace_collector = Arc::new(RingBufferTraceCollector::new(5));
+    let span_ctx = SpanContext::new(Arc::new(Arc::clone(&trace_collector)));
+    let request_span = span_ctx.child("write request span");
+
+    let partition_key = PartitionKey::from("1970-01-01");
+    ctx.write_lp(
+        namespace_name,
+        r#"bananas count=42,greatness="inf" 200"#,
+        partition_key.clone(),
+        42,
+        Some(request_span.ctx.clone()),
+    )
+    .await;
+
+    // Perform a query to validate the actual data buffered.
+    let table_id = ctx.table_id(namespace_name, "bananas").await.get();
+    let data: Vec<_> = ctx
+        .query(IngesterQueryRequest {
+            namespace_id: ns.id.get(),
+            table_id,
+            columns: vec![],
+            predicate: None,
+        })
+        .await
+        .expect("query request failed");
+
+    let expected = vec![
+        "+-------+-----------+--------------------------------+",
+        "| count | greatness | time                           |",
+        "+-------+-----------+--------------------------------+",
+        "| 42.0  | inf       | 1970-01-01T00:00:00.000000200Z |",
+        "+-------+-----------+--------------------------------+",
+    ];
+    assert_batches_sorted_eq!(&expected, &data);
+
+    // Check the spans emitted for the write request align capture what is expected
+    let spans = trace_collector.spans();
+    assert_matches!(spans.as_slice(), [span3, span2, span1, handler_span] => {
+        // Check that the DML handlers are hit, and that they inherit from the
+        // handler span, which in turn inherits from the request
+        assert_eq!(handler_span.name, "ingester write");
+        assert_eq!(span1.name, "write_apply");
+        assert_eq!(span2.name, "wal");
+        assert_eq!(span3.name, "buffer");
+
+        assert_eq!(handler_span.ctx.parent_span_id, Some(request_span.ctx.span_id));
+        assert_eq!(span1.ctx.parent_span_id, Some(handler_span.ctx.span_id));
+        assert_eq!(span2.ctx.parent_span_id, Some(handler_span.ctx.span_id));
+        assert_eq!(span3.ctx.parent_span_id, Some(handler_span.ctx.span_id));
+    })
 }

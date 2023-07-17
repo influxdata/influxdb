@@ -11,7 +11,7 @@ pub struct HasFilesPartitionFilter;
 
 impl HasFilesPartitionFilter {
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 }
 

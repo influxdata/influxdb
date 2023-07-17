@@ -12,7 +12,7 @@ pub struct NoopDataFusionPlanExec;
 
 impl NoopDataFusionPlanExec {
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 }
 

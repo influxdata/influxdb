@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn test_union_one() {
         let plan = Arc::new(UnionExec::new(vec![other_node()]));
-        let opt = OneUnion::default();
+        let opt = OneUnion;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn test_union_two() {
         let plan = Arc::new(UnionExec::new(vec![other_node(), other_node()]));
-        let opt = OneUnion::default();
+        let opt = OneUnion;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -109,7 +109,7 @@ mod tests {
     #[test]
     fn test_other_node() {
         let plan = other_node();
-        let opt = OneUnion::default();
+        let opt = OneUnion;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"

@@ -211,8 +211,6 @@ where
     ) -> Result<Self::Response, QueryError> {
         let started_at = self.time_provider.now();
 
-        // TODO(savage): Would accepting a predicate here require additional
-        // metrics to be added?
         let stream = self
             .inner
             .query_exec(namespace_id, table_id, projection, span, predicate)

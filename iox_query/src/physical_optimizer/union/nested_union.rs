@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn test_union_not_nested() {
         let plan = Arc::new(UnionExec::new(vec![other_node()]));
-        let opt = NestedUnion::default();
+        let opt = NestedUnion;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -110,7 +110,7 @@ mod tests {
             Arc::new(UnionExec::new(vec![other_node(), other_node()])),
             other_node(),
         ]));
-        let opt = NestedUnion::default();
+        let opt = NestedUnion;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -140,7 +140,7 @@ mod tests {
             ])),
             other_node(),
         ]));
-        let opt = NestedUnion::default();
+        let opt = NestedUnion;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn test_other_node() {
         let plan = other_node();
-        let opt = NestedUnion::default();
+        let opt = NestedUnion;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"

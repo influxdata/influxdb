@@ -30,17 +30,17 @@ pub fn register_iox_physical_optimizers(state: SessionState) -> SessionState {
     // prepend IOx-specific rules to DataFusion builtins
     // The optimizer rules have to be done in this order
     let mut optimizers: Vec<Arc<dyn PhysicalOptimizerRule + Sync + Send>> = vec![
-        Arc::new(PartitionSplit::default()),
-        Arc::new(TimeSplit::default()),
-        Arc::new(RemoveDedup::default()),
-        Arc::new(CombineChunks::default()),
-        Arc::new(DedupNullColumns::default()),
-        Arc::new(DedupSortOrder::default()),
-        Arc::new(PredicatePushdown::default()),
-        Arc::new(ProjectionPushdown::default()),
-        Arc::new(ParquetSortness::default()) as _,
-        Arc::new(NestedUnion::default()),
-        Arc::new(OneUnion::default()),
+        Arc::new(PartitionSplit),
+        Arc::new(TimeSplit),
+        Arc::new(RemoveDedup),
+        Arc::new(CombineChunks),
+        Arc::new(DedupNullColumns),
+        Arc::new(DedupSortOrder),
+        Arc::new(PredicatePushdown),
+        Arc::new(ProjectionPushdown),
+        Arc::new(ParquetSortness) as _,
+        Arc::new(NestedUnion),
+        Arc::new(OneUnion),
     ];
     optimizers.append(&mut state.physical_optimizers().to_vec());
 

@@ -2,6 +2,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
+use trace::ctx::SpanContext;
 
 use super::{
     circuit_breaker::CircuitBreaker,
@@ -98,8 +99,12 @@ where
     T: WriteClient,
     C: CircuitBreakerState,
 {
-    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError> {
-        let res = self.inner.write(op).await;
+    async fn write(
+        &self,
+        op: WriteRequest,
+        span_ctx: Option<SpanContext>,
+    ) -> Result<(), RpcWriteClientError> {
+        let res = self.inner.write(op, span_ctx).await;
         self.state.observe(&res);
         res
     }
@@ -167,7 +172,7 @@ pub(crate) mod mock {
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::Borrow, sync::Arc};
+    use std::sync::Arc;
 
     use crate::dml_handlers::rpc_write::client::mock::MockWriteClient;
 
@@ -215,16 +220,14 @@ mod tests {
         assert_eq!(circuit_breaker.err_count(), 0);
 
         wrapper
-            .borrow()
-            .write(WriteRequest::default())
+            .write(WriteRequest::default(), None)
             .await
             .expect("wrapper should return Ok mock value");
         assert_eq!(circuit_breaker.ok_count(), 1);
         assert_eq!(circuit_breaker.err_count(), 0);
 
         wrapper
-            .borrow()
-            .write(WriteRequest::default())
+            .write(WriteRequest::default(), None)
             .await
             .expect_err("wrapper should return Err mock value");
         assert_eq!(circuit_breaker.ok_count(), 1);

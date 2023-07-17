@@ -583,7 +583,7 @@ where
                 metric_count,
                 metric_usage,
                 metric_evicted,
-                _phantom: PhantomData::default(),
+                _phantom: PhantomData,
             }));
 
             pool.inner.lock().register_member(

@@ -111,7 +111,7 @@ mod tests {
     fn test_no_chunks() {
         let schema = chunk(1).schema().clone();
         let plan = dedup_plan(schema, vec![]);
-        let opt = DedupNullColumns::default();
+        let opt = DedupNullColumns;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -132,7 +132,7 @@ mod tests {
         let chunk = chunk(1).with_dummy_parquet_file();
         let schema = chunk.schema().clone();
         let plan = dedup_plan(schema, vec![chunk]);
-        let opt = DedupNullColumns::default();
+        let opt = DedupNullColumns;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -155,7 +155,7 @@ mod tests {
         let chunk = chunk(1).with_dummy_parquet_file();
         let schema = chunk.schema().clone();
         let plan = dedup_plan_with_chunk_order_col(schema, vec![chunk]);
-        let opt = DedupNullColumns::default();
+        let opt = DedupNullColumns;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -187,7 +187,7 @@ mod tests {
             .build()
             .unwrap();
         let plan = dedup_plan(schema, vec![chunk]);
-        let opt = DedupNullColumns::default();
+        let opt = DedupNullColumns;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -228,7 +228,7 @@ mod tests {
             .build()
             .unwrap();
         let plan = dedup_plan(schema, vec![chunk1, chunk2]);
-        let opt = DedupNullColumns::default();
+        let opt = DedupNullColumns;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"

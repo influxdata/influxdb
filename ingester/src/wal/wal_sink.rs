@@ -334,11 +334,7 @@ mod tests {
             .expect("failed to initialise WAL");
         let notifier_handle = Arc::new(mock::MockUnbufferedWriteNotifier::default());
 
-        let wal_sink = WalSink::new(
-            BlockingDmlSink::default(),
-            wal,
-            Arc::clone(&notifier_handle),
-        );
+        let wal_sink = WalSink::new(BlockingDmlSink, wal, Arc::clone(&notifier_handle));
 
         // Allow tokio to automatically advance time past the timeout duration,
         // when all threads are blocked on await points.

@@ -258,7 +258,7 @@ where
             inner,
             headers: parts.headers.clone(),
             call: call.clone(),
-            _phantom_error_logger: PhantomData::default(),
+            _phantom_error_logger: PhantomData,
         });
         call.log(LogEntry::ServerHeaders(&parts.headers));
         if body.is_end_stream() {

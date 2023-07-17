@@ -122,7 +122,7 @@ mod tests {
     fn test_no_chunks() {
         let schema = chunk(1).schema().clone();
         let plan = dedup_plan(schema, vec![]);
-        let opt = PartitionSplit::default();
+        let opt = PartitionSplit;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -145,7 +145,7 @@ mod tests {
         let chunk3 = chunk(3).with_dummy_parquet_file();
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3]);
-        let opt = PartitionSplit::default();
+        let opt = PartitionSplit;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -176,7 +176,7 @@ mod tests {
         let chunk6 = chunk(6).with_dummy_parquet_file().with_partition_id(1);
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3, chunk4, chunk5, chunk6]);
-        let opt = PartitionSplit::default();
+        let opt = PartitionSplit;
         let mut config = ConfigOptions::default();
         config.execution.target_partitions = 2;
         insta::assert_yaml_snapshot!(
@@ -210,7 +210,7 @@ mod tests {
         let chunk3 = chunk(3).with_partition_id(3);
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3]);
-        let opt = PartitionSplit::default();
+        let opt = PartitionSplit;
         let mut config = ConfigOptions::default();
         config.extensions.insert(IoxConfigExt {
             max_dedup_partition_split: 2,

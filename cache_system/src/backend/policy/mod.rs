@@ -327,7 +327,7 @@ where
         lock_inner!(guard = self.inner);
         InnerBackendRef {
             inner: guard.inner.lock_arc(),
-            _phantom: PhantomData::default(),
+            _phantom: PhantomData,
         }
     }
 }
