@@ -62,4 +62,15 @@ impl RoundInfo {
             } => Some(*max_num_files_to_group),
         }
     }
+
+    /// return max_total_file_size_to_group, when available.
+    pub fn max_total_file_size_to_group(&self) -> Option<usize> {
+        match self {
+            Self::TargetLevel { .. } => None,
+            Self::ManySmallFiles {
+                max_total_file_size_to_group,
+                ..
+            } => Some(*max_total_file_size_to_group),
+        }
+    }
 }
