@@ -65,6 +65,12 @@ impl TreeNodeVisitor for TimeRangeVisitor {
                 self.range = range;
                 Ok(VisitRecursion::Continue)
             }
+            LogicalPlan::SubqueryAlias(_) => {
+                // The nodes below this one refer to the column with a different table name,
+                // just unset the relation so we match on the column name.
+                self.col.relation = None;
+                Ok(VisitRecursion::Continue)
+            }
             // These nodes do not alter their schema, so we can recurse through them
             LogicalPlan::Sort(_)
             | LogicalPlan::Repartition(_)
