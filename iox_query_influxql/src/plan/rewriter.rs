@@ -1338,11 +1338,8 @@ impl FieldChecker {
     }
 
     fn check_cumulative_sum(&mut self, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!("cumulative_sum", 1, args);
-
-        set_extra_intervals!(self, 1);
-
         self.check_nested_symbol("cumulative_sum", &args[0])
     }
 

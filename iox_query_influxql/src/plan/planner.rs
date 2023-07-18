@@ -14,13 +14,13 @@ use crate::plan::udaf::{
     NON_NEGATIVE_DIFFERENCE,
 };
 use crate::plan::udf::{
-    derivative, difference, find_window_udfs, moving_average, non_negative_derivative,
-    non_negative_difference,
+    cumulative_sum, derivative, difference, find_window_udfs, moving_average,
+    non_negative_derivative, non_negative_difference,
 };
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
 use crate::plan::var_ref::var_ref_data_type_to_data_type;
 use crate::plan::{planner_rewrite_expression, udf, util_copy};
-use crate::window::PERCENT_ROW_NUMBER;
+use crate::window::{CUMULATIVE_SUM, PERCENT_ROW_NUMBER};
 use arrow::array::{StringBuilder, StringDictionaryBuilder};
 use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as ArrowSchema};
 use arrow::record_batch::RecordBatch;
@@ -1535,6 +1535,18 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 })
                 .alias(alias))
             }
+            Some(udf::WindowFunction::CumulativeSum) => Ok(Expr::WindowFunction(WindowFunction {
+                fun: CUMULATIVE_SUM.clone(),
+                args,
+                partition_by,
+                order_by,
+                window_frame: WindowFrame {
+                    units: WindowFrameUnits::Rows,
+                    start_bound: WindowFrameBound::Preceding(ScalarValue::Null),
+                    end_bound: WindowFrameBound::Following(ScalarValue::Null),
+                },
+            })
+            .alias(alias)),
             None => error::internal(format!(
                 "unexpected user-defined window function: {}",
                 fun.name
@@ -2066,6 +2078,17 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 }
 
                 Ok(non_negative_derivative(eargs))
+            }
+            "cumulative_sum" => {
+                check_arg_count(name, args, 1)?;
+
+                // arg0 should be a column or function
+                let arg0 = self.expr_to_df_expr(scope, &args[0], schemas)?;
+                if let Expr::Literal(ScalarValue::Null) = arg0 {
+                    return Ok(arg0);
+                }
+
+                Ok(cumulative_sum(vec![arg0]))
             }
             // The TOP/BOTTOM function is handled as a `ProjectionType::TopBottomSelector`
             // query, so the planner only needs to project the single column
@@ -4004,6 +4027,32 @@ mod test {
                     Filter: NOT non_negative_derivative IS NULL [time:Timestamp(Nanosecond, None);N, non_negative_derivative:Float64;N]
                       Projection: time, non_negative_derivative(AVG(cpu.usage_idle)) AS non_negative_derivative [time:Timestamp(Nanosecond, None);N, non_negative_derivative:Float64;N]
                         WindowAggr: windowExpr=[[AggregateUDF { name: "non_negative_derivative(unit: 10000000000)", signature: Signature { type_signature: OneOf([Exact([Timestamp(Nanosecond, None), Int64]), Exact([Timestamp(Nanosecond, None), UInt64]), Exact([Timestamp(Nanosecond, None), Float64])]), volatility: Immutable }, fun: "<FUNC>" }(time, AVG(cpu.usage_idle)) ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS non_negative_derivative(AVG(cpu.usage_idle))]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N, non_negative_derivative(AVG(cpu.usage_idle)):Float64;N]
+                          GapFill: groupBy=[time], aggr=[[AVG(cpu.usage_idle)]], time_column=time, stride=IntervalMonthDayNano("10000000000"), range=Unbounded..Included(Literal(TimestampNanosecond(1672531200000000000, None))) [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
+                            Aggregate: groupBy=[[date_bin(IntervalMonthDayNano("10000000000"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[AVG(cpu.usage_idle)]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
+                              Filter: cpu.time <= TimestampNanosecond(1672531200000000000, None) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                                TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+            }
+
+            #[test]
+            fn test_cumulative_sum() {
+                // no aggregates
+                assert_snapshot!(plan("SELECT CUMULATIVE_SUM(usage_idle) FROM cpu"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cumulative_sum:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, cumulative_sum [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cumulative_sum:Float64;N]
+                    Filter: NOT cumulative_sum IS NULL [time:Timestamp(Nanosecond, None), cumulative_sum:Float64;N]
+                      Projection: cpu.time AS time, cumulative_sum(cpu.usage_idle) AS cumulative_sum [time:Timestamp(Nanosecond, None), cumulative_sum:Float64;N]
+                        WindowAggr: windowExpr=[[cumumlative_sum(cpu.usage_idle) ORDER BY [cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS cumulative_sum(cpu.usage_idle)]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, cumulative_sum(cpu.usage_idle):Float64;N]
+                          TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+                // aggregate
+                assert_snapshot!(plan("SELECT CUMULATIVE_SUM(MEAN(usage_idle)) FROM cpu GROUP BY TIME(10s)"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cumulative_sum:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, cumulative_sum [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cumulative_sum:Float64;N]
+                    Filter: NOT cumulative_sum IS NULL [time:Timestamp(Nanosecond, None);N, cumulative_sum:Float64;N]
+                      Projection: time, cumulative_sum(AVG(cpu.usage_idle)) AS cumulative_sum [time:Timestamp(Nanosecond, None);N, cumulative_sum:Float64;N]
+                        WindowAggr: windowExpr=[[cumumlative_sum(AVG(cpu.usage_idle)) ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS cumulative_sum(AVG(cpu.usage_idle))]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N, cumulative_sum(AVG(cpu.usage_idle)):Float64;N]
                           GapFill: groupBy=[time], aggr=[[AVG(cpu.usage_idle)]], time_column=time, stride=IntervalMonthDayNano("10000000000"), range=Unbounded..Included(Literal(TimestampNanosecond(1672531200000000000, None))) [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
                             Aggregate: groupBy=[[date_bin(IntervalMonthDayNano("10000000000"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[AVG(cpu.usage_idle)]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
                               Filter: cpu.time <= TimestampNanosecond(1672531200000000000, None) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
