@@ -6,7 +6,7 @@ use datafusion::logical_expr::{PartitionEvaluator, Signature, TypeSignature, Vol
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 
-/// The name of the cumulative_sum_number window function.
+/// The name of the cumulative_sum window function.
 pub(super) const NAME: &str = "cumumlative_sum";
 
 /// Valid signatures for the cumulative_sum window function.

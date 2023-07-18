@@ -9,10 +9,7 @@ use crate::plan::planner::select::{
 };
 use crate::plan::planner_time_range_expression::time_range_to_df_expr;
 use crate::plan::rewriter::{find_table_names, rewrite_statement, ProjectionType};
-use crate::plan::udaf::{
-    derivative_udf, non_negative_derivative_udf, DIFFERENCE, MOVING_AVERAGE,
-    NON_NEGATIVE_DIFFERENCE,
-};
+use crate::plan::udaf::{derivative_udf, non_negative_derivative_udf, MOVING_AVERAGE};
 use crate::plan::udf::{
     cumulative_sum, derivative, difference, find_window_udfs, moving_average,
     non_negative_derivative, non_negative_difference,
@@ -20,7 +17,7 @@ use crate::plan::udf::{
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
 use crate::plan::var_ref::var_ref_data_type_to_data_type;
 use crate::plan::{planner_rewrite_expression, udf, util_copy};
-use crate::window::{CUMULATIVE_SUM, PERCENT_ROW_NUMBER};
+use crate::window::{CUMULATIVE_SUM, DIFFERENCE, NON_NEGATIVE_DIFFERENCE, PERCENT_ROW_NUMBER};
 use arrow::array::{StringBuilder, StringDictionaryBuilder};
 use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as ArrowSchema};
 use arrow::record_batch::RecordBatch;
@@ -1478,29 +1475,27 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             })
             .alias(alias)),
             Some(udf::WindowFunction::Difference) => Ok(Expr::WindowFunction(WindowFunction {
-                fun: window_function::WindowFunction::AggregateUDF(DIFFERENCE.clone()),
+                fun: DIFFERENCE.clone(),
                 args,
                 partition_by,
                 order_by,
                 window_frame: WindowFrame {
                     units: WindowFrameUnits::Rows,
                     start_bound: WindowFrameBound::Preceding(ScalarValue::Null),
-                    end_bound: WindowFrameBound::CurrentRow,
+                    end_bound: WindowFrameBound::Following(ScalarValue::Null),
                 },
             })
             .alias(alias)),
             Some(udf::WindowFunction::NonNegativeDifference) => {
                 Ok(Expr::WindowFunction(WindowFunction {
-                    fun: window_function::WindowFunction::AggregateUDF(
-                        NON_NEGATIVE_DIFFERENCE.clone(),
-                    ),
+                    fun: NON_NEGATIVE_DIFFERENCE.clone(),
                     args,
                     partition_by,
                     order_by,
                     window_frame: WindowFrame {
                         units: WindowFrameUnits::Rows,
                         start_bound: WindowFrameBound::Preceding(ScalarValue::Null),
-                        end_bound: WindowFrameBound::CurrentRow,
+                        end_bound: WindowFrameBound::Following(ScalarValue::Null),
                     },
                 })
                 .alias(alias))
@@ -3909,7 +3904,7 @@ mod test {
                   Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, difference [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), difference:Float64;N]
                     Filter: NOT difference IS NULL [time:Timestamp(Nanosecond, None), difference:Float64;N]
                       Projection: cpu.time AS time, difference(cpu.usage_idle) AS difference [time:Timestamp(Nanosecond, None), difference:Float64;N]
-                        WindowAggr: windowExpr=[[AggregateUDF { name: "difference", signature: Signature { type_signature: OneOf([Exact([Int64]), Exact([UInt64]), Exact([Float64])]), volatility: Immutable }, fun: "<FUNC>" }(cpu.usage_idle) ORDER BY [cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS difference(cpu.usage_idle)]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, difference(cpu.usage_idle):Float64;N]
+                        WindowAggr: windowExpr=[[difference(cpu.usage_idle) ORDER BY [cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS difference(cpu.usage_idle)]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, difference(cpu.usage_idle):Float64;N]
                           TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
 
@@ -3919,7 +3914,7 @@ mod test {
                   Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, difference [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, difference:Float64;N]
                     Filter: NOT difference IS NULL [time:Timestamp(Nanosecond, None);N, difference:Float64;N]
                       Projection: time, difference(AVG(cpu.usage_idle)) AS difference [time:Timestamp(Nanosecond, None);N, difference:Float64;N]
-                        WindowAggr: windowExpr=[[AggregateUDF { name: "difference", signature: Signature { type_signature: OneOf([Exact([Int64]), Exact([UInt64]), Exact([Float64])]), volatility: Immutable }, fun: "<FUNC>" }(AVG(cpu.usage_idle)) ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS difference(AVG(cpu.usage_idle))]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N, difference(AVG(cpu.usage_idle)):Float64;N]
+                        WindowAggr: windowExpr=[[difference(AVG(cpu.usage_idle)) ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS difference(AVG(cpu.usage_idle))]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N, difference(AVG(cpu.usage_idle)):Float64;N]
                           GapFill: groupBy=[time], aggr=[[AVG(cpu.usage_idle)]], time_column=time, stride=IntervalMonthDayNano("10000000000"), range=Unbounded..Included(Literal(TimestampNanosecond(1672531200000000000, None))) [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
                             Aggregate: groupBy=[[date_bin(IntervalMonthDayNano("10000000000"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[AVG(cpu.usage_idle)]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
                               Filter: cpu.time <= TimestampNanosecond(1672531200000000000, None) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
@@ -3935,7 +3930,7 @@ mod test {
                   Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, non_negative_difference [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), non_negative_difference:Float64;N]
                     Filter: NOT non_negative_difference IS NULL [time:Timestamp(Nanosecond, None), non_negative_difference:Float64;N]
                       Projection: cpu.time AS time, non_negative_difference(cpu.usage_idle) AS non_negative_difference [time:Timestamp(Nanosecond, None), non_negative_difference:Float64;N]
-                        WindowAggr: windowExpr=[[AggregateUDF { name: "non_negative_difference", signature: Signature { type_signature: OneOf([Exact([Int64]), Exact([UInt64]), Exact([Float64])]), volatility: Immutable }, fun: "<FUNC>" }(cpu.usage_idle) ORDER BY [cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS non_negative_difference(cpu.usage_idle)]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, non_negative_difference(cpu.usage_idle):Float64;N]
+                        WindowAggr: windowExpr=[[non_negative_difference(cpu.usage_idle) ORDER BY [cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS non_negative_difference(cpu.usage_idle)]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, non_negative_difference(cpu.usage_idle):Float64;N]
                           TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
 
@@ -3945,7 +3940,7 @@ mod test {
                   Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, non_negative_difference [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, non_negative_difference:Float64;N]
                     Filter: NOT non_negative_difference IS NULL [time:Timestamp(Nanosecond, None);N, non_negative_difference:Float64;N]
                       Projection: time, non_negative_difference(AVG(cpu.usage_idle)) AS non_negative_difference [time:Timestamp(Nanosecond, None);N, non_negative_difference:Float64;N]
-                        WindowAggr: windowExpr=[[AggregateUDF { name: "non_negative_difference", signature: Signature { type_signature: OneOf([Exact([Int64]), Exact([UInt64]), Exact([Float64])]), volatility: Immutable }, fun: "<FUNC>" }(AVG(cpu.usage_idle)) ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS non_negative_difference(AVG(cpu.usage_idle))]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N, non_negative_difference(AVG(cpu.usage_idle)):Float64;N]
+                        WindowAggr: windowExpr=[[non_negative_difference(AVG(cpu.usage_idle)) ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS non_negative_difference(AVG(cpu.usage_idle))]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N, non_negative_difference(AVG(cpu.usage_idle)):Float64;N]
                           GapFill: groupBy=[time], aggr=[[AVG(cpu.usage_idle)]], time_column=time, stride=IntervalMonthDayNano("10000000000"), range=Unbounded..Included(Literal(TimestampNanosecond(1672531200000000000, None))) [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
                             Aggregate: groupBy=[[date_bin(IntervalMonthDayNano("10000000000"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[AVG(cpu.usage_idle)]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
                               Filter: cpu.time <= TimestampNanosecond(1672531200000000000, None) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
