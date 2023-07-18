@@ -49,6 +49,7 @@ pub trait ScratchpadGen: Debug + Display + Send + Sync {
 /// SMALLER than the uncompressed Arrow data during compaction itself.
 #[async_trait]
 pub trait Scratchpad: Debug + Send + Sync + 'static {
+    fn uuids(&self, files: &[ParquetFilePath]) -> Vec<Uuid>;
     async fn load_to_scratchpad(&self, files: &[ParquetFilePath]) -> Vec<Uuid>;
     async fn make_public(&self, files: &[ParquetFilePath]) -> Vec<Uuid>;
     async fn clean_from_scratchpad(&self, files: &[ParquetFilePath]);
