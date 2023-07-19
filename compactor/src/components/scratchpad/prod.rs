@@ -178,6 +178,11 @@ impl Drop for ProdScratchpad {
 
 #[async_trait]
 impl Scratchpad for ProdScratchpad {
+    fn uuids(&self, files: &[ParquetFilePath]) -> Vec<Uuid> {
+        let (_, uuids) = self.apply_mask(files);
+        uuids
+    }
+
     async fn load_to_scratchpad(&self, files: &[ParquetFilePath]) -> Vec<Uuid> {
         let (files_to, uuids) = self.apply_mask(files);
         let (files_from, files_to) = self.check_known(files, &files_to, false);
@@ -323,8 +328,11 @@ mod tests {
         assert_content(&store_scratchpad, []).await;
         assert_content(&store_output, []).await;
 
+        let early_get_uuids = pad.uuids(&[f1.clone(), f2.clone()]);
+
         let uuids = pad.load_to_scratchpad(&[f1.clone(), f2.clone()]).await;
         assert_eq!(uuids.len(), 2);
+        assert_eq!(early_get_uuids, uuids);
         let f1_masked = f1.clone().with_object_store_id(uuids[0]);
         let f2_masked = f2.clone().with_object_store_id(uuids[1]);
 

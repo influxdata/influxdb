@@ -1,6 +1,7 @@
 use std::{fmt::Display, sync::Arc};
 
 use data_types::{ChunkOrder, CompactionLevel, ParquetFile, Timestamp, TimestampMinMax};
+use parquet_file::ParquetFilePath;
 use uuid::Uuid;
 
 use crate::{
@@ -125,21 +126,31 @@ impl IRPlanner for V1IRPlanner {
         target_level: CompactionLevel,
         split_or_compact: FilesToSplitOrCompact,
         object_store_ids: Vec<Uuid>,
+        object_store_paths: Vec<ParquetFilePath>,
     ) -> Vec<PlanIR> {
         match split_or_compact {
             FilesToSplitOrCompact::Compact(files, reason) => {
-                vec![self.compact_plan(files, object_store_ids, reason, partition, target_level)]
+                vec![self.compact_plan(
+                    files,
+                    object_store_paths,
+                    object_store_ids,
+                    reason,
+                    partition,
+                    target_level,
+                )]
             }
             FilesToSplitOrCompact::Split(files, reason) => {
                 files
                     .into_iter()
                     .zip(object_store_ids)
-                    .map(|(file_to_split, object_store_id)| {
+                    .zip(object_store_paths)
+                    .map(|((file_to_split, object_store_id), object_store_path)| {
                         // target level of a split file is the same as its level
                         let target_level = file_to_split.file.compaction_level;
 
                         self.split_plan(
                             file_to_split,
+                            object_store_path,
                             object_store_id,
                             reason,
                             Arc::clone(&partition),
@@ -157,6 +168,7 @@ impl IRPlanner for V1IRPlanner {
     fn compact_plan(
         &self,
         files: Vec<ParquetFile>,
+        paths: Vec<ParquetFilePath>,
         object_store_ids: Vec<Uuid>,
         reason: CompactReason,
         _partition: Arc<PartitionInfo>,
@@ -188,13 +200,15 @@ impl IRPlanner for V1IRPlanner {
         let files = files
             .into_iter()
             .zip(object_store_ids)
-            .map(|(file, object_store_id)| {
+            .zip(paths)
+            .map(|((file, object_store_id), path)| {
                 let order = order(file.compaction_level, target_level, file.max_l0_created_at);
                 FileIR {
                     file: ParquetFile {
                         object_store_id,
                         ..file
                     },
+                    path,
                     order,
                 }
             })
@@ -248,6 +262,7 @@ impl IRPlanner for V1IRPlanner {
     fn split_plan(
         &self,
         file_to_split: FileToSplit,
+        path: ParquetFilePath,
         object_store_id: Uuid,
         reason: SplitReason,
         _partition: Arc<PartitionInfo>,
@@ -261,6 +276,7 @@ impl IRPlanner for V1IRPlanner {
                 object_store_id,
                 ..file
             },
+            path,
             order,
         };
 

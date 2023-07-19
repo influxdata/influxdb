@@ -2,6 +2,7 @@ use std::{fmt::Display, sync::Arc};
 
 use data_types::{CompactionLevel, ParquetFile};
 use observability_deps::tracing::info;
+use parquet_file::ParquetFilePath;
 use uuid::Uuid;
 
 use crate::{
@@ -48,14 +49,21 @@ where
         target_level: CompactionLevel,
         split_or_compact: FilesToSplitOrCompact,
         object_store_ids: Vec<Uuid>,
+        object_store_paths: Vec<ParquetFilePath>,
     ) -> Vec<PlanIR> {
-        self.inner
-            .create_plans(partition, target_level, split_or_compact, object_store_ids)
+        self.inner.create_plans(
+            partition,
+            target_level,
+            split_or_compact,
+            object_store_ids,
+            object_store_paths,
+        )
     }
 
     fn compact_plan(
         &self,
         files: Vec<ParquetFile>,
+        object_store_paths: Vec<ParquetFilePath>,
         object_store_ids: Vec<Uuid>,
         reason: CompactReason,
         partition: Arc<PartitionInfo>,
@@ -65,9 +73,14 @@ where
         let n_input_files = files.len();
         let column_count = partition.column_count();
         let input_file_size_bytes = files.iter().map(|f| f.file_size_bytes).sum::<i64>();
-        let plan =
-            self.inner
-                .compact_plan(files, object_store_ids, reason, partition, compaction_level);
+        let plan = self.inner.compact_plan(
+            files,
+            object_store_paths,
+            object_store_ids,
+            reason,
+            partition,
+            compaction_level,
+        );
 
         info!(
             partition_id = partition_id.get(),
@@ -87,6 +100,7 @@ where
     fn split_plan(
         &self,
         file_to_split: FileToSplit,
+        object_store_path: ParquetFilePath,
         object_store_id: Uuid,
         reason: SplitReason,
         partition: Arc<PartitionInfo>,
@@ -98,6 +112,7 @@ where
         let input_file_size_bytes = file_to_split.file.file_size_bytes;
         let plan = self.inner.split_plan(
             file_to_split,
+            object_store_path,
             object_store_id,
             reason,
             partition,

@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use data_types::{ChunkOrder, CompactionLevel, ParquetFile};
+use parquet_file::ParquetFilePath;
 
 use crate::file_classification::{CompactReason, NoneReason, SplitReason};
 
@@ -78,6 +79,22 @@ impl PlanIR {
         }
     }
 
+    /// return the ParquetFiles that will be compacted together
+    pub fn input_parquet_files(&self) -> Vec<ParquetFile> {
+        self.input_files()
+            .iter()
+            .map(|ir| ir.file.clone())
+            .collect::<Vec<_>>()
+    }
+
+    /// return the paths of the input files that will be compacted together
+    pub fn input_paths(&self) -> Vec<ParquetFilePath> {
+        self.input_files()
+            .iter()
+            .map(|ir| ir.path.clone())
+            .collect::<Vec<_>>()
+    }
+
     /// return the total bytes of the input files that will be compacted together
     pub fn input_bytes(&self) -> i64 {
         self.input_files()
@@ -109,5 +126,6 @@ impl Display for PlanIR {
 #[derive(Debug)]
 pub struct FileIR {
     pub file: ParquetFile,
+    pub path: ParquetFilePath,
     pub order: ChunkOrder,
 }

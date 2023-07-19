@@ -17,7 +17,7 @@ use crate::{
         Components,
     },
     error::{DynError, ErrorKind, SimpleError},
-    file_classification::{FileClassification, FilesForProgress, FilesToSplitOrCompact},
+    file_classification::{FileClassification, FilesForProgress},
     partition_info::PartitionInfo,
     PlanIR, RoundInfo,
 };
@@ -301,8 +301,6 @@ async fn execute_branch(
     // throw away the compaction work we've done.
     let saved_parquet_file_state = SavedParquetFileState::from(&branch);
 
-    let input_paths: Vec<ParquetFilePath> = branch.iter().map(ParquetFilePath::from).collect();
-
     // Identify the target level and files that should be
     // compacted together, upgraded, and kept for next round of
     // compaction
@@ -329,105 +327,128 @@ async fn execute_branch(
     }
 
     let FilesForProgress {
-        upgrade,
+        mut upgrade,
         split_or_compact,
     } = files_to_make_progress_on;
 
-    // Compact & Split
-    let created_file_params = run_plans(
-        span.child("run_plans"),
-        split_or_compact.clone(),
-        &partition_info,
-        &components,
+    let paths = split_or_compact.file_input_paths();
+    let object_store_ids = scratchpad_ctx.uuids(&paths);
+    let plans = components.ir_planner.create_plans(
+        Arc::clone(&partition_info),
         target_level,
-        Arc::clone(&df_semaphore),
-        Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
-    )
-    .await?;
+        split_or_compact.clone(),
+        object_store_ids,
+        paths,
+    );
 
-    // inputs can be removed from the scratchpad as soon as we're done with compaction.
-    scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
+    let mut files_next: Vec<ParquetFile> = Vec::new();
 
-    // upload files to real object store
-    let upload_span = span.child("upload_objects");
-    let created_file_params = upload_files_to_object_store(
-        created_file_params,
-        Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
-    )
-    .await;
-    drop(upload_span);
+    // The number of plans is often small (1), but can be thousands, especially in vertical splitting
+    // scenarios when the partition is highly backlogged.  So we chunk the plans into groups to control
+    // memory usage (all files for all plans in a chunk are loaded to the scratchpad at once), and to
+    // allow incremental catalog & progress updates.  But the chunk size should still be large enough
+    // to facilitate concurrency in plan execution, which can be accomplished with a small multiple on
+    // the concurrency limit.
+    let mut chunks = plans.into_iter().peekable();
+    while chunks.peek().is_some() {
+        // 4x run_plans' concurrency limit will allow adequate concurrency.
+        let chunk: Vec<PlanIR> = chunks
+            .by_ref()
+            .take(df_semaphore.total_permits() * 4)
+            .collect();
 
-    for file_param in &created_file_params {
-        info!(
-            partition_id = partition_info.partition_id.get(),
-            uuid = file_param.object_store_id.to_string(),
-            bytes = file_param.file_size_bytes,
-            "uploaded file to objectstore",
-        );
-    }
+        let files_to_delete = chunk
+            .iter()
+            .flat_map(|plan| plan.input_parquet_files())
+            .collect();
 
-    let created_file_paths: Vec<ParquetFilePath> = created_file_params
-        .iter()
-        .map(ParquetFilePath::from)
-        .collect();
+        // Compact & Split
+        let created_file_params = run_plans(
+            span.child("run_plans"),
+            chunk,
+            &partition_info,
+            &components,
+            Arc::clone(&df_semaphore),
+            Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
+        )
+        .await?;
 
-    // conditionally (if not shaddow mode) remove the newly created files from the scratchpad.
-    scratchpad_ctx
-        .clean_written_from_scratchpad(&created_file_paths)
+        // upload files to real object store
+        let upload_span = span.child("upload_objects");
+        let created_file_params = upload_files_to_object_store(
+            created_file_params,
+            Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
+        )
+        .await;
+        drop(upload_span);
+
+        for file_param in &created_file_params {
+            info!(
+                partition_id = partition_info.partition_id.get(),
+                uuid = file_param.object_store_id.to_string(),
+                bytes = file_param.file_size_bytes,
+                "uploaded file to objectstore",
+            );
+        }
+
+        let created_file_paths: Vec<ParquetFilePath> = created_file_params
+            .iter()
+            .map(ParquetFilePath::from)
+            .collect();
+
+        // conditionally (if not shaddow mode) remove the newly created files from the scratchpad.
+        scratchpad_ctx
+            .clean_written_from_scratchpad(&created_file_paths)
+            .await;
+
+        // Update the catalog to reflect the newly created files, soft delete the compacted
+        // files and update the upgraded files
+        let (created_files, upgraded_files) = update_catalog(
+            Arc::clone(&components),
+            partition_id,
+            &saved_parquet_file_state,
+            files_to_delete,
+            upgrade,
+            created_file_params,
+            target_level,
+        )
         .await;
 
-    // Update the catalog to reflect the newly created files, soft delete the compacted
-    // files and update the upgraded files
-    let files_to_delete = split_or_compact.into_files();
-    let (created_files, upgraded_files) = update_catalog(
-        Arc::clone(&components),
-        partition_id,
-        saved_parquet_file_state,
-        files_to_delete,
-        upgrade,
-        created_file_params,
-        target_level,
-    )
-    .await;
+        // we only need to upgrade files on the first iteration, so empty the upgrade list for next loop.
+        upgrade = Vec::new();
 
-    // Report to `timeout_with_progress_checking` that some progress has been made; stop
-    // if sending this signal fails because something has gone terribly wrong for the other
-    // end of the channel to not be listening anymore.
-    if let Err(e) = transmit_progress_signal.send(true) {
-        return Err(Box::new(e));
+        // Report to `timeout_with_progress_checking` that some progress has been made; stop
+        // if sending this signal fails because something has gone terribly wrong for the other
+        // end of the channel to not be listening anymore.
+        if let Err(e) = transmit_progress_signal.send(true) {
+            return Err(Box::new(e));
+        }
+
+        // track this chunk files to return later
+        files_next.extend(created_files);
+        files_next.extend(upgraded_files);
     }
 
-    // Extend created files, upgraded files and files_to_keep to files_next
-    let mut files_next = created_files;
-    files_next.extend(upgraded_files);
     files_next.extend(files_to_keep);
-
     Ok(files_next)
 }
 
 /// Compact or split given files
 async fn run_plans(
     span: SpanRecorder,
-    split_or_compact: FilesToSplitOrCompact,
+    plans: Vec<PlanIR>,
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
-    target_level: CompactionLevel,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     scratchpad_ctx: Arc<dyn Scratchpad>,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
-    // stage files
-    let download_span = span.child("download_objects");
-    let input_uuids_inpad = scratchpad_ctx
-        .load_to_scratchpad(&split_or_compact.file_input_paths())
-        .await;
-    drop(download_span);
+    let paths: Vec<ParquetFilePath> = plans.iter().flat_map(|plan| plan.input_paths()).collect();
 
-    let plans = components.ir_planner.create_plans(
-        Arc::clone(partition_info),
-        target_level,
-        split_or_compact,
-        input_uuids_inpad,
-    );
+    // stage files.  This could move to execute_plan to reduce peak scratchpad memory use, but that would
+    // cost some concurrency in object downloads.
+    let download_span = span.child("download_objects");
+    let _ = scratchpad_ctx.load_to_scratchpad(&paths).await;
+    drop(download_span);
 
     info!(
         partition_id = partition_info.partition_id.get(),
@@ -448,6 +469,7 @@ async fn run_plans(
             partition_info,
             components,
             Arc::clone(&df_semaphore),
+            Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
         )
     })
     .buffer_unordered(df_semaphore.total_permits())
@@ -463,6 +485,7 @@ async fn execute_plan(
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    scratchpad_ctx: Arc<dyn Scratchpad>,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
     span.set_metadata("input_files", plan_ir.input_files().len().to_string());
     span.set_metadata("input_bytes", plan_ir.input_bytes().to_string());
@@ -526,6 +549,12 @@ async fn execute_plan(
 
         drop(permit);
         drop(df_span);
+
+        // inputs can be removed from the scratchpad as soon as we're done with compaction.
+        scratchpad_ctx
+            .clean_from_scratchpad(&plan_ir.input_paths())
+            .await;
+
         info!(
             partition_id = partition_info.partition_id.get(),
             plan_id, "job semaphore released",
@@ -580,7 +609,7 @@ async fn fetch_and_save_parquet_file_state(
 async fn update_catalog(
     components: Arc<Components>,
     partition_id: PartitionId,
-    saved_parquet_file_state: SavedParquetFileState,
+    saved_parquet_file_state: &SavedParquetFileState,
     files_to_delete: Vec<ParquetFile>,
     files_to_upgrade: Vec<ParquetFile>,
     file_params_to_create: Vec<ParquetFileParams>,
@@ -592,7 +621,7 @@ async fn update_catalog(
     // Right now this only logs; in the future we might decide not to commit these changes
     let _ignore = components
         .changed_files_filter
-        .apply(&saved_parquet_file_state, &current_parquet_file_state);
+        .apply(saved_parquet_file_state, &current_parquet_file_state);
 
     let created_ids = components
         .commit
