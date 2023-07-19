@@ -586,6 +586,19 @@ impl PartitionRepo for MemTxn {
             .cloned())
     }
 
+    async fn get_by_id_batch(&mut self, partition_ids: Vec<PartitionId>) -> Result<Vec<Partition>> {
+        let lookup = partition_ids.into_iter().collect::<HashSet<_>>();
+
+        let stage = self.stage();
+
+        Ok(stage
+            .partitions
+            .iter()
+            .filter(|p| lookup.contains(&p.id))
+            .cloned()
+            .collect())
+    }
+
     async fn get_by_hash_id(
         &mut self,
         partition_hash_id: &PartitionHashId,
@@ -601,6 +614,26 @@ impl PartitionRepo for MemTxn {
                     .unwrap_or_default()
             })
             .cloned())
+    }
+
+    async fn get_by_hash_id_batch(
+        &mut self,
+        partition_hash_ids: &[&PartitionHashId],
+    ) -> Result<Vec<Partition>> {
+        let lookup = partition_hash_ids.iter().copied().collect::<HashSet<_>>();
+
+        let stage = self.stage();
+
+        Ok(stage
+            .partitions
+            .iter()
+            .filter(|p| {
+                p.hash_id()
+                    .map(|hash_id| lookup.contains(hash_id))
+                    .unwrap_or_default()
+            })
+            .cloned()
+            .collect())
     }
 
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {

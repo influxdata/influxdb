@@ -1096,6 +1096,22 @@ WHERE id = $1;
         Ok(Some(partition))
     }
 
+    async fn get_by_id_batch(&mut self, partition_ids: Vec<PartitionId>) -> Result<Vec<Partition>> {
+        let ids: Vec<_> = partition_ids.iter().map(|p| p.get()).collect();
+
+        sqlx::query_as::<_, Partition>(
+            r#"
+SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+FROM partition
+WHERE id = ANY($1);
+        "#,
+        )
+        .bind(&ids[..]) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
     async fn get_by_hash_id(
         &mut self,
         partition_hash_id: &PartitionHashId,
@@ -1118,6 +1134,25 @@ WHERE hash_id = $1;
         let partition = rec.map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(Some(partition))
+    }
+
+    async fn get_by_hash_id_batch(
+        &mut self,
+        partition_ids: &[&PartitionHashId],
+    ) -> Result<Vec<Partition>> {
+        let ids: Vec<_> = partition_ids.iter().map(|p| p.as_bytes()).collect();
+
+        sqlx::query_as::<_, Partition>(
+            r#"
+SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+FROM partition
+WHERE hash_id = ANY($1);
+        "#,
+        )
+        .bind(&ids[..]) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
     }
 
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {

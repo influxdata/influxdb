@@ -24,8 +24,8 @@ use data_types::{
     Table, TableId, Timestamp, TransitionPartitionId,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashSet, fmt::Write};
 
 use crate::interface::MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE;
 use iox_time::{SystemProvider, TimeProvider};
@@ -892,6 +892,24 @@ WHERE id = $1;
         Ok(Some(partition.into()))
     }
 
+    async fn get_by_id_batch(&mut self, partition_ids: Vec<PartitionId>) -> Result<Vec<Partition>> {
+        // We use a JSON-based "IS IN" check.
+        let ids: Vec<_> = partition_ids.iter().map(|p| p.get()).collect();
+
+        sqlx::query_as::<_, PartitionPod>(
+            r#"
+SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+FROM partition
+WHERE id IN (SELECT value FROM json_each($1));
+            "#,
+        )
+        .bind(Json(&ids[..])) // $1
+        .fetch_all(self.inner.get_mut())
+        .await
+        .map(|vals| vals.into_iter().map(Partition::from).collect())
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
     async fn get_by_hash_id(
         &mut self,
         partition_hash_id: &PartitionHashId,
@@ -914,6 +932,38 @@ WHERE hash_id = $1;
         let partition = rec.map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(Some(partition.into()))
+    }
+
+    async fn get_by_hash_id_batch(
+        &mut self,
+        partition_hash_ids: &[&PartitionHashId],
+    ) -> Result<Vec<Partition>> {
+        // We use a JSON-based "IS IN" check.
+        let ids: Vec<_> = partition_hash_ids
+            .iter()
+            .map(|id| {
+                // convert partiion hash ID to uppercase hex string
+                let bytes = id.as_bytes();
+                let mut s = String::with_capacity(bytes.len() * 2);
+                for b in bytes {
+                    write!(&mut s, "{:02X}", b).expect("never fails");
+                }
+                s
+            })
+            .collect();
+
+        sqlx::query_as::<_, PartitionPod>(
+            r#"
+SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+FROM partition
+WHERE hex(hash_id) IN (SELECT value FROM json_each($1));
+            "#,
+        )
+        .bind(Json(&ids[..])) // $1
+        .fetch_all(self.inner.get_mut())
+        .await
+        .map(|vals| vals.into_iter().map(Partition::from).collect())
+        .map_err(|e| Error::SqlxError { source: e })
     }
 
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
