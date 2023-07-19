@@ -315,7 +315,7 @@ struct TestStateTtlAndRefresh {
     ttl_provider: Arc<TestTtlProvider>,
     refresh_duration_provider: Arc<TestRefreshDurationProvider>,
     time_provider: Arc<MockProvider>,
-    loader: Arc<TestLoader<u8, String, ()>>,
+    loader: Arc<TestLoader<u8, (), String>>,
     notify_idle: Arc<Notify>,
 }
 
@@ -365,7 +365,7 @@ struct TestStateLRUAndRefresh {
     size_estimator: Arc<TestSizeEstimator>,
     refresh_duration_provider: Arc<TestRefreshDurationProvider>,
     time_provider: Arc<MockProvider>,
-    loader: Arc<TestLoader<u8, String, ()>>,
+    loader: Arc<TestLoader<u8, (), String>>,
     pool: Arc<ResourcePool<TestSize>>,
     notify_idle: Arc<Notify>,
 }
@@ -505,7 +505,7 @@ struct TestStateLruAndRefresh {
     size_estimator: Arc<TestSizeEstimator>,
     refresh_duration_provider: Arc<TestRefreshDurationProvider>,
     time_provider: Arc<MockProvider>,
-    loader: Arc<TestLoader<u8, String, ()>>,
+    loader: Arc<TestLoader<u8, (), String>>,
     notify_idle: Arc<Notify>,
 }
 

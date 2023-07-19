@@ -64,9 +64,7 @@ impl From<&SingleTenantExtractError> for hyper::StatusCode {
             SingleTenantExtractError::NoBucketSpecified => Self::BAD_REQUEST,
             SingleTenantExtractError::InvalidNamespace(_) => Self::BAD_REQUEST,
             SingleTenantExtractError::ParseV1Request(
-                V1WriteParseError::NoQueryParams
-                | V1WriteParseError::DecodeFail(_)
-                | V1WriteParseError::ContainsRpSeparator,
+                V1WriteParseError::NoQueryParams | V1WriteParseError::DecodeFail(_),
             ) => Self::BAD_REQUEST,
             SingleTenantExtractError::ParseV2Request(
                 V2WriteParseError::NoQueryParams | V2WriteParseError::DecodeFail(_),
@@ -124,10 +122,6 @@ async fn parse_v1(
 ) -> Result<WriteParams, SingleTenantExtractError> {
     // Extract the write parameters.
     let write_params = WriteParamsV1::try_from(req)?;
-
-    // Extracting the write parameters validates the db field never contains the
-    // '/' separator to avoid ambiguity with the "namespace/rp" construction.
-    debug_assert!(!write_params.db.contains(V1_NAMESPACE_RP_SEPARATOR));
 
     // Extract or construct the namespace name string from the write parameters
     let namespace = NamespaceName::new(match write_params.rp {
@@ -316,22 +310,65 @@ mod tests {
         }
     );
 
-    // Prevent ambiguity by denying the `/` character in the DB
+    // Permit `/` character in the DB
     test_parse_v1!(
         no_rp_db_with_rp_separator,
         query_string = "?db=bananas/are/great",
-        want = Err(Error::SingleTenantError(
-            SingleTenantExtractError::ParseV1Request(V1WriteParseError::ContainsRpSeparator)
-        ))
+        want = Ok(WriteParams{ namespace, precision }) => {
+            assert_eq!(namespace.as_str(), "bananas/are/great");
+            assert_matches!(precision, Precision::Nanoseconds);
+        }
     );
 
-    // Prevent ambiguity by denying the `/` character in the RP
+    // Permit the `/` character in the RP
     test_parse_v1!(
         rp_with_rp_separator,
         query_string = "?db=bananas&rp=are/great",
-        want = Err(Error::SingleTenantError(
-            SingleTenantExtractError::ParseV1Request(V1WriteParseError::ContainsRpSeparator)
-        ))
+        want = Ok(WriteParams{ namespace, precision }) => {
+            assert_eq!(namespace.as_str(), "bananas/are/great");
+            assert_matches!(precision, Precision::Nanoseconds);
+        }
+    );
+
+    // `/` character is allowed in the DB, if a named RP is specified
+    test_parse_v1!(
+        db_with_rp_separator_and_rp,
+        query_string = "?db=foo/bar&rp=my_rp",
+        want = Ok(WriteParams{ namespace, precision }) => {
+            assert_eq!(namespace.as_str(), "foo/bar/my_rp");
+            assert_matches!(precision, Precision::Nanoseconds);
+        }
+    );
+
+    // Always concat, even if this results in duplication rp within the namespace.
+    // ** this matches the query API behavior **
+    test_parse_v1!(
+        db_with_rp_separator_and_duplicate_rp,
+        query_string = "?db=foo/my_rp&rp=my_rp",
+        want = Ok(WriteParams{ namespace, precision }) => {
+            assert_eq!(namespace.as_str(), "foo/my_rp/my_rp");
+            assert_matches!(precision, Precision::Nanoseconds);
+        }
+    );
+
+    // `/` character is allowed in the DB, if an autogen RP is specified
+    test_parse_v1!(
+        db_with_rp_separator_and_rp_autogen,
+        query_string = "?db=foo/bar&rp=autogen",
+        want = Ok(WriteParams{ namespace, precision }) => {
+            assert_eq!(namespace.as_str(), "foo/bar");
+            assert_matches!(precision, Precision::Nanoseconds);
+        }
+    );
+
+    // `/` character is allowed in the DB, if a default RP is specified
+    test_parse_v1!(
+        db_with_rp_separator_and_rp_default,
+        query_string = "?db=foo/bar&rp=default",
+        want = Ok(WriteParams{ namespace, precision }) => {
+            assert_eq!(namespace.as_str(), "foo/bar");
+            assert_matches!(precision, Precision::Nanoseconds);
+        }
     );
 
     test_parse_v1!(

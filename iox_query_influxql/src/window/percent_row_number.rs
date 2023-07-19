@@ -6,10 +6,10 @@ use datafusion::logical_expr::{PartitionEvaluator, Signature, TypeSignature, Vol
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 
-/// The name of the percent_row_number aggregate function.
+/// The name of the percent_row_number window function.
 pub(super) const NAME: &str = "percent_row_number";
 
-/// Valid signatures for the percent_row_number aggregate function.
+/// Valid signatures for the percent_row_number window function.
 pub(super) static SIGNATURE: Lazy<Signature> = Lazy::new(|| {
     Signature::one_of(
         vec![

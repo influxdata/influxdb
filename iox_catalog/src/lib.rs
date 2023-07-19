@@ -88,6 +88,48 @@ where
     }
 }
 
+/// Look up multiple partitions in the catalog by either database-assigned ID or deterministic hash ID.
+///
+/// The output only contains existing partitions, the order is undefined.
+///
+/// The existence of this function should be temporary; it can be removed once all partition lookup
+/// is happening with only the deterministic hash ID.
+pub async fn partition_lookup_batch<R>(
+    repos: &mut R,
+    ids: &[&TransitionPartitionId],
+) -> Result<Vec<Partition>, Error>
+where
+    R: RepoCollection + ?Sized,
+{
+    let mut partition_ids = Vec::with_capacity(ids.len());
+    let mut partition_hash_ids = Vec::with_capacity(ids.len());
+
+    for id in ids {
+        match id {
+            TransitionPartitionId::Deprecated(partition_id) => {
+                partition_ids.push(*partition_id);
+            }
+            TransitionPartitionId::Deterministic(partition_hash_id) => {
+                partition_hash_ids.push(partition_hash_id);
+            }
+        }
+    }
+
+    let mut out = Vec::with_capacity(partition_ids.len() + partition_hash_ids.len());
+    if !partition_ids.is_empty() {
+        let mut partitions = repos.partitions().get_by_id_batch(partition_ids).await?;
+        out.append(&mut partitions);
+    }
+    if !partition_hash_ids.is_empty() {
+        let mut partitions = repos
+            .partitions()
+            .get_by_hash_id_batch(&partition_hash_ids)
+            .await?;
+        out.append(&mut partitions);
+    }
+    Ok(out)
+}
+
 /// Given an iterator of `(table_name, batch)` to validate, this function
 /// ensures all the columns within `batch` match the existing schema for
 /// `table_name` in `schema`. If the column does not already exist in `schema`,

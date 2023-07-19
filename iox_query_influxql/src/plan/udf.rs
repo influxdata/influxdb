@@ -21,6 +21,7 @@ pub(super) enum WindowFunction {
     NonNegativeDifference,
     Derivative,
     NonNegativeDerivative,
+    CumulativeSum,
 }
 
 impl WindowFunction {
@@ -32,6 +33,7 @@ impl WindowFunction {
             NON_NEGATIVE_DIFFERENCE_UDF_NAME => Some(Self::NonNegativeDifference),
             DERIVATIVE_UDF_NAME => Some(Self::Derivative),
             NON_NEGATIVE_DERIVATIVE_UDF_NAME => Some(Self::NonNegativeDerivative),
+            CUMULATIVE_SUM_UDF_NAME => Some(Self::CumulativeSum),
             _ => None,
         }
     }
@@ -165,6 +167,29 @@ static NON_NEGATIVE_DERIVATIVE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
         ),
         &return_type_fn,
         &stand_in_impl(NON_NEGATIVE_DERIVATIVE_UDF_NAME),
+    ))
+});
+
+const CUMULATIVE_SUM_UDF_NAME: &str = "cumulative_sum";
+
+/// Create an expression to represent the `CUMULATIVE_SUM` function.
+pub(crate) fn cumulative_sum(args: Vec<Expr>) -> Expr {
+    CUMULATIVE_SUM.call(args)
+}
+/// Definition of the `CUMULATIVE_SUM` function.
+static CUMULATIVE_SUM: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
+    let return_type_fn: ReturnTypeFunction = Arc::new(|args| Ok(Arc::new(args[0].clone())));
+    Arc::new(ScalarUDF::new(
+        CUMULATIVE_SUM_UDF_NAME,
+        &Signature::one_of(
+            NUMERICS
+                .iter()
+                .map(|dt| TypeSignature::Exact(vec![dt.clone()]))
+                .collect(),
+            Volatility::Immutable,
+        ),
+        &return_type_fn,
+        &stand_in_impl(CUMULATIVE_SUM_UDF_NAME),
     ))
 });
 

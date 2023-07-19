@@ -254,9 +254,10 @@ mod tests {
     use crate::{
         cache::{
             driver::CacheDriver,
-            test_util::{run_test_generic, AbortAndWaitExt, EnsurePendingExt, TestAdapter},
+            test_util::{run_test_generic, TestAdapter},
         },
         loader::test_util::TestLoader,
+        test_util::{AbortAndWaitExt, EnsurePendingExt},
     };
 
     use super::*;

@@ -223,3 +223,32 @@ Error during planning: gap-filling query is missing lower time bound
 | b      | 2000-05-05T12:40:00Z | 27.049999999999997 |
 | b      | 2000-05-05T12:50:00Z | 27.049999999999997 |
 +--------+----------------------+--------------------+
+-- SQL: SELECT date_bin_gapfill(INTERVAL '1 minute', time) as _time, pod, locf(selector_last(image, time)) FROM (VALUES ('2023-06-10T12:00:00Z'::timestamp, 'pod1', 'imageA'), ('2023-06-10T12:00:00Z'::timestamp, 'pod2', 'imageA'), ('2023-06-10T12:00:01Z'::timestamp, 'pod1', 'imageB'), ('2023-06-10T12:00:02Z'::timestamp, 'pod1', 'imageB'), ('2023-06-10T12:00:02Z'::timestamp, 'pod2', 'imageB') ) AS data(time, pod, image) WHERE time >= timestamp '2023-06-10T11:55:00Z' AND time < timestamp '2023-06-10T12:05:00Z' GROUP BY _time, pod;
++----------------------+------+--------------------------------------------+
+| _time                | pod  | locf(selector_last(image,time))            |
++----------------------+------+--------------------------------------------+
+| 2023-06-10T11:55:00Z | pod1 |                                            |
+| 2023-06-10T11:56:00Z | pod1 |                                            |
+| 2023-06-10T11:57:00Z | pod1 |                                            |
+| 2023-06-10T11:58:00Z | pod1 |                                            |
+| 2023-06-10T11:59:00Z | pod1 |                                            |
+| 2023-06-10T12:00:00Z | pod1 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:01:00Z | pod1 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:02:00Z | pod1 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:03:00Z | pod1 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:04:00Z | pod1 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T11:55:00Z | pod2 |                                            |
+| 2023-06-10T11:56:00Z | pod2 |                                            |
+| 2023-06-10T11:57:00Z | pod2 |                                            |
+| 2023-06-10T11:58:00Z | pod2 |                                            |
+| 2023-06-10T11:59:00Z | pod2 |                                            |
+| 2023-06-10T12:00:00Z | pod2 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:01:00Z | pod2 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:02:00Z | pod2 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:03:00Z | pod2 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:04:00Z | pod2 | {value: imageB, time: 2023-06-10T12:00:02} |
++----------------------+------+--------------------------------------------+
+-- SQL: select date_bin_gapfill('60 seconds'::interval, time)::bigint as time, sum(idle) from cpu WHERE time >= '2020-06-11T16:52:00Z' AND time < '2020-06-11T16:54:00Z' group by 1;
+Error while planning query: Optimizer rule 'handle_gap_fill' failed
+caused by
+Error during planning: DATE_BIN_GAPFILL must a top-level expression in the GROUP BY clause when gap filling. It cannot be part of another expression or cast

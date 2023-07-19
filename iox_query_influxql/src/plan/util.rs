@@ -11,7 +11,10 @@ use influxdb_influxql_parser::literal::Number;
 use influxdb_influxql_parser::string::Regex;
 use query_functions::clean_non_meta_escapes;
 use query_functions::coalesce_struct::coalesce_struct;
+use schema::InfluxColumnType;
 use std::sync::Arc;
+
+use super::ir::{DataSourceSchema, Field};
 
 pub(in crate::plan) fn binary_operator_to_df_operator(op: BinaryOperator) -> Operator {
     match op {
@@ -26,17 +29,62 @@ pub(in crate::plan) fn binary_operator_to_df_operator(op: BinaryOperator) -> Ope
     }
 }
 
-/// Container for both the DataFusion and equivalent IOx schema.
-pub(in crate::plan) struct Schemas {
+/// Container for the DataFusion schema as well as
+/// info on which columns are tags.
+pub(in crate::plan) struct IQLSchema<'a> {
     pub(in crate::plan) df_schema: DFSchemaRef,
+    tag_info: TagInfo<'a>,
 }
 
-impl Schemas {
-    pub(in crate::plan) fn new(df_schema: &DFSchemaRef) -> Result<Self> {
+impl<'a> IQLSchema<'a> {
+    /// Create a new IQLSchema from a [`DataSourceSchema`] from the
+    /// FROM clause of a query or subquery.
+    pub(in crate::plan) fn new_from_ds_schema(
+        df_schema: &DFSchemaRef,
+        ds_schema: DataSourceSchema<'a>,
+    ) -> Result<Self> {
         Ok(Self {
             df_schema: Arc::clone(df_schema),
+            tag_info: TagInfo::DataSourceSchema(ds_schema),
         })
     }
+
+    /// Create a new IQLSchema from a list of [`Field`]s on the SELECT list
+    /// of a subquery.
+    pub(in crate::plan) fn new_from_fields(
+        df_schema: &DFSchemaRef,
+        fields: &'a [Field],
+    ) -> Result<Self> {
+        Ok(Self {
+            df_schema: Arc::clone(df_schema),
+            tag_info: TagInfo::FieldList(fields),
+        })
+    }
+
+    /// Returns `true` if the schema contains a tag column with the specified name.
+    pub fn is_tag_field(&self, name: &str) -> bool {
+        match self.tag_info {
+            TagInfo::DataSourceSchema(ref ds_schema) => ds_schema.is_tag_field(name),
+            TagInfo::FieldList(fields) => fields
+                .iter()
+                .any(|f| f.name == name && f.data_type == Some(InfluxColumnType::Tag)),
+        }
+    }
+
+    /// Returns `true` if the schema contains a tag column with the specified name.
+    /// If the underlying data source is a subquery, it will apply any aliases in the
+    /// projection that represents the SELECT list.
+    pub fn is_projected_tag_field(&self, name: &str) -> bool {
+        match self.tag_info {
+            TagInfo::DataSourceSchema(ref ds_schema) => ds_schema.is_projected_tag_field(name),
+            _ => self.is_tag_field(name),
+        }
+    }
+}
+
+pub(in crate::plan) enum TagInfo<'a> {
+    DataSourceSchema(DataSourceSchema<'a>),
+    FieldList(&'a [Field]),
 }
 
 /// Sanitize an InfluxQL regular expression and create a compiled [`regex::Regex`].
