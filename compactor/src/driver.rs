@@ -301,8 +301,6 @@ async fn execute_branch(
     // throw away the compaction work we've done.
     let saved_parquet_file_state = SavedParquetFileState::from(&branch);
 
-    let input_paths: Vec<ParquetFilePath> = branch.iter().map(ParquetFilePath::from).collect();
-
     // Identify the target level and files that should be
     // compacted together, upgraded, and kept for next round of
     // compaction
@@ -375,9 +373,6 @@ async fn execute_branch(
         )
         .await?;
 
-        // inputs can be removed from the scratchpad as soon as we're done with compaction.
-        scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
-
         // upload files to real object store
         let upload_span = span.child("upload_objects");
         let created_file_params = upload_files_to_object_store(
@@ -449,7 +444,8 @@ async fn run_plans(
 ) -> Result<Vec<ParquetFileParams>, DynError> {
     let paths: Vec<ParquetFilePath> = plans.iter().flat_map(|plan| plan.input_paths()).collect();
 
-    // stage files
+    // stage files.  This could move to execute_plan to reduce peak scratchpad memory use, but that would
+    // cost some concurrency in object downloads.
     let download_span = span.child("download_objects");
     let _ = scratchpad_ctx.load_to_scratchpad(&paths).await;
     drop(download_span);
@@ -473,6 +469,7 @@ async fn run_plans(
             partition_info,
             components,
             Arc::clone(&df_semaphore),
+            Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
         )
     })
     .buffer_unordered(df_semaphore.total_permits())
@@ -488,6 +485,7 @@ async fn execute_plan(
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    scratchpad_ctx: Arc<dyn Scratchpad>,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
     span.set_metadata("input_files", plan_ir.input_files().len().to_string());
     span.set_metadata("input_bytes", plan_ir.input_bytes().to_string());
@@ -551,6 +549,12 @@ async fn execute_plan(
 
         drop(permit);
         drop(df_span);
+
+        // inputs can be removed from the scratchpad as soon as we're done with compaction.
+        scratchpad_ctx
+            .clean_from_scratchpad(&plan_ir.input_paths())
+            .await;
+
         info!(
             partition_id = partition_info.partition_id.get(),
             plan_id, "job semaphore released",
