@@ -32,5 +32,5 @@ metric = { path = "../metric" }
 once_cell = { version = "1.18", features = ["parking_lot"] }
 parquet_file = { path = "../parquet_file" }
 tempfile = "3"
-sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" ] }
+sqlx = { version = "0.7.1", features = [ "runtime-tokio-rustls" ] }
 

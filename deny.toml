@@ -7,14 +7,6 @@ yanked = "deny"
 unmaintained = "warn"
 notice = "warn"
 ignore = [
-    # "It was sometimes possible for SQLite versions >= 1.0.12, < 3.39.2 to allow an array-bounds overflow when large
-    # string were input into SQLite's printf function."
-    #
-    # We are not using `printf` with untrusted inputs.
-    #
-    # This is currently blocked by upstream:
-    # https://github.com/launchbadge/sqlx/issues/2346
-    "RUSTSEC-2022-0090",
 ]
 git-fetch-with-cli = true
 

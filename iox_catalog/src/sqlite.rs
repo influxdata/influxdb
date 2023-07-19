@@ -577,7 +577,7 @@ RETURNING *;
         .bind(name) // $1
         .bind(partition_template) // $2
         .bind(namespace_id) // $3
-        .fetch_one(&mut tx)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| match e {
             sqlx::Error::RowNotFound => Error::TableCreateLimitError {
@@ -604,7 +604,8 @@ RETURNING *;
         // columns with an unsupported type.
         for template_part in table.partition_template.parts() {
             if let TemplatePart::TagValue(tag_name) = template_part {
-                insert_column_with_connection(&mut tx, tag_name, table.id, ColumnType::Tag).await?;
+                insert_column_with_connection(&mut *tx, tag_name, table.id, ColumnType::Tag)
+                    .await?;
             }
         }
 
@@ -1451,14 +1452,14 @@ WHERE object_store_id IN ({v});",
 
         for id in delete {
             let marked_at = Timestamp::from(self.time_provider.now());
-            flag_for_delete(&mut tx, *id, marked_at).await?;
+            flag_for_delete(&mut *tx, *id, marked_at).await?;
         }
 
-        update_compaction_level(&mut tx, upgrade, target_level).await?;
+        update_compaction_level(&mut *tx, upgrade, target_level).await?;
 
         let mut ids = Vec::with_capacity(create.len());
         for file in create {
-            let res = create_parquet_file(&mut tx, file.clone()).await?;
+            let res = create_parquet_file(&mut *tx, file.clone()).await?;
             ids.push(res.id);
         }
         tx.commit()
@@ -1562,8 +1563,7 @@ async fn update_compaction_level<'q, E>(
 where
     E: Executor<'q, Database = Sqlite>,
 {
-    // If I try to do `.bind(parquet_file_ids)` directly, I get a compile error from sqlx.
-    // See https://github.com/launchbadge/sqlx/issues/1744
+    // We use a JSON-based "IS IN" check.
     let ids: Vec<_> = parquet_file_ids.iter().map(|p| p.get()).collect();
     let query = sqlx::query(
         r#"
