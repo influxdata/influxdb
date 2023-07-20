@@ -6121,9 +6121,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8bd22a874a2d0b70452d5597b12c537331d49060824a95f49f108994f94aa4c"
+checksum = "7ac8060a61f8758a61562f6fb53ba3cbe1ca906f001df2e53cccddcdbee91e7c"
 dependencies = [
  "bitflags 2.3.3",
  "bytes",
