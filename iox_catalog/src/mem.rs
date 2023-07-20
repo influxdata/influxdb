@@ -995,23 +995,19 @@ async fn create_parquet_file(
         parquet_file_params,
         ParquetFileId::new(stage.parquet_files.len() as i64 + 1),
     );
-    let compaction_level = parquet_file.compaction_level;
     let created_at = parquet_file.created_at;
     let partition_id = parquet_file.partition_id;
     stage.parquet_files.push(parquet_file);
 
     // Update the new_file_at field its partition to the time of created_at
-    // Only update if the compaction level is not Final which signal more compaction needed
-    if compaction_level < CompactionLevel::Final {
-        let partition = stage
-            .partitions
-            .iter_mut()
-            .find(|p| p.id == partition_id)
-            .ok_or(Error::PartitionNotFound {
-                id: TransitionPartitionId::Deprecated(partition_id),
-            })?;
-        partition.new_file_at = Some(created_at);
-    }
+    let partition = stage
+        .partitions
+        .iter_mut()
+        .find(|p| p.id == partition_id)
+        .ok_or(Error::PartitionNotFound {
+            id: TransitionPartitionId::Deprecated(partition_id),
+        })?;
+    partition.new_file_at = Some(created_at);
 
     Ok(stage.parquet_files.last().unwrap().clone())
 }

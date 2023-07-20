@@ -2575,7 +2575,6 @@ pub(crate) mod test_helpers {
         assert!(partitions.is_empty());
 
         // Add an L2 file created just now for partition three
-        // Since the file is L2, the partition won't get updated
         let l2_file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             created_at: time_now,
@@ -2588,16 +2587,17 @@ pub(crate) mod test_helpers {
             .create(l2_file_params.clone())
             .await
             .unwrap();
-        // still should return partition one and two only
+        // now should return partition one two and three
         let mut partitions = repos
             .partitions()
             .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
-        assert_eq!(partitions.len(), 2);
+        assert_eq!(partitions.len(), 3);
         partitions.sort();
         assert_eq!(partitions[0], partition1.id);
         assert_eq!(partitions[1], partition2.id);
+        assert_eq!(partitions[2], partition3.id);
         // Only return partition1: the creation time must be strictly less than the maximum time,
         // not equal
         let partitions = repos
