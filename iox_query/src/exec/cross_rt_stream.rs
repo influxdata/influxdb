@@ -74,11 +74,11 @@ where
     /// Create new stream based on an existing stream that transports [`Result`]s.
     ///
     /// Also receives an executor that actually executes the underlying stream as well as a converter that convets
-    /// [`executor::Error`] to the error type of the stream (so we can send potential crashes/panics).
+    /// [`executor::JobError`] to the error type of the stream (so we can send potential crashes/panics).
     fn new_with_error_stream<S, C>(stream: S, exec: DedicatedExecutor, converter: C) -> Self
     where
         S: Stream<Item = Result<X, E>> + Send + 'static,
-        C: Fn(executor::Error) -> E + Send + 'static,
+        C: Fn(executor::JobError) -> E + Send + 'static,
     {
         Self::new_with_tx(|tx| {
             // future to be run in the other runtime
@@ -177,7 +177,7 @@ mod tests {
         let barrier1_captured = Arc::clone(&barrier1);
         let barrier2 = Arc::new(tokio::sync::Barrier::new(2));
         let barrier2_captured = Arc::clone(&barrier2);
-        let mut stream = CrossRtStream::<Result<u8, executor::Error>>::new_with_error_stream(
+        let mut stream = CrossRtStream::<Result<u8, executor::JobError>>::new_with_error_stream(
             futures::stream::once(async move {
                 barrier1_captured.wait().await;
                 barrier2_captured.wait().await;
@@ -195,7 +195,7 @@ mod tests {
         barrier2.wait().await;
 
         let res = f.await.expect("streamed data");
-        assert_eq!(res, Ok(1));
+        assert_eq!(res.unwrap(), 1);
     }
 
     #[tokio::test]
@@ -212,7 +212,7 @@ mod tests {
         let barrier1_captured = Arc::clone(&barrier1);
         let barrier2 = Arc::new(std::sync::Barrier::new(2));
         let barrier2_captured = Arc::clone(&barrier2);
-        let mut stream = CrossRtStream::<Result<u8, executor::Error>>::new_with_error_stream(
+        let mut stream = CrossRtStream::<Result<u8, executor::JobError>>::new_with_error_stream(
             futures::stream::once(async move {
                 barrier1_captured.wait();
                 barrier2_captured.wait();
@@ -230,13 +230,13 @@ mod tests {
         barrier2.wait();
 
         let res = f.await.expect("streamed data");
-        assert_eq!(res, Ok(1));
+        assert_eq!(res.unwrap(), 1);
     }
 
     #[tokio::test]
     async fn test_panic() {
         let exec = DedicatedExecutor::new_testing();
-        let mut stream = CrossRtStream::<Result<(), executor::Error>>::new_with_error_stream(
+        let mut stream = CrossRtStream::<Result<(), executor::JobError>>::new_with_error_stream(
             futures::stream::once(async { panic!("foo") }),
             exec,
             std::convert::identity,
@@ -247,7 +247,7 @@ mod tests {
             .await
             .expect("stream not finished")
             .unwrap_err();
-        assert_eq!(e.to_string(), "foo");
+        assert_eq!(e.to_string(), "Panic: foo");
 
         let none = stream.next().await;
         assert!(none.is_none());
@@ -260,7 +260,7 @@ mod tests {
         let barrier1_captured = Arc::clone(&barrier1);
         let barrier2 = Arc::new(tokio::sync::Barrier::new(2));
         let barrier2_captured = Arc::clone(&barrier2);
-        let mut stream = CrossRtStream::<Result<u8, executor::Error>>::new_with_error_stream(
+        let mut stream = CrossRtStream::<Result<u8, executor::JobError>>::new_with_error_stream(
             futures::stream::once(async move {
                 barrier1_captured.wait().await;
                 barrier2_captured.wait().await;
@@ -281,7 +281,7 @@ mod tests {
 
         barrier2.wait().await;
         let res = stream.next().await.expect("streamed data");
-        assert_eq!(res, Ok(1));
+        assert_eq!(res.unwrap(), 1);
     }
 
     #[tokio::test]
@@ -289,7 +289,7 @@ mod tests {
         let exec = DedicatedExecutor::new_testing();
         let barrier = Arc::new(tokio::sync::Barrier::new(2));
         let barrier_captured = Arc::clone(&barrier);
-        let mut stream = CrossRtStream::<Result<u8, executor::Error>>::new_with_error_stream(
+        let mut stream = CrossRtStream::<Result<u8, executor::JobError>>::new_with_error_stream(
             futures::stream::once(async move {
                 barrier_captured.wait().await;
 

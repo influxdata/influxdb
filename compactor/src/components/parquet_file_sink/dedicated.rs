@@ -102,6 +102,6 @@ mod tests {
             .store(stream, partition, level, max_l0_created_at)
             .await
             .unwrap_err();
-        assert_eq!(err.to_string(), "External error: foo",);
+        assert_eq!(err.to_string(), "External error: Panic: foo",);
     }
 }
