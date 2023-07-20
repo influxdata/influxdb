@@ -106,7 +106,6 @@ pub mod tests {
 
     use crate::cache::{
         namespace::{CachedNamespace, CachedTable},
-        partition::PartitionRequest,
         CatalogCache,
     };
 
@@ -250,15 +249,11 @@ pub mod tests {
                 .partition()
                 .get(
                     Arc::clone(&self.cached_table),
-                    vec![PartitionRequest {
-                        partition_id: self.parquet_file.partition_id,
-                        sort_key_should_cover: vec![],
-                    }],
+                    self.parquet_file.partition_id,
+                    &[],
                     None,
                 )
                 .await
-                .into_iter()
-                .next()
                 .unwrap();
             let cached_partitions =
                 HashMap::from([(self.parquet_file.partition_id, cached_partition)]);

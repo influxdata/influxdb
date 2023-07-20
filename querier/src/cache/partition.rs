@@ -8,11 +8,7 @@ use cache_system::{
         PolicyBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
-    loader::{
-        batch::{BatchLoader, BatchLoaderFlusher, BatchLoaderFlusherExt},
-        metrics::MetricsLoader,
-        FunctionLoader,
-    },
+    loader::{metrics::MetricsLoader, FunctionLoader},
     resource_consumption::FunctionEstimator,
 };
 use data_types::{
@@ -20,17 +16,17 @@ use data_types::{
     ColumnId, Partition, PartitionId, TransitionPartitionId,
 };
 use datafusion::scalar::ScalarValue;
-use iox_catalog::{interface::Catalog, partition_lookup_batch};
+use iox_catalog::{interface::Catalog, partition_lookup};
 use iox_query::chunk_statistics::{ColumnRange, ColumnRanges};
 use iox_time::TimeProvider;
 use observability_deps::tracing::debug;
 use schema::sort::SortKey;
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     mem::{size_of, size_of_val},
     sync::Arc,
 };
-use trace::span::{Span, SpanRecorder};
+use trace::span::Span;
 
 use super::{namespace::CachedTable, ram::RamSize};
 
@@ -50,7 +46,6 @@ type CacheT = Box<
 pub struct PartitionCache {
     cache: CacheT,
     remove_if_handle: RemoveIfHandle<PartitionId, Option<CachedPartition>>,
-    flusher: Arc<dyn BatchLoaderFlusher>,
 }
 
 impl PartitionCache {
@@ -63,61 +58,24 @@ impl PartitionCache {
         ram_pool: Arc<ResourcePool<RamSize>>,
         testing: bool,
     ) -> Self {
-        let loader = FunctionLoader::new(
-            move |partition_ids: Vec<PartitionId>, cached_tables: Vec<Arc<CachedTable>>| {
-                // sanity checks
-                assert_eq!(partition_ids.len(), cached_tables.len());
-                assert!(!partition_ids.is_empty());
-                let cached_table = Arc::clone(&cached_tables[0]);
-                assert!(cached_tables.iter().all(|t| Arc::ptr_eq(t, &cached_table)));
-
+        let loader =
+            FunctionLoader::new(move |partition_id: PartitionId, extra: Arc<CachedTable>| {
                 let catalog = Arc::clone(&catalog);
                 let backoff_config = backoff_config.clone();
 
                 async move {
-                    // prepare output buffer
-                    let mut out = (0..partition_ids.len()).map(|_| None).collect::<Vec<_>>();
-                    let mut out_map =
-                        HashMap::<PartitionId, usize>::with_capacity(partition_ids.len());
-                    for (idx, id) in partition_ids.iter().enumerate() {
-                        match out_map.entry(*id) {
-                            Entry::Occupied(_) => unreachable!("cache system requested same partition from loader concurrently, this should have been prevented by the CacheDriver"),
-                            Entry::Vacant(v) => {
-                                v.insert(idx);
-                            }
-                        }
-                    }
-
-                    // build `&[&TransitionPartitionId]` for batch catalog request
-                    let ids = partition_ids
-                        .iter()
-                        .copied()
-                        .map(TransitionPartitionId::Deprecated)
-                        .collect::<Vec<_>>();
-                    let ids = ids.iter().collect::<Vec<_>>();
-
-                    // fetch catalog data
-                    let partitions = Backoff::new(&backoff_config)
+                    let partition = Backoff::new(&backoff_config)
                         .retry_all_errors("get partition_key", || async {
                             let mut repos = catalog.repositories().await;
-                            partition_lookup_batch(repos.as_mut(), &ids).await
+                            let id = TransitionPartitionId::Deprecated(partition_id);
+                            partition_lookup(repos.as_mut(), &id).await
                         })
                         .await
-                        .expect("retry forever");
+                        .expect("retry forever")?;
 
-                    // build output
-                    for p in partitions {
-                        let p = CachedPartition::new(p, &cached_table);
-                        let idx = out_map[&p.id];
-                        out[idx] = Some(p);
-                    }
-
-                    out
+                    Some(CachedPartition::new(partition, &extra))
                 }
-            },
-        );
-        let loader = Arc::new(BatchLoader::new(loader));
-        let flusher = Arc::clone(&loader);
+            });
         let loader = Arc::new(MetricsLoader::new(
             loader,
             CACHE_ID,
@@ -153,79 +111,51 @@ impl PartitionCache {
         Self {
             cache,
             remove_if_handle,
-            flusher,
         }
     }
 
     /// Get cached partition.
     ///
-    /// The result only contains existing partitions. The order is undefined.
-    ///
     /// Expire partition if the cached sort key does NOT cover the given set of columns.
     pub async fn get(
         &self,
         cached_table: Arc<CachedTable>,
-        partitions: Vec<PartitionRequest>,
+        partition_id: PartitionId,
+        sort_key_should_cover: &[ColumnId],
         span: Option<Span>,
-    ) -> Vec<CachedPartition> {
-        let span_recorder = SpanRecorder::new(span);
+    ) -> Option<CachedPartition> {
+        self.remove_if_handle
+            .remove_if_and_get(
+                &self.cache,
+                partition_id,
+                |cached_partition| {
+                    let invalidates =
+                        if let Some(sort_key) = &cached_partition.and_then(|p| p.sort_key) {
+                            sort_key_should_cover
+                                .iter()
+                                .any(|col| !sort_key.column_set.contains(col))
+                        } else {
+                            // no sort key at all => need to update if there is anything to cover
+                            !sort_key_should_cover.is_empty()
+                        };
 
-        let futures = partitions
-            .into_iter()
-            .map(
-                |PartitionRequest {
-                     partition_id,
-                     sort_key_should_cover,
-                 }| {
-                    let cached_table = Arc::clone(&cached_table);
-                    let span = span_recorder.child_span("single partition cache lookup");
+                    if invalidates {
+                        debug!(
+                            partition_id = partition_id.get(),
+                            "invalidate partition cache",
+                        );
+                    }
 
-                    self.remove_if_handle.remove_if_and_get(
-                        &self.cache,
-                        partition_id,
-                        move |cached_partition| {
-                            let invalidates = if let Some(sort_key) =
-                                &cached_partition.and_then(|p| p.sort_key)
-                            {
-                                sort_key_should_cover
-                                    .iter()
-                                    .any(|col| !sort_key.column_set.contains(col))
-                            } else {
-                                // no sort key at all => need to update if there is anything to cover
-                                !sort_key_should_cover.is_empty()
-                            };
-
-                            if invalidates {
-                                debug!(
-                                    partition_id = partition_id.get(),
-                                    "invalidate partition cache",
-                                );
-                            }
-
-                            invalidates
-                        },
-                        (cached_table, span),
-                    )
+                    invalidates
                 },
+                (cached_table, span),
             )
-            .collect();
-
-        let res = self.flusher.auto_flush(futures).await;
-
-        res.into_iter().flatten().collect()
+            .await
     }
-}
-
-/// Request for [`PartitionCache::get`].
-#[derive(Debug)]
-pub struct PartitionRequest {
-    pub partition_id: PartitionId,
-    pub sort_key_should_cover: Vec<ColumnId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CachedPartition {
-    pub id: PartitionId,
     pub sort_key: Option<Arc<PartitionSortKey>>,
     pub column_ranges: ColumnRanges,
 }
@@ -301,7 +231,6 @@ impl CachedPartition {
         column_ranges.shrink_to_fit();
 
         Self {
-            id: partition.id,
             sort_key,
             column_ranges: Arc::new(column_ranges),
         }
@@ -369,7 +298,6 @@ mod tests {
     use crate::cache::{
         ram::test_util::test_ram_pool, test_util::assert_catalog_access_metric_count,
     };
-    use async_trait::async_trait;
     use data_types::{partition_template::TablePartitionTemplateOverride, ColumnType};
     use generated_types::influxdata::iox::partition_template::v1::{
         template_part::Part, PartitionTemplate, TemplatePart,
@@ -420,7 +348,7 @@ mod tests {
         );
 
         let sort_key1a = cache
-            .get_one(Arc::clone(&cached_table), p1.id, &Vec::new(), None)
+            .get(Arc::clone(&cached_table), p1.id, &Vec::new(), None)
             .await
             .unwrap()
             .sort_key;
@@ -432,26 +360,18 @@ mod tests {
                 column_order: [c1.column.id, c2.column.id].into(),
             }
         );
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            1,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         let sort_key2 = cache
-            .get_one(Arc::clone(&cached_table), p2.id, &Vec::new(), None)
+            .get(Arc::clone(&cached_table), p2.id, &Vec::new(), None)
             .await
             .unwrap()
             .sort_key;
         assert_eq!(sort_key2, None);
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            2,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
         let sort_key1b = cache
-            .get_one(Arc::clone(&cached_table), p1.id, &Vec::new(), None)
+            .get(Arc::clone(&cached_table), p1.id, &Vec::new(), None)
             .await
             .unwrap()
             .sort_key;
@@ -459,16 +379,12 @@ mod tests {
             sort_key1a.as_ref().unwrap(),
             sort_key1b.as_ref().unwrap()
         ));
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            2,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
         // non-existing partition
         for _ in 0..2 {
             let res = cache
-                .get_one(
+                .get(
                     Arc::clone(&cached_table),
                     PartitionId::new(i64::MAX),
                     &Vec::new(),
@@ -476,11 +392,7 @@ mod tests {
                 )
                 .await;
             assert_eq!(res, None);
-            assert_catalog_access_metric_count(
-                &catalog.metric_registry,
-                "partition_get_by_id_batch",
-                3,
-            );
+            assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
         }
     }
 
@@ -549,7 +461,7 @@ mod tests {
         );
 
         let ranges1a = cache
-            .get_one(Arc::clone(&cached_table), p1.id, &[], None)
+            .get(Arc::clone(&cached_table), p1.id, &[], None)
             .await
             .unwrap()
             .column_ranges;
@@ -576,14 +488,10 @@ mod tests {
             &ranges1a.get("tag1").unwrap().min_value,
             &ranges1a.get("tag1").unwrap().max_value,
         ));
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            1,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         let ranges2 = cache
-            .get_one(Arc::clone(&cached_table), p2.id, &[], None)
+            .get(Arc::clone(&cached_table), p2.id, &[], None)
             .await
             .unwrap()
             .column_ranges;
@@ -597,14 +505,10 @@ mod tests {
                 }
             ),]),
         );
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            2,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
         let ranges3 = cache
-            .get_one(Arc::clone(&cached_table), p3.id, &[], None)
+            .get(Arc::clone(&cached_table), p3.id, &[], None)
             .await
             .unwrap()
             .column_ranges;
@@ -627,14 +531,10 @@ mod tests {
                 ),
             ]),
         );
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            3,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
 
         let ranges4 = cache
-            .get_one(Arc::clone(&cached_table), p4.id, &[], None)
+            .get(Arc::clone(&cached_table), p4.id, &[], None)
             .await
             .unwrap()
             .column_ranges;
@@ -657,14 +557,10 @@ mod tests {
                 ),
             ]),
         );
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            4,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
 
         let ranges5 = cache
-            .get_one(Arc::clone(&cached_table), p5.id, &[], None)
+            .get(Arc::clone(&cached_table), p5.id, &[], None)
             .await
             .unwrap()
             .column_ranges;
@@ -678,28 +574,20 @@ mod tests {
                 }
             ),]),
         );
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            5,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
 
         let ranges1b = cache
-            .get_one(Arc::clone(&cached_table), p1.id, &[], None)
+            .get(Arc::clone(&cached_table), p1.id, &[], None)
             .await
             .unwrap()
             .column_ranges;
         assert!(Arc::ptr_eq(&ranges1a, &ranges1b));
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            5,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
 
         // non-existing partition
         for _ in 0..2 {
             let res = cache
-                .get_one(
+                .get(
                     Arc::clone(&cached_table),
                     PartitionId::new(i64::MAX),
                     &[],
@@ -707,11 +595,7 @@ mod tests {
                 )
                 .await;
             assert_eq!(res, None);
-            assert_catalog_access_metric_count(
-                &catalog.metric_registry,
-                "partition_get_by_id_batch",
-                6,
-            );
+            assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 6);
         }
     }
 
@@ -751,43 +635,31 @@ mod tests {
         );
 
         let sort_key = cache
-            .get_one(Arc::clone(&cached_table), p_id, &[], None)
+            .get(Arc::clone(&cached_table), p_id, &[], None)
             .await
             .unwrap()
             .sort_key;
         assert_eq!(sort_key, None,);
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            1,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         // requesting nother will not expire
         assert!(p_sort_key.is_none());
         let sort_key = cache
-            .get_one(Arc::clone(&cached_table), p_id, &[], None)
+            .get(Arc::clone(&cached_table), p_id, &[], None)
             .await
             .unwrap()
             .sort_key;
         assert_eq!(sort_key, None,);
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            1,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         // but requesting something will expire
         let sort_key = cache
-            .get_one(Arc::clone(&cached_table), p_id, &[c1.column.id], None)
+            .get(Arc::clone(&cached_table), p_id, &[c1.column.id], None)
             .await
             .unwrap()
             .sort_key;
         assert_eq!(sort_key, None,);
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            2,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
         // set sort key
         let p = p
@@ -796,12 +668,11 @@ mod tests {
                 c2.column.name.as_str(),
             ]))
             .await;
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         // expire & fetch
         let p_sort_key = p.partition.sort_key();
         let sort_key = cache
-            .get_one(Arc::clone(&cached_table), p_id, &[c1.column.id], None)
+            .get(Arc::clone(&cached_table), p_id, &[c1.column.id], None)
             .await
             .unwrap()
             .sort_key;
@@ -813,11 +684,7 @@ mod tests {
                 column_order: [c1.column.id, c2.column.id].into(),
             }
         );
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            3,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
 
         // subsets and the full key don't expire
         for should_cover in [
@@ -827,7 +694,7 @@ mod tests {
             vec![c1.column.id, c2.column.id],
         ] {
             let sort_key_2 = cache
-                .get_one(Arc::clone(&cached_table), p_id, &should_cover, None)
+                .get(Arc::clone(&cached_table), p_id, &should_cover, None)
                 .await
                 .unwrap()
                 .sort_key;
@@ -835,17 +702,13 @@ mod tests {
                 sort_key.as_ref().unwrap(),
                 sort_key_2.as_ref().unwrap()
             ));
-            assert_catalog_access_metric_count(
-                &catalog.metric_registry,
-                "partition_get_by_id_batch",
-                3,
-            );
+            assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
         }
 
         // unknown columns expire
         let c3 = t.create_column("x", ColumnType::Tag).await;
         let sort_key_2 = cache
-            .get_one(
+            .get(
                 Arc::clone(&cached_table),
                 p_id,
                 &[c1.column.id, c3.column.id],
@@ -859,109 +722,10 @@ mod tests {
             sort_key_2.as_ref().unwrap()
         ));
         assert_eq!(sort_key, sort_key_2);
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            4,
-        );
-    }
-
-    #[tokio::test]
-    async fn test_multi_get() {
-        let catalog = TestCatalog::new();
-
-        let ns = catalog.create_namespace_1hr_retention("ns").await;
-        let t = ns.create_table("table").await;
-        let p1 = t.create_partition("k1").await.partition.clone();
-        let p2 = t.create_partition("k2").await.partition.clone();
-        let cached_table = Arc::new(CachedTable {
-            id: t.table.id,
-            schema: schema(),
-            column_id_map: HashMap::default(),
-            column_id_map_rev: HashMap::default(),
-            primary_key_column_ids: [].into(),
-            partition_template: TablePartitionTemplateOverride::default(),
-        });
-
-        let cache = PartitionCache::new(
-            catalog.catalog(),
-            BackoffConfig::default(),
-            catalog.time_provider(),
-            &catalog.metric_registry(),
-            test_ram_pool(),
-            true,
-        );
-
-        let mut res = cache
-            .get(
-                Arc::clone(&cached_table),
-                vec![
-                    PartitionRequest {
-                        partition_id: p1.id,
-                        sort_key_should_cover: vec![],
-                    },
-                    PartitionRequest {
-                        partition_id: p2.id,
-                        sort_key_should_cover: vec![],
-                    },
-                    PartitionRequest {
-                        partition_id: p1.id,
-                        sort_key_should_cover: vec![],
-                    },
-                    PartitionRequest {
-                        partition_id: PartitionId::new(i64::MAX),
-                        sort_key_should_cover: vec![],
-                    },
-                ],
-                None,
-            )
-            .await;
-        res.sort_by_key(|p| p.id);
-        let ids = res.iter().map(|p| p.id).collect::<Vec<_>>();
-        assert_eq!(ids, vec![p1.id, p1.id, p2.id]);
-        assert_catalog_access_metric_count(
-            &catalog.metric_registry,
-            "partition_get_by_id_batch",
-            1,
-        );
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
     }
 
     fn schema() -> Schema {
         SchemaBuilder::new().build().unwrap()
-    }
-
-    /// Extension methods for simpler testing.
-    #[async_trait]
-    trait PartitionCacheExt {
-        async fn get_one(
-            &self,
-            cached_table: Arc<CachedTable>,
-            partition_id: PartitionId,
-            sort_key_should_cover: &[ColumnId],
-            span: Option<Span>,
-        ) -> Option<CachedPartition>;
-    }
-
-    #[async_trait]
-    impl PartitionCacheExt for PartitionCache {
-        async fn get_one(
-            &self,
-            cached_table: Arc<CachedTable>,
-            partition_id: PartitionId,
-            sort_key_should_cover: &[ColumnId],
-            span: Option<Span>,
-        ) -> Option<CachedPartition> {
-            self.get(
-                cached_table,
-                vec![PartitionRequest {
-                    partition_id,
-                    sort_key_should_cover: sort_key_should_cover.to_vec(),
-                }],
-                span,
-            )
-            .await
-            .into_iter()
-            .next()
-        }
     }
 }
