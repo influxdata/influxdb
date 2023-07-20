@@ -49,11 +49,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::sync::Arc;
 
     use super::*;
     use crate::{
-        buffer_tree::partition::{resolver::mock::MockPartitionProvider, SortKeyState},
+        buffer_tree::partition::resolver::mock::MockPartitionProvider,
         test_util::{
             defer_namespace_name_1_sec, defer_table_metadata_1_sec, PartitionDataBuilder,
             ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
