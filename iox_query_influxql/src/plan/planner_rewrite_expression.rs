@@ -127,12 +127,13 @@ use crate::plan::util::IQLSchema;
 use arrow::datatypes::DataType;
 use datafusion::common::tree_node::{Transformed, TreeNode, TreeNodeRewriter};
 use datafusion::common::{Result, ScalarValue};
+use datafusion::logical_expr::expr::{AggregateFunction, AggregateUDF, WindowFunction};
 use datafusion::logical_expr::{
-    binary_expr, cast, coalesce, lit, BinaryExpr, Expr, ExprSchemable, Operator,
+    binary_expr, cast, coalesce, lit, BinaryExpr, Expr, ExprSchemable, GetIndexedField, Operator,
 };
 use datafusion::optimizer::simplify_expressions::{ExprSimplifier, SimplifyContext};
 use datafusion::physical_expr::execution_props::ExecutionProps;
-use datafusion::prelude::when;
+use datafusion::prelude::{when, Column};
 use observability_deps::tracing::trace;
 use predicate::rpc_predicate::{iox_expr_rewrite, simplify_predicate};
 
@@ -419,6 +420,23 @@ fn rewrite_expr(expr: Expr, schema: &IQLSchema<'_>) -> Result<Expr> {
                     _ => yes(lit(ScalarValue::Null)),
                 }
             }
+
+            // Invoking an aggregate or window function on a tag column should return `NULL`
+            // to be consistent with OG.
+            Expr::AggregateFunction(AggregateFunction { ref args, .. } )
+            | Expr::AggregateUDF(AggregateUDF { ref args, .. } )
+            | Expr::WindowFunction(WindowFunction { ref args, .. } ) => match &args[0] {
+               Expr::Column(Column { ref name, ..  }) if schema.is_tag_field(name) => yes(lit(ScalarValue::Null)),
+               _ => no(expr),
+            }
+
+            // If the InfluxQL query used a selector on a tag column,  like `last(tag_col)`
+            // then there will be an indexed field. Convert this to `NULL` as well.
+            Expr::GetIndexedField(GetIndexedField { expr: ref e, .. }) => match e.as_ref() {
+               Expr::Literal(ScalarValue::Null) => yes(lit(ScalarValue::Null)),
+               _ => no(expr),
+            }
+
             //
             // Literals and other expressions are passed through to DataFusion,
             // as it will handle evaluating function calls, etc

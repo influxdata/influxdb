@@ -655,3 +655,6 @@ SELECT SUM(bytes_free) / SUM(bytes_used) AS result FROM disk WHERE time >= '2022
 
 -- Unsupported: host is a field in one subquery and a tag in the other
 SELECT count(host) FROM (SELECT usage_idle AS host FROM cpu), (SELECT host, usage_idle FROM cpu);
+
+-- Using a selector or a aggregate function on a tag column returns NULL
+SELECT last(host) AS host, first(usage_idle) AS usage_idle FROM cpu GROUP BY host;

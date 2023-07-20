@@ -5368,6 +5368,22 @@ mod test {
             "###);
         }
 
+        #[test]
+        fn test_select_function_tag_column() {
+            assert_snapshot!(plan("SELECT last(foo) as foo, first(usage_idle) from cpu group by foo"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Null;N, first:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, NULL AS foo, (selector_first(cpu.usage_idle,cpu.time))[value] AS first [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Null;N, first:Float64;N]
+                Aggregate: groupBy=[[]], aggr=[[selector_first(cpu.usage_idle, cpu.time)]] [selector_first(cpu.usage_idle,cpu.time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT count(foo) as foo, first(usage_idle) from cpu group by foo"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Null;N, foo_1:Null;N, first:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, NULL AS foo, (selector_first(cpu.usage_idle,cpu.time,NULL))[other_1] AS foo_1, (selector_first(cpu.usage_idle,cpu.time,NULL))[value] AS first [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Null;N, foo_1:Null;N, first:Float64;N]
+                Aggregate: groupBy=[[]], aggr=[[selector_first(cpu.usage_idle, cpu.time, NULL)]] [selector_first(cpu.usage_idle,cpu.time,NULL):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "other_1", data_type: Null, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+        }
+
         // The following is an outline of additional scenarios to develop
         // as the planner learns more features.
         // This is not an exhaustive list and is expected to grow as the

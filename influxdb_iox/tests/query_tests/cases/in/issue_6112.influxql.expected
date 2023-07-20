@@ -3088,3 +3088,11 @@ name: disk
 +---------------------+----------------------+
 -- InfluxQL: SELECT count(host) FROM (SELECT usage_idle AS host FROM cpu), (SELECT host, usage_idle FROM cpu);
 Error while planning query: This feature is not implemented: cannot mix tag and field columns with the same name: host
+-- InfluxQL: SELECT last(host) AS host, first(usage_idle) AS usage_idle FROM cpu GROUP BY host;
+name: cpu
+tags: host=
++---------------------+------+------------+
+| time                | host | usage_idle |
++---------------------+------+------------+
+| 1970-01-01T00:00:00 |      | 2.98       |
++---------------------+------+------------+
