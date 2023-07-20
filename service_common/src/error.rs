@@ -53,16 +53,25 @@ pub fn datafusion_error_to_tonic_code(e: &DataFusionError) -> tonic::Code {
         | DataFusionError::NotImplemented(_)
         | DataFusionError::Plan(_) => tonic::Code::InvalidArgument,
         DataFusionError::Context(_,_) => unreachable!("handled in chain traversal above"),
+        // External errors are mostly traversed by the DataFusion already except for some IOx errors
+        DataFusionError::External(e) => {
+            if let Some(e) = e.downcast_ref::<executor::JobError>() {
+                match e {
+                    executor::JobError::WorkerGone => tonic::Code::Unavailable,
+                    executor::JobError::Panic { .. } => tonic::Code::Internal,
+                }
+            } else {
+                // All other, unclassified cases are signalled as "internal error" to the user since they cannot do
+                // anything about it (except for reporting a bug). Note that DataFusion "external" error is only from
+                // DataFusion's PoV, not from a users PoV.
+                tonic::Code::Internal
+            }
+        }
         // Map as many as possible back into user visible
         // (non internal) errors and only treat the ones
         // the user likely can't do anything about as internal
         DataFusionError::ObjectStore(_)
         | DataFusionError::IoError(_)
-        // External originate from outside DataFusion’s core codebase.
-        // As of 2022-10-17, these always come external object store
-        // errors (e.g. misconfiguration or bad path) which would be
-        // an internal error and thus we classify them as such.
-        | DataFusionError::External(_)
         // Substrait errors come from internal code and are unused
         // with DataFusion at the moment
         | DataFusionError::Substrait(_)
@@ -100,7 +109,7 @@ mod test {
             tonic::Code::InvalidArgument,
         );
 
-        do_transl_test(DataFusionError::Internal(s), tonic::Code::Internal);
+        do_transl_test(DataFusionError::Internal(s.clone()), tonic::Code::Internal);
 
         // traversal
         do_transl_test(
@@ -109,6 +118,29 @@ mod test {
                 Box::new(DataFusionError::ResourcesExhausted("foo".to_string())),
             ),
             tonic::Code::ResourceExhausted,
+        );
+
+        // inspect "external" errors
+        do_transl_test(
+            DataFusionError::External(s.clone().into()),
+            tonic::Code::Internal,
+        );
+        do_transl_test(
+            DataFusionError::External(Box::new(executor::JobError::Panic { msg: s })),
+            tonic::Code::Internal,
+        );
+        do_transl_test(
+            DataFusionError::External(Box::new(executor::JobError::WorkerGone)),
+            tonic::Code::Unavailable,
+        );
+        do_transl_test(
+            DataFusionError::Context(
+                "ctx".into(),
+                Box::new(DataFusionError::External(Box::new(
+                    executor::JobError::WorkerGone,
+                ))),
+            ),
+            tonic::Code::Unavailable,
         );
     }
 

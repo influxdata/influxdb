@@ -648,7 +648,7 @@ impl IOxSessionContext {
         exec.spawn(fut).await.unwrap_or_else(|e| {
             Err(Error::Context(
                 "Join Error".to_string(),
-                Box::new(Error::External(e.into())),
+                Box::new(Error::External(Box::new(e))),
             ))
         })
     }

@@ -16,6 +16,7 @@
 )]
 
 use metric::Registry;
+use snafu::Snafu;
 #[cfg(tokio_unstable)]
 use tokio_metrics_bridge::setup_tokio_metrics;
 // Workaround for "unused crate" lint false positives.
@@ -68,8 +69,16 @@ impl Task {
     }
 }
 
-/// The type of error that is returned from tasks in this module
-pub type Error = String;
+/// Errors occuring when polling [`Job`].
+#[derive(Debug, Snafu)]
+#[allow(missing_docs)]
+pub enum JobError {
+    #[snafu(display("Worker thread gone, executor was likely shut down"))]
+    WorkerGone,
+
+    #[snafu(display("Panic: {msg}"))]
+    Panic { msg: String },
+}
 
 /// Job within the executor.
 ///
@@ -80,7 +89,7 @@ pub struct Job<T> {
     cancel: CancellationToken,
     detached: bool,
     #[pin]
-    rx: Receiver<Result<T, String>>,
+    rx: Receiver<Result<T, JobError>>,
 }
 
 impl<T> Job<T> {
@@ -94,7 +103,7 @@ impl<T> Job<T> {
 }
 
 impl<T> Future for Job<T> {
-    type Output = Result<T, Error>;
+    type Output = Result<T, JobError>;
 
     fn poll(
         self: Pin<&mut Self>,
@@ -103,9 +112,7 @@ impl<T> Future for Job<T> {
         let this = self.project();
         match ready!(this.rx.poll(cx)) {
             Ok(res) => std::task::Poll::Ready(res),
-            Err(_) => std::task::Poll::Ready(Err(String::from(
-                "Worker thread gone, executor was likely shut down",
-            ))),
+            Err(_) => std::task::Poll::Ready(Err(JobError::WorkerGone)),
         }
     }
 }
@@ -315,13 +322,15 @@ impl DedicatedExecutor {
 
         let fut = Box::pin(async move {
             let task_output = AssertUnwindSafe(task).catch_unwind().await.map_err(|e| {
-                if let Some(s) = e.downcast_ref::<String>() {
+                let s = if let Some(s) = e.downcast_ref::<String>() {
                     s.clone()
                 } else if let Some(s) = e.downcast_ref::<&str>() {
                     s.to_string()
                 } else {
                     "unknown internal error".to_string()
-                }
+                };
+
+                JobError::Panic { msg: s }
             });
 
             if tx.send(task_output).is_err() {
@@ -571,7 +580,7 @@ mod tests {
         let err = dedicated_task.await.unwrap_err();
         assert_eq!(
             err.to_string(),
-            "At the disco, on the dedicated task scheduler",
+            "Panic: At the disco, on the dedicated task scheduler",
         );
 
         exec.join().await;
@@ -590,7 +599,7 @@ mod tests {
 
         // should not be able to get the result
         let err = dedicated_task.await.unwrap_err();
-        assert_eq!(err.to_string(), "1 2",);
+        assert_eq!(err.to_string(), "Panic: 1 2",);
 
         exec.join().await;
     }
@@ -608,7 +617,7 @@ mod tests {
 
         // should not be able to get the result
         let err = dedicated_task.await.unwrap_err();
-        assert_eq!(err.to_string(), "unknown internal error",);
+        assert_eq!(err.to_string(), "Panic: unknown internal error",);
 
         exec.join().await;
     }

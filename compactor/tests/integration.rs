@@ -460,7 +460,7 @@ async fn test_partition_fail() {
         &setup,
         [(
             setup.partition_info.partition_id,
-            "serialize\ncaused by\nJoin Error (panic)\ncaused by\nExternal error: foo",
+            "serialize\ncaused by\nJoin Error (panic)\ncaused by\nExternal error: Panic: foo",
         )],
     )
     .await;

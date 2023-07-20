@@ -69,7 +69,7 @@ mod tests {
         let err = stream.try_collect::<Vec<_>>().await.unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Join Error (panic)\ncaused by\nExternal error: foo"
+            "Join Error (panic)\ncaused by\nExternal error: Panic: foo"
         );
     }
 }
