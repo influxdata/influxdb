@@ -7,6 +7,7 @@ use once_cell::sync::Lazy;
 use std::sync::Arc;
 
 mod cumulative_sum;
+mod derivative;
 mod difference;
 mod non_negative;
 mod percent_row_number;
@@ -25,6 +26,20 @@ pub(crate) static CUMULATIVE_SUM: Lazy<WindowFunction> = Lazy::new(|| {
     )))
 });
 
+/// Definition of the `DERIVATIVE` user-defined window function.
+pub(crate) static DERIVATIVE: Lazy<WindowFunction> = Lazy::new(|| {
+    let return_type: ReturnTypeFunction = Arc::new(derivative::return_type);
+    let partition_evaluator_factory: PartitionEvaluatorFactory =
+        Arc::new(derivative::partition_evaluator_factory);
+
+    WindowFunction::WindowUDF(Arc::new(WindowUDF::new(
+        derivative::NAME,
+        &derivative::SIGNATURE,
+        &return_type,
+        &partition_evaluator_factory,
+    )))
+});
+
 /// Definition of the `DIFFERENCE` user-defined window function.
 pub(crate) static DIFFERENCE: Lazy<WindowFunction> = Lazy::new(|| {
     let return_type: ReturnTypeFunction = Arc::new(difference::return_type);
@@ -34,6 +49,25 @@ pub(crate) static DIFFERENCE: Lazy<WindowFunction> = Lazy::new(|| {
     WindowFunction::WindowUDF(Arc::new(WindowUDF::new(
         difference::NAME,
         &difference::SIGNATURE,
+        &return_type,
+        &partition_evaluator_factory,
+    )))
+});
+
+const NON_NEGATIVE_DERIVATIVE_NAME: &str = "non_negative_derivative";
+
+/// Definition of the `NON_NEGATIVE_DERIVATIVE` user-defined window function.
+pub(crate) static NON_NEGATIVE_DERIVATIVE: Lazy<WindowFunction> = Lazy::new(|| {
+    let return_type: ReturnTypeFunction = Arc::new(derivative::return_type);
+    let partition_evaluator_factory: PartitionEvaluatorFactory = Arc::new(|| {
+        Ok(non_negative::wrapper(
+            derivative::partition_evaluator_factory()?,
+        ))
+    });
+
+    WindowFunction::WindowUDF(Arc::new(WindowUDF::new(
+        NON_NEGATIVE_DERIVATIVE_NAME,
+        &derivative::SIGNATURE,
         &return_type,
         &partition_evaluator_factory,
     )))
