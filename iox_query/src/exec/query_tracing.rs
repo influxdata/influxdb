@@ -109,7 +109,7 @@ impl Drop for TracedStream {
 /// 1. If the ExecutionPlan had no metrics
 /// 2. The total number of rows produced by the ExecutionPlan (if available)
 /// 3. The elapsed compute time taken by the ExecutionPlan
-fn send_metrics_to_tracing(
+pub fn send_metrics_to_tracing(
     default_end_time: DateTime<Utc>,
     parent_span: &Span,
     physical_plan: &dyn ExecutionPlan,

@@ -1,7 +1,9 @@
 use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
+use chrono::Utc;
 use data_types::{CompactionLevel, ParquetFile, ParquetFileParams, PartitionId};
 use futures::{stream, StreamExt, TryStreamExt};
+use iox_query::exec::query_tracing::send_metrics_to_tracing;
 use observability_deps::tracing::info;
 use parquet_file::ParquetFilePath;
 use tokio::sync::watch::Sender;
@@ -531,12 +533,14 @@ async fn execute_plan(
             "job semaphore acquired",
         );
 
-        let df_span = span.child("data_fusion");
+        let df_span = span.child_span("data_fusion");
         let plan = components
             .df_planner
             .plan(&plan_ir, Arc::clone(partition_info))
             .await?;
-        let streams = components.df_plan_exec.exec(plan);
+        let streams = components.df_plan_exec.exec(Arc::<
+            dyn datafusion::physical_plan::ExecutionPlan,
+        >::clone(&plan));
         let job = components.parquet_files_sink.stream_into_file_sink(
             streams,
             Arc::clone(partition_info),
@@ -546,6 +550,10 @@ async fn execute_plan(
 
         // TODO: react to OOM and try to divide branch
         let res = job.await;
+
+        if let Some(span) = &df_span {
+            send_metrics_to_tracing(Utc::now(), span, plan.as_ref(), true);
+        };
 
         drop(permit);
         drop(df_span);

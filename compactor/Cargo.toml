@@ -9,6 +9,7 @@ license.workspace = true
 async-trait = "0.1.71"
 backoff = { path = "../backoff" }
 bytes = "1.4"
+chrono = { version = "0.4", default-features = false }
 compactor_scheduler = { path = "../compactor_scheduler" }
 datafusion = { workspace = true }
 data_types = { path = "../data_types" }

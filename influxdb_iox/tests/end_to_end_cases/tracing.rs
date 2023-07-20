@@ -235,9 +235,9 @@ async fn test_tracing_create_compactor_trace() {
 
     // "shallow" packet inspection and verify the UDP server got omething that had some expected
     // results.  We could look for any text of any of the compaction spans.  The name of the span
-    // for data fusion execution is arbitrarily chosen.
+    // for acquiring permit is arbitrarily chosen.
     udp_capture
-        .wait_for(|m| m.to_string().contains("data_fusion"))
+        .wait_for(|m| m.to_string().contains("acquire_permit"))
         .await;
 
     // debugging assistance

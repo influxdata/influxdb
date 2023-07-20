@@ -967,6 +967,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "bytes",
+ "chrono",
  "compactor_scheduler",
  "compactor_test_utils",
  "data_types",
