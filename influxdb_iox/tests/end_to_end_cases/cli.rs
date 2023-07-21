@@ -607,7 +607,6 @@ async fn wait_for_query_result_with_namespace(
     expected: &str,
 ) {
     let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
-    // let namespace = state.cluster().namespace();
 
     let max_wait_time = Duration::from_secs(10);
     println!("Waiting for {expected}");

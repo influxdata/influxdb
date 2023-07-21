@@ -14,14 +14,6 @@ pub enum Error {
 
     #[error("Client error: {0}")]
     ClientError(#[from] influxdb_iox_client::error::Error),
-    // #[error("Client Error: Invalid partition template")]
-    // InvalidPartitionTemplate(),
-
-    // #[error("Client Error: Only maximum one time format is allowed")]
-    // ManyTimeFormat(),
-
-    // #[error("Client Error: time cannot be specified as a tag in partition template")]
-    // TimeAsTag(),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
