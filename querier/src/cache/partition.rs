@@ -193,7 +193,7 @@ impl PartitionCache {
 
                             if invalidates {
                                 debug!(
-                                    partition_id = %partition_id,
+                                    %partition_id,
                                     "invalidate partition cache",
                                 );
                             }
@@ -496,7 +496,7 @@ mod tests {
                 .get_one(
                     Arc::clone(&cached_table),
                     &TransitionPartitionId::Deprecated(PartitionId::new(i64::MAX)),
-                    &Vec::new(),
+                    &[],
                     None,
                 )
                 .await;
@@ -847,7 +847,7 @@ mod tests {
                 c2.column.name.as_str(),
             ]))
             .await;
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_hash_id", 1);
 
         // expire & fetch
         let p_sort_key = p.partition.sort_key();

@@ -104,8 +104,7 @@ impl IngesterPartitionBuilder {
 
         let mut part = IngesterPartition::new(
             Uuid::new_v4(),
-            self.partition.partition.id,
-            self.partition.partition.hash_id().cloned(),
+            self.partition.partition.transition_partition_id(),
             0,
         )
         .try_add_chunk(
