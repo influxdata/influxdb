@@ -21,17 +21,6 @@ struct NonNegative {
 }
 
 impl PartitionEvaluator for NonNegative {
-    fn update_state(
-        &mut self,
-        state: &WindowAggState,
-        idx: usize,
-        range_columns: &[Arc<dyn Array>],
-        sort_partition_points: &[Range<usize>],
-    ) -> Result<()> {
-        self.partition_evaluator
-            .update_state(state, idx, range_columns, sort_partition_points)
-    }
-
     fn memoize(&mut self, state: &mut WindowAggState) -> Result<()> {
         self.partition_evaluator.memoize(state)
     }

@@ -1,8 +1,8 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 use arrow::{
     array::as_generic_binary_array,
-    datatypes::{DataType, Fields, Schema, SchemaRef, TimeUnit},
+    datatypes::{DataType, Schema, TimeUnit},
     record_batch::RecordBatch,
 };
 use arrow_flight::{
@@ -1592,10 +1592,7 @@ async fn assert_schema(client: &mut FlightClient, cmd: Any) {
     let mut saw_data = false;
     while let Some(batch) = result_stream.try_next().await.unwrap() {
         saw_data = true;
-        // strip metadata (GetFlightInfo doesn't include metadata for
-        // some reason) before comparison
-        // https://github.com/influxdata/influxdb_iox/issues/7282
-        let batch_schema = strip_metadata(&batch.schema());
+        let batch_schema = batch.schema();
         assert_eq!(
             batch_schema.as_ref(),
             &flight_info_schema,
@@ -1603,26 +1600,12 @@ async fn assert_schema(client: &mut FlightClient, cmd: Any) {
         );
         // The stream itself also may report a schema
         if let Some(stream_schema) = result_stream.schema() {
-            // strip metadata (GetFlightInfo doesn't include metadata for
-            // some reason) before comparison
-            // https://github.com/influxdata/influxdb_iox/issues/7282
-            let stream_schema = strip_metadata(stream_schema);
             assert_eq!(stream_schema.as_ref(), &flight_info_schema);
         }
     }
     // verify we have seen at least one RecordBatch
     // (all FlightSQL endpoints return at least one)
     assert!(saw_data);
-}
-
-fn strip_metadata(schema: &Schema) -> SchemaRef {
-    let stripped_fields: Fields = schema
-        .fields()
-        .iter()
-        .map(|f| f.as_ref().clone().with_metadata(HashMap::new()))
-        .collect();
-
-    Arc::new(Schema::new(stripped_fields))
 }
 
 #[tokio::test]
