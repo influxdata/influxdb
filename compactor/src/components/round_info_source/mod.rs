@@ -103,7 +103,9 @@ impl LevelBasedRoundInfo {
         // branch in the worst case, thus if that would result in too many files to compact in a single
         // plan, run a pre-phase to reduce the number of files first
         let num_overlapped_files = get_num_overlapped_files(start_level_files, next_level_files);
-        if num_start_level + num_overlapped_files > self.max_num_files_per_plan {
+        if num_start_level > 1
+            && num_start_level + num_overlapped_files > self.max_num_files_per_plan
+        {
             // This scaenario meets the simple criteria of start level files + their overlaps are lots of files.
             // But ManySmallFiles implies we must compact only within the start level to reduce the quantity of
             // start level files. There are several reasons why that might be unhelpful.
