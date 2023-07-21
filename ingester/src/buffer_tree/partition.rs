@@ -261,7 +261,7 @@ impl PartitionData {
         // is upheld by the FSM, which ensures only non-empty snapshots /
         // RecordBatch are generated. Because `data` contains at least one
         // RecordBatch, this invariant holds.
-        let q = QueryAdaptor::new(self.partition_id, self.transition_partition_id(), data);
+        let q = QueryAdaptor::new(self.transition_partition_id(), data);
 
         // Invariant: the number of rows returned in a query MUST always match
         // the row count reported by the rows() method.
@@ -325,7 +325,6 @@ impl PartitionData {
         // Wrap the persisting data in the type wrapper
         let data = PersistingData::new(
             QueryAdaptor::new(
-                self.partition_id,
                 self.transition_partition_id(),
                 fsm.get_query_data(&OwnedProjection::default()),
             ),
