@@ -320,6 +320,162 @@ async fn write_and_query() {
     .await
 }
 
+// Test create table CLI command
+#[tokio::test]
+async fn create_tables_write_and_query() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let namespace = "ns_2";
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    // Need router grpc based addres to create namespace
+                    let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns_2";
+
+                    println!("Create namespace {namespace}");
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(namespace));
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    // Need router grpc based addres to create tables
+                    let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns_2";
+
+                    println!("Creating tables h2o_temperature, m0, cpu explicitly into {namespace}");
+
+                    // create tables h2o_temperature, m0, cpu
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-v")
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("h2o_temperature")
+                        .arg("--partition-template")
+                        .arg("location,state,%Y-%m")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("h2o_temperature"));
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-v")
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("m0")
+                        .arg("--partition-template")
+                        .arg("%Y.%j")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("m0"));
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-v")
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("cpu")
+                        .arg("--partition-template")
+                        .arg("%Y-%m-%d,cpu")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("cpu"));
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    // write must use router http based address
+                    let router_http_addr = state.cluster().router().router_http_base().to_string();
+                    let namespace = "ns_2";
+
+                    println!("Writing into {namespace}");
+
+                    // Validate the output of the schema CLI command
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-v")
+                        .arg("-h")
+                        .arg(&router_http_addr)
+                        .arg("write")
+                        .arg(namespace)
+                        // raw line protocol ('h2o_temperature' measurement)
+                        .arg("../test_fixtures/lineproto/air_and_water.lp")
+                        // gzipped line protocol ('m0')
+                        .arg("../test_fixtures/lineproto/read_filter.lp.gz")
+                        // iox formatted parquet ('cpu' measurement)
+                        .arg("../test_fixtures/cpu.parquet")
+                        .assert()
+                        .success()
+                        // this number is the total size of
+                        // uncompressed line protocol stored in all
+                        // three files
+                        .stdout(predicate::str::contains("889317 Bytes OK"));
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    // data from 'air_and_water.lp'
+                    wait_for_query_result_with_namespace(
+                        namespace,
+                        state,
+                        "SELECT * from h2o_temperature order by time desc limit 10",
+                        None,
+                        "| 51.3           | coyote_creek | CA    | 55.1            | 1970-01-01T00:00:01.568756160Z |"
+                    ).await;
+
+                    // data from 'read_filter.lp.gz', specific query language type
+                    wait_for_query_result_with_namespace(
+                        namespace,
+                        state,
+                        "SELECT * from m0 order by time desc limit 10;",
+                        Some(QueryLanguage::Sql),
+                        "| value1 | value9 | value9 | value49 | value0 | 2021-04-26T13:47:39.727574Z | 1.0 |"
+                    ).await;
+
+                    // data from 'cpu.parquet'
+                    wait_for_query_result_with_namespace(
+                        namespace,
+                        state,
+                        "SELECT * from cpu where cpu = 'cpu2' order by time desc limit 10",
+                        None,
+                        "cpu2 | MacBook-Pro-8.hsd1.ma.comcast.net | 2022-09-30T12:55:00Z"
+                    ).await;
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
 /// Test error handling for the query CLI command
 #[tokio::test]
 async fn query_error_handling() {
@@ -430,16 +586,28 @@ impl AddQueryLanguage for assert_cmd::Command {
     }
 }
 
-/// Runs the specified query in a loop for up to 10 seconds, waiting
-/// for the specified output to appear
 async fn wait_for_query_result(
     state: &mut StepTestState<'_>,
     query_sql: &str,
     query_lang: Option<QueryLanguage>,
     expected: &str,
 ) {
+    let namespace = state.cluster().namespace().to_owned();
+    wait_for_query_result_with_namespace(namespace.as_str(), state, query_sql, query_lang, expected)
+        .await
+}
+
+/// Runs the specified query in a loop for up to 10 seconds, waiting
+/// for the specified output to appear
+async fn wait_for_query_result_with_namespace(
+    namespace: &str,
+    state: &mut StepTestState<'_>,
+    query_sql: &str,
+    query_lang: Option<QueryLanguage>,
+    expected: &str,
+) {
     let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
-    let namespace = state.cluster().namespace();
+    // let namespace = state.cluster().namespace();
 
     let max_wait_time = Duration::from_secs(10);
     println!("Waiting for {expected}");

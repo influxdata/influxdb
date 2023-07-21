@@ -40,12 +40,14 @@ mod commands {
     pub mod catalog;
     pub mod debug;
     pub mod namespace;
+    pub mod partition_template;
     pub mod query;
     pub mod query_ingester;
     pub mod remote;
     pub mod run;
     pub mod sql;
     pub mod storage;
+    pub mod table;
     pub mod tracing;
     pub mod write;
 }
@@ -222,6 +224,9 @@ enum Command {
 
     /// Various commands for namespace manipulation
     Namespace(commands::namespace::Config),
+
+    /// Various commands for table manipulation
+    Table(commands::table::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -374,6 +379,14 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection(grpc_host).await;
                 if let Err(e) = commands::namespace::command(connection, config).await {
+                    eprintln!("{e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Table(config)) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                let connection = connection(grpc_host).await;
+                if let Err(e) = commands::table::command(connection, config).await {
                     eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
