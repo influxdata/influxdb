@@ -2,8 +2,6 @@
 //!
 //! [`PartitionData`]: crate::buffer_tree::partition::PartitionData
 
-#![allow(unused_imports)] // Transition time only.
-
 mod cache;
 pub(crate) use cache::*;
 

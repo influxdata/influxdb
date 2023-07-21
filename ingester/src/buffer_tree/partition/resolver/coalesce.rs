@@ -6,7 +6,6 @@ use std::{
     },
 };
 
-use arrow::compute::kernels::partition;
 use async_trait::async_trait;
 use data_types::{NamespaceId, PartitionKey, TableId};
 use futures::{future::Shared, FutureExt};
@@ -265,12 +264,11 @@ mod tests {
     use assert_matches::assert_matches;
     use futures::Future;
     use futures::{stream::FuturesUnordered, StreamExt};
-    use lazy_static::lazy_static;
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::{Notify, Semaphore};
 
     use crate::{
-        buffer_tree::partition::{resolver::mock::MockPartitionProvider, SortKeyState},
+        buffer_tree::partition::resolver::mock::MockPartitionProvider,
         test_util::{
             defer_namespace_name_1_sec, defer_table_metadata_1_sec, PartitionDataBuilder,
             ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
