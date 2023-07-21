@@ -4,7 +4,6 @@ use super::TableId;
 use generated_types::influxdata::iox::schema::v1 as proto;
 use influxdb_line_protocol::FieldValue;
 use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType, Schema};
-use sqlx::postgres::PgHasArrayType;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     convert::TryFrom,
@@ -23,12 +22,6 @@ impl ColumnId {
     }
     pub fn get(&self) -> i64 {
         self.0
-    }
-}
-
-impl PgHasArrayType for ColumnId {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        <i64 as PgHasArrayType>::array_type_info()
     }
 }
 
@@ -328,7 +321,7 @@ impl TryFrom<proto::column_schema::ColumnType> for ColumnType {
 
 /// Set of columns.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::Type)]
-#[sqlx(transparent)]
+#[sqlx(transparent, no_pg_array)]
 pub struct ColumnSet(Vec<ColumnId>);
 
 impl ColumnSet {

@@ -2,9 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::{
-    NamespaceId, Partition, PartitionHashId, PartitionId, PartitionKey, SequenceNumber, TableId,
-};
+use data_types::{NamespaceId, Partition, PartitionHashId, PartitionId, PartitionKey, TableId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
@@ -222,6 +220,7 @@ mod tests {
     // Harmless in tests - saves a bunch of extra vars.
     #![allow(clippy::await_holding_lock)]
 
+    use data_types::PartitionId;
     use iox_catalog::mem::MemCatalog;
 
     use super::*;

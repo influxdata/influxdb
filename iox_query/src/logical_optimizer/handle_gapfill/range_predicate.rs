@@ -7,10 +7,12 @@ use datafusion::{
         DFSchema,
     },
     error::Result,
-    logical_expr::{expr::Alias, Between, BinaryExpr, LogicalPlan, Operator},
+    logical_expr::{Between, BinaryExpr, LogicalPlan, Operator},
     optimizer::utils::split_conjunction,
     prelude::{Column, Expr},
 };
+
+use super::unwrap_alias;
 
 /// Given a plan and a column, finds the predicates that use that column
 /// and return a range with expressions for upper and lower bounds.
@@ -65,6 +67,12 @@ impl TreeNodeVisitor for TimeRangeVisitor {
                 self.range = range;
                 Ok(VisitRecursion::Continue)
             }
+            LogicalPlan::SubqueryAlias(_) => {
+                // The nodes below this one refer to the column with a different table name,
+                // just unset the relation so we match on the column name.
+                self.col.relation = None;
+                Ok(VisitRecursion::Continue)
+            }
             // These nodes do not alter their schema, so we can recurse through them
             LogicalPlan::Sort(_)
             | LogicalPlan::Repartition(_)
@@ -72,15 +80,6 @@ impl TreeNodeVisitor for TimeRangeVisitor {
             | LogicalPlan::Distinct(_) => Ok(VisitRecursion::Continue),
             // At some point we may wish to handle joins here too.
             _ => Ok(VisitRecursion::Stop),
-        }
-    }
-}
-
-fn unwrap_alias(mut e: &Expr) -> &Expr {
-    loop {
-        match e {
-            Expr::Alias(Alias { expr, .. }) => e = expr.as_ref(),
-            e => break e,
         }
     }
 }

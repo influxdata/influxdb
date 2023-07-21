@@ -586,6 +586,19 @@ impl PartitionRepo for MemTxn {
             .cloned())
     }
 
+    async fn get_by_id_batch(&mut self, partition_ids: Vec<PartitionId>) -> Result<Vec<Partition>> {
+        let lookup = partition_ids.into_iter().collect::<HashSet<_>>();
+
+        let stage = self.stage();
+
+        Ok(stage
+            .partitions
+            .iter()
+            .filter(|p| lookup.contains(&p.id))
+            .cloned()
+            .collect())
+    }
+
     async fn get_by_hash_id(
         &mut self,
         partition_hash_id: &PartitionHashId,
@@ -601,6 +614,26 @@ impl PartitionRepo for MemTxn {
                     .unwrap_or_default()
             })
             .cloned())
+    }
+
+    async fn get_by_hash_id_batch(
+        &mut self,
+        partition_hash_ids: &[&PartitionHashId],
+    ) -> Result<Vec<Partition>> {
+        let lookup = partition_hash_ids.iter().copied().collect::<HashSet<_>>();
+
+        let stage = self.stage();
+
+        Ok(stage
+            .partitions
+            .iter()
+            .filter(|p| {
+                p.hash_id()
+                    .map(|hash_id| lookup.contains(hash_id))
+                    .unwrap_or_default()
+            })
+            .cloned()
+            .collect())
     }
 
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
@@ -962,23 +995,19 @@ async fn create_parquet_file(
         parquet_file_params,
         ParquetFileId::new(stage.parquet_files.len() as i64 + 1),
     );
-    let compaction_level = parquet_file.compaction_level;
     let created_at = parquet_file.created_at;
     let partition_id = parquet_file.partition_id;
     stage.parquet_files.push(parquet_file);
 
     // Update the new_file_at field its partition to the time of created_at
-    // Only update if the compaction level is not Final which signal more compaction needed
-    if compaction_level < CompactionLevel::Final {
-        let partition = stage
-            .partitions
-            .iter_mut()
-            .find(|p| p.id == partition_id)
-            .ok_or(Error::PartitionNotFound {
-                id: TransitionPartitionId::Deprecated(partition_id),
-            })?;
-        partition.new_file_at = Some(created_at);
-    }
+    let partition = stage
+        .partitions
+        .iter_mut()
+        .find(|p| p.id == partition_id)
+        .ok_or(Error::PartitionNotFound {
+            id: TransitionPartitionId::Deprecated(partition_id),
+        })?;
+    partition.new_file_at = Some(created_at);
 
     Ok(stage.parquet_files.last().unwrap().clone())
 }

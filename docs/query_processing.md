@@ -327,7 +327,7 @@ Each querier process has a set of in-memory caches. These are:
 | ---- | ---- | -------------- | --- | ----- | ------------------------------ | ----- |
 | Namespace | Metadata | Catalog | Namespace Name | `CachedNamespace` | refresh policy, TTL, invalidation by unknown table/columns | Unknown entries NOT cached (assumes upstream DDoS protection) |
 | Object Store | Data | Object Store | Path | Raw object store bytes for the entire object | -- | |
-| Parquet File | Metadata | Catalog | Table ID | Parquet files (all the data that the catalog has, i.e. the entire row) for all files that are NOT marked for deletion. | No refresh yet (see #5718), can be invalided by ingester watermark. | |
+| Parquet File | Metadata | Catalog | Table ID | Parquet files (all the data that the catalog has, i.e. the entire row) for all files that are NOT marked for deletion. | TTL, but no refresh yet (see #5718), can be invalided by ingester watermark. | |
 | Partition | Metadata | Catalog | Partition ID | `CachedPartition` | Invalided if ingester data or any parquet files has columns that are NOT covered by the sort key. | Needs `CachedTable` for access |
 | Projected Schema | Metadata | Querier | Table ID, Column IDs | `ProjectedSchema` | -- | Needs `CachedTable` for access |
 

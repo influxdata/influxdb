@@ -2,6 +2,7 @@
 use async_trait::async_trait;
 use std::{fmt::Debug, future::Future, hash::Hash, marker::PhantomData, sync::Arc};
 
+pub mod batch;
 pub mod metrics;
 
 #[cfg(test)]

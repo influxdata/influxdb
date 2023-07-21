@@ -6,7 +6,7 @@ pub mod field;
 pub mod fieldlist;
 pub mod gapfill;
 mod non_null_checker;
-mod query_tracing;
+pub mod query_tracing;
 mod schema_pivot;
 pub mod seriesset;
 pub(crate) mod split;

@@ -14,7 +14,7 @@ enum TestLoaderResponse<V> {
 
 /// An easy-to-mock [`Loader`].
 #[derive(Debug, Default)]
-pub struct TestLoader<K = u8, V = String, Extra = bool>
+pub struct TestLoader<K = u8, Extra = bool, V = String>
 where
     K: Clone + Debug + Eq + Hash + Send + 'static,
     Extra: Clone + Debug + Send + 'static,
@@ -25,7 +25,7 @@ where
     loaded: Mutex<Vec<(K, Extra)>>,
 }
 
-impl<K, V, Extra> TestLoader<K, V, Extra>
+impl<K, V, Extra> TestLoader<K, Extra, V>
 where
     K: Clone + Debug + Eq + Hash + Send + 'static,
     Extra: Clone + Debug + Send + 'static,
@@ -93,7 +93,7 @@ where
     }
 }
 
-impl<K, V, Extra> Drop for TestLoader<K, V, Extra>
+impl<K, Extra, V> Drop for TestLoader<K, Extra, V>
 where
     K: Clone + Debug + Eq + Hash + Send + 'static,
     Extra: Clone + Debug + Send + 'static,
@@ -110,15 +110,15 @@ where
 }
 
 #[async_trait]
-impl<K, V, Extra> Loader for TestLoader<K, V, Extra>
+impl<K, V, Extra> Loader for TestLoader<K, Extra, V>
 where
     K: Clone + Debug + Eq + Hash + Send + 'static,
     Extra: Clone + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
 {
     type K = K;
-    type V = V;
     type Extra = Extra;
+    type V = V;
 
     async fn load(&self, k: Self::K, extra: Self::Extra) -> Self::V {
         self.loaded.lock().push((k.clone(), extra));
@@ -163,7 +163,7 @@ mod tests {
     #[tokio::test]
     #[should_panic(expected = "entry not mocked")]
     async fn test_loader_panic_entry_unknown() {
-        let loader = TestLoader::<u8, String, ()>::default();
+        let loader = TestLoader::<u8, (), String>::default();
         loader.load(1, ()).await;
     }
 
@@ -179,14 +179,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "mocked response left")]
     fn test_loader_panic_requests_left() {
-        let loader = TestLoader::<u8, String, ()>::default();
+        let loader = TestLoader::<u8, (), String>::default();
         loader.mock_next(1, String::from("foo"));
     }
 
     #[test]
     #[should_panic(expected = "panic-by-choice")]
     fn test_loader_no_double_panic() {
-        let loader = TestLoader::<u8, String, ()>::default();
+        let loader = TestLoader::<u8, (), String>::default();
         loader.mock_next(1, String::from("foo"));
         panic!("panic-by-choice");
     }

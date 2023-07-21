@@ -4,6 +4,7 @@ use std::{
 };
 
 use data_types::{CompactionLevel, ParquetFile};
+use parquet_file::ParquetFilePath;
 use uuid::Uuid;
 
 pub mod logging;
@@ -24,12 +25,14 @@ pub trait IRPlanner: Debug + Display + Send + Sync {
         target_level: CompactionLevel,
         split_or_compact: FilesToSplitOrCompact,
         object_store_ids: Vec<Uuid>,
+        object_store_paths: Vec<ParquetFilePath>,
     ) -> Vec<PlanIR>;
 
     /// Build a plan to compact give files
     fn compact_plan(
         &self,
         files: Vec<ParquetFile>,
+        paths: Vec<ParquetFilePath>,
         object_store_ids: Vec<Uuid>,
         reason: CompactReason,
         partition: Arc<PartitionInfo>,
@@ -40,6 +43,7 @@ pub trait IRPlanner: Debug + Display + Send + Sync {
     fn split_plan(
         &self,
         file_to_split: FileToSplit,
+        path: ParquetFilePath,
         object_store_id: Uuid,
         reason: SplitReason,
         partition: Arc<PartitionInfo>,

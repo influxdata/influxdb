@@ -135,3 +135,28 @@ SELECT
 from cpu
 where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z'
 group by region, minute;
+
+-- With a VALUES clause, which affects how the range is found
+-- Fix for https://github.com/influxdata/idpe/issues/17880
+SELECT
+  date_bin_gapfill(INTERVAL '1 minute', time) as _time,
+  pod,
+  locf(selector_last(image, time))
+FROM
+  (VALUES ('2023-06-10T12:00:00Z'::timestamp, 'pod1', 'imageA'),
+          ('2023-06-10T12:00:00Z'::timestamp, 'pod2', 'imageA'),
+          ('2023-06-10T12:00:01Z'::timestamp, 'pod1', 'imageB'),
+          ('2023-06-10T12:00:02Z'::timestamp, 'pod1', 'imageB'),
+          ('2023-06-10T12:00:02Z'::timestamp, 'pod2', 'imageB')
+  ) AS data(time, pod, image)
+WHERE time >= timestamp '2023-06-10T11:55:00Z' AND time < timestamp '2023-06-10T12:05:00Z'
+GROUP BY _time, pod;
+
+-- This is not supported since the grouping is not on the values produced by
+-- date_bin_gapfill. The query should fail with a reasonable message.
+select
+  date_bin_gapfill('60 seconds'::interval, time)::bigint as time,
+  sum(idle)
+from cpu
+WHERE time >= '2020-06-11T16:52:00Z' AND time < '2020-06-11T16:54:00Z'
+group by 1;

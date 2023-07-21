@@ -963,7 +963,7 @@ mod tests {
         metric_registry: metric::Registry,
         refresh_duration_provider: Arc<TestRefreshDurationProvider>,
         time_provider: Arc<MockProvider>,
-        loader: Arc<TestLoader<u8, String, ()>>,
+        loader: Arc<TestLoader<u8, (), String>>,
         notify_idle: Arc<Notify>,
     }
 

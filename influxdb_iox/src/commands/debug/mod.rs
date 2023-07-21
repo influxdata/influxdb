@@ -50,12 +50,12 @@ enum Command {
     Schema(schema::Config),
 
     // NB: The example formatting below is weird so Clap make a nice help text
-    /// Build a local catalog from the output of `remote get-table`.
+    /// Build a local catalog from the output of `remote store get-table`.
     ///
     /// For example:
     /// ```text
     ///  # download contents of table_name into a directory named 'table_name'
-    ///  influxdb_iox remote get-table <namespace> <table_name>
+    ///  influxdb_iox remote store get-table <namespace> <table_name>
     ///
     ///  # Create a catalog and object_store in /tmp/data_dir
     ///  influxdb_iox debug build-catalog <table_dir> /tmp/data_dir

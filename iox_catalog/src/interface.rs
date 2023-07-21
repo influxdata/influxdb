@@ -372,11 +372,24 @@ pub trait PartitionRepo: Send + Sync {
     /// get partition by ID
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>>;
 
+    /// get multiple partitions by ID.
+    ///
+    /// the output order is undefined, non-existing partitions are not part of the output.
+    async fn get_by_id_batch(&mut self, partition_ids: Vec<PartitionId>) -> Result<Vec<Partition>>;
+
     /// get partition by deterministic hash ID
     async fn get_by_hash_id(
         &mut self,
         partition_hash_id: &PartitionHashId,
     ) -> Result<Option<Partition>>;
+
+    /// get partition by deterministic hash ID
+    ///
+    /// the output order is undefined, non-existing partitions are not part of the output.
+    async fn get_by_hash_id_batch(
+        &mut self,
+        partition_hash_ids: &[&PartitionHashId],
+    ) -> Result<Vec<Partition>>;
 
     /// return the partitions by table id
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>>;
@@ -1487,6 +1500,8 @@ pub(crate) mod test_helpers {
             .unwrap();
 
         // partitions can be retrieved easily
+        let mut created_sorted = created.values().cloned().collect::<Vec<_>>();
+        created_sorted.sort_by_key(|p| p.id);
         assert_eq!(
             other_partition,
             repos
@@ -1505,21 +1520,47 @@ pub(crate) mod test_helpers {
                 .unwrap()
                 .unwrap()
         );
+        let non_existing_partition_id = PartitionId::new(i64::MAX);
+        let non_existing_partition_hash_id =
+            PartitionHashId::new(TableId::new(i64::MAX), &PartitionKey::from("arbitrary"));
         assert!(repos
             .partitions()
-            .get_by_id(PartitionId::new(i64::MAX))
+            .get_by_id(non_existing_partition_id)
             .await
             .unwrap()
             .is_none());
         assert!(repos
             .partitions()
-            .get_by_hash_id(&PartitionHashId::new(
-                TableId::new(i64::MAX),
-                &PartitionKey::from("arbitrary")
-            ))
+            .get_by_hash_id(&non_existing_partition_hash_id)
             .await
             .unwrap()
             .is_none());
+        let mut batch = repos
+            .partitions()
+            .get_by_id_batch(
+                created
+                    .keys()
+                    .cloned()
+                    .chain([non_existing_partition_id])
+                    .collect(),
+            )
+            .await
+            .unwrap();
+        batch.sort_by_key(|p| p.id);
+        assert_eq!(created_sorted, batch);
+        let mut batch = repos
+            .partitions()
+            .get_by_hash_id_batch(
+                &created
+                    .values()
+                    .map(|p| p.hash_id().unwrap())
+                    .chain([&non_existing_partition_hash_id])
+                    .collect::<Vec<_>>(),
+            )
+            .await
+            .unwrap();
+        batch.sort_by_key(|p| p.id);
+        assert_eq!(created_sorted, batch);
 
         let listed = repos
             .partitions()
@@ -2534,7 +2575,6 @@ pub(crate) mod test_helpers {
         assert!(partitions.is_empty());
 
         // Add an L2 file created just now for partition three
-        // Since the file is L2, the partition won't get updated
         let l2_file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             created_at: time_now,
@@ -2547,16 +2587,17 @@ pub(crate) mod test_helpers {
             .create(l2_file_params.clone())
             .await
             .unwrap();
-        // still should return partition one and two only
+        // now should return partition one two and three
         let mut partitions = repos
             .partitions()
             .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
-        assert_eq!(partitions.len(), 2);
+        assert_eq!(partitions.len(), 3);
         partitions.sort();
         assert_eq!(partitions[0], partition1.id);
         assert_eq!(partitions[1], partition2.id);
+        assert_eq!(partitions[2], partition3.id);
         // Only return partition1: the creation time must be strictly less than the maximum time,
         // not equal
         let partitions = repos

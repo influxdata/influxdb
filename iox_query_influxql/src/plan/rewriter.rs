@@ -1029,7 +1029,7 @@ impl FieldChecker {
             ProjectionType::TopBottomSelector
         } else if self.has_group_by_time {
             if self.window_count > 0 {
-                if self.window_count == self.aggregate_count {
+                if self.window_count == self.aggregate_count + self.selector_count {
                     ProjectionType::WindowAggregate
                 } else {
                     ProjectionType::WindowAggregateMixed
@@ -1338,11 +1338,8 @@ impl FieldChecker {
     }
 
     fn check_cumulative_sum(&mut self, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!("cumulative_sum", 1, args);
-
-        set_extra_intervals!(self, 1);
-
         self.check_nested_symbol("cumulative_sum", &args[0])
     }
 

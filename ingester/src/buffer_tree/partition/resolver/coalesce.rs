@@ -6,7 +6,6 @@ use std::{
     },
 };
 
-use arrow::compute::kernels::partition;
 use async_trait::async_trait;
 use data_types::{NamespaceId, PartitionKey, TableId};
 use futures::{future::Shared, FutureExt};
@@ -25,11 +24,10 @@ use super::PartitionProvider;
 type BoxedResolveFuture =
     Pin<Box<dyn std::future::Future<Output = Arc<Mutex<PartitionData>>> + Send>>;
 
-/// A compound key of `(namespace, table, partition_key)` which uniquely
+/// A compound key of `(table, partition_key)` which uniquely
 /// identifies a single partition.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Key {
-    namespace_id: NamespaceId,
     table_id: TableId,
     partition_key: PartitionKey,
 }
@@ -149,7 +147,6 @@ where
         table: Arc<DeferredLoad<TableMetadata>>,
     ) -> Arc<Mutex<PartitionData>> {
         let key = Key {
-            namespace_id,
             table_id,
             partition_key: partition_key.clone(), // Ref-counted anyway!
         };
@@ -267,12 +264,11 @@ mod tests {
     use assert_matches::assert_matches;
     use futures::Future;
     use futures::{stream::FuturesUnordered, StreamExt};
-    use lazy_static::lazy_static;
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::{Notify, Semaphore};
 
     use crate::{
-        buffer_tree::partition::{resolver::mock::MockPartitionProvider, SortKeyState},
+        buffer_tree::partition::resolver::mock::MockPartitionProvider,
         test_util::{
             defer_namespace_name_1_sec, defer_table_metadata_1_sec, PartitionDataBuilder,
             ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,

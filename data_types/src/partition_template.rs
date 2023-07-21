@@ -244,7 +244,7 @@ pub static PARTITION_BY_DAY_PROTO: Lazy<Arc<proto::PartitionTemplate>> = Lazy::n
 
 /// A partition template specified by a namespace record.
 #[derive(Debug, PartialEq, Clone, Default, sqlx::Type)]
-#[sqlx(transparent)]
+#[sqlx(transparent, no_pg_array)]
 pub struct NamespacePartitionTemplateOverride(Option<serialization::Wrapper>);
 
 impl TryFrom<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
@@ -259,7 +259,7 @@ impl TryFrom<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
 
 /// A partition template specified by a table record.
 #[derive(Debug, PartialEq, Eq, Clone, Default, sqlx::Type)]
-#[sqlx(transparent)]
+#[sqlx(transparent, no_pg_array)]
 pub struct TablePartitionTemplateOverride(Option<serialization::Wrapper>);
 
 impl TablePartitionTemplateOverride {

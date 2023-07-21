@@ -51,3 +51,4 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * [Querier <> Ingester Query Protocol](ingester_querier_protocol.md)
 * [Underground Guide to Running IOx Locally](underground_guide.md)
 * [Query Processing](query_processing.md)
+* [How to Reproduce and Debug Production Data Locally](debug.md)

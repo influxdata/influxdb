@@ -33,6 +33,10 @@ struct NoopScratchpad;
 
 #[async_trait]
 impl Scratchpad for NoopScratchpad {
+    fn uuids(&self, files: &[ParquetFilePath]) -> Vec<Uuid> {
+        files.iter().map(|f| f.objest_store_id()).collect()
+    }
+
     async fn load_to_scratchpad(&self, files: &[ParquetFilePath]) -> Vec<Uuid> {
         files.iter().map(|f| f.objest_store_id()).collect()
     }

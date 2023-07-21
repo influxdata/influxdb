@@ -957,7 +957,7 @@ async fn query_ingester() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared_never_persist(database_url).await;
 
     StepTest::new(
         &mut cluster,

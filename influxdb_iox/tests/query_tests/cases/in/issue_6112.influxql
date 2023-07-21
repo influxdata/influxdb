@@ -339,6 +339,12 @@ SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s) FILL(none);
 -- supports offset parameter
 SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s, 1s) FILL(none);
 
+-- N.B. The gap filling of the COUNT(usage_idle) and COUNT(bytes_free)
+-- columns happens before the two measurements are UNIONed together
+-- when producing the output table. This means that a COUNT column for
+-- a field that is not present for a measurement will contain NULLs,
+-- rather than being filled with 0s. This is consistent with older
+-- versions of influxdb.
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk;
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY TIME(1s) FILL(none);
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY cpu;
@@ -360,7 +366,9 @@ SELECT COUNT(usage_idle), usage_idle FROM cpu;
 
 -- Default FILL(null) when FILL is omitted
 SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s);
+SELECT COUNT(usage_idle)+2 FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s);
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s);
+SELECT COUNT(usage_idle)+1, COUNT(bytes_free)+2 FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s);
 SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(null);
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(null);
 SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(previous);
@@ -655,3 +663,6 @@ SELECT SUM(bytes_free) / SUM(bytes_used) AS result FROM disk WHERE time >= '2022
 
 -- Unsupported: host is a field in one subquery and a tag in the other
 SELECT count(host) FROM (SELECT usage_idle AS host FROM cpu), (SELECT host, usage_idle FROM cpu);
+
+-- Using a selector or a aggregate function on a tag column returns NULL
+SELECT last(host) AS host, first(usage_idle) AS usage_idle FROM cpu GROUP BY host;

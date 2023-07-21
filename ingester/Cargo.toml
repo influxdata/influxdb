@@ -45,7 +45,7 @@ tokio = { version = "1.29", features = ["macros", "parking_lot", "rt-multi-threa
 tokio-util = "0.7.8"
 tonic = { workspace = true }
 trace = { version = "0.1.0", path = "../trace" }
-uuid = "1.4.0"
+uuid = "1.4.1"
 wal = { version = "0.1.0", path = "../wal" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
@@ -60,7 +60,7 @@ lazy_static = "1.4.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store = { workspace = true }
 paste = "1.0.14"
-tempfile = "3.6.0"
+tempfile = "3.7.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 tokio = { version = "1.29", features = ["macros", "time", "test-util"] }
 

@@ -9,6 +9,7 @@ license.workspace = true
 async-trait = "0.1.71"
 bytes = "1.4"
 datafusion = { workspace = true }
+executor = { path = "../executor" }
 iox_query = { path = "../iox_query" }
 iox_query_influxql = { path = "../iox_query_influxql" }
 iox_query_influxrpc = { path = "../iox_query_influxrpc" }

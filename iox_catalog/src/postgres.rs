@@ -329,9 +329,9 @@ async fn new_raw_pool(
     parsed_dsn: &str,
 ) -> Result<sqlx::Pool<Postgres>, sqlx::Error> {
     // sqlx exposes some options as pool options, while other options are available as connection options.
-    let mut connect_options = PgConnectOptions::from_str(parsed_dsn)?;
-    // the default is INFO, which is frankly surprising.
-    connect_options.log_statements(log::LevelFilter::Trace);
+    let connect_options = PgConnectOptions::from_str(parsed_dsn)?
+        // the default is INFO, which is frankly surprising.
+        .log_statements(log::LevelFilter::Trace);
 
     let app_name = options.app_name.clone();
     let app_name2 = options.app_name.clone(); // just to log below
@@ -816,7 +816,7 @@ RETURNING *;
         .bind(name) // $1
         .bind(partition_template) // $2
         .bind(namespace_id) // $3
-        .fetch_one(&mut tx)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| match e {
             sqlx::Error::RowNotFound => Error::TableCreateLimitError {
@@ -843,7 +843,8 @@ RETURNING *;
         // columns with an unsupported type.
         for template_part in table.partition_template.parts() {
             if let TemplatePart::TagValue(tag_name) = template_part {
-                insert_column_with_connection(&mut tx, tag_name, table.id, ColumnType::Tag).await?;
+                insert_column_with_connection(&mut *tx, tag_name, table.id, ColumnType::Tag)
+                    .await?;
             }
         }
 
@@ -1095,6 +1096,22 @@ WHERE id = $1;
         Ok(Some(partition))
     }
 
+    async fn get_by_id_batch(&mut self, partition_ids: Vec<PartitionId>) -> Result<Vec<Partition>> {
+        let ids: Vec<_> = partition_ids.iter().map(|p| p.get()).collect();
+
+        sqlx::query_as::<_, Partition>(
+            r#"
+SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+FROM partition
+WHERE id = ANY($1);
+        "#,
+        )
+        .bind(&ids[..]) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
     async fn get_by_hash_id(
         &mut self,
         partition_hash_id: &PartitionHashId,
@@ -1117,6 +1134,25 @@ WHERE hash_id = $1;
         let partition = rec.map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(Some(partition))
+    }
+
+    async fn get_by_hash_id_batch(
+        &mut self,
+        partition_ids: &[&PartitionHashId],
+    ) -> Result<Vec<Partition>> {
+        let ids: Vec<_> = partition_ids.iter().map(|p| p.as_bytes()).collect();
+
+        sqlx::query_as::<_, Partition>(
+            r#"
+SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+FROM partition
+WHERE hash_id = ANY($1);
+        "#,
+        )
+        .bind(&ids[..]) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
     }
 
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
@@ -1538,15 +1574,14 @@ WHERE object_store_id = $1;
     ) -> Result<Vec<Uuid>> {
         sqlx::query(
             // sqlx's readme suggests using PG's ANY operator instead of IN; see link below.
+            // https://github.com/launchbadge/sqlx/blob/main/FAQ.md#how-can-i-do-a-select--where-foo-in--query
             r#"
 SELECT object_store_id
 FROM parquet_file
 WHERE object_store_id = ANY($1);
              "#,
         )
-        // from https://github.com/launchbadge/sqlx/blob/main/FAQ.md#how-can-i-do-a-select--where-foo-in--query
-        // a bug of the parameter typechecking code requires all array parameters to be slices
-        .bind(&object_store_ids[..]) // $1
+        .bind(object_store_ids) // $1
         .map(|pgr| pgr.get::<Uuid, _>("object_store_id"))
         .fetch_all(&mut self.inner)
         .await
@@ -1576,13 +1611,13 @@ WHERE object_store_id = ANY($1);
             .map_err(|e| Error::StartTransaction { source: e })?;
 
         let marked_at = Timestamp::from(self.time_provider.now());
-        flag_for_delete(&mut tx, delete, marked_at).await?;
+        flag_for_delete(&mut *tx, delete, marked_at).await?;
 
-        update_compaction_level(&mut tx, upgrade, target_level).await?;
+        update_compaction_level(&mut *tx, upgrade, target_level).await?;
 
         let mut ids = Vec::with_capacity(create.len());
         for file in create {
-            let id = create_parquet_file(&mut tx, file).await?;
+            let id = create_parquet_file(&mut *tx, file).await?;
             ids.push(id);
         }
 
@@ -1667,12 +1702,9 @@ async fn flag_for_delete<'q, E>(
 where
     E: Executor<'q, Database = Postgres>,
 {
-    // If I try to do `.bind(parquet_file_ids)` directly, I get a compile error from sqlx.
-    // See https://github.com/launchbadge/sqlx/issues/1744
-    let ids: Vec<_> = ids.iter().map(|p| p.get()).collect();
     let query = sqlx::query(r#"UPDATE parquet_file SET to_delete = $1 WHERE id = ANY($2);"#)
         .bind(marked_at) // $1
-        .bind(&ids[..]); // $2
+        .bind(ids); // $2
     query
         .execute(executor)
         .await
@@ -1689,9 +1721,6 @@ async fn update_compaction_level<'q, E>(
 where
     E: Executor<'q, Database = Postgres>,
 {
-    // If I try to do `.bind(parquet_file_ids)` directly, I get a compile error from sqlx.
-    // See https://github.com/launchbadge/sqlx/issues/1744
-    let ids: Vec<_> = parquet_file_ids.iter().map(|p| p.get()).collect();
     let query = sqlx::query(
         r#"
 UPDATE parquet_file
@@ -1700,7 +1729,7 @@ WHERE id = ANY($2);
         "#,
     )
     .bind(compaction_level) // $1
-    .bind(&ids[..]); // $2
+    .bind(parquet_file_ids); // $2
     query
         .execute(executor)
         .await

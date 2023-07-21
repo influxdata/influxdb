@@ -998,12 +998,8 @@ mod tests {
         assert_eq!(m, 1, "tables counter mismatch");
     }
 
-    /// Assert that multiple writes to a single namespace/table results in a
-    /// single namespace being created, and matching metrics.
     #[tokio::test]
     async fn test_partition_iter() {
-        // Configure the mock partition provider to return a single partition, named
-        // p1.
         let partition_provider = Arc::new(
             MockPartitionProvider::default()
                 .with_partition(

@@ -27,11 +27,8 @@ pub(super) fn make_tag_key_column_meta(
     let index_map = fields
         .iter()
         .enumerate()
-        .filter_map(|(index, f)| match &f.expr {
-            IQLExpr::VarRef(VarRef {
-                name,
-                data_type: Some(VarRefDataType::Tag) | None,
-            }) => Some((name.as_str(), index + START_INDEX)),
+        .filter_map(|(index, f)| match &f.data_type {
+            Some(InfluxColumnType::Tag) | None => Some((f.name.as_str(), index + START_INDEX)),
             _ => None,
         })
         .collect::<HashMap<_, _>>();
