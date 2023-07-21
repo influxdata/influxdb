@@ -1367,7 +1367,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=46182c894e5106adba7fb53e9848ce666fb6129b#46182c894e5106adba7fb53e9848ce666fb6129b"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=44008d71180f2d03e9d21944788e61cb8845abc7#44008d71180f2d03e9d21944788e61cb8845abc7"
 dependencies = [
  "ahash",
  "arrow",
@@ -1415,7 +1415,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=46182c894e5106adba7fb53e9848ce666fb6129b#46182c894e5106adba7fb53e9848ce666fb6129b"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=44008d71180f2d03e9d21944788e61cb8845abc7#44008d71180f2d03e9d21944788e61cb8845abc7"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1429,7 +1429,7 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=46182c894e5106adba7fb53e9848ce666fb6129b#46182c894e5106adba7fb53e9848ce666fb6129b"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=44008d71180f2d03e9d21944788e61cb8845abc7#44008d71180f2d03e9d21944788e61cb8845abc7"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1446,7 +1446,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=46182c894e5106adba7fb53e9848ce666fb6129b#46182c894e5106adba7fb53e9848ce666fb6129b"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=44008d71180f2d03e9d21944788e61cb8845abc7#44008d71180f2d03e9d21944788e61cb8845abc7"
 dependencies = [
  "ahash",
  "arrow",
@@ -1460,7 +1460,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=46182c894e5106adba7fb53e9848ce666fb6129b#46182c894e5106adba7fb53e9848ce666fb6129b"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=44008d71180f2d03e9d21944788e61cb8845abc7#44008d71180f2d03e9d21944788e61cb8845abc7"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1477,7 +1477,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=46182c894e5106adba7fb53e9848ce666fb6129b#46182c894e5106adba7fb53e9848ce666fb6129b"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=44008d71180f2d03e9d21944788e61cb8845abc7#44008d71180f2d03e9d21944788e61cb8845abc7"
 dependencies = [
  "ahash",
  "arrow",
@@ -1498,6 +1498,7 @@ dependencies = [
  "itertools 0.11.0",
  "lazy_static",
  "libc",
+ "log",
  "md-5",
  "paste",
  "petgraph",
@@ -1511,7 +1512,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=46182c894e5106adba7fb53e9848ce666fb6129b#46182c894e5106adba7fb53e9848ce666fb6129b"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=44008d71180f2d03e9d21944788e61cb8845abc7#44008d71180f2d03e9d21944788e61cb8845abc7"
 dependencies = [
  "arrow",
  "chrono",
@@ -1525,7 +1526,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=46182c894e5106adba7fb53e9848ce666fb6129b#46182c894e5106adba7fb53e9848ce666fb6129b"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=44008d71180f2d03e9d21944788e61cb8845abc7#44008d71180f2d03e9d21944788e61cb8845abc7"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1536,7 +1537,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=46182c894e5106adba7fb53e9848ce666fb6129b#46182c894e5106adba7fb53e9848ce666fb6129b"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=44008d71180f2d03e9d21944788e61cb8845abc7#44008d71180f2d03e9d21944788e61cb8845abc7"
 dependencies = [
  "arrow",
  "arrow-schema",

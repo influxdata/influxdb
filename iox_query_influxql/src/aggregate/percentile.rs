@@ -39,7 +39,7 @@ pub(super) fn accumulator(dt: &DataType) -> Result<Box<dyn Accumulator>> {
 /// Calculate the intermediate merge state for the aggregator.
 pub(super) fn state_type(dt: &DataType) -> Result<Arc<Vec<DataType>>> {
     Ok(Arc::new(vec![
-        DataType::List(Arc::new(Field::new("state", dt.clone(), false))),
+        DataType::List(Arc::new(Field::new("item", dt.clone(), true))),
         DataType::Float64,
     ]))
 }
