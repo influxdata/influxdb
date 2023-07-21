@@ -118,6 +118,7 @@ fn number_to_scalar(n: &Number, data_type: &DataType) -> Result<ScalarValue> {
             ),
             fields.clone(),
         ),
+        (_, DataType::Null) => ScalarValue::Null,
         (n, data_type) => {
             // The only output data types expected are Int64, Float64 or UInt64
             return error::internal(format!("no conversion from {n} to {data_type}"));
