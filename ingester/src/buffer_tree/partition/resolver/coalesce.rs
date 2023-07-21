@@ -24,11 +24,10 @@ use super::PartitionProvider;
 type BoxedResolveFuture =
     Pin<Box<dyn std::future::Future<Output = Arc<Mutex<PartitionData>>> + Send>>;
 
-/// A compound key of `(namespace, table, partition_key)` which uniquely
+/// A compound key of `(table, partition_key)` which uniquely
 /// identifies a single partition.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Key {
-    namespace_id: NamespaceId,
     table_id: TableId,
     partition_key: PartitionKey,
 }
@@ -148,7 +147,6 @@ where
         table: Arc<DeferredLoad<TableMetadata>>,
     ) -> Arc<Mutex<PartitionData>> {
         let key = Key {
-            namespace_id,
             table_id,
             partition_key: partition_key.clone(), // Ref-counted anyway!
         };

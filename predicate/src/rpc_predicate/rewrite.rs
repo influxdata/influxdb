@@ -515,6 +515,7 @@ mod tests {
             expr,
             pattern,
             escape_char: None,
+            case_insensitive: false,
         })
     }
 

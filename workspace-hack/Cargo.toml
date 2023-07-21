@@ -28,9 +28,9 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "46182c894e5106adba7fb53e9848ce666fb6129b" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "46182c894e5106adba7fb53e9848ce666fb6129b", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "46182c894e5106adba7fb53e9848ce666fb6129b", default-features = false, features = ["crypto_expressions", "encoding_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "44008d71180f2d03e9d21944788e61cb8845abc7" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "44008d71180f2d03e9d21944788e61cb8845abc7", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "44008d71180f2d03e9d21944788e61cb8845abc7", default-features = false, features = ["crypto_expressions", "encoding_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1", features = ["serde"] }
 fixedbitset = { version = "0.4" }
@@ -172,6 +172,7 @@ rustls = { version = "0.21" }
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 bitflags = { version = "2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
+rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21" }
 
 [target.x86_64-apple-darwin.dependencies]
@@ -184,6 +185,7 @@ rustls = { version = "0.21" }
 [target.x86_64-apple-darwin.build-dependencies]
 bitflags = { version = "2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
+rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21" }
 
 [target.aarch64-apple-darwin.dependencies]
@@ -196,6 +198,7 @@ rustls = { version = "0.21" }
 [target.aarch64-apple-darwin.build-dependencies]
 bitflags = { version = "2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
+rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21" }
 
 [target.x86_64-pc-windows-msvc.dependencies]
