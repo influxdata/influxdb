@@ -312,7 +312,7 @@ impl PersistHandle {
 
     fn assign_worker(&self, r: PersistRequest) {
         debug!(
-            partition_id = r.partition_id().get(),
+            partition_id = %r.partition_id(),
             "enqueue persist job to assigned worker"
         );
 
@@ -357,8 +357,8 @@ impl PersistQueue for PersistHandle {
         partition: Arc<Mutex<PartitionData>>,
         data: PersistingData,
     ) -> oneshot::Receiver<()> {
-        let partition_id = data.partition_id().get();
-        debug!(partition_id, "enqueuing persistence task");
+        let partition_id = data.partition_id().clone();
+        debug!(%partition_id, "enqueuing persistence task");
 
         // Record a starting timestamp, and increment the number of persist jobs
         // before waiting on the semaphore - this ensures the difference between
@@ -435,7 +435,7 @@ impl PersistQueue for PersistHandle {
                 if let Some(new_sort_key) = adjust_sort_key_columns(&v, &data_primary_key).1 {
                     // This persist operation will require a sort key update.
                     trace!(
-                        partition_id,
+                        %partition_id,
                         old_sort_key = %v,
                         %new_sort_key,
                         "persist job will require sort key update"
@@ -444,7 +444,7 @@ impl PersistQueue for PersistHandle {
                 } else {
                     // This persist operation will not require a sort key
                     // update.
-                    debug!(partition_id, "enqueue persist job to global work queue");
+                    debug!(%partition_id, "enqueue persist job to global work queue");
                     self.global_queue.send(r).await.expect("no persist workers");
                 }
             }
@@ -452,7 +452,7 @@ impl PersistQueue for PersistHandle {
                 // If no sort key is known (either because it was unresolved, or
                 // not yet set), the task must be serialised w.r.t other persist
                 // jobs for the same partition.
-                trace!(partition_id, "persist job has no known sort key");
+                trace!(%partition_id, "persist job has no known sort key");
                 self.assign_worker(r);
             }
         }
@@ -499,9 +499,9 @@ mod tests {
             tests::{assert_metric_counter, assert_metric_gauge},
         },
         test_util::{
-            make_write_op, PartitionDataBuilder, ARBITRARY_CATALOG_PARTITION_ID,
-            ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME, ARBITRARY_PARTITION_KEY,
-            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_PROVIDER,
+            make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME,
+            ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_PROVIDER, ARBITRARY_TRANSITION_PARTITION_ID,
         },
     };
 
@@ -591,7 +591,7 @@ mod tests {
                     .expect("message was not found in either worker")
             }
         };
-        assert_eq!(msg.partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
+        assert_eq!(msg.partition_id(), &*ARBITRARY_TRANSITION_PARTITION_ID);
 
         // Drop the message, and ensure the notification becomes inactive.
         drop(msg);
@@ -611,7 +611,7 @@ mod tests {
         let msg = assigned_worker
             .try_recv()
             .expect("message was not found in either worker");
-        assert_eq!(msg.partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
+        assert_eq!(msg.partition_id(), &*ARBITRARY_TRANSITION_PARTITION_ID);
     }
 
     /// A test that ensures the correct destination of a partition that has no
@@ -677,7 +677,7 @@ mod tests {
                     .expect("message was not found in either worker")
             }
         };
-        assert_eq!(msg.partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
+        assert_eq!(msg.partition_id(), &*ARBITRARY_TRANSITION_PARTITION_ID);
 
         // Drop the message, and ensure the notification becomes inactive.
         drop(msg);
@@ -698,7 +698,7 @@ mod tests {
         let msg = assigned_worker
             .try_recv()
             .expect("message was not found in either worker");
-        assert_eq!(msg.partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
+        assert_eq!(msg.partition_id(), &*ARBITRARY_TRANSITION_PARTITION_ID);
     }
 
     /// A test that ensures the correct destination of a partition that has an
@@ -765,7 +765,7 @@ mod tests {
                     .expect("message was not found in either worker")
             }
         };
-        assert_eq!(msg.partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
+        assert_eq!(msg.partition_id(), &*ARBITRARY_TRANSITION_PARTITION_ID);
 
         // Drop the message, and ensure the notification becomes inactive.
         drop(msg);
@@ -786,7 +786,7 @@ mod tests {
         let msg = assigned_worker
             .try_recv()
             .expect("message was not found in either worker");
-        assert_eq!(msg.partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
+        assert_eq!(msg.partition_id(), &*ARBITRARY_TRANSITION_PARTITION_ID);
     }
 
     /// A test that a partition that does not require a sort key update is
@@ -845,7 +845,7 @@ mod tests {
         let msg = global_rx
             .try_recv()
             .expect("task should be in global queue");
-        assert_eq!(msg.partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
+        assert_eq!(msg.partition_id(), &*ARBITRARY_TRANSITION_PARTITION_ID);
 
         // Drop the message, and ensure the notification becomes inactive.
         drop(msg);
@@ -866,7 +866,7 @@ mod tests {
         let msg = global_rx
             .try_recv()
             .expect("task should be in global queue");
-        assert_eq!(msg.partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
+        assert_eq!(msg.partition_id(), &*ARBITRARY_TRANSITION_PARTITION_ID);
     }
 
     /// A test that a ensures tasks waiting to be enqueued (waiting on the

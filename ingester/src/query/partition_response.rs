@@ -3,7 +3,7 @@
 //! [`QueryResponse`]: super::response::QueryResponse
 
 use arrow::record_batch::RecordBatch;
-use data_types::{PartitionHashId, PartitionId};
+use data_types::TransitionPartitionId;
 
 /// Response data for a single partition.
 #[derive(Debug)]
@@ -12,10 +12,7 @@ pub(crate) struct PartitionResponse {
     batches: Vec<RecordBatch>,
 
     /// Partition ID.
-    id: PartitionId,
-
-    /// Partition hash ID, if stored in the database.
-    partition_hash_id: Option<PartitionHashId>,
+    id: TransitionPartitionId,
 
     /// Count of persisted Parquet files for this partition by this ingester instance.
     completed_persistence_count: u64,
@@ -24,24 +21,18 @@ pub(crate) struct PartitionResponse {
 impl PartitionResponse {
     pub(crate) fn new(
         data: Vec<RecordBatch>,
-        id: PartitionId,
-        partition_hash_id: Option<PartitionHashId>,
+        id: TransitionPartitionId,
         completed_persistence_count: u64,
     ) -> Self {
         Self {
             batches: data,
             id,
-            partition_hash_id,
             completed_persistence_count,
         }
     }
 
-    pub(crate) fn id(&self) -> PartitionId {
-        self.id
-    }
-
-    pub(crate) fn partition_hash_id(&self) -> Option<&PartitionHashId> {
-        self.partition_hash_id.as_ref()
+    pub(crate) fn id(&self) -> &TransitionPartitionId {
+        &self.id
     }
 
     pub(crate) fn completed_persistence_count(&self) -> u64 {

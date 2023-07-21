@@ -238,7 +238,7 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::{
         partition_template::{test_table_partition_override, TemplatePart},
-        PartitionHashId, PartitionId, PartitionKey,
+        PartitionId, PartitionKey, TransitionPartitionId,
     };
     use datafusion::{
         assert_batches_eq, assert_batches_sorted_eq,
@@ -265,7 +265,7 @@ mod tests {
             defer_namespace_name_1_ms, make_write_op, PartitionDataBuilder,
             ARBITRARY_CATALOG_PARTITION_ID, ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME,
             ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
-            ARBITRARY_TABLE_PROVIDER,
+            ARBITRARY_TABLE_PROVIDER, ARBITRARY_TRANSITION_PARTITION_ID,
         },
     };
 
@@ -1307,10 +1307,7 @@ mod tests {
         let partition = partitions.pop().unwrap();
 
         // Ensure the partition hash ID is sent.
-        assert_eq!(
-            partition.partition_hash_id().unwrap(),
-            &PartitionHashId::new(ARBITRARY_TABLE_ID, &ARBITRARY_PARTITION_KEY)
-        );
+        assert_eq!(partition.id(), &*ARBITRARY_TRANSITION_PARTITION_ID);
 
         // Perform the partition read
         let batches = partition.into_record_batches();
@@ -1383,6 +1380,9 @@ mod tests {
         let partition = partitions.pop().unwrap();
 
         // Ensure the partition hash ID is NOT sent.
-        assert!(partition.partition_hash_id().is_none());
+        assert_eq!(
+            partition.id(),
+            &TransitionPartitionId::Deprecated(ARBITRARY_CATALOG_PARTITION_ID),
+        );
     }
 }

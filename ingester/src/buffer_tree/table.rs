@@ -273,11 +273,10 @@ where
         let partitions = self.partitions().into_iter().filter_map(move |p| {
             let mut span = span.child("partition read");
 
-            let (id, hash_id, completed_persistence_count, data, partition_key) = {
+            let (id, completed_persistence_count, data, partition_key) = {
                 let mut p = p.lock();
                 (
-                    p.partition_id(),
-                    p.partition_hash_id().cloned(),
+                    p.transition_partition_id(),
                     p.completed_persistence_count(),
                     p.get_query_data(&projection),
                     p.partition_key().clone(),
@@ -286,7 +285,7 @@ where
 
             let ret = match data {
                 Some(data) => {
-                    assert_eq!(id, data.partition_id());
+                    assert_eq!(&id, data.partition_id());
 
                     // Potentially prune out this partition if the partition
                     // template & derived partition key can be used to match
@@ -324,11 +323,10 @@ where
                     PartitionResponse::new(
                         data.into_record_batches(),
                         id,
-                        hash_id,
                         completed_persistence_count,
                     )
                 }
-                None => PartitionResponse::new(vec![], id, hash_id, completed_persistence_count),
+                None => PartitionResponse::new(vec![], id, completed_persistence_count),
             };
 
             span.ok("read partition data");

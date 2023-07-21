@@ -256,6 +256,7 @@ macro_rules! make_partition_stream {
                 query::{response::PartitionStream, partition_response::PartitionResponse},
                 test_util::ARBITRARY_PARTITION_KEY,
             };
+            use data_types::{PartitionHashId, TableId, TransitionPartitionId};
             use futures::stream;
 
             PartitionStream::new(stream::iter([
@@ -274,14 +275,7 @@ macro_rules! make_partition_stream {
 
                     PartitionResponse::new(
                         batches,
-                        // Using the $id as both the PartitionId and the TableId in the
-                        // PartitionHashId is a temporary way to reduce duplication in tests where
-                        // the important part is which batches are in the same partition and which
-                        // batches are in a different partition, not what the actual identifier
-                        // values are. This will go away when the ingester no longer sends
-                        // PartitionIds.
-                        data_types::PartitionId::new($id),
-                        Some(
+                        TransitionPartitionId::Deterministic(
                             PartitionHashId::new(
                                 TableId::new($id),
                                 &*ARBITRARY_PARTITION_KEY

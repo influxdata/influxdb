@@ -88,10 +88,10 @@ impl QueryAdaptor {
         self.data
     }
 
-    /// Returns the partition ID from which the data this [`QueryAdaptor`] was
+    /// Returns the partition identifier from which the data this [`QueryAdaptor`] was
     /// sourced from.
-    pub(crate) fn partition_id(&self) -> PartitionId {
-        self.partition_id
+    pub(crate) fn partition_id(&self) -> &TransitionPartitionId {
+        &self.transition_partition_id
     }
 
     /// Number of rows, useful for building stats
