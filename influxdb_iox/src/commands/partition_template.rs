@@ -16,7 +16,7 @@ pub enum Error {
     TimeAsTag(),
 }
 
-/// Partition template: a string of columns or time ofrmat each separated by a comma
+/// Partition template: a string of columns or time format each separated by a comma
 /// example: "col1,col2,%Y"
 #[derive(Debug, clap::Parser, Default, Clone)]
 pub struct PartitionTemplateConfig {
