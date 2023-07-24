@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Sub, sync::Arc, sync::Mutex, time::Duration};
+use std::{fmt::Display, sync::Arc, sync::Mutex, time::Duration};
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
@@ -81,7 +81,12 @@ impl PartitionsSource for CatalogToCompactPartitionsSource {
             // that creates busy-work that will spam the catalog with more queries to determine no compaction
             // needed.  But we also don't want to query so far back in time that we get all partitions, so the
             // lookback is limited to 3x the configured threshold.
-            if minimum_time < *last || minimum_time.sub(*last) < self.min_threshold * 3 {
+            if minimum_time < *last
+                || minimum_time
+                    .checked_duration_since(*last)
+                    .map(|duration| duration < self.min_threshold * 3)
+                    .unwrap_or_default()
+            {
                 // the end of the last query is less than 3x our configured lookback, so we can query everything
                 // since the last query.
                 minimum_time = *last;

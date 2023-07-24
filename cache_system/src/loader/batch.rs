@@ -105,8 +105,6 @@ where
     L: Loader<K = Vec<K>, Extra = Vec<Extra>, V = Vec<V>>,
 {
     async fn flush(&self) {
-        trace!("flushing batch loader");
-
         let pending: Vec<_> = {
             let mut pending = self.inner.pending.lock();
             std::mem::take(pending.as_mut())
@@ -115,6 +113,8 @@ where
         if pending.is_empty() {
             return;
         }
+        trace!(n_pending = pending.len(), "flush batch loader",);
+
         let job_id = self.inner.job_id_counter.fetch_add(1, Ordering::SeqCst);
         let handle_recv = CancellationSafeFutureReceiver::default();
 
@@ -221,6 +221,15 @@ where
 
             if !pending.is_empty() {
                 self.flush().await;
+
+                // prevent hot-looping:
+                // It seems that in some cases the underlying loader is ready but the data is not available via the
+                // cache driver yet. This is likely due to the signalling system within the cache driver that prevents
+                // cancelation, but also allows side-loading and at the same time prevents that the same key is loaded
+                // multiple times. Tokio doesn't know that this method here is basically a wait loop. So we yield back
+                // to the tokio worker and to allow it to make some progress. Since flush+load take some time anyways,
+                // this yield here is not overall performance critical.
+                tokio::task::yield_now().await;
             }
 
             futures = pending;

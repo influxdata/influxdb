@@ -52,22 +52,6 @@ impl Sub<Duration> for Time {
     }
 }
 
-impl Sub<Self> for Time {
-    type Output = Duration;
-
-    /// Calculates difference in wall-clock time
-    ///
-    /// **Warning: Because monotonicity is not guaranteed, `t2 - t1` might be negative
-    /// even when `t2` was generated after `t1!**
-    ///
-    /// # Panic
-    ///
-    /// Panics if the result would be negative
-    fn sub(self, rhs: Self) -> Self::Output {
-        (self.0 - rhs.0).to_std().unwrap()
-    }
-}
-
 impl Debug for Time {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self, f)
@@ -359,7 +343,7 @@ mod test {
         let b = provider.now();
         let c = provider.now();
 
-        let delta = b - a;
+        let delta = b.checked_duration_since(a).unwrap();
         assert!(delta > Duration::from_millis(500));
         assert!(delta < Duration::from_secs(5));
         assert!(b <= c);
@@ -373,7 +357,7 @@ mod test {
         provider.sleep(Duration::from_secs(1)).await;
         let b = provider.now();
 
-        let delta = b - a;
+        let delta = b.checked_duration_since(a).unwrap();
         assert!(delta > Duration::from_millis(500));
         assert!(delta < Duration::from_secs(5));
     }
@@ -386,7 +370,7 @@ mod test {
         provider.sleep_until(a + Duration::from_secs(1)).await;
         let b = provider.now();
 
-        let delta = b - a;
+        let delta = b.checked_duration_since(a).unwrap();
         assert!(delta > Duration::from_millis(500));
         assert!(delta < Duration::from_secs(5));
     }

@@ -4,6 +4,7 @@ use std::{fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use iox_time::{Time, TimeProvider};
 use metric::{Attributes, DurationHistogram, U64Counter};
+use observability_deps::tracing::warn;
 use trace::span::{Span, SpanRecorder};
 
 use super::{Cache, CacheGetStatus, CachePeekStatus};
@@ -180,15 +181,22 @@ impl<'a> Drop for SetGetMetricOnDrop<'a> {
     fn drop(&mut self) {
         let t_end = self.metrics.time_provider.now();
 
-        match self.status {
-            Some(CacheGetStatus::Hit) => &self.metrics.metric_get_hit,
-            Some(CacheGetStatus::Miss) => &self.metrics.metric_get_miss,
-            Some(CacheGetStatus::MissAlreadyLoading) => {
-                &self.metrics.metric_get_miss_already_loading
+        match t_end.checked_duration_since(self.t_start) {
+            Some(duration) => {
+                match self.status {
+                    Some(CacheGetStatus::Hit) => &self.metrics.metric_get_hit,
+                    Some(CacheGetStatus::Miss) => &self.metrics.metric_get_miss,
+                    Some(CacheGetStatus::MissAlreadyLoading) => {
+                        &self.metrics.metric_get_miss_already_loading
+                    }
+                    None => &self.metrics.metric_get_cancelled,
+                }
+                .record(duration);
             }
-            None => &self.metrics.metric_get_cancelled,
+            None => {
+                warn!("Clock went backwards, not recording cache GET duration");
+            }
         }
-        .record(t_end - self.t_start);
 
         if let Some(status) = self.status {
             self.span_recorder.ok(status.name());
@@ -224,15 +232,22 @@ impl<'a> Drop for SetPeekMetricOnDrop<'a> {
     fn drop(&mut self) {
         let t_end = self.metrics.time_provider.now();
 
-        match self.status {
-            Some(Some(CachePeekStatus::Hit)) => &self.metrics.metric_peek_hit,
-            Some(Some(CachePeekStatus::MissAlreadyLoading)) => {
-                &self.metrics.metric_peek_miss_already_loading
+        match t_end.checked_duration_since(self.t_start) {
+            Some(duration) => {
+                match self.status {
+                    Some(Some(CachePeekStatus::Hit)) => &self.metrics.metric_peek_hit,
+                    Some(Some(CachePeekStatus::MissAlreadyLoading)) => {
+                        &self.metrics.metric_peek_miss_already_loading
+                    }
+                    Some(None) => &self.metrics.metric_peek_miss,
+                    None => &self.metrics.metric_peek_cancelled,
+                }
+                .record(duration);
             }
-            Some(None) => &self.metrics.metric_peek_miss,
-            None => &self.metrics.metric_peek_cancelled,
+            None => {
+                warn!("Clock went backwards, not recording cache PEEK duration");
+            }
         }
-        .record(t_end - self.t_start);
 
         if let Some(status) = self.status {
             self.span_recorder

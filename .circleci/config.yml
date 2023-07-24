@@ -387,25 +387,15 @@ jobs:
           command: |
             COMMIT_SHA="$(git rev-parse HEAD)"
 
-            RUST_VERSION="$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)"
+            .circleci/docker_build_release.bash \
+              "influxdb_iox" \
+              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
+              "quay.io/influxdb/iox:$COMMIT_SHA"
 
-            docker buildx build \
-              --build-arg CARGO_INCREMENTAL="no" \
-              --build-arg CARGO_NET_GIT_FETCH_WITH_CLI="true" \
-              --build-arg FEATURES="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
-              --build-arg RUST_VERSION="$RUST_VERSION" \
-              --progress plain \
-              --tag quay.io/influxdb/iox:"$COMMIT_SHA" \
-              .
-            docker buildx build \
-              --build-arg CARGO_INCREMENTAL="no" \
-              --build-arg CARGO_NET_GIT_FETCH_WITH_CLI="true" \
-              --build-arg FEATURES="" \
-              --build-arg PACKAGE="iox_data_generator" \
-              --build-arg RUST_VERSION="$RUST_VERSION" \
-              --progress plain \
-              --tag quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" \
-              .
+            .circleci/docker_build_release.bash \
+              "iox_data_generator" \
+              "" \
+              "quay.io/influxdb/iox_data_generator:$COMMIT_SHA"
 
             docker run -it --rm quay.io/influxdb/iox:$COMMIT_SHA debug print-cpu
 
@@ -452,14 +442,25 @@ jobs:
 
             for image in "${images[@]}"; do
               echo "Image: $image"
+              oci_path="oci-archive:///tmp/images/$image.oci.tar"
+
+              # convert the gzipped docker image into OCI
               gzip -d "/tmp/images/$image.tar.gz"
+              skopeo copy --format oci --quiet "docker-archive:///tmp/images/$image.tar" "$oci_path"
 
               for registry in "${registries[@]}"; do
                 echo "  Registry: $registry"
 
+                # upload all tags
+                # Note: Uploading the 2nd tag for the same image (to the same registry) is very cheap since all layers
+                #       exist already (from the previous tag).
                 for tag in "${tags[@]}"; do
                   echo "    Upload: tag=$tag"
-                  skopeo copy "docker-archive:///tmp/images/$image.tar" "docker://$registry/$image:$tag" --quiet
+                  docker_url="docker://$registry/$image:$tag"
+                  skopeo copy --quiet "$oci_path" "$docker_url"
+
+                  # print out digest AFTER upload, see https://github.com/containers/skopeo/issues/469
+                  echo "      Digest: $(skopeo inspect "$docker_url" | jq ".Digest")"
                 done
               done
             done
