@@ -5,6 +5,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use iox_time::TimeProvider;
 use metric::{DurationHistogram, U64Counter};
+use observability_deps::tracing::warn;
 use parking_lot::Mutex;
 use pdatastructs::filters::{bloomfilter::BloomFilter, Filter};
 
@@ -138,7 +139,14 @@ where
         let v = self.inner.load(k, extra).await;
         let t_end = self.time_provider.now();
 
-        self.metric_duration.record(t_end - t_start);
+        match t_end.checked_duration_since(t_start) {
+            Some(duration) => {
+                self.metric_duration.record(duration);
+            }
+            None => {
+                warn!("Clock went backwards, not recording loader duration");
+            }
+        }
 
         v
     }
