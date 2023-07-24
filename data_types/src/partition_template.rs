@@ -451,7 +451,7 @@ mod serialization {
 
                         if value.contains(TAG_VALUE_KEY_TIME) {
                             return Err(ValidationError::InvalidTagValue(format!(
-                                "{TAG_VALUE_KEY_TIME} cannot not be used"
+                                "{TAG_VALUE_KEY_TIME} cannot be used"
                             )));
                         }
                     }
