@@ -114,6 +114,13 @@
 //! These characters are defined in [`ENCODED_PARTITION_KEY_CHARS`] and chosen
 //! due to their low likelihood of occurrence in user-provided column values.
 //!
+//! ### Reserved Tag Values
+//!
+//! Reserved tag values that cannot be used:
+//!
+//!   * `time` - The time column has special meaning and is covered by strftime
+//!              formatters ([`TAG_VALUE_KEY_TIME`])
+//!
 //! ### Examples
 //!
 //! When using the partition template below:
@@ -174,6 +181,13 @@ pub enum ValidationError {
     /// [`TimeFormat`]: [`proto::template_part::Part::TimeFormat`]
     #[error("invalid strftime format in partition template: {0}")]
     InvalidStrftime(String),
+
+    /// The partition template defines a [`TagValue`] part, but the provided
+    /// value is invalid.
+    ///
+    /// [`TagValue`]: [`proto::template_part::Part::TagValue`]
+    #[error("invalid tag value in partition template: {0}")]
+    InvalidTagValue(String),
 }
 
 /// The maximum number of template parts a custom partition template may specify, to limit the
@@ -209,6 +223,11 @@ pub const PARTITION_KEY_MAX_PART_LEN: usize = 200;
 /// Truncated partition key parts can only be used for prefix matching, and
 /// yield a [`ColumnValue::Prefix`] from [`build_column_values()`].
 pub const PARTITION_KEY_PART_TRUNCATED: char = '#';
+
+/// The reserved tag value key for the `time` column, which is reserved as
+/// a specifically formatted column for the time associated with any given
+/// data point.
+pub const TAG_VALUE_KEY_TIME: &str = "time";
 
 /// The minimal set of characters that must be encoded during partition key
 /// generation when they form part of a partition key part, in order to be
@@ -345,7 +364,7 @@ impl TablePartitionTemplateOverride {
 /// `TablePartitionTemplateOverride` types. It's an internal implementation detail to minimize code
 /// duplication.
 mod serialization {
-    use super::{ValidationError, MAXIMUM_NUMBER_OF_TEMPLATE_PARTS};
+    use super::{ValidationError, MAXIMUM_NUMBER_OF_TEMPLATE_PARTS, TAG_VALUE_KEY_TIME};
     use chrono::{format::StrftimeItems, Utc};
     use generated_types::influxdata::iox::partition_template::v1 as proto;
     use std::{fmt::Write, sync::Arc};
@@ -393,34 +412,50 @@ mod serialization {
                 return Err(ValidationError::TooManyParts { specified });
             }
 
-            // All time formats must be valid
+            // All time formats must be valid and tag values may not specify any
+            // restricted values.
             for part in &partition_template.parts {
-                if let Some(proto::template_part::Part::TimeFormat(fmt)) = &part.part {
-                    // Empty is not a valid time format
-                    if fmt.is_empty() {
-                        return Err(ValidationError::InvalidStrftime(fmt.into()));
-                    }
+                match &part.part {
+                    Some(proto::template_part::Part::TimeFormat(fmt)) => {
+                        // Empty is not a valid time format
+                        if fmt.is_empty() {
+                            return Err(ValidationError::InvalidStrftime(fmt.into()));
+                        }
 
-                    // Chrono will panic during timestamp formatting if this
-                    // formatter directive is used!
-                    //
-                    // An upper-case Z does not trigger the panic code path so
-                    // is not checked for.
-                    if fmt.contains("%#z") {
-                        return Err(ValidationError::InvalidStrftime(
-                            "%#z cannot be used".to_string(),
-                        ));
-                    }
+                        // Chrono will panic during timestamp formatting if this
+                        // formatter directive is used!
+                        //
+                        // An upper-case Z does not trigger the panic code path so
+                        // is not checked for.
+                        if fmt.contains("%#z") {
+                            return Err(ValidationError::InvalidStrftime(
+                                "%#z cannot be used".to_string(),
+                            ));
+                        }
 
-                    // Currently we can only tell whether a nonempty format is valid by trying
-                    // to use it. See <https://github.com/chronotope/chrono/issues/47>
-                    let mut dev_null = String::new();
-                    write!(
-                        dev_null,
-                        "{}",
-                        Utc::now().format_with_items(StrftimeItems::new(fmt))
-                    )
-                    .map_err(|_| ValidationError::InvalidStrftime(fmt.into()))?
+                        // Currently we can only tell whether a nonempty format is valid by trying
+                        // to use it. See <https://github.com/chronotope/chrono/issues/47>
+                        let mut dev_null = String::new();
+                        write!(
+                            dev_null,
+                            "{}",
+                            Utc::now().format_with_items(StrftimeItems::new(fmt))
+                        )
+                        .map_err(|_| ValidationError::InvalidStrftime(fmt.into()))?
+                    }
+                    Some(proto::template_part::Part::TagValue(value)) => {
+                        // Empty is not a valid tag value
+                        if value.is_empty() {
+                            return Err(ValidationError::InvalidTagValue(value.into()));
+                        }
+
+                        if value.contains(TAG_VALUE_KEY_TIME) {
+                            return Err(ValidationError::InvalidTagValue(format!(
+                                "{TAG_VALUE_KEY_TIME} cannot not be used"
+                            )));
+                        }
+                    }
+                    None => {}
                 }
             }
 
@@ -741,6 +776,30 @@ mod tests {
         });
 
         assert_error!(err, ValidationError::InvalidStrftime(ref format) if format.is_empty());
+    }
+
+    /// "time" is a special column already covered by strftime, being a time
+    /// series database and all.
+    #[test]
+    fn time_tag_value_is_invalid() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::TagValue("time".into())),
+            }],
+        });
+
+        assert_error!(err, ValidationError::InvalidTagValue(_));
+    }
+
+    #[test]
+    fn empty_tag_value_is_invalid() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::TagValue("".into())),
+            }],
+        });
+
+        assert_error!(err, ValidationError::InvalidTagValue(ref value) if value.is_empty());
     }
 
     fn identity(s: &str) -> ColumnValue<'_> {
