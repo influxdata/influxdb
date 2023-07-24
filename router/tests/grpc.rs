@@ -982,6 +982,38 @@ async fn test_invalid_strftime_partition_template() {
 }
 
 #[tokio::test]
+async fn test_invalid_tag_value_partition_template() {
+    // Initialise a TestContext without a namespace autocreation policy.
+    let ctx = TestContextBuilder::default().build().await;
+
+    // Explicitly create a namespace with a custom partition template.
+    let req = CreateNamespaceRequest {
+        name: "bananas_test".to_string(),
+        retention_period_ns: None,
+        partition_template: Some(PartitionTemplate {
+            parts: vec![TemplatePart {
+                part: Some(template_part::Part::TagValue("time".into())),
+            }],
+        }),
+        service_protection_limits: None,
+    };
+
+    // Check namespace creation returned an error
+    let got = ctx
+        .grpc_delegate()
+        .namespace_service()
+        .create_namespace(Request::new(req))
+        .await;
+
+    assert_error!(
+        got,
+        ref status
+            if status.code() == Code::InvalidArgument
+                && status.message() == "invalid tag value in partition template: time cannot be used"
+    );
+}
+
+#[tokio::test]
 async fn test_namespace_partition_template_implicit_table_creation() {
     // Initialise a TestContext without a namespace autocreation policy.
     let ctx = TestContextBuilder::default().build().await;
