@@ -3,6 +3,7 @@
 use data_types::NamespaceId;
 use iox_query::QueryText;
 use iox_time::{Time, TimeProvider};
+use observability_deps::tracing::warn;
 use parking_lot::Mutex;
 use std::{
     collections::VecDeque,
@@ -91,9 +92,15 @@ impl QueryLogEntry {
     /// Mark this entry complete as of `now`. `success` records if the
     /// entry is successful or not.
     pub fn set_completed(&self, now: Time, success: bool) {
-        let dur = now - self.issue_time;
-        self.query_completed_duration
-            .store(dur.as_nanos() as i64, atomic::Ordering::Relaxed);
+        match now.checked_duration_since(self.issue_time) {
+            Some(dur) => {
+                self.query_completed_duration
+                    .store(dur.as_nanos() as i64, atomic::Ordering::Relaxed);
+            }
+            None => {
+                warn!("Clock went backwards, not query duration")
+            }
+        }
         self.success.store(success, atomic::Ordering::SeqCst);
     }
 }

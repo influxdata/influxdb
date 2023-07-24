@@ -11,7 +11,7 @@ publish = false
 
 [dependencies]
 sqlx = { version = "0.7.1", features = ["runtime-tokio-rustls", "postgres", "json", "tls-rustls"] }
-either = "1.8.1"
+either = "1.9.0"
 futures = "0.3"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 

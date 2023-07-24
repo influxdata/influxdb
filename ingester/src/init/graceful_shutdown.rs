@@ -118,9 +118,12 @@ pub(super) async fn graceful_shutdown_handler<F, T, P>(
     // that the segment's file can be deleted because everything has been
     // persisted.
     let (closed_segment, sequence_number_set) = wal.rotate().expect("failed to rotate wal");
-    wal_reference_handle
+    let rx = wal_reference_handle
         .enqueue_rotated_file(closed_segment.id(), sequence_number_set)
         .await;
+    if let Err(e) = rx.await {
+        error!(%e, "encountered failure waiting on file rotation receiver during shutdown");
+    };
 
     // Wait for the file rotation to be processed and the tracked set
     // to drop to empty.

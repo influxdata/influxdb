@@ -1730,3 +1730,414 @@ async fn stuck_l0_large_l0s() {
     "###
     );
 }
+
+// This case is taken from a catalog where the partition was stuck doing single file L0->L0 compactions with a ManySmallFiles classification.
+// The key point is that there is 1 L0 file, and enough overlapping L1 files such that the sum of L0 and overlapping L1s are too many for
+// a single compaction.  So it it tried to do L0->L0 compaction, but you can't get less than 1 L0 file...
+#[tokio::test]
+async fn single_file_compaction() {
+    test_helpers::maybe_start_logging();
+
+    let max_files = 20;
+    let setup = layout_setup_builder()
+        .await
+        .with_max_num_files_per_plan(max_files)
+        .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
+        .with_partition_timeout(Duration::from_millis(1000))
+        .with_suppress_run_output() // remove this to debug
+        .build()
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681776057065884000)
+                .with_max_time(1681848094846357000)
+                .with_compaction_level(CompactionLevel::Final)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681848108803007952))
+                .with_file_size_bytes(148352),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681848059723530000)
+                .with_max_time(1681849022292840000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681849158083717413))
+                .with_file_size_bytes(8532),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681849256770938000)
+                .with_max_time(1681849612137939000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681849758018522867))
+                .with_file_size_bytes(7180),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681849857540998000)
+                .with_max_time(1681849933405747000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681850058063700468))
+                .with_file_size_bytes(6354),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681850155949687000)
+                .with_max_time(1681850525337964000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681850658095040165))
+                .with_file_size_bytes(7224),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681850533564810000)
+                .with_max_time(1681850800324334000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681850958072081740))
+                .with_file_size_bytes(6442),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681850807902300000)
+                .with_max_time(1681851109057342000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681851258099471556))
+                .with_file_size_bytes(6467),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681851356697599000)
+                .with_max_time(1681851731606438000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681851858069516381))
+                .with_file_size_bytes(7202),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681851768198276000)
+                .with_max_time(1681852656555310000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681852758025054620))
+                .with_file_size_bytes(7901),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681852858788440000)
+                .with_max_time(1681853202074816000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681853358030917913))
+                .with_file_size_bytes(7175),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681853216031150000)
+                .with_max_time(1681853533814380000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681853658084495307))
+                .with_file_size_bytes(6461),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681853755089369000)
+                .with_max_time(1681854114135030000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681854258102937522))
+                .with_file_size_bytes(7172),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681854158528835000)
+                .with_max_time(1681854411758250000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681854558107269518))
+                .with_file_size_bytes(6445),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681854656198860000)
+                .with_max_time(1681855901530453000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681856058068217803))
+                .with_file_size_bytes(9388),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681855930016632000)
+                .with_max_time(1681856215951881000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681856358077776391))
+                .with_file_size_bytes(6411),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681856457094364000)
+                .with_max_time(1681856572199715000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681856658099983774))
+                .with_file_size_bytes(6471),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681856755669647000)
+                .with_max_time(1681856797376786000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681856959540758502))
+                .with_file_size_bytes(6347),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681857059467239000)
+                .with_max_time(1681857411709822000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681857559463607724))
+                .with_file_size_bytes(7179),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681857658708732000)
+                .with_max_time(1681858001258834000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681858159653340111))
+                .with_file_size_bytes(7171),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681858259089021000)
+                .with_max_time(1681858311972651000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681858459694290981))
+                .with_file_size_bytes(6417),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681858336136281000)
+                .with_max_time(1681858611711634000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681858759770566450))
+                .with_file_size_bytes(6432),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681858613076367000)
+                .with_max_time(1681859207290151000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681859359651203045))
+                .with_file_size_bytes(7211),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681859212497834000)
+                .with_max_time(1681859549996540000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681859659796715205))
+                .with_file_size_bytes(6408),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681859755984961000)
+                .with_max_time(1681860397139689000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681860559596560745))
+                .with_file_size_bytes(7919),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681860656403220000)
+                .with_max_time(1681861312602593000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681861463769557785))
+                .with_file_size_bytes(7920),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681861557592893000)
+                .with_max_time(1681861592762435000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681861760075293126))
+                .with_file_size_bytes(6432),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681861612304587000)
+                .with_max_time(1681861928505695000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681862059957822724))
+                .with_file_size_bytes(6456),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681862008720364000)
+                .with_max_time(1681862268794595000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681862511938856063))
+                .with_file_size_bytes(6453),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1681776002714783000)
+                .with_max_time(1681862102913137000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1683039505904263771))
+                .with_file_size_bytes(7225),
+        )
+        .await;
+
+    insta::assert_yaml_snapshot!(
+        run_layout_scenario(&setup).await,
+        @r###"
+    ---
+    - "**** Input Files "
+    - "L0                                                                                                                 "
+    - "L0.29[1681776002714783000,1681862102913137000] 1683039505.9s 7kb|-----------------------------------------L0.29-----------------------------------------| "
+    - "L1                                                                                                                 "
+    - "L1.2[1681848059723530000,1681849022292840000] 1681849158.08s 8kb                                                                           |L1.2|         "
+    - "L1.3[1681849256770938000,1681849612137939000] 1681849758.02s 7kb                                                                            |L1.3|        "
+    - "L1.4[1681849857540998000,1681849933405747000] 1681850058.06s 6kb                                                                             |L1.4|       "
+    - "L1.5[1681850155949687000,1681850525337964000] 1681850658.1s 7kb                                                                             |L1.5|       "
+    - "L1.6[1681850533564810000,1681850800324334000] 1681850958.07s 6kb                                                                             |L1.6|       "
+    - "L1.7[1681850807902300000,1681851109057342000] 1681851258.1s 6kb                                                                              |L1.7|      "
+    - "L1.8[1681851356697599000,1681851731606438000] 1681851858.07s 7kb                                                                              |L1.8|      "
+    - "L1.9[1681851768198276000,1681852656555310000] 1681852758.03s 8kb                                                                               |L1.9|     "
+    - "L1.10[1681852858788440000,1681853202074816000] 1681853358.03s 7kb                                                                                |L1.10|   "
+    - "L1.11[1681853216031150000,1681853533814380000] 1681853658.08s 6kb                                                                                |L1.11|   "
+    - "L1.12[1681853755089369000,1681854114135030000] 1681854258.1s 7kb                                                                                 |L1.12|  "
+    - "L1.13[1681854158528835000,1681854411758250000] 1681854558.11s 6kb                                                                                 |L1.13|  "
+    - "L1.14[1681854656198860000,1681855901530453000] 1681856058.07s 9kb                                                                                  |L1.14| "
+    - "L1.15[1681855930016632000,1681856215951881000] 1681856358.08s 6kb                                                                                   |L1.15|"
+    - "L1.16[1681856457094364000,1681856572199715000] 1681856658.1s 6kb                                                                                   |L1.16|"
+    - "L1.17[1681856755669647000,1681856797376786000] 1681856959.54s 6kb                                                                                    |L1.17|"
+    - "L1.18[1681857059467239000,1681857411709822000] 1681857559.46s 7kb                                                                                    |L1.18|"
+    - "L1.19[1681857658708732000,1681858001258834000] 1681858159.65s 7kb                                                                                     |L1.19|"
+    - "L1.20[1681858259089021000,1681858311972651000] 1681858459.69s 6kb                                                                                     |L1.20|"
+    - "L1.21[1681858336136281000,1681858611711634000] 1681858759.77s 6kb                                                                                     |L1.21|"
+    - "L1.22[1681858613076367000,1681859207290151000] 1681859359.65s 7kb                                                                                      |L1.22|"
+    - "L1.23[1681859212497834000,1681859549996540000] 1681859659.8s 6kb                                                                                      |L1.23|"
+    - "L1.24[1681859755984961000,1681860397139689000] 1681860559.6s 8kb                                                                                       |L1.24|"
+    - "L1.25[1681860656403220000,1681861312602593000] 1681861463.77s 8kb                                                                                        |L1.25|"
+    - "L1.26[1681861557592893000,1681861592762435000] 1681861760.08s 6kb                                                                                         |L1.26|"
+    - "L1.27[1681861612304587000,1681861928505695000] 1681862059.96s 6kb                                                                                         |L1.27|"
+    - "L1.28[1681862008720364000,1681862268794595000] 1681862511.94s 6kb                                                                                         |L1.28|"
+    - "L2                                                                                                                 "
+    - "L2.1[1681776057065884000,1681848094846357000] 1681848108.8s 145kb|----------------------------------L2.1-----------------------------------|               "
+    - "**** Final Output Files (192kb written)"
+    - "L1                                                                                                                 "
+    - "L1.30[1681776002714783000,1681862268794595000] 1683039505.9s 192kb|-----------------------------------------L1.30------------------------------------------|"
+    - "L2                                                                                                                 "
+    - "L2.1[1681776057065884000,1681848094846357000] 1681848108.8s 145kb|----------------------------------L2.1-----------------------------------|               "
+    "###
+    );
+}

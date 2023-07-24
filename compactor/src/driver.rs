@@ -218,6 +218,15 @@ async fn try_compact_partition(
     loop {
         let round_span = span.child("round");
 
+        if files.is_empty() {
+            // This should be unreachable, but can happen when someone is manually activiting partitions for compaction.
+            info!(
+                partition_id = partition_info.partition_id.get(),
+                "that's odd - no files to compact in partition"
+            );
+            return Ok(());
+        }
+
         let round_info = components
             .round_info_source
             .calculate(&partition_info, &files)
