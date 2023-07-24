@@ -93,7 +93,7 @@ predicate = { path = "../predicate" }
 predicates = "3.0.3"
 pretty_assertions = "1.4.0"
 proptest = { version = "1.2.0", default-features = false }
-serde = "1.0.173"
+serde = "1.0.175"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }
 insta = { version = "1", features = ["yaml"] }
