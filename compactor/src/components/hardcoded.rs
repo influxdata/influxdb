@@ -12,11 +12,7 @@ use crate::{config::Config, error::ErrorKind, object_store::ignore_writes::Ignor
 
 use super::{
     changed_files_filter::logging::LoggingChangedFiles,
-    combos::{throttle_partition::throttle_partition, unique_partitions::unique_partitions},
-    commit::{
-        catalog::CatalogCommit, logging::LoggingCommitWrapper, metrics::MetricsCommitWrapper,
-        mock::MockCommit, Commit,
-    },
+    commit::CommitToScheduler,
     df_plan_exec::{
         dedicated::DedicatedDataFusionPlanExec, noop::NoopDataFusionPlanExec, DataFusionPlanExec,
     },
@@ -39,9 +35,9 @@ use super::{
     },
     parquet_files_sink::{dispatch::DispatchParquetFilesSink, ParquetFilesSink},
     partition_done_sink::{
-        catalog::CatalogPartitionDoneSink, error_kind::ErrorKindPartitionDoneSinkWrapper,
-        logging::LoggingPartitionDoneSinkWrapper, metrics::MetricsPartitionDoneSinkWrapper,
-        mock::MockPartitionDoneSink, PartitionDoneSink,
+        error_kind::ErrorKindPartitionDoneSinkWrapper, logging::LoggingPartitionDoneSinkWrapper,
+        metrics::MetricsPartitionDoneSinkWrapper, outcome::PartitionDoneSinkToScheduler,
+        PartitionDoneSink,
     },
     partition_files_source::{
         catalog::{CatalogPartitionFilesSource, QueryRateLimiter},
@@ -93,6 +89,8 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         config.scheduler_config.clone(),
         Arc::clone(&config.catalog),
         Arc::clone(&config.time_provider),
+        Arc::clone(&config.metric_registry),
+        config.shadow_mode,
     );
     let (partitions_source, commit, partition_done_sink) =
         make_partitions_source_commit_partition_sink(config, Arc::clone(&scheduler));
@@ -123,52 +121,17 @@ fn make_partitions_source_commit_partition_sink(
     scheduler: Arc<dyn Scheduler>,
 ) -> (
     Arc<dyn PartitionsSource>,
-    Arc<dyn Commit>,
+    Arc<CommitToScheduler>,
     Arc<dyn PartitionDoneSink>,
 ) {
-    let partitions_source = ScheduledPartitionsSource::new(scheduler);
+    let partitions_source = ScheduledPartitionsSource::new(Arc::clone(&scheduler));
 
-    let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
-        Arc::new(MockPartitionDoneSink::new())
-    } else {
-        Arc::new(CatalogPartitionDoneSink::new(
-            config.backoff_config.clone(),
-            Arc::clone(&config.catalog),
-        ))
-    };
+    let commit = CommitToScheduler::new(Arc::clone(&scheduler));
 
-    let commit: Arc<dyn Commit> = if config.shadow_mode {
-        Arc::new(MockCommit::new())
-    } else {
-        Arc::new(CatalogCommit::new(
-            config.backoff_config.clone(),
-            Arc::clone(&config.catalog),
-        ))
-    };
+    let partition_done_sink = PartitionDoneSinkToScheduler::new(Arc::clone(&scheduler));
 
-    let commit = if let Some(commit_wrapper) = config.commit_wrapper.as_ref() {
-        commit_wrapper.wrap(commit)
-    } else {
-        commit
-    };
-
-    let (partitions_source, partition_done_sink) =
-        unique_partitions(partitions_source, partition_done_sink, 1);
-
-    let (partitions_source, commit, partition_done_sink) = throttle_partition(
-        partitions_source,
-        commit,
-        partition_done_sink,
-        Arc::clone(&config.time_provider),
-        Duration::from_secs(60),
-        1,
-    );
-
-    let commit = Arc::new(LoggingCommitWrapper::new(MetricsCommitWrapper::new(
-        commit,
-        &config.metric_registry,
-    )));
-
+    // compactors are responsible for error classification
+    // and any future decisions regarding graceful shutdown
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.all_errors_are_fatal {
         Arc::new(partition_done_sink)
     } else {
@@ -185,6 +148,7 @@ fn make_partitions_source_commit_partition_sink(
                 })
                 .copied()
                 .collect(),
+            scheduler,
         ))
     };
     let partition_done_sink = Arc::new(LoggingPartitionDoneSinkWrapper::new(
@@ -210,7 +174,7 @@ fn make_partitions_source_commit_partition_sink(
         ))
     };
 
-    (partitions_source, commit, partition_done_sink)
+    (partitions_source, Arc::new(commit), partition_done_sink)
 }
 
 fn make_partition_stream(

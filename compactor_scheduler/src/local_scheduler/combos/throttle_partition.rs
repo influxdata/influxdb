@@ -1,19 +1,17 @@
 //! Throttle partions that receive no commits.
 
-use std::{
-    collections::HashMap,
-    fmt::Display,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{collections::HashMap, fmt::Display, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use compactor_scheduler::PartitionsSource;
 use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use iox_time::{Time, TimeProvider};
+use parking_lot::Mutex;
 
-use crate::components::{commit::Commit, partition_done_sink::PartitionDoneSink};
+use crate::{
+    local_scheduler::partition_done_sink::DynError, Commit, CommitError, PartitionDoneSink,
+    PartitionDoneSinkError, PartitionsSource,
+};
 
 /// Ensures that partitions that do not receive any commits are throttled.
 ///
@@ -54,8 +52,8 @@ use crate::components::{commit::Commit, partition_done_sink::PartitionDoneSink};
 /// concurrency of this bypass can be controlled via `bypass_concurrency`.
 ///
 /// This setup relies on a fact that it does not process duplicate [`PartitionId`]. You may use
-/// [`unique_partitions`](crate::components::combos::unique_partitions::unique_partitions) to achieve that.
-pub fn throttle_partition<T1, T2, T3>(
+/// [`unique_partitions`](super::unique_partitions::unique_partitions) to achieve that.
+pub(crate) fn throttle_partition<T1, T2, T3>(
     source: T1,
     commit: T2,
     sink: T3,
@@ -94,6 +92,14 @@ where
     (source, commit, sink)
 }
 
+/// Error returned by throttler abstractions.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// Failed uniqueness check.
+    #[error("Unknown or already done partition: {0}")]
+    Uniqueness(PartitionId),
+}
+
 #[derive(Debug, Default)]
 struct State {
     // Value is "true" while compaction task is in-flight, and "false" once complete.
@@ -107,7 +113,7 @@ struct State {
 type SharedState = Arc<Mutex<State>>;
 
 #[derive(Debug)]
-pub struct ThrottlePartitionsSourceWrapper<T1, T2>
+pub(crate) struct ThrottlePartitionsSourceWrapper<T1, T2>
 where
     T1: PartitionsSource,
     T2: PartitionDoneSink,
@@ -139,7 +145,7 @@ where
         let res = self.inner_source.fetch().await;
 
         let (pass, throttle) = {
-            let mut guard = self.state.lock().expect("not poisoned");
+            let mut guard = self.state.lock();
 
             // ensure that in-flight data is non-overlapping
             for id in &res {
@@ -177,10 +183,11 @@ where
             (pass, throttle)
         };
 
-        futures::stream::iter(throttle)
+        // pass through the removal from tracking, since it failed in this fetch() call
+        let _ = futures::stream::iter(throttle)
             .map(|id| self.inner_sink.record(id, Ok(())))
             .buffer_unordered(self.sink_concurrency)
-            .collect::<()>()
+            .try_collect::<()>()
             .await;
 
         pass
@@ -188,7 +195,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct ThrottleCommitWrapper<T>
+pub(crate) struct ThrottleCommitWrapper<T>
 where
     T: Commit,
 {
@@ -217,9 +224,9 @@ where
         upgrade: &[ParquetFile],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
-    ) -> Vec<ParquetFileId> {
+    ) -> Result<Vec<ParquetFileId>, CommitError> {
         let known = {
-            let mut guard = self.state.lock().expect("not poisoned");
+            let mut guard = self.state.lock();
             match guard.in_flight.get_mut(&partition_id) {
                 Some(val) => {
                     *val = true;
@@ -229,10 +236,9 @@ where
             }
         };
         // perform check when NOT holding the mutex to not poison it
-        assert!(
-            known,
-            "Unknown or already done partition in commit: {partition_id}"
-        );
+        if !known {
+            return Err(Error::Uniqueness(partition_id).into());
+        }
 
         self.inner
             .commit(partition_id, delete, upgrade, create, target_level)
@@ -241,7 +247,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct ThrottlePartitionDoneSinkWrapper<T>
+pub(crate) struct ThrottlePartitionDoneSinkWrapper<T>
 where
     T: PartitionDoneSink,
 {
@@ -268,10 +274,10 @@ where
     async fn record(
         &self,
         partition: PartitionId,
-        res: Result<(), Box<dyn std::error::Error + Send + Sync>>,
-    ) {
+        res: Result<(), DynError>,
+    ) -> Result<(), PartitionDoneSinkError> {
         let known = {
-            let mut guard = self.state.lock().expect("not poisoned");
+            let mut guard = self.state.lock();
             match guard.in_flight.remove(&partition) {
                 Some(val) => {
                     if !val {
@@ -285,23 +291,21 @@ where
             }
         };
         // perform check when NOT holding the mutex to not poison it
-        assert!(
-            known,
-            "Unknown or already done partition in partition done sink: {partition}"
-        );
+        if !known {
+            return Err(Error::Uniqueness(partition).into());
+        }
 
-        self.inner.record(partition, res).await;
+        self.inner.record(partition, res).await
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use compactor_scheduler::MockPartitionsSource;
+    use assert_matches::assert_matches;
     use iox_time::MockProvider;
 
-    use crate::components::{
-        commit::mock::{CommitHistoryEntry, MockCommit},
-        partition_done_sink::mock::MockPartitionDoneSink,
+    use crate::{
+        commit::mock::CommitHistoryEntry, MockCommit, MockPartitionDoneSink, MockPartitionsSource,
     };
 
     use super::*;
@@ -357,14 +361,20 @@ mod tests {
         // commit
         commit
             .commit(PartitionId::new(1), &[], &[], &[], CompactionLevel::Initial)
-            .await;
+            .await
+            .expect("commit failed");
         commit
             .commit(PartitionId::new(2), &[], &[], &[], CompactionLevel::Initial)
-            .await;
+            .await
+            .expect("commit failed");
 
         // record
-        sink.record(PartitionId::new(1), Ok(())).await;
-        sink.record(PartitionId::new(3), Ok(())).await;
+        sink.record(PartitionId::new(1), Ok(()))
+            .await
+            .expect("record failed");
+        sink.record(PartitionId::new(3), Ok(()))
+            .await
+            .expect("record failed");
         assert_eq!(
             inner_sink.results(),
             HashMap::from([(PartitionId::new(1), Ok(())), (PartitionId::new(3), Ok(())),]),
@@ -405,9 +415,11 @@ mod tests {
         // record
         // can still finish partition 2 and 4
         sink.record(PartitionId::new(2), Err(String::from("foo").into()))
-            .await;
+            .await
+            .expect("record failed");
         sink.record(PartitionId::new(4), Err(String::from("bar").into()))
-            .await;
+            .await
+            .expect("record failed");
         assert_eq!(
             inner_sink.results(),
             HashMap::from([
@@ -457,8 +469,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "Unknown or already done partition in commit: 1")]
-    async fn test_panic_commit_unknown() {
+    async fn test_err_commit_unknown() {
         let (source, commit, sink) = throttle_partition(
             MockPartitionsSource::new(vec![PartitionId::new(1)]),
             MockCommit::new(),
@@ -469,14 +480,18 @@ mod tests {
         );
 
         source.fetch().await;
-        sink.record(PartitionId::new(1), Ok(())).await;
-        commit
+        sink.record(PartitionId::new(1), Ok(()))
+            .await
+            .expect("record failed");
+        assert_matches!(
+            commit
             .commit(PartitionId::new(1), &[], &[], &[], CompactionLevel::Initial)
-            .await;
+            .await,
+            Err(CommitError::ThrottlerError(Error::Uniqueness(res))) if res == PartitionId::new(1)
+        );
     }
 
     #[tokio::test]
-    #[should_panic(expected = "Unknown or already done partition in partition done sink: 1")]
     async fn test_panic_sink_unknown() {
         let (source, _commit, sink) = throttle_partition(
             MockPartitionsSource::new(vec![PartitionId::new(1)]),
@@ -488,10 +503,20 @@ mod tests {
         );
 
         source.fetch().await;
-        sink.record(PartitionId::new(1), Ok(())).await;
-        sink.record(PartitionId::new(1), Ok(())).await;
+        sink.record(PartitionId::new(1), Ok(()))
+            .await
+            .expect("record failed");
+
+        let err = sink.record(PartitionId::new(1), Ok(())).await;
+        assert_matches!(
+            err,
+            Err(PartitionDoneSinkError::Throttler(Error::Uniqueness(partition))) if partition == PartitionId::new(1),
+            "fails because partition 1 is already done"
+        );
     }
 
+    // TODO: remove last legacy panic from scheduler
+    // Requires change of Scheduler.get_jobs() API to a Result<Vec<CompactionJob>>
     #[tokio::test]
     #[should_panic(expected = "Partition already in-flight: 1")]
     async fn test_panic_duplicate_in_flight() {

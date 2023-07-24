@@ -1,7 +1,7 @@
 //! Handles recording commit information to the test run log
 
 use async_trait::async_trait;
-use compactor::{Commit, CommitWrapper};
+use compactor_scheduler::{Commit, CommitError, CommitWrapper};
 use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
 use std::{
     fmt::{Debug, Display},
@@ -34,7 +34,7 @@ impl Commit for CommitRecorder {
         upgrade: &[ParquetFile],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
-    ) -> Vec<ParquetFileId> {
+    ) -> Result<Vec<ParquetFileId>, CommitError> {
         if let Some(invariant_check) = self.invariant_check.as_ref() {
             invariant_check.check().await
         };
