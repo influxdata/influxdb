@@ -1,9 +1,10 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use compactor_scheduler::PartitionsSource;
 use data_types::PartitionId;
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+
+use super::PartitionsSource;
 
 #[derive(Debug)]
 pub struct RandomizeOrderPartitionsSourcesWrapper<T>
@@ -47,9 +48,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use compactor_scheduler::MockPartitionsSource;
-
-    use super::*;
+    use super::{super::mock::MockPartitionsSource, *};
 
     #[test]
     fn test_display() {

@@ -4,7 +4,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use compactor_scheduler::{create_scheduler, PartitionsSource, Scheduler};
+use compactor_scheduler::{create_scheduler, Scheduler};
 use data_types::CompactionLevel;
 use object_store::memory::InMemory;
 
@@ -64,7 +64,7 @@ use super::{
         logging::LoggingPartitionsSourceWrapper, metrics::MetricsPartitionsSourceWrapper,
         not_empty::NotEmptyPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper,
-        scheduled::ScheduledPartitionsSource,
+        scheduled::ScheduledPartitionsSource, PartitionsSource,
     },
     post_classification_partition_filter::{
         logging::LoggingPostClassificationFilterWrapper,

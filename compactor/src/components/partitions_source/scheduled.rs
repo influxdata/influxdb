@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use compactor_scheduler::{CompactionJob, PartitionsSource, Scheduler};
+use compactor_scheduler::{CompactionJob, Scheduler};
 use data_types::PartitionId;
+
+use super::PartitionsSource;
 
 #[derive(Debug)]
 pub struct ScheduledPartitionsSource {

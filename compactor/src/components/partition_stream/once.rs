@@ -1,10 +1,9 @@
 use std::{fmt::Display, sync::Arc};
 
-use compactor_scheduler::PartitionsSource;
 use data_types::PartitionId;
 use futures::{stream::BoxStream, StreamExt};
 
-use super::PartitionStream;
+use super::{super::partitions_source::PartitionsSource, PartitionStream};
 
 #[derive(Debug)]
 pub struct OncePartititionStream<T>
@@ -48,9 +47,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use compactor_scheduler::MockPartitionsSource;
-
-    use super::*;
+    use super::{super::super::partitions_source::mock::MockPartitionsSource, *};
 
     #[test]
     fn test_display() {
