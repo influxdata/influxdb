@@ -1,27 +1,27 @@
 use async_trait::async_trait;
-use data_types::PartitionId;
+use compactor_scheduler::CompactionJob;
 use parking_lot::Mutex;
 
 use super::PartitionsSource;
 
-/// A mock structure for providing [partitions](PartitionId).
+/// A mock structure for providing [partitions](CompactionJob).
 #[derive(Debug)]
 pub struct MockPartitionsSource {
-    partitions: Mutex<Vec<PartitionId>>,
+    partitions: Mutex<Vec<CompactionJob>>,
 }
 
 impl MockPartitionsSource {
     #[allow(dead_code)]
     /// Create a new MockPartitionsSource.
-    pub fn new(partitions: Vec<PartitionId>) -> Self {
+    pub fn new(partitions: Vec<CompactionJob>) -> Self {
         Self {
             partitions: Mutex::new(partitions),
         }
     }
 
-    /// Set PartitionIds for MockPartitionsSource.
+    /// Set CompactionJobs for MockPartitionsSource.
     #[allow(dead_code)] // not used anywhere
-    pub fn set(&self, partitions: Vec<PartitionId>) {
+    pub fn set(&self, partitions: Vec<CompactionJob>) {
         *self.partitions.lock() = partitions;
     }
 }
@@ -34,13 +34,15 @@ impl std::fmt::Display for MockPartitionsSource {
 
 #[async_trait]
 impl PartitionsSource for MockPartitionsSource {
-    async fn fetch(&self) -> Vec<PartitionId> {
+    async fn fetch(&self) -> Vec<CompactionJob> {
         self.partitions.lock().clone()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use data_types::PartitionId;
+
     use super::*;
 
     #[test]
@@ -53,9 +55,9 @@ mod tests {
         let source = MockPartitionsSource::new(vec![]);
         assert_eq!(source.fetch().await, vec![],);
 
-        let p_1 = PartitionId::new(5);
-        let p_2 = PartitionId::new(1);
-        let p_3 = PartitionId::new(12);
+        let p_1 = CompactionJob::new(PartitionId::new(5));
+        let p_2 = CompactionJob::new(PartitionId::new(1));
+        let p_3 = CompactionJob::new(PartitionId::new(12));
         let parts = vec![p_1, p_2, p_3];
         source.set(parts.clone());
         assert_eq!(source.fetch().await, parts,);

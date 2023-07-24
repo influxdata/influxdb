@@ -1,7 +1,7 @@
 use std::{fmt::Display, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use data_types::PartitionId;
+use compactor_scheduler::CompactionJob;
 use iox_time::TimeProvider;
 
 use super::PartitionsSource;
@@ -43,7 +43,7 @@ impl<T> PartitionsSource for NotEmptyPartitionsSourceWrapper<T>
 where
     T: PartitionsSource,
 {
-    async fn fetch(&self) -> Vec<PartitionId> {
+    async fn fetch(&self) -> Vec<CompactionJob> {
         loop {
             let res = self.inner.fetch().await;
             if !res.is_empty() {
@@ -57,6 +57,7 @@ where
 #[cfg(test)]
 mod tests {
     use compactor_test_utils::AssertFutureExt;
+    use data_types::PartitionId;
     use iox_time::{MockProvider, Time};
 
     use super::{super::mock::MockPartitionsSource, *};
@@ -90,7 +91,7 @@ mod tests {
         fut.assert_pending().await;
 
         // insert data but system is still throttled
-        let p = PartitionId::new(5);
+        let p = CompactionJob::new(PartitionId::new(5));
         let parts = vec![p];
         inner.set(parts.clone());
         fut.assert_pending().await;

@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, fmt::Display, sync::Arc};
 
-use data_types::PartitionId;
+use compactor_scheduler::CompactionJob;
 use futures::{stream::BoxStream, StreamExt};
 
 use super::super::{
@@ -42,7 +42,7 @@ impl<T> PartitionStream for EndlessPartititionStream<T>
 where
     T: PartitionsSource,
 {
-    fn stream(&self) -> BoxStream<'_, PartitionId> {
+    fn stream(&self) -> BoxStream<'_, CompactionJob> {
         let source = Arc::clone(&self.source);
 
         // Note: we use a VecDeque as a buffer so we can preserve the order and cheaply remove the first element without
@@ -80,6 +80,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use data_types::PartitionId;
+
     use super::{super::super::partitions_source::mock::MockPartitionsSource, *};
 
     #[test]
@@ -91,9 +93,9 @@ mod tests {
     #[tokio::test]
     async fn test_stream() {
         let ids = vec![
-            PartitionId::new(1),
-            PartitionId::new(3),
-            PartitionId::new(2),
+            CompactionJob::new(PartitionId::new(1)),
+            CompactionJob::new(PartitionId::new(3)),
+            CompactionJob::new(PartitionId::new(2)),
         ];
         let stream = EndlessPartititionStream::new(MockPartitionsSource::new(ids.clone()));
 
@@ -102,13 +104,7 @@ mod tests {
             // we need to limit the stream at one point because it is endless
             assert_eq!(
                 stream.stream().take(5).collect::<Vec<_>>().await,
-                vec![
-                    PartitionId::new(1),
-                    PartitionId::new(3),
-                    PartitionId::new(2),
-                    PartitionId::new(1),
-                    PartitionId::new(3)
-                ],
+                [&ids[..], &ids[..2]].concat(),
             );
         }
     }
