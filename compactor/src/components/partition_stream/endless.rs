@@ -23,7 +23,7 @@ where
     pub fn new(source: T) -> Self {
         Self {
             source: Arc::new(source),
-            limiter: RateLimit::new(1), // Initial rate is irrelevant, it will be updated before first use.
+            limiter: RateLimit::new(1, 1), // Initial rate is irrelevant, it will be updated before first use.
         }
     }
 }
@@ -64,11 +64,12 @@ where
                     buffer = VecDeque::from(source.fetch().await);
 
                     // update rate limiter so we can complete the batch in 5m, which is plenty fast.
+                    // allow a burst of 25, so after a period of inactivity, up to 25 can go quickly.
                     let mut rate = buffer.len() / (5 * 60);
                     if rate < 1 {
                         rate = 1;
                     }
-                    self.limiter.update_rps(rate);
+                    self.limiter.update_rps(rate, 25);
                 }
             }
         })

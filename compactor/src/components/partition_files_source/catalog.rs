@@ -128,9 +128,12 @@ mod tests {
         const ALLOWED_PER_SECOND: usize = 100;
 
         let inner = MockInner::default();
-        let r = QueryRateLimiter::new(&inner, RateLimit::new(ALLOWED_PER_SECOND));
+        let r = QueryRateLimiter::new(
+            &inner,
+            RateLimit::new(ALLOWED_PER_SECOND, ALLOWED_PER_SECOND / 10),
+        );
 
-        let start = Instant::now();
+        let mut start = Instant::now();
 
         // If there are ALLOWED_PER_SECOND queries allowed per second, then it
         // should take 1 second to issue ALLOWED_PER_SECOND number of queries.
@@ -144,10 +147,36 @@ mod tests {
 
         // It should have taken at least 1/10th of a second
         let duration = Instant::now() - start;
-        assert!(duration > Duration::from_millis(ALLOWED_PER_SECOND as u64 / 10));
+        assert!(duration > Duration::from_millis(100));
+
+        // It should have taken less than 2/10th of a second
+        // If this test is flaky, increase this a bit.
+        assert!(duration < Duration::from_millis(200));
 
         // Exactly 1/10th the number of queries should be dispatched to the
         // inner impl.
         assert_eq!(*inner.0.lock().unwrap(), ALLOWED_PER_SECOND / 10);
+
+        // Now repeat with a delay to fill the burst balance.
+        start = Instant::now();
+        for i in 0..(ALLOWED_PER_SECOND / 10) {
+            r.get_partitions(PartitionId::new(42)).await.unwrap();
+            if i == 0 {
+                // delay until the next request, to fill the burst balance.
+                tokio::time::sleep(Duration::from_millis(90)).await;
+            }
+        }
+
+        // It should have taken at least 1/10th of a second
+        let duration = Instant::now() - start;
+        assert!(duration > Duration::from_millis(100));
+
+        // It should have taken less than 2/10th of a second
+        // If this test is flaky, increase this a bit.
+        assert!(duration < Duration::from_millis(200));
+
+        // Exactly 2/10th the number of queries should be dispatched to the
+        // inner impl.
+        assert_eq!(*inner.0.lock().unwrap(), 2 * ALLOWED_PER_SECOND / 10);
     }
 }

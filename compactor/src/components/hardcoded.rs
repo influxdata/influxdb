@@ -239,7 +239,7 @@ fn make_partition_files_source(config: &Config) -> Arc<dyn PartitionFilesSource>
     match config.max_partition_fetch_queries_per_second {
         Some(rps) => Arc::new(CatalogPartitionFilesSource::new(
             config.backoff_config.clone(),
-            QueryRateLimiter::new(Arc::clone(&config.catalog), RateLimit::new(rps)),
+            QueryRateLimiter::new(Arc::clone(&config.catalog), RateLimit::new(rps, 25)),
         )),
         None => Arc::new(CatalogPartitionFilesSource::new(
             config.backoff_config.clone(),
