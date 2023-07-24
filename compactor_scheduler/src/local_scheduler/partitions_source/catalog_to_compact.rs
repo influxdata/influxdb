@@ -1,4 +1,4 @@
-use std::{fmt::Display, sync::Arc, sync::Mutex, time::Duration};
+use std::{fmt::Display, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
@@ -6,6 +6,7 @@ use data_types::PartitionId;
 use iox_catalog::interface::Catalog;
 use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::info;
+use parking_lot::Mutex;
 
 use crate::PartitionsSource;
 
@@ -73,7 +74,7 @@ impl PartitionsSource for CatalogToCompactPartitionsSource {
         // scope the locking to just maintenance of last_maximum_time, not the query
         {
             // we're going check the time range we'd like to query for against the end time of the last query.
-            let mut last = self.last_maximum_time.lock().unwrap();
+            let mut last = self.last_maximum_time.lock();
 
             // query for partitions with activity since the last query.  We shouldn't query for a time range
             // we've already covered.  So if the prior query was 2m ago, and the query covered 10m, ending at

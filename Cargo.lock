@@ -1005,6 +1005,7 @@ dependencies = [
  "iox_tests",
  "iox_time",
  "observability_deps",
+ "parking_lot",
  "sharder",
  "tokio",
  "uuid",
