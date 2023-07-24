@@ -1029,7 +1029,7 @@ impl FieldChecker {
             ProjectionType::TopBottomSelector
         } else if self.has_group_by_time {
             if self.window_count > 0 {
-                if self.window_count == self.aggregate_count {
+                if self.window_count == self.aggregate_count + self.selector_count {
                     ProjectionType::WindowAggregate
                 } else {
                     ProjectionType::WindowAggregateMixed

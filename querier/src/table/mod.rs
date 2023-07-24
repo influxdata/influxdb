@@ -1,17 +1,19 @@
 use self::query_access::QuerierTableChunkPruner;
 use crate::{
-    cache::{namespace::CachedTable, partition::CachedPartition},
+    cache::{
+        namespace::CachedTable,
+        partition::{CachedPartition, PartitionRequest},
+    },
     ingester::{self, IngesterPartition},
     parquet::ChunkAdapter,
-    IngesterConnection, CONCURRENT_CHUNK_CREATION_JOBS,
+    IngesterConnection,
 };
 use data_types::{ColumnId, NamespaceId, ParquetFile, PartitionId, TableId};
 use datafusion::error::DataFusionError;
-use futures::{join, StreamExt};
+use futures::join;
 use iox_query::{provider, provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::{debug, trace};
 use predicate::Predicate;
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use schema::Schema;
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -345,33 +347,26 @@ impl QuerierTable {
                 .extend(f.column_set.iter().copied().filter(|id| pk.contains(id)));
         }
 
-        // shuffle order to even catalog load, because cache hits/misses might be correlated w/ the order of the
-        // partitions.
-        //
-        // Note that we sort before shuffling to achieve a deterministic pseudo-random order
-        let mut partitions = should_cover.into_iter().collect::<Vec<_>>();
-        let mut rng = StdRng::seed_from_u64(cached_table.id.get() as u64);
-        partitions.sort_by(|(a_p_id, _a_cols), (b_p_id, _b_cols)| a_p_id.cmp(b_p_id));
-        partitions.shuffle(&mut rng);
-
-        futures::stream::iter(partitions)
-            .map(|(p_id, cover)| {
-                let catalog_cache = self.chunk_adapter.catalog_cache();
-                let span = span_recorder.child_span("fetch partition");
-
-                async move {
-                    let cover = cover.into_iter().collect::<Vec<_>>();
-                    let cached_partition = catalog_cache
-                        .partition()
-                        .get(Arc::clone(cached_table), p_id, &cover, span)
-                        .await;
-                    cached_partition.map(|p| (p_id, p))
-                }
+        // batch request all partitions
+        let requests = should_cover
+            .into_iter()
+            .map(|(id, cover)| PartitionRequest {
+                partition_id: id,
+                sort_key_should_cover: cover.into_iter().collect(),
             })
-            .buffer_unordered(CONCURRENT_CHUNK_CREATION_JOBS)
-            .filter_map(|x| async move { x })
-            .collect::<HashMap<_, _>>()
-            .await
+            .collect();
+        let partitions = self
+            .chunk_adapter
+            .catalog_cache()
+            .partition()
+            .get(
+                Arc::clone(cached_table),
+                requests,
+                span_recorder.child_span("fetch partitions"),
+            )
+            .await;
+
+        partitions.into_iter().map(|p| (p.id, p)).collect()
     }
 
     /// Get a chunk pruner that can be used to prune chunks retrieved via [`chunks`](Self::chunks)
@@ -891,12 +886,22 @@ mod tests {
 
         let chunks = querier_table.chunks().await.unwrap();
         assert_eq!(chunks.len(), 5);
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 6);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
+        assert_catalog_access_metric_count(
+            &catalog.metric_registry,
+            "partition_get_by_id_batch",
+            1,
+        );
         assert_cache_access_metric_count(&catalog.metric_registry, "partition", 2);
 
         let chunks = querier_table.chunks().await.unwrap();
         assert_eq!(chunks.len(), 5);
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 6);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
+        assert_catalog_access_metric_count(
+            &catalog.metric_registry,
+            "partition_get_by_id_batch",
+            1,
+        );
         assert_cache_access_metric_count(&catalog.metric_registry, "partition", 4);
 
         partition_2
@@ -904,12 +909,22 @@ mod tests {
                 TestParquetFileBuilder::default().with_line_protocol("table,tag1=a foo=1,bar=1 11"),
             )
             .await;
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 7);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
+        assert_catalog_access_metric_count(
+            &catalog.metric_registry,
+            "partition_get_by_id_batch",
+            1,
+        );
 
         // file not visible yet
         let chunks = querier_table.chunks().await.unwrap();
         assert_eq!(chunks.len(), 5);
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 7);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
+        assert_catalog_access_metric_count(
+            &catalog.metric_registry,
+            "partition_get_by_id_batch",
+            1,
+        );
         assert_cache_access_metric_count(&catalog.metric_registry, "partition", 6);
 
         // change inster ID => invalidates cache
@@ -918,7 +933,12 @@ mod tests {
             .with_ingester_partition(ingester_partition_builder.build());
         let chunks = querier_table.chunks().await.unwrap();
         assert_eq!(chunks.len(), 6);
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 8);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
+        assert_catalog_access_metric_count(
+            &catalog.metric_registry,
+            "partition_get_by_id_batch",
+            2,
+        );
         assert_cache_access_metric_count(&catalog.metric_registry, "partition", 8);
     }
 

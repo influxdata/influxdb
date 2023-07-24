@@ -21,6 +21,19 @@ SELECT difference(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AN
 -- group by time and a tag
 SELECT difference(mean(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
 
+--
+-- difference + selector
+--
+SELECT difference(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT difference(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
+-- the input data is regular data at 10s intervals, so 7s windows ensure the `mean` generates windows with NULL values to test NULL handling of difference
+SELECT difference(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+SELECT difference(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+-- linear filling of selector functions produces an execution error
+-- (see https://github.com/influxdata/influxdb_iox/issues/8302).
+-- SELECT difference(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
+-- group by time and a tag
+SELECT difference(first(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
 
 --
 -- non_negative_difference
@@ -34,6 +47,11 @@ SELECT non_negative_difference(usage_idle) FROM cpu WHERE time >= 00000001300000
 -- non_negative_difference + aggregate
 --
 SELECT non_negative_difference(mean(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
+
+--
+-- non_negative_difference + selector
+--
+SELECT non_negative_difference(first(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
 
 --
 -- moving_average
@@ -60,6 +78,17 @@ SELECT moving_average(mean(writes), 3) FROM diskio WHERE time >= 000000013000000
 SELECT moving_average(mean(writes), 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
 SELECT moving_average(mean(writes), 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
 SELECT moving_average(mean(writes), 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
+
+--
+-- moving_average + selector
+--
+-- the input data is regular data at 10s intervals, so 7s windows ensure the `mean` generates windows with NULL values to test NULL handling of moving_average
+SELECT moving_average(first(writes), 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT moving_average(first(writes), 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+SELECT moving_average(first(writes), 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+-- linear filling of selector functions produces an execution error
+-- (see https://github.com/influxdata/influxdb_iox/issues/8302).
+-- SELECT moving_average(first(writes), 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
 
 --
 -- combining window functions
@@ -109,7 +138,7 @@ SELECT derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AN
 SELECT derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
 SELECT derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
 SELECT derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
--- the input data is regular data at 10s intervals, so 7s windows ensure the `mean` generates windows with NULL values to test NULL handling of difference
+-- the input data is regular data at 10s intervals, so 7s windows ensure the `mean` generates windows with NULL values to test NULL handling of derivative
 SELECT derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
 SELECT derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
 SELECT derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
@@ -119,6 +148,26 @@ SELECT derivative(mean(writes), 500ms) FROM diskio WHERE time >= 000000013000000
 -- group by time and a tag
 SELECT derivative(mean(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
 SELECT derivative(mean(usage_idle), 500ms) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
+
+--
+-- derivative + selector
+--
+SELECT derivative(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT derivative(first(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT derivative(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
+SELECT derivative(first(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
+-- the input data is regular data at 10s intervals, so 7s windows ensure the `first` generates windows with NULL values to test NULL handling of derivative
+SELECT derivative(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+SELECT derivative(first(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+SELECT derivative(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+SELECT derivative(first(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+-- linear filling of selector functions produces an execution error
+-- (see https://github.com/influxdata/influxdb_iox/issues/8302).
+-- SELECT derivative(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
+-- SELECT derivative(first(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
+-- group by time and a tag
+SELECT derivative(first(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
+SELECT derivative(first(usage_idle), 500ms) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
 
 --
 -- non_negative_derivative
@@ -138,7 +187,7 @@ SELECT non_negative_derivative(mean(writes)) FROM diskio WHERE time >= 000000013
 SELECT non_negative_derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
 SELECT non_negative_derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
 SELECT non_negative_derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
--- the input data is regular data at 10s intervals, so 7s windows ensure the `mean` generates windows with NULL values to test NULL handling of difference
+-- the input data is regular data at 10s intervals, so 7s windows ensure the `mean` generates windows with NULL values to test NULL handling of non_negative_derivative
 SELECT non_negative_derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
 SELECT non_negative_derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
 SELECT non_negative_derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
@@ -148,6 +197,26 @@ SELECT non_negative_derivative(mean(writes), 500ms) FROM diskio WHERE time >= 00
 -- group by time and a tag
 SELECT non_negative_derivative(mean(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
 SELECT non_negative_derivative(mean(usage_idle), 500ms) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
+
+--
+-- non_negative_derivative + selector
+--
+SELECT non_negative_derivative(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT non_negative_derivative(first(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT non_negative_derivative(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
+SELECT non_negative_derivative(first(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
+-- the input data is regular data at 10s intervals, so 7s windows ensure the `first` generates windows with NULL values to test NULL handling of non_negative_derivative
+SELECT non_negative_derivative(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+SELECT non_negative_derivative(first(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+SELECT non_negative_derivative(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+SELECT non_negative_derivative(first(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+-- linear filling of selector functions produces an execution error
+-- (see https://github.com/influxdata/influxdb_iox/issues/8302).
+-- SELECT non_negative_derivative(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
+-- SELECT non_negative_derivative(first(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
+-- group by time and a tag
+SELECT non_negative_derivative(first(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
+SELECT non_negative_derivative(first(usage_idle), 500ms) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
 
 --
 -- cumulative_sum
@@ -168,3 +237,17 @@ SELECT cumulative_sum(mean(writes)) FROM diskio WHERE time >= 000000013000000000
 SELECT cumulative_sum(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
 -- group by time and a tag
 SELECT cumulative_sum(mean(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
+
+--
+-- cumulative_sum + selector
+--
+SELECT cumulative_sum(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT cumulative_sum(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
+-- the input data is regular data at 10s intervals, so 7s windows ensure the `first` generates windows with NULL values to test NULL handling of cumulative_sum
+SELECT cumulative_sum(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+SELECT cumulative_sum(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+-- linear filling of selector functions produces an execution error
+-- (see https://github.com/influxdata/influxdb_iox/issues/8302).
+-- SELECT cumulative_sum(first(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
+-- group by time and a tag
+SELECT cumulative_sum(first(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
