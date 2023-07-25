@@ -64,7 +64,7 @@ use super::{
         logging::LoggingCompactionJobsWrapper, metrics::MetricsCompactionJobsSourceWrapper,
         not_empty::NotEmptyCompactionJobsSourceWrapper,
         randomize_order::RandomizeOrderCompactionJobsSourcesWrapper,
-        scheduled::ScheduledPartitionsSource, CompactionJobsSource,
+        scheduled::ScheduledCompactionJobsSource, CompactionJobsSource,
     },
     post_classification_partition_filter::{
         logging::LoggingPostClassificationFilterWrapper,
@@ -124,7 +124,7 @@ fn make_partitions_source_commit_partition_sink(
     Arc<CommitToScheduler>,
     Arc<dyn PartitionDoneSink>,
 ) {
-    let partitions_source = ScheduledPartitionsSource::new(Arc::clone(&scheduler));
+    let partitions_source = ScheduledCompactionJobsSource::new(Arc::clone(&scheduler));
 
     let commit = CommitToScheduler::new(Arc::clone(&scheduler));
 
