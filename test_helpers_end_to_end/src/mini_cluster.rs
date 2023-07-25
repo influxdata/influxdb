@@ -438,7 +438,7 @@ impl MiniCluster {
         TableId::new(id)
     }
 
-    /// Get first partition key for the given table.
+    /// Get all partition keys for the given table.
     pub async fn partition_keys(
         &self,
         table_name: &str,
