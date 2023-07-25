@@ -13,6 +13,7 @@ use self::{
 
 pub mod changed_files_filter;
 pub(crate) mod commit;
+pub mod compaction_jobs_source;
 pub mod df_plan_exec;
 pub mod df_planner;
 pub mod divide_initial;
@@ -30,7 +31,6 @@ pub mod partition_filter;
 pub mod partition_info_source;
 pub mod partition_source;
 pub mod partition_stream;
-pub mod partitions_source;
 pub mod post_classification_partition_filter;
 pub mod report;
 pub mod round_info_source;

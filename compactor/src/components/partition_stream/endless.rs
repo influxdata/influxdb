@@ -4,7 +4,7 @@ use compactor_scheduler::CompactionJob;
 use futures::{stream::BoxStream, StreamExt};
 
 use super::super::{
-    partition_files_source::rate_limit::RateLimit, partitions_source::CompactionJobsSource,
+    compaction_jobs_source::CompactionJobsSource, partition_files_source::rate_limit::RateLimit,
 };
 use super::PartitionStream;
 
@@ -82,7 +82,7 @@ where
 mod tests {
     use data_types::PartitionId;
 
-    use super::{super::super::partitions_source::mock::MockCompactionJobsSource, *};
+    use super::{super::super::compaction_jobs_source::mock::MockCompactionJobsSource, *};
 
     #[test]
     fn test_display() {

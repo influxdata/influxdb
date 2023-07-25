@@ -3,7 +3,7 @@ use std::{fmt::Display, sync::Arc};
 use compactor_scheduler::CompactionJob;
 use futures::{stream::BoxStream, StreamExt};
 
-use super::{super::partitions_source::CompactionJobsSource, PartitionStream};
+use super::{super::compaction_jobs_source::CompactionJobsSource, PartitionStream};
 
 #[derive(Debug)]
 pub struct OncePartititionStream<T>
@@ -49,7 +49,7 @@ where
 mod tests {
     use data_types::PartitionId;
 
-    use super::{super::super::partitions_source::mock::MockCompactionJobsSource, *};
+    use super::{super::super::compaction_jobs_source::mock::MockCompactionJobsSource, *};
 
     #[test]
     fn test_display() {

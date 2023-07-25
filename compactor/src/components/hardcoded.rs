@@ -13,6 +13,12 @@ use crate::{config::Config, error::ErrorKind, object_store::ignore_writes::Ignor
 use super::{
     changed_files_filter::logging::LoggingChangedFiles,
     commit::CommitToScheduler,
+    compaction_jobs_source::{
+        logging::LoggingCompactionJobsWrapper, metrics::MetricsCompactionJobsSourceWrapper,
+        not_empty::NotEmptyCompactionJobsSourceWrapper,
+        randomize_order::RandomizeOrderCompactionJobsSourcesWrapper,
+        scheduled::ScheduledCompactionJobsSource, CompactionJobsSource,
+    },
     df_plan_exec::{
         dedicated::DedicatedDataFusionPlanExec, noop::NoopDataFusionPlanExec, DataFusionPlanExec,
     },
@@ -59,12 +65,6 @@ use super::{
     },
     partition_stream::{
         endless::EndlessPartititionStream, once::OncePartititionStream, PartitionStream,
-    },
-    partitions_source::{
-        logging::LoggingCompactionJobsWrapper, metrics::MetricsCompactionJobsSourceWrapper,
-        not_empty::NotEmptyCompactionJobsSourceWrapper,
-        randomize_order::RandomizeOrderCompactionJobsSourcesWrapper,
-        scheduled::ScheduledCompactionJobsSource, CompactionJobsSource,
     },
     post_classification_partition_filter::{
         logging::LoggingPostClassificationFilterWrapper,
