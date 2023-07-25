@@ -7,7 +7,7 @@ use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use super::CompactionJobsSource;
 
 #[derive(Debug)]
-pub struct RandomizeOrderPartitionsSourcesWrapper<T>
+pub struct RandomizeOrderCompactionJobsSourcesWrapper<T>
 where
     T: CompactionJobsSource,
 {
@@ -15,7 +15,7 @@ where
     seed: u64,
 }
 
-impl<T> RandomizeOrderPartitionsSourcesWrapper<T>
+impl<T> RandomizeOrderCompactionJobsSourcesWrapper<T>
 where
     T: CompactionJobsSource,
 {
@@ -24,7 +24,7 @@ where
     }
 }
 
-impl<T> Display for RandomizeOrderPartitionsSourcesWrapper<T>
+impl<T> Display for RandomizeOrderCompactionJobsSourcesWrapper<T>
 where
     T: CompactionJobsSource,
 {
@@ -34,7 +34,7 @@ where
 }
 
 #[async_trait]
-impl<T> CompactionJobsSource for RandomizeOrderPartitionsSourcesWrapper<T>
+impl<T> CompactionJobsSource for RandomizeOrderCompactionJobsSourcesWrapper<T>
 where
     T: CompactionJobsSource,
 {
@@ -54,15 +54,19 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let source =
-            RandomizeOrderPartitionsSourcesWrapper::new(MockCompactionJobsSource::new(vec![]), 123);
+        let source = RandomizeOrderCompactionJobsSourcesWrapper::new(
+            MockCompactionJobsSource::new(vec![]),
+            123,
+        );
         assert_eq!(source.to_string(), "randomize_order(mock)",);
     }
 
     #[tokio::test]
     async fn test_fetch_empty() {
-        let source =
-            RandomizeOrderPartitionsSourcesWrapper::new(MockCompactionJobsSource::new(vec![]), 123);
+        let source = RandomizeOrderCompactionJobsSourcesWrapper::new(
+            MockCompactionJobsSource::new(vec![]),
+            123,
+        );
         assert_eq!(source.fetch().await, vec![],);
     }
 
@@ -74,7 +78,7 @@ mod tests {
         let partitions = vec![p_1.clone(), p_2.clone(), p_3.clone()];
 
         // shuffles
-        let source = RandomizeOrderPartitionsSourcesWrapper::new(
+        let source = RandomizeOrderCompactionJobsSourcesWrapper::new(
             MockCompactionJobsSource::new(partitions.clone()),
             123,
         );
@@ -93,7 +97,7 @@ mod tests {
 
         // is deterministic with new source
         for _ in 0..100 {
-            let source = RandomizeOrderPartitionsSourcesWrapper::new(
+            let source = RandomizeOrderCompactionJobsSourcesWrapper::new(
                 MockCompactionJobsSource::new(partitions.clone()),
                 123,
             );
@@ -104,7 +108,7 @@ mod tests {
         }
 
         // different seed => different output
-        let source = RandomizeOrderPartitionsSourcesWrapper::new(
+        let source = RandomizeOrderCompactionJobsSourcesWrapper::new(
             MockCompactionJobsSource::new(partitions.clone()),
             1234,
         );

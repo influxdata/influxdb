@@ -63,7 +63,7 @@ use super::{
     partitions_source::{
         logging::LoggingCompactionJobsWrapper, metrics::MetricsCompactionJobsSourceWrapper,
         not_empty::NotEmptyCompactionJobsSourceWrapper,
-        randomize_order::RandomizeOrderPartitionsSourcesWrapper,
+        randomize_order::RandomizeOrderCompactionJobsSourcesWrapper,
         scheduled::ScheduledPartitionsSource, CompactionJobsSource,
     },
     post_classification_partition_filter::{
@@ -159,7 +159,7 @@ fn make_partitions_source_commit_partition_sink(
     // even when there is not data.
     let partitions_source =
         LoggingCompactionJobsWrapper::new(MetricsCompactionJobsSourceWrapper::new(
-            RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
+            RandomizeOrderCompactionJobsSourcesWrapper::new(partitions_source, 1234),
             &config.metric_registry,
         ));
     let partitions_source: Arc<dyn CompactionJobsSource> = if config.process_once {
