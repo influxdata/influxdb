@@ -267,6 +267,13 @@ pub enum Step {
         expected: Vec<&'static str>,
     },
 
+    /// Read and verify partition keys for a given table
+    PartitionKeys {
+        table_name: String,
+        namespace_name: Option<String>,
+        expected: Vec<&'static str>,
+    },
+
     /// Attempt to gracefully shutdown all running ingester instances.
     ///
     /// This step blocks until all ingesters have gracefully stopped, or at
@@ -593,6 +600,22 @@ where
                     batches.push(RecordBatch::new_empty(schema));
                     assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
+                }
+                Step::PartitionKeys {
+                    table_name,
+                    namespace_name,
+                    expected,
+                } => {
+                    info!("====Begin reading partition keys for table: {}", table_name);
+                    let partition_keys = state
+                        .cluster()
+                        .partition_keys(table_name, namespace_name.clone())
+                        .await;
+                    // order the partition keys so that we can compare them
+                    let mut partition_keys = partition_keys;
+                    partition_keys.sort();
+                    assert_eq!(partition_keys, *expected);
+                    info!("====Done reading partition keys");
                 }
                 Step::GracefulStopIngesters => {
                     info!("====Gracefully stop all ingesters");

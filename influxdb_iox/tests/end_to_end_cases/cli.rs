@@ -320,14 +320,140 @@ async fn write_and_query() {
     .await
 }
 
-// Test create table CLI command
+// Negative tests for create table CLI command
 #[tokio::test]
-async fn create_tables_write_and_query() {
+async fn create_tables_negative() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
     let mut cluster = MiniCluster::create_shared(database_url).await;
-    let namespace = "ns_2";
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    // Need router grpc based address to create namespace
+                    let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns_2";
+
+                    println!("Create namespace {namespace}");
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(namespace));
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    // Need router grpc based address to create tables
+                    let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns_2";
+
+                    // no partition tempplate specified
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("h2o_temperature")
+                        .arg("--partition-template")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(
+                            "error: a value is required for '--partition-template <PARTS>' but none was supplied",
+                        ));
+
+                    // Wrong spelling `prts`
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        // .arg("-v")
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("h2o_temperature")
+                        .arg("--partition-template")
+                        .arg("{\"prts\": [{\"TagValue\": \"location\"}, {\"TagValue\": \"state\"}, {\"TimeFormat\": \"%Y-%m\"}] }")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(
+                            "Client Error: Invalid partition template format : missing field `parts`",
+                        ));
+
+                    // Time as tag
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("h2o_temperature")
+                        .arg("--partition-template")
+                        .arg("{\"parts\": [{\"TagValue\": \"location\"}, {\"TagValue\": \"time\"}, {\"TimeFormat\": \"%Y-%m\"}] }")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(
+                            "Client error: Client specified an invalid argument: invalid tag value in partition template: time cannot be used",
+                        ));
+
+                    // Time format is `whatever`
+                    Command::cargo_bin("influxdb_iox")
+                    .unwrap()
+                    .arg("-h")
+                    .arg(&router_grpc_addr)
+                    .arg("table")
+                    .arg("create")
+                    .arg(namespace)
+                    .arg("h2o_temperature")
+                    .arg("--partition-template")
+                    .arg("{\"parts\": [{\"TagValue\": \"location\"}, {\"TimeFormat\": \"whatever\"}] }")
+                    .assert()
+                    .success()
+                    .stdout(predicate::str::contains("h2o_temperature"));
+
+                    // Over 8 parts
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("h2o_temperature")
+                        .arg("--partition-template")
+                        .arg("{\"parts\": [{\"TagValue\": \"1\"},{\"TagValue\": \"2\"},{\"TimeFormat\": \"%Y-%m\"},{\"TagValue\": \"4\"},{\"TagValue\": \"5\"},{\"TagValue\": \"6\"},{\"TagValue\": \"7\"},{\"TagValue\": \"8\"},{\"TagValue\": \"9\"}]}")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(
+                            "Partition templates may have a maximum of 8 parts",
+                        ));
+                }
+                .boxed()
+            })),
+        ])
+        .run()
+        .await
+}
+
+// Positive tests for create table CLI command
+#[tokio::test]
+async fn create_tables_positive() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -360,6 +486,113 @@ async fn create_tables_write_and_query() {
 
                     println!("Creating tables h2o_temperature, m0, cpu explicitly into {namespace}");
 
+                    // no partition template specified
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("t1")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("t1"));
+
+                    // Partition template with time format
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("t2")
+                        .arg("--partition-template")
+                        .arg("{\"parts\":[{\"TimeFormat\":\"%Y-%m\"}] }")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("t2"));
+
+                    // Partition template with tag
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("t3")
+                        .arg("--partition-template")
+                        .arg("{\"parts\":[{\"TagValue\":\"col1\"}] }")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("t3"));
+
+                    // Partition template with time format, tag value, and tag of unsual column name
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("t4")
+                        .arg("--partition-template")
+                        .arg("{\"parts\":[{\"TagValue\":\"col1\"},{\"TimeFormat\":\"%Y-%d\"},{\"TagValue\":\"yes,col name\"}] }")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("t4"));
+                }
+                .boxed()
+            })),
+        ])
+        .run()
+        .await
+}
+
+// Positive tests: create table, write data and read back
+#[tokio::test]
+async fn create_tables_write_and_query() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let namespace = "ns_2";
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            // Create name space
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    // Need router grpc based addres to create namespace
+                    let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns_2";
+
+                    println!("Create namespace {namespace}");
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(namespace));
+                }
+                .boxed()
+            })),
+            // Create tables
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    // Need router grpc based addres to create tables
+                    let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns_2";
+
+                    println!("Creating tables h2o_temperature, m0, cpu explicitly into {namespace}");
+
                     // create tables h2o_temperature, m0, cpu
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
@@ -371,7 +604,7 @@ async fn create_tables_write_and_query() {
                         .arg(namespace)
                         .arg("h2o_temperature")
                         .arg("--partition-template")
-                        .arg("location,state,%Y-%m")
+                        .arg("{\"parts\": [{\"TagValue\": \"location\"}, {\"TagValue\": \"state\"}, {\"TimeFormat\": \"%Y-%m\"}] }")
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("h2o_temperature"));
@@ -386,7 +619,7 @@ async fn create_tables_write_and_query() {
                         .arg(namespace)
                         .arg("m0")
                         .arg("--partition-template")
-                        .arg("%Y.%j")
+                        .arg("{\"parts\": [{\"TimeFormat\": \"%Y.%j\"}] }")
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("m0"));
@@ -401,13 +634,14 @@ async fn create_tables_write_and_query() {
                         .arg(namespace)
                         .arg("cpu")
                         .arg("--partition-template")
-                        .arg("%Y-%m-%d,cpu")
+                        .arg("{\"parts\": [{\"TimeFormat\": \"%Y-%m-%d\"}, {\"TagValue\": \"cpu\"}] }")
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("cpu"));
                 }
                 .boxed()
             })),
+            // Load data
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     // write must use router http based address
@@ -439,6 +673,7 @@ async fn create_tables_write_and_query() {
                 }
                 .boxed()
             })),
+            // Read back data
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     // data from 'air_and_water.lp'
@@ -470,6 +705,10 @@ async fn create_tables_write_and_query() {
                 }
                 .boxed()
             })),
+            // Check partition keys
+            Step::PartitionKeys{table_name: "h2o_temperature".to_string(), namespace_name: Some(namespace.to_string()), expected: vec!["coyote_creek|CA|1970-01", "puget_sound|WA|1970-01", "santa_monica|CA|1970-01"]},
+            Step::PartitionKeys{table_name: "m0".to_string(), namespace_name: Some(namespace.to_string()), expected: vec!["2021.116"]},
+            Step::PartitionKeys{table_name: "cpu".to_string(), namespace_name: Some(namespace.to_string()), expected: vec!["2022-09-30|cpu2"]},
         ],
     )
     .run()

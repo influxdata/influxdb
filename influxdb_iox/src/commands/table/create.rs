@@ -12,23 +12,24 @@ pub struct Config {
     #[clap(action)]
     table: String,
 
-    /// Partition template: a string of columns or time format each separated by a comma
-    /// example: "col1,col2,%Y"
+    /// Partition template
     #[clap(flatten)]
-    part_template: PartitionTemplateConfig,
+    partition_template: PartitionTemplateConfig,
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
     let Config {
         database,
         table,
-        part_template,
+        partition_template,
     } = config;
+
+    let partition_template = partition_template.partition_template();
 
     let mut client = influxdb_iox_client::table::Client::new(connection);
 
     let table = client
-        .create_table(&database, &table, part_template.part_template)
+        .create_table(&database, &table, partition_template)
         .await?;
     println!("{}", serde_json::to_string_pretty(&table)?);
 
@@ -45,12 +46,19 @@ mod tests {
     // valid partition template
     #[test]
     fn valid_partition_template() {
+        // Config without partition template
+        let config = Config::try_parse_from(["server", "database", "table"]).unwrap();
+
+        assert_eq!(config.database, "database");
+        assert_eq!(config.table, "table");
+
+        // Config with partition template
         let config = Config::try_parse_from([
             "server",
             "database",
             "table",
             "--partition-template",
-            "col1,%Y.%j",
+            "{\"parts\": [{\"TagValue\": \"col1\"}, {\"TimeFormat\": \"%Y.%j\"}, {\"TagValue\": \"col2,col3 col4\"}] }",
         ])
         .unwrap();
 
@@ -62,11 +70,16 @@ mod tests {
                 influxdb_iox_client::namespace::generated_types::TemplatePart {
                     part: Some(proto::template_part::Part::TimeFormat("%Y.%j".to_string())),
                 },
+                influxdb_iox_client::namespace::generated_types::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue(
+                        "col2,col3 col4".to_string(),
+                    )),
+                },
             ],
         });
 
         assert_eq!(config.database, "database");
         assert_eq!(config.table, "table");
-        assert_eq!(config.part_template.part_template, expected);
+        assert_eq!(config.partition_template.partition_template(), expected);
     }
 }

@@ -9,11 +9,13 @@ async fn create_tables() {
 
     // Set up the cluster
     let mut cluster = MiniCluster::create_shared(database_url).await;
+    // let mut namespace_name = "ns_1".to_string();
 
     // Step to create namespace and its tables
     let mut steps: Vec<_> = vec![Step::Custom(Box::new(move |state: &mut StepTestState| {
         async move {
             let namespace_name = state.cluster().namespace();
+            // let namespace_name = "ns_1";
 
             let mut namespace_client = influxdb_iox_client::namespace::Client::new(
                 state.cluster().router().router_grpc_connection(),
@@ -55,12 +57,27 @@ async fn create_tables() {
                 )
                 .await
                 .unwrap();
+
+            // table4: create explicitly with time format `whatever`
+            // TODO:  ask write team if we allow time format `whatever` (see partition key below)
+            table_client
+                .create_table(
+                    namespace_name,
+                    "table4",
+                    Some(PartitionTemplate {
+                        parts: vec![TemplatePart {
+                            part: Some(Part::TimeFormat("whatever".into())),
+                        }],
+                    }),
+                )
+                .await
+                .unwrap();
         }
         .boxed()
     }))];
 
     // Steps to write data to tables
-    steps.extend((1..=3).flat_map(|tid| {
+    steps.extend((1..=4).flat_map(|tid| {
         [Step::WriteLineProtocol(
             [
                 format!("table{tid},tag1=v1a,tag2=v2a,tag3=v3a f=1 11"),
@@ -97,6 +114,32 @@ async fn create_tables() {
             ],
         }]
     }));
+
+    // Step get partition keys for table1, table2, table3, table4
+    steps.push(Step::PartitionKeys {
+        table_name: "table1".into(),
+        namespace_name: None,
+        // default DAY partition key because table1 was created implicitly
+        expected: vec!["1970-01-01"],
+    });
+    steps.push(Step::PartitionKeys {
+        table_name: "table2".into(),
+        namespace_name: None,
+        // default DAY partition key because table2 was created without partition template
+        expected: vec!["1970-01-01"],
+    });
+    steps.push(Step::PartitionKeys {
+        table_name: "table3".into(),
+        namespace_name: None,
+        // partition key from partition template
+        expected: vec!["v2a|1970.001", "v2b|1970.001"],
+    });
+    steps.push(Step::PartitionKeys {
+        table_name: "table4".into(),
+        namespace_name: None,
+        // TODO:  ask write team if this is expected
+        expected: vec!["whatever"],
+    });
 
     // run the steps
     StepTest::new(&mut cluster, steps).run().await
