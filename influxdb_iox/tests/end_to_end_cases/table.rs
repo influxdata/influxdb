@@ -9,13 +9,11 @@ async fn create_tables() {
 
     // Set up the cluster
     let mut cluster = MiniCluster::create_shared(database_url).await;
-    // let mut namespace_name = "ns_1".to_string();
 
     // Step to create namespace and its tables
     let mut steps: Vec<_> = vec![Step::Custom(Box::new(move |state: &mut StepTestState| {
         async move {
             let namespace_name = state.cluster().namespace();
-            // let namespace_name = "ns_1";
 
             let mut namespace_client = influxdb_iox_client::namespace::Client::new(
                 state.cluster().router().router_grpc_connection(),

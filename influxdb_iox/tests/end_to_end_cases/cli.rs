@@ -335,7 +335,7 @@ async fn create_tables_negative() {
                 async {
                     // Need router grpc based address to create namespace
                     let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_2";
+                    let namespace = "ns_tablenegative";
 
                     println!("Create namespace {namespace}");
                     Command::cargo_bin("influxdb_iox")
@@ -355,7 +355,7 @@ async fn create_tables_negative() {
                 async {
                     // Need router grpc based address to create tables
                     let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_2";
+                    let namespace = "ns_tablenegative";
 
                     // no partition tempplate specified
                     Command::cargo_bin("influxdb_iox")
@@ -462,7 +462,7 @@ async fn create_tables_positive() {
                 async {
                     // Need router grpc based addres to create namespace
                     let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_2";
+                    let namespace = "ns_tablepositive";
 
                     println!("Create namespace {namespace}");
                     Command::cargo_bin("influxdb_iox")
@@ -482,7 +482,7 @@ async fn create_tables_positive() {
                 async {
                     // Need router grpc based addres to create tables
                     let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_2";
+                    let namespace = "ns_tablepositive";
 
                     println!("Creating tables h2o_temperature, m0, cpu explicitly into {namespace}");
 
@@ -558,7 +558,7 @@ async fn create_tables_write_and_query() {
     let database_url = maybe_skip_integration!();
 
     let mut cluster = MiniCluster::create_shared(database_url).await;
-    let namespace = "ns_2";
+    let namespace = "ns_createtables";
 
     StepTest::new(
         &mut cluster,
@@ -568,7 +568,7 @@ async fn create_tables_write_and_query() {
                 async {
                     // Need router grpc based addres to create namespace
                     let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_2";
+                    let namespace = "ns_createtables";
 
                     println!("Create namespace {namespace}");
                     Command::cargo_bin("influxdb_iox")
@@ -589,7 +589,7 @@ async fn create_tables_write_and_query() {
                 async {
                     // Need router grpc based addres to create tables
                     let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_2";
+                    let namespace = "ns_createtables";
 
                     println!("Creating tables h2o_temperature, m0, cpu explicitly into {namespace}");
 
@@ -646,7 +646,7 @@ async fn create_tables_write_and_query() {
                 async {
                     // write must use router http based address
                     let router_http_addr = state.cluster().router().router_http_base().to_string();
-                    let namespace = "ns_2";
+                    let namespace = "ns_createtables";
 
                     println!("Writing into {namespace}");
 
