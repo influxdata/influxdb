@@ -12,7 +12,7 @@ use iox_query::{
     QueryChunk, QueryChunkData,
 };
 use once_cell::sync::OnceCell;
-use schema::{merge::merge_record_batch_schemas, sort::SortKey, Projection, Schema};
+use schema::{merge::merge_record_batch_schemas, sort::SortKey, Schema};
 
 /// A queryable wrapper over a set of ordered [`RecordBatch`] snapshot from a
 /// single [`PartitionData`].
@@ -75,31 +75,6 @@ impl QueryAdaptor {
             schema,
             stats: OnceCell::default(),
         }
-    }
-
-    pub(crate) fn project_selection(&self, selection: Projection<'_>) -> Vec<RecordBatch> {
-        // Project the column selection across all RecordBatch
-        self.data
-            .iter()
-            .map(|batch| {
-                let schema = batch.schema();
-
-                // Apply selection to in-memory batch
-                match selection {
-                    Projection::All => batch.clone(),
-                    Projection::Some(columns) => {
-                        let projection = columns
-                            .iter()
-                            .flat_map(|&column_name| {
-                                // ignore non-existing columns
-                                schema.index_of(column_name).ok()
-                            })
-                            .collect::<Vec<_>>();
-                        batch.project(&projection).expect("bug in projection")
-                    }
-                }
-            })
-            .collect()
     }
 
     /// Returns the [`RecordBatch`] instances in this [`QueryAdaptor`].
