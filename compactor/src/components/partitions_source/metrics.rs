@@ -10,7 +10,7 @@ const METRIC_NAME_PARTITIONS_FETCH_COUNT: &str = "iox_compactor_partitions_fetch
 const METRIC_NAME_PARTITIONS_COUNT: &str = "iox_compactor_partitions_count";
 
 #[derive(Debug)]
-pub struct MetricsPartitionsSourceWrapper<T>
+pub struct MetricsCompactionJobsSourceWrapper<T>
 where
     T: CompactionJobsSource,
 {
@@ -19,7 +19,7 @@ where
     inner: T,
 }
 
-impl<T> MetricsPartitionsSourceWrapper<T>
+impl<T> MetricsCompactionJobsSourceWrapper<T>
 where
     T: CompactionJobsSource,
 {
@@ -45,7 +45,7 @@ where
     }
 }
 
-impl<T> Display for MetricsPartitionsSourceWrapper<T>
+impl<T> Display for MetricsCompactionJobsSourceWrapper<T>
 where
     T: CompactionJobsSource,
 {
@@ -55,7 +55,7 @@ where
 }
 
 #[async_trait]
-impl<T> CompactionJobsSource for MetricsPartitionsSourceWrapper<T>
+impl<T> CompactionJobsSource for MetricsCompactionJobsSourceWrapper<T>
 where
     T: CompactionJobsSource,
 {
@@ -78,7 +78,7 @@ mod tests {
     fn test_display() {
         let registry = Registry::new();
         let source =
-            MetricsPartitionsSourceWrapper::new(MockPartitionsSource::new(vec![]), &registry);
+            MetricsCompactionJobsSourceWrapper::new(MockPartitionsSource::new(vec![]), &registry);
         assert_eq!(source.to_string(), "metrics(mock)",);
     }
 
@@ -90,7 +90,7 @@ mod tests {
             CompactionJob::new(PartitionId::new(1)),
             CompactionJob::new(PartitionId::new(12)),
         ];
-        let source = MetricsPartitionsSourceWrapper::new(
+        let source = MetricsCompactionJobsSourceWrapper::new(
             MockPartitionsSource::new(partitions.clone()),
             &registry,
         );

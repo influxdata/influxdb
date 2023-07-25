@@ -61,7 +61,7 @@ use super::{
         endless::EndlessPartititionStream, once::OncePartititionStream, PartitionStream,
     },
     partitions_source::{
-        logging::LoggingCompactionJobsWrapper, metrics::MetricsPartitionsSourceWrapper,
+        logging::LoggingCompactionJobsWrapper, metrics::MetricsCompactionJobsSourceWrapper,
         not_empty::NotEmptyPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper,
         scheduled::ScheduledPartitionsSource, CompactionJobsSource,
@@ -157,10 +157,11 @@ fn make_partitions_source_commit_partition_sink(
 
     // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work
     // even when there is not data.
-    let partitions_source = LoggingCompactionJobsWrapper::new(MetricsPartitionsSourceWrapper::new(
-        RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
-        &config.metric_registry,
-    ));
+    let partitions_source =
+        LoggingCompactionJobsWrapper::new(MetricsCompactionJobsSourceWrapper::new(
+            RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
+            &config.metric_registry,
+        ));
     let partitions_source: Arc<dyn CompactionJobsSource> = if config.process_once {
         // do not wrap into the "not empty" filter because we do NOT wanna throttle in this case
         // but just exit early
