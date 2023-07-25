@@ -1,5 +1,5 @@
 use arrow::record_batch::RecordBatch;
-use data_types::SequenceNumber;
+use data_types::{SequenceNumber, TimestampMinMax};
 use mutable_batch::MutableBatch;
 
 mod always_some;
@@ -72,6 +72,20 @@ impl DataBuffer {
                 (FsmState::Buffering(b), ret)
             }
         })
+    }
+
+    /// Return the row count for this buffer.
+    pub(crate) fn rows(&self) -> usize {
+        match self.0.get() {
+            FsmState::Buffering(v) => v.rows(),
+        }
+    }
+
+    /// Return the timestamp min/max values, if this buffer contains data.
+    pub(crate) fn timestamp_stats(&self) -> Option<TimestampMinMax> {
+        match self.0.get() {
+            FsmState::Buffering(v) => v.timestamp_stats(),
+        }
     }
 
     // Deconstruct the [`DataBuffer`] into the underlying FSM in a

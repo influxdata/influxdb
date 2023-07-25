@@ -9,7 +9,7 @@ use metric::{DurationHistogram, U64Histogram};
 async fn write_query() {
     let namespace_name = "write_query_test_namespace";
     let mut ctx = TestContextBuilder::default().build().await;
-    let ns = ctx.ensure_namespace(namespace_name, None).await;
+    let ns = ctx.ensure_namespace(namespace_name, None, None).await;
 
     // Initial write
     let partition_key = PartitionKey::from("1970-01-01");
@@ -94,7 +94,7 @@ async fn write_query() {
 async fn write_query_projection() {
     let namespace_name = "write_query_test_namespace";
     let mut ctx = TestContextBuilder::default().build().await;
-    let ns = ctx.ensure_namespace(namespace_name, None).await;
+    let ns = ctx.ensure_namespace(namespace_name, None, None).await;
 
     // Initial write
     let partition_key = PartitionKey::from("1970-01-01");

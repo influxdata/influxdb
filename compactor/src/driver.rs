@@ -82,7 +82,7 @@ async fn compact_partition(
                 scratchpad,
                 transmit_progress_signal,
             )
-            .await
+            .await // errors detected in the CompactionJob update_job_status(), will be handled in the timeout_with_progress_checking
         }
     })
     .await;
@@ -104,7 +104,9 @@ async fn compact_partition(
         // to the `skipped_compactions` table or not.
         TimeoutWithProgress::Completed(res) => res,
     };
-    components
+
+    // TODO: how handle errors detected in the CompactionJob ending actions?
+    let _ = components
         .partition_done_sink
         .record(partition_id, res)
         .await;
@@ -423,7 +425,7 @@ async fn execute_branch(
             created_file_params,
             target_level,
         )
-        .await;
+        .await?;
 
         // we only need to upgrade files on the first iteration, so empty the upgrade list for next loop.
         upgrade = Vec::new();
@@ -631,7 +633,7 @@ async fn update_catalog(
     files_to_upgrade: Vec<ParquetFile>,
     file_params_to_create: Vec<ParquetFileParams>,
     target_level: CompactionLevel,
-) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
+) -> Result<(Vec<ParquetFile>, Vec<ParquetFile>), DynError> {
     let current_parquet_file_state =
         fetch_and_save_parquet_file_state(&components, partition_id).await;
 
@@ -649,7 +651,7 @@ async fn update_catalog(
             &file_params_to_create,
             target_level,
         )
-        .await;
+        .await?;
 
     // Update created ids to their corresponding file params
     let created_file_params = file_params_to_create
@@ -667,7 +669,7 @@ async fn update_catalog(
         })
         .collect::<Vec<_>>();
 
-    (created_file_params, upgraded_files)
+    Ok((created_file_params, upgraded_files))
 }
 
 // SINGLE_THREADED_COLUMN_COUNT is the number of columns requiring a partition be compacted single threaded.

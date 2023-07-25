@@ -5,18 +5,16 @@ use backoff::{Backoff, BackoffConfig};
 use data_types::PartitionId;
 use iox_catalog::interface::Catalog;
 
-use crate::error::DynError;
-
-use super::PartitionDoneSink;
+use super::{DynError, Error, PartitionDoneSink};
 
 #[derive(Debug)]
-pub struct CatalogPartitionDoneSink {
+pub(crate) struct CatalogPartitionDoneSink {
     backoff_config: BackoffConfig,
     catalog: Arc<dyn Catalog>,
 }
 
 impl CatalogPartitionDoneSink {
-    pub fn new(backoff_config: BackoffConfig, catalog: Arc<dyn Catalog>) -> Self {
+    pub(crate) fn new(backoff_config: BackoffConfig, catalog: Arc<dyn Catalog>) -> Self {
         Self {
             backoff_config,
             catalog,
@@ -32,7 +30,7 @@ impl Display for CatalogPartitionDoneSink {
 
 #[async_trait]
 impl PartitionDoneSink for CatalogPartitionDoneSink {
-    async fn record(&self, partition: PartitionId, res: Result<(), DynError>) {
+    async fn record(&self, partition: PartitionId, res: Result<(), DynError>) -> Result<(), Error> {
         if let Err(e) = res {
             let msg = e.to_string();
 
@@ -47,7 +45,8 @@ impl PartitionDoneSink for CatalogPartitionDoneSink {
                         .await
                 })
                 .await
-                .expect("retry forever");
+                .map_err(|e| Error::Catalog(e.to_string()))?;
         }
+        Ok(())
     }
 }
