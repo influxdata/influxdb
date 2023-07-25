@@ -4,12 +4,12 @@ use async_trait::async_trait;
 use compactor_scheduler::CompactionJob;
 use iox_time::TimeProvider;
 
-use super::PartitionsSource;
+use super::CompactionJobsSource;
 
 #[derive(Debug)]
 pub struct NotEmptyPartitionsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     inner: T,
     throttle: Duration,
@@ -18,7 +18,7 @@ where
 
 impl<T> NotEmptyPartitionsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     pub fn new(inner: T, throttle: Duration, time_provider: Arc<dyn TimeProvider>) -> Self {
         Self {
@@ -31,7 +31,7 @@ where
 
 impl<T> Display for NotEmptyPartitionsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "not_empty({})", self.inner)
@@ -39,9 +39,9 @@ where
 }
 
 #[async_trait]
-impl<T> PartitionsSource for NotEmptyPartitionsSourceWrapper<T>
+impl<T> CompactionJobsSource for NotEmptyPartitionsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     async fn fetch(&self) -> Vec<CompactionJob> {
         loop {

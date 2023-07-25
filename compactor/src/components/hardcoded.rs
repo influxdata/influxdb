@@ -64,7 +64,7 @@ use super::{
         logging::LoggingPartitionsSourceWrapper, metrics::MetricsPartitionsSourceWrapper,
         not_empty::NotEmptyPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper,
-        scheduled::ScheduledPartitionsSource, PartitionsSource,
+        scheduled::ScheduledPartitionsSource, CompactionJobsSource,
     },
     post_classification_partition_filter::{
         logging::LoggingPostClassificationFilterWrapper,
@@ -120,7 +120,7 @@ fn make_partitions_source_commit_partition_sink(
     config: &Config,
     scheduler: Arc<dyn Scheduler>,
 ) -> (
-    Arc<dyn PartitionsSource>,
+    Arc<dyn CompactionJobsSource>,
     Arc<CommitToScheduler>,
     Arc<dyn PartitionDoneSink>,
 ) {
@@ -162,7 +162,7 @@ fn make_partitions_source_commit_partition_sink(
             RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
             &config.metric_registry,
         ));
-    let partitions_source: Arc<dyn PartitionsSource> = if config.process_once {
+    let partitions_source: Arc<dyn CompactionJobsSource> = if config.process_once {
         // do not wrap into the "not empty" filter because we do NOT wanna throttle in this case
         // but just exit early
         Arc::new(partitions_source)
@@ -179,7 +179,7 @@ fn make_partitions_source_commit_partition_sink(
 
 fn make_partition_stream(
     config: &Config,
-    partitions_source: Arc<dyn PartitionsSource>,
+    partitions_source: Arc<dyn CompactionJobsSource>,
 ) -> Arc<dyn PartitionStream> {
     if config.process_once {
         Arc::new(OncePartititionStream::new(partitions_source))

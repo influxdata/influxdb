@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use compactor_scheduler::CompactionJob;
 use metric::{Registry, U64Counter};
 
-use super::PartitionsSource;
+use super::CompactionJobsSource;
 
 const METRIC_NAME_PARTITIONS_FETCH_COUNT: &str = "iox_compactor_partitions_fetch_count";
 const METRIC_NAME_PARTITIONS_COUNT: &str = "iox_compactor_partitions_count";
@@ -12,7 +12,7 @@ const METRIC_NAME_PARTITIONS_COUNT: &str = "iox_compactor_partitions_count";
 #[derive(Debug)]
 pub struct MetricsPartitionsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     partitions_fetch_counter: U64Counter,
     partitions_counter: U64Counter,
@@ -21,7 +21,7 @@ where
 
 impl<T> MetricsPartitionsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     pub fn new(inner: T, registry: &Registry) -> Self {
         let partitions_fetch_counter = registry
@@ -47,7 +47,7 @@ where
 
 impl<T> Display for MetricsPartitionsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "metrics({})", self.inner)
@@ -55,9 +55,9 @@ where
 }
 
 #[async_trait]
-impl<T> PartitionsSource for MetricsPartitionsSourceWrapper<T>
+impl<T> CompactionJobsSource for MetricsPartitionsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     async fn fetch(&self) -> Vec<CompactionJob> {
         let partitions = self.inner.fetch().await;

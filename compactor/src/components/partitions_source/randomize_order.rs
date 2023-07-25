@@ -4,12 +4,12 @@ use async_trait::async_trait;
 use compactor_scheduler::CompactionJob;
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 
-use super::PartitionsSource;
+use super::CompactionJobsSource;
 
 #[derive(Debug)]
 pub struct RandomizeOrderPartitionsSourcesWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     inner: T,
     seed: u64,
@@ -17,7 +17,7 @@ where
 
 impl<T> RandomizeOrderPartitionsSourcesWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     pub fn new(inner: T, seed: u64) -> Self {
         Self { inner, seed }
@@ -26,7 +26,7 @@ where
 
 impl<T> Display for RandomizeOrderPartitionsSourcesWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "randomize_order({})", self.inner)
@@ -34,9 +34,9 @@ where
 }
 
 #[async_trait]
-impl<T> PartitionsSource for RandomizeOrderPartitionsSourcesWrapper<T>
+impl<T> CompactionJobsSource for RandomizeOrderPartitionsSourcesWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     async fn fetch(&self) -> Vec<CompactionJob> {
         let mut partitions = self.inner.fetch().await;

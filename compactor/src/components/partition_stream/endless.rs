@@ -4,14 +4,14 @@ use compactor_scheduler::CompactionJob;
 use futures::{stream::BoxStream, StreamExt};
 
 use super::super::{
-    partition_files_source::rate_limit::RateLimit, partitions_source::PartitionsSource,
+    partition_files_source::rate_limit::RateLimit, partitions_source::CompactionJobsSource,
 };
 use super::PartitionStream;
 
 #[derive(Debug)]
 pub struct EndlessPartititionStream<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     source: Arc<T>,
     limiter: RateLimit,
@@ -19,7 +19,7 @@ where
 
 impl<T> EndlessPartititionStream<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     pub fn new(source: T) -> Self {
         Self {
@@ -31,7 +31,7 @@ where
 
 impl<T> Display for EndlessPartititionStream<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "endless({})", self.source)
@@ -40,7 +40,7 @@ where
 
 impl<T> PartitionStream for EndlessPartititionStream<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn stream(&self) -> BoxStream<'_, CompactionJob> {
         let source = Arc::clone(&self.source);

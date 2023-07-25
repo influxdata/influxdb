@@ -4,19 +4,19 @@ use async_trait::async_trait;
 use compactor_scheduler::CompactionJob;
 use observability_deps::tracing::{info, warn};
 
-use super::PartitionsSource;
+use super::CompactionJobsSource;
 
 #[derive(Debug)]
 pub struct LoggingPartitionsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     inner: T,
 }
 
 impl<T> LoggingPartitionsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     pub fn new(inner: T) -> Self {
         Self { inner }
@@ -25,7 +25,7 @@ where
 
 impl<T> Display for LoggingPartitionsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "logging({})", self.inner)
@@ -33,9 +33,9 @@ where
 }
 
 #[async_trait]
-impl<T> PartitionsSource for LoggingPartitionsSourceWrapper<T>
+impl<T> CompactionJobsSource for LoggingPartitionsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     async fn fetch(&self) -> Vec<CompactionJob> {
         let partitions = self.inner.fetch().await;

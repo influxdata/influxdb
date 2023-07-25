@@ -3,19 +3,19 @@ use std::{fmt::Display, sync::Arc};
 use compactor_scheduler::CompactionJob;
 use futures::{stream::BoxStream, StreamExt};
 
-use super::{super::partitions_source::PartitionsSource, PartitionStream};
+use super::{super::partitions_source::CompactionJobsSource, PartitionStream};
 
 #[derive(Debug)]
 pub struct OncePartititionStream<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     source: Arc<T>,
 }
 
 impl<T> OncePartititionStream<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     pub fn new(source: T) -> Self {
         Self {
@@ -26,7 +26,7 @@ where
 
 impl<T> Display for OncePartititionStream<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "once({})", self.source)
@@ -35,7 +35,7 @@ where
 
 impl<T> PartitionStream for OncePartititionStream<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn stream(&self) -> BoxStream<'_, CompactionJob> {
         let source = Arc::clone(&self.source);

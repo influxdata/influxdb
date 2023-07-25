@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use compactor_scheduler::CompactionJob;
 use parking_lot::Mutex;
 
-use super::PartitionsSource;
+use super::CompactionJobsSource;
 
 /// A mock structure for providing [partitions](CompactionJob).
 #[derive(Debug)]
@@ -33,7 +33,7 @@ impl std::fmt::Display for MockPartitionsSource {
 }
 
 #[async_trait]
-impl PartitionsSource for MockPartitionsSource {
+impl CompactionJobsSource for MockPartitionsSource {
     async fn fetch(&self) -> Vec<CompactionJob> {
         self.partitions.lock().clone()
     }
