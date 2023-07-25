@@ -37,3 +37,13 @@ pub struct GossipConfig {
     )]
     pub gossip_bind_address: Option<SocketAddr>,
 }
+
+impl GossipConfig {
+    /// Initialise the gossip config to be disabled.
+    pub fn disabled() -> Self {
+        Self {
+            seed_list: vec![],
+            gossip_bind_address: None,
+        }
+    }
+}

@@ -10,6 +10,7 @@ async-trait = "0.1"
 authz = { path = "../authz" }
 clap_blocks = { path = "../clap_blocks" }
 data_types = { path = "../data_types" }
+gossip = { version = "0.1.0", path = "../gossip" }
 hashbrown = { workspace = true }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
