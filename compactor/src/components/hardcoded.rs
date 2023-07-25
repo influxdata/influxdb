@@ -13,6 +13,9 @@ use crate::{config::Config, error::ErrorKind, object_store::ignore_writes::Ignor
 use super::{
     changed_files_filter::logging::LoggingChangedFiles,
     commit::CommitToScheduler,
+    compaction_job_stream::{
+        endless::EndlessCompactionJobStream, once::OnceCompactionJobStream, CompactionJobStream,
+    },
     compaction_jobs_source::{
         logging::LoggingCompactionJobsWrapper, metrics::MetricsCompactionJobsSourceWrapper,
         not_empty::NotEmptyCompactionJobsSourceWrapper,
@@ -62,9 +65,6 @@ use super::{
     partition_source::{
         catalog::CatalogPartitionSource, logging::LoggingPartitionSourceWrapper,
         metrics::MetricsPartitionSourceWrapper,
-    },
-    partition_stream::{
-        endless::EndlessCompactionJobStream, once::OnceCompactionJobStream, CompactionJobStream,
     },
     post_classification_partition_filter::{
         logging::LoggingPostClassificationFilterWrapper,
