@@ -7,6 +7,7 @@ use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
     compactor::CompactorConfig,
     compactor_scheduler::CompactorSchedulerConfig,
+    gossip::GossipConfig,
     ingester::IngesterConfig,
     ingester_address::IngesterAddress,
     object_store::{make_object_store, ObjectStoreConfig},
@@ -476,6 +477,10 @@ impl Config {
             persist_queue_depth,
             persist_hot_partition_cost,
             rpc_write_max_incoming_bytes: 1024 * 1024 * 1024, // 1GiB
+            gossip_config: GossipConfig {
+                seed_list: vec![],
+                gossip_bind_address: None,
+            },
         };
 
         let router_config = RouterConfig {

@@ -2,10 +2,16 @@
 
 use std::path::PathBuf;
 
+use crate::gossip::GossipConfig;
+
 /// CLI config for the ingester using the RPC write path
 #[derive(Debug, Clone, clap::Parser)]
 #[allow(missing_copy_implementations)]
 pub struct IngesterConfig {
+    /// Gossip config.
+    #[clap(flatten)]
+    pub gossip_config: GossipConfig,
+
     /// Where this ingester instance should store its write-ahead log files. Each ingester instance
     /// must have its own directory.
     #[clap(long = "wal-directory", env = "INFLUXDB_IOX_WAL_DIRECTORY", action)]
