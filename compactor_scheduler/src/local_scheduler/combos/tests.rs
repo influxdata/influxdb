@@ -1,14 +1,14 @@
 use std::{sync::Arc, time::Duration};
 
-use compactor_scheduler::{MockPartitionsSource, PartitionsSource};
 use data_types::{CompactionLevel, PartitionId};
 use iox_time::{MockProvider, Time};
 
-use crate::components::{
-    combos::{throttle_partition::throttle_partition, unique_partitions::unique_partitions},
-    commit::{mock::MockCommit, Commit},
-    partition_done_sink::{mock::MockPartitionDoneSink, PartitionDoneSink},
+use crate::{
+    Commit, MockCommit, MockPartitionDoneSink, MockPartitionsSource, PartitionDoneSink,
+    PartitionsSource,
 };
+
+use super::{throttle_partition::throttle_partition, unique_partitions::unique_partitions};
 
 #[tokio::test]
 async fn test_unique_and_throttle() {
@@ -44,9 +44,14 @@ async fn test_unique_and_throttle() {
 
     commit
         .commit(PartitionId::new(1), &[], &[], &[], CompactionLevel::Initial)
-        .await;
-    sink.record(PartitionId::new(1), Ok(())).await;
-    sink.record(PartitionId::new(2), Ok(())).await;
+        .await
+        .expect("commit failed");
+    sink.record(PartitionId::new(1), Ok(()))
+        .await
+        .expect("record failed");
+    sink.record(PartitionId::new(2), Ok(()))
+        .await
+        .expect("record failed");
 
     inner_source.set(vec![
         PartitionId::new(1),

@@ -1,27 +1,27 @@
-use std::{collections::HashMap, fmt::Display, sync::Mutex};
+use std::{collections::HashMap, fmt::Display};
 
 use async_trait::async_trait;
 use data_types::PartitionId;
+use parking_lot::Mutex;
 
-use super::{DynError, PartitionDoneSink};
+use super::{DynError, Error, PartitionDoneSink};
 
 /// Mock for [`PartitionDoneSink`].
 #[derive(Debug, Default)]
-pub struct MockPartitionDoneSink {
+pub(crate) struct MockPartitionDoneSink {
     last: Mutex<HashMap<PartitionId, Result<(), String>>>,
 }
 
 impl MockPartitionDoneSink {
     /// Create new mock.
-    #[allow(dead_code)] // used for testing
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
     /// Get the last recorded results.
     #[allow(dead_code)] // used for testing
-    pub fn results(&self) -> HashMap<PartitionId, Result<(), String>> {
-        self.last.lock().expect("not poisoned").clone()
+    pub(crate) fn results(&self) -> HashMap<PartitionId, Result<(), String>> {
+        self.last.lock().clone()
     }
 }
 
@@ -33,14 +33,9 @@ impl Display for MockPartitionDoneSink {
 
 #[async_trait]
 impl PartitionDoneSink for MockPartitionDoneSink {
-    async fn record(
-        &self,
-        partition: PartitionId,
-        res: Result<(), DynError>,
-    ) -> Result<(), DynError> {
+    async fn record(&self, partition: PartitionId, res: Result<(), DynError>) -> Result<(), Error> {
         self.last
             .lock()
-            .expect("not poisoned")
             .insert(partition, res.map_err(|e| e.to_string()));
         Ok(())
     }

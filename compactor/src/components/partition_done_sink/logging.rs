@@ -39,12 +39,17 @@ impl<T> PartitionDoneSink for LoggingPartitionDoneSinkWrapper<T>
 where
     T: PartitionDoneSink,
 {
-    async fn record(&self, partition: PartitionId, res: Result<(), DynError>) {
+    async fn record(
+        &self,
+        partition: PartitionId,
+        res: Result<(), DynError>,
+    ) -> Result<(), DynError> {
         match &res {
             Ok(()) => {
                 info!(partition_id = partition.get(), "Finished partition",);
             }
             Err(e) => {
+                // log compactor errors, classified by compactor ErrorKind
                 error!(
                     %e,
                     kind=e.classify().name(),
@@ -53,7 +58,7 @@ where
                 );
             }
         }
-        self.inner.record(partition, res).await;
+        self.inner.record(partition, res).await
     }
 }
 
@@ -64,9 +69,7 @@ mod tests {
     use object_store::Error as ObjectStoreError;
     use test_helpers::tracing::TracingCapture;
 
-    use crate::components::partition_done_sink::mock::MockPartitionDoneSink;
-
-    use super::*;
+    use super::{super::mock::MockPartitionDoneSink, *};
 
     #[test]
     fn test_display() {
@@ -81,14 +84,21 @@ mod tests {
 
         let capture = TracingCapture::new();
 
-        sink.record(PartitionId::new(1), Err("msg 1".into())).await;
-        sink.record(PartitionId::new(2), Err("msg 2".into())).await;
+        sink.record(PartitionId::new(1), Err("msg 1".into()))
+            .await
+            .expect("record failed");
+        sink.record(PartitionId::new(2), Err("msg 2".into()))
+            .await
+            .expect("record failed");
         sink.record(
             PartitionId::new(1),
             Err(Box::new(ObjectStoreError::NotImplemented)),
         )
-        .await;
-        sink.record(PartitionId::new(3), Ok(())).await;
+        .await
+        .expect("record failed");
+        sink.record(PartitionId::new(3), Ok(()))
+            .await
+            .expect("record failed");
 
         assert_eq!(
             capture.to_string(),

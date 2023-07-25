@@ -5,7 +5,7 @@ use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams,
 use itertools::Itertools;
 use metric::{Registry, U64Histogram, U64HistogramOptions};
 
-use super::Commit;
+use super::{Commit, Error};
 
 #[derive(Debug, Clone, Copy)]
 enum HistogramType {
@@ -102,7 +102,7 @@ impl Histogram {
 }
 
 #[derive(Debug)]
-pub struct MetricsCommitWrapper<T>
+pub(crate) struct MetricsCommitWrapper<T>
 where
     T: Commit,
 {
@@ -124,7 +124,7 @@ impl<T> MetricsCommitWrapper<T>
 where
     T: Commit,
 {
-    pub fn new(inner: T, registry: &Registry) -> Self {
+    pub(crate) fn new(inner: T, registry: &Registry) -> Self {
         Self {
             file_bytes: Histogram::new(
                 registry,
@@ -182,12 +182,12 @@ where
         upgrade: &[ParquetFile],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
-    ) -> Vec<ParquetFileId> {
+    ) -> Result<Vec<ParquetFileId>, Error> {
         // Perform commit first and report status AFTERWARDS.
         let ids = self
             .inner
             .commit(partition_id, delete, upgrade, create, target_level)
-            .await;
+            .await?;
 
         // per file metrics
         for f in create {
@@ -297,7 +297,7 @@ where
                 .record(upgrade.iter().map(|f| f.row_count as u64).sum::<u64>());
         }
 
-        ids
+        Ok(ids)
     }
 }
 
@@ -305,9 +305,10 @@ where
 mod tests {
     use std::sync::Arc;
 
+    use assert_matches::assert_matches;
     use metric::{assert_histogram, Attributes};
 
-    use crate::components::commit::mock::{CommitHistoryEntry, MockCommit};
+    use crate::commit::mock::{CommitHistoryEntry, MockCommit};
     use iox_tests::ParquetFileBuilder;
 
     use super::*;
@@ -398,7 +399,7 @@ mod tests {
                 CompactionLevel::FileNonOverlapped,
             )
             .await;
-        assert_eq!(ids, vec![ParquetFileId::new(1000)]);
+        assert_matches!(ids, Ok(res) if res == vec![ParquetFileId::new(1000)]);
 
         let ids = commit
             .commit(
@@ -409,7 +410,7 @@ mod tests {
                 CompactionLevel::Final,
             )
             .await;
-        assert_eq!(ids, vec![]);
+        assert_matches!(ids, Ok(res) if res == vec![]);
 
         assert_histogram!(
             registry,

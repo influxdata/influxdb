@@ -1,10 +1,11 @@
 use std::{
     fmt::{Debug, Display},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 use async_trait::async_trait;
 use data_types::PartitionId;
+use parking_lot::Mutex;
 
 /// A source of partitions, noted by [`PartitionId`](data_types::PartitionId), that may potentially need compacting.
 #[async_trait]
@@ -48,7 +49,7 @@ mod mock {
         /// Set PartitionIds for MockPartitionsSource.
         #[allow(dead_code)] // not used anywhere
         pub fn set(&self, partitions: Vec<PartitionId>) {
-            *self.partitions.lock().expect("not poisoned") = partitions;
+            *self.partitions.lock() = partitions;
         }
     }
 
@@ -61,7 +62,7 @@ mod mock {
     #[async_trait]
     impl PartitionsSource for MockPartitionsSource {
         async fn fetch(&self) -> Vec<PartitionId> {
-            self.partitions.lock().expect("not poisoned").clone()
+            self.partitions.lock().clone()
         }
     }
 }

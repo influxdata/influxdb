@@ -62,12 +62,17 @@ impl<T> PartitionDoneSink for MetricsPartitionDoneSinkWrapper<T>
 where
     T: PartitionDoneSink,
 {
-    async fn record(&self, partition: PartitionId, res: Result<(), DynError>) {
+    async fn record(
+        &self,
+        partition: PartitionId,
+        res: Result<(), DynError>,
+    ) -> Result<(), DynError> {
         match &res {
             Ok(()) => {
                 self.ok_counter.inc(1);
             }
             Err(e) => {
+                // classify and track counts of compactor ErrorKind
                 let kind = e.classify();
                 self.error_counter
                     .get(&kind)
@@ -75,7 +80,7 @@ where
                     .inc(1);
             }
         }
-        self.inner.record(partition, res).await;
+        self.inner.record(partition, res).await
     }
 }
 
@@ -86,9 +91,7 @@ mod tests {
     use metric::{assert_counter, Attributes};
     use object_store::Error as ObjectStoreError;
 
-    use crate::components::partition_done_sink::mock::MockPartitionDoneSink;
-
-    use super::*;
+    use super::{super::mock::MockPartitionDoneSink, *};
 
     #[test]
     fn test_display() {
@@ -107,14 +110,21 @@ mod tests {
         assert_error_counter(&registry, "unknown", 0);
         assert_error_counter(&registry, "object_store", 0);
 
-        sink.record(PartitionId::new(1), Err("msg 1".into())).await;
-        sink.record(PartitionId::new(2), Err("msg 2".into())).await;
+        sink.record(PartitionId::new(1), Err("msg 1".into()))
+            .await
+            .expect("record failed");
+        sink.record(PartitionId::new(2), Err("msg 2".into()))
+            .await
+            .expect("record failed");
         sink.record(
             PartitionId::new(1),
             Err(Box::new(ObjectStoreError::NotImplemented)),
         )
-        .await;
-        sink.record(PartitionId::new(3), Ok(())).await;
+        .await
+        .expect("record failed");
+        sink.record(PartitionId::new(3), Ok(()))
+            .await
+            .expect("record failed");
 
         assert_ok_counter(&registry, 1);
         assert_error_counter(&registry, "unknown", 2);

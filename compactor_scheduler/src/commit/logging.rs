@@ -4,10 +4,10 @@ use async_trait::async_trait;
 use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
 use observability_deps::tracing::info;
 
-use super::Commit;
+use super::{Commit, Error};
 
 #[derive(Debug)]
-pub struct LoggingCommitWrapper<T>
+pub(crate) struct LoggingCommitWrapper<T>
 where
     T: Commit,
 {
@@ -18,7 +18,7 @@ impl<T> LoggingCommitWrapper<T>
 where
     T: Commit,
 {
-    pub fn new(inner: T) -> Self {
+    pub(crate) fn new(inner: T) -> Self {
         Self { inner }
     }
 }
@@ -44,12 +44,12 @@ where
         upgrade: &[ParquetFile],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
-    ) -> Vec<ParquetFileId> {
+    ) -> Result<Vec<ParquetFileId>, Error> {
         // Perform commit first and report status AFTERWARDS.
         let created = self
             .inner
             .commit(partition_id, delete, upgrade, create, target_level)
-            .await;
+            .await?;
 
         // Log numbers BEFORE IDs because the list may be so long that we hit the line-length limit. In this case we at
         // least have the important information. Note that the message always is printed first, so we'll never loose
@@ -72,7 +72,7 @@ where
             "committed parquet file change",
         );
 
-        created
+        Ok(created)
     }
 }
 
@@ -80,10 +80,11 @@ where
 mod tests {
     use std::sync::Arc;
 
+    use assert_matches::assert_matches;
     use test_helpers::tracing::TracingCapture;
 
     use super::*;
-    use crate::components::commit::mock::{CommitHistoryEntry, MockCommit};
+    use crate::commit::mock::{CommitHistoryEntry, MockCommit};
     use iox_tests::ParquetFileBuilder;
 
     #[test]
@@ -124,9 +125,9 @@ mod tests {
                 CompactionLevel::Final,
             )
             .await;
-        assert_eq!(
+        assert_matches!(
             ids,
-            vec![ParquetFileId::new(1000), ParquetFileId::new(1001)]
+            Ok(res) if res == vec![ParquetFileId::new(1000), ParquetFileId::new(1001)]
         );
 
         let ids = commit
@@ -138,7 +139,7 @@ mod tests {
                 CompactionLevel::Final,
             )
             .await;
-        assert_eq!(ids, vec![]);
+        assert_matches!(ids, Ok(res) if res == vec![]);
 
         assert_eq!(
             capture.to_string(),

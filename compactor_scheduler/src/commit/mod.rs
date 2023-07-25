@@ -6,10 +6,25 @@ use std::{
 use async_trait::async_trait;
 use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
 
-pub mod catalog;
-pub mod logging;
-pub mod metrics;
-pub mod mock;
+pub(crate) mod logging;
+pub(crate) mod metrics;
+pub(crate) mod mock;
+
+/// Error returned by [`Commit`] implementations.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// Commit request was malformed
+    #[error("Bad commit request: {0}")]
+    BadRequest(String),
+
+    /// Commit succeeded, but catalog returned an invalid result
+    #[error("Result from catalog is invalid: {0}")]
+    InvalidCatalogResult(String),
+
+    /// Commit failed because of an error in the throttler
+    #[error("Failure in throttler: {0}")]
+    ThrottlerError(#[from] crate::ThrottleError),
+}
 
 /// Ensures that the file change (i.e. deletion and creation) are committed to the catalog.
 #[async_trait]
@@ -27,7 +42,7 @@ pub trait Commit: Debug + Display + Send + Sync {
         upgrade: &[ParquetFile],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
-    ) -> Vec<ParquetFileId>;
+    ) -> Result<Vec<ParquetFileId>, crate::commit::Error>;
 }
 
 /// Something that can wrap `Commit` instances
@@ -50,7 +65,7 @@ where
         upgrade: &[ParquetFile],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
-    ) -> Vec<ParquetFileId> {
+    ) -> Result<Vec<ParquetFileId>, crate::commit::Error> {
         self.as_ref()
             .commit(partition_id, delete, upgrade, create, target_level)
             .await

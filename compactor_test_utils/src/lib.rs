@@ -127,7 +127,7 @@ impl TestSetupBuilder<false> {
             metric_registry: catalog.metric_registry(),
             trace_collector,
             catalog: catalog.catalog(),
-            scheduler_config: SchedulerConfig::default(),
+            scheduler_config: SchedulerConfig::new_local_with_wrapper(Arc::new(commit_wrapper)),
             parquet_store_real: catalog.parquet_store.clone(),
             parquet_store_scratchpad: ParquetStorage::new(
                 Arc::new(object_store::memory::InMemory::new()),
@@ -150,7 +150,6 @@ impl TestSetupBuilder<false> {
             process_once: true,
             simulate_without_object_store: false,
             parquet_files_sink_override: None,
-            commit_wrapper: Some(Arc::new(commit_wrapper)),
             all_errors_are_fatal: true,
             max_num_columns_per_table: 200,
             max_num_files_per_plan: 200,

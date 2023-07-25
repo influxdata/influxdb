@@ -1,34 +1,32 @@
 use std::{
     fmt::Display,
-    sync::{
-        atomic::{AtomicI64, Ordering},
-        Mutex,
-    },
+    sync::atomic::{AtomicI64, Ordering},
 };
 
 use async_trait::async_trait;
 use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
+use parking_lot::Mutex;
 
-use super::Commit;
+use super::{Commit, Error};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct CommitHistoryEntry {
-    pub partition_id: PartitionId,
-    pub delete: Vec<ParquetFile>,
-    pub upgrade: Vec<ParquetFile>,
-    pub created: Vec<ParquetFile>,
-    pub target_level: CompactionLevel,
+pub(crate) struct CommitHistoryEntry {
+    pub(crate) partition_id: PartitionId,
+    pub(crate) delete: Vec<ParquetFile>,
+    pub(crate) upgrade: Vec<ParquetFile>,
+    pub(crate) created: Vec<ParquetFile>,
+    pub(crate) target_level: CompactionLevel,
 }
 
-#[derive(Debug)]
-pub struct MockCommit {
+#[derive(Debug, Default)]
+pub(crate) struct MockCommit {
     history: Mutex<Vec<CommitHistoryEntry>>,
     id_counter: AtomicI64,
 }
 
 impl MockCommit {
     #[allow(dead_code)] // not used anywhere
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             history: Default::default(),
             id_counter: AtomicI64::new(1000),
@@ -36,8 +34,8 @@ impl MockCommit {
     }
 
     #[allow(dead_code)] // not used anywhere
-    pub fn history(&self) -> Vec<CommitHistoryEntry> {
-        self.history.lock().expect("not poisoned").clone()
+    pub(crate) fn history(&self) -> Vec<CommitHistoryEntry> {
+        self.history.lock().clone()
     }
 }
 
@@ -56,7 +54,7 @@ impl Commit for MockCommit {
         upgrade: &[ParquetFile],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
-    ) -> Vec<ParquetFileId> {
+    ) -> Result<Vec<ParquetFileId>, Error> {
         let (created, ids): (Vec<_>, Vec<_>) = create
             .iter()
             .map(|params| {
@@ -66,23 +64,21 @@ impl Commit for MockCommit {
             })
             .unzip();
 
-        self.history
-            .lock()
-            .expect("not poisoned")
-            .push(CommitHistoryEntry {
-                partition_id,
-                delete: delete.to_vec(),
-                upgrade: upgrade.to_vec(),
-                created,
-                target_level,
-            });
+        self.history.lock().push(CommitHistoryEntry {
+            partition_id,
+            delete: delete.to_vec(),
+            upgrade: upgrade.to_vec(),
+            created,
+            target_level,
+        });
 
-        ids
+        Ok(ids)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
     use iox_tests::ParquetFileBuilder;
 
     use super::*;
@@ -119,9 +115,9 @@ mod tests {
                 CompactionLevel::FileNonOverlapped,
             )
             .await;
-        assert_eq!(
+        assert_matches!(
             ids,
-            vec![ParquetFileId::new(1000), ParquetFileId::new(1001)]
+            Ok(res) if res == vec![ParquetFileId::new(1000), ParquetFileId::new(1001)]
         );
 
         let ids = commit
@@ -133,7 +129,10 @@ mod tests {
                 CompactionLevel::Final,
             )
             .await;
-        assert_eq!(ids, vec![ParquetFileId::new(1002)]);
+        assert_matches!(
+            ids,
+            Ok(res) if res == vec![ParquetFileId::new(1002)]
+        );
 
         let ids = commit
             .commit(
@@ -144,7 +143,10 @@ mod tests {
                 CompactionLevel::FileNonOverlapped,
             )
             .await;
-        assert_eq!(ids, vec![ParquetFileId::new(1003)]);
+        assert_matches!(
+            ids,
+            Ok(res) if res == vec![ParquetFileId::new(1003)]
+        );
 
         // simulate fill implosion of the file (this may happen w/ delete predicates)
         let ids = commit
@@ -156,7 +158,10 @@ mod tests {
                 CompactionLevel::FileNonOverlapped,
             )
             .await;
-        assert_eq!(ids, vec![]);
+        assert_matches!(
+            ids,
+            Ok(res) if res == vec![]
+        );
 
         assert_eq!(
             commit.history(),
