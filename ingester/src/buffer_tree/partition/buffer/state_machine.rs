@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use arrow::record_batch::RecordBatch;
-use data_types::{sequence_number_set::SequenceNumberSet, SequenceNumber};
+use data_types::{sequence_number_set::SequenceNumberSet, SequenceNumber, TimestampMinMax};
 use mutable_batch::MutableBatch;
 
 mod buffering;
@@ -125,6 +125,14 @@ where
     fn get_query_data(&self, projection: &OwnedProjection) -> Vec<RecordBatch> {
         self.state.get_query_data(projection)
     }
+
+    fn rows(&self) -> usize {
+        self.state.rows()
+    }
+
+    fn timestamp_stats(&self) -> Option<TimestampMinMax> {
+        self.state.timestamp_stats()
+    }
 }
 
 #[cfg(test)]
@@ -132,6 +140,7 @@ mod tests {
     use std::sync::Arc;
 
     use arrow_util::assert_batches_eq;
+    use assert_matches::assert_matches;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::Projection;
     use snapshot::*;
@@ -402,5 +411,73 @@ mod tests {
         assert!(set.contains(SequenceNumber::new(24)));
         assert!(!set.contains(SequenceNumber::new(12)));
         assert_eq!(set.len(), 1);
+    }
+
+    /// Assert the summary statistics are correctly computed across various FSM
+    /// states.
+    #[test]
+    fn test_summary_statistics() {
+        let mut buffer: BufferState<Buffering> = BufferState::new();
+
+        // Write some data to a buffer.
+        buffer
+            .write(
+                lp_to_mutable_batch(
+                    r#"bananas,tag=platanos great=true,how_much=42 668563242000000042"#,
+                )
+                .1,
+                SequenceNumber::new(0),
+            )
+            .expect("write to empty buffer should succeed");
+
+        assert_eq!(buffer.rows(), 1);
+        assert_eq!(
+            buffer.timestamp_stats(),
+            Some(TimestampMinMax {
+                min: 668563242000000042,
+                max: 668563242000000042
+            })
+        );
+
+        // Write another row to change the timestamp (it goes backwards!)
+        buffer
+            .write(
+                lp_to_mutable_batch(r#"bananas,tag=platanos great=true,how_much=42 42"#).1,
+                SequenceNumber::new(0),
+            )
+            .unwrap();
+
+        assert_eq!(buffer.rows(), 2);
+        assert_eq!(
+            buffer.timestamp_stats(),
+            Some(TimestampMinMax {
+                min: 42,
+                max: 668563242000000042
+            })
+        );
+
+        // Transition to a snapshot.
+        let buffer = assert_matches!(buffer.snapshot(), Transition::Ok(v) => v);
+
+        assert_eq!(buffer.rows(), 2);
+        assert_eq!(
+            buffer.timestamp_stats(),
+            Some(TimestampMinMax {
+                min: 42,
+                max: 668563242000000042
+            })
+        );
+
+        // Transition to persisting
+        let buffer = buffer.into_persisting();
+
+        assert_eq!(buffer.rows(), 2);
+        assert_eq!(
+            buffer.timestamp_stats(),
+            Some(TimestampMinMax {
+                min: 42,
+                max: 668563242000000042
+            })
+        );
     }
 }

@@ -138,4 +138,12 @@ impl OwnedProjection {
             }
         }
     }
+
+    /// Return the column names in this projection, if specified.
+    pub(crate) fn columns(&self) -> Option<&[String]> {
+        match &self.0 {
+            Projection::All => None,
+            Projection::Project(v) => Some(v.as_ref()),
+        }
+    }
 }
