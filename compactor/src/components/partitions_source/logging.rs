@@ -52,17 +52,17 @@ mod tests {
     use data_types::PartitionId;
     use test_helpers::tracing::TracingCapture;
 
-    use super::{super::mock::MockPartitionsSource, *};
+    use super::{super::mock::MockCompactionJobsSource, *};
 
     #[test]
     fn test_display() {
-        let source = LoggingCompactionJobsWrapper::new(MockPartitionsSource::new(vec![]));
+        let source = LoggingCompactionJobsWrapper::new(MockCompactionJobsSource::new(vec![]));
         assert_eq!(source.to_string(), "logging(mock)",);
     }
 
     #[tokio::test]
     async fn test_fetch_empty() {
-        let source = LoggingCompactionJobsWrapper::new(MockPartitionsSource::new(vec![]));
+        let source = LoggingCompactionJobsWrapper::new(MockCompactionJobsSource::new(vec![]));
         let capture = TracingCapture::new();
         assert_eq!(source.fetch().await, vec![],);
         // logs normal log message (so it's easy search for every single call) but also an extra warning
@@ -81,7 +81,7 @@ mod tests {
         let partitions = vec![p_1, p_2, p_3];
 
         let source =
-            LoggingCompactionJobsWrapper::new(MockPartitionsSource::new(partitions.clone()));
+            LoggingCompactionJobsWrapper::new(MockCompactionJobsSource::new(partitions.clone()));
         let capture = TracingCapture::new();
         assert_eq!(source.fetch().await, partitions,);
         // just the ordinary log message, no warning

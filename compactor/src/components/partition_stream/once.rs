@@ -49,11 +49,11 @@ where
 mod tests {
     use data_types::PartitionId;
 
-    use super::{super::super::partitions_source::mock::MockPartitionsSource, *};
+    use super::{super::super::partitions_source::mock::MockCompactionJobsSource, *};
 
     #[test]
     fn test_display() {
-        let stream = OncePartititionStream::new(MockPartitionsSource::new(vec![]));
+        let stream = OncePartititionStream::new(MockCompactionJobsSource::new(vec![]));
         assert_eq!(stream.to_string(), "once(mock)");
     }
 
@@ -64,7 +64,7 @@ mod tests {
             CompactionJob::new(PartitionId::new(3)),
             CompactionJob::new(PartitionId::new(2)),
         ];
-        let stream = OncePartititionStream::new(MockPartitionsSource::new(ids.clone()));
+        let stream = OncePartititionStream::new(MockCompactionJobsSource::new(ids.clone()));
 
         // stream is stateless
         for _ in 0..2 {

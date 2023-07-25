@@ -60,12 +60,12 @@ mod tests {
     use data_types::PartitionId;
     use iox_time::{MockProvider, Time};
 
-    use super::{super::mock::MockPartitionsSource, *};
+    use super::{super::mock::MockCompactionJobsSource, *};
 
     #[test]
     fn test_display() {
         let source = NotEmptyPartitionsSourceWrapper::new(
-            MockPartitionsSource::new(vec![]),
+            MockCompactionJobsSource::new(vec![]),
             Duration::from_secs(1),
             Arc::new(MockProvider::new(Time::MIN)),
         );
@@ -74,7 +74,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch() {
-        let inner = Arc::new(MockPartitionsSource::new(vec![]));
+        let inner = Arc::new(MockCompactionJobsSource::new(vec![]));
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
         let source = NotEmptyPartitionsSourceWrapper::new(
             Arc::clone(&inner),

@@ -72,13 +72,15 @@ mod tests {
     use data_types::PartitionId;
     use metric::assert_counter;
 
-    use super::{super::mock::MockPartitionsSource, *};
+    use super::{super::mock::MockCompactionJobsSource, *};
 
     #[test]
     fn test_display() {
         let registry = Registry::new();
-        let source =
-            MetricsCompactionJobsSourceWrapper::new(MockPartitionsSource::new(vec![]), &registry);
+        let source = MetricsCompactionJobsSourceWrapper::new(
+            MockCompactionJobsSource::new(vec![]),
+            &registry,
+        );
         assert_eq!(source.to_string(), "metrics(mock)",);
     }
 
@@ -91,7 +93,7 @@ mod tests {
             CompactionJob::new(PartitionId::new(12)),
         ];
         let source = MetricsCompactionJobsSourceWrapper::new(
-            MockPartitionsSource::new(partitions.clone()),
+            MockCompactionJobsSource::new(partitions.clone()),
             &registry,
         );
 

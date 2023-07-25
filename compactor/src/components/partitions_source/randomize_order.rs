@@ -50,19 +50,19 @@ where
 mod tests {
     use data_types::PartitionId;
 
-    use super::{super::mock::MockPartitionsSource, *};
+    use super::{super::mock::MockCompactionJobsSource, *};
 
     #[test]
     fn test_display() {
         let source =
-            RandomizeOrderPartitionsSourcesWrapper::new(MockPartitionsSource::new(vec![]), 123);
+            RandomizeOrderPartitionsSourcesWrapper::new(MockCompactionJobsSource::new(vec![]), 123);
         assert_eq!(source.to_string(), "randomize_order(mock)",);
     }
 
     #[tokio::test]
     async fn test_fetch_empty() {
         let source =
-            RandomizeOrderPartitionsSourcesWrapper::new(MockPartitionsSource::new(vec![]), 123);
+            RandomizeOrderPartitionsSourcesWrapper::new(MockCompactionJobsSource::new(vec![]), 123);
         assert_eq!(source.fetch().await, vec![],);
     }
 
@@ -75,7 +75,7 @@ mod tests {
 
         // shuffles
         let source = RandomizeOrderPartitionsSourcesWrapper::new(
-            MockPartitionsSource::new(partitions.clone()),
+            MockCompactionJobsSource::new(partitions.clone()),
             123,
         );
         assert_eq!(
@@ -94,7 +94,7 @@ mod tests {
         // is deterministic with new source
         for _ in 0..100 {
             let source = RandomizeOrderPartitionsSourcesWrapper::new(
-                MockPartitionsSource::new(partitions.clone()),
+                MockCompactionJobsSource::new(partitions.clone()),
                 123,
             );
             assert_eq!(
@@ -105,7 +105,7 @@ mod tests {
 
         // different seed => different output
         let source = RandomizeOrderPartitionsSourcesWrapper::new(
-            MockPartitionsSource::new(partitions.clone()),
+            MockCompactionJobsSource::new(partitions.clone()),
             1234,
         );
         assert_eq!(source.fetch().await, vec![p_2, p_3, p_1,],);
