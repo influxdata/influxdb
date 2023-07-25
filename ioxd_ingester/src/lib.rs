@@ -25,7 +25,7 @@ use generated_types::influxdata::iox::{
     },
 };
 use hyper::{Body, Request, Response};
-use ingester::{IngesterGuard, IngesterRpcInterface};
+use ingester::{GossipConfig, IngesterGuard, IngesterRpcInterface};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use ioxd_common::{
@@ -210,6 +210,14 @@ pub async fn create_ingester_server_type(
 ) -> Result<Arc<dyn ServerType>> {
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
+    let gossip = match ingester_config.gossip_config.gossip_bind_address {
+        None => GossipConfig::Disabled,
+        Some(v) => GossipConfig::Enabled {
+            bind_addr: v.into(),
+            peers: ingester_config.gossip_config.seed_list.clone(),
+        },
+    };
+
     let grpc = ingester::new(
         catalog,
         Arc::clone(&metrics),
@@ -221,6 +229,7 @@ pub async fn create_ingester_server_type(
         ingester_config.persist_queue_depth,
         ingester_config.persist_hot_partition_cost,
         object_store,
+        gossip,
         shutdown_rx.map(|v| v.expect("shutdown sender dropped without calling shutdown")),
     )
     .await?;

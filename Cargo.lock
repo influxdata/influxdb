@@ -2662,6 +2662,7 @@ dependencies = [
  "flatbuffers",
  "futures",
  "generated_types",
+ "gossip",
  "hashbrown 0.14.0",
  "influxdb_iox_client",
  "ingester_query_grpc",

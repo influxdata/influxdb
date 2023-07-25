@@ -48,6 +48,7 @@ trace = { version = "0.1.0", path = "../trace" }
 uuid = "1.4.1"
 wal = { version = "0.1.0", path = "../wal" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
+gossip = { version = "0.1.0", path = "../gossip" }
 
 [dev-dependencies]
 assert_matches = "1.5.0"
