@@ -9,7 +9,7 @@ use super::super::{
 use super::CompactionJobStream;
 
 #[derive(Debug)]
-pub struct EndlessPartititionStream<T>
+pub struct EndlessCompactionJobStream<T>
 where
     T: CompactionJobsSource,
 {
@@ -17,7 +17,7 @@ where
     limiter: RateLimit,
 }
 
-impl<T> EndlessPartititionStream<T>
+impl<T> EndlessCompactionJobStream<T>
 where
     T: CompactionJobsSource,
 {
@@ -29,7 +29,7 @@ where
     }
 }
 
-impl<T> Display for EndlessPartititionStream<T>
+impl<T> Display for EndlessCompactionJobStream<T>
 where
     T: CompactionJobsSource,
 {
@@ -38,7 +38,7 @@ where
     }
 }
 
-impl<T> CompactionJobStream for EndlessPartititionStream<T>
+impl<T> CompactionJobStream for EndlessCompactionJobStream<T>
 where
     T: CompactionJobsSource,
 {
@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let stream = EndlessPartititionStream::new(MockCompactionJobsSource::new(vec![]));
+        let stream = EndlessCompactionJobStream::new(MockCompactionJobsSource::new(vec![]));
         assert_eq!(stream.to_string(), "endless(mock)");
     }
 
@@ -97,7 +97,7 @@ mod tests {
             CompactionJob::new(PartitionId::new(3)),
             CompactionJob::new(PartitionId::new(2)),
         ];
-        let stream = EndlessPartititionStream::new(MockCompactionJobsSource::new(ids.clone()));
+        let stream = EndlessCompactionJobStream::new(MockCompactionJobsSource::new(ids.clone()));
 
         // stream is stateless
         for _ in 0..2 {
