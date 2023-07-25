@@ -6,7 +6,7 @@ use futures::{stream::BoxStream, StreamExt};
 use super::super::{
     compaction_jobs_source::CompactionJobsSource, partition_files_source::rate_limit::RateLimit,
 };
-use super::PartitionStream;
+use super::CompactionJobStream;
 
 #[derive(Debug)]
 pub struct EndlessPartititionStream<T>
@@ -38,7 +38,7 @@ where
     }
 }
 
-impl<T> PartitionStream for EndlessPartititionStream<T>
+impl<T> CompactionJobStream for EndlessPartititionStream<T>
 where
     T: CompactionJobsSource,
 {

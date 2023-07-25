@@ -3,7 +3,7 @@ use std::{fmt::Display, sync::Arc};
 use compactor_scheduler::CompactionJob;
 use futures::{stream::BoxStream, StreamExt};
 
-use super::{super::compaction_jobs_source::CompactionJobsSource, PartitionStream};
+use super::{super::compaction_jobs_source::CompactionJobsSource, CompactionJobStream};
 
 #[derive(Debug)]
 pub struct OncePartititionStream<T>
@@ -33,7 +33,7 @@ where
     }
 }
 
-impl<T> PartitionStream for OncePartititionStream<T>
+impl<T> CompactionJobStream for OncePartititionStream<T>
 where
     T: CompactionJobsSource,
 {

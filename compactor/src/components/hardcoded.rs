@@ -64,7 +64,7 @@ use super::{
         metrics::MetricsPartitionSourceWrapper,
     },
     partition_stream::{
-        endless::EndlessPartititionStream, once::OncePartititionStream, PartitionStream,
+        endless::EndlessPartititionStream, once::OncePartititionStream, CompactionJobStream,
     },
     post_classification_partition_filter::{
         logging::LoggingPostClassificationFilterWrapper,
@@ -184,7 +184,7 @@ fn make_jobs_source_commit_partition_sink(
 fn make_partition_stream(
     config: &Config,
     compaction_jobs_source: Arc<dyn CompactionJobsSource>,
-) -> Arc<dyn PartitionStream> {
+) -> Arc<dyn CompactionJobStream> {
     if config.process_once {
         Arc::new(OncePartititionStream::new(compaction_jobs_source))
     } else {

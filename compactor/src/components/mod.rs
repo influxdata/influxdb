@@ -6,7 +6,7 @@ use self::{
     file_classifier::FileClassifier, ir_planner::IRPlanner, parquet_files_sink::ParquetFilesSink,
     partition_done_sink::PartitionDoneSink, partition_files_source::PartitionFilesSource,
     partition_filter::PartitionFilter, partition_info_source::PartitionInfoSource,
-    partition_stream::PartitionStream,
+    partition_stream::CompactionJobStream,
     post_classification_partition_filter::PostClassificationPartitionFilter,
     round_info_source::RoundInfoSource, round_split::RoundSplit, scratchpad::ScratchpadGen,
 };
@@ -47,7 +47,7 @@ pub mod timeout;
 #[derive(Debug, Clone)]
 pub struct Components {
     /// Source of partitions for the compactor to compact
-    pub partition_stream: Arc<dyn PartitionStream>,
+    pub partition_stream: Arc<dyn CompactionJobStream>,
     /// Source of information about a partition neededed for compaction
     pub partition_info_source: Arc<dyn PartitionInfoSource>,
     /// Source of files in a partition for compaction
