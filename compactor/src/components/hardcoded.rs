@@ -62,7 +62,7 @@ use super::{
     },
     partitions_source::{
         logging::LoggingCompactionJobsWrapper, metrics::MetricsCompactionJobsSourceWrapper,
-        not_empty::NotEmptyPartitionsSourceWrapper,
+        not_empty::NotEmptyCompactionJobsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper,
         scheduled::ScheduledPartitionsSource, CompactionJobsSource,
     },
@@ -167,7 +167,7 @@ fn make_partitions_source_commit_partition_sink(
         // but just exit early
         Arc::new(partitions_source)
     } else {
-        Arc::new(NotEmptyPartitionsSourceWrapper::new(
+        Arc::new(NotEmptyCompactionJobsSourceWrapper::new(
             partitions_source,
             Duration::from_secs(5),
             Arc::clone(&config.time_provider),

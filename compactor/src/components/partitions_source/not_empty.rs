@@ -7,7 +7,7 @@ use iox_time::TimeProvider;
 use super::CompactionJobsSource;
 
 #[derive(Debug)]
-pub struct NotEmptyPartitionsSourceWrapper<T>
+pub struct NotEmptyCompactionJobsSourceWrapper<T>
 where
     T: CompactionJobsSource,
 {
@@ -16,7 +16,7 @@ where
     time_provider: Arc<dyn TimeProvider>,
 }
 
-impl<T> NotEmptyPartitionsSourceWrapper<T>
+impl<T> NotEmptyCompactionJobsSourceWrapper<T>
 where
     T: CompactionJobsSource,
 {
@@ -29,7 +29,7 @@ where
     }
 }
 
-impl<T> Display for NotEmptyPartitionsSourceWrapper<T>
+impl<T> Display for NotEmptyCompactionJobsSourceWrapper<T>
 where
     T: CompactionJobsSource,
 {
@@ -39,7 +39,7 @@ where
 }
 
 #[async_trait]
-impl<T> CompactionJobsSource for NotEmptyPartitionsSourceWrapper<T>
+impl<T> CompactionJobsSource for NotEmptyCompactionJobsSourceWrapper<T>
 where
     T: CompactionJobsSource,
 {
@@ -64,7 +64,7 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let source = NotEmptyPartitionsSourceWrapper::new(
+        let source = NotEmptyCompactionJobsSourceWrapper::new(
             MockCompactionJobsSource::new(vec![]),
             Duration::from_secs(1),
             Arc::new(MockProvider::new(Time::MIN)),
@@ -76,7 +76,7 @@ mod tests {
     async fn test_fetch() {
         let inner = Arc::new(MockCompactionJobsSource::new(vec![]));
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let source = NotEmptyPartitionsSourceWrapper::new(
+        let source = NotEmptyCompactionJobsSourceWrapper::new(
             Arc::clone(&inner),
             Duration::from_secs(1),
             Arc::clone(&time_provider) as _,
