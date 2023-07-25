@@ -64,7 +64,7 @@ use super::{
         metrics::MetricsPartitionSourceWrapper,
     },
     partition_stream::{
-        endless::EndlessCompactionJobStream, once::OncePartititionStream, CompactionJobStream,
+        endless::EndlessCompactionJobStream, once::OnceCompactionJobStream, CompactionJobStream,
     },
     post_classification_partition_filter::{
         logging::LoggingPostClassificationFilterWrapper,
@@ -186,7 +186,7 @@ fn make_partition_stream(
     compaction_jobs_source: Arc<dyn CompactionJobsSource>,
 ) -> Arc<dyn CompactionJobStream> {
     if config.process_once {
-        Arc::new(OncePartititionStream::new(compaction_jobs_source))
+        Arc::new(OnceCompactionJobStream::new(compaction_jobs_source))
     } else {
         Arc::new(EndlessCompactionJobStream::new(compaction_jobs_source))
     }

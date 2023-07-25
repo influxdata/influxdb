@@ -6,14 +6,14 @@ use futures::{stream::BoxStream, StreamExt};
 use super::{super::compaction_jobs_source::CompactionJobsSource, CompactionJobStream};
 
 #[derive(Debug)]
-pub struct OncePartititionStream<T>
+pub struct OnceCompactionJobStream<T>
 where
     T: CompactionJobsSource,
 {
     source: Arc<T>,
 }
 
-impl<T> OncePartititionStream<T>
+impl<T> OnceCompactionJobStream<T>
 where
     T: CompactionJobsSource,
 {
@@ -24,7 +24,7 @@ where
     }
 }
 
-impl<T> Display for OncePartititionStream<T>
+impl<T> Display for OnceCompactionJobStream<T>
 where
     T: CompactionJobsSource,
 {
@@ -33,7 +33,7 @@ where
     }
 }
 
-impl<T> CompactionJobStream for OncePartititionStream<T>
+impl<T> CompactionJobStream for OnceCompactionJobStream<T>
 where
     T: CompactionJobsSource,
 {
@@ -53,7 +53,7 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let stream = OncePartititionStream::new(MockCompactionJobsSource::new(vec![]));
+        let stream = OnceCompactionJobStream::new(MockCompactionJobsSource::new(vec![]));
         assert_eq!(stream.to_string(), "once(mock)");
     }
 
@@ -64,7 +64,7 @@ mod tests {
             CompactionJob::new(PartitionId::new(3)),
             CompactionJob::new(PartitionId::new(2)),
         ];
-        let stream = OncePartititionStream::new(MockCompactionJobsSource::new(ids.clone()));
+        let stream = OnceCompactionJobStream::new(MockCompactionJobsSource::new(ids.clone()));
 
         // stream is stateless
         for _ in 0..2 {
