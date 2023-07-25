@@ -47,7 +47,7 @@ pub mod timeout;
 #[derive(Debug, Clone)]
 pub struct Components {
     /// Source of partitions for the compactor to compact
-    pub partition_stream: Arc<dyn CompactionJobStream>,
+    pub compaction_job_stream: Arc<dyn CompactionJobStream>,
     /// Source of information about a partition neededed for compaction
     pub partition_info_source: Arc<dyn PartitionInfoSource>,
     /// Source of files in a partition for compaction

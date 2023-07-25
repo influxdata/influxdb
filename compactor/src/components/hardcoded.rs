@@ -96,7 +96,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         make_jobs_source_commit_partition_sink(config, Arc::clone(&scheduler));
 
     Arc::new(Components {
-        partition_stream: make_partition_stream(config, compaction_jobs_source),
+        compaction_job_stream: make_compaction_job_stream(config, compaction_jobs_source),
         partition_info_source: make_partition_info_source(config),
         partition_files_source: make_partition_files_source(config),
         round_info_source: make_round_info_source(config),
@@ -181,7 +181,7 @@ fn make_jobs_source_commit_partition_sink(
     )
 }
 
-fn make_partition_stream(
+fn make_compaction_job_stream(
     config: &Config,
     compaction_jobs_source: Arc<dyn CompactionJobsSource>,
 ) -> Arc<dyn CompactionJobStream> {
