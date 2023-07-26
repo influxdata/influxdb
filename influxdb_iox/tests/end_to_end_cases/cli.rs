@@ -370,7 +370,7 @@ async fn create_tables_negative() {
                         .assert()
                         .failure()
                         .stderr(predicate::str::contains(
-                            "error: a value is required for '--partition-template <PARTS>' but none was supplied",
+                            "error: a value is required for '--partition-template <PARTITION_TEMPLATE>' but none was supplied",
                         ));
 
                     // Wrong spelling `prts`
@@ -384,11 +384,11 @@ async fn create_tables_negative() {
                         .arg(namespace)
                         .arg("h2o_temperature")
                         .arg("--partition-template")
-                        .arg("{\"prts\": [{\"TagValue\": \"location\"}, {\"TagValue\": \"state\"}, {\"TimeFormat\": \"%Y-%m\"}] }")
+                        .arg("{\"prts\": [{\"tagValue\": \"location\"}, {\"tagValue\": \"state\"}, {\"timeFormat\": \"%Y-%m\"}] }")
                         .assert()
                         .failure()
                         .stderr(predicate::str::contains(
-                            "Client Error: Invalid partition template format : missing field `parts`",
+                            "Client Error: Invalid partition template format : unknown field `prts`",
                         ));
 
                     // Time as tag
@@ -401,7 +401,7 @@ async fn create_tables_negative() {
                         .arg(namespace)
                         .arg("h2o_temperature")
                         .arg("--partition-template")
-                        .arg("{\"parts\": [{\"TagValue\": \"location\"}, {\"TagValue\": \"time\"}, {\"TimeFormat\": \"%Y-%m\"}] }")
+                        .arg("{\"parts\": [{\"tagValue\": \"location\"}, {\"tagValue\": \"time\"}, {\"timeFormat\": \"%Y-%m\"}] }")
                         .assert()
                         .failure()
                         .stderr(predicate::str::contains(
@@ -418,7 +418,7 @@ async fn create_tables_negative() {
                     .arg(namespace)
                     .arg("h2o_temperature")
                     .arg("--partition-template")
-                    .arg("{\"parts\": [{\"TagValue\": \"location\"}, {\"TimeFormat\": \"%42\"}] }")
+                    .arg("{\"parts\": [{\"tagValue\": \"location\"}, {\"timeFormat\": \"%42\"}] }")
                     .assert()
                     .failure()
                     .stderr(predicate::str::contains(
@@ -435,7 +435,7 @@ async fn create_tables_negative() {
                         .arg(namespace)
                         .arg("h2o_temperature")
                         .arg("--partition-template")
-                        .arg("{\"parts\": [{\"TagValue\": \"1\"},{\"TagValue\": \"2\"},{\"TimeFormat\": \"%Y-%m\"},{\"TagValue\": \"4\"},{\"TagValue\": \"5\"},{\"TagValue\": \"6\"},{\"TagValue\": \"7\"},{\"TagValue\": \"8\"},{\"TagValue\": \"9\"}]}")
+                        .arg("{\"parts\": [{\"tagValue\": \"1\"},{\"tagValue\": \"2\"},{\"timeFormat\": \"%Y-%m\"},{\"tagValue\": \"4\"},{\"tagValue\": \"5\"},{\"tagValue\": \"6\"},{\"tagValue\": \"7\"},{\"tagValue\": \"8\"},{\"tagValue\": \"9\"}]}")
                         .assert()
                         .failure()
                         .stderr(predicate::str::contains(
@@ -511,7 +511,7 @@ async fn create_tables_positive() {
                         .arg(namespace)
                         .arg("t2")
                         .arg("--partition-template")
-                        .arg("{\"parts\":[{\"TimeFormat\":\"%Y-%m\"}] }")
+                        .arg("{\"parts\":[{\"timeFormat\":\"%Y-%m\"}] }")
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("t2"));
@@ -526,7 +526,7 @@ async fn create_tables_positive() {
                         .arg(namespace)
                         .arg("t3")
                         .arg("--partition-template")
-                        .arg("{\"parts\":[{\"TagValue\":\"col1\"}] }")
+                        .arg("{\"parts\":[{\"tagValue\":\"col1\"}] }")
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("t3"));
@@ -541,7 +541,7 @@ async fn create_tables_positive() {
                         .arg(namespace)
                         .arg("t4")
                         .arg("--partition-template")
-                        .arg("{\"parts\":[{\"TagValue\":\"col1\"},{\"TimeFormat\":\"%Y-%d\"},{\"TagValue\":\"yes,col name\"}] }")
+                        .arg("{\"parts\":[{\"tagValue\":\"col1\"},{\"timeFormat\":\"%Y-%d\"},{\"tagValue\":\"yes,col name\"}] }")
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("t4"));
@@ -606,7 +606,7 @@ async fn create_tables_write_and_query() {
                         .arg(namespace)
                         .arg("h2o_temperature")
                         .arg("--partition-template")
-                        .arg("{\"parts\": [{\"TagValue\": \"location\"}, {\"TagValue\": \"state\"}, {\"TimeFormat\": \"%Y-%m\"}] }")
+                        .arg("{\"parts\": [{\"tagValue\": \"location\"}, {\"tagValue\": \"state\"}, {\"timeFormat\": \"%Y-%m\"}] }")
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("h2o_temperature"));
@@ -621,7 +621,7 @@ async fn create_tables_write_and_query() {
                         .arg(namespace)
                         .arg("m0")
                         .arg("--partition-template")
-                        .arg("{\"parts\": [{\"TimeFormat\": \"%Y.%j\"}] }")
+                        .arg("{\"parts\": [{\"timeFormat\": \"%Y.%j\"}] }")
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("m0"));
@@ -636,7 +636,7 @@ async fn create_tables_write_and_query() {
                         .arg(namespace)
                         .arg("cpu")
                         .arg("--partition-template")
-                        .arg("{\"parts\": [{\"TimeFormat\": \"%Y-%m-%d\"}, {\"TagValue\": \"cpu\"}] }")
+                        .arg("{\"parts\": [{\"timeFormat\": \"%Y-%m-%d\"}, {\"tagValue\": \"cpu\"}] }")
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("cpu"));

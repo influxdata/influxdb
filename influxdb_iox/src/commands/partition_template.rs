@@ -45,8 +45,10 @@ fn parse_partition_template(s: &str) -> Result<proto::PartitionTemplate, Error> 
 #[cfg(test)]
 mod tests {
     use clap::Parser;
+    use test_helpers::assert_contains;
 
     use crate::commands::partition_template::PartitionTemplateConfig;
+    use generated_types::influxdata::iox::partition_template::v1::template_part::Part;
 
     // ===================================================
     // Negative tests for parsing invalid partition template
@@ -57,9 +59,9 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        assert!(error.contains(
-            "error: a value is required for '--partition-template <PARTS>' but none was supplied"
-        ));
+        assert_contains!(error,
+            "error: a value is required for '--partition-template <PARTITION_TEMPLATE>' but none was supplied"
+        );
     }
 
     #[test]
@@ -69,7 +71,7 @@ mod tests {
                 .unwrap_err()
                 .to_string();
 
-        assert!(partition_template.contains("Client Error: Invalid partition template format : EOF while parsing a value at line 1 column 0"));
+        assert_contains!(partition_template, "Client Error: Invalid partition template format : EOF while parsing a value at line 1 column 0");
     }
 
     #[test]
@@ -82,25 +84,25 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        assert!(partition_template.contains("Client Error: Parts cannot be empty"));
+        assert_contains!(partition_template, "Client Error: Parts cannot be empty");
     }
 
     #[test]
     fn wrong_time_format() {
-        let partition_templat = PartitionTemplateConfig::try_parse_from([
+        let partition_template = PartitionTemplateConfig::try_parse_from([
             "server",
             "--partition-template",
-            "{\"parts\": [{\"timeFormat\": \"whatever\"}] }",
+            "{\"parts\": [{\"time Format\": \"whatever\"}] }",
         ])
         .unwrap_err()
         .to_string();
 
-        assert!(partition_templat.contains("Client Error: Invalid partition template format : unknown variant `timeFormat`, expected `TagValue` or `TimeFormat` "));
+        assert_contains!(partition_template, "Client Error: Invalid partition template format : unknown field `time Format`, expected one of `tag_value`, `tagValue`, `time_format`, `timeFormat`");
     }
 
     #[test]
     fn wrong_tag_format() {
-        let partition_templat = PartitionTemplateConfig::try_parse_from([
+        let partition_template = PartitionTemplateConfig::try_parse_from([
             "server",
             "--partition-template",
             "{\"parts\": [{\"wrong format\": \"whatever\"}] }",
@@ -108,12 +110,12 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        assert!(partition_templat.contains("Client Error: Invalid partition template format : unknown variant `wrong format`, expected `TagValue` or `TimeFormat` "));
+        assert_contains!(partition_template, "Client Error: Invalid partition template format : unknown field `wrong format`, expected one of `tag_value`, `tagValue`, `time_format`, `timeFormat`");
     }
 
     #[test]
     fn wrong_parts_format() {
-        let partition_templat = PartitionTemplateConfig::try_parse_from([
+        let partition_template = PartitionTemplateConfig::try_parse_from([
             "server",
             "--partition-template",
             "{\"prts\": [{\"TagValue\": \"whatever\"}] }",
@@ -121,8 +123,7 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        assert!(partition_templat
-            .contains("Client Error: Invalid partition template format : missing field `parts`"));
+        assert_contains!(partition_template, "Client Error: Invalid partition template format : unknown field `prts`, expected `parts`");
     }
 
     // ===================================================
@@ -133,7 +134,7 @@ mod tests {
         let actual = PartitionTemplateConfig::try_parse_from([
             "server",
             "--partition-template",
-            "{\"parts\": [{\"TimeFormat\": \"whatever\"}] }",
+            "{\"parts\": [{\"timeFormat\": \"whatever\"}] }",
         ])
         .unwrap();
 
@@ -141,9 +142,7 @@ mod tests {
         assert_eq!(part_template.parts.len(), 1);
         assert_eq!(
             part_template.parts[0].part,
-            Some(generated_types::influxdata::iox::partition_template::v1::template_part::Part::TimeFormat(
-                "whatever".to_string()
-            ))
+            Some(Part::TimeFormat("whatever".to_string()))
         );
     }
 
@@ -152,7 +151,7 @@ mod tests {
         let actual = PartitionTemplateConfig::try_parse_from([
             "server",
             "--partition-template",
-            "{\"parts\": [{\"TagValue\": \"whatever\"}] }",
+            "{\"parts\": [{\"tagValue\": \"whatever\"}] }",
         ])
         .unwrap();
 
@@ -160,9 +159,7 @@ mod tests {
         assert_eq!(part_template.parts.len(), 1);
         assert_eq!(
             part_template.parts[0].part,
-            Some(generated_types::influxdata::iox::partition_template::v1::template_part::Part::TagValue(
-                "whatever".to_string()
-            ))
+            Some(Part::TagValue("whatever".to_string()))
         );
     }
 
@@ -171,7 +168,7 @@ mod tests {
         let actual = PartitionTemplateConfig::try_parse_from([
             "server",
             "--partition-template",
-            "{\"parts\": [{\"TimeFormat\": \"%Y.%j\"}, {\"TagValue\": \"col1\"}, {\"TagValue\": \"col2,col3 col4\"}] }",
+            "{\"parts\": [{\"timeFormat\": \"%Y.%j\"}, {\"tagValue\": \"col1\"}, {\"tagValue\": \"col2,col3 col4\"}] }",
         ])
         .unwrap();
 
@@ -179,21 +176,15 @@ mod tests {
         assert_eq!(part_template.parts.len(), 3);
         assert_eq!(
             part_template.parts[0].part,
-            Some(generated_types::influxdata::iox::partition_template::v1::template_part::Part::TimeFormat(
-                "%Y.%j".to_string()
-            ))
+            Some(Part::TimeFormat("%Y.%j".to_string()))
         );
         assert_eq!(
             part_template.parts[1].part,
-            Some(generated_types::influxdata::iox::partition_template::v1::template_part::Part::TagValue(
-                "col1".to_string()
-            ))
+            Some(Part::TagValue("col1".to_string()))
         );
         assert_eq!(
             part_template.parts[2].part,
-            Some(generated_types::influxdata::iox::partition_template::v1::template_part::Part::TagValue(
-                "col2,col3 col4".to_string()
-            ))
+            Some(Part::TagValue("col2,col3 col4".to_string()))
         );
     }
 
@@ -202,7 +193,7 @@ mod tests {
         let actual = PartitionTemplateConfig::try_parse_from([
             "server",
             "--partition-template",
-            "{\"parts\": [{\"TagValue\": \"col1\"}, {\"TimeFormat\": \"%Y.%j\"}, {\"TagValue\": \"col2,col3 col4\"}] }",
+            "{\"parts\": [{\"tagValue\": \"col1\"}, {\"timeFormat\": \"%Y.%j\"}, {\"tagValue\": \"col2,col3 col4\"}] }",
         ])
         .unwrap();
 
@@ -210,21 +201,15 @@ mod tests {
         assert_eq!(part_template.parts.len(), 3);
         assert_eq!(
             part_template.parts[0].part,
-            Some(generated_types::influxdata::iox::partition_template::v1::template_part::Part::TagValue(
-                "col1".to_string()
-            ))
+            Some(Part::TagValue("col1".to_string()))
         );
         assert_eq!(
             part_template.parts[1].part,
-            Some(generated_types::influxdata::iox::partition_template::v1::template_part::Part::TimeFormat(
-                "%Y.%j".to_string()
-            ))
+            Some(Part::TimeFormat("%Y.%j".to_string()))
         );
         assert_eq!(
             part_template.parts[2].part,
-            Some(generated_types::influxdata::iox::partition_template::v1::template_part::Part::TagValue(
-                "col2,col3 col4".to_string()
-            ))
+            Some(Part::TagValue("col2,col3 col4".to_string()))
         );
     }
 }

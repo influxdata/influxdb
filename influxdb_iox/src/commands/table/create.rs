@@ -42,40 +42,40 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 mod tests {
     use crate::commands::table::create::Config;
     use clap::Parser;
-    use generated_types::influxdata::iox::partition_template::v1 as proto;
-    use influxdb_iox_client::table::generated_types::PartitionTemplate;
+    use influxdb_iox_client::table::generated_types::{Part, PartitionTemplate, TemplatePart};
 
-    // valid partition template
+    // Valid config without partition template
     #[test]
-    fn valid_partition_template() {
-        // Config without partition template
+    fn valid_no_partition_template() {
         let config = Config::try_parse_from(["server", "database", "table"]).unwrap();
 
         assert_eq!(config.database, "database");
         assert_eq!(config.table, "table");
+        assert_eq!(config.partition_template_config.partition_template, None);
+    }
 
-        // Config with partition template
+    // Valid partition template
+    #[test]
+    fn valid_partition_template() {
         let config = Config::try_parse_from([
             "server",
             "database",
             "table",
             "--partition-template",
-            "{\"parts\": [{\"TagValue\": \"col1\"}, {\"TimeFormat\": \"%Y.%j\"}, {\"TagValue\": \"col2,col3 col4\"}] }",
+            "{\"parts\": [{\"tagValue\": \"col1\"}, {\"timeFormat\": \"%Y.%j\"}, {\"tagValue\": \"col2,col3 col4\"}] }",
         ])
         .unwrap();
 
         let expected = Some(PartitionTemplate {
             parts: vec![
-                influxdb_iox_client::namespace::generated_types::TemplatePart {
-                    part: Some(proto::template_part::Part::TagValue("col1".to_string())),
+                TemplatePart {
+                    part: Some(Part::TagValue("col1".to_string())),
                 },
-                influxdb_iox_client::namespace::generated_types::TemplatePart {
-                    part: Some(proto::template_part::Part::TimeFormat("%Y.%j".to_string())),
+                TemplatePart {
+                    part: Some(Part::TimeFormat("%Y.%j".to_string())),
                 },
-                influxdb_iox_client::namespace::generated_types::TemplatePart {
-                    part: Some(proto::template_part::Part::TagValue(
-                        "col2,col3 col4".to_string(),
-                    )),
+                TemplatePart {
+                    part: Some(Part::TagValue("col2,col3 col4".to_string())),
                 },
             ],
         });
