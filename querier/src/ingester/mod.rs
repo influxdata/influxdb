@@ -18,7 +18,10 @@ use data_types::{
 use datafusion::physical_plan::Statistics;
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use ingester_query_grpc::{
-    encode_proto_predicate_as_base64, influxdata::iox::ingester::v1::IngesterQueryResponseMetadata,
+    encode_proto_predicate_as_base64,
+    influxdata::iox::ingester::v1::{
+        ingester_query_response_metadata::PartitionIdentifier, IngesterQueryResponseMetadata,
+    },
     IngesterQueryRequest,
 };
 use iox_query::{
@@ -567,24 +570,16 @@ impl IngesterStreamDecoder {
                 // new partition announced
                 self.flush_partition()?;
 
-                let deprecated_partition_id = md.partition_id.map(PartitionId::new);
-                let partition_hash_id = md
-                    .partition_hash_id
-                    .map(|bytes| {
-                        PartitionHashId::try_from(&bytes[..]).context(PartitionHashIdSnafu)
-                    })
-                    .transpose()?;
-
-                let partition_id = match (deprecated_partition_id, partition_hash_id) {
-                    // If the ingester sends a hash ID for this partition, use it no matter what
-                    // was sent or not for the partition ID.
-                    (_, Some(hash_id)) => TransitionPartitionId::Deterministic(hash_id),
-                    // If the ingester only sends a partition ID, this is an old-style partition
-                    // that doesn't have a hash ID in the catalog so we need to use the database ID.
-                    (Some(id), None) => TransitionPartitionId::Deprecated(id),
-                    // The ingester needs to send at least one identifier for the partition. This
-                    // should be impossible as long as the ingester is behaving.
-                    (None, None) => return NoPartitionIdentifierSnafu.fail(),
+                let partition_id = match md
+                    .partition_identifier
+                    .context(NoPartitionIdentifierSnafu)?
+                {
+                    PartitionIdentifier::CatalogId(id) => {
+                        TransitionPartitionId::Deprecated(PartitionId::new(id))
+                    }
+                    PartitionIdentifier::HashId(bytes) => TransitionPartitionId::Deterministic(
+                        PartitionHashId::try_from(&bytes[..]).context(PartitionHashIdSnafu)?,
+                    ),
                 };
 
                 ensure!(
@@ -1164,10 +1159,7 @@ mod tests {
                     results: vec![Ok((
                         DecodedPayload::None,
                         IngesterQueryResponseMetadata {
-                            partition_id: Some(1),
-                            // PartitionHashId is in the process of being added, but is
-                            // currently not guaranteed.
-                            partition_hash_id: None,
+                            partition_identifier: Some(PartitionIdentifier::CatalogId(1)),
                             ingester_uuid: ingester_uuid.to_string(),
                             completed_persistence_count: 5,
                         },
@@ -1399,11 +1391,10 @@ mod tests {
                     results: vec![Ok((
                         DecodedPayload::None,
                         IngesterQueryResponseMetadata {
-                            partition_id: Some(1),
-                            partition_hash_id: Some(
+                            partition_identifier: Some(PartitionIdentifier::HashId(
                                 // Bytes that aren't a valid PartitionHashId
                                 vec![1, 2, 3, 4, 5],
-                            ),
+                            )),
                             ingester_uuid: ingester_uuid.to_string(),
                             completed_persistence_count: 5,
                         },
@@ -1625,8 +1616,9 @@ mod tests {
         Ok((
             DecodedPayload::None,
             IngesterQueryResponseMetadata {
-                partition_id: None,
-                partition_hash_id: Some(partition_hash_id(table_id).as_bytes().to_owned()),
+                partition_identifier: Some(PartitionIdentifier::HashId(
+                    partition_hash_id(table_id).as_bytes().to_owned(),
+                )),
                 ingester_uuid: ingester_uuid.into(),
                 completed_persistence_count,
             },

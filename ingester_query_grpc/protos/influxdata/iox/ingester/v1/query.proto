@@ -70,13 +70,6 @@ message IngesterQueryResponseMetadata {
   reserved "batch_partition_ids";
   reserved 6;
 
-  // Partition id for this batch, if this batch doesn't have a partition_hash_id in the catalog.
-  optional int64 partition_id = 7;
-
-  // A unique identifier of this partition, deterministically created from the table ID and
-  // partition key.
-  optional bytes partition_hash_id = 11;
-
   // Was partition status.
   reserved "status";
   reserved 8;
@@ -86,6 +79,13 @@ message IngesterQueryResponseMetadata {
 
   // Number of Parquet files that have been persisted to object storage for this partition.
   uint64 completed_persistence_count = 10;
+
+  // Either the catalog-assigned partition ID or the deterministic identifier created from the
+  // table ID and partition key.
+  oneof partition_identifier {
+    int64 catalog_id = 7;
+    bytes hash_id = 11;
+  }
 }
 
 // Serialization of `predicate::predicate::Predicate` that contains DataFusion `Expr`s
