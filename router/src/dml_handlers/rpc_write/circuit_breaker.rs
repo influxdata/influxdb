@@ -17,7 +17,8 @@ use tokio::{
 
 /// The limit on the ratio of the number of error requests to the number of
 /// successful requests within the configured error window to be considered
-/// healthy.
+/// healthy. If updating this value, remember to update the documentation
+/// in the CLI flag for the configurable error window.
 const MAX_ERROR_RATIO: f32 = 0.8;
 /// The maximum number of probe requests to allow when in an unhealthy state.
 const NUM_PROBES: u64 = 10;

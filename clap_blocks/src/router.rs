@@ -126,10 +126,10 @@ pub struct RouterConfig {
     )]
     pub rpc_write_replicas: NonZeroUsize,
 
-    /// Specify the (discrete) slices of time in which the
-    // [`router::dml_handlers::rpc_write::circuit_breaker::CircuitBreaker`] must
-    /// exceed its maximum error ratio for downstream RPC write handler to be
-    /// considered in the unhealthy state.
+    /// Specify the (discrete) slices of time in which the router's write
+    /// request failures must exceed the write client's maximum error ratio of
+    /// 80% for a downstream RPC write handler to be considered in the unhealthy
+    /// state.
     #[clap(
         long = "rpc-write-health-error-window-seconds",
         env = "INFLUXDB_IOX_RPC_WRITE_HEALTH_ERROR_WINDOW_SECONDS",
