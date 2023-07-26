@@ -75,12 +75,12 @@ where
             "Number of WAL files that have started to be replayed",
         )
         .recorder(&[]);
-    let op_count_metric = metrics
-        .register_metric::<U64Counter>(
-            "ingester_wal_replay_ops",
-            "Number of operations successfully replayed from the WAL",
-        )
-        .recorder(&[]);
+    let op_count_metric = metrics.register_metric::<U64Counter>(
+        "ingester_wal_replay_ops",
+        "Number of operations replayed from the WAL",
+    );
+    let ok_op_count_metric = op_count_metric.recorder(&[("outcome", "success")]);
+    let empty_op_count_metric = op_count_metric.recorder(&[("outcome", "skipped_empty")]);
 
     let n_files = files.len();
     info!(n_files, "found wal files for replay");
@@ -112,7 +112,7 @@ where
         );
 
         // Replay this segment file
-        match replay_file(reader, sink, &op_count_metric).await? {
+        match replay_file(reader, sink, &ok_op_count_metric, &empty_op_count_metric).await? {
             v @ Some(_) => max_sequence = max_sequence.max(v),
             None => {
                 // This file was empty and should be deleted.
@@ -181,7 +181,8 @@ where
 async fn replay_file<T>(
     file: wal::ClosedSegmentFileReader,
     sink: &T,
-    op_count_metric: &U64Counter,
+    ok_op_count_metric: &U64Counter,
+    empty_op_count_metric: &U64Counter,
 ) -> Result<Option<SequenceNumber>, WalReplayError>
 where
     T: DmlSink,
@@ -211,6 +212,12 @@ where
             let batches = decode_database_batch(&op)?;
             let namespace_id = NamespaceId::new(op.database_id);
             let partition_key = PartitionKey::from(op.partition_key);
+
+            if batches.is_empty() {
+                warn!(%namespace_id, "encountered wal op containing no table data, skipping replay");
+                empty_op_count_metric.inc(1);
+                continue;
+            }
 
             let op = WriteOperation::new(
                 namespace_id,
@@ -255,7 +262,7 @@ where
                 .await
                 .map_err(Into::<DmlError>::into)?;
 
-            op_count_metric.inc(1);
+            ok_op_count_metric.inc(1);
         }
     }
 
@@ -368,12 +375,22 @@ mod tests {
             ),
         );
 
+        // Emulate a mid-write crash by inserting an op with no data
+        let empty_op = WriteOperation::new_empty_invalid(
+            ARBITRARY_NAMESPACE_ID,
+            ARBITRARY_PARTITION_KEY.clone(),
+        );
+
         // The write portion of this test.
         //
         // Write two ops, rotate the file, and write a third op.
         {
-            let inner =
-                Arc::new(MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(()), Ok(())]));
+            let inner = Arc::new(MockDmlSink::default().with_apply_return(vec![
+                Ok(()),
+                Ok(()),
+                Ok(()),
+                Ok(()),
+            ]));
             let wal = Wal::new(dir.path())
                 .await
                 .expect("failed to initialise WAL");
@@ -405,8 +422,14 @@ mod tests {
                 .await
                 .expect("wal should not error");
 
+            // Write the empty op
+            wal_sink
+                .apply(IngestOp::Write(empty_op))
+                .await
+                .expect("wal should not error");
+
             // Assert the mock inner sink saw the calls
-            assert_eq!(inner.get_calls().len(), 3);
+            assert_eq!(inner.get_calls().len(), 4);
         }
 
         // Reinitialise the WAL
@@ -448,14 +471,15 @@ mod tests {
 
         assert_eq!(max_sequence_number, Some(SequenceNumber::new(43)));
 
-        // Assert the ops were pushed into the DmlSink exactly as generated.
+        // Assert the ops were pushed into the DmlSink exactly as generated,
+        // barring the empty op which is skipped
         let ops = mock_iter.sink.get_calls();
         assert_matches!(
             &*ops,
             &[
                 IngestOp::Write(ref w1),
                 IngestOp::Write(ref w2),
-                IngestOp::Write(ref w3)
+                IngestOp::Write(ref w3),
             ] => {
                 assert_write_ops_eq(w1.clone(), op1);
                 assert_write_ops_eq(w2.clone(), op2);
@@ -493,9 +517,16 @@ mod tests {
         let ops = metrics
             .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_ops")
             .expect("file counter not found")
-            .get_observer(&Attributes::from([]))
+            .get_observer(&Attributes::from(&[("outcome", "success")]))
             .expect("attributes not found")
             .fetch();
         assert_eq!(ops, 3);
+        let ops = metrics
+            .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_ops")
+            .expect("file counter not found")
+            .get_observer(&Attributes::from(&[("outcome", "skipped_empty")]))
+            .expect("attributes not found")
+            .fetch();
+        assert_eq!(ops, 1);
     }
 }
