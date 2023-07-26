@@ -89,6 +89,12 @@ pub mod influxdata {
             }
         }
 
+        pub mod gossip {
+            pub mod v1 {
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.gossip.v1.rs"));
+            }
+        }
+
         pub mod ingester {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.ingester.v1.rs"));
