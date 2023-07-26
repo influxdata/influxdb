@@ -2141,3 +2141,630 @@ async fn single_file_compaction() {
     "###
     );
 }
+
+// This test comes from a real world catalog scenario where the configured split percentage caused a loop.  ManySmallFiles decided to compact just 2 files, which
+// happen to already be split at the target percentage.  So the compaction creates 2 output files that are the same as the input files, resulting in a loop.
+#[tokio::test]
+async fn split_precent_loop() {
+    test_helpers::maybe_start_logging();
+
+    let max_files = 20;
+    let setup = layout_setup_builder()
+        .await
+        .with_max_num_files_per_plan(max_files)
+        .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
+        .with_partition_timeout(Duration::from_millis(1000))
+        .with_percentage_max_file_size(5)
+        .with_split_percentage(80)
+        .with_suppress_run_output() // remove this to debug
+        .build()
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987200001000000)
+                .with_max_time(1675996179137000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676010160053162493))
+                .with_file_size_bytes(103403616),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675996179142000000)
+                .with_max_time(1676005158275000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676010160053162493))
+                .with_file_size_bytes(102072124),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1676005158277000000)
+                .with_max_time(1676010156669000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676010160053162493))
+                .with_file_size_bytes(61186631),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675989300563000000)
+                .with_max_time(1676036409167000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676036411377096481))
+                .with_file_size_bytes(2219347),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987777260000000)
+                .with_max_time(1676036474324000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676036476572081862))
+                .with_file_size_bytes(2159488),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987902254000000)
+                .with_max_time(1676036529744000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676036533523024586))
+                .with_file_size_bytes(2267826),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987264233000000)
+                .with_max_time(1676036708522000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676036711284678620))
+                .with_file_size_bytes(2262710),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987208765000000)
+                .with_max_time(1676036773664000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676036776492734973))
+                .with_file_size_bytes(2283847),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987969189000000)
+                .with_max_time(1676036830287000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676036833578815748))
+                .with_file_size_bytes(2173838),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987448630000000)
+                .with_max_time(1676037009945000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676037011333912856))
+                .with_file_size_bytes(2215286),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675991332100000000)
+                .with_max_time(1676037072975000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676037076612171888))
+                .with_file_size_bytes(2175613),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675989374650000000)
+                .with_max_time(1676037129342000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676037133683428336))
+                .with_file_size_bytes(2244289),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987252382000000)
+                .with_max_time(1676037308408000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676037311292474524))
+                .with_file_size_bytes(2217991),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987574435000000)
+                .with_max_time(1676037374115000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676037376589707454))
+                .with_file_size_bytes(2188472),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675989488901000000)
+                .with_max_time(1676037430277000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676037433529280795))
+                .with_file_size_bytes(2247953),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987956301000000)
+                .with_max_time(1676037608139000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676037611337404983))
+                .with_file_size_bytes(2230257),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987840745000000)
+                .with_max_time(1676037673346000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676037676565165201))
+                .with_file_size_bytes(2197670),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987620819000000)
+                .with_max_time(1676037730350000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676037733819595619))
+                .with_file_size_bytes(2181963),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987267649000000)
+                .with_max_time(1676037909084000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676037911429564851))
+                .with_file_size_bytes(2225185),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675988167750000000)
+                .with_max_time(1676037975214000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676037976761976812))
+                .with_file_size_bytes(2241751),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675995240778000000)
+                .with_max_time(1676063934345000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676063936517933405))
+                .with_file_size_bytes(2117926),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987292063000000)
+                .with_max_time(1676064071432000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676064075612113418))
+                .with_file_size_bytes(2197086),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675991856673000000)
+                .with_max_time(1676064136664000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676064139132278475))
+                .with_file_size_bytes(2179185),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675990277246000000)
+                .with_max_time(1676064234591000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676064236557583838))
+                .with_file_size_bytes(2229863),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675989676787000000)
+                .with_max_time(1676064371697000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676064375723383965))
+                .with_file_size_bytes(2164138),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675992075734000000)
+                .with_max_time(1676064437297000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676064439064292184))
+                .with_file_size_bytes(2139050),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675991814786000000)
+                .with_max_time(1676064533585000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676064536460879736))
+                .with_file_size_bytes(2215298),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675994514058000000)
+                .with_max_time(1676064670409000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676064675911178179))
+                .with_file_size_bytes(2081641),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675989994664000000)
+                .with_max_time(1676064736678000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676064740172902173))
+                .with_file_size_bytes(2270347),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675989093150000000)
+                .with_max_time(1676064834639000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676064836484625744))
+                .with_file_size_bytes(2241366),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987304054000000)
+                .with_max_time(1676064970327000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676064975861286528))
+                .with_file_size_bytes(2127038),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987787688000000)
+                .with_max_time(1676065036871000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676065039959254669))
+                .with_file_size_bytes(2234389),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675994030979000000)
+                .with_max_time(1676065133988000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676065136539751838))
+                .with_file_size_bytes(2162239),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675988375191000000)
+                .with_max_time(1676065272216000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676065275804926272))
+                .with_file_size_bytes(2225432),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987584851000000)
+                .with_max_time(1676065337320000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676065339850486840))
+                .with_file_size_bytes(2199543),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987883656000000)
+                .with_max_time(1676065434070000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676065436477743987))
+                .with_file_size_bytes(2189675),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987838080000000)
+                .with_max_time(1676065568770000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676065575902973989))
+                .with_file_size_bytes(2240286),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987203524000000)
+                .with_max_time(1676003982168000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676036233843843417))
+                .with_file_size_bytes(249698),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1676003983105000000)
+                .with_max_time(1676020762353000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676036233843843417))
+                .with_file_size_bytes(118322672),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1676020762355000000)
+                .with_max_time(1676036230752000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676036233843843417))
+                .with_file_size_bytes(167000529),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987206125000000)
+                .with_max_time(1676013525882000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676063839068577846))
+                .with_file_size_bytes(299209),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1676013530331000000)
+                .with_max_time(1676039845772000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676063839068577846))
+                .with_file_size_bytes(29163092),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1676039845773000000)
+                .with_max_time(1676063836202000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676063839068577846))
+                .with_file_size_bytes(253799912),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1675987825375000000)
+                .with_max_time(1676050466145000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676066475259188285))
+                .with_file_size_bytes(20949),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1676050539639000000)
+                .with_max_time(1676066212011000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1676066475259188285))
+                .with_file_size_bytes(13133322),
+        )
+        .await;
+
+    insta::assert_yaml_snapshot!(
+        run_layout_scenario(&setup).await,
+        @r###"
+    ---
+    - "**** Input Files "
+    - "L0                                                                                                                 "
+    - "L0.4[1675989300563000000,1676036409167000000] 1676036411.38s 2mb  |-----------------------L0.4------------------------|                                   "
+    - "L0.5[1675987777260000000,1676036474324000000] 1676036476.57s 2mb|------------------------L0.5-------------------------|                                   "
+    - "L0.6[1675987902254000000,1676036529744000000] 1676036533.52s 2mb|------------------------L0.6-------------------------|                                   "
+    - "L0.7[1675987264233000000,1676036708522000000] 1676036711.28s 2mb|-------------------------L0.7-------------------------|                                  "
+    - "L0.8[1675987208765000000,1676036773664000000] 1676036776.49s 2mb|-------------------------L0.8-------------------------|                                  "
+    - "L0.9[1675987969189000000,1676036830287000000] 1676036833.58s 2mb|------------------------L0.9-------------------------|                                   "
+    - "L0.10[1675987448630000000,1676037009945000000] 1676037011.33s 2mb|------------------------L0.10-------------------------|                                  "
+    - "L0.11[1675991332100000000,1676037072975000000] 1676037076.61s 2mb    |----------------------L0.11-----------------------|                                  "
+    - "L0.12[1675989374650000000,1676037129342000000] 1676037133.68s 2mb  |-----------------------L0.12------------------------|                                  "
+    - "L0.13[1675987252382000000,1676037308408000000] 1676037311.29s 2mb|-------------------------L0.13-------------------------|                                 "
+    - "L0.14[1675987574435000000,1676037374115000000] 1676037376.59s 2mb|------------------------L0.14-------------------------|                                  "
+    - "L0.15[1675989488901000000,1676037430277000000] 1676037433.53s 2mb  |-----------------------L0.15------------------------|                                  "
+    - "L0.16[1675987956301000000,1676037608139000000] 1676037611.34s 2mb|------------------------L0.16-------------------------|                                  "
+    - "L0.17[1675987840745000000,1676037673346000000] 1676037676.57s 2mb|------------------------L0.17-------------------------|                                  "
+    - "L0.18[1675987620819000000,1676037730350000000] 1676037733.82s 2mb|-------------------------L0.18-------------------------|                                 "
+    - "L0.19[1675987267649000000,1676037909084000000] 1676037911.43s 2mb|-------------------------L0.19-------------------------|                                 "
+    - "L0.20[1675988167750000000,1676037975214000000] 1676037976.76s 2mb |------------------------L0.20-------------------------|                                 "
+    - "L0.21[1675995240778000000,1676063934345000000] 1676063936.52s 2mb         |-----------------------------------L0.21------------------------------------|   "
+    - "L0.22[1675987292063000000,1676064071432000000] 1676064075.61s 2mb|----------------------------------------L0.22----------------------------------------|   "
+    - "L0.23[1675991856673000000,1676064136664000000] 1676064139.13s 2mb     |-------------------------------------L0.23--------------------------------------|   "
+    - "L0.24[1675990277246000000,1676064234591000000] 1676064236.56s 2mb   |--------------------------------------L0.24---------------------------------------|   "
+    - "L0.25[1675989676787000000,1676064371697000000] 1676064375.72s 2mb  |---------------------------------------L0.25---------------------------------------|   "
+    - "L0.26[1675992075734000000,1676064437297000000] 1676064439.06s 2mb     |-------------------------------------L0.26--------------------------------------|   "
+    - "L0.27[1675991814786000000,1676064533585000000] 1676064536.46s 2mb     |-------------------------------------L0.27--------------------------------------|   "
+    - "L0.28[1675994514058000000,1676064670409000000] 1676064675.91s 2mb        |------------------------------------L0.28------------------------------------|   "
+    - "L0.29[1675989994664000000,1676064736678000000] 1676064740.17s 2mb   |---------------------------------------L0.29---------------------------------------|  "
+    - "L0.30[1675989093150000000,1676064834639000000] 1676064836.48s 2mb  |---------------------------------------L0.30----------------------------------------|  "
+    - "L0.31[1675987304054000000,1676064970327000000] 1676064975.86s 2mb|----------------------------------------L0.31-----------------------------------------|  "
+    - "L0.32[1675987787688000000,1676065036871000000] 1676065039.96s 2mb|----------------------------------------L0.32----------------------------------------|   "
+    - "L0.33[1675994030979000000,1676065133988000000] 1676065136.54s 2mb       |------------------------------------L0.33-------------------------------------|   "
+    - "L0.34[1675988375191000000,1676065272216000000] 1676065275.8s 2mb |----------------------------------------L0.34----------------------------------------|  "
+    - "L0.35[1675987584851000000,1676065337320000000] 1676065339.85s 2mb|----------------------------------------L0.35-----------------------------------------|  "
+    - "L0.36[1675987883656000000,1676065434070000000] 1676065436.48s 2mb|----------------------------------------L0.36-----------------------------------------|  "
+    - "L0.37[1675987838080000000,1676065568770000000] 1676065575.9s 2mb|----------------------------------------L0.37-----------------------------------------|  "
+    - "L0.38[1675987203524000000,1676003982168000000] 1676036233.84s 244kb|------L0.38------|                                                                       "
+    - "L0.39[1676003983105000000,1676020762353000000] 1676036233.84s 113mb                   |------L0.39------|                                                    "
+    - "L0.40[1676020762355000000,1676036230752000000] 1676036233.84s 159mb                                      |-----L0.40-----|                                   "
+    - "L0.41[1675987206125000000,1676013525882000000] 1676063839.07s 292kb|-----------L0.41-----------|                                                             "
+    - "L0.42[1676013530331000000,1676039845772000000] 1676063839.07s 28mb                             |-----------L0.42-----------|                                "
+    - "L0.43[1676039845773000000,1676063836202000000] 1676063839.07s 242mb                                                           |----------L0.43----------|    "
+    - "L0.44[1675987825375000000,1676050466145000000] 1676066475.26s 20kb|--------------------------------L0.44--------------------------------|                   "
+    - "L0.45[1676050539639000000,1676066212011000000] 1676066475.26s 13mb                                                                        |-----L0.45-----| "
+    - "L1                                                                                                                 "
+    - "L1.1[1675987200001000000,1675996179137000000] 1676010160.05s 99mb|--L1.1--|                                                                                "
+    - "L1.2[1675996179142000000,1676005158275000000] 1676010160.05s 97mb          |--L1.2--|                                                                      "
+    - "L1.3[1676005158277000000,1676010156669000000] 1676010160.05s 58mb                    |L1.3|                                                                "
+    - "WARNING: file L0.40[1676020762355000000,1676036230752000000] 1676036233.84s 159mb exceeds soft limit 100mb by more than 50%"
+    - "WARNING: file L0.43[1676039845773000000,1676063836202000000] 1676063839.07s 242mb exceeds soft limit 100mb by more than 50%"
+    - "**** Final Output Files (4.17gb written)"
+    - "L2                                                                                                                 "
+    - "L2.304[1676034607207000001,1676066212011000000] 1676066475.26s 286mb                                                      |-------------L2.304--------------| "
+    - "L2.321[1675987200001000000,1675993675383098793] 1676066475.26s 100mb|L2.321|                                                                                  "
+    - "L2.329[1675993675383098794,1676001131291506471] 1676066475.26s 100mb       |L2.329|                                                                           "
+    - "L2.330[1676001131291506472,1676008587199914148] 1676066475.26s 100mb               |L2.330|                                                                   "
+    - "L2.331[1676008587199914149,1676014352965372887] 1676066475.26s 77mb                        |L2.331|                                                          "
+    - "L2.332[1676014352965372888,1676023648281062782] 1676066475.26s 100mb                              |-L2.332-|                                                  "
+    - "L2.333[1676023648281062783,1676032943596752676] 1676066475.26s 100mb                                         |-L2.333-|                                       "
+    - "L2.334[1676032943596752677,1676034607207000000] 1676066475.26s 18mb                                                    |L2.334|                              "
+    - "WARNING: file L2.304[1676034607207000001,1676066212011000000] 1676066475.26s 286mb exceeds soft limit 100mb by more than 50%"
+    "###
+    );
+}
