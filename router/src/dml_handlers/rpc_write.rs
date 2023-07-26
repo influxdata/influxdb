@@ -130,15 +130,16 @@ impl<T> RpcWrite<T> {
         endpoints: impl IntoIterator<Item = (T, N)>,
         n_copies: NonZeroUsize,
         metrics: &metric::Registry,
+        error_window: Duration,
     ) -> Self
     where
         T: Send + Sync + Debug + 'static,
         N: Into<Arc<str>>,
     {
         let endpoints = Balancer::new(
-            endpoints
-                .into_iter()
-                .map(|(client, name)| CircuitBreakingClient::new(client, name.into())),
+            endpoints.into_iter().map(|(client, name)| {
+                CircuitBreakingClient::new(client, name.into(), error_window)
+            }),
             Some(metrics),
         );
 
@@ -383,6 +384,7 @@ mod tests {
 
     const NAMESPACE_NAME: &str = "bananas";
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
+    const ARBITRARY_TEST_ERROR_WINDOW: Duration = Duration::from_secs(5);
 
     // Start a new `NamespaceSchema` with only the given ID; the rest of the fields are arbitrary.
     fn new_empty_namespace_schema() -> Arc<NamespaceSchema> {
@@ -460,6 +462,7 @@ mod tests {
             [(Arc::clone(&client), "mock client")],
             1.try_into().unwrap(),
             &metric::Registry::default(),
+            ARBITRARY_TEST_ERROR_WINDOW,
         );
 
         // Drive the RPC writer
@@ -522,6 +525,7 @@ mod tests {
             ],
             1.try_into().unwrap(),
             &metric::Registry::default(),
+            ARBITRARY_TEST_ERROR_WINDOW,
         );
 
         // Drive the RPC writer
@@ -590,6 +594,7 @@ mod tests {
             ],
             1.try_into().unwrap(),
             &metric::Registry::default(),
+            ARBITRARY_TEST_ERROR_WINDOW,
         );
 
         // Drive the RPC writer
@@ -640,7 +645,10 @@ mod tests {
         circuit_1.set_healthy(false);
 
         let got = make_request(
-            [CircuitBreakingClient::new(client_1, "client_1").with_circuit_breaker(circuit_1)],
+            [
+                CircuitBreakingClient::new(client_1, "client_1", ARBITRARY_TEST_ERROR_WINDOW)
+                    .with_circuit_breaker(circuit_1),
+            ],
             1,
         )
         .await;
@@ -661,7 +669,10 @@ mod tests {
         circuit_1.set_healthy(true);
 
         let got = make_request(
-            [CircuitBreakingClient::new(client_1, "client_1").with_circuit_breaker(circuit_1)],
+            [
+                CircuitBreakingClient::new(client_1, "client_1", ARBITRARY_TEST_ERROR_WINDOW)
+                    .with_circuit_breaker(circuit_1),
+            ],
             1,
         )
         .await;
@@ -682,7 +693,10 @@ mod tests {
         circuit_1.set_healthy(true);
 
         let got = make_request(
-            [CircuitBreakingClient::new(client_1, "client_1").with_circuit_breaker(circuit_1)],
+            [
+                CircuitBreakingClient::new(client_1, "client_1", ARBITRARY_TEST_ERROR_WINDOW)
+                    .with_circuit_breaker(circuit_1),
+            ],
             1,
         )
         .await;
@@ -714,8 +728,10 @@ mod tests {
 
         let got = make_request(
             [
-                CircuitBreakingClient::new(client_1, "client_1").with_circuit_breaker(circuit_1),
-                CircuitBreakingClient::new(client_2, "client_2").with_circuit_breaker(circuit_2),
+                CircuitBreakingClient::new(client_1, "client_1", ARBITRARY_TEST_ERROR_WINDOW)
+                    .with_circuit_breaker(circuit_1),
+                CircuitBreakingClient::new(client_2, "client_2", ARBITRARY_TEST_ERROR_WINDOW)
+                    .with_circuit_breaker(circuit_2),
             ],
             2, // 2 copies required
         )
@@ -738,10 +754,18 @@ mod tests {
 
         let got = make_request(
             [
-                CircuitBreakingClient::new(Arc::clone(&client_1), "client_1")
-                    .with_circuit_breaker(circuit_1),
-                CircuitBreakingClient::new(Arc::clone(&client_2), "client_2")
-                    .with_circuit_breaker(circuit_2),
+                CircuitBreakingClient::new(
+                    Arc::clone(&client_1),
+                    "client_1",
+                    ARBITRARY_TEST_ERROR_WINDOW,
+                )
+                .with_circuit_breaker(circuit_1),
+                CircuitBreakingClient::new(
+                    Arc::clone(&client_2),
+                    "client_2",
+                    ARBITRARY_TEST_ERROR_WINDOW,
+                )
+                .with_circuit_breaker(circuit_2),
             ],
             2, // 2 copies required
         )
@@ -774,10 +798,18 @@ mod tests {
         circuit_2.set_healthy(true);
 
         let mut clients = vec![
-            CircuitBreakingClient::new(Arc::clone(&client_1), "client_1")
-                .with_circuit_breaker(circuit_1),
-            CircuitBreakingClient::new(Arc::clone(&client_2), "client_2")
-                .with_circuit_breaker(circuit_2),
+            CircuitBreakingClient::new(
+                Arc::clone(&client_1),
+                "client_1",
+                ARBITRARY_TEST_ERROR_WINDOW,
+            )
+            .with_circuit_breaker(circuit_1),
+            CircuitBreakingClient::new(
+                Arc::clone(&client_2),
+                "client_2",
+                ARBITRARY_TEST_ERROR_WINDOW,
+            )
+            .with_circuit_breaker(circuit_2),
         ];
 
         // The order should never affect the outcome.
@@ -820,10 +852,18 @@ mod tests {
 
         let got = make_request(
             [
-                CircuitBreakingClient::new(Arc::clone(&client_1), "client_1")
-                    .with_circuit_breaker(circuit_1),
-                CircuitBreakingClient::new(Arc::clone(&client_2), "client_2")
-                    .with_circuit_breaker(circuit_2),
+                CircuitBreakingClient::new(
+                    Arc::clone(&client_1),
+                    "client_1",
+                    ARBITRARY_TEST_ERROR_WINDOW,
+                )
+                .with_circuit_breaker(circuit_1),
+                CircuitBreakingClient::new(
+                    Arc::clone(&client_2),
+                    "client_2",
+                    ARBITRARY_TEST_ERROR_WINDOW,
+                )
+                .with_circuit_breaker(circuit_2),
             ],
             2, // 2 copies required
         )
@@ -876,12 +916,24 @@ mod tests {
         circuit_3.set_healthy(true);
 
         let mut clients = vec![
-            CircuitBreakingClient::new(Arc::clone(&client_1), "client_1")
-                .with_circuit_breaker(circuit_1),
-            CircuitBreakingClient::new(Arc::clone(&client_2), "client_2")
-                .with_circuit_breaker(circuit_2),
-            CircuitBreakingClient::new(Arc::clone(&client_3), "client_3")
-                .with_circuit_breaker(circuit_3),
+            CircuitBreakingClient::new(
+                Arc::clone(&client_1),
+                "client_1",
+                ARBITRARY_TEST_ERROR_WINDOW,
+            )
+            .with_circuit_breaker(circuit_1),
+            CircuitBreakingClient::new(
+                Arc::clone(&client_2),
+                "client_2",
+                ARBITRARY_TEST_ERROR_WINDOW,
+            )
+            .with_circuit_breaker(circuit_2),
+            CircuitBreakingClient::new(
+                Arc::clone(&client_3),
+                "client_3",
+                ARBITRARY_TEST_ERROR_WINDOW,
+            )
+            .with_circuit_breaker(circuit_3),
         ];
 
         // The order should never affect the outcome.
@@ -983,7 +1035,7 @@ mod tests {
                 async move {
                     let endpoints = upstreams.into_iter()
                         .map(|(circuit, client)| {
-                            CircuitBreakingClient::new(client, "bananas")
+                            CircuitBreakingClient::new(client, "bananas",ARBITRARY_TEST_ERROR_WINDOW)
                                 .with_circuit_breaker(circuit)
                         });
 
