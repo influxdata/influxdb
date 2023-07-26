@@ -26,7 +26,9 @@ use data_types::{
     Timestamp, TransitionPartitionId,
 };
 use iox_time::{SystemProvider, TimeProvider};
+use metric::{Attributes, Instrument, MetricKind};
 use observability_deps::tracing::{debug, info, warn};
+use parking_lot::{RwLock, RwLockWriteGuard};
 use snafu::prelude::*;
 use sqlx::{
     migrate::Migrator,
@@ -35,7 +37,9 @@ use sqlx::{
     Acquire, ConnectOptions, Executor, Postgres, Row,
 };
 use sqlx_hotswap_pool::HotSwapPool;
-use std::collections::HashSet;
+use std::borrow::Cow;
+use std::collections::{BTreeMap, HashSet};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, fmt::Display, str::FromStr, sync::Arc, time::Duration};
 
 static MIGRATOR: Migrator = sqlx::migrate!();
@@ -117,7 +121,7 @@ impl PostgresCatalog {
         options: PostgresConnectionOptions,
         metrics: Arc<metric::Registry>,
     ) -> Result<Self> {
-        let pool = new_pool(&options)
+        let pool = new_pool(&options, Arc::clone(&metrics))
             .await
             .map_err(|e| Error::SqlxError { source: e })?;
 
@@ -321,27 +325,207 @@ DO NOTHING;
     }
 }
 
+/// Adapter to connect sqlx pools with our metrics system.
+#[derive(Debug, Clone, Default)]
+struct PoolMetrics {
+    /// Actual shared state.
+    state: Arc<PoolMetricsInner>,
+}
+
+/// Inner state of [`PoolMetrics`] that is wrapped into an [`Arc`].
+#[derive(Debug, Default)]
+struct PoolMetricsInner {
+    /// Next pool ID.
+    pool_id_gen: AtomicU64,
+
+    /// Set of known pools and their ID labels.
+    pools: RwLock<BTreeMap<Arc<str>, KnownPool>>,
+}
+
+/// A registered sqlx pool.
+#[derive(Debug, Default)]
+struct KnownPool {
+    /// Number of currently used connection.
+    used: AtomicU64,
+
+    /// sqlx pool.
+    ///
+    /// Note: The pool is internally ref-counted via an [`Arc`]. Holding a reference does NOT prevent it from being closed.
+    pool: RwLock<Option<sqlx::Pool<Postgres>>>,
+}
+
+impl PoolMetrics {
+    /// Create new pool metrics.
+    fn new(metrics: Arc<metric::Registry>) -> Self {
+        metrics.register_instrument("iox_catalog_postgres", Self::default)
+    }
+
+    /// Generate new pool ID.
+    ///
+    /// Is is separate from [`register_pool`](Self::register_pool) because of the initialization dance that is required
+    /// to set up a pool with the right [`before_acquire`](PgPoolOptions::before_acquire) and
+    /// [`after_release`](PgPoolOptions::after_release) callbacks.
+    fn new_pool_id(&self) -> Arc<str> {
+        let id = self
+            .state
+            .pool_id_gen
+            .fetch_add(1, Ordering::SeqCst)
+            .to_string()
+            .into();
+        self.state
+            .pools
+            .write()
+            .insert(Arc::clone(&id), KnownPool::default());
+        id
+    }
+
+    /// Acquire connection.
+    fn acquire(&self, id: &str) {
+        let pools = self.state.pools.read();
+        let Some(p) = pools.get(id) else {return};
+        p.used.fetch_add(1, Ordering::SeqCst);
+    }
+
+    /// Release connection.
+    fn release(&self, id: &str) {
+        let pools = self.state.pools.read();
+        let Some(p) = pools.get(id) else {return};
+        p.used.fetch_sub(1, Ordering::SeqCst);
+    }
+
+    /// Register a new pool.
+    fn register_pool(&self, id: &str, pool: sqlx::Pool<Postgres>) {
+        let pools = self.state.pools.read();
+        let Some(p) = pools.get(id) else {return};
+        let mut p = p.pool.write();
+        assert!(p.is_none(), "Pool with same ID already known");
+        *p = Some(pool);
+    }
+
+    /// Remove closed pools from given list.
+    fn clean_pools(pools: &mut BTreeMap<Arc<str>, KnownPool>) {
+        pools.retain(|_id, p| match p.pool.read().as_ref() {
+            Some(p) => !p.is_closed(),
+            None => true,
+        });
+    }
+}
+
+impl Instrument for PoolMetrics {
+    fn report(&self, reporter: &mut dyn metric::Reporter) {
+        let mut pools = self.state.pools.write();
+        Self::clean_pools(&mut pools);
+        let pools = RwLockWriteGuard::downgrade(pools);
+
+        reporter.start_metric(
+            "sqlx_postgres_pools",
+            "Number of pools that sqlx uses",
+            MetricKind::U64Gauge,
+        );
+        reporter.report_observation(
+            &Attributes::from([]),
+            metric::Observation::U64Gauge(pools.len() as u64),
+        );
+        reporter.finish_metric();
+
+        reporter.start_metric(
+            "sqlx_postgres_connections",
+            "Number of connections within the postgres connection pool that sqlx uses",
+            MetricKind::U64Gauge,
+        );
+        for (id, pool) in pools.iter() {
+            let p = pool.pool.read();
+            let Some(p) = p.as_ref() else {continue;};
+
+            reporter.report_observation(
+                &Attributes::from([
+                    ("pool_id", Cow::Owned(id.as_ref().to_owned())),
+                    ("state", Cow::Borrowed("active")),
+                ]),
+                metric::Observation::U64Gauge(p.size() as u64),
+            );
+            reporter.report_observation(
+                &Attributes::from([
+                    ("pool_id", Cow::Owned(id.as_ref().to_owned())),
+                    ("state", Cow::Borrowed("idle")),
+                ]),
+                metric::Observation::U64Gauge(p.num_idle() as u64),
+            );
+            reporter.report_observation(
+                &Attributes::from([
+                    ("pool_id", Cow::Owned(id.as_ref().to_owned())),
+                    ("state", Cow::Borrowed("max")),
+                ]),
+                metric::Observation::U64Gauge(p.options().get_max_connections() as u64),
+            );
+            reporter.report_observation(
+                &Attributes::from([
+                    ("pool_id", Cow::Owned(id.as_ref().to_owned())),
+                    ("state", Cow::Borrowed("min")),
+                ]),
+                metric::Observation::U64Gauge(p.options().get_min_connections() as u64),
+            );
+            reporter.report_observation(
+                &Attributes::from([
+                    ("pool_id", Cow::Owned(id.as_ref().to_owned())),
+                    ("state", Cow::Borrowed("used")),
+                ]),
+                metric::Observation::U64Gauge(pool.used.load(Ordering::SeqCst)),
+            );
+        }
+
+        reporter.finish_metric();
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
 /// Creates a new [`sqlx::Pool`] from a database config and an explicit DSN.
 ///
 /// This function doesn't support the IDPE specific `dsn-file://` uri scheme.
 async fn new_raw_pool(
     options: &PostgresConnectionOptions,
     parsed_dsn: &str,
+    metrics: PoolMetrics,
 ) -> Result<sqlx::Pool<Postgres>, sqlx::Error> {
     // sqlx exposes some options as pool options, while other options are available as connection options.
     let connect_options = PgConnectOptions::from_str(parsed_dsn)?
         // the default is INFO, which is frankly surprising.
         .log_statements(log::LevelFilter::Trace);
 
+    let pool_id = metrics.new_pool_id();
+
     let app_name = options.app_name.clone();
     let app_name2 = options.app_name.clone(); // just to log below
     let schema_name = options.schema_name.clone();
+    let metrics_captured_1 = metrics.clone();
+    let metrics_captured_2 = metrics.clone();
+    let id_captured_1 = Arc::clone(&pool_id);
+    let id_captured_2 = Arc::clone(&pool_id);
     let pool = PgPoolOptions::new()
         .min_connections(1)
         .max_connections(options.max_conns)
         .acquire_timeout(options.connect_timeout)
         .idle_timeout(options.idle_timeout)
         .test_before_acquire(true)
+        .before_acquire(move |_c, _meta| {
+            let metrics = metrics_captured_1.clone();
+            let pool_id = Arc::clone(&id_captured_1);
+            Box::pin(async move {
+                metrics.acquire(&pool_id);
+                Ok(true)
+            })
+        })
+        .after_release(move |_c, _meta| {
+            let metrics = metrics_captured_2.clone();
+            let pool_id = Arc::clone(&id_captured_2);
+            Box::pin(async move {
+                metrics.release(&pool_id);
+                Ok(true)
+            })
+        })
         .after_connect(move |c, _meta| {
             let app_name = app_name.to_owned();
             let schema_name = schema_name.to_owned();
@@ -377,6 +561,7 @@ async fn new_raw_pool(
     // name for cross-correlation between Conductor logs & database connections.
     info!(application_name=%app_name2, "connected to config store");
 
+    metrics.register_pool(&pool_id, pool.clone());
     Ok(pool)
 }
 
@@ -406,9 +591,11 @@ pub fn parse_dsn(dsn: &str) -> Result<String, sqlx::Error> {
 /// is successfull (see [`sqlx::pool::PoolOptions::test_before_acquire`]).
 async fn new_pool(
     options: &PostgresConnectionOptions,
+    metrics: Arc<metric::Registry>,
 ) -> Result<HotSwapPool<Postgres>, sqlx::Error> {
     let parsed_dsn = parse_dsn(&options.dsn)?;
-    let pool = HotSwapPool::new(new_raw_pool(options, &parsed_dsn).await?);
+    let metrics = PoolMetrics::new(metrics);
+    let pool = HotSwapPool::new(new_raw_pool(options, &parsed_dsn, metrics.clone()).await?);
     let polling_interval = options.hotswap_poll_interval;
 
     if let Some(dsn_file) = get_dsn_file_path(&options.dsn) {
@@ -432,12 +619,13 @@ async fn new_pool(
                     current_dsn: &str,
                     dsn_file: &str,
                     pool: &HotSwapPool<Postgres>,
+                    metrics: PoolMetrics,
                 ) -> Result<Option<String>, sqlx::Error> {
                     let new_dsn = std::fs::read_to_string(dsn_file)?;
                     if new_dsn == current_dsn {
                         Ok(None)
                     } else {
-                        let new_pool = new_raw_pool(options, &new_dsn).await?;
+                        let new_pool = new_raw_pool(options, &new_dsn, metrics).await?;
                         let old_pool = pool.replace(new_pool);
                         info!("replaced hotswap pool");
                         info!(?old_pool, "closing old DB connection pool");
@@ -450,7 +638,7 @@ async fn new_pool(
                     }
                 }
 
-                match try_update(&options, &current_dsn, &dsn_file, &pool).await {
+                match try_update(&options, &current_dsn, &dsn_file, &pool, metrics.clone()).await {
                     Ok(None) => {}
                     Ok(Some(new_dsn)) => {
                         current_dsn = new_dsn;
@@ -1907,7 +2095,7 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::partition_template::TemplatePart;
     use generated_types::influxdata::iox::partition_template::v1 as proto;
-    use metric::{Attributes, DurationHistogram, Metric};
+    use metric::{Attributes, DurationHistogram, Metric, Observation, RawReporter};
     use std::{io::Write, sync::Arc, time::Instant};
     use tempfile::NamedTempFile;
     use test_helpers::maybe_start_logging;
@@ -2134,7 +2322,8 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
             hotswap_poll_interval: POLLING_INTERVAL,
             ..Default::default()
         };
-        let pool = new_pool(&options).await.expect("connect");
+        let metrics = Arc::new(metric::Registry::new());
+        let pool = new_pool(&options, metrics).await.expect("connect");
         eprintln!("got a pool");
 
         // ensure the application name is set as expected
@@ -2834,5 +3023,31 @@ RETURNING *;
         let partition_template: Option<TablePartitionTemplateOverride> =
             record.try_get("partition_template").unwrap();
         assert!(partition_template.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_metrics() {
+        maybe_skip_integration!();
+
+        let postgres = setup_db_no_migration().await;
+
+        let mut reporter = RawReporter::default();
+        postgres.metrics.report(&mut reporter);
+        assert_eq!(
+            reporter
+                .metric("sqlx_postgres_connections")
+                .unwrap()
+                .observation(&[("pool_id", "0"), ("state", "min")])
+                .unwrap(),
+            &Observation::U64Gauge(1),
+        );
+        assert_eq!(
+            reporter
+                .metric("sqlx_postgres_connections")
+                .unwrap()
+                .observation(&[("pool_id", "0"), ("state", "max")])
+                .unwrap(),
+            &Observation::U64Gauge(3),
+        );
     }
 }

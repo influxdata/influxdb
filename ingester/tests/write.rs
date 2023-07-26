@@ -23,7 +23,7 @@ use trace::{ctx::SpanContext, RingBufferTraceCollector};
 async fn write_persist() {
     let namespace_name = "write_query_test_namespace";
     let mut ctx = TestContextBuilder::default().build().await;
-    let ns = ctx.ensure_namespace(namespace_name, None).await;
+    let ns = ctx.ensure_namespace(namespace_name, None, None).await;
 
     let partition_key = PartitionKey::from("1970-01-01");
     ctx.write_lp(
@@ -191,7 +191,7 @@ async fn wal_replay() {
             .build()
             .await;
 
-        let ns = ctx.ensure_namespace(namespace_name, None).await;
+        let ns = ctx.ensure_namespace(namespace_name, None, None).await;
 
         // Initial write
         let partition_key = PartitionKey::from("1970-01-01");
@@ -285,7 +285,7 @@ async fn graceful_shutdown() {
         .build()
         .await;
 
-    let ns = ctx.ensure_namespace(namespace_name, None).await;
+    let ns = ctx.ensure_namespace(namespace_name, None, None).await;
     let namespace_id = ns.id;
 
     // Initial write
@@ -394,7 +394,7 @@ async fn wal_reference_dropping() {
         .build()
         .await;
 
-    let ns = ctx.ensure_namespace(TEST_NAMESPACE_NAME, None).await;
+    let ns = ctx.ensure_namespace(TEST_NAMESPACE_NAME, None, None).await;
 
     // Initial write
     let partition_key = PartitionKey::from("1970-01-01");
@@ -497,7 +497,7 @@ fn get_file_names_in_dir(dir: &Path) -> Result<Vec<OsString>, std::io::Error> {
 async fn write_tracing() {
     let namespace_name = "write_tracing_test_namespace";
     let mut ctx = TestContextBuilder::default().build().await;
-    let ns = ctx.ensure_namespace(namespace_name, None).await;
+    let ns = ctx.ensure_namespace(namespace_name, None, None).await;
 
     let trace_collector = Arc::new(RingBufferTraceCollector::new(5));
     let span_ctx = SpanContext::new(Arc::new(Arc::clone(&trace_collector)));

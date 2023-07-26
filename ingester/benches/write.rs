@@ -33,7 +33,7 @@ async fn init(lp: impl AsRef<str>) -> (TestContext<impl IngesterRpcInterface>, D
         .await;
 
     // Ensure the namespace exists in the catalog.
-    let ns = ctx.ensure_namespace(TEST_NAMESPACE, None).await;
+    let ns = ctx.ensure_namespace(TEST_NAMESPACE, None, None).await;
 
     // Perform a write to drive table / schema population in the catalog.
     ctx.write_lp(
