@@ -8,6 +8,9 @@
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
+// Re-export prost for users of proto types.
+pub use prost;
+
 /// This module imports the generated protobuf code into a Rust module
 /// hierarchy that matches the namespace hierarchy of the protobuf
 /// definitions
