@@ -14,22 +14,24 @@ pub struct Config {
 
     /// Partition template
     #[clap(flatten)]
-    partition_template: PartitionTemplateConfig,
+    partition_template_config: PartitionTemplateConfig,
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
     let Config {
         database,
         table,
-        partition_template,
+        partition_template_config,
     } = config;
-
-    let partition_template = partition_template.partition_template();
 
     let mut client = influxdb_iox_client::table::Client::new(connection);
 
     let table = client
-        .create_table(&database, &table, partition_template)
+        .create_table(
+            &database,
+            &table,
+            partition_template_config.partition_template,
+        )
         .await?;
     println!("{}", serde_json::to_string_pretty(&table)?);
 
@@ -80,6 +82,9 @@ mod tests {
 
         assert_eq!(config.database, "database");
         assert_eq!(config.table, "table");
-        assert_eq!(config.partition_template.partition_template(), expected);
+        assert_eq!(
+            config.partition_template_config.partition_template,
+            expected
+        );
     }
 }

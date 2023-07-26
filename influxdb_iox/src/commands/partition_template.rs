@@ -1,6 +1,4 @@
 use generated_types::influxdata::iox::partition_template::v1 as proto;
-use influxdb_iox_client::table::generated_types::PartitionTemplate;
-use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 
 #[allow(clippy::enum_variant_names)]
@@ -27,13 +25,13 @@ pub struct PartitionTemplateConfig {
         long = "partition-template",
         short = 'p',
         default_value = None,
-        value_parser = parse_part_template,
+        value_parser = parse_partition_template,
     )]
-    pub parts: Option<PartTemplate>,
+    pub partition_template: Option<proto::PartitionTemplate>,
 }
 
-fn parse_part_template(s: &str) -> Result<PartTemplate, Error> {
-    let part_template: PartTemplate =
+fn parse_partition_template(s: &str) -> Result<proto::PartitionTemplate, Error> {
+    let part_template: proto::PartitionTemplate =
         serde_json::from_str(s).context(InvalidPartitionTemplateSnafu)?;
 
     // Error if empty parts
@@ -42,46 +40,6 @@ fn parse_part_template(s: &str) -> Result<PartTemplate, Error> {
     }
 
     Ok(part_template)
-}
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct PartTemplate {
-    pub parts: Vec<Part>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Part {
-    TagValue(String),
-    TimeFormat(String),
-}
-
-impl PartitionTemplateConfig {
-    pub fn partition_template(&self) -> Option<PartitionTemplate> {
-        self.parts.as_ref()?;
-
-        let part_template = self.parts.as_ref().unwrap().clone();
-
-        let template_parts = part_template
-            .parts
-            .into_iter()
-            .map(|part| match part {
-                Part::TagValue(tag_value) => proto::TemplatePart {
-                    part: Some(proto::template_part::Part::TagValue(tag_value.clone())),
-                },
-                Part::TimeFormat(time_format) => proto::TemplatePart {
-                    part: Some(proto::template_part::Part::TimeFormat(time_format.clone())),
-                },
-            })
-            .collect::<Vec<_>>();
-
-        if template_parts.is_empty() {
-            return None;
-        }
-
-        Some(PartitionTemplate {
-            parts: template_parts,
-        })
-    }
 }
 
 #[cfg(test)]
@@ -179,7 +137,7 @@ mod tests {
         ])
         .unwrap();
 
-        let part_template = actual.partition_template().unwrap();
+        let part_template = actual.partition_template.unwrap();
         assert_eq!(part_template.parts.len(), 1);
         assert_eq!(
             part_template.parts[0].part,
@@ -198,7 +156,7 @@ mod tests {
         ])
         .unwrap();
 
-        let part_template = actual.partition_template().unwrap();
+        let part_template = actual.partition_template.unwrap();
         assert_eq!(part_template.parts.len(), 1);
         assert_eq!(
             part_template.parts[0].part,
@@ -217,7 +175,7 @@ mod tests {
         ])
         .unwrap();
 
-        let part_template = actual.partition_template().unwrap();
+        let part_template = actual.partition_template.unwrap();
         assert_eq!(part_template.parts.len(), 3);
         assert_eq!(
             part_template.parts[0].part,
@@ -248,7 +206,7 @@ mod tests {
         ])
         .unwrap();
 
-        let part_template = actual.partition_template().unwrap();
+        let part_template = actual.partition_template.unwrap();
         assert_eq!(part_template.parts.len(), 3);
         assert_eq!(
             part_template.parts[0].part,
