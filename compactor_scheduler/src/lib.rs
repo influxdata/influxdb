@@ -50,7 +50,7 @@ pub(crate) use local_scheduler::{
 
 // partitions_source trait
 mod partitions_source;
-pub use partitions_source::*;
+pub(crate) use partitions_source::*;
 
 // scheduler trait and associated types
 mod scheduler;
