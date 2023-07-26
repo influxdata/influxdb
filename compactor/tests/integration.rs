@@ -68,8 +68,8 @@ async fn test_num_files_over_limit() {
     assert_levels(
         &files,
         vec![
+            (8, CompactionLevel::FileNonOverlapped),
             (9, CompactionLevel::FileNonOverlapped),
-            (10, CompactionLevel::FileNonOverlapped),
         ],
     );
 }
