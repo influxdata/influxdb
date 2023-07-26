@@ -56,8 +56,7 @@ async fn create_tables() {
                 .await
                 .unwrap();
 
-            // table4: create explicitly with time format `whatever`
-            // TODO:  ask write team if we allow time format `whatever` (see partition key below)
+            // table4: create explicitly with time format `whatever` which is a valid strftime format
             table_client
                 .create_table(
                     namespace_name,
@@ -70,12 +69,26 @@ async fn create_tables() {
                 )
                 .await
                 .unwrap();
+
+            // table5: create time format %Y-bananas
+            table_client
+                .create_table(
+                    namespace_name,
+                    "table5",
+                    Some(PartitionTemplate {
+                        parts: vec![TemplatePart {
+                            part: Some(Part::TimeFormat("%Y-bananas".into())),
+                        }],
+                    }),
+                )
+                .await
+                .unwrap();
         }
         .boxed()
     }))];
 
     // Steps to write data to tables
-    steps.extend((1..=4).flat_map(|tid| {
+    steps.extend((1..=5).flat_map(|tid| {
         [Step::WriteLineProtocol(
             [
                 format!("table{tid},tag1=v1a,tag2=v2a,tag3=v3a f=1 11"),
@@ -93,7 +106,7 @@ async fn create_tables() {
     }));
 
     // Steps to query tables
-    steps.extend((1..=3).flat_map(|tid| {
+    steps.extend((1..=5).flat_map(|tid| {
         [Step::Query {
             sql: format!("select * from table{tid}"),
             expected: vec![
@@ -135,8 +148,12 @@ async fn create_tables() {
     steps.push(Step::PartitionKeys {
         table_name: "table4".into(),
         namespace_name: None,
-        // TODO:  ask write team if this is expected
         expected: vec!["whatever"],
+    });
+    steps.push(Step::PartitionKeys {
+        table_name: "table5".into(),
+        namespace_name: None,
+        expected: vec!["1970-bananas"],
     });
 
     // run the steps

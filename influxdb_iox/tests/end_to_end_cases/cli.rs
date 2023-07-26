@@ -408,7 +408,7 @@ async fn create_tables_negative() {
                             "Client error: Client specified an invalid argument: invalid tag value in partition template: time cannot be used",
                         ));
 
-                    // Time format is `whatever`
+                    // Time format is `%42` which is invalid
                     Command::cargo_bin("influxdb_iox")
                     .unwrap()
                     .arg("-h")
@@ -418,10 +418,12 @@ async fn create_tables_negative() {
                     .arg(namespace)
                     .arg("h2o_temperature")
                     .arg("--partition-template")
-                    .arg("{\"parts\": [{\"TagValue\": \"location\"}, {\"TimeFormat\": \"whatever\"}] }")
+                    .arg("{\"parts\": [{\"TagValue\": \"location\"}, {\"TimeFormat\": \"%42\"}] }")
                     .assert()
-                    .success()
-                    .stdout(predicate::str::contains("h2o_temperature"));
+                    .failure()
+                    .stderr(predicate::str::contains(
+                        "Client error: Client specified an invalid argument: invalid strftime format in partition template",
+                    ));
 
                     // Over 8 parts
                     Command::cargo_bin("influxdb_iox")
