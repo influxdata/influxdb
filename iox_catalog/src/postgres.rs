@@ -38,7 +38,7 @@ use sqlx::{
 };
 use sqlx_hotswap_pool::HotSwapPool;
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, fmt::Display, str::FromStr, sync::Arc, time::Duration};
 
@@ -339,19 +339,9 @@ struct PoolMetricsInner {
     pool_id_gen: AtomicU64,
 
     /// Set of known pools and their ID labels.
-    pools: RwLock<BTreeMap<Arc<str>, KnownPool>>,
-}
-
-/// A registered sqlx pool.
-#[derive(Debug, Default)]
-struct KnownPool {
-    /// Number of currently used connection.
-    used: AtomicU64,
-
-    /// sqlx pool.
     ///
     /// Note: The pool is internally ref-counted via an [`Arc`]. Holding a reference does NOT prevent it from being closed.
-    pool: RwLock<Option<sqlx::Pool<Postgres>>>,
+    pools: RwLock<Vec<(Arc<str>, sqlx::Pool<Postgres>)>>,
 }
 
 impl PoolMetrics {
@@ -360,54 +350,21 @@ impl PoolMetrics {
         metrics.register_instrument("iox_catalog_postgres", Self::default)
     }
 
-    /// Generate new pool ID.
-    ///
-    /// Is is separate from [`register_pool`](Self::register_pool) because of the initialization dance that is required
-    /// to set up a pool with the right [`before_acquire`](PgPoolOptions::before_acquire) and
-    /// [`after_release`](PgPoolOptions::after_release) callbacks.
-    fn new_pool_id(&self) -> Arc<str> {
+    /// Register a new pool.
+    fn register_pool(&self, pool: sqlx::Pool<Postgres>) {
         let id = self
             .state
             .pool_id_gen
             .fetch_add(1, Ordering::SeqCst)
             .to_string()
             .into();
-        self.state
-            .pools
-            .write()
-            .insert(Arc::clone(&id), KnownPool::default());
-        id
-    }
-
-    /// Acquire connection.
-    fn acquire(&self, id: &str) {
-        let pools = self.state.pools.read();
-        let Some(p) = pools.get(id) else {return};
-        p.used.fetch_add(1, Ordering::SeqCst);
-    }
-
-    /// Release connection.
-    fn release(&self, id: &str) {
-        let pools = self.state.pools.read();
-        let Some(p) = pools.get(id) else {return};
-        p.used.fetch_sub(1, Ordering::SeqCst);
-    }
-
-    /// Register a new pool.
-    fn register_pool(&self, id: &str, pool: sqlx::Pool<Postgres>) {
-        let pools = self.state.pools.read();
-        let Some(p) = pools.get(id) else {return};
-        let mut p = p.pool.write();
-        assert!(p.is_none(), "Pool with same ID already known");
-        *p = Some(pool);
+        let mut pools = self.state.pools.write();
+        pools.push((id, pool));
     }
 
     /// Remove closed pools from given list.
-    fn clean_pools(pools: &mut BTreeMap<Arc<str>, KnownPool>) {
-        pools.retain(|_id, p| match p.pool.read().as_ref() {
-            Some(p) => !p.is_closed(),
-            None => true,
-        });
+    fn clean_pools(pools: &mut Vec<(Arc<str>, sqlx::Pool<Postgres>)>) {
+        pools.retain(|(_id, p)| !p.is_closed());
     }
 }
 
@@ -433,10 +390,7 @@ impl Instrument for PoolMetrics {
             "Number of connections within the postgres connection pool that sqlx uses",
             MetricKind::U64Gauge,
         );
-        for (id, pool) in pools.iter() {
-            let p = pool.pool.read();
-            let Some(p) = p.as_ref() else {continue;};
-
+        for (id, p) in pools.iter() {
             reporter.report_observation(
                 &Attributes::from([
                     ("pool_id", Cow::Owned(id.as_ref().to_owned())),
@@ -465,13 +419,6 @@ impl Instrument for PoolMetrics {
                 ]),
                 metric::Observation::U64Gauge(p.options().get_min_connections() as u64),
             );
-            reporter.report_observation(
-                &Attributes::from([
-                    ("pool_id", Cow::Owned(id.as_ref().to_owned())),
-                    ("state", Cow::Borrowed("used")),
-                ]),
-                metric::Observation::U64Gauge(pool.used.load(Ordering::SeqCst)),
-            );
         }
 
         reporter.finish_metric();
@@ -495,37 +442,15 @@ async fn new_raw_pool(
         // the default is INFO, which is frankly surprising.
         .log_statements(log::LevelFilter::Trace);
 
-    let pool_id = metrics.new_pool_id();
-
     let app_name = options.app_name.clone();
     let app_name2 = options.app_name.clone(); // just to log below
     let schema_name = options.schema_name.clone();
-    let metrics_captured_1 = metrics.clone();
-    let metrics_captured_2 = metrics.clone();
-    let id_captured_1 = Arc::clone(&pool_id);
-    let id_captured_2 = Arc::clone(&pool_id);
     let pool = PgPoolOptions::new()
         .min_connections(1)
         .max_connections(options.max_conns)
         .acquire_timeout(options.connect_timeout)
         .idle_timeout(options.idle_timeout)
         .test_before_acquire(true)
-        .before_acquire(move |_c, _meta| {
-            let metrics = metrics_captured_1.clone();
-            let pool_id = Arc::clone(&id_captured_1);
-            Box::pin(async move {
-                metrics.acquire(&pool_id);
-                Ok(true)
-            })
-        })
-        .after_release(move |_c, _meta| {
-            let metrics = metrics_captured_2.clone();
-            let pool_id = Arc::clone(&id_captured_2);
-            Box::pin(async move {
-                metrics.release(&pool_id);
-                Ok(true)
-            })
-        })
         .after_connect(move |c, _meta| {
             let app_name = app_name.to_owned();
             let schema_name = schema_name.to_owned();
@@ -561,7 +486,7 @@ async fn new_raw_pool(
     // name for cross-correlation between Conductor logs & database connections.
     info!(application_name=%app_name2, "connected to config store");
 
-    metrics.register_pool(&pool_id, pool.clone());
+    metrics.register_pool(pool.clone());
     Ok(pool)
 }
 

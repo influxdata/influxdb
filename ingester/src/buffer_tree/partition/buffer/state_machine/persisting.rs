@@ -3,6 +3,7 @@
 use arrow::record_batch::RecordBatch;
 use data_types::{sequence_number_set::SequenceNumberSet, TimestampMinMax};
 use iox_query::util::compute_timenanosecond_min_max;
+use schema::{merge::merge_record_batch_schemas, Schema};
 
 use super::BufferState;
 use crate::{
@@ -20,6 +21,7 @@ pub(crate) struct Persisting {
     /// Statistics describing the data in snapshots.
     row_count: usize,
     timestamp_stats: TimestampMinMax,
+    schema: Schema,
 }
 
 impl Persisting {
@@ -27,6 +29,7 @@ impl Persisting {
         snapshots: Vec<RecordBatch>,
         row_count: usize,
         timestamp_stats: TimestampMinMax,
+        schema: Schema,
     ) -> Self {
         // Invariant: the summary statistics provided must match the actual
         // data.
@@ -38,11 +41,13 @@ impl Persisting {
             timestamp_stats,
             compute_timenanosecond_min_max(snapshots.iter()).unwrap()
         );
+        debug_assert_eq!(schema, merge_record_batch_schemas(&snapshots));
 
         Self {
             snapshots,
             row_count,
             timestamp_stats,
+            schema,
         }
     }
 }
@@ -58,6 +63,10 @@ impl Queryable for Persisting {
 
     fn timestamp_stats(&self) -> Option<TimestampMinMax> {
         Some(self.timestamp_stats)
+    }
+
+    fn schema(&self) -> Option<schema::Schema> {
+        Some(self.schema.clone()) // Ref clone
     }
 }
 

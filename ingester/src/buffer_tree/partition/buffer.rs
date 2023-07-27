@@ -7,6 +7,7 @@ mod mutable_buffer;
 mod state_machine;
 pub(crate) mod traits;
 
+use schema::Schema;
 pub(crate) use state_machine::*;
 
 use crate::query::projection::OwnedProjection;
@@ -85,6 +86,13 @@ impl DataBuffer {
     pub(crate) fn timestamp_stats(&self) -> Option<TimestampMinMax> {
         match self.0.get() {
             FsmState::Buffering(v) => v.timestamp_stats(),
+        }
+    }
+
+    /// Returns the [`Schema`] for the buffered data.
+    pub(crate) fn schema(&self) -> Option<Schema> {
+        match self.0.get() {
+            FsmState::Buffering(v) => v.schema(),
         }
     }
 

@@ -2142,6 +2142,279 @@ async fn single_file_compaction() {
     );
 }
 
+// Another case from a real world catalog.  Originally this case resulted in (appropriately) splitting the L0s so they don't overlap so many L1s, then (inapproprately)
+// compacting the L0s together again as a ManySmallFiles operation, then the cycle repeated.
+#[tokio::test]
+async fn split_then_undo_it() {
+    test_helpers::maybe_start_logging();
+
+    let max_files = 20;
+    let setup = layout_setup_builder()
+        .await
+        .with_max_num_files_per_plan(max_files)
+        .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
+        .with_partition_timeout(Duration::from_millis(1000))
+        .with_suppress_run_output() // remove this to debug
+        .build()
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1680045637389000000)
+                .with_max_time(1680046202520000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1680564436898219406))
+                .with_file_size_bytes(106355502),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1680046202521000000)
+                .with_max_time(1680046767652000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1680564436898219406))
+                .with_file_size_bytes(104204199),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1680046767653000000)
+                .with_max_time(1680047223526000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1680564436898219406))
+                .with_file_size_bytes(84022852),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1680047223527000000)
+                .with_max_time(1680047793776000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1680564436898219406))
+                .with_file_size_bytes(105366839),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1680047793777000000)
+                .with_max_time(1680047999999000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1680564436898219406))
+                .with_file_size_bytes(37340524),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1679962892196000000)
+                .with_max_time(1679969727828000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681186614522129445))
+                .with_file_size_bytes(585995),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1679979814583000000)
+                .with_max_time(1679989863127000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681186614522129445))
+                .with_file_size_bytes(124967),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1679994942502000000)
+                .with_max_time(1679996159985000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681186614522129445))
+                .with_file_size_bytes(174089),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1679996160115000000)
+                .with_max_time(1680013439626000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681186614522129445))
+                .with_file_size_bytes(1448943),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1680013440066000000)
+                .with_max_time(1680019937530000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681186614522129445))
+                .with_file_size_bytes(443531),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1680019960376000000)
+                .with_max_time(1680030670313000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681186614522129445))
+                .with_file_size_bytes(187534),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1680030903802000000)
+                .with_max_time(1680033957192000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681186614522129445))
+                .with_file_size_bytes(50882),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1680035266427000000)
+                .with_max_time(1680037607284000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681186614522129445))
+                .with_file_size_bytes(62993),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1680037696661000000)
+                .with_max_time(1680041087999000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681186614522129445))
+                .with_file_size_bytes(9732222),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1680041088000000000)
+                .with_max_time(1680044543999000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681186614522129445))
+                .with_file_size_bytes(116659999),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1680044544000000000)
+                .with_max_time(1680045637388000000)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681186614522129445))
+                .with_file_size_bytes(177095940),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1679961600071000000)
+                .with_max_time(1680030719900000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681420678891928705))
+                .with_file_size_bytes(11208773),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1680030720000000000)
+                .with_max_time(1680047999900000000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1681420678891928705))
+                .with_file_size_bytes(2806765),
+        )
+        .await;
+
+    insta::assert_yaml_snapshot!(
+        run_layout_scenario(&setup).await,
+        @r###"
+    ---
+    - "**** Input Files "
+    - "L0                                                                                                                 "
+    - "L0.17[1679961600071000000,1680030719900000000] 1681420678.89s 11mb|--------------------------------L0.17--------------------------------|                   "
+    - "L0.18[1680030720000000000,1680047999900000000] 1681420678.89s 3mb                                                                       |-----L0.18-----|  "
+    - "L1                                                                                                                 "
+    - "L1.1[1680045637389000000,1680046202520000000] 1680564436.9s 101mb                                                                                       |L1.1|"
+    - "L1.2[1680046202521000000,1680046767652000000] 1680564436.9s 99mb                                                                                        |L1.2|"
+    - "L1.3[1680046767653000000,1680047223526000000] 1680564436.9s 80mb                                                                                        |L1.3|"
+    - "L1.4[1680047223527000000,1680047793776000000] 1680564436.9s 100mb                                                                                         |L1.4|"
+    - "L1.5[1680047793777000000,1680047999999000000] 1680564436.9s 36mb                                                                                         |L1.5|"
+    - "L1.6[1679962892196000000,1679969727828000000] 1681186614.52s 572kb |L1.6-|                                                                                  "
+    - "L1.7[1679979814583000000,1679989863127000000] 1681186614.52s 122kb                  |--L1.7--|                                                              "
+    - "L1.8[1679994942502000000,1679996159985000000] 1681186614.52s 170kb                                  |L1.8|                                                  "
+    - "L1.9[1679996160115000000,1680013439626000000] 1681186614.52s 1mb                                    |-----L1.9------|                                     "
+    - "L1.10[1680013440066000000,1680019937530000000] 1681186614.52s 433kb                                                      |L1.10|                             "
+    - "L1.11[1680019960376000000,1680030670313000000] 1681186614.52s 183kb                                                            |--L1.11--|                   "
+    - "L1.12[1680030903802000000,1680033957192000000] 1681186614.52s 50kb                                                                        |L1.12|           "
+    - "L1.13[1680035266427000000,1680037607284000000] 1681186614.52s 62kb                                                                            |L1.13|       "
+    - "L1.14[1680037696661000000,1680041087999000000] 1681186614.52s 9mb                                                                               |L1.14|    "
+    - "L1.15[1680041088000000000,1680044543999000000] 1681186614.52s 111mb                                                                                  |L1.15| "
+    - "L1.16[1680044544000000000,1680045637388000000] 1681186614.52s 169mb                                                                                      |L1.16|"
+    - "WARNING: file L1.16[1680044544000000000,1680045637388000000] 1681186614.52s 169mb exceeds soft limit 100mb by more than 50%"
+    - "**** Final Output Files (1.51gb written)"
+    - "L2                                                                                                                 "
+    - "L2.46[1679961600071000000,1680022452125054234] 1681420678.89s 100mb|----------------------------L2.46----------------------------|                           "
+    - "L2.56[1680022452125054235,1680032319822461332] 1681420678.89s 100mb                                                               |-L2.56--|                 "
+    - "L2.57[1680032319822461333,1680042187519868429] 1681420678.89s 100mb                                                                         |-L2.57--|       "
+    - "L2.58[1680042187519868430,1680045769912063525] 1681420678.89s 36mb                                                                                   |L2.58|"
+    - "L2.59[1680045769912063526,1680046349505534795] 1681420678.89s 100mb                                                                                       |L2.59|"
+    - "L2.60[1680046349505534796,1680046929099006064] 1681420678.89s 100mb                                                                                        |L2.60|"
+    - "L2.61[1680046929099006065,1680047338160274709] 1681420678.89s 71mb                                                                                        |L2.61|"
+    - "L2.62[1680047338160274710,1680047867631254942] 1681420678.89s 93mb                                                                                         |L2.62|"
+    - "L2.63[1680047867631254943,1680047999999000000] 1681420678.89s 23mb                                                                                         |L2.63|"
+    "###
+    );
+}
+
 // This test comes from a real world catalog scenario where the configured split percentage caused a loop.  ManySmallFiles decided to compact just 2 files, which
 // happen to already be split at the target percentage.  So the compaction creates 2 output files that are the same as the input files, resulting in a loop.
 #[tokio::test]
