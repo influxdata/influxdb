@@ -4,22 +4,22 @@ use compactor_scheduler::CompactionJob;
 use futures::{stream::BoxStream, StreamExt};
 
 use super::super::{
-    partition_files_source::rate_limit::RateLimit, partitions_source::PartitionsSource,
+    compaction_jobs_source::CompactionJobsSource, partition_files_source::rate_limit::RateLimit,
 };
-use super::PartitionStream;
+use super::CompactionJobStream;
 
 #[derive(Debug)]
-pub struct EndlessPartititionStream<T>
+pub struct EndlessCompactionJobStream<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     source: Arc<T>,
     limiter: RateLimit,
 }
 
-impl<T> EndlessPartititionStream<T>
+impl<T> EndlessCompactionJobStream<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     pub fn new(source: T) -> Self {
         Self {
@@ -29,18 +29,18 @@ where
     }
 }
 
-impl<T> Display for EndlessPartititionStream<T>
+impl<T> Display for EndlessCompactionJobStream<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "endless({})", self.source)
     }
 }
 
-impl<T> PartitionStream for EndlessPartititionStream<T>
+impl<T> CompactionJobStream for EndlessCompactionJobStream<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn stream(&self) -> BoxStream<'_, CompactionJob> {
         let source = Arc::clone(&self.source);
@@ -82,11 +82,11 @@ where
 mod tests {
     use data_types::PartitionId;
 
-    use super::{super::super::partitions_source::mock::MockPartitionsSource, *};
+    use super::{super::super::compaction_jobs_source::mock::MockCompactionJobsSource, *};
 
     #[test]
     fn test_display() {
-        let stream = EndlessPartititionStream::new(MockPartitionsSource::new(vec![]));
+        let stream = EndlessCompactionJobStream::new(MockCompactionJobsSource::new(vec![]));
         assert_eq!(stream.to_string(), "endless(mock)");
     }
 
@@ -97,7 +97,7 @@ mod tests {
             CompactionJob::new(PartitionId::new(3)),
             CompactionJob::new(PartitionId::new(2)),
         ];
-        let stream = EndlessPartititionStream::new(MockPartitionsSource::new(ids.clone()));
+        let stream = EndlessCompactionJobStream::new(MockCompactionJobsSource::new(ids.clone()));
 
         // stream is stateless
         for _ in 0..2 {

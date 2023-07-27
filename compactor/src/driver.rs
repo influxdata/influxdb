@@ -35,13 +35,13 @@ pub async fn compact(
     components: &Arc<Components>,
 ) {
     components
-        .partition_stream
+        .compaction_job_stream
         .stream()
         .map(|job| {
             let components = Arc::clone(components);
 
             // A root span is created for each partition.  Later this can be linked to the
-            // scheduler's span via something passed through partition_stream.
+            // scheduler's span via something passed through compaction_job_stream.
             let root_span: Option<Span> = trace_collector
                 .as_ref()
                 .map(|collector| Span::root("compaction", Arc::clone(collector)));
