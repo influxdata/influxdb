@@ -240,6 +240,7 @@ pub async fn create_router_server_type(
         ingester_connections,
         router_config.rpc_write_replicas,
         &metrics,
+        router_config.rpc_write_health_error_window_seconds,
     );
     let rpc_writer = InstrumentationDecorator::new("rpc_writer", &metrics, rpc_writer);
 

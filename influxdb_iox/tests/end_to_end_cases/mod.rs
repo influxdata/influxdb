@@ -18,6 +18,7 @@ mod querier;
 mod remote;
 mod router;
 mod schema;
+mod table;
 mod tracing;
 
 /// extracts the parquet filename from JSON that looks like

@@ -26,7 +26,9 @@ use data_types::{
     Timestamp, TransitionPartitionId,
 };
 use iox_time::{SystemProvider, TimeProvider};
+use metric::{Attributes, Instrument, MetricKind};
 use observability_deps::tracing::{debug, info, warn};
+use parking_lot::{RwLock, RwLockWriteGuard};
 use snafu::prelude::*;
 use sqlx::{
     migrate::Migrator,
@@ -35,7 +37,9 @@ use sqlx::{
     Acquire, ConnectOptions, Executor, Postgres, Row,
 };
 use sqlx_hotswap_pool::HotSwapPool;
+use std::borrow::Cow;
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, fmt::Display, str::FromStr, sync::Arc, time::Duration};
 
 static MIGRATOR: Migrator = sqlx::migrate!();
@@ -117,7 +121,7 @@ impl PostgresCatalog {
         options: PostgresConnectionOptions,
         metrics: Arc<metric::Registry>,
     ) -> Result<Self> {
-        let pool = new_pool(&options)
+        let pool = new_pool(&options, Arc::clone(&metrics))
             .await
             .map_err(|e| Error::SqlxError { source: e })?;
 
@@ -321,12 +325,117 @@ DO NOTHING;
     }
 }
 
+/// Adapter to connect sqlx pools with our metrics system.
+#[derive(Debug, Clone, Default)]
+struct PoolMetrics {
+    /// Actual shared state.
+    state: Arc<PoolMetricsInner>,
+}
+
+/// Inner state of [`PoolMetrics`] that is wrapped into an [`Arc`].
+#[derive(Debug, Default)]
+struct PoolMetricsInner {
+    /// Next pool ID.
+    pool_id_gen: AtomicU64,
+
+    /// Set of known pools and their ID labels.
+    ///
+    /// Note: The pool is internally ref-counted via an [`Arc`]. Holding a reference does NOT prevent it from being closed.
+    pools: RwLock<Vec<(Arc<str>, sqlx::Pool<Postgres>)>>,
+}
+
+impl PoolMetrics {
+    /// Create new pool metrics.
+    fn new(metrics: Arc<metric::Registry>) -> Self {
+        metrics.register_instrument("iox_catalog_postgres", Self::default)
+    }
+
+    /// Register a new pool.
+    fn register_pool(&self, pool: sqlx::Pool<Postgres>) {
+        let id = self
+            .state
+            .pool_id_gen
+            .fetch_add(1, Ordering::SeqCst)
+            .to_string()
+            .into();
+        let mut pools = self.state.pools.write();
+        pools.push((id, pool));
+    }
+
+    /// Remove closed pools from given list.
+    fn clean_pools(pools: &mut Vec<(Arc<str>, sqlx::Pool<Postgres>)>) {
+        pools.retain(|(_id, p)| !p.is_closed());
+    }
+}
+
+impl Instrument for PoolMetrics {
+    fn report(&self, reporter: &mut dyn metric::Reporter) {
+        let mut pools = self.state.pools.write();
+        Self::clean_pools(&mut pools);
+        let pools = RwLockWriteGuard::downgrade(pools);
+
+        reporter.start_metric(
+            "sqlx_postgres_pools",
+            "Number of pools that sqlx uses",
+            MetricKind::U64Gauge,
+        );
+        reporter.report_observation(
+            &Attributes::from([]),
+            metric::Observation::U64Gauge(pools.len() as u64),
+        );
+        reporter.finish_metric();
+
+        reporter.start_metric(
+            "sqlx_postgres_connections",
+            "Number of connections within the postgres connection pool that sqlx uses",
+            MetricKind::U64Gauge,
+        );
+        for (id, p) in pools.iter() {
+            reporter.report_observation(
+                &Attributes::from([
+                    ("pool_id", Cow::Owned(id.as_ref().to_owned())),
+                    ("state", Cow::Borrowed("active")),
+                ]),
+                metric::Observation::U64Gauge(p.size() as u64),
+            );
+            reporter.report_observation(
+                &Attributes::from([
+                    ("pool_id", Cow::Owned(id.as_ref().to_owned())),
+                    ("state", Cow::Borrowed("idle")),
+                ]),
+                metric::Observation::U64Gauge(p.num_idle() as u64),
+            );
+            reporter.report_observation(
+                &Attributes::from([
+                    ("pool_id", Cow::Owned(id.as_ref().to_owned())),
+                    ("state", Cow::Borrowed("max")),
+                ]),
+                metric::Observation::U64Gauge(p.options().get_max_connections() as u64),
+            );
+            reporter.report_observation(
+                &Attributes::from([
+                    ("pool_id", Cow::Owned(id.as_ref().to_owned())),
+                    ("state", Cow::Borrowed("min")),
+                ]),
+                metric::Observation::U64Gauge(p.options().get_min_connections() as u64),
+            );
+        }
+
+        reporter.finish_metric();
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
 /// Creates a new [`sqlx::Pool`] from a database config and an explicit DSN.
 ///
 /// This function doesn't support the IDPE specific `dsn-file://` uri scheme.
 async fn new_raw_pool(
     options: &PostgresConnectionOptions,
     parsed_dsn: &str,
+    metrics: PoolMetrics,
 ) -> Result<sqlx::Pool<Postgres>, sqlx::Error> {
     // sqlx exposes some options as pool options, while other options are available as connection options.
     let connect_options = PgConnectOptions::from_str(parsed_dsn)?
@@ -377,6 +486,7 @@ async fn new_raw_pool(
     // name for cross-correlation between Conductor logs & database connections.
     info!(application_name=%app_name2, "connected to config store");
 
+    metrics.register_pool(pool.clone());
     Ok(pool)
 }
 
@@ -406,9 +516,11 @@ pub fn parse_dsn(dsn: &str) -> Result<String, sqlx::Error> {
 /// is successfull (see [`sqlx::pool::PoolOptions::test_before_acquire`]).
 async fn new_pool(
     options: &PostgresConnectionOptions,
+    metrics: Arc<metric::Registry>,
 ) -> Result<HotSwapPool<Postgres>, sqlx::Error> {
     let parsed_dsn = parse_dsn(&options.dsn)?;
-    let pool = HotSwapPool::new(new_raw_pool(options, &parsed_dsn).await?);
+    let metrics = PoolMetrics::new(metrics);
+    let pool = HotSwapPool::new(new_raw_pool(options, &parsed_dsn, metrics.clone()).await?);
     let polling_interval = options.hotswap_poll_interval;
 
     if let Some(dsn_file) = get_dsn_file_path(&options.dsn) {
@@ -432,12 +544,13 @@ async fn new_pool(
                     current_dsn: &str,
                     dsn_file: &str,
                     pool: &HotSwapPool<Postgres>,
+                    metrics: PoolMetrics,
                 ) -> Result<Option<String>, sqlx::Error> {
                     let new_dsn = std::fs::read_to_string(dsn_file)?;
                     if new_dsn == current_dsn {
                         Ok(None)
                     } else {
-                        let new_pool = new_raw_pool(options, &new_dsn).await?;
+                        let new_pool = new_raw_pool(options, &new_dsn, metrics).await?;
                         let old_pool = pool.replace(new_pool);
                         info!("replaced hotswap pool");
                         info!(?old_pool, "closing old DB connection pool");
@@ -450,7 +563,7 @@ async fn new_pool(
                     }
                 }
 
-                match try_update(&options, &current_dsn, &dsn_file, &pool).await {
+                match try_update(&options, &current_dsn, &dsn_file, &pool, metrics.clone()).await {
                     Ok(None) => {}
                     Ok(Some(new_dsn)) => {
                         current_dsn = new_dsn;
@@ -1907,7 +2020,7 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::partition_template::TemplatePart;
     use generated_types::influxdata::iox::partition_template::v1 as proto;
-    use metric::{Attributes, DurationHistogram, Metric};
+    use metric::{Attributes, DurationHistogram, Metric, Observation, RawReporter};
     use std::{io::Write, sync::Arc, time::Instant};
     use tempfile::NamedTempFile;
     use test_helpers::maybe_start_logging;
@@ -2134,7 +2247,8 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
             hotswap_poll_interval: POLLING_INTERVAL,
             ..Default::default()
         };
-        let pool = new_pool(&options).await.expect("connect");
+        let metrics = Arc::new(metric::Registry::new());
+        let pool = new_pool(&options, metrics).await.expect("connect");
         eprintln!("got a pool");
 
         // ensure the application name is set as expected
@@ -2834,5 +2948,31 @@ RETURNING *;
         let partition_template: Option<TablePartitionTemplateOverride> =
             record.try_get("partition_template").unwrap();
         assert!(partition_template.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_metrics() {
+        maybe_skip_integration!();
+
+        let postgres = setup_db_no_migration().await;
+
+        let mut reporter = RawReporter::default();
+        postgres.metrics.report(&mut reporter);
+        assert_eq!(
+            reporter
+                .metric("sqlx_postgres_connections")
+                .unwrap()
+                .observation(&[("pool_id", "0"), ("state", "min")])
+                .unwrap(),
+            &Observation::U64Gauge(1),
+        );
+        assert_eq!(
+            reporter
+                .metric("sqlx_postgres_connections")
+                .unwrap()
+                .observation(&[("pool_id", "0"), ("state", "max")])
+                .unwrap(),
+            &Observation::U64Gauge(3),
+        );
     }
 }

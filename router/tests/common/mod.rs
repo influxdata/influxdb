@@ -34,6 +34,7 @@ pub const TEST_RETENTION_PERIOD: Duration = Duration::from_secs(3600);
 pub struct TestContextBuilder {
     namespace_autocreation: MissingNamespaceAction,
     single_tenancy: bool,
+    rpc_write_error_window: Duration,
 }
 
 impl Default for TestContextBuilder {
@@ -41,6 +42,7 @@ impl Default for TestContextBuilder {
         Self {
             namespace_autocreation: MissingNamespaceAction::Reject,
             single_tenancy: false,
+            rpc_write_error_window: Duration::from_secs(5),
         }
     }
 }
@@ -79,6 +81,7 @@ impl TestContextBuilder {
             self.single_tenancy,
             catalog,
             metrics,
+            self.rpc_write_error_window,
         )
         .await
     }
@@ -94,6 +97,7 @@ pub struct TestContext {
 
     namespace_autocreation: MissingNamespaceAction,
     single_tenancy: bool,
+    rpc_write_error_window: Duration,
 }
 
 // This mass of words is certainly a downside of chained handlers.
@@ -133,12 +137,14 @@ impl TestContext {
         single_tenancy: bool,
         catalog: Arc<dyn Catalog>,
         metrics: Arc<metric::Registry>,
+        rpc_write_error_window: Duration,
     ) -> Self {
         let client = Arc::new(MockWriteClient::default());
         let rpc_writer = RpcWrite::new(
             [(Arc::clone(&client), "mock client")],
             1.try_into().unwrap(),
             &metrics,
+            rpc_write_error_window,
         );
 
         let ns_cache = Arc::new(ReadThroughCache::new(
@@ -195,6 +201,7 @@ impl TestContext {
 
             namespace_autocreation,
             single_tenancy,
+            rpc_write_error_window,
         }
     }
 
@@ -208,6 +215,7 @@ impl TestContext {
             self.single_tenancy,
             catalog,
             metrics,
+            self.rpc_write_error_window,
         )
         .await
     }
