@@ -38,12 +38,12 @@ where
     T: CompactionJobsSource,
 {
     async fn fetch(&self) -> Vec<CompactionJob> {
-        let partitions = self.inner.fetch().await;
-        info!(n_partitions = partitions.len(), "Fetch partitions",);
-        if partitions.is_empty() {
-            warn!("No partition found");
+        let jobs = self.inner.fetch().await;
+        info!(n_jobs = jobs.len(), "Fetch jobs",);
+        if jobs.is_empty() {
+            warn!("No compaction job found");
         }
-        partitions
+        jobs
     }
 }
 
@@ -68,26 +68,25 @@ mod tests {
         // logs normal log message (so it's easy search for every single call) but also an extra warning
         assert_eq!(
             capture.to_string(),
-            "level = INFO; message = Fetch partitions; n_partitions = 0; \
-            \nlevel = WARN; message = No partition found; ",
+            "level = INFO; message = Fetch jobs; n_jobs = 0; \
+            \nlevel = WARN; message = No compaction job found; ",
         );
     }
 
     #[tokio::test]
     async fn test_fetch_some() {
-        let p_1 = CompactionJob::new(PartitionId::new(5));
-        let p_2 = CompactionJob::new(PartitionId::new(1));
-        let p_3 = CompactionJob::new(PartitionId::new(12));
-        let partitions = vec![p_1, p_2, p_3];
+        let cj_1 = CompactionJob::new(PartitionId::new(5));
+        let cj_2 = CompactionJob::new(PartitionId::new(1));
+        let cj_3 = CompactionJob::new(PartitionId::new(12));
+        let jobs = vec![cj_1, cj_2, cj_3];
 
-        let source =
-            LoggingCompactionJobsWrapper::new(MockCompactionJobsSource::new(partitions.clone()));
+        let source = LoggingCompactionJobsWrapper::new(MockCompactionJobsSource::new(jobs.clone()));
         let capture = TracingCapture::new();
-        assert_eq!(source.fetch().await, partitions,);
+        assert_eq!(source.fetch().await, jobs,);
         // just the ordinary log message, no warning
         assert_eq!(
             capture.to_string(),
-            "level = INFO; message = Fetch partitions; n_partitions = 3; ",
+            "level = INFO; message = Fetch jobs; n_jobs = 3; ",
         );
     }
 }

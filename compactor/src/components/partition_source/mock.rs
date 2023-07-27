@@ -46,25 +46,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_by_id() {
-        let p_1 = PartitionBuilder::new(5).build();
-        let p_2 = PartitionBuilder::new(1).build();
-        let p_3 = PartitionBuilder::new(12).build();
-        let partitions = vec![p_1.clone(), p_2.clone(), p_3.clone()];
-        let source = MockPartitionSource::new(partitions);
+        let cj_1 = PartitionBuilder::new(5).build();
+        let cj_2 = PartitionBuilder::new(1).build();
+        let cj_3 = PartitionBuilder::new(12).build();
+        let compaction_jobs = vec![cj_1.clone(), cj_2.clone(), cj_3.clone()];
+        let source = MockPartitionSource::new(compaction_jobs);
 
         assert_eq!(
             source.fetch_by_id(PartitionId::new(5)).await,
-            Some(p_1.clone())
+            Some(cj_1.clone())
         );
         assert_eq!(
             source.fetch_by_id(PartitionId::new(1)).await,
-            Some(p_2.clone())
+            Some(cj_2.clone())
         );
 
         // fetching does not drain
         assert_eq!(
             source.fetch_by_id(PartitionId::new(5)).await,
-            Some(p_1.clone())
+            Some(cj_1.clone())
         );
 
         // unknown table => None result

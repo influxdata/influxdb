@@ -7,22 +7,22 @@ use super::CompactionJobsSource;
 /// A mock structure for providing [compaction jobs](CompactionJob).
 #[derive(Debug)]
 pub struct MockCompactionJobsSource {
-    partitions: Mutex<Vec<CompactionJob>>,
+    compaction_jobs: Mutex<Vec<CompactionJob>>,
 }
 
 impl MockCompactionJobsSource {
     #[allow(dead_code)]
     /// Create a new MockCompactionJobsSource.
-    pub fn new(partitions: Vec<CompactionJob>) -> Self {
+    pub fn new(jobs: Vec<CompactionJob>) -> Self {
         Self {
-            partitions: Mutex::new(partitions),
+            compaction_jobs: Mutex::new(jobs),
         }
     }
 
     /// Set CompactionJobs for MockCompactionJobsSource.
     #[allow(dead_code)] // not used anywhere
-    pub fn set(&self, partitions: Vec<CompactionJob>) {
-        *self.partitions.lock() = partitions;
+    pub fn set(&self, jobs: Vec<CompactionJob>) {
+        *self.compaction_jobs.lock() = jobs;
     }
 }
 
@@ -35,7 +35,7 @@ impl std::fmt::Display for MockCompactionJobsSource {
 #[async_trait]
 impl CompactionJobsSource for MockCompactionJobsSource {
     async fn fetch(&self) -> Vec<CompactionJob> {
-        self.partitions.lock().clone()
+        self.compaction_jobs.lock().clone()
     }
 }
 
@@ -55,10 +55,10 @@ mod tests {
         let source = MockCompactionJobsSource::new(vec![]);
         assert_eq!(source.fetch().await, vec![],);
 
-        let p_1 = CompactionJob::new(PartitionId::new(5));
-        let p_2 = CompactionJob::new(PartitionId::new(1));
-        let p_3 = CompactionJob::new(PartitionId::new(12));
-        let parts = vec![p_1, p_2, p_3];
+        let cj_1 = CompactionJob::new(PartitionId::new(5));
+        let cj_2 = CompactionJob::new(PartitionId::new(1));
+        let cj_3 = CompactionJob::new(PartitionId::new(12));
+        let parts = vec![cj_1, cj_2, cj_3];
         source.set(parts.clone());
         assert_eq!(source.fetch().await, parts,);
     }

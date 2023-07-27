@@ -60,10 +60,10 @@ where
     T: CompactionJobsSource,
 {
     async fn fetch(&self) -> Vec<CompactionJob> {
-        let partitions = self.inner.fetch().await;
+        let jobs = self.inner.fetch().await;
         self.partitions_fetch_counter.inc(1);
-        self.partitions_counter.inc(partitions.len() as u64);
-        partitions
+        self.partitions_counter.inc(jobs.len() as u64);
+        jobs
     }
 }
 
