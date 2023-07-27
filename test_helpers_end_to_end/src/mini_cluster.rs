@@ -14,6 +14,9 @@ use futures::{stream::FuturesOrdered, StreamExt};
 use http::Response;
 use hyper::Body;
 use influxdb_iox_client::{
+    catalog::generated_types::{
+        catalog_service_client::CatalogServiceClient, GetPartitionsByTableIdRequest,
+    },
     connection::{Connection, GrpcConnection},
     schema::generated_types::{schema_service_client::SchemaServiceClient, GetSchemaRequest},
 };
@@ -433,6 +436,46 @@ impl MiniCluster {
             .id;
 
         TableId::new(id)
+    }
+
+    /// Get all partition keys for the given table.
+    pub async fn partition_keys(
+        &self,
+        table_name: &str,
+        namespace_name: Option<String>,
+    ) -> Vec<String> {
+        let namespace_name = namespace_name.unwrap_or(self.namespace().to_string());
+
+        let c = self
+            .router
+            .as_ref()
+            .expect("no router instance running")
+            .router_grpc_connection()
+            .into_grpc_connection();
+
+        let table_id = SchemaServiceClient::new(c.clone())
+            .get_schema(GetSchemaRequest {
+                namespace: namespace_name.clone(),
+            })
+            .await
+            .expect("failed to query for namespace ID")
+            .into_inner()
+            .schema
+            .unwrap()
+            .tables
+            .get(table_name)
+            .expect("table not found")
+            .id;
+
+        CatalogServiceClient::new(c)
+            .get_partitions_by_table_id(GetPartitionsByTableIdRequest { table_id })
+            .await
+            .expect("failed to query for partitions")
+            .into_inner()
+            .partitions
+            .into_iter()
+            .map(|p| p.key)
+            .collect()
     }
 
     /// Writes the line protocol to the write_base/api/v2/write endpoint on the router into the
