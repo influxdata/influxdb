@@ -1,7 +1,7 @@
 //! Types having to do with columns.
 
 use super::TableId;
-use generated_types::influxdata::iox::schema::v1 as proto;
+use generated_types::influxdata::iox::{gossip, schema::v1 as proto};
 use influxdb_line_protocol::FieldValue;
 use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType, Schema};
 use std::{
@@ -193,6 +193,17 @@ impl ColumnSchema {
     }
 }
 
+impl TryFrom<&gossip::v1::Column> for ColumnSchema {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(v: &gossip::v1::Column) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id: ColumnId::new(v.column_id),
+            column_type: ColumnType::try_from(v.column_type as i16)?,
+        })
+    }
+}
+
 /// The column data type
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash, sqlx::Type)]
@@ -370,6 +381,8 @@ impl Deref for ColumnSet {
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
+
     use super::*;
 
     #[test]
@@ -410,5 +423,31 @@ mod tests {
         );
 
         assert!(ColumnType::try_from(proto::column_schema::ColumnType::Unspecified).is_err());
+    }
+
+    #[test]
+    fn test_gossip_proto_conversion() {
+        let proto = gossip::v1::Column {
+            name: "bananas".to_string(),
+            column_id: 42,
+            column_type: gossip::v1::column::ColumnType::String as _,
+        };
+
+        let got = ColumnSchema::try_from(&proto).expect("should succeed");
+        assert_matches!(got, ColumnSchema{id, column_type} => {
+            assert_eq!(id.get(), 42);
+            assert_eq!(column_type, ColumnType::String);
+        });
+    }
+
+    #[test]
+    fn test_gossip_proto_conversion_invalid_type() {
+        let proto = gossip::v1::Column {
+            name: "bananas".to_string(),
+            column_id: 42,
+            column_type: 42,
+        };
+
+        ColumnSchema::try_from(&proto).expect_err("should succeed");
     }
 }
