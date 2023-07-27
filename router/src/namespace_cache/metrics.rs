@@ -116,8 +116,19 @@ where
         // Figure out the difference between the new namespace and the
         // evicted old namespace
         // Adjust the metrics to reflect the change
-        self.table_count.inc(change_stats.new_tables as u64);
-        self.column_count.inc(change_stats.new_columns as u64);
+        self.table_count.inc(change_stats.new_tables.len() as u64);
+        let columns_for_new_tables = change_stats
+            .new_tables
+            .iter()
+            .fold(0, |acc, (_, table_schema)| {
+                acc + table_schema.column_count() as u64
+            });
+        let columns_for_existing_tables = change_stats
+            .new_columns_per_table
+            .iter()
+            .fold(0, |acc, (_, columns)| acc + columns.column_count() as u64);
+        self.column_count
+            .inc(columns_for_new_tables + columns_for_existing_tables);
 
         (result, change_stats)
     }

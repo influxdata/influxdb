@@ -386,7 +386,7 @@ pub struct Table {
 }
 
 /// Column definitions for a table
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableSchema {
     /// the table id
     pub id: TableId,

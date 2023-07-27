@@ -11,10 +11,10 @@ pub mod metrics;
 mod read_through_cache;
 pub use read_through_cache::*;
 
-use std::{error::Error, fmt::Debug, sync::Arc};
+use std::{collections::BTreeMap, error::Error, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceName, NamespaceSchema};
+use data_types::{ColumnsByName, NamespaceName, NamespaceSchema, TableSchema};
 
 /// An abstract cache of [`NamespaceSchema`].
 #[async_trait]
@@ -50,11 +50,11 @@ pub trait NamespaceCache: Debug + Send + Sync {
 /// associated [`NamespaceCache::put_schema()`] call.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ChangeStats {
-    /// The number of tables added to the cache.
-    pub(crate) new_tables: usize,
+    /// The new tables added to the cache.
+    pub(crate) new_tables: BTreeMap<String, TableSchema>,
 
-    /// The number of columns added to the cache (across all tables).
-    pub(crate) new_columns: usize,
+    /// The new columns added to cache for all pre-existing tables.
+    pub(crate) new_columns_per_table: BTreeMap<String, ColumnsByName>,
 
     /// Indicates whether the change took place when an entry already
     /// existed.
