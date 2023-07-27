@@ -56,6 +56,9 @@ pub struct ChangeStats {
     /// The new columns added to cache for all pre-existing tables.
     pub(crate) new_columns_per_table: BTreeMap<String, ColumnsByName>,
 
+    /// The number of new columns added across new and existing tables.
+    pub(crate) num_new_columns: usize,
+
     /// Indicates whether the change took place when an entry already
     /// existed.
     pub(crate) did_update: bool,

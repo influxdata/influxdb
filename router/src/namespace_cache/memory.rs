@@ -60,6 +60,9 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
                     // There are no pre-existing tables for columns to be added
                     // to, so don't need to build another map.
                     new_columns_per_table: Default::default(),
+                    num_new_columns: schema.tables.iter().fold(0, |acc, (_, table_schema)| {
+                        acc + table_schema.column_count()
+                    }),
                     did_update: false,
                 };
                 (schema, change_stats)
@@ -84,7 +87,8 @@ fn merge_schema_additive(
     // invariant: Namespace partition template override should never change for a given name
     assert_eq!(old_ns.partition_template, new_ns.partition_template);
 
-    let mut new_columns: BTreeMap<String, ColumnsByName> = Default::default();
+    let mut new_columns_per_table: BTreeMap<String, ColumnsByName> = Default::default();
+    let mut num_new_columns = 0;
 
     // Table schema missing from the new schema are added from the old. If the
     // table exists in both the new and the old namespace schema then any column
@@ -124,7 +128,9 @@ fn merge_schema_additive(
                     })
                     .collect::<BTreeMap<_, _>>();
                 if !new_columns_in_table.is_empty() {
-                    new_columns.insert(old_table_name.clone(), new_columns_in_table.into());
+                    num_new_columns += new_columns_in_table.len();
+                    new_columns_per_table
+                        .insert(old_table_name.clone(), new_columns_in_table.into());
                 }
             }
             None => {
@@ -144,6 +150,7 @@ fn merge_schema_additive(
             if old_ns.tables.contains_key(new_table_name) {
                 None
             } else {
+                num_new_columns += new_table_schema.column_count();
                 Some((new_table_name.clone(), new_table_schema.clone()))
             }
         })
@@ -154,7 +161,8 @@ fn merge_schema_additive(
     // introduced additional tables that won't be visited by the merge logic's logic.
     let change_stats = ChangeStats {
         new_tables,
-        new_columns_per_table: new_columns,
+        new_columns_per_table,
+        num_new_columns,
         did_update: true,
     };
     (new_ns, change_stats)
@@ -300,7 +308,7 @@ mod tests {
                 assert_eq!(*new_schema, schema_update_1);
                 assert_eq!(
                     new_stats,
-                    ChangeStats { new_tables: schema_update_1.tables, new_columns_per_table: Default::default(), did_update: false }
+                    ChangeStats { new_tables: schema_update_1.tables.clone(), new_columns_per_table: Default::default(), num_new_columns: schema_update_1.tables.iter().fold(0, |acc, (_, table_schema)| acc + table_schema.column_count()), did_update: false }
                 );
             }
         );
@@ -312,9 +320,9 @@ mod tests {
                     column_2.name.clone(),
                     *second_write_table_schema.columns.get(column_2.name.as_str()).expect("should have column 2")
                 )].into_iter().collect::<BTreeMap<_,_>>().into(),
-            )].into_iter().collect();
+            )].into_iter().collect::<BTreeMap<_,_>>();
 
-            assert_eq!(new_stats, ChangeStats{ new_tables: Default::default(), new_columns_per_table: want_new_columns, did_update: true});
+            assert_eq!(new_stats, ChangeStats{ new_tables: Default::default(), new_columns_per_table: want_new_columns.clone(), num_new_columns: want_new_columns.iter().fold(0, |acc, (_, columns)| acc + columns.column_count()), did_update: true});
         });
 
         let got_namespace_schema = cache
@@ -404,14 +412,24 @@ mod tests {
                 assert_eq!(*new_schema, schema_update_1);
                 assert_eq!(
                     new_stats,
-                    ChangeStats { new_tables: schema_update_1.tables.clone(), new_columns_per_table: Default::default(), did_update: false }
+                    ChangeStats {
+                        new_tables: schema_update_1.tables.clone(),
+                        new_columns_per_table: Default::default(),
+                        num_new_columns: schema_update_1.tables.iter().fold(0, |acc, (_, table_schema)| acc + table_schema.column_count()),
+                        did_update: false,
+                         }
                 );
             }
         );
         assert_matches!(cache.put_schema(ns.clone(), schema_update_2), (new_schema, new_stats) => {
             assert_eq!(*new_schema, want_namespace_schema);
-            let want_new_tables = [(String::from("table_3"), table_3)].into_iter().collect();
-            assert_eq!(new_stats, ChangeStats{ new_tables: want_new_tables, new_columns_per_table: Default::default(), did_update: true});
+            let want_new_tables = [(String::from("table_3"), table_3)].into_iter().collect::<BTreeMap<_, _>>();
+            assert_eq!(new_stats, ChangeStats{
+                new_tables: want_new_tables.clone(),
+                new_columns_per_table: Default::default(),
+                num_new_columns: want_new_tables.iter().fold(0,|acc, (_, table_schema)| acc + table_schema.column_count()),
+                did_update: true,
+            });
         });
 
         let got_namespace_schema = cache
