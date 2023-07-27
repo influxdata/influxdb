@@ -3,6 +3,7 @@
 use arrow::record_batch::RecordBatch;
 use data_types::TimestampMinMax;
 use iox_query::util::compute_timenanosecond_min_max;
+use schema::{merge::merge_record_batch_schemas, Schema};
 
 use super::BufferState;
 use crate::{
@@ -21,6 +22,7 @@ pub(crate) struct Snapshot {
     /// Statistics describing the data in snapshots.
     row_count: usize,
     timestamp_stats: TimestampMinMax,
+    schema: Schema,
 }
 
 impl Snapshot {
@@ -32,10 +34,13 @@ impl Snapshot {
         let timestamp_stats = compute_timenanosecond_min_max(snapshots.iter())
             .expect("non-empty batch must contain timestamps");
 
+        let schema = merge_record_batch_schemas(&snapshots);
+
         Self {
             snapshots,
             row_count,
             timestamp_stats,
+            schema,
         }
     }
 }
@@ -52,6 +57,10 @@ impl Queryable for Snapshot {
     fn timestamp_stats(&self) -> Option<TimestampMinMax> {
         Some(self.timestamp_stats)
     }
+
+    fn schema(&self) -> Option<schema::Schema> {
+        Some(self.schema.clone()) // Ref clone
+    }
 }
 
 impl BufferState<Snapshot> {
@@ -62,6 +71,7 @@ impl BufferState<Snapshot> {
                 self.state.snapshots,
                 self.state.row_count,
                 self.state.timestamp_stats,
+                self.state.schema,
             ),
             sequence_numbers: self.sequence_numbers,
         }

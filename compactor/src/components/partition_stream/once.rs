@@ -1,10 +1,9 @@
 use std::{fmt::Display, sync::Arc};
 
-use compactor_scheduler::PartitionsSource;
-use data_types::PartitionId;
+use compactor_scheduler::CompactionJob;
 use futures::{stream::BoxStream, StreamExt};
 
-use super::PartitionStream;
+use super::{super::partitions_source::PartitionsSource, PartitionStream};
 
 #[derive(Debug)]
 pub struct OncePartititionStream<T>
@@ -38,7 +37,7 @@ impl<T> PartitionStream for OncePartititionStream<T>
 where
     T: PartitionsSource,
 {
-    fn stream(&self) -> BoxStream<'_, PartitionId> {
+    fn stream(&self) -> BoxStream<'_, CompactionJob> {
         let source = Arc::clone(&self.source);
         futures::stream::once(async move { futures::stream::iter(source.fetch().await) })
             .flatten()
@@ -48,9 +47,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use compactor_scheduler::MockPartitionsSource;
+    use data_types::PartitionId;
 
-    use super::*;
+    use super::{super::super::partitions_source::mock::MockPartitionsSource, *};
 
     #[test]
     fn test_display() {
@@ -61,9 +60,9 @@ mod tests {
     #[tokio::test]
     async fn test_stream() {
         let ids = vec![
-            PartitionId::new(1),
-            PartitionId::new(3),
-            PartitionId::new(2),
+            CompactionJob::new(PartitionId::new(1)),
+            CompactionJob::new(PartitionId::new(3)),
+            CompactionJob::new(PartitionId::new(2)),
         ];
         let stream = OncePartititionStream::new(MockPartitionsSource::new(ids.clone()));
 

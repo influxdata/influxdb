@@ -40,6 +40,18 @@ impl WriteOperation {
         }
     }
 
+    /// Do NOT remove this test annotation. This constructor exists to by-pass
+    /// safety invariant assertions for testing code only.
+    #[cfg(test)]
+    pub(crate) fn new_empty_invalid(namespace: NamespaceId, partition_key: PartitionKey) -> Self {
+        Self {
+            namespace,
+            tables: Default::default(),
+            partition_key,
+            span_context: None,
+        }
+    }
+
     /// The namespace which the write is
     pub fn namespace(&self) -> NamespaceId {
         self.namespace

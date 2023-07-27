@@ -1,9 +1,10 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use compactor_scheduler::PartitionsSource;
-use data_types::PartitionId;
+use compactor_scheduler::CompactionJob;
 use observability_deps::tracing::{info, warn};
+
+use super::PartitionsSource;
 
 #[derive(Debug)]
 pub struct LoggingPartitionsSourceWrapper<T>
@@ -36,7 +37,7 @@ impl<T> PartitionsSource for LoggingPartitionsSourceWrapper<T>
 where
     T: PartitionsSource,
 {
-    async fn fetch(&self) -> Vec<PartitionId> {
+    async fn fetch(&self) -> Vec<CompactionJob> {
         let partitions = self.inner.fetch().await;
         info!(n_partitions = partitions.len(), "Fetch partitions",);
         if partitions.is_empty() {
@@ -48,10 +49,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use compactor_scheduler::MockPartitionsSource;
+    use data_types::PartitionId;
     use test_helpers::tracing::TracingCapture;
 
-    use super::*;
+    use super::{super::mock::MockPartitionsSource, *};
 
     #[test]
     fn test_display() {
@@ -74,9 +75,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_some() {
-        let p_1 = PartitionId::new(5);
-        let p_2 = PartitionId::new(1);
-        let p_3 = PartitionId::new(12);
+        let p_1 = CompactionJob::new(PartitionId::new(5));
+        let p_2 = CompactionJob::new(PartitionId::new(1));
+        let p_3 = CompactionJob::new(PartitionId::new(12));
         let partitions = vec![p_1, p_2, p_3];
 
         let source =

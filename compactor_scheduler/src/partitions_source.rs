@@ -9,7 +9,7 @@ use parking_lot::Mutex;
 
 /// A source of partitions, noted by [`PartitionId`](data_types::PartitionId), that may potentially need compacting.
 #[async_trait]
-pub trait PartitionsSource: Debug + Display + Send + Sync {
+pub(crate) trait PartitionsSource: Debug + Display + Send + Sync {
     /// Get partition IDs.
     ///
     /// This method performs retries.
@@ -28,19 +28,19 @@ where
     }
 }
 
-pub use mock::MockPartitionsSource;
+pub(crate) use mock::MockPartitionsSource;
 mod mock {
     use super::*;
 
     /// A mock structure for providing [partitions](PartitionId).
     #[derive(Debug)]
-    pub struct MockPartitionsSource {
+    pub(crate) struct MockPartitionsSource {
         partitions: Mutex<Vec<PartitionId>>,
     }
 
     impl MockPartitionsSource {
         /// Create a new MockPartitionsSource.
-        pub fn new(partitions: Vec<PartitionId>) -> Self {
+        pub(crate) fn new(partitions: Vec<PartitionId>) -> Self {
             Self {
                 partitions: Mutex::new(partitions),
             }
@@ -48,7 +48,7 @@ mod mock {
 
         /// Set PartitionIds for MockPartitionsSource.
         #[allow(dead_code)] // not used anywhere
-        pub fn set(&self, partitions: Vec<PartitionId>) {
+        pub(crate) fn set(&self, partitions: Vec<PartitionId>) {
             *self.partitions.lock() = partitions;
         }
     }

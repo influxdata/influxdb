@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use compactor_scheduler::{CompactionJob, PartitionsSource, Scheduler};
-use data_types::PartitionId;
+use compactor_scheduler::{CompactionJob, Scheduler};
+
+use super::PartitionsSource;
 
 #[derive(Debug)]
 pub struct ScheduledPartitionsSource {
@@ -17,9 +18,8 @@ impl ScheduledPartitionsSource {
 
 #[async_trait]
 impl PartitionsSource for ScheduledPartitionsSource {
-    async fn fetch(&self) -> Vec<PartitionId> {
-        let job: Vec<CompactionJob> = self.scheduler.get_jobs().await;
-        job.into_iter().map(|job| job.partition_id).collect()
+    async fn fetch(&self) -> Vec<CompactionJob> {
+        self.scheduler.get_jobs().await
     }
 }
 

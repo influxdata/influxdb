@@ -133,6 +133,10 @@ where
     fn timestamp_stats(&self) -> Option<TimestampMinMax> {
         self.state.timestamp_stats()
     }
+
+    fn schema(&self) -> Option<schema::Schema> {
+        self.state.schema()
+    }
 }
 
 #[cfg(test)]

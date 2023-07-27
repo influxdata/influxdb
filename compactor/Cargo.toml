@@ -30,6 +30,7 @@ trace = { version = "0.1.0", path = "../trace" }
 tracker = { path = "../tracker" }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
+parking_lot = "0.12.1"
 
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }
