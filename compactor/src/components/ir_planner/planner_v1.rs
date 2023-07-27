@@ -215,7 +215,7 @@ impl IRPlanner for V1IRPlanner {
             .collect::<Vec<_>>();
 
         // Build logical compact plan
-        if total_size <= small_cutoff_bytes {
+        if total_size <= small_cutoff_bytes || reason == CompactReason::ManySmallFiles {
             PlanIR::Compact {
                 files,
                 target_level,
