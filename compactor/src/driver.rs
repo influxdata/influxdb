@@ -40,7 +40,8 @@ pub async fn compact(
         .map(|job| {
             let components = Arc::clone(components);
 
-            // A root span is created for each partition.  Later this can be linked to the
+            // A root span is created for each compaction job (a.k.a. partition).
+            // Later this can be linked to the
             // scheduler's span via something passed through compaction_job_stream.
             let root_span: Option<Span> = trace_collector
                 .as_ref()

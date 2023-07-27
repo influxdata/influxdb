@@ -6,7 +6,7 @@ use futures::stream::BoxStream;
 pub mod endless;
 pub mod once;
 
-/// Source for partitions.
+/// Source for compaction jobs.
 pub trait CompactionJobStream: Debug + Display + Send + Sync {
     /// Create new source stream of compaction jobs.
     ///
