@@ -59,7 +59,7 @@ impl Queryable for Snapshot {
     }
 
     fn schema(&self) -> Option<schema::Schema> {
-        Some(self.schema.clone())
+        Some(self.schema.clone()) // Ref clone
     }
 }
 

@@ -89,6 +89,7 @@ impl DataBuffer {
         }
     }
 
+    /// Returns the [`Schema`] for the buffered data.
     pub(crate) fn schema(&self) -> Option<Schema> {
         match self.0.get() {
             FsmState::Buffering(v) => v.schema(),
