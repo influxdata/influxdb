@@ -4,7 +4,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use compactor_scheduler::{create_scheduler, PartitionsSource, Scheduler};
+use compactor_scheduler::{create_scheduler, Scheduler};
 use data_types::CompactionLevel;
 use object_store::memory::InMemory;
 
@@ -13,6 +13,15 @@ use crate::{config::Config, error::ErrorKind, object_store::ignore_writes::Ignor
 use super::{
     changed_files_filter::logging::LoggingChangedFiles,
     commit::CommitToScheduler,
+    compaction_job_stream::{
+        endless::EndlessCompactionJobStream, once::OnceCompactionJobStream, CompactionJobStream,
+    },
+    compaction_jobs_source::{
+        logging::LoggingCompactionJobsWrapper, metrics::MetricsCompactionJobsSourceWrapper,
+        not_empty::NotEmptyCompactionJobsSourceWrapper,
+        randomize_order::RandomizeOrderCompactionJobsSourcesWrapper,
+        scheduled::ScheduledCompactionJobsSource, CompactionJobsSource,
+    },
     df_plan_exec::{
         dedicated::DedicatedDataFusionPlanExec, noop::NoopDataFusionPlanExec, DataFusionPlanExec,
     },
@@ -57,15 +66,6 @@ use super::{
         catalog::CatalogPartitionSource, logging::LoggingPartitionSourceWrapper,
         metrics::MetricsPartitionSourceWrapper,
     },
-    partition_stream::{
-        endless::EndlessPartititionStream, once::OncePartititionStream, PartitionStream,
-    },
-    partitions_source::{
-        logging::LoggingPartitionsSourceWrapper, metrics::MetricsPartitionsSourceWrapper,
-        not_empty::NotEmptyPartitionsSourceWrapper,
-        randomize_order::RandomizeOrderPartitionsSourcesWrapper,
-        scheduled::ScheduledPartitionsSource,
-    },
     post_classification_partition_filter::{
         logging::LoggingPostClassificationFilterWrapper,
         metrics::MetricsPostClassificationFilterWrapper, possible_progress::PossibleProgressFilter,
@@ -92,11 +92,11 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         Arc::clone(&config.metric_registry),
         config.shadow_mode,
     );
-    let (partitions_source, commit, partition_done_sink) =
-        make_partitions_source_commit_partition_sink(config, Arc::clone(&scheduler));
+    let (compaction_jobs_source, commit, partition_done_sink) =
+        make_jobs_source_commit_partition_sink(config, Arc::clone(&scheduler));
 
     Arc::new(Components {
-        partition_stream: make_partition_stream(config, partitions_source),
+        compaction_job_stream: make_compaction_job_stream(config, compaction_jobs_source),
         partition_info_source: make_partition_info_source(config),
         partition_files_source: make_partition_files_source(config),
         round_info_source: make_round_info_source(config),
@@ -116,15 +116,15 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     })
 }
 
-fn make_partitions_source_commit_partition_sink(
+fn make_jobs_source_commit_partition_sink(
     config: &Config,
     scheduler: Arc<dyn Scheduler>,
 ) -> (
-    Arc<dyn PartitionsSource>,
+    Arc<dyn CompactionJobsSource>,
     Arc<CommitToScheduler>,
     Arc<dyn PartitionDoneSink>,
 ) {
-    let partitions_source = ScheduledPartitionsSource::new(Arc::clone(&scheduler));
+    let compaction_jobs_source = ScheduledCompactionJobsSource::new(Arc::clone(&scheduler));
 
     let commit = CommitToScheduler::new(Arc::clone(&scheduler));
 
@@ -157,34 +157,38 @@ fn make_partitions_source_commit_partition_sink(
 
     // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work
     // even when there is not data.
-    let partitions_source =
-        LoggingPartitionsSourceWrapper::new(MetricsPartitionsSourceWrapper::new(
-            RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
+    let compaction_jobs_source =
+        LoggingCompactionJobsWrapper::new(MetricsCompactionJobsSourceWrapper::new(
+            RandomizeOrderCompactionJobsSourcesWrapper::new(compaction_jobs_source, 1234),
             &config.metric_registry,
         ));
-    let partitions_source: Arc<dyn PartitionsSource> = if config.process_once {
+    let compaction_jobs_source: Arc<dyn CompactionJobsSource> = if config.process_once {
         // do not wrap into the "not empty" filter because we do NOT wanna throttle in this case
         // but just exit early
-        Arc::new(partitions_source)
+        Arc::new(compaction_jobs_source)
     } else {
-        Arc::new(NotEmptyPartitionsSourceWrapper::new(
-            partitions_source,
+        Arc::new(NotEmptyCompactionJobsSourceWrapper::new(
+            compaction_jobs_source,
             Duration::from_secs(5),
             Arc::clone(&config.time_provider),
         ))
     };
 
-    (partitions_source, Arc::new(commit), partition_done_sink)
+    (
+        compaction_jobs_source,
+        Arc::new(commit),
+        partition_done_sink,
+    )
 }
 
-fn make_partition_stream(
+fn make_compaction_job_stream(
     config: &Config,
-    partitions_source: Arc<dyn PartitionsSource>,
-) -> Arc<dyn PartitionStream> {
+    compaction_jobs_source: Arc<dyn CompactionJobsSource>,
+) -> Arc<dyn CompactionJobStream> {
     if config.process_once {
-        Arc::new(OncePartititionStream::new(partitions_source))
+        Arc::new(OnceCompactionJobStream::new(compaction_jobs_source))
     } else {
-        Arc::new(EndlessPartititionStream::new(partitions_source))
+        Arc::new(EndlessCompactionJobStream::new(compaction_jobs_source))
     }
 }
 

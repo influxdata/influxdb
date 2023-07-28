@@ -1,6 +1,7 @@
 use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use chrono::Utc;
+use compactor_scheduler::CompactionJob;
 use data_types::{CompactionLevel, ParquetFile, ParquetFileParams, PartitionId};
 use futures::{stream, StreamExt, TryStreamExt};
 use iox_query::exec::query_tracing::send_metrics_to_tracing;
@@ -34,13 +35,13 @@ pub async fn compact(
     components: &Arc<Components>,
 ) {
     components
-        .partition_stream
+        .compaction_job_stream
         .stream()
-        .map(|partition_id| {
+        .map(|job| {
             let components = Arc::clone(components);
 
             // A root span is created for each partition.  Later this can be linked to the
-            // scheduler's span via something passed through partition_stream.
+            // scheduler's span via something passed through compaction_job_stream.
             let root_span: Option<Span> = trace_collector
                 .as_ref()
                 .map(|collector| Span::root("compaction", Arc::clone(collector)));
@@ -48,7 +49,7 @@ pub async fn compact(
 
             compact_partition(
                 span,
-                partition_id,
+                job,
                 partition_timeout,
                 Arc::clone(&df_semaphore),
                 components,
@@ -61,11 +62,12 @@ pub async fn compact(
 
 async fn compact_partition(
     mut span: SpanRecorder,
-    partition_id: PartitionId,
+    job: CompactionJob,
     partition_timeout: Duration,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
 ) {
+    let partition_id = job.partition_id;
     info!(partition_id = partition_id.get(), timeout = ?partition_timeout, "compact partition",);
     span.set_metadata("partition_id", partition_id.get().to_string());
     let scratchpad = components.scratchpad_gen.pad();
@@ -76,7 +78,7 @@ async fn compact_partition(
         async {
             try_compact_partition(
                 span,
-                partition_id,
+                job.clone(),
                 df_semaphore,
                 components,
                 scratchpad,
@@ -203,12 +205,13 @@ async fn compact_partition(
 ///   . Round 2 happens or not depends on the stop condition
 async fn try_compact_partition(
     span: SpanRecorder,
-    partition_id: PartitionId,
+    job: CompactionJob,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
     scratchpad_ctx: Arc<dyn Scratchpad>,
     transmit_progress_signal: Sender<bool>,
 ) -> Result<(), DynError> {
+    let partition_id = job.partition_id;
     let mut files = components.partition_files_source.fetch(partition_id).await;
     let partition_info = components.partition_info_source.fetch(partition_id).await?;
     let transmit_progress_signal = Arc::new(transmit_progress_signal);
@@ -269,12 +272,13 @@ async fn try_compact_partition(
                 let df_semaphore = Arc::clone(&df_semaphore);
                 let transmit_progress_signal = Arc::clone(&transmit_progress_signal);
                 let scratchpad = Arc::clone(&scratchpad_ctx);
+                let job = job.clone();
                 let branch_span = round_span.child("branch");
 
                 async move {
                     execute_branch(
                         branch_span,
-                        partition_id,
+                        job,
                         branch,
                         df_semaphore,
                         components,
@@ -298,7 +302,7 @@ async fn try_compact_partition(
 #[allow(clippy::too_many_arguments)]
 async fn execute_branch(
     span: SpanRecorder,
-    partition_id: PartitionId,
+    job: CompactionJob,
     branch: Vec<ParquetFile>,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
@@ -418,7 +422,7 @@ async fn execute_branch(
         // files and update the upgraded files
         let (created_files, upgraded_files) = update_catalog(
             Arc::clone(&components),
-            partition_id,
+            job.clone(),
             &saved_parquet_file_state,
             files_to_delete,
             upgrade,
@@ -627,13 +631,14 @@ async fn fetch_and_save_parquet_file_state(
 /// Return created and upgraded files
 async fn update_catalog(
     components: Arc<Components>,
-    partition_id: PartitionId,
+    job: CompactionJob,
     saved_parquet_file_state: &SavedParquetFileState,
     files_to_delete: Vec<ParquetFile>,
     files_to_upgrade: Vec<ParquetFile>,
     file_params_to_create: Vec<ParquetFileParams>,
     target_level: CompactionLevel,
 ) -> Result<(Vec<ParquetFile>, Vec<ParquetFile>), DynError> {
+    let partition_id = job.partition_id;
     let current_parquet_file_state =
         fetch_and_save_parquet_file_state(&components, partition_id).await;
 

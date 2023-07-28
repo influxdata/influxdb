@@ -1,7 +1,9 @@
 //! A write buffer.
 
 use arrow::record_batch::RecordBatch;
-use mutable_batch::MutableBatch;
+use data_types::{StatValues, TimestampMinMax};
+use mutable_batch::{column::ColumnData, MutableBatch};
+use schema::{Projection, TIME_COLUMN_NAME};
 
 use super::{snapshot::Snapshot, BufferState, Transition};
 use crate::{
@@ -41,6 +43,29 @@ impl Queryable for Buffering {
             .map(|v| vec![projection.project_mutable_batches(v)])
             .unwrap_or_default()
     }
+
+    fn rows(&self) -> usize {
+        self.buffer.buffer().map(|v| v.rows()).unwrap_or_default()
+    }
+
+    fn timestamp_stats(&self) -> Option<TimestampMinMax> {
+        self.buffer
+            .buffer()
+            .map(extract_timestamp_summary)
+            // Safety: unwrapping the timestamp bounds is safe, as any non-empty
+            // buffer must contain timestamps.
+            .map(|v| TimestampMinMax {
+                min: v.min.unwrap(),
+                max: v.max.unwrap(),
+            })
+    }
+
+    fn schema(&self) -> Option<schema::Schema> {
+        self.buffer.buffer().map(|v| {
+            v.schema(Projection::All)
+                .expect("failed to construct batch schema")
+        })
+    }
 }
 
 impl Writeable for Buffering {
@@ -72,6 +97,18 @@ impl BufferState<Buffering> {
 
     pub(crate) fn persist_cost_estimate(&self) -> usize {
         self.state.buffer.persist_cost_estimate()
+    }
+}
+
+/// Perform an O(1) extraction of the timestamp column statistics.
+fn extract_timestamp_summary(batch: &MutableBatch) -> &StatValues<i64> {
+    let col = batch
+        .column(TIME_COLUMN_NAME)
+        .expect("timestamps must exist for non-empty buffer");
+
+    match col.data() {
+        ColumnData::I64(_data, stats) => stats,
+        _ => unreachable!(),
     }
 }
 

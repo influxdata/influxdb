@@ -1,23 +1,24 @@
 use std::{fmt::Display, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use compactor_scheduler::PartitionsSource;
-use data_types::PartitionId;
+use compactor_scheduler::CompactionJob;
 use iox_time::TimeProvider;
 
+use super::CompactionJobsSource;
+
 #[derive(Debug)]
-pub struct NotEmptyPartitionsSourceWrapper<T>
+pub struct NotEmptyCompactionJobsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     inner: T,
     throttle: Duration,
     time_provider: Arc<dyn TimeProvider>,
 }
 
-impl<T> NotEmptyPartitionsSourceWrapper<T>
+impl<T> NotEmptyCompactionJobsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     pub fn new(inner: T, throttle: Duration, time_provider: Arc<dyn TimeProvider>) -> Self {
         Self {
@@ -28,9 +29,9 @@ where
     }
 }
 
-impl<T> Display for NotEmptyPartitionsSourceWrapper<T>
+impl<T> Display for NotEmptyCompactionJobsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "not_empty({})", self.inner)
@@ -38,11 +39,11 @@ where
 }
 
 #[async_trait]
-impl<T> PartitionsSource for NotEmptyPartitionsSourceWrapper<T>
+impl<T> CompactionJobsSource for NotEmptyCompactionJobsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
-    async fn fetch(&self) -> Vec<PartitionId> {
+    async fn fetch(&self) -> Vec<CompactionJob> {
         loop {
             let res = self.inner.fetch().await;
             if !res.is_empty() {
@@ -55,16 +56,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use compactor_scheduler::MockPartitionsSource;
     use compactor_test_utils::AssertFutureExt;
+    use data_types::PartitionId;
     use iox_time::{MockProvider, Time};
 
-    use super::*;
+    use super::{super::mock::MockCompactionJobsSource, *};
 
     #[test]
     fn test_display() {
-        let source = NotEmptyPartitionsSourceWrapper::new(
-            MockPartitionsSource::new(vec![]),
+        let source = NotEmptyCompactionJobsSourceWrapper::new(
+            MockCompactionJobsSource::new(vec![]),
             Duration::from_secs(1),
             Arc::new(MockProvider::new(Time::MIN)),
         );
@@ -73,9 +74,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch() {
-        let inner = Arc::new(MockPartitionsSource::new(vec![]));
+        let inner = Arc::new(MockCompactionJobsSource::new(vec![]));
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let source = NotEmptyPartitionsSourceWrapper::new(
+        let source = NotEmptyCompactionJobsSourceWrapper::new(
             Arc::clone(&inner),
             Duration::from_secs(1),
             Arc::clone(&time_provider) as _,
@@ -90,7 +91,7 @@ mod tests {
         fut.assert_pending().await;
 
         // insert data but system is still throttled
-        let p = PartitionId::new(5);
+        let p = CompactionJob::new(PartitionId::new(5));
         let parts = vec![p];
         inner.set(parts.clone());
         fut.assert_pending().await;

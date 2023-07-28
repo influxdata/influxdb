@@ -80,7 +80,7 @@ pub fn log_config(config: &Config) {
 pub fn log_components(components: &Components) {
     // use struct unpack so we don't forget any members
     let Components {
-        partition_stream,
+        compaction_job_stream,
         partition_info_source,
         partition_files_source,
         round_info_source,
@@ -100,7 +100,7 @@ pub fn log_components(components: &Components) {
     } = components;
 
     info!(
-        %partition_stream,
+        %compaction_job_stream,
         %partition_info_source,
         %partition_files_source,
         %round_info_source,

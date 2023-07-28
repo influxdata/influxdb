@@ -1,26 +1,27 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use compactor_scheduler::PartitionsSource;
-use data_types::PartitionId;
+use compactor_scheduler::CompactionJob;
 use metric::{Registry, U64Counter};
+
+use super::CompactionJobsSource;
 
 const METRIC_NAME_PARTITIONS_FETCH_COUNT: &str = "iox_compactor_partitions_fetch_count";
 const METRIC_NAME_PARTITIONS_COUNT: &str = "iox_compactor_partitions_count";
 
 #[derive(Debug)]
-pub struct MetricsPartitionsSourceWrapper<T>
+pub struct MetricsCompactionJobsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     partitions_fetch_counter: U64Counter,
     partitions_counter: U64Counter,
     inner: T,
 }
 
-impl<T> MetricsPartitionsSourceWrapper<T>
+impl<T> MetricsCompactionJobsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     pub fn new(inner: T, registry: &Registry) -> Self {
         let partitions_fetch_counter = registry
@@ -44,9 +45,9 @@ where
     }
 }
 
-impl<T> Display for MetricsPartitionsSourceWrapper<T>
+impl<T> Display for MetricsCompactionJobsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "metrics({})", self.inner)
@@ -54,11 +55,11 @@ where
 }
 
 #[async_trait]
-impl<T> PartitionsSource for MetricsPartitionsSourceWrapper<T>
+impl<T> CompactionJobsSource for MetricsCompactionJobsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
-    async fn fetch(&self) -> Vec<PartitionId> {
+    async fn fetch(&self) -> Vec<CompactionJob> {
         let partitions = self.inner.fetch().await;
         self.partitions_fetch_counter.inc(1);
         self.partitions_counter.inc(partitions.len() as u64);
@@ -68,16 +69,18 @@ where
 
 #[cfg(test)]
 mod tests {
-    use compactor_scheduler::MockPartitionsSource;
+    use data_types::PartitionId;
     use metric::assert_counter;
 
-    use super::*;
+    use super::{super::mock::MockCompactionJobsSource, *};
 
     #[test]
     fn test_display() {
         let registry = Registry::new();
-        let source =
-            MetricsPartitionsSourceWrapper::new(MockPartitionsSource::new(vec![]), &registry);
+        let source = MetricsCompactionJobsSourceWrapper::new(
+            MockCompactionJobsSource::new(vec![]),
+            &registry,
+        );
         assert_eq!(source.to_string(), "metrics(mock)",);
     }
 
@@ -85,12 +88,12 @@ mod tests {
     async fn test_fetch() {
         let registry = Registry::new();
         let partitions = vec![
-            PartitionId::new(5),
-            PartitionId::new(1),
-            PartitionId::new(12),
+            CompactionJob::new(PartitionId::new(5)),
+            CompactionJob::new(PartitionId::new(1)),
+            CompactionJob::new(PartitionId::new(12)),
         ];
-        let source = MetricsPartitionsSourceWrapper::new(
-            MockPartitionsSource::new(partitions.clone()),
+        let source = MetricsCompactionJobsSourceWrapper::new(
+            MockCompactionJobsSource::new(partitions.clone()),
             &registry,
         );
 

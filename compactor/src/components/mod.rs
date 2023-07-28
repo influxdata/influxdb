@@ -2,17 +2,19 @@ use std::sync::Arc;
 
 use self::{
     changed_files_filter::ChangedFilesFilter, commit::CommitToScheduler,
-    df_plan_exec::DataFusionPlanExec, df_planner::DataFusionPlanner, divide_initial::DivideInitial,
-    file_classifier::FileClassifier, ir_planner::IRPlanner, parquet_files_sink::ParquetFilesSink,
+    compaction_job_stream::CompactionJobStream, df_plan_exec::DataFusionPlanExec,
+    df_planner::DataFusionPlanner, divide_initial::DivideInitial, file_classifier::FileClassifier,
+    ir_planner::IRPlanner, parquet_files_sink::ParquetFilesSink,
     partition_done_sink::PartitionDoneSink, partition_files_source::PartitionFilesSource,
     partition_filter::PartitionFilter, partition_info_source::PartitionInfoSource,
-    partition_stream::PartitionStream,
     post_classification_partition_filter::PostClassificationPartitionFilter,
     round_info_source::RoundInfoSource, round_split::RoundSplit, scratchpad::ScratchpadGen,
 };
 
 pub mod changed_files_filter;
 pub(crate) mod commit;
+pub mod compaction_job_stream;
+pub mod compaction_jobs_source;
 pub mod df_plan_exec;
 pub mod df_planner;
 pub mod divide_initial;
@@ -29,8 +31,6 @@ pub mod partition_files_source;
 pub mod partition_filter;
 pub mod partition_info_source;
 pub mod partition_source;
-pub mod partition_stream;
-pub mod partitions_source;
 pub mod post_classification_partition_filter;
 pub mod report;
 pub mod round_info_source;
@@ -47,7 +47,7 @@ pub mod timeout;
 #[derive(Debug, Clone)]
 pub struct Components {
     /// Source of partitions for the compactor to compact
-    pub partition_stream: Arc<dyn PartitionStream>,
+    pub compaction_job_stream: Arc<dyn CompactionJobStream>,
     /// Source of information about a partition neededed for compaction
     pub partition_info_source: Arc<dyn PartitionInfoSource>,
     /// Source of files in a partition for compaction
