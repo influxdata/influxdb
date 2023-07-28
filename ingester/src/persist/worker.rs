@@ -305,12 +305,8 @@ where
 
     // Build the data that must be inserted into the parquet_files catalog
     // table in order to make the file visible to queriers.
-    let parquet_table_data = iox_metadata.to_parquet_file(
-        ctx.partition_id(),
-        ctx.partition_hash_id(),
-        file_size,
-        &md,
-        |name| {
+    let parquet_table_data =
+        iox_metadata.to_parquet_file(ctx.partition_id().clone(), file_size, &md, |name| {
             columns
                 .get(name)
                 .unwrap_or_else(|| {
@@ -320,8 +316,7 @@ where
                     )
                 })
                 .id
-        },
-    );
+        });
 
     (catalog_sort_key_update, parquet_table_data)
 }

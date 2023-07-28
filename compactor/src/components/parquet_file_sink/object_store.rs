@@ -91,20 +91,15 @@ impl ParquetFileSink for ObjectStoreParquetFileSink {
             }
         };
 
-        let parquet_file = meta.to_parquet_file(
-            partition.partition_id,
-            partition.partition_hash_id.clone(),
-            file_size,
-            &parquet_meta,
-            |name| {
+        let parquet_file =
+            meta.to_parquet_file(partition.partition_id(), file_size, &parquet_meta, |name| {
                 partition
                     .table_schema
                     .columns
                     .get(name)
                     .expect("unknown column")
                     .id
-            },
-        );
+            });
 
         Ok(Some(parquet_file))
     }
