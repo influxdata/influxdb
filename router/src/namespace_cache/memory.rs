@@ -60,9 +60,7 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
                     // There are no pre-existing tables for columns to be added
                     // to, so don't need to build another map.
                     new_columns_per_table: Default::default(),
-                    num_new_columns: schema.tables.iter().fold(0, |acc, (_, table_schema)| {
-                        acc + table_schema.column_count()
-                    }),
+                    num_new_columns: schema.tables.values().map(|v| v.column_count()).sum(),
                     did_update: false,
                 };
                 (schema, change_stats)
@@ -308,7 +306,7 @@ mod tests {
                 assert_eq!(*new_schema, schema_update_1);
                 assert_eq!(
                     new_stats,
-                    ChangeStats { new_tables: schema_update_1.tables.clone(), new_columns_per_table: Default::default(), num_new_columns: schema_update_1.tables.iter().fold(0, |acc, (_, table_schema)| acc + table_schema.column_count()), did_update: false }
+                    ChangeStats { new_tables: schema_update_1.tables.clone(), new_columns_per_table: Default::default(), num_new_columns: schema_update_1.tables.values().map(|v| v.column_count()).sum(), did_update: false }
                 );
             }
         );
@@ -322,7 +320,7 @@ mod tests {
                 )].into_iter().collect::<BTreeMap<_,_>>().into(),
             )].into_iter().collect::<BTreeMap<_,_>>();
 
-            assert_eq!(new_stats, ChangeStats{ new_tables: Default::default(), new_columns_per_table: want_new_columns.clone(), num_new_columns: want_new_columns.iter().fold(0, |acc, (_, columns)| acc + columns.column_count()), did_update: true});
+            assert_eq!(new_stats, ChangeStats{ new_tables: Default::default(), new_columns_per_table: want_new_columns.clone(), num_new_columns: want_new_columns.values().map(|v| v.column_count()).sum(), did_update: true});
         });
 
         let got_namespace_schema = cache
@@ -415,7 +413,7 @@ mod tests {
                     ChangeStats {
                         new_tables: schema_update_1.tables.clone(),
                         new_columns_per_table: Default::default(),
-                        num_new_columns: schema_update_1.tables.iter().fold(0, |acc, (_, table_schema)| acc + table_schema.column_count()),
+                        num_new_columns: schema_update_1.tables.values().map(|v| v.column_count()).sum(),
                         did_update: false,
                          }
                 );
@@ -427,7 +425,7 @@ mod tests {
             assert_eq!(new_stats, ChangeStats{
                 new_tables: want_new_tables.clone(),
                 new_columns_per_table: Default::default(),
-                num_new_columns: want_new_tables.iter().fold(0,|acc, (_, table_schema)| acc + table_schema.column_count()),
+                num_new_columns: want_new_tables.values().map(|v| v.column_count()).sum(),
                 did_update: true,
             });
         });

@@ -50,10 +50,11 @@ pub trait NamespaceCache: Debug + Send + Sync {
 /// associated [`NamespaceCache::put_schema()`] call.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ChangeStats {
-    /// The new tables added to the cache.
+    /// The new tables added to the cache, keyed by table name.
     pub(crate) new_tables: BTreeMap<String, TableSchema>,
 
-    /// The new columns added to cache for all pre-existing tables.
+    /// The new columns added to cache for all pre-existing tables, keyed by
+    /// the table name.
     pub(crate) new_columns_per_table: BTreeMap<String, ColumnsByName>,
 
     /// The number of new columns added across new and existing tables.
