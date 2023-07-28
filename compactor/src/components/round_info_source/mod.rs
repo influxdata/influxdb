@@ -7,6 +7,7 @@ use std::{
 use crate::components::split_or_compact::start_level_files_to_split::split_into_chains;
 use async_trait::async_trait;
 use data_types::{CompactionLevel, ParquetFile, Timestamp};
+use itertools::Itertools;
 use observability_deps::tracing::debug;
 
 use crate::{error::DynError, PartitionInfo, RoundInfo};
@@ -93,6 +94,11 @@ impl LevelBasedRoundInfo {
             .iter()
             .map(|f| f.file_size_bytes as usize)
             .sum();
+        let start_max_l0_created_at = start_level_files
+            .iter()
+            .map(|f| f.max_l0_created_at)
+            .unique()
+            .count();
 
         let next_level_files = files
             .iter()
@@ -110,7 +116,13 @@ impl LevelBasedRoundInfo {
             // But ManySmallFiles implies we must compact only within the start level to reduce the quantity of
             // start level files. There are several reasons why that might be unhelpful.
 
-            // Reason 1: Maybe its many LARGE files making reduction of file count in the start level impossible.
+            // Reason 1: if all the start level files have the same max_l0_created_at, then they were split from
+            // the same file.  If we previously decided to split them, we should not undo that now.
+            if start_max_l0_created_at == 1 {
+                return false;
+            }
+
+            // Reason 2: Maybe its many LARGE files making reduction of file count in the start level impossible.
             if size_start_level / num_start_level
                 > self.max_total_file_size_per_plan / self.max_num_files_per_plan
             {
@@ -121,7 +133,7 @@ impl LevelBasedRoundInfo {
                 return false;
             }
 
-            // Reason 2: Maybe there are so many start level files because we did a bunch of splits.
+            // Reason 3: Maybe there are so many start level files because we did a bunch of splits.
             // Note that we'll do splits to ensure each start level file overlaps at most one target level file.
             // If the prior round did that, and now we declare this ManySmallFiles, which forces compactions
             // within the start level, we'll undo the splits performed in the prior round, which can get us
@@ -254,10 +266,12 @@ mod tests {
         let f1 = ParquetFileBuilder::new(1)
             .with_time_range(0, 100)
             .with_compaction_level(CompactionLevel::Initial)
+            .with_max_l0_created_at(0)
             .build();
         let f2 = ParquetFileBuilder::new(2)
             .with_time_range(0, 100)
             .with_compaction_level(CompactionLevel::Initial)
+            .with_max_l0_created_at(2)
             .build();
         // non overlapping L1 file
         let f3 = ParquetFileBuilder::new(3)

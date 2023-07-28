@@ -26,9 +26,11 @@ impl Dispatcher for tokio::sync::mpsc::Sender<Bytes> {
     }
 }
 
-// A no-op dispatcher.
-#[cfg(test)]
+/// A no-op [`Dispatcher`].
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NopDispatcher;
+
 #[async_trait::async_trait]
-impl Dispatcher for () {
+impl Dispatcher for NopDispatcher {
     async fn dispatch(&self, _payload: crate::Bytes) {}
 }

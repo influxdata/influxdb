@@ -2,38 +2,38 @@ use async_trait::async_trait;
 use compactor_scheduler::CompactionJob;
 use parking_lot::Mutex;
 
-use super::PartitionsSource;
+use super::CompactionJobsSource;
 
-/// A mock structure for providing [partitions](CompactionJob).
+/// A mock structure for providing [compaction jobs](CompactionJob).
 #[derive(Debug)]
-pub struct MockPartitionsSource {
+pub struct MockCompactionJobsSource {
     partitions: Mutex<Vec<CompactionJob>>,
 }
 
-impl MockPartitionsSource {
+impl MockCompactionJobsSource {
     #[allow(dead_code)]
-    /// Create a new MockPartitionsSource.
+    /// Create a new MockCompactionJobsSource.
     pub fn new(partitions: Vec<CompactionJob>) -> Self {
         Self {
             partitions: Mutex::new(partitions),
         }
     }
 
-    /// Set CompactionJobs for MockPartitionsSource.
+    /// Set CompactionJobs for MockCompactionJobsSource.
     #[allow(dead_code)] // not used anywhere
     pub fn set(&self, partitions: Vec<CompactionJob>) {
         *self.partitions.lock() = partitions;
     }
 }
 
-impl std::fmt::Display for MockPartitionsSource {
+impl std::fmt::Display for MockCompactionJobsSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "mock")
     }
 }
 
 #[async_trait]
-impl PartitionsSource for MockPartitionsSource {
+impl CompactionJobsSource for MockCompactionJobsSource {
     async fn fetch(&self) -> Vec<CompactionJob> {
         self.partitions.lock().clone()
     }
@@ -47,12 +47,12 @@ mod tests {
 
     #[test]
     fn test_display() {
-        assert_eq!(MockPartitionsSource::new(vec![]).to_string(), "mock",);
+        assert_eq!(MockCompactionJobsSource::new(vec![]).to_string(), "mock",);
     }
 
     #[tokio::test]
     async fn test_fetch() {
-        let source = MockPartitionsSource::new(vec![]);
+        let source = MockCompactionJobsSource::new(vec![]);
         assert_eq!(source.fetch().await, vec![],);
 
         let p_1 = CompactionJob::new(PartitionId::new(5));

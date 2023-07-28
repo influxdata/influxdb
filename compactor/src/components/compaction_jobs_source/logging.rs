@@ -4,28 +4,28 @@ use async_trait::async_trait;
 use compactor_scheduler::CompactionJob;
 use observability_deps::tracing::{info, warn};
 
-use super::PartitionsSource;
+use super::CompactionJobsSource;
 
 #[derive(Debug)]
-pub struct LoggingPartitionsSourceWrapper<T>
+pub struct LoggingCompactionJobsWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     inner: T,
 }
 
-impl<T> LoggingPartitionsSourceWrapper<T>
+impl<T> LoggingCompactionJobsWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     pub fn new(inner: T) -> Self {
         Self { inner }
     }
 }
 
-impl<T> Display for LoggingPartitionsSourceWrapper<T>
+impl<T> Display for LoggingCompactionJobsWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "logging({})", self.inner)
@@ -33,9 +33,9 @@ where
 }
 
 #[async_trait]
-impl<T> PartitionsSource for LoggingPartitionsSourceWrapper<T>
+impl<T> CompactionJobsSource for LoggingCompactionJobsWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     async fn fetch(&self) -> Vec<CompactionJob> {
         let partitions = self.inner.fetch().await;
@@ -52,17 +52,17 @@ mod tests {
     use data_types::PartitionId;
     use test_helpers::tracing::TracingCapture;
 
-    use super::{super::mock::MockPartitionsSource, *};
+    use super::{super::mock::MockCompactionJobsSource, *};
 
     #[test]
     fn test_display() {
-        let source = LoggingPartitionsSourceWrapper::new(MockPartitionsSource::new(vec![]));
+        let source = LoggingCompactionJobsWrapper::new(MockCompactionJobsSource::new(vec![]));
         assert_eq!(source.to_string(), "logging(mock)",);
     }
 
     #[tokio::test]
     async fn test_fetch_empty() {
-        let source = LoggingPartitionsSourceWrapper::new(MockPartitionsSource::new(vec![]));
+        let source = LoggingCompactionJobsWrapper::new(MockCompactionJobsSource::new(vec![]));
         let capture = TracingCapture::new();
         assert_eq!(source.fetch().await, vec![],);
         // logs normal log message (so it's easy search for every single call) but also an extra warning
@@ -81,7 +81,7 @@ mod tests {
         let partitions = vec![p_1, p_2, p_3];
 
         let source =
-            LoggingPartitionsSourceWrapper::new(MockPartitionsSource::new(partitions.clone()));
+            LoggingCompactionJobsWrapper::new(MockCompactionJobsSource::new(partitions.clone()));
         let capture = TracingCapture::new();
         assert_eq!(source.fetch().await, partitions,);
         // just the ordinary log message, no warning

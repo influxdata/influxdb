@@ -4,21 +4,21 @@ use async_trait::async_trait;
 use compactor_scheduler::CompactionJob;
 use iox_time::TimeProvider;
 
-use super::PartitionsSource;
+use super::CompactionJobsSource;
 
 #[derive(Debug)]
-pub struct NotEmptyPartitionsSourceWrapper<T>
+pub struct NotEmptyCompactionJobsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     inner: T,
     throttle: Duration,
     time_provider: Arc<dyn TimeProvider>,
 }
 
-impl<T> NotEmptyPartitionsSourceWrapper<T>
+impl<T> NotEmptyCompactionJobsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     pub fn new(inner: T, throttle: Duration, time_provider: Arc<dyn TimeProvider>) -> Self {
         Self {
@@ -29,9 +29,9 @@ where
     }
 }
 
-impl<T> Display for NotEmptyPartitionsSourceWrapper<T>
+impl<T> Display for NotEmptyCompactionJobsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "not_empty({})", self.inner)
@@ -39,9 +39,9 @@ where
 }
 
 #[async_trait]
-impl<T> PartitionsSource for NotEmptyPartitionsSourceWrapper<T>
+impl<T> CompactionJobsSource for NotEmptyCompactionJobsSourceWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     async fn fetch(&self) -> Vec<CompactionJob> {
         loop {
@@ -60,12 +60,12 @@ mod tests {
     use data_types::PartitionId;
     use iox_time::{MockProvider, Time};
 
-    use super::{super::mock::MockPartitionsSource, *};
+    use super::{super::mock::MockCompactionJobsSource, *};
 
     #[test]
     fn test_display() {
-        let source = NotEmptyPartitionsSourceWrapper::new(
-            MockPartitionsSource::new(vec![]),
+        let source = NotEmptyCompactionJobsSourceWrapper::new(
+            MockCompactionJobsSource::new(vec![]),
             Duration::from_secs(1),
             Arc::new(MockProvider::new(Time::MIN)),
         );
@@ -74,9 +74,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch() {
-        let inner = Arc::new(MockPartitionsSource::new(vec![]));
+        let inner = Arc::new(MockCompactionJobsSource::new(vec![]));
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let source = NotEmptyPartitionsSourceWrapper::new(
+        let source = NotEmptyCompactionJobsSourceWrapper::new(
             Arc::clone(&inner),
             Duration::from_secs(1),
             Arc::clone(&time_provider) as _,

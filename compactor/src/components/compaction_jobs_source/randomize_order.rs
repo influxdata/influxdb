@@ -4,29 +4,29 @@ use async_trait::async_trait;
 use compactor_scheduler::CompactionJob;
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 
-use super::PartitionsSource;
+use super::CompactionJobsSource;
 
 #[derive(Debug)]
-pub struct RandomizeOrderPartitionsSourcesWrapper<T>
+pub struct RandomizeOrderCompactionJobsSourcesWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     inner: T,
     seed: u64,
 }
 
-impl<T> RandomizeOrderPartitionsSourcesWrapper<T>
+impl<T> RandomizeOrderCompactionJobsSourcesWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     pub fn new(inner: T, seed: u64) -> Self {
         Self { inner, seed }
     }
 }
 
-impl<T> Display for RandomizeOrderPartitionsSourcesWrapper<T>
+impl<T> Display for RandomizeOrderCompactionJobsSourcesWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "randomize_order({})", self.inner)
@@ -34,9 +34,9 @@ where
 }
 
 #[async_trait]
-impl<T> PartitionsSource for RandomizeOrderPartitionsSourcesWrapper<T>
+impl<T> CompactionJobsSource for RandomizeOrderCompactionJobsSourcesWrapper<T>
 where
-    T: PartitionsSource,
+    T: CompactionJobsSource,
 {
     async fn fetch(&self) -> Vec<CompactionJob> {
         let mut partitions = self.inner.fetch().await;
@@ -50,19 +50,23 @@ where
 mod tests {
     use data_types::PartitionId;
 
-    use super::{super::mock::MockPartitionsSource, *};
+    use super::{super::mock::MockCompactionJobsSource, *};
 
     #[test]
     fn test_display() {
-        let source =
-            RandomizeOrderPartitionsSourcesWrapper::new(MockPartitionsSource::new(vec![]), 123);
+        let source = RandomizeOrderCompactionJobsSourcesWrapper::new(
+            MockCompactionJobsSource::new(vec![]),
+            123,
+        );
         assert_eq!(source.to_string(), "randomize_order(mock)",);
     }
 
     #[tokio::test]
     async fn test_fetch_empty() {
-        let source =
-            RandomizeOrderPartitionsSourcesWrapper::new(MockPartitionsSource::new(vec![]), 123);
+        let source = RandomizeOrderCompactionJobsSourcesWrapper::new(
+            MockCompactionJobsSource::new(vec![]),
+            123,
+        );
         assert_eq!(source.fetch().await, vec![],);
     }
 
@@ -74,8 +78,8 @@ mod tests {
         let partitions = vec![p_1.clone(), p_2.clone(), p_3.clone()];
 
         // shuffles
-        let source = RandomizeOrderPartitionsSourcesWrapper::new(
-            MockPartitionsSource::new(partitions.clone()),
+        let source = RandomizeOrderCompactionJobsSourcesWrapper::new(
+            MockCompactionJobsSource::new(partitions.clone()),
             123,
         );
         assert_eq!(
@@ -93,8 +97,8 @@ mod tests {
 
         // is deterministic with new source
         for _ in 0..100 {
-            let source = RandomizeOrderPartitionsSourcesWrapper::new(
-                MockPartitionsSource::new(partitions.clone()),
+            let source = RandomizeOrderCompactionJobsSourcesWrapper::new(
+                MockCompactionJobsSource::new(partitions.clone()),
                 123,
             );
             assert_eq!(
@@ -104,8 +108,8 @@ mod tests {
         }
 
         // different seed => different output
-        let source = RandomizeOrderPartitionsSourcesWrapper::new(
-            MockPartitionsSource::new(partitions.clone()),
+        let source = RandomizeOrderCompactionJobsSourcesWrapper::new(
+            MockCompactionJobsSource::new(partitions.clone()),
             1234,
         );
         assert_eq!(source.fetch().await, vec![p_2, p_3, p_1,],);

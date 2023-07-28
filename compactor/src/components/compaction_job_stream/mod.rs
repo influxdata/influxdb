@@ -7,8 +7,8 @@ pub mod endless;
 pub mod once;
 
 /// Source for partitions.
-pub trait PartitionStream: Debug + Display + Send + Sync {
-    /// Create new source stream of compaction job.
+pub trait CompactionJobStream: Debug + Display + Send + Sync {
+    /// Create new source stream of compaction jobs.
     ///
     /// This stream may be endless.
     fn stream(&self) -> BoxStream<'_, CompactionJob>;
