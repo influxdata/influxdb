@@ -276,7 +276,7 @@ where
             let (id, completed_persistence_count, data, partition_key) = {
                 let mut p = p.lock();
                 (
-                    p.transition_partition_id(),
+                    p.partition_id().clone(),
                     p.completed_persistence_count(),
                     p.get_query_data(&projection),
                     p.partition_key().clone(),

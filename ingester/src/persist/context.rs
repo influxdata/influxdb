@@ -149,7 +149,7 @@ impl Context {
             let p = Arc::clone(&partition);
             let guard = p.lock();
 
-            assert_eq!(partition_id, guard.transition_partition_id());
+            assert_eq!(&partition_id, guard.partition_id());
 
             Self {
                 partition,

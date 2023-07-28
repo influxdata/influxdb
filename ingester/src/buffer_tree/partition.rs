@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use data_types::{
-    sequence_number_set::SequenceNumberSet, NamespaceId, PartitionHashId, PartitionId,
+    sequence_number_set::SequenceNumberSet, NamespaceId,
     PartitionKey, SequenceNumber, TableId, TimestampMinMax, TransitionPartitionId,
 };
 use mutable_batch::MutableBatch;
@@ -48,12 +48,8 @@ impl SortKeyState {
 /// Data of an IOx Partition of a given Table of a Namespace
 #[derive(Debug)]
 pub struct PartitionData {
-    /// The catalog ID of the partition this buffer is for.
-    partition_id: PartitionId,
-
-    /// The deterministic hash identifier of the partition this buffer is for, if present in the
-    /// catalog.
-    partition_hash_id: Option<PartitionHashId>,
+    /// The partition this buffer is for.
+    partition_id: TransitionPartitionId,
 
     /// The string partition key for this partition.
     partition_key: PartitionKey,
@@ -106,8 +102,7 @@ impl PartitionData {
     /// Initialize a new partition data buffer
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        id: PartitionId,
-        partition_hash_id: Option<PartitionHashId>,
+        partition_id: TransitionPartitionId,
         partition_key: PartitionKey,
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
@@ -116,8 +111,7 @@ impl PartitionData {
         sort_key: SortKeyState,
     ) -> Self {
         Self {
-            partition_id: id,
-            partition_hash_id,
+            partition_id,
             partition_key,
             sort_key,
             namespace_id,
@@ -261,7 +255,7 @@ impl PartitionData {
         // is upheld by the FSM, which ensures only non-empty snapshots /
         // RecordBatch are generated. Because `data` contains at least one
         // RecordBatch, this invariant holds.
-        let q = QueryAdaptor::new(self.transition_partition_id(), data);
+        let q = QueryAdaptor::new(self.partition_id.clone(), data);
 
         // Invariant: the number of rows returned in a query MUST always match
         // the row count reported by the rows() method.
@@ -325,7 +319,7 @@ impl PartitionData {
         // Wrap the persisting data in the type wrapper
         let data = PersistingData::new(
             QueryAdaptor::new(
-                self.transition_partition_id(),
+                self.partition_id.clone(),
                 fsm.get_query_data(&OwnedProjection::default()),
             ),
             batch_ident,
@@ -367,16 +361,8 @@ impl PartitionData {
         fsm.into_sequence_number_set()
     }
 
-    pub(crate) fn partition_id(&self) -> PartitionId {
-        self.partition_id
-    }
-
-    pub(crate) fn partition_hash_id(&self) -> Option<&PartitionHashId> {
-        self.partition_hash_id.as_ref()
-    }
-
-    pub(crate) fn transition_partition_id(&self) -> TransitionPartitionId {
-        TransitionPartitionId::from((self.partition_id, self.partition_hash_id.as_ref()))
+    pub(crate) fn partition_id(&self) -> &TransitionPartitionId {
+        &self.partition_id
     }
 
     /// Return the count of persisted Parquet files for this [`PartitionData`] instance.
