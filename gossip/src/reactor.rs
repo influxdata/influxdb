@@ -4,6 +4,7 @@ use prost::{bytes::BytesMut, Message};
 use tokio::{
     net::UdpSocket,
     sync::mpsc::{self},
+    time,
 };
 use tracing::{debug, error, info, trace, warn};
 
@@ -12,7 +13,7 @@ use crate::{
     peers::{Identity, PeerList},
     proto::{self, frame_message::Payload, FrameMessage},
     seed::{seed_ping_task, Seed},
-    Dispatcher, Request, MAX_FRAME_BYTES,
+    Dispatcher, Request, MAX_FRAME_BYTES, PEER_PING_INTERVAL,
 };
 
 #[derive(Debug)]
@@ -50,7 +51,7 @@ impl Drop for AbortOnDrop {
     }
 }
 
-/// An event loop for gossip frames processing.
+/// An event loop actor for gossip frame processing.
 ///
 /// This actor task is responsible for driving peer discovery, managing the set
 /// of known peers and exchanging gossip frames between peers.
@@ -67,6 +68,8 @@ pub(crate) struct Reactor<T> {
 
     /// A cached wire frame, used to generate outgoing messages.
     cached_frame: proto::Frame,
+    /// A cached, immutable ping frame.
+    cached_ping_frame: Arc<[u8]>,
     /// A re-used buffer for serialising outgoing messages into.
     serialisation_buf: Vec<u8>,
 
@@ -129,7 +132,7 @@ where
                 &mut serialisation_buf,
             )
             .unwrap();
-            serialisation_buf.clone()
+            Arc::from(serialisation_buf.clone())
         };
 
         // Initialise the various metrics with wrappers to help distinguish
@@ -145,7 +148,7 @@ where
         let seed_ping_task = AbortOnDrop(tokio::spawn(seed_ping_task(
             Arc::clone(&seed_list),
             Arc::clone(&socket),
-            cached_ping_frame,
+            Arc::clone(&cached_ping_frame),
             metric_frames_sent.clone(),
             metric_bytes_sent.clone(),
         )));
@@ -154,6 +157,7 @@ where
             dispatch,
             identity,
             cached_frame,
+            cached_ping_frame,
             serialisation_buf,
             peer_list: PeerList::with_capacity(seed_list.len(), metrics),
             seed_list,
@@ -166,6 +170,10 @@ where
         }
     }
 
+    /// Execute the reactor event loop, handing requests from the
+    /// [`GossipHandle`] over `rx`.
+    ///
+    /// [`GossipHandle`]: crate::GossipHandle
     pub(crate) async fn run(mut self, mut rx: mpsc::Receiver<Request>) {
         info!(
             identity = %self.identity,
@@ -173,9 +181,15 @@ where
             "gossip reactor started",
         );
 
+        // Start a timer to periodically perform health check PINGs and remove
+        // dead nodes.
+        let mut gc_interval = time::interval(PEER_PING_INTERVAL);
+        gc_interval.set_missed_tick_behavior(time::MissedTickBehavior::Delay);
+
         loop {
             tokio::select! {
                 msg = self.read() => {
+                    // Process a message received from a peer.
                     match msg {
                         Ok(()) => {},
                         Err(Error::NoPayload { peer, addr }) => {
@@ -201,6 +215,7 @@ where
                     }
                 }
                 op = rx.recv() => {
+                    // Process an operation from the handle.
                     match op {
                         None => {
                             info!("stopping gossip reactor");
@@ -227,6 +242,16 @@ where
                             ).await;
                         }
                     }
+                }
+                _ = gc_interval.tick() => {
+                    // Perform a periodic PING & prune dead peers.
+                    debug!("peer ping & gc sweep");
+                    self.peer_list.ping_gc(
+                        &self.cached_ping_frame,
+                        &self.socket,
+                        &self.metric_frames_sent,
+                        &self.metric_bytes_sent
+                    ).await;
                 }
             };
         }
@@ -260,10 +285,7 @@ where
             return Ok(());
         }
 
-        // Find or create the peer in the peer list.
-        let peer = self.peer_list.upsert(&identity, peer_addr);
-
-        let mut out_messages = Vec::with_capacity(1);
+        let mut out_messages = Vec::new();
         for msg in frame.messages {
             // Extract the payload from the frame message
             let payload = msg.payload.ok_or_else(|| Error::NoPayload {
@@ -272,15 +294,28 @@ where
             })?;
 
             // Handle the frame message from the peer, optionally returning a
-            // response frame.
+            // response frame to be sent back.
             let response = match payload {
-                Payload::Ping(_) => Some(Payload::Pong(proto::Pong {})),
-                Payload::Pong(_) => {
-                    debug!(%identity, %peer_addr, "pong");
+                Payload::Ping(_) => Some(Payload::Pong(proto::Pong {
+                    peers: self.peer_list.peers().map(proto::Peer::from).collect(),
+                })),
+                Payload::Pong(pex) => {
+                    debug!(
+                        %identity,
+                        %peer_addr,
+                        pex_nodes=pex.peers.len(),
+                        "pong"
+                    );
+                    // If handling the PEX frame fails, the sender sent a bad
+                    // frame and is not added to the peer list / marked as
+                    // healthy.
+                    self.handle_pex(pex).await?;
                     None
                 }
                 Payload::UserData(data) => {
-                    self.dispatch.dispatch(data.payload).await;
+                    let data = data.payload;
+                    debug!(%identity, %peer_addr, n_bytes=data.len(), "dispatch payload");
+                    self.dispatch.dispatch(data).await;
                     None
                 }
             };
@@ -289,6 +324,12 @@ where
                 out_messages.push(new_payload(payload));
             }
         }
+
+        // Find or create the peer in the peer list.
+        let peer = self.peer_list.upsert(&identity, peer_addr);
+
+        // Track that this peer has been observed as healthy.
+        peer.mark_observed();
 
         // Sometimes no message will be returned to the peer - there's no need
         // to send an empty frame.
@@ -310,6 +351,60 @@ where
             &self.metric_bytes_sent,
         )
         .await?;
+
+        Ok(())
+    }
+
+    /// The PONG response to a PING contains the set of peers known to the sender
+    /// - this is the peer exchange mechanism.
+    async fn handle_pex(&mut self, pex: proto::Pong) -> Result<(), Error> {
+        // Process the peers from the remote, ignoring the local node and known
+        // peers.
+        for p in pex.peers {
+            let pex_identity = match Identity::try_from(p.identity) {
+                // Ignore any references to this node's identity, or known
+                // peers.
+                Ok(v) if v == self.identity => continue,
+                Ok(v) if self.peer_list.contains(&v) => continue,
+                Ok(v) => v,
+                Err(e) => {
+                    warn!(
+                        error=%e,
+                        "received invalid identity via PEX",
+                    );
+                    continue;
+                }
+            };
+
+            let pex_addr = match p.address.parse() {
+                Ok(v) => v,
+                Err(e) => {
+                    warn!(
+                        %pex_identity,
+                        error=%e,
+                        "received invalid peer address via PEX",
+                    );
+                    continue;
+                }
+            };
+
+            // Send a PING frame to this peer without adding it to the local
+            // peer list.
+            //
+            // The peer will be added to the local peer list if it responds to
+            // this solicitation (or otherwise communicates with the local
+            // node), ensuring only live and reachable peers are added.
+            //
+            // Immediately ping this new peer if new (a fast UDP send).
+            ping(
+                &self.cached_ping_frame,
+                &self.socket,
+                pex_addr,
+                &self.metric_frames_sent,
+                &self.metric_bytes_sent,
+            )
+            .await;
+        }
 
         Ok(())
     }
@@ -371,11 +466,11 @@ fn populate_frame(
     // messages must be shorter than this value.
     if frame.encoded_len() > MAX_FRAME_BYTES {
         error!(
-            n_bytes=buf.len(),
+            n_bytes=frame.encoded_len(),
             n_max=%MAX_FRAME_BYTES,
             "attempted to send frame larger than configured maximum"
         );
-        return Err(Error::MaxSize(buf.len()));
+        return Err(Error::MaxSize(frame.encoded_len()));
     }
 
     buf.clear();
@@ -399,19 +494,21 @@ pub(crate) async fn ping(
     sent_frames: &SentFrames,
     sent_bytes: &SentBytes,
 ) -> usize {
+    // Check the payload length as a primitive/best-effort way of ensuring only
+    // ping frames are sent via this mechanism.
+    //
+    // Normal messaging should be performed through a Peer's send() method.
+    debug_assert_eq!(ping_frame.len(), 22);
+
     match socket.send_to(ping_frame, &addr).await {
         Ok(n_bytes) => {
-            debug!(addr = %addr, "ping");
+            debug!(n_bytes, %addr, "ping");
             sent_frames.inc(1);
             sent_bytes.inc(n_bytes);
             n_bytes
         }
         Err(e) => {
-            warn!(
-                error=%e,
-                addr = %addr,
-                "ping failed"
-            );
+            warn!(error=%e, %addr, "ping failed");
             0
         }
     }

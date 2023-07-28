@@ -24,7 +24,27 @@ message FrameMessage {
 }
 
 message Ping {}
-message Pong {}
+
+// A response to a PING, containg the set of peers known to the sender.
+//
+// A sequence of ping/pong frames acts as a peer-exchange mechanism between
+// peers.
+message Pong {
+  // A set of peers known to the sender.
+  //
+  // Some of these peers may already be unreachable, and the receiver should not
+  // add them to their peer list without validating liveness.
+  repeated Peer peers = 1;
+}
+
+message Peer {
+  // A unique identifer (UUID) self-assigned by this peer as raw BE bytes.
+  bytes identity = 1;
+
+  // A socket (IP & port) address in the form "ip:port", as discovered by the
+  // PONG sender.
+  string address = 2;
+}
 
 // An application payload from the caller of the gossip library.
 message UserPayload {

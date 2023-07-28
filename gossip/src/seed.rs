@@ -63,10 +63,15 @@ async fn resolve(addr: &str) -> Option<SocketAddr> {
 ///
 /// This method immediately pings all the seeds, and then pings periodically at
 /// [`SEED_PING_INTERVAL`].
+///
+/// Seeds must be periodically pinged to ensure they're discovered when they
+/// come online - if seeds were not pinged continuously, this node could become
+/// isolated from all peers, mark all known peers as dead, and would never
+/// rejoin.
 pub(super) async fn seed_ping_task(
     seeds: Arc<[Seed]>,
     socket: Arc<UdpSocket>,
-    ping_frame: Vec<u8>,
+    ping_frame: Arc<[u8]>,
     sent_frames: SentFrames,
     sent_bytes: SentBytes,
 ) {
