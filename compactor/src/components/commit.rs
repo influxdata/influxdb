@@ -4,7 +4,7 @@ use compactor_scheduler::{
     CommitUpdate, CompactionJob, CompactionJobStatus, CompactionJobStatusResponse,
     CompactionJobStatusVariant, Scheduler,
 };
-use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
+use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams};
 
 #[derive(Debug)]
 pub struct CommitToScheduler {
@@ -18,7 +18,7 @@ impl CommitToScheduler {
 
     pub async fn commit(
         &self,
-        partition_id: PartitionId,
+        job: CompactionJob,
         delete: &[ParquetFile],
         upgrade: &[ParquetFile],
         create: &[ParquetFileParams],
@@ -27,9 +27,9 @@ impl CommitToScheduler {
         match self
             .scheduler
             .update_job_status(CompactionJobStatus {
-                job: CompactionJob::new(partition_id),
+                job: job.clone(),
                 status: CompactionJobStatusVariant::Update(CommitUpdate::new(
-                    partition_id,
+                    job.partition_id,
                     delete.into(),
                     upgrade.into(),
                     create.into(),
