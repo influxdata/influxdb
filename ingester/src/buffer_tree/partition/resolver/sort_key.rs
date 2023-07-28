@@ -3,21 +3,21 @@
 use std::sync::Arc;
 
 use backoff::{Backoff, BackoffConfig};
-use data_types::{PartitionId, TransitionPartitionId};
+use data_types::TransitionPartitionId;
 use iox_catalog::{interface::Catalog, partition_lookup};
 use schema::sort::SortKey;
 
-/// A resolver of [`SortKey`] from the catalog for a given [`PartitionId`].
+/// A resolver of [`SortKey`] from the catalog for a given [`TransitionPartitionId`].
 #[derive(Debug)]
 pub(crate) struct SortKeyResolver {
-    partition_id: PartitionId,
+    partition_id: TransitionPartitionId,
     backoff_config: BackoffConfig,
     catalog: Arc<dyn Catalog>,
 }
 
 impl SortKeyResolver {
     pub(crate) fn new(
-        partition_id: PartitionId,
+        partition_id: TransitionPartitionId,
         catalog: Arc<dyn Catalog>,
         backoff_config: BackoffConfig,
     ) -> Self {
@@ -34,8 +34,7 @@ impl SortKeyResolver {
         Backoff::new(&self.backoff_config)
             .retry_all_errors("fetch partition sort key", || async {
                 let mut repos = self.catalog.repositories().await;
-                let id = TransitionPartitionId::Deprecated(self.partition_id);
-                let s = partition_lookup(repos.as_mut(), &id)
+                let s = partition_lookup(repos.as_mut(), &self.partition_id)
                     .await?
                     .unwrap_or_else(|| {
                         panic!(
@@ -81,8 +80,11 @@ mod tests {
             .await
             .expect("should create");
 
-        let fetcher =
-            SortKeyResolver::new(partition.id, Arc::clone(&catalog), backoff_config.clone());
+        let fetcher = SortKeyResolver::new(
+            partition.transition_partition_id(),
+            Arc::clone(&catalog),
+            backoff_config.clone(),
+        );
 
         // Set the sort key
         let catalog_state = catalog

@@ -2,7 +2,10 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::{NamespaceId, Partition, PartitionHashId, PartitionId, PartitionKey, TableId};
+use data_types::{
+    NamespaceId, Partition, PartitionHashId, PartitionId, PartitionKey, TableId,
+    TransitionPartitionId,
+};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
@@ -183,7 +186,7 @@ where
             let sort_key_resolver = DeferredLoad::new(
                 self.max_smear,
                 SortKeyResolver::new(
-                    partition_id,
+                    TransitionPartitionId::from((partition_id, partition_hash_id.as_ref())),
                     Arc::clone(&__self.catalog),
                     self.backoff_config.clone(),
                 )

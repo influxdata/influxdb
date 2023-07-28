@@ -1027,8 +1027,12 @@ mod tests {
         // Read the just-created sort key (None)
         let fetcher = Arc::new(DeferredLoad::new(
             Duration::from_nanos(1),
-            SortKeyResolver::new(partition.id, Arc::clone(&catalog), backoff_config.clone())
-                .fetch(),
+            SortKeyResolver::new(
+                partition.transition_partition_id(),
+                Arc::clone(&catalog),
+                backoff_config.clone(),
+            )
+            .fetch(),
             &metrics,
         ));
 
