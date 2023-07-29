@@ -13,6 +13,11 @@ use crate::{config::Config, error::ErrorKind, object_store::ignore_writes::Ignor
 use super::{
     changed_files_filter::logging::LoggingChangedFiles,
     commit::CommitToScheduler,
+    compaction_job_done_sink::{
+        error_kind::ErrorKindCompactionJobDoneSinkWrapper,
+        logging::LoggingCompactionJobDoneSinkWrapper, metrics::MetricsCompactionJobDoneSinkWrapper,
+        outcome::CompactionJobDoneSinkToScheduler, CompactionJobDoneSink,
+    },
     compaction_job_stream::{
         endless::EndlessCompactionJobStream, once::OnceCompactionJobStream, CompactionJobStream,
     },
@@ -43,11 +48,6 @@ use super::{
         object_store::ObjectStoreParquetFileSink,
     },
     parquet_files_sink::{dispatch::DispatchParquetFilesSink, ParquetFilesSink},
-    partition_done_sink::{
-        error_kind::ErrorKindCompactionJobDoneSinkWrapper,
-        logging::LoggingCompactionJobDoneSinkWrapper, metrics::MetricsCompactionJobDoneSinkWrapper,
-        outcome::CompactionJobDoneSinkToScheduler, CompactionJobDoneSink,
-    },
     partition_files_source::{
         catalog::{CatalogPartitionFilesSource, QueryRateLimiter},
         rate_limit::RateLimit,

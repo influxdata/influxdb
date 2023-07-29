@@ -2,17 +2,18 @@ use std::sync::Arc;
 
 use self::{
     changed_files_filter::ChangedFilesFilter, commit::CommitToScheduler,
-    compaction_job_stream::CompactionJobStream, df_plan_exec::DataFusionPlanExec,
-    df_planner::DataFusionPlanner, divide_initial::DivideInitial, file_classifier::FileClassifier,
-    ir_planner::IRPlanner, parquet_files_sink::ParquetFilesSink,
-    partition_done_sink::CompactionJobDoneSink, partition_files_source::PartitionFilesSource,
-    partition_filter::PartitionFilter, partition_info_source::PartitionInfoSource,
+    compaction_job_done_sink::CompactionJobDoneSink, compaction_job_stream::CompactionJobStream,
+    df_plan_exec::DataFusionPlanExec, df_planner::DataFusionPlanner, divide_initial::DivideInitial,
+    file_classifier::FileClassifier, ir_planner::IRPlanner, parquet_files_sink::ParquetFilesSink,
+    partition_files_source::PartitionFilesSource, partition_filter::PartitionFilter,
+    partition_info_source::PartitionInfoSource,
     post_classification_partition_filter::PostClassificationPartitionFilter,
     round_info_source::RoundInfoSource, round_split::RoundSplit, scratchpad::ScratchpadGen,
 };
 
 pub mod changed_files_filter;
 pub(crate) mod commit;
+pub mod compaction_job_done_sink;
 pub mod compaction_job_stream;
 pub mod compaction_jobs_source;
 pub mod df_plan_exec;
@@ -26,7 +27,6 @@ pub mod ir_planner;
 pub mod namespaces_source;
 pub mod parquet_file_sink;
 pub mod parquet_files_sink;
-pub mod partition_done_sink;
 pub mod partition_files_source;
 pub mod partition_filter;
 pub mod partition_info_source;
