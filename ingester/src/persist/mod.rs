@@ -190,7 +190,7 @@ mod tests {
         // Generate a partition with data
         let partition = partition_with_write(Arc::clone(&catalog)).await;
         let table_id = partition.lock().table_id();
-        let partition_id = partition.lock().transition_partition_id();
+        let partition_id = partition.lock().partition_id().clone();
         let namespace_id = partition.lock().namespace_id();
         assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(None));
 
@@ -326,7 +326,7 @@ mod tests {
         // Generate a partition with data
         let partition = partition_with_write(Arc::clone(&catalog)).await;
         let table_id = partition.lock().table_id();
-        let partition_id = partition.lock().transition_partition_id();
+        let partition_id = partition.lock().partition_id().clone();
         let namespace_id = partition.lock().namespace_id();
         assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(None));
 

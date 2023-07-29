@@ -56,8 +56,8 @@ mod tests {
         buffer_tree::partition::resolver::mock::MockPartitionProvider,
         test_util::{
             defer_namespace_name_1_sec, defer_table_metadata_1_sec, PartitionDataBuilder,
-            ARBITRARY_CATALOG_PARTITION_ID, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY,
-            ARBITRARY_TABLE_ID,
+            ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
+            ARBITRARY_TRANSITION_PARTITION_ID,
         },
     };
 
@@ -82,7 +82,10 @@ mod tests {
                 Arc::clone(&table_loader),
             )
             .await;
-        assert_eq!(got.lock().partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
+        assert_eq!(
+            got.lock().partition_id(),
+            &*ARBITRARY_TRANSITION_PARTITION_ID
+        );
         assert_eq!(got.lock().namespace_id(), ARBITRARY_NAMESPACE_ID);
         assert_eq!(
             got.lock().namespace_name().to_string(),

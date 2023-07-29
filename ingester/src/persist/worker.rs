@@ -278,7 +278,7 @@ where
     let pool = worker_state.exec.pool();
     let (md, file_size) = worker_state
         .store
-        .upload(record_stream, &ctx.partition_id(), &iox_metadata, pool)
+        .upload(record_stream, ctx.partition_id(), &iox_metadata, pool)
         .await
         .expect("unexpected fatal persist error");
 
@@ -366,7 +366,7 @@ where
                 let mut repos = catalog.repositories().await;
                 match repos
                     .partitions()
-                    .cas_sort_key(&ctx.partition_id(), old_sort_key.clone(), &new_sort_key_str)
+                    .cas_sort_key(ctx.partition_id(), old_sort_key.clone(), &new_sort_key_str)
                     .await
                 {
                     Ok(_) => ControlFlow::Break(Ok(())),

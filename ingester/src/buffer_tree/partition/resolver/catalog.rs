@@ -99,7 +99,6 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
-    use data_types::TransitionPartitionId;
     use iox_catalog::{
         partition_lookup,
         test_helpers::{arbitrary_namespace, arbitrary_table},
@@ -165,7 +164,7 @@ mod tests {
         assert!(got.lock().partition_key.ptr_eq(&callers_partition_key));
 
         let mut repos = catalog.repositories().await;
-        let id = TransitionPartitionId::Deprecated(got.lock().partition_id);
+        let id = got.lock().partition_id.clone();
         let got = partition_lookup(repos.as_mut(), &id)
             .await
             .unwrap()

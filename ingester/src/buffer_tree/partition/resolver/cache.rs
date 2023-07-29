@@ -215,7 +215,6 @@ mod tests {
     // Harmless in tests - saves a bunch of extra vars.
     #![allow(clippy::await_holding_lock)]
 
-    use data_types::PartitionId;
     use iox_catalog::mem::MemCatalog;
 
     use super::*;
@@ -225,7 +224,7 @@ mod tests {
             defer_namespace_name_1_sec, defer_table_metadata_1_sec, PartitionDataBuilder,
             ARBITRARY_CATALOG_PARTITION_ID, ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME,
             ARBITRARY_PARTITION_KEY, ARBITRARY_PARTITION_KEY_STR, ARBITRARY_TABLE_ID,
-            ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_NAME, ARBITRARY_TRANSITION_PARTITION_ID,
         },
     };
 
@@ -262,7 +261,10 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.lock().partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
+        assert_eq!(
+            got.lock().partition_id(),
+            &*ARBITRARY_TRANSITION_PARTITION_ID
+        );
         assert_eq!(got.lock().table_id(), ARBITRARY_TABLE_ID);
         assert_eq!(
             &**got.lock().table().get().await.name(),
@@ -301,7 +303,10 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.lock().partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
+        assert_eq!(
+            got.lock().partition_id(),
+            &*ARBITRARY_TRANSITION_PARTITION_ID
+        );
         assert_eq!(got.lock().table_id(), ARBITRARY_TABLE_ID);
         assert_eq!(
             &**got.lock().table().get().await.name(),
@@ -331,11 +336,10 @@ mod tests {
     #[tokio::test]
     async fn test_miss_partition_key() {
         let other_key = PartitionKey::from("test");
-        let other_key_id = PartitionId::new(99);
+        let other_partition_id = TransitionPartitionId::new(ARBITRARY_TABLE_ID, &other_key);
         let inner = MockPartitionProvider::default().with_partition(
             PartitionDataBuilder::new()
                 .with_partition_key(other_key.clone())
-                .with_partition_id(other_key_id)
                 .build(),
         );
 
@@ -358,7 +362,7 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.lock().partition_id(), other_key_id);
+        assert_eq!(got.lock().partition_id(), &other_partition_id);
         assert_eq!(got.lock().table_id(), ARBITRARY_TABLE_ID);
         assert_eq!(
             &**got.lock().table().get().await.name(),
@@ -369,6 +373,7 @@ mod tests {
     #[tokio::test]
     async fn test_miss_table_id() {
         let other_table = TableId::new(1234);
+        let other_partition_id = TransitionPartitionId::new(other_table, &ARBITRARY_PARTITION_KEY);
         let inner = MockPartitionProvider::default().with_partition(
             PartitionDataBuilder::new()
                 .with_table_id(other_table)
@@ -394,7 +399,7 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.lock().partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
+        assert_eq!(got.lock().partition_id(), &other_partition_id);
         assert_eq!(got.lock().table_id(), other_table);
         assert_eq!(
             &**got.lock().table().get().await.name(),
