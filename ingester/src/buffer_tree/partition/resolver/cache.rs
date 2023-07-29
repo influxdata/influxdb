@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::{NamespaceId, Partition, TransitionPartitionId, PartitionKey, TableId};
+use data_types::{NamespaceId, Partition, PartitionKey, TableId, TransitionPartitionId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
@@ -99,9 +99,7 @@ impl<T> PartitionCache<T> {
     where
         P: IntoIterator<Item = Partition>,
     {
-        let mut entries =
-            HashMap::<PartitionKey, HashMap<TableId, TransitionPartitionId>>::new(
-            );
+        let mut entries = HashMap::<PartitionKey, HashMap<TableId, TransitionPartitionId>>::new();
         for p in partitions.into_iter() {
             entries
                 .entry(p.partition_key.clone())

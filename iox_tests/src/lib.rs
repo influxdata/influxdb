@@ -17,7 +17,7 @@
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
-use data_types::{PartitionHashId, PartitionKey, TableId, TransitionPartitionId};
+use data_types::{PartitionKey, TableId, TransitionPartitionId};
 
 mod catalog;
 pub use catalog::{
@@ -32,8 +32,5 @@ pub use builders::{ParquetFileBuilder, PartitionBuilder, SkippedCompactionBuilde
 /// interaction (that is, in mocks) and when the important property of the partition identifiers is
 /// that they're either the same or different than other partition identifiers.
 pub fn partition_identifier(table_id: i64) -> TransitionPartitionId {
-    TransitionPartitionId::Deterministic(PartitionHashId::new(
-        TableId::new(table_id),
-        &PartitionKey::from("arbitrary"),
-    ))
+    TransitionPartitionId::new(TableId::new(table_id), &PartitionKey::from("arbitrary"))
 }

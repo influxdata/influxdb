@@ -78,13 +78,17 @@ impl std::fmt::Display for TransitionPartitionId {
 }
 
 impl TransitionPartitionId {
+    /// Create a new `TransitionPartitionId::Deterministic` with the given table ID and partition
+    /// key. Provided to reduce typing and duplication a bit, and because this variant should be
+    /// most common now.
+    pub fn new(table_id: TableId, partition_key: &PartitionKey) -> Self {
+        Self::Deterministic(PartitionHashId::new(table_id, partition_key))
+    }
+
     /// Create a new `TransitionPartitionId` for cases in tests where you need some value but the
     /// value doesn't matter. Public and not test-only so that other crates' tests can use this.
     pub fn arbitrary_for_testing() -> Self {
-        Self::Deterministic(PartitionHashId::new(
-            TableId::new(0),
-            &PartitionKey::from("arbitrary"),
-        ))
+        Self::new(TableId::new(0), &PartitionKey::from("arbitrary"))
     }
 }
 

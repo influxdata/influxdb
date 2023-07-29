@@ -20,9 +20,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
-use data_types::{
-    ChunkId, ChunkOrder, PartitionHashId, PartitionKey, TableId, TransitionPartitionId,
-};
+use data_types::{ChunkId, ChunkOrder, PartitionKey, TableId, TransitionPartitionId};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
@@ -487,10 +485,8 @@ impl TestChunk {
     }
 
     pub fn with_partition(mut self, id: i64) -> Self {
-        self.partition_id = TransitionPartitionId::Deterministic(PartitionHashId::new(
-            TableId::new(id),
-            &PartitionKey::from("arbitrary"),
-        ));
+        self.partition_id =
+            TransitionPartitionId::new(TableId::new(id), &PartitionKey::from("arbitrary"));
         self
     }
 

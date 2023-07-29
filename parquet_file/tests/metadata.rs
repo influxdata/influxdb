@@ -5,8 +5,8 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    ColumnId, CompactionLevel, NamespaceId, PartitionHashId, PartitionId, PartitionKey, TableId,
-    Timestamp, TransitionPartitionId,
+    ColumnId, CompactionLevel, NamespaceId, PartitionId, PartitionKey, TableId, Timestamp,
+    TransitionPartitionId,
 };
 use datafusion_util::{unbounded_memory_pool, MemoryStream};
 use iox_time::Time;
@@ -371,8 +371,7 @@ async fn test_derive_parquet_file_params() {
     // IOx write path.
     let table_id = TableId::new(3);
     let partition_key = PartitionKey::from("potato");
-    let partition_id =
-        TransitionPartitionId::Deterministic(PartitionHashId::new(table_id, &partition_key));
+    let partition_id = TransitionPartitionId::new(table_id, &partition_key);
 
     let meta = IoxMetadata {
         object_store_id: Default::default(),

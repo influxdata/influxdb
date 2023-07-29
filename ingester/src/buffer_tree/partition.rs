@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use data_types::{
-    sequence_number_set::SequenceNumberSet, NamespaceId,
-    PartitionKey, SequenceNumber, TableId, TimestampMinMax, TransitionPartitionId,
+    sequence_number_set::SequenceNumberSet, NamespaceId, PartitionKey, SequenceNumber, TableId,
+    TimestampMinMax, TransitionPartitionId,
 };
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;

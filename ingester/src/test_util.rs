@@ -256,7 +256,7 @@ macro_rules! make_partition_stream {
                 query::{response::PartitionStream, partition_response::PartitionResponse},
                 test_util::ARBITRARY_PARTITION_KEY,
             };
-            use data_types::{PartitionHashId, TableId, TransitionPartitionId};
+            use data_types::{TableId, TransitionPartitionId};
             use futures::stream;
 
             PartitionStream::new(stream::iter([
@@ -275,11 +275,9 @@ macro_rules! make_partition_stream {
 
                     PartitionResponse::new(
                         batches,
-                        TransitionPartitionId::Deterministic(
-                            PartitionHashId::new(
-                                TableId::new($id),
-                                &*ARBITRARY_PARTITION_KEY
-                            )
+                        TransitionPartitionId::new(
+                            TableId::new($id),
+                            &*ARBITRARY_PARTITION_KEY,
                         ),
                         42,
                     )
