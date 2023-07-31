@@ -1,6 +1,6 @@
 //! Partition level data buffer structures.
 
-use std::{collections::VecDeque, sync::Arc};
+use std::sync::Arc;
 
 use data_types::{
     sequence_number_set::SequenceNumberSet, NamespaceId, PartitionHashId, PartitionId,
@@ -8,11 +8,12 @@ use data_types::{
 };
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
-use schema::sort::SortKey;
+use schema::{merge::SchemaMerger, sort::SortKey, Schema};
 
 use self::{
-    buffer::{traits::Queryable, BufferState, DataBuffer, Persisting},
+    buffer::{traits::Queryable, DataBuffer},
     persisting::{BatchIdent, PersistingData},
+    persisting_list::PersistingList,
 };
 use super::{namespace::NamespaceName, table::TableMetadata};
 use crate::{
@@ -21,6 +22,7 @@ use crate::{
 
 mod buffer;
 pub(crate) mod persisting;
+mod persisting_list;
 pub(crate) mod resolver;
 
 /// The load state of the [`SortKey`] for a given partition.
@@ -89,7 +91,7 @@ pub struct PartitionData {
     ///
     /// The [`BatchIdent`] is a generational counter that is used to tag each
     /// persisting with a unique, opaque identifier.
-    persisting: VecDeque<(BatchIdent, BufferState<Persisting>)>,
+    persisting: PersistingList,
 
     /// The number of persist operations started over the lifetime of this
     /// [`PartitionData`].
@@ -123,7 +125,7 @@ impl PartitionData {
             table_id,
             table,
             buffer: DataBuffer::default(),
-            persisting: VecDeque::with_capacity(1),
+            persisting: PersistingList::default(),
             started_persistence_count: BatchIdent::default(),
             completed_persistence_count: 0,
         }
@@ -169,7 +171,7 @@ impl PartitionData {
     /// persisting batches, plus 1 for the "hot" buffer. Reading the row count
     /// of each batch is `O(1)`. This method is expected to be fast.
     pub(crate) fn rows(&self) -> usize {
-        self.persisting.iter().map(|(_, v)| v.rows()).sum::<usize>() + self.buffer.rows()
+        self.persisting.rows() + self.buffer.rows()
     }
 
     /// Return the timestamp min/max values for the data contained within this
@@ -188,16 +190,37 @@ impl PartitionData {
     /// statistics for each batch is `O(1)`. This method is expected to be fast.
     pub(crate) fn timestamp_stats(&self) -> Option<TimestampMinMax> {
         self.persisting
-            .iter()
-            .map(|(_, v)| {
-                v.timestamp_stats()
-                    .expect("persisting batches must be non-empty")
-            })
+            .timestamp_stats()
+            .into_iter()
             .chain(self.buffer.timestamp_stats())
             .reduce(|acc, v| TimestampMinMax {
                 min: acc.min.min(v.min),
                 max: acc.max.max(v.max),
             })
+    }
+
+    /// Return the schema of the data currently buffered within this
+    /// [`PartitionData`].
+    ///
+    /// This schema is not additive - it is the union of the individual schema
+    /// batches currently buffered and as such columns are removed as the
+    /// individual batches containing those columns are persisted and dropped.
+    pub(crate) fn schema(&self) -> Option<Schema> {
+        if self.persisting.is_empty() && self.buffer.rows() == 0 {
+            return None;
+        }
+
+        Some(
+            self.persisting
+                .schema()
+                .into_iter()
+                .cloned()
+                .chain(self.buffer.schema())
+                .fold(SchemaMerger::new(), |acc, v| {
+                    acc.merge(&v).expect("schemas are incompatible")
+                })
+                .build(),
+        )
     }
 
     /// Return all data for this partition, ordered by the calls to
@@ -213,8 +236,7 @@ impl PartitionData {
         // existing rows materialise to the correct output.
         let data = self
             .persisting
-            .iter()
-            .flat_map(|(_, b)| b.get_query_data(projection))
+            .get_query_data(projection)
             .chain(buffered_data)
             .collect::<Vec<_>>();
 
@@ -287,7 +309,7 @@ impl PartitionData {
         // Increment the "started persist" counter.
         //
         // This is used to cheaply identify batches given to the
-        // mark_persisted() call.
+        // mark_persisted() call and ensure monotonicity.
         let batch_ident = self.started_persistence_count.next();
 
         debug!(
@@ -310,10 +332,9 @@ impl PartitionData {
             batch_ident,
         );
 
-        // Push the new buffer to the back of the persisting queue, so that
-        // iterating from back to front during queries iterates over writes from
-        // oldest to newest.
-        self.persisting.push_back((batch_ident, fsm));
+        // Push the buffer into the persisting list (which maintains batch
+        // order).
+        self.persisting.push(batch_ident, fsm);
 
         Some(data)
     }
@@ -328,22 +349,11 @@ impl PartitionData {
     /// This method panics if [`Self`] is not marked as undergoing a persist
     /// operation, or `batch` is not currently being persisted.
     pub(crate) fn mark_persisted(&mut self, batch: PersistingData) -> SequenceNumberSet {
-        // Find the batch in the persisting queue.
-        let idx = self
-            .persisting
-            .iter()
-            .position(|(old, _)| *old == batch.batch_ident())
-            .expect("no currently persisting batch");
-
-        // Remove the batch from the queue, preserving the order of the queue
-        // for batch iteration during queries.
-        let (old_ident, fsm) = self.persisting.remove(idx).unwrap();
-        assert_eq!(old_ident, batch.batch_ident());
+        let fsm = self.persisting.remove(batch.batch_ident());
 
         self.completed_persistence_count += 1;
 
         debug!(
-            batch_ident = %old_ident,
             persistence_count = %self.completed_persistence_count,
             namespace_id = %self.namespace_id,
             table_id = %self.table_id,
