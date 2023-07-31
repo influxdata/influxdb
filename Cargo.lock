@@ -6265,6 +6265,7 @@ dependencies = [
  "pin-project",
  "sysinfo",
  "tempfile",
+ "test_helpers",
  "tokio",
  "tokio-util",
  "trace",

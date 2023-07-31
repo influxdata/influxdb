@@ -25,3 +25,4 @@ sysinfo = "0.29.7"
 tempfile = "3.7.0"
 # Need the multi-threaded executor for testing
 tokio = { version = "1.29", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
+test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
