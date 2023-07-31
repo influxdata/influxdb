@@ -200,6 +200,7 @@
     unused_crate_dependencies,
     missing_docs
 )]
+#![allow(clippy::default_constructed_unit_structs)]
 
 // Workaround for "unused crate" lint false positives.
 #[cfg(test)]

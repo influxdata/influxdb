@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use tracing::warn;
+use tracing::{debug, warn};
 
 // Re-export the bytes type to ensure upstream users of this crate are
 // interacting with the same type.
@@ -32,5 +32,7 @@ pub struct NopDispatcher;
 
 #[async_trait::async_trait]
 impl Dispatcher for NopDispatcher {
-    async fn dispatch(&self, _payload: crate::Bytes) {}
+    async fn dispatch(&self, _payload: crate::Bytes) {
+        debug!("received no-op message payload");
+    }
 }

@@ -7,6 +7,7 @@ use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
     compactor::CompactorConfig,
     compactor_scheduler::CompactorSchedulerConfig,
+    gossip::GossipConfig,
     ingester::IngesterConfig,
     ingester_address::IngesterAddress,
     object_store::{make_object_store, ObjectStoreConfig},
@@ -476,6 +477,7 @@ impl Config {
             persist_queue_depth,
             persist_hot_partition_cost,
             rpc_write_max_incoming_bytes: 1024 * 1024 * 1024, // 1GiB
+            gossip_config: GossipConfig::disabled(),
         };
 
         let router_config = RouterConfig {
@@ -489,6 +491,7 @@ impl Config {
             rpc_write_replicas: 1.try_into().unwrap(),
             rpc_write_max_outgoing_bytes: ingester_config.rpc_write_max_incoming_bytes,
             rpc_write_health_error_window_seconds: Duration::from_secs(5),
+            gossip_config: GossipConfig::disabled(),
         };
 
         // create a CompactorConfig for the all in one server based on
@@ -637,6 +640,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&catalog),
         Arc::clone(&object_store),
         &router_config,
+        &GossipConfig::disabled(),
         router_run_config
             .tracing_config()
             .traces_jaeger_trace_context_header_name

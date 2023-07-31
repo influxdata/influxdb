@@ -30,7 +30,7 @@ use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::ingester::v1::{
     write_service_server::WriteService, WriteRequest,
 };
-use ingester::{IngesterGuard, IngesterRpcInterface};
+use ingester::{GossipConfig, IngesterGuard, IngesterRpcInterface};
 use ingester_query_grpc::influxdata::iox::ingester::v1::IngesterQueryRequest;
 use iox_catalog::{
     interface::{Catalog, SoftDeletedRows},
@@ -168,6 +168,7 @@ impl TestContextBuilder {
             max_persist_queue_depth,
             persist_hot_partition_cost,
             storage.clone(),
+            GossipConfig::default(),
             shutdown_rx.map(|v| v.expect("shutdown sender dropped without calling shutdown")),
         )
         .await

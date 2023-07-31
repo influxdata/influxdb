@@ -22,6 +22,7 @@ pub mod catalog_dsn;
 pub mod compactor;
 pub mod compactor_scheduler;
 pub mod garbage_collector;
+pub mod gossip;
 pub mod ingester;
 pub mod ingester_address;
 pub mod object_store;

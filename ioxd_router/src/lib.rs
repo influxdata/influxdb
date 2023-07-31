@@ -10,7 +10,9 @@
     missing_debug_implementations,
     unused_crate_dependencies
 )]
+#![allow(clippy::default_constructed_unit_structs)]
 
+use gossip::NopDispatcher;
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -21,7 +23,7 @@ use std::{
 
 use async_trait::async_trait;
 use authz::{Authorizer, AuthorizerInstrumentation, IoxAuthorizer};
-use clap_blocks::router::RouterConfig;
+use clap_blocks::{gossip::GossipConfig, router::RouterConfig};
 use data_types::NamespaceName;
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
@@ -86,6 +88,10 @@ pub enum Error {
         source: Box<dyn std::error::Error>,
         addr: String,
     },
+
+    /// An error binding the UDP socket for gossip communication.
+    #[error("failed to bind udp gossip socket: {0}")]
+    GossipBind(std::io::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -218,6 +224,7 @@ pub async fn create_router_server_type(
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
     router_config: &RouterConfig,
+    gossip_config: &GossipConfig,
     trace_context_header_name: String,
 ) -> Result<Arc<dyn ServerType>> {
     let ingester_connections = router_config.ingester_addresses.iter().map(|addr| {
@@ -333,6 +340,28 @@ pub async fn create_router_server_type(
     // Record the overall request handling latency
     let handler_stack = InstrumentationDecorator::new("request", &metrics, handler_stack);
 
+    // Optionally initialised the gossip subsystem.
+    //
+    // NOTE: the handle is completely unused, but needs to live as long as the
+    // server does to do anything useful (RAII), so it is placed int he
+    // RpcWriteRouterServer, which doesn't need it at all.
+    //
+    // TODO: remove handle from RpcWriteRouterServer when using handle
+    let gossip_handle = match gossip_config.gossip_bind_address {
+        Some(bind_addr) => {
+            let handle = gossip::Builder::new(
+                gossip_config.seed_list.clone(),
+                NopDispatcher::default(),
+                Arc::clone(&metrics),
+            )
+            .bind(*bind_addr)
+            .await
+            .map_err(Error::GossipBind)?;
+            Some(handle)
+        }
+        None => None,
+    };
+
     // Initialize the HTTP API delegate
     let write_request_unifier: Result<Box<dyn WriteRequestUnifier>> = match (
         router_config.single_tenant_deployment,
@@ -379,8 +408,13 @@ pub async fn create_router_server_type(
     // `RpcWriteRouterServerType`.
     let grpc = RpcWriteGrpcDelegate::new(catalog, object_store);
 
-    let router_server =
-        RpcWriteRouterServer::new(http, grpc, metrics, common_state.trace_collector());
+    let router_server = RpcWriteRouterServer::new(
+        http,
+        grpc,
+        metrics,
+        common_state.trace_collector(),
+        gossip_handle,
+    );
     let server_type = Arc::new(RpcWriteRouterServerType::new(router_server, common_state));
     Ok(server_type)
 }

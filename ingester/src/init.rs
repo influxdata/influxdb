@@ -1,3 +1,5 @@
+use gossip::{GossipHandle, NopDispatcher};
+
 /// This needs to be pub for the benchmarks but should not be used outside the crate.
 #[cfg(feature = "benches")]
 pub use wal_replay::*;
@@ -5,7 +7,7 @@ pub use wal_replay::*;
 mod graceful_shutdown;
 mod wal_replay;
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use arrow_flight::flight_service_server::FlightService;
 use backoff::BackoffConfig;
@@ -109,6 +111,9 @@ pub struct IngesterGuard<T> {
     /// The task handle executing the graceful shutdown once triggered.
     graceful_shutdown_handler: tokio::task::JoinHandle<()>,
     shutdown_complete: Shared<oneshot::Receiver<()>>,
+
+    /// An optional handle to the gossip sub-system, if running.
+    gossip_handle: Option<GossipHandle>,
 }
 
 impl<T> IngesterGuard<T>
@@ -137,6 +142,27 @@ impl<T> Drop for IngesterGuard<T> {
     }
 }
 
+/// Configuration parameters for the optional gossip sub-system.
+#[derive(Debug, Default)]
+pub enum GossipConfig {
+    /// Disable the gossip sub-system.
+    #[default]
+    Disabled,
+
+    /// Enable the gossip sub-system, listening on the specified `bind_addr` and
+    /// using `peers` as the initial peer seed list.
+    Enabled {
+        /// UDP socket address to use for gossip communication.
+        bind_addr: SocketAddr,
+        /// Initial peer seed list in the form of either:
+        ///
+        ///   - "dns.address.example:port"
+        ///   - "10.0.0.1:port"
+        ///
+        peers: Vec<String>,
+    },
+}
+
 /// Errors that occur during initialisation of an `ingester` instance.
 #[derive(Debug, Error)]
 pub enum InitError {
@@ -152,6 +178,10 @@ pub enum InitError {
     /// An error replaying the entries in the WAL.
     #[error(transparent)]
     WalReplay(Box<dyn std::error::Error>),
+
+    /// An error binding the UDP socket for gossip communication.
+    #[error("failed to bind udp gossip socket: {0}")]
+    GossipBind(std::io::Error),
 }
 
 /// Initialise a new `ingester` instance, returning the gRPC service handler
@@ -238,6 +268,7 @@ pub async fn new<F>(
     persist_queue_depth: usize,
     persist_hot_partition_cost: usize,
     object_store: ParquetStorage,
+    gossip: GossipConfig,
     shutdown: F,
 ) -> Result<IngesterGuard<impl IngesterRpcInterface>, InitError>
 where
@@ -420,6 +451,23 @@ where
         wal_reference_handle,
     ));
 
+    // Optionally start the gossip subsystem
+    let gossip_handle = match gossip {
+        GossipConfig::Disabled => {
+            info!("gossip disabled");
+            None
+        }
+        GossipConfig::Enabled { bind_addr, peers } => {
+            // Start the gossip sub-system, which logs during init.
+            let handle =
+                gossip::Builder::new(peers, NopDispatcher::default(), Arc::clone(&metrics))
+                    .bind(bind_addr)
+                    .await
+                    .map_err(InitError::GossipBind)?;
+            Some(handle)
+        }
+    };
+
     Ok(IngesterGuard {
         rpc: GrpcDelegate::new(
             Arc::new(write_path),
@@ -436,5 +484,6 @@ where
         disk_metric_task,
         graceful_shutdown_handler: shutdown_task,
         shutdown_complete: shutdown_rx.shared(),
+        gossip_handle,
     })
 }
