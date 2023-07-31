@@ -159,9 +159,6 @@ struct CachedStats {
     timestamps: TimestampMinMax,
 
     /// The merged schema of all the persisting batches.
-    ///
-    /// This is invalidated (set to [`None`]) when an entry is added or removed
-    /// from `persisting`.
     schema: Schema,
 }
 

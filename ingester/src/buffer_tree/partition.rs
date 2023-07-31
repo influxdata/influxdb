@@ -309,7 +309,7 @@ impl PartitionData {
         // Increment the "started persist" counter.
         //
         // This is used to cheaply identify batches given to the
-        // mark_persisted() call.
+        // mark_persisted() call and ensure monotonicity.
         let batch_ident = self.started_persistence_count.next();
 
         debug!(
@@ -332,9 +332,8 @@ impl PartitionData {
             batch_ident,
         );
 
-        // Push the new buffer to the back of the persisting queue, so that
-        // iterating from back to front during queries iterates over writes from
-        // oldest to newest.
+        // Push the buffer into the persisting list (which maintains batch
+        // order).
         self.persisting.push(batch_ident, fsm);
 
         Some(data)
