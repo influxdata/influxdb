@@ -27,7 +27,7 @@ use arrow::record_batch::RecordBatch;
 use chrono_tz::Tz;
 use datafusion::catalog::TableReference;
 use datafusion::common::tree_node::{TreeNode, VisitRecursion};
-use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue, ToDFSchema};
+use datafusion::common::{DFSchema, DFSchemaRef, DataFusionError, Result, ScalarValue, ToDFSchema};
 use datafusion::datasource::{provider_as_source, MemTable};
 use datafusion::logical_expr::expr::{Alias, ScalarFunction};
 use datafusion::logical_expr::expr_rewriter::normalize_col;
@@ -36,7 +36,7 @@ use datafusion::logical_expr::logical_plan::Analyze;
 use datafusion::logical_expr::utils::{expr_as_column_expr, find_aggregate_exprs};
 use datafusion::logical_expr::{
     binary_expr, col, date_bin, expr, expr::WindowFunction, lit, lit_timestamp_nano, now, union,
-    window_function, Aggregate, AggregateFunction, AggregateUDF, Between, BuiltInWindowFunction,
+    window_function, AggregateFunction, AggregateUDF, Between, BuiltInWindowFunction,
     BuiltinScalarFunction, EmptyRelation, Explain, Expr, ExprSchemable, Extension, GetIndexedField,
     LogicalPlan, LogicalPlanBuilder, Operator, PlanType, Projection, ScalarUDF, TableSource,
     ToStringifiedPlan, WindowFrame, WindowFrameBound, WindowFrameUnits,
@@ -2924,7 +2924,9 @@ fn build_gap_fill_node(
         }
     };
 
-    let aggr = Aggregate::try_from_plan(&input)?;
+    let LogicalPlan::Aggregate(aggr) = &input else {
+        return Err(DataFusionError::Internal(format!("Expected Aggregate plan, got {}", input.display())));
+    };
     let mut new_group_expr: Vec<_> = aggr
         .schema
         .fields()

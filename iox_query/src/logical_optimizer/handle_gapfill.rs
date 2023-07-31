@@ -198,7 +198,9 @@ fn build_gapfill_node(
     let time_column =
         col(new_aggr_plan.schema().fields()[date_bin_gapfill_index].qualified_column());
 
-    let aggr = Aggregate::try_from_plan(&new_aggr_plan)?;
+    let LogicalPlan::Aggregate(aggr) = &new_aggr_plan else {
+        return Err(DataFusionError::Internal(format!("Expected Aggregate plan, got {}", new_aggr_plan.display())));
+    };
     let mut new_group_expr: Vec<_> = aggr
         .schema
         .fields()

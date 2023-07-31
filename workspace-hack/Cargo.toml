@@ -28,9 +28,9 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "44008d71180f2d03e9d21944788e61cb8845abc7" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "44008d71180f2d03e9d21944788e61cb8845abc7", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "44008d71180f2d03e9d21944788e61cb8845abc7", default-features = false, features = ["crypto_expressions", "encoding_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "2cf5f5b5bb824598de185d64c541c52c930728cf" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "2cf5f5b5bb824598de185d64c541c52c930728cf", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "2cf5f5b5bb824598de185d64c541c52c930728cf", default-features = false, features = ["crypto_expressions", "encoding_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1", features = ["serde"] }
 fixedbitset = { version = "0.4" }
@@ -77,6 +77,7 @@ serde_json = { version = "1", features = ["raw_value"] }
 sha2 = { version = "0.10" }
 similar = { version = "2", features = ["inline"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
+sqlparser = { version = "0.36", features = ["visitor"] }
 sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-rustls", "sqlite", "uuid"] }
 sqlx-core = { version = "0.7", features = ["_rt-tokio", "_tls-rustls", "any", "json", "migrate", "offline", "uuid"] }
 sqlx-postgres = { version = "0.7", default-features = false, features = ["any", "json", "migrate", "offline", "uuid"] }
