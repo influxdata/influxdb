@@ -157,10 +157,12 @@ async fn sharded_compactor_0_always_compacts_partition_1() {
                         .assert()
                         .success()
                         .stdout(
-                            // Important parts are the expected partition ID
-                            predicate::str::contains(r#""partitionId": "1","#)
-                                // and compaction level
-                                .and(predicate::str::contains(r#""compactionLevel": 1"#)),
+                            // Important parts are the expected partition identifier
+                            predicate::str::contains(
+                                r#""hashId": "uGKn6bMp7mpBjN4ZEZjq6xUSdT8ZuHqB3vKubD0O0jc=""#,
+                            )
+                            // and compaction level
+                            .and(predicate::str::contains(r#""compactionLevel": 1"#)),
                         );
                 }
                 .boxed()
@@ -240,10 +242,12 @@ async fn sharded_compactor_1_never_compacts_partition_1() {
                         .assert()
                         .success()
                         .stdout(
-                            // Important parts are the expected partition ID
-                            predicate::str::contains(r#""partitionId": "1","#)
-                                // and compaction level is 0 so it's not returned
-                                .and(predicate::str::contains("compactionLevel").not()),
+                            // Important parts are the expected partition identifier
+                            predicate::str::contains(
+                                r#""hashId": "uGKn6bMp7mpBjN4ZEZjq6xUSdT8ZuHqB3vKubD0O0jc=""#,
+                            )
+                            // and compaction level is 0 so it's not returned
+                            .and(predicate::str::contains("compactionLevel").not()),
                         );
                 }
                 .boxed()

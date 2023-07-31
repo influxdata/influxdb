@@ -2,7 +2,8 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use data_types::{
-    sequence_number_set::SequenceNumberSet, NamespaceId, ParquetFileParams, PartitionId, TableId,
+    sequence_number_set::SequenceNumberSet, NamespaceId, ParquetFileParams, TableId,
+    TransitionPartitionId,
 };
 
 use crate::wal::reference_tracker::WalReferenceHandle;
@@ -54,9 +55,9 @@ impl CompletedPersist {
         self.meta.table_id
     }
 
-    /// Returns the [`PartitionId`] of the persisted data.
-    pub(crate) fn partition_id(&self) -> PartitionId {
-        self.meta.partition_id
+    /// Returns the [`TransitionPartitionId`] of the persisted data.
+    pub(crate) fn partition_id(&self) -> &TransitionPartitionId {
+        &self.meta.partition_id
     }
 
     /// Returns the [`SequenceNumberSet`] of the persisted data.
@@ -166,15 +167,16 @@ pub(crate) mod mock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_util::{ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_TABLE_ID};
+    use crate::test_util::{
+        ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, ARBITRARY_TRANSITION_PARTITION_ID,
+    };
     use data_types::{ColumnId, ColumnSet, SequenceNumber, Timestamp};
 
     fn arbitrary_file_meta() -> ParquetFileParams {
         ParquetFileParams {
             namespace_id: ARBITRARY_NAMESPACE_ID,
             table_id: ARBITRARY_TABLE_ID,
-            partition_id: ARBITRARY_PARTITION_ID,
-            partition_hash_id: None,
+            partition_id: ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             object_store_id: Default::default(),
             min_time: Timestamp::new(42),
             max_time: Timestamp::new(42),
@@ -226,7 +228,7 @@ mod tests {
 
         assert_eq!(note.namespace_id(), meta.namespace_id);
         assert_eq!(note.table_id(), meta.table_id);
-        assert_eq!(note.partition_id(), meta.partition_id);
+        assert_eq!(note.partition_id(), &meta.partition_id);
 
         assert_eq!(note.column_count(), meta.column_set.len());
         assert_eq!(note.row_count(), meta.row_count as usize);

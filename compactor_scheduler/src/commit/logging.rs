@@ -78,14 +78,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use assert_matches::assert_matches;
-    use test_helpers::tracing::TracingCapture;
-
     use super::*;
     use crate::commit::mock::{CommitHistoryEntry, MockCommit};
-    use iox_tests::ParquetFileBuilder;
+    use assert_matches::assert_matches;
+    use iox_tests::{partition_identifier, ParquetFileBuilder};
+    use std::sync::Arc;
+    use test_helpers::tracing::TracingCapture;
 
     #[test]
     fn test_display() {
@@ -111,14 +109,21 @@ mod tests {
             .with_row_count(105)
             .build();
 
-        let created_1 = ParquetFileBuilder::new(1000).with_partition(1).build();
-        let created_2 = ParquetFileBuilder::new(1001).with_partition(1).build();
+        let partition_id_1 = PartitionId::new(1);
+        let transition_partition_id_1 = partition_identifier(1);
+
+        let created_1 = ParquetFileBuilder::new(1000)
+            .with_partition(transition_partition_id_1.clone())
+            .build();
+        let created_2 = ParquetFileBuilder::new(1001)
+            .with_partition(transition_partition_id_1)
+            .build();
 
         let capture = TracingCapture::new();
 
         let ids = commit
             .commit(
-                PartitionId::new(1),
+                partition_id_1,
                 &[existing_1.clone()],
                 &[],
                 &[created_1.clone().into(), created_2.clone().into()],
@@ -130,9 +135,11 @@ mod tests {
             Ok(res) if res == vec![ParquetFileId::new(1000), ParquetFileId::new(1001)]
         );
 
+        let partition_id_2 = PartitionId::new(2);
+
         let ids = commit
             .commit(
-                PartitionId::new(2),
+                partition_id_2,
                 &[existing_2.clone(), existing_3.clone()],
                 &[existing_1.clone()],
                 &[],
@@ -151,14 +158,14 @@ level = INFO; message = committed parquet file change; target_level = Final; par
             inner.history(),
             vec![
                 CommitHistoryEntry {
-                    partition_id: PartitionId::new(1),
+                    partition_id: partition_id_1,
                     delete: vec![existing_1.clone()],
                     upgrade: vec![],
                     created: vec![created_1, created_2],
                     target_level: CompactionLevel::Final,
                 },
                 CommitHistoryEntry {
-                    partition_id: PartitionId::new(2),
+                    partition_id: partition_id_2,
                     delete: vec![existing_2, existing_3],
                     upgrade: vec![existing_1],
                     created: vec![],

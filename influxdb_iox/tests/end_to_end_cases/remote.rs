@@ -280,10 +280,9 @@ async fn remote_partition_and_get_from_store_and_pull() {
                         .arg("1")
                         .assert()
                         .success()
-                        .stdout(
-                            predicate::str::contains(r#""id": "1""#)
-                                .and(predicate::str::contains(r#""partitionId": "1","#)),
-                        )
+                        .stdout(predicate::str::contains(
+                            r#""hashId": "uGKn6bMp7mpBjN4ZEZjq6xUSdT8ZuHqB3vKubD0O0jc=""#,
+                        ))
                         .get_output()
                         .stdout
                         .clone();

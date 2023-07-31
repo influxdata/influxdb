@@ -171,7 +171,7 @@ fn to_queryable_parquet_chunk(
         parquet_file_id = file.file.id.get(),
         parquet_file_namespace_id = file.file.namespace_id.get(),
         parquet_file_table_id = file.file.table_id.get(),
-        parquet_file_partition_id = file.file.partition_id.get(),
+        parquet_file_partition_id = %file.file.partition_id,
         parquet_file_object_store_id = uuid.to_string().as_str(),
         "built parquet chunk from metadata"
     );

@@ -602,8 +602,7 @@ impl TestPartition {
         let parquet_file_params = ParquetFileParams {
             namespace_id: self.namespace.namespace.id,
             table_id: self.table.table.id,
-            partition_id: self.partition.id,
-            partition_hash_id: self.partition.hash_id().cloned(),
+            partition_id: self.partition.transition_partition_id(),
             object_store_id: object_store_id.unwrap_or_else(Uuid::new_v4),
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),

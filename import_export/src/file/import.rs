@@ -7,7 +7,7 @@ use data_types::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, PARTITION_BY_DAY_PROTO,
     },
     ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceName, NamespaceNameError,
-    ParquetFileParams, Partition, PartitionHashId, Statistics, Table, TableId, Timestamp,
+    ParquetFileParams, Partition, Statistics, Table, TableId, Timestamp,
 };
 use generated_types::influxdata::iox::catalog::v1 as proto;
 //    ParquetFile as ProtoParquetFile, Partition as ProtoPartition,
@@ -567,9 +567,6 @@ impl RemoteImporter {
         // need to make columns in the target catalog
         let column_set = insert_columns(table.id, decoded_iox_parquet_metadata, repos).await?;
 
-        // Create the the partition_hash_id
-        let partition_hash_id = Some(PartitionHashId::new(table.id, &partition.partition_key));
-
         let params = if let Some(proto_parquet_file) = &parquet_metadata {
             let compaction_level = proto_parquet_file
                 .compaction_level
@@ -579,8 +576,7 @@ impl RemoteImporter {
             ParquetFileParams {
                 namespace_id: namespace.id,
                 table_id: table.id,
-                partition_hash_id,
-                partition_id: partition.id,
+                partition_id: partition.transition_partition_id(),
                 object_store_id,
                 min_time: Timestamp::new(proto_parquet_file.min_time),
                 max_time: Timestamp::new(proto_parquet_file.max_time),
@@ -599,8 +595,7 @@ impl RemoteImporter {
             ParquetFileParams {
                 namespace_id: namespace.id,
                 table_id: table.id,
-                partition_hash_id,
-                partition_id: partition.id,
+                partition_id: partition.transition_partition_id(),
                 object_store_id,
                 min_time,
                 max_time,

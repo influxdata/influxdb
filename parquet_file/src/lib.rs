@@ -108,7 +108,7 @@ impl From<&ParquetFile> for ParquetFilePath {
         Self {
             namespace_id: f.namespace_id,
             table_id: f.table_id,
-            partition_id: f.transition_partition_id(),
+            partition_id: f.partition_id.clone(),
             object_store_id: f.object_store_id,
         }
     }
@@ -119,7 +119,7 @@ impl From<&ParquetFileParams> for ParquetFilePath {
         Self {
             namespace_id: f.namespace_id,
             table_id: f.table_id,
-            partition_id: f.transition_partition_id(),
+            partition_id: f.partition_id.clone(),
             object_store_id: f.object_store_id,
         }
     }

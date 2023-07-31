@@ -16,7 +16,7 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
-    use data_types::{CompactionLevel, ParquetFile, TransitionPartitionId};
+    use data_types::{CompactionLevel, ParquetFile};
     use futures::TryStreamExt;
     use iox_catalog::{
         interface::{get_schema_by_id, Catalog, SoftDeletedRows},
@@ -190,7 +190,7 @@ mod tests {
         // Generate a partition with data
         let partition = partition_with_write(Arc::clone(&catalog)).await;
         let table_id = partition.lock().table_id();
-        let partition_id = partition.lock().partition_id();
+        let partition_id = partition.lock().transition_partition_id();
         let namespace_id = partition.lock().namespace_id();
         assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(None));
 
@@ -221,7 +221,7 @@ mod tests {
         assert_matches!(&completion_observer.calls().as_slice(), &[n] => {
             assert_eq!(n.namespace_id(), namespace_id);
             assert_eq!(n.table_id(), table_id);
-            assert_eq!(n.partition_id(), partition_id);
+            assert_eq!(n.partition_id(), &partition_id);
             assert_eq!(n.sequence_numbers().len(), 1);
         });
 
@@ -243,12 +243,12 @@ mod tests {
             .repositories()
             .await
             .parquet_files()
-            .list_by_partition_not_to_delete(&TransitionPartitionId::Deprecated(partition_id))
+            .list_by_partition_not_to_delete(&partition_id)
             .await
             .expect("query for parquet files failed");
 
         // Validate a single file was inserted with the expected properties.
-        let (object_store_id, file_size_bytes) = assert_matches!(&*files, &[ParquetFile {
+        let (object_store_id, file_size_bytes) = assert_matches!(&*files, [ParquetFile {
                 namespace_id: got_namespace_id,
                 table_id: got_table_id,
                 partition_id: got_partition_id,
@@ -263,12 +263,12 @@ mod tests {
             {
                 assert_eq!(created_at.get(), max_l0_created_at.get());
 
-                assert_eq!(got_namespace_id, namespace_id);
-                assert_eq!(got_table_id, table_id);
-                assert_eq!(got_partition_id, partition_id);
+                assert_eq!(got_namespace_id, &namespace_id);
+                assert_eq!(got_table_id, &table_id);
+                assert_eq!(got_partition_id, &partition_id);
 
-                assert_eq!(row_count, 1);
-                assert_eq!(compaction_level, CompactionLevel::Initial);
+                assert_eq!(*row_count, 1);
+                assert_eq!(compaction_level, &CompactionLevel::Initial);
 
                 (object_store_id, file_size_bytes)
             }
@@ -292,7 +292,7 @@ mod tests {
             }] => {
                 let want_path = format!("{object_store_id}.parquet");
                 assert!(location.as_ref().ends_with(&want_path));
-                assert_eq!(size, file_size_bytes as usize);
+                assert_eq!(size, *file_size_bytes as usize);
             }
         )
     }
@@ -326,8 +326,7 @@ mod tests {
         // Generate a partition with data
         let partition = partition_with_write(Arc::clone(&catalog)).await;
         let table_id = partition.lock().table_id();
-        let partition_id = partition.lock().partition_id();
-        let transition_partition_id = partition.lock().transition_partition_id();
+        let partition_id = partition.lock().transition_partition_id();
         let namespace_id = partition.lock().namespace_id();
         assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(None));
 
@@ -344,7 +343,7 @@ mod tests {
             .await
             .partitions()
             .cas_sort_key(
-                &transition_partition_id,
+                &partition_id,
                 None,
                 &["bananas", "are", "good", "for", "you"],
             )
@@ -367,7 +366,7 @@ mod tests {
         assert_matches!(&completion_observer.calls().as_slice(), &[n] => {
             assert_eq!(n.namespace_id(), namespace_id);
             assert_eq!(n.table_id(), table_id);
-            assert_eq!(n.partition_id(), partition_id);
+            assert_eq!(n.partition_id(), &partition_id);
             assert_eq!(n.sequence_numbers().len(), 1);
         });
 
@@ -392,12 +391,12 @@ mod tests {
             .repositories()
             .await
             .parquet_files()
-            .list_by_partition_not_to_delete(&TransitionPartitionId::Deprecated(partition_id))
+            .list_by_partition_not_to_delete(&partition_id)
             .await
             .expect("query for parquet files failed");
 
         // Validate a single file was inserted with the expected properties.
-        let (object_store_id, file_size_bytes) = assert_matches!(&*files, &[ParquetFile {
+        let (object_store_id, file_size_bytes) = assert_matches!(&*files, [ParquetFile {
                 namespace_id: got_namespace_id,
                 table_id: got_table_id,
                 partition_id: got_partition_id,
@@ -412,12 +411,12 @@ mod tests {
             {
                 assert_eq!(created_at.get(), max_l0_created_at.get());
 
-                assert_eq!(got_namespace_id, namespace_id);
-                assert_eq!(got_table_id, table_id);
-                assert_eq!(got_partition_id, partition_id);
+                assert_eq!(got_namespace_id, &namespace_id);
+                assert_eq!(got_table_id, &table_id);
+                assert_eq!(got_partition_id, &partition_id);
 
-                assert_eq!(row_count, 1);
-                assert_eq!(compaction_level, CompactionLevel::Initial);
+                assert_eq!(*row_count, 1);
+                assert_eq!(compaction_level, &CompactionLevel::Initial);
 
                 (object_store_id, file_size_bytes)
             }
@@ -438,18 +437,14 @@ mod tests {
         assert_eq!(files.len(), 2, "expected two uploaded files");
 
         // Ensure the catalog record points at a valid file in object storage.
-        let want_path = ParquetFilePath::new(
-            namespace_id,
-            table_id,
-            &transition_partition_id,
-            object_store_id,
-        )
-        .object_store_path();
+        let want_path =
+            ParquetFilePath::new(namespace_id, table_id, &partition_id, *object_store_id)
+                .object_store_path();
         let file = files
             .into_iter()
             .find(|f| f.location == want_path)
             .expect("did not find final file in object storage");
 
-        assert_eq!(file.size, file_size_bytes as usize);
+        assert_eq!(file.size, *file_size_bytes as usize);
     }
 }
