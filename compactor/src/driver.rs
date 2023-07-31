@@ -651,7 +651,7 @@ async fn update_catalog(
     let created_ids = components
         .commit
         .commit(
-            partition_id,
+            job,
             &files_to_delete,
             &files_to_upgrade,
             &file_params_to_create,
