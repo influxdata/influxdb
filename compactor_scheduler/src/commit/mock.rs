@@ -78,10 +78,9 @@ impl Commit for MockCommit {
 
 #[cfg(test)]
 mod tests {
-    use assert_matches::assert_matches;
-    use iox_tests::ParquetFileBuilder;
-
     use super::*;
+    use assert_matches::assert_matches;
+    use iox_tests::{partition_identifier, ParquetFileBuilder};
 
     #[test]
     fn test_display() {
@@ -92,6 +91,11 @@ mod tests {
     async fn test_commit() {
         let commit = MockCommit::new();
 
+        let partition_id_1 = PartitionId::new(1);
+        let transition_partition_id_1 = partition_identifier(1);
+        let partition_id_2 = PartitionId::new(2);
+        let transition_partition_id_2 = partition_identifier(2);
+
         let existing_1 = ParquetFileBuilder::new(1).build();
         let existing_2 = ParquetFileBuilder::new(2).build();
         let existing_3 = ParquetFileBuilder::new(3).build();
@@ -101,14 +105,22 @@ mod tests {
         let existing_7 = ParquetFileBuilder::new(7).build();
         let existing_8 = ParquetFileBuilder::new(8).build();
 
-        let created_1_1 = ParquetFileBuilder::new(1000).with_partition(1).build();
-        let created_1_2 = ParquetFileBuilder::new(1001).with_partition(1).build();
-        let created_1_3 = ParquetFileBuilder::new(1003).with_partition(1).build();
-        let created_2_1 = ParquetFileBuilder::new(1002).with_partition(2).build();
+        let created_1_1 = ParquetFileBuilder::new(1000)
+            .with_partition(transition_partition_id_1.clone())
+            .build();
+        let created_1_2 = ParquetFileBuilder::new(1001)
+            .with_partition(transition_partition_id_1.clone())
+            .build();
+        let created_1_3 = ParquetFileBuilder::new(1003)
+            .with_partition(transition_partition_id_1)
+            .build();
+        let created_2_1 = ParquetFileBuilder::new(1002)
+            .with_partition(transition_partition_id_2)
+            .build();
 
         let ids = commit
             .commit(
-                PartitionId::new(1),
+                partition_id_1,
                 &[existing_1.clone(), existing_2.clone()],
                 &[existing_3.clone(), existing_4.clone()],
                 &[created_1_1.clone().into(), created_1_2.clone().into()],
@@ -122,7 +134,7 @@ mod tests {
 
         let ids = commit
             .commit(
-                PartitionId::new(2),
+                partition_id_2,
                 &[existing_3.clone()],
                 &[],
                 &[created_2_1.clone().into()],
@@ -136,7 +148,7 @@ mod tests {
 
         let ids = commit
             .commit(
-                PartitionId::new(1),
+                partition_id_1,
                 &[existing_5.clone(), existing_6.clone(), existing_7.clone()],
                 &[],
                 &[created_1_3.clone().into()],
@@ -151,7 +163,7 @@ mod tests {
         // simulate fill implosion of the file (this may happen w/ delete predicates)
         let ids = commit
             .commit(
-                PartitionId::new(1),
+                partition_id_1,
                 &[existing_8.clone()],
                 &[],
                 &[],
@@ -167,28 +179,28 @@ mod tests {
             commit.history(),
             vec![
                 CommitHistoryEntry {
-                    partition_id: PartitionId::new(1),
+                    partition_id: partition_id_1,
                     delete: vec![existing_1, existing_2],
                     upgrade: vec![existing_3.clone(), existing_4.clone()],
                     created: vec![created_1_1, created_1_2],
                     target_level: CompactionLevel::FileNonOverlapped,
                 },
                 CommitHistoryEntry {
-                    partition_id: PartitionId::new(2),
+                    partition_id: partition_id_2,
                     delete: vec![existing_3],
                     upgrade: vec![],
                     created: vec![created_2_1],
                     target_level: CompactionLevel::Final,
                 },
                 CommitHistoryEntry {
-                    partition_id: PartitionId::new(1),
+                    partition_id: partition_id_1,
                     delete: vec![existing_5, existing_6, existing_7,],
                     upgrade: vec![],
                     created: vec![created_1_3],
                     target_level: CompactionLevel::FileNonOverlapped,
                 },
                 CommitHistoryEntry {
-                    partition_id: PartitionId::new(1),
+                    partition_id: partition_id_1,
                     delete: vec![existing_8],
                     upgrade: vec![],
                     created: vec![],

@@ -1,10 +1,13 @@
+use data_types::{PartitionHashId, PartitionId, TransitionPartitionId};
 use futures_util::TryStreamExt;
 use influxdb_iox_client::{
-    catalog::{self, generated_types::ParquetFile},
+    catalog::{
+        self,
+        generated_types::{partition_identifier, ParquetFile, PartitionIdentifier},
+    },
     connection::Connection,
     store,
 };
-use observability_deps::tracing::{debug, info};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::{
@@ -35,10 +38,6 @@ type Result<T, E = ExportError> = std::result::Result<T, E>;
 pub struct RemoteExporter {
     catalog_client: catalog::Client,
     store_client: store::Client,
-
-    /// Optional partition filter. If `Some(partition_id)`, only these
-    /// files with that `partition_id` are downloaded.
-    partition_filter: Option<i64>,
 }
 
 impl RemoteExporter {
@@ -46,17 +45,7 @@ impl RemoteExporter {
         Self {
             catalog_client: catalog::Client::new(connection.clone()),
             store_client: store::Client::new(connection),
-            partition_filter: None,
         }
-    }
-
-    /// Specify that only files and metadata for the specific
-    /// partition id should be exported.
-    pub fn with_partition_filter(mut self, partition_id: i64) -> Self {
-        info!(partition_id, "Filtering by partition");
-
-        self.partition_filter = Some(partition_id);
-        self
     }
 
     /// Exports all data and metadata for `table_name` in
@@ -95,37 +84,12 @@ impl RemoteExporter {
         let indexed_parquet_file_metadata = parquet_files.into_iter().enumerate();
 
         for (index, parquet_file) in indexed_parquet_file_metadata {
-            if self.should_export(parquet_file.partition_id) {
-                self.export_parquet_file(
-                    &output_directory,
-                    index,
-                    num_parquet_files,
-                    &parquet_file,
-                )
+            self.export_parquet_file(&output_directory, index, num_parquet_files, &parquet_file)
                 .await?;
-            } else {
-                debug!(
-                    "skipping file {} of {num_parquet_files} ({} does not match request)",
-                    index + 1,
-                    parquet_file.partition_id
-                );
-            }
         }
         println!("Done.");
 
         Ok(())
-    }
-
-    /// Return true if this partition should be exported
-    fn should_export(&self, partition_id: i64) -> bool {
-        self.partition_filter
-            .map(|partition_filter| {
-                // if a partition filter was specified, only export
-                // the file if the partition matches
-                partition_filter == partition_id
-            })
-            // export files if there is no partition
-            .unwrap_or(true)
     }
 
     /// Exports table and partition information for the specified
@@ -158,13 +122,11 @@ impl RemoteExporter {
             .await?;
 
         for partition in partitions {
-            let partition_id = partition.id;
-            if self.should_export(partition_id) {
-                let partition_json = serde_json::to_string_pretty(&partition)?;
-                let filename = format!("partition.{partition_id}.json");
-                let file_path = output_directory.join(&filename);
-                write_string_to_file(&partition_json, &file_path).await?;
-            }
+            let partition_id = to_partition_id(partition.identifier.as_ref());
+            let partition_json = serde_json::to_string_pretty(&partition)?;
+            let filename = format!("partition.{partition_id}.json");
+            let file_path = output_directory.join(&filename);
+            write_string_to_file(&partition_json, &file_path).await?;
         }
 
         Ok(())
@@ -183,8 +145,9 @@ impl RemoteExporter {
         parquet_file: &ParquetFile,
     ) -> Result<()> {
         let uuid = &parquet_file.object_store_id;
-        let partition_id = parquet_file.partition_id;
         let file_size_bytes = parquet_file.file_size_bytes as u64;
+
+        let partition_id = to_partition_id(parquet_file.partition_identifier.as_ref());
 
         // copy out the metadata as pbjson encoded data always (to
         // ensure we have the most up to date version)
@@ -227,6 +190,21 @@ impl RemoteExporter {
         }
 
         Ok(())
+    }
+}
+
+fn to_partition_id(partition_identifier: Option<&PartitionIdentifier>) -> TransitionPartitionId {
+    match partition_identifier
+        .and_then(|pi| pi.id.as_ref())
+        .expect("Catalog service should send the partition identifier")
+    {
+        partition_identifier::Id::HashId(bytes) => TransitionPartitionId::Deterministic(
+            PartitionHashId::try_from(&bytes[..])
+                .expect("Catalog service should send valid hash_id bytes"),
+        ),
+        partition_identifier::Id::CatalogId(id) => {
+            TransitionPartitionId::Deprecated(PartitionId::new(*id))
+        }
     }
 }
 

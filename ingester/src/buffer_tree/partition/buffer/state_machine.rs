@@ -77,7 +77,7 @@ pub(crate) struct BufferState<T> {
 
 impl BufferState<Buffering> {
     /// Initialise a new buffer state machine.
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             state: Buffering::default(),
             sequence_numbers: SequenceNumberSet::default(),

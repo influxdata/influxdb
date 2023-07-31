@@ -1,6 +1,6 @@
 //! Querier Chunks
 
-use data_types::{ChunkId, ChunkOrder, PartitionId, TransitionPartitionId};
+use data_types::{ChunkId, ChunkOrder, TransitionPartitionId};
 use datafusion::physical_plan::Statistics;
 use iox_query::chunk_statistics::{create_chunk_statistics, ColumnRanges};
 use parquet_file::chunk::ParquetChunk;
@@ -25,10 +25,7 @@ pub struct QuerierParquetChunkMeta {
     sort_key: Option<SortKey>,
 
     /// Partition ID.
-    partition_id: PartitionId,
-
-    /// Transition partition ID.
-    transition_partition_id: TransitionPartitionId,
+    partition_id: TransitionPartitionId,
 }
 
 impl QuerierParquetChunkMeta {
@@ -43,13 +40,8 @@ impl QuerierParquetChunkMeta {
     }
 
     /// Partition ID.
-    pub fn partition_id(&self) -> PartitionId {
-        self.partition_id
-    }
-
-    /// Partition ID.
-    pub fn transition_partition_id(&self) -> &TransitionPartitionId {
-        &self.transition_partition_id
+    pub fn partition_id(&self) -> &TransitionPartitionId {
+        &self.partition_id
     }
 }
 
@@ -251,7 +243,7 @@ pub mod tests {
                 .get(
                     Arc::clone(&self.cached_table),
                     vec![PartitionRequest {
-                        partition_id: self.parquet_file.partition_id,
+                        partition_id: self.parquet_file.partition_id.clone(),
                         sort_key_should_cover: vec![],
                     }],
                     None,
@@ -261,7 +253,7 @@ pub mod tests {
                 .next()
                 .unwrap();
             let cached_partitions =
-                HashMap::from([(self.parquet_file.partition_id, cached_partition)]);
+                HashMap::from([(self.parquet_file.partition_id.clone(), cached_partition)]);
             self.adapter
                 .new_chunks(
                     Arc::clone(&self.cached_table),

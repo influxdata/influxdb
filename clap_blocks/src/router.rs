@@ -1,6 +1,7 @@
 //! CLI config for the router using the RPC write path
 
 use crate::{
+    gossip::GossipConfig,
     ingester_address::IngesterAddress,
     single_tenant::{
         CONFIG_AUTHZ_ENV_NAME, CONFIG_AUTHZ_FLAG, CONFIG_CST_ENV_NAME, CONFIG_CST_FLAG,
@@ -15,6 +16,10 @@ use std::{
 #[derive(Debug, Clone, clap::Parser)]
 #[allow(missing_copy_implementations)]
 pub struct RouterConfig {
+    /// Gossip config.
+    #[clap(flatten)]
+    pub gossip_config: GossipConfig,
+
     /// Addr for connection to authz
     #[clap(
         long = CONFIG_AUTHZ_FLAG,

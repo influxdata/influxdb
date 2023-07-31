@@ -98,6 +98,7 @@ pub async fn command(config: Config) -> Result<()> {
         catalog,
         object_store,
         &config.router_config,
+        &config.router_config.gossip_config,
         config
             .run_config
             .tracing_config()
