@@ -859,10 +859,6 @@ impl IngesterPartition {
         }
     }
 
-    pub(crate) fn partition_id(&self) -> PartitionId {
-        self.partition_id
-    }
-
     pub(crate) fn transition_partition_id(&self) -> TransitionPartitionId {
         TransitionPartitionId::from((self.partition_id, self.partition_hash_id.as_ref()))
     }

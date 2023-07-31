@@ -3,6 +3,7 @@ package influxdata.iox.catalog.v1;
 option go_package = "github.com/influxdata/iox/catalog/v1";
 
 import "influxdata/iox/catalog/v1/parquet_file.proto";
+import "influxdata/iox/catalog/v1/partition_identifier.proto";
 
 service CatalogService {
     // Get the parquet_file catalog records in the given partition
@@ -19,8 +20,11 @@ service CatalogService {
 }
 
 message GetParquetFilesByPartitionIdRequest {
-    // the partition id
-    int64 partition_id = 1;
+    // Was the catalog-assigned partition ID.
+    reserved 1;
+    reserved "partition_id";
+
+    PartitionIdentifier partition_identifier = 2;
 }
 
 message GetParquetFilesByPartitionIdResponse {
@@ -35,15 +39,17 @@ message Partition {
     reserved "sequencer_id";
     reserved 7;
     reserved "shard_id";
+    reserved 1;
+    reserved "id";
 
-    // the partition id
-    int64 id = 1;
     // the table id the partition is in
     int64 table_id = 3;
     // the partition key
     string key = 4;
     // the sort key for data in parquet files in the partition
     repeated string array_sort_key = 6;
+
+    PartitionIdentifier identifier = 8;
 }
 
 message GetPartitionsByTableIdRequest {

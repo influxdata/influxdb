@@ -113,11 +113,13 @@ impl CatalogCache {
             "ram_metadata",
             RamSize(ram_pool_metadata_bytes),
             Arc::clone(&metric_registry),
+            &Handle::current(),
         ));
         let ram_pool_data = Arc::new(ResourcePool::new(
             "ram_data",
             RamSize(ram_pool_data_bytes),
             Arc::clone(&metric_registry),
+            &Handle::current(),
         ));
 
         let partition_cache = PartitionCache::new(

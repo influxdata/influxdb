@@ -396,8 +396,7 @@ pub mod test_helpers {
         ParquetFileParams {
             namespace_id: namespace.id,
             table_id: table.id,
-            partition_id: partition.id,
-            partition_hash_id: partition.hash_id().cloned(),
+            partition_id: partition.transition_partition_id(),
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),

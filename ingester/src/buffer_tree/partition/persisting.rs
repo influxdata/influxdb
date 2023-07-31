@@ -2,14 +2,18 @@ use std::fmt::Display;
 
 use crate::query_adaptor::QueryAdaptor;
 
-/// An opaque generational identifier of a buffer in a [`PartitionData`].
+/// An opaque, monotonic generational identifier of a buffer in a
+/// [`PartitionData`].
+///
+/// A [`BatchIdent`] is strictly greater than all those that were obtained
+/// before it.
 ///
 /// [`PartitionData`]: super::PartitionData
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub(super) struct BatchIdent(u64);
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd)]
+pub(crate) struct BatchIdent(u64);
 
 impl BatchIdent {
-    /// Return the next unique value.
+    /// Return the next unique monotonic value.
     pub(super) fn next(&mut self) -> Self {
         self.0 += 1;
         Self(self.0)

@@ -267,8 +267,7 @@ mod tests {
         let parquet_file_params = ParquetFileParams {
             namespace_id: namespace.id,
             table_id: partition.table_id,
-            partition_id: partition.id,
-            partition_hash_id: partition.hash_id().cloned(),
+            partition_id: partition.transition_partition_id(),
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
@@ -298,7 +297,7 @@ mod tests {
         let location = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            &file_in_catalog.transition_partition_id(),
+            &file_in_catalog.partition_id.clone(),
             file_in_catalog.object_store_id,
         )
         .object_store_path();
@@ -376,7 +375,7 @@ mod tests {
         let location = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            &file_in_catalog.transition_partition_id(),
+            &file_in_catalog.partition_id.clone(),
             file_in_catalog.object_store_id,
         )
         .object_store_path();
@@ -469,7 +468,7 @@ mod tests {
         let loc = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            &file_in_catalog.transition_partition_id(),
+            &file_in_catalog.partition_id.clone(),
             file_in_catalog.object_store_id,
         )
         .object_store_path();

@@ -7,7 +7,7 @@ use schema::Projection;
 ///
 /// A [`Buffer`] can contain no writes.
 ///
-/// [`BufferState`]: super::super::BufferState
+/// [`BufferState`]: super::BufferState
 #[derive(Debug, Default)]
 pub(super) struct Buffer {
     buffer: Option<MutableBatch>,

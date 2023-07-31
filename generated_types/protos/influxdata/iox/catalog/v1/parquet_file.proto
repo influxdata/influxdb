@@ -2,6 +2,8 @@ syntax = "proto3";
 package influxdata.iox.catalog.v1;
 option go_package = "github.com/influxdata/iox/catalog/v1";
 
+import "influxdata/iox/catalog/v1/partition_identifier.proto";
+
 message ParquetFile {
     reserved 7;
     reserved "min_sequence_number";
@@ -11,6 +13,8 @@ message ParquetFile {
     reserved "shard_id";
     reserved 8;
     reserved "max_sequence_number";
+    reserved 5;
+    reserved "partition_id";
 
     // the id of the file in the catalog
     int64 id = 1;
@@ -18,8 +22,9 @@ message ParquetFile {
     int64 namespace_id = 3;
     // the table id
     int64 table_id = 4;
-    // the partition id
-    int64 partition_id = 5;
+
+    PartitionIdentifier partition_identifier = 19;
+
     // the object store uuid
     string object_store_id = 6;
     // the min timestamp of data in this file

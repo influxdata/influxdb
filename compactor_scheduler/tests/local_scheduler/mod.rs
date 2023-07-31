@@ -4,7 +4,7 @@ use assert_matches::assert_matches;
 use compactor_scheduler::{
     create_scheduler, CompactionJob, LocalSchedulerConfig, Scheduler, SchedulerConfig,
 };
-use data_types::{ColumnType, ParquetFile, ParquetFileParams, PartitionId};
+use data_types::{ColumnType, ParquetFile, ParquetFileParams, PartitionId, TransitionPartitionId};
 use iox_tests::{ParquetFileBuilder, TestCatalog, TestParquetFileBuilder, TestPartition};
 
 mod end_job;
@@ -65,7 +65,7 @@ impl TestLocalScheduler {
 
     pub async fn create_params_for_new_parquet_file(&self) -> ParquetFileParams {
         ParquetFileBuilder::new(42)
-            .with_partition(self.get_partition_id().get())
+            .with_partition(self.get_transition_partition_id())
             .build()
             .into()
     }
@@ -80,5 +80,9 @@ impl TestLocalScheduler {
     /// currently has only 1 partition seeded (by default)
     pub fn get_partition_id(&self) -> PartitionId {
         self.test_partition.partition.id
+    }
+
+    pub fn get_transition_partition_id(&self) -> TransitionPartitionId {
+        self.test_partition.partition.transition_partition_id()
     }
 }

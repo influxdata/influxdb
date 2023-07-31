@@ -43,12 +43,14 @@ pub mod test_util {
     use std::sync::Arc;
 
     use cache_system::backend::policy::lru::ResourcePool;
+    use tokio::runtime::Handle;
 
     pub fn test_ram_pool() -> Arc<ResourcePool<RamSize>> {
         Arc::new(ResourcePool::new(
             "pool",
             RamSize(usize::MAX),
             Arc::new(metric::Registry::new()),
+            &Handle::current(),
         ))
     }
 }

@@ -1627,22 +1627,26 @@ RETURNING id;
         let query = match partition_id {
             TransitionPartitionId::Deterministic(hash_id) => sqlx::query_as::<_, ParquetFile>(
                 r#"
-SELECT id, namespace_id, table_id, partition_id, partition_hash_id, object_store_id, min_time,
-       max_time, to_delete, file_size_bytes, row_count, compaction_level, created_at, column_set,
-       max_l0_created_at
+SELECT parquet_file.id, namespace_id, parquet_file.table_id, partition_id, partition_hash_id,
+       object_store_id, min_time, max_time, parquet_file.to_delete, file_size_bytes, row_count,
+       compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
-WHERE parquet_file.partition_hash_id = $1
+INNER JOIN partition
+ON partition.id = parquet_file.partition_id OR partition.hash_id = parquet_file.partition_hash_id
+WHERE partition.hash_id = $1
   AND parquet_file.to_delete IS NULL;
         "#,
             )
             .bind(hash_id), // $1
             TransitionPartitionId::Deprecated(id) => sqlx::query_as::<_, ParquetFile>(
                 r#"
-SELECT id, namespace_id, table_id, partition_id, partition_hash_id, object_store_id, min_time,
-       max_time, to_delete, file_size_bytes, row_count, compaction_level, created_at, column_set,
-       max_l0_created_at
+SELECT parquet_file.id, namespace_id, parquet_file.table_id, partition_id, partition_hash_id,
+       object_store_id, min_time, max_time, parquet_file.to_delete, file_size_bytes, row_count,
+       compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
-WHERE parquet_file.partition_id = $1
+INNER JOIN partition
+ON partition.id = parquet_file.partition_id OR partition.hash_id = parquet_file.partition_hash_id
+WHERE partition.id = $1
   AND parquet_file.to_delete IS NULL;
         "#,
             )
@@ -1754,7 +1758,6 @@ where
         namespace_id,
         table_id,
         partition_id,
-        partition_hash_id,
         object_store_id,
         min_time,
         max_time,
@@ -1765,6 +1768,11 @@ where
         column_set,
         max_l0_created_at,
     } = parquet_file_params;
+
+    let (partition_id, partition_hash_id) = match partition_id {
+        TransitionPartitionId::Deterministic(hash_id) => (None, Some(hash_id)),
+        TransitionPartitionId::Deprecated(id) => (Some(id), None),
+    };
 
     let partition_hash_id_ref = &partition_hash_id.as_ref();
     let query = sqlx::query_scalar::<_, ParquetFileId>(
@@ -2203,7 +2211,10 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
             .create(parquet_file_params)
             .await
             .unwrap();
-        assert!(parquet_file.partition_hash_id.is_none());
+        assert_matches!(
+            parquet_file.partition_id,
+            TransitionPartitionId::Deprecated(_)
+        );
     }
 
     #[test]

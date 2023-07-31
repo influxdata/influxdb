@@ -55,7 +55,8 @@ pub(crate) mod mock {
     use std::{sync::Arc, time::Duration};
 
     use data_types::{
-        ColumnId, ColumnSet, NamespaceId, ParquetFileParams, PartitionId, TableId, Timestamp,
+        ColumnId, ColumnSet, NamespaceId, ParquetFileParams, PartitionHashId, PartitionKey,
+        TableId, Timestamp, TransitionPartitionId,
     };
     use test_helpers::timeout::FutureTimeout;
     use tokio::task::JoinHandle;
@@ -155,13 +156,16 @@ pub(crate) mod mock {
                 let wait_ms: u64 = rand::random::<u64>() % 100;
                 tokio::time::sleep(Duration::from_millis(wait_ms)).await;
                 let sequence_numbers = partition.lock().mark_persisted(data);
+                let table_id = TableId::new(2);
+                let partition_hash_id =
+                    PartitionHashId::new(table_id, &PartitionKey::from("arbitrary"));
+                let partition_id = TransitionPartitionId::Deterministic(partition_hash_id);
                 completion_observer
                     .persist_complete(Arc::new(CompletedPersist::new(
                         ParquetFileParams {
                             namespace_id: NamespaceId::new(1),
-                            table_id: TableId::new(2),
-                            partition_id: PartitionId::new(3),
-                            partition_hash_id: None,
+                            table_id,
+                            partition_id,
                             object_store_id: Default::default(),
                             min_time: Timestamp::new(42),
                             max_time: Timestamp::new(42),

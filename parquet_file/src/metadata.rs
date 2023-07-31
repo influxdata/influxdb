@@ -91,7 +91,7 @@ use bytes::Bytes;
 use data_types::{
     ColumnId, ColumnSet, ColumnSummary, CompactionLevel, InfluxDbType, NamespaceId,
     ParquetFileParams, PartitionHashId, PartitionId, PartitionKey, StatValues, Statistics, TableId,
-    Timestamp,
+    Timestamp, TransitionPartitionId,
 };
 use generated_types::influxdata::iox::ingester::v1 as proto;
 use iox_time::Time;
@@ -443,6 +443,7 @@ impl IoxMetadata {
     where
         F: for<'a> Fn(&'a str) -> ColumnId,
     {
+        let partition_id = TransitionPartitionId::from((partition_id, partition_hash_id.as_ref()));
         let decoded = metadata.decode().expect("invalid IOx metadata");
         trace!(
             ?partition_id,
@@ -487,7 +488,6 @@ impl IoxMetadata {
             namespace_id: self.namespace_id,
             table_id: self.table_id,
             partition_id,
-            partition_hash_id,
             object_store_id: self.object_store_id,
             min_time,
             max_time,

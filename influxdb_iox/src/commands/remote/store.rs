@@ -55,10 +55,6 @@ struct GetTable {
     #[clap(action)]
     table: String,
 
-    /// If specified, only files from the specified partitions are downloaded
-    #[clap(action, short, long)]
-    partition_id: Option<i64>,
-
     /// The output directory to use. If not specified, files will be placed in a directory named
     /// after the table in the current working directory.
     #[clap(action, short)]
@@ -91,13 +87,9 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         Command::GetTable(GetTable {
             namespace,
             table,
-            partition_id,
             output_directory,
         }) => {
             let mut exporter = RemoteExporter::new(connection);
-            if let Some(partition_id) = partition_id {
-                exporter = exporter.with_partition_filter(partition_id);
-            }
             Ok(exporter
                 .export_table(output_directory, namespace, table)
                 .await?)

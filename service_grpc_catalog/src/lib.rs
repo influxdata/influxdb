@@ -18,7 +18,7 @@
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
-use data_types::{PartitionId, TableId, TransitionPartitionId};
+use data_types::{PartitionHashId, PartitionId, TableId, TransitionPartitionId};
 use generated_types::influxdata::iox::catalog::v1::*;
 use iox_catalog::interface::{Catalog, SoftDeletedRows};
 use observability_deps::tracing::*;
@@ -47,14 +47,14 @@ impl catalog_service_server::CatalogService for CatalogService {
     ) -> Result<Response<GetParquetFilesByPartitionIdResponse>, Status> {
         let mut repos = self.catalog.repositories().await;
         let req = request.into_inner();
-        let partition_id = TransitionPartitionId::Deprecated(PartitionId::new(req.partition_id));
+        let partition_id = to_partition_id(req.partition_identifier)?;
 
         let parquet_files = repos
             .parquet_files()
             .list_by_partition_not_to_delete(&partition_id)
             .await
             .map_err(|e| {
-                warn!(error=%e, %req.partition_id, "failed to get parquet_files for partition");
+                warn!(error=%e, %partition_id, "failed to get parquet_files for partition");
                 Status::not_found(e.to_string())
             })?;
 
@@ -169,13 +169,52 @@ impl catalog_service_server::CatalogService for CatalogService {
     }
 }
 
+fn to_partition_identifier(partition_id: &TransitionPartitionId) -> PartitionIdentifier {
+    match partition_id {
+        TransitionPartitionId::Deterministic(hash_id) => PartitionIdentifier {
+            id: Some(partition_identifier::Id::HashId(
+                hash_id.as_bytes().to_owned(),
+            )),
+        },
+        TransitionPartitionId::Deprecated(id) => PartitionIdentifier {
+            id: Some(partition_identifier::Id::CatalogId(id.get())),
+        },
+    }
+}
+
+fn to_partition_id(
+    partition_identifier: Option<PartitionIdentifier>,
+) -> Result<TransitionPartitionId, Status> {
+    let partition_id =
+        match partition_identifier
+            .and_then(|pi| pi.id)
+            .ok_or(Status::invalid_argument(
+                "No partition identifier specified",
+            ))? {
+            partition_identifier::Id::HashId(bytes) => TransitionPartitionId::Deterministic(
+                PartitionHashId::try_from(&bytes[..]).map_err(|e| {
+                    Status::invalid_argument(format!(
+                        "Could not parse bytes as a `PartitionHashId`: {e}"
+                    ))
+                })?,
+            ),
+            partition_identifier::Id::CatalogId(id) => {
+                TransitionPartitionId::Deprecated(PartitionId::new(id))
+            }
+        };
+
+    Ok(partition_id)
+}
+
 // converts the catalog ParquetFile to protobuf
 fn to_parquet_file(p: data_types::ParquetFile) -> ParquetFile {
+    let partition_identifier = to_partition_identifier(&p.partition_id);
+
     ParquetFile {
         id: p.id.get(),
         namespace_id: p.namespace_id.get(),
         table_id: p.table_id.get(),
-        partition_id: p.partition_id.get(),
+        partition_identifier: Some(partition_identifier),
         object_store_id: p.object_store_id.to_string(),
         min_time: p.min_time.get(),
         max_time: p.max_time.get(),
@@ -191,8 +230,10 @@ fn to_parquet_file(p: data_types::ParquetFile) -> ParquetFile {
 
 // converts the catalog Partition to protobuf
 fn to_partition(p: data_types::Partition) -> Partition {
+    let identifier = to_partition_identifier(&p.transition_partition_id());
+
     Partition {
-        id: p.id.get(),
+        identifier: Some(identifier),
         key: p.partition_key.to_string(),
         table_id: p.table_id.get(),
         array_sort_key: p.sort_key,
@@ -230,8 +271,7 @@ mod tests {
             let p1params = ParquetFileParams {
                 namespace_id: namespace.id,
                 table_id: table.id,
-                partition_id: partition.id,
-                partition_hash_id: partition.hash_id().cloned(),
+                partition_id: partition.transition_partition_id(),
                 object_store_id: Uuid::new_v4(),
                 min_time: Timestamp::new(1),
                 max_time: Timestamp::new(5),
@@ -248,13 +288,15 @@ mod tests {
             };
             p1 = repos.parquet_files().create(p1params).await.unwrap();
             p2 = repos.parquet_files().create(p2params).await.unwrap();
-            partition_id = partition.id;
+            partition_id = partition.transition_partition_id();
             Arc::clone(&catalog)
         };
 
+        let partition_identifier = to_partition_identifier(&partition_id);
+
         let grpc = super::CatalogService::new(catalog);
         let request = GetParquetFilesByPartitionIdRequest {
-            partition_id: partition_id.get(),
+            partition_identifier: Some(partition_identifier),
         };
 
         let tonic_response = grpc
