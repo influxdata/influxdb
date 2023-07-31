@@ -15,11 +15,11 @@ impl QueryChunk for QuerierParquetChunk {
     }
 
     fn partition_id(&self) -> PartitionId {
-        self.meta().partition_id()
+        unimplemented!()
     }
 
     fn transition_partition_id(&self) -> &TransitionPartitionId {
-        self.meta().transition_partition_id()
+        self.meta().partition_id()
     }
 
     fn sort_key(&self) -> Option<&SortKey> {

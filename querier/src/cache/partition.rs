@@ -17,7 +17,7 @@ use cache_system::{
 };
 use data_types::{
     partition_template::{build_column_values, ColumnValue},
-    ColumnId, Partition, PartitionId, TransitionPartitionId,
+    ColumnId, Partition, TransitionPartitionId,
 };
 use datafusion::scalar::ScalarValue;
 use iox_catalog::{interface::Catalog, partition_lookup_batch};
@@ -38,7 +38,7 @@ const CACHE_ID: &str = "partition";
 
 type CacheT = Box<
     dyn Cache<
-        K = PartitionId,
+        K = TransitionPartitionId,
         V = Option<CachedPartition>,
         GetExtra = (Arc<CachedTable>, Option<Span>),
         PeekExtra = ((), Option<Span>),
@@ -49,7 +49,7 @@ type CacheT = Box<
 #[derive(Debug)]
 pub struct PartitionCache {
     cache: CacheT,
-    remove_if_handle: RemoveIfHandle<PartitionId, Option<CachedPartition>>,
+    remove_if_handle: RemoveIfHandle<TransitionPartitionId, Option<CachedPartition>>,
     flusher: Arc<dyn BatchLoaderFlusher>,
 }
 
@@ -64,7 +64,8 @@ impl PartitionCache {
         testing: bool,
     ) -> Self {
         let loader = FunctionLoader::new(
-            move |partition_ids: Vec<PartitionId>, cached_tables: Vec<Arc<CachedTable>>| {
+            move |partition_ids: Vec<TransitionPartitionId>,
+                  cached_tables: Vec<Arc<CachedTable>>| {
                 // sanity checks
                 assert_eq!(partition_ids.len(), cached_tables.len());
 
@@ -75,23 +76,20 @@ impl PartitionCache {
                     // prepare output buffer
                     let mut out = (0..partition_ids.len()).map(|_| None).collect::<Vec<_>>();
                     let mut out_map =
-                        HashMap::<PartitionId, usize>::with_capacity(partition_ids.len());
+                        HashMap::<TransitionPartitionId, usize>::with_capacity(partition_ids.len());
                     for (idx, id) in partition_ids.iter().enumerate() {
-                        match out_map.entry(*id) {
-                            Entry::Occupied(_) => unreachable!("cache system requested same partition from loader concurrently, this should have been prevented by the CacheDriver"),
+                        match out_map.entry(id.clone()) {
+                            Entry::Occupied(_) => unreachable!(
+                                "cache system requested same partition from loader concurrently, \
+                                this should have been prevented by the CacheDriver"
+                            ),
                             Entry::Vacant(v) => {
                                 v.insert(idx);
                             }
                         }
                     }
 
-                    // build `&[&TransitionPartitionId]` for batch catalog request
-                    let ids = partition_ids
-                        .iter()
-                        .copied()
-                        .map(TransitionPartitionId::Deprecated)
-                        .collect::<Vec<_>>();
-                    let ids = ids.iter().collect::<Vec<_>>();
+                    let ids: Vec<&TransitionPartitionId> = partition_ids.iter().collect();
 
                     // fetch catalog data
                     let partitions = Backoff::new(&backoff_config)
@@ -104,7 +102,7 @@ impl PartitionCache {
 
                     // build output
                     for p in partitions {
-                        let idx = out_map[&p.id];
+                        let idx = out_map[&p.transition_partition_id()];
                         let cached_table = &cached_tables[idx];
                         let p = CachedPartition::new(p, cached_table);
                         out[idx] = Some(p);
@@ -180,7 +178,7 @@ impl PartitionCache {
 
                     self.remove_if_handle.remove_if_and_get(
                         &self.cache,
-                        partition_id,
+                        partition_id.clone(),
                         move |cached_partition| {
                             let invalidates = if let Some(sort_key) =
                                 &cached_partition.and_then(|p| p.sort_key)
@@ -195,7 +193,7 @@ impl PartitionCache {
 
                             if invalidates {
                                 debug!(
-                                    partition_id = partition_id.get(),
+                                    partition_id = %partition_id,
                                     "invalidate partition cache",
                                 );
                             }
@@ -217,13 +215,13 @@ impl PartitionCache {
 /// Request for [`PartitionCache::get`].
 #[derive(Debug)]
 pub struct PartitionRequest {
-    pub partition_id: PartitionId,
+    pub partition_id: TransitionPartitionId,
     pub sort_key_should_cover: Vec<ColumnId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CachedPartition {
-    pub id: PartitionId,
+    pub id: TransitionPartitionId,
     pub sort_key: Option<Arc<PartitionSortKey>>,
     pub column_ranges: ColumnRanges,
 }
@@ -299,7 +297,7 @@ impl CachedPartition {
         column_ranges.shrink_to_fit();
 
         Self {
-            id: partition.id,
+            id: partition.transition_partition_id(),
             sort_key,
             column_ranges: Arc::new(column_ranges),
         }
@@ -368,7 +366,10 @@ mod tests {
         ram::test_util::test_ram_pool, test_util::assert_catalog_access_metric_count,
     };
     use async_trait::async_trait;
-    use data_types::{partition_template::TablePartitionTemplateOverride, ColumnType};
+    use data_types::{
+        partition_template::TablePartitionTemplateOverride, ColumnType, PartitionHashId,
+        PartitionId, PartitionKey, TableId,
+    };
     use futures::StreamExt;
     use generated_types::influxdata::iox::partition_template::v1::{
         template_part::Part, PartitionTemplate, TemplatePart,
@@ -419,8 +420,11 @@ mod tests {
             true,
         );
 
+        let p1_id = p1.transition_partition_id();
+        let p2_id = p2.transition_partition_id();
+
         let sort_key1a = cache
-            .get_one(Arc::clone(&cached_table), p1.id, &Vec::new(), None)
+            .get_one(Arc::clone(&cached_table), &p1_id, &Vec::new(), None)
             .await
             .unwrap()
             .sort_key;
@@ -434,24 +438,24 @@ mod tests {
         );
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             1,
         );
 
         let sort_key2 = cache
-            .get_one(Arc::clone(&cached_table), p2.id, &Vec::new(), None)
+            .get_one(Arc::clone(&cached_table), &p2_id, &Vec::new(), None)
             .await
             .unwrap()
             .sort_key;
         assert_eq!(sort_key2, None);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             2,
         );
 
         let sort_key1b = cache
-            .get_one(Arc::clone(&cached_table), p1.id, &Vec::new(), None)
+            .get_one(Arc::clone(&cached_table), &p1_id, &Vec::new(), None)
             .await
             .unwrap()
             .sort_key;
@@ -461,16 +465,37 @@ mod tests {
         ));
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             2,
         );
 
         // non-existing partition
         for _ in 0..2 {
+            // Non-existing partition identified by partition hash ID
             let res = cache
                 .get_one(
                     Arc::clone(&cached_table),
-                    PartitionId::new(i64::MAX),
+                    &TransitionPartitionId::Deterministic(PartitionHashId::new(
+                        TableId::new(i64::MAX),
+                        &PartitionKey::from("bananas_not_found"),
+                    )),
+                    &[],
+                    None,
+                )
+                .await;
+            assert_eq!(res, None);
+            assert_catalog_access_metric_count(
+                &catalog.metric_registry,
+                "partition_get_by_hash_id_batch",
+                3,
+            );
+
+            // Non-existing partition identified by deprecated catalog IDs; this part can be
+            // removed when partition identification is fully transitioned to partition hash IDs
+            let res = cache
+                .get_one(
+                    Arc::clone(&cached_table),
+                    &TransitionPartitionId::Deprecated(PartitionId::new(i64::MAX)),
                     &Vec::new(),
                     None,
                 )
@@ -479,7 +504,7 @@ mod tests {
             assert_catalog_access_metric_count(
                 &catalog.metric_registry,
                 "partition_get_by_id_batch",
-                3,
+                1,
             );
         }
     }
@@ -548,8 +573,14 @@ mod tests {
             true,
         );
 
+        let p1_id = p1.transition_partition_id();
+        let p2_id = p2.transition_partition_id();
+        let p3_id = p3.transition_partition_id();
+        let p4_id = p4.transition_partition_id();
+        let p5_id = p5.transition_partition_id();
+
         let ranges1a = cache
-            .get_one(Arc::clone(&cached_table), p1.id, &[], None)
+            .get_one(Arc::clone(&cached_table), &p1_id, &[], None)
             .await
             .unwrap()
             .column_ranges;
@@ -578,12 +609,12 @@ mod tests {
         ));
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             1,
         );
 
         let ranges2 = cache
-            .get_one(Arc::clone(&cached_table), p2.id, &[], None)
+            .get_one(Arc::clone(&cached_table), &p2_id, &[], None)
             .await
             .unwrap()
             .column_ranges;
@@ -599,12 +630,12 @@ mod tests {
         );
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             2,
         );
 
         let ranges3 = cache
-            .get_one(Arc::clone(&cached_table), p3.id, &[], None)
+            .get_one(Arc::clone(&cached_table), &p3_id, &[], None)
             .await
             .unwrap()
             .column_ranges;
@@ -629,12 +660,12 @@ mod tests {
         );
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             3,
         );
 
         let ranges4 = cache
-            .get_one(Arc::clone(&cached_table), p4.id, &[], None)
+            .get_one(Arc::clone(&cached_table), &p4_id, &[], None)
             .await
             .unwrap()
             .column_ranges;
@@ -659,12 +690,12 @@ mod tests {
         );
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             4,
         );
 
         let ranges5 = cache
-            .get_one(Arc::clone(&cached_table), p5.id, &[], None)
+            .get_one(Arc::clone(&cached_table), &p5_id, &[], None)
             .await
             .unwrap()
             .column_ranges;
@@ -680,28 +711,48 @@ mod tests {
         );
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             5,
         );
 
         let ranges1b = cache
-            .get_one(Arc::clone(&cached_table), p1.id, &[], None)
+            .get_one(Arc::clone(&cached_table), &p1_id, &[], None)
             .await
             .unwrap()
             .column_ranges;
         assert!(Arc::ptr_eq(&ranges1a, &ranges1b));
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             5,
         );
 
-        // non-existing partition
         for _ in 0..2 {
+            // Non-existing partition identified by partition hash ID
             let res = cache
                 .get_one(
                     Arc::clone(&cached_table),
-                    PartitionId::new(i64::MAX),
+                    &TransitionPartitionId::Deterministic(PartitionHashId::new(
+                        TableId::new(i64::MAX),
+                        &PartitionKey::from("bananas_not_found"),
+                    )),
+                    &[],
+                    None,
+                )
+                .await;
+            assert_eq!(res, None);
+            assert_catalog_access_metric_count(
+                &catalog.metric_registry,
+                "partition_get_by_hash_id_batch",
+                6,
+            );
+
+            // Non-existing partition identified by deprecated catalog IDs; this part can be
+            // removed when partition identification is fully transitioned to partition hash IDs
+            let res = cache
+                .get_one(
+                    Arc::clone(&cached_table),
+                    &TransitionPartitionId::Deprecated(PartitionId::new(i64::MAX)),
                     &[],
                     None,
                 )
@@ -710,7 +761,7 @@ mod tests {
             assert_catalog_access_metric_count(
                 &catalog.metric_registry,
                 "partition_get_by_id_batch",
-                6,
+                1,
             );
         }
     }
@@ -724,7 +775,7 @@ mod tests {
         let c1 = t.create_column("foo", ColumnType::Tag).await;
         let c2 = t.create_column("time", ColumnType::Time).await;
         let p = t.create_partition("k1").await;
-        let p_id = p.partition.id;
+        let p_id = p.partition.transition_partition_id();
         let p_sort_key = p.partition.sort_key();
         let cached_table = Arc::new(CachedTable {
             id: t.table.id,
@@ -751,41 +802,41 @@ mod tests {
         );
 
         let sort_key = cache
-            .get_one(Arc::clone(&cached_table), p_id, &[], None)
+            .get_one(Arc::clone(&cached_table), &p_id, &[], None)
             .await
             .unwrap()
             .sort_key;
         assert_eq!(sort_key, None,);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             1,
         );
 
         // requesting nother will not expire
         assert!(p_sort_key.is_none());
         let sort_key = cache
-            .get_one(Arc::clone(&cached_table), p_id, &[], None)
+            .get_one(Arc::clone(&cached_table), &p_id, &[], None)
             .await
             .unwrap()
             .sort_key;
         assert_eq!(sort_key, None,);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             1,
         );
 
         // but requesting something will expire
         let sort_key = cache
-            .get_one(Arc::clone(&cached_table), p_id, &[c1.column.id], None)
+            .get_one(Arc::clone(&cached_table), &p_id, &[c1.column.id], None)
             .await
             .unwrap()
             .sort_key;
         assert_eq!(sort_key, None,);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             2,
         );
 
@@ -801,7 +852,7 @@ mod tests {
         // expire & fetch
         let p_sort_key = p.partition.sort_key();
         let sort_key = cache
-            .get_one(Arc::clone(&cached_table), p_id, &[c1.column.id], None)
+            .get_one(Arc::clone(&cached_table), &p_id, &[c1.column.id], None)
             .await
             .unwrap()
             .sort_key;
@@ -815,7 +866,7 @@ mod tests {
         );
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             3,
         );
 
@@ -827,7 +878,7 @@ mod tests {
             vec![c1.column.id, c2.column.id],
         ] {
             let sort_key_2 = cache
-                .get_one(Arc::clone(&cached_table), p_id, &should_cover, None)
+                .get_one(Arc::clone(&cached_table), &p_id, &should_cover, None)
                 .await
                 .unwrap()
                 .sort_key;
@@ -837,7 +888,7 @@ mod tests {
             ));
             assert_catalog_access_metric_count(
                 &catalog.metric_registry,
-                "partition_get_by_id_batch",
+                "partition_get_by_hash_id_batch",
                 3,
             );
         }
@@ -847,7 +898,7 @@ mod tests {
         let sort_key_2 = cache
             .get_one(
                 Arc::clone(&cached_table),
-                p_id,
+                &p_id,
                 &[c1.column.id, c3.column.id],
                 None,
             )
@@ -861,7 +912,7 @@ mod tests {
         assert_eq!(sort_key, sort_key_2);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
-            "partition_get_by_id_batch",
+            "partition_get_by_hash_id_batch",
             4,
         );
     }
@@ -892,34 +943,45 @@ mod tests {
             true,
         );
 
+        let p1_id = p1.transition_partition_id();
+        let p2_id = p2.transition_partition_id();
+
         let mut res = cache
             .get(
                 Arc::clone(&cached_table),
                 vec![
                     PartitionRequest {
-                        partition_id: p1.id,
+                        partition_id: p1_id.clone(),
                         sort_key_should_cover: vec![],
                     },
                     PartitionRequest {
-                        partition_id: p2.id,
+                        partition_id: p2_id.clone(),
                         sort_key_should_cover: vec![],
                     },
                     PartitionRequest {
-                        partition_id: p1.id,
+                        partition_id: p1_id.clone(),
+                        sort_key_should_cover: vec![],
+                    },
+                    // requesting non-existing partitions is fine, they just don't appear in
+                    // the output
+                    PartitionRequest {
+                        partition_id: TransitionPartitionId::Deprecated(PartitionId::new(i64::MAX)),
                         sort_key_should_cover: vec![],
                     },
                     PartitionRequest {
-                        // requesting non-existing partitions is fine, they just don't appear in the output
-                        partition_id: PartitionId::new(i64::MAX),
+                        partition_id: TransitionPartitionId::Deterministic(PartitionHashId::new(
+                            TableId::new(i64::MAX),
+                            &PartitionKey::from("bananas_not_found"),
+                        )),
                         sort_key_should_cover: vec![],
                     },
                 ],
                 None,
             )
             .await;
-        res.sort_by_key(|p| p.id);
-        let ids = res.iter().map(|p| p.id).collect::<Vec<_>>();
-        assert_eq!(ids, vec![p1.id, p1.id, p2.id]);
+        res.sort_by(|a, b| a.id.cmp(&b.id));
+        let ids = res.into_iter().map(|p| p.id).collect::<Vec<_>>();
+        assert_eq!(ids, vec![p1_id.clone(), p1_id, p2_id]);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
             "partition_get_by_id_batch",
@@ -1008,7 +1070,7 @@ mod tests {
         c_id: ColumnId,
 
         /// Partitions within that table.
-        partitions: Vec<PartitionId>,
+        partitions: Vec<TransitionPartitionId>,
     }
 
     impl ConcurrencyTestState {
@@ -1032,7 +1094,7 @@ mod tests {
                         t.create_partition_with_sort_key(&format!("p{i}"), &["time"])
                             .await
                             .partition
-                            .id
+                            .transition_partition_id()
                     }
                 })
                 .collect::<Vec<_>>()
@@ -1046,7 +1108,8 @@ mod tests {
             }
         }
 
-        /// Perform the actual [`PartitionCache::get`] call and run some basic sanity checks on the result.
+        /// Perform the actual [`PartitionCache::get`] call and run some basic sanity checks on the
+        /// result.
         async fn run(self, cache: Arc<PartitionCache>) {
             let Self {
                 cached_table,
@@ -1060,15 +1123,15 @@ mod tests {
                     partitions
                         .iter()
                         .map(|p| PartitionRequest {
-                            partition_id: *p,
+                            partition_id: p.clone(),
                             sort_key_should_cover: vec![],
                         })
                         .collect(),
                     None,
                 )
                 .await;
-            results.sort_by_key(|p| p.id);
-            let partitions_res = results.iter().map(|p| p.id).collect::<Vec<_>>();
+            results.sort_by(|a, b| a.id.cmp(&b.id));
+            let partitions_res = results.iter().map(|p| p.id.clone()).collect::<Vec<_>>();
             assert_eq!(partitions, partitions_res);
             assert!(results
                 .iter()
@@ -1086,7 +1149,7 @@ mod tests {
         async fn get_one(
             &self,
             cached_table: Arc<CachedTable>,
-            partition_id: PartitionId,
+            partition_id: &TransitionPartitionId,
             sort_key_should_cover: &[ColumnId],
             span: Option<Span>,
         ) -> Option<CachedPartition>;
@@ -1097,14 +1160,14 @@ mod tests {
         async fn get_one(
             &self,
             cached_table: Arc<CachedTable>,
-            partition_id: PartitionId,
+            partition_id: &TransitionPartitionId,
             sort_key_should_cover: &[ColumnId],
             span: Option<Span>,
         ) -> Option<CachedPartition> {
             self.get(
                 cached_table,
                 vec![PartitionRequest {
-                    partition_id,
+                    partition_id: partition_id.clone(),
                     sort_key_should_cover: sort_key_should_cover.to_vec(),
                 }],
                 span,

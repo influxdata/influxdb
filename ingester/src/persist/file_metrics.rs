@@ -151,7 +151,9 @@ mod tests {
     use super::*;
     use crate::{
         persist::completion_observer::mock::MockCompletionObserver,
-        test_util::{ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_TABLE_ID},
+        test_util::{
+            ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, ARBITRARY_TRANSITION_PARTITION_ID,
+        },
     };
     use data_types::{
         sequence_number_set::SequenceNumberSet, ColumnId, ColumnSet, ParquetFileParams, Timestamp,
@@ -169,8 +171,7 @@ mod tests {
         let meta = ParquetFileParams {
             namespace_id: ARBITRARY_NAMESPACE_ID,
             table_id: ARBITRARY_TABLE_ID,
-            partition_id: ARBITRARY_PARTITION_ID,
-            partition_hash_id: None,
+            partition_id: ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             object_store_id: Default::default(),
             min_time: Timestamp::new(Duration::from_secs(1_000).as_nanos() as _),
             max_time: Timestamp::new(Duration::from_secs(1_042).as_nanos() as _), // 42 seconds later

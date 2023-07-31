@@ -31,6 +31,34 @@ impl TransitionPartitionId {
     }
 }
 
+impl<'a, R> sqlx::FromRow<'a, R> for TransitionPartitionId
+where
+    R: sqlx::Row,
+    &'static str: sqlx::ColumnIndex<R>,
+    PartitionId: sqlx::decode::Decode<'a, R::Database>,
+    PartitionId: sqlx::types::Type<R::Database>,
+    Option<PartitionHashId>: sqlx::decode::Decode<'a, R::Database>,
+    Option<PartitionHashId>: sqlx::types::Type<R::Database>,
+{
+    fn from_row(row: &'a R) -> sqlx::Result<Self> {
+        let partition_id: Option<PartitionId> = row.try_get("partition_id")?;
+        let partition_hash_id: Option<PartitionHashId> = row.try_get("partition_hash_id")?;
+
+        let transition_partition_id = match (partition_id, partition_hash_id) {
+            (_, Some(hash_id)) => TransitionPartitionId::Deterministic(hash_id),
+            (Some(id), _) => TransitionPartitionId::Deprecated(id),
+            (None, None) => {
+                return Err(sqlx::Error::ColumnDecode {
+                    index: "partition_id".into(),
+                    source: "Both partition_id and partition_hash_id were NULL".into(),
+                })
+            }
+        };
+
+        Ok(transition_partition_id)
+    }
+}
+
 impl From<(PartitionId, Option<&PartitionHashId>)> for TransitionPartitionId {
     fn from((partition_id, partition_hash_id): (PartitionId, Option<&PartitionHashId>)) -> Self {
         partition_hash_id

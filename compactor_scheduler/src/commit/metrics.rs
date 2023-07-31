@@ -303,15 +303,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use assert_matches::assert_matches;
-    use metric::{assert_histogram, Attributes};
-
-    use crate::commit::mock::{CommitHistoryEntry, MockCommit};
-    use iox_tests::ParquetFileBuilder;
-
     use super::*;
+    use crate::commit::mock::{CommitHistoryEntry, MockCommit};
+    use assert_matches::assert_matches;
+    use iox_tests::{partition_identifier, ParquetFileBuilder};
+    use metric::{assert_histogram, Attributes};
+    use std::sync::Arc;
 
     #[test]
     fn test_display() {
@@ -325,6 +322,9 @@ mod tests {
         let registry = Registry::new();
         let inner = Arc::new(MockCommit::new());
         let commit = MetricsCommitWrapper::new(Arc::clone(&inner), &registry);
+
+        let partition_id_1 = PartitionId::new(1);
+        let transition_partition_id_1 = partition_identifier(1);
 
         let existing_1 = ParquetFileBuilder::new(1)
             .with_file_size_bytes(10_001)
@@ -350,7 +350,7 @@ mod tests {
         let created = ParquetFileBuilder::new(1000)
             .with_file_size_bytes(10_016)
             .with_row_count(1_016)
-            .with_partition(1)
+            .with_partition(transition_partition_id_1)
             .with_compaction_level(CompactionLevel::Initial)
             .build();
 
@@ -392,7 +392,7 @@ mod tests {
 
         let ids = commit
             .commit(
-                PartitionId::new(1),
+                partition_id_1,
                 &[existing_1.clone()],
                 &[existing_2a.clone()],
                 &[created.clone().into()],
@@ -401,9 +401,11 @@ mod tests {
             .await;
         assert_matches!(ids, Ok(res) if res == vec![ParquetFileId::new(1000)]);
 
+        let partition_id_2 = PartitionId::new(2);
+
         let ids = commit
             .commit(
-                PartitionId::new(2),
+                partition_id_2,
                 &[existing_2b.clone(), existing_3.clone()],
                 &[existing_4.clone()],
                 &[],
@@ -449,14 +451,14 @@ mod tests {
             inner.history(),
             vec![
                 CommitHistoryEntry {
-                    partition_id: PartitionId::new(1),
+                    partition_id: partition_id_1,
                     delete: vec![existing_1],
                     upgrade: vec![existing_2a.clone()],
                     created: vec![created],
                     target_level: CompactionLevel::FileNonOverlapped,
                 },
                 CommitHistoryEntry {
-                    partition_id: PartitionId::new(2),
+                    partition_id: partition_id_2,
                     delete: vec![existing_2b, existing_3],
                     upgrade: vec![existing_4],
                     created: vec![],

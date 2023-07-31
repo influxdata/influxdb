@@ -1865,7 +1865,7 @@ pub(crate) mod test_helpers {
 
         let other_params = ParquetFileParams {
             table_id: other_partition.table_id,
-            partition_id: other_partition.id,
+            partition_id: other_partition.transition_partition_id(),
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(50),
             max_time: Timestamp::new(60),
@@ -1978,7 +1978,7 @@ pub(crate) mod test_helpers {
 
         let f1_params = ParquetFileParams {
             table_id: partition2.table_id,
-            partition_id: partition2.id,
+            partition_id: partition2.transition_partition_id(),
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
@@ -2449,7 +2449,7 @@ pub(crate) mod test_helpers {
         let l0_five_hour_ago_file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             created_at: time_five_hour_ago,
-            partition_id: partition2.id,
+            partition_id: partition2.transition_partition_id(),
             ..parquet_file_params.clone()
         };
         repos
@@ -2492,7 +2492,7 @@ pub(crate) mod test_helpers {
         let l1_file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             created_at: time_now,
-            partition_id: partition2.id,
+            partition_id: partition2.transition_partition_id(),
             compaction_level: CompactionLevel::FileNonOverlapped,
             ..parquet_file_params.clone()
         };
@@ -2578,7 +2578,7 @@ pub(crate) mod test_helpers {
         let l2_file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             created_at: time_now,
-            partition_id: partition3.id,
+            partition_id: partition3.transition_partition_id(),
             compaction_level: CompactionLevel::Final,
             ..parquet_file_params.clone()
         };
@@ -2619,7 +2619,7 @@ pub(crate) mod test_helpers {
         let l0_one_hour_ago_file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             created_at: time_one_hour_ago,
-            partition_id: partition3.id,
+            partition_id: partition3.transition_partition_id(),
             ..parquet_file_params.clone()
         };
         repos
@@ -2720,8 +2720,7 @@ pub(crate) mod test_helpers {
         level1_file.compaction_level = CompactionLevel::FileNonOverlapped;
 
         let other_partition_params = ParquetFileParams {
-            partition_id: partition2.id,
-            partition_hash_id: partition2.hash_id().cloned(),
+            partition_id: partition2.transition_partition_id(),
             object_store_id: Uuid::new_v4(),
             ..parquet_file_params.clone()
         };
@@ -2744,12 +2743,20 @@ pub(crate) mod test_helpers {
         expected_ids.sort();
         assert_eq!(file_ids, expected_ids);
 
-        // remove namespace to avoid it from affecting later tests
-        repos
-            .namespaces()
-            .soft_delete("namespace_parquet_file_test_list_by_partiton_not_to_delete")
+        // Using the catalog partition ID should return the same files, even if the Parquet file
+        // records don't have the partition ID on them (which is the default now)
+        let files = repos
+            .parquet_files()
+            .list_by_partition_not_to_delete(&TransitionPartitionId::Deprecated(partition.id))
             .await
-            .expect("delete namespace should succeed");
+            .unwrap();
+        assert_eq!(files.len(), 2);
+
+        let mut file_ids: Vec<_> = files.into_iter().map(|f| f.id).collect();
+        file_ids.sort();
+        let mut expected_ids = vec![parquet_file.id, level1_file.id];
+        expected_ids.sort();
+        assert_eq!(file_ids, expected_ids);
     }
 
     async fn test_update_to_compaction_level_1(catalog: Arc<dyn Catalog>) {

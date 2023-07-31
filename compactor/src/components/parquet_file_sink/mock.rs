@@ -70,8 +70,7 @@ impl ParquetFileSink for MockParquetFileSink {
         let out = ((row_count > 0) || !self.filter_empty_files).then(|| ParquetFileParams {
             namespace_id: partition.namespace_id,
             table_id: partition.table.id,
-            partition_id: partition.partition_id,
-            partition_hash_id: partition.partition_hash_id.clone(),
+            partition_id: partition.transition_partition_id(),
             object_store_id: Uuid::from_u128(guard.len() as u128),
             min_time: Timestamp::new(0),
             max_time: Timestamp::new(0),
@@ -95,7 +94,7 @@ impl ParquetFileSink for MockParquetFileSink {
 #[cfg(test)]
 mod tests {
     use arrow_util::assert_batches_eq;
-    use data_types::{NamespaceId, PartitionId, TableId};
+    use data_types::{NamespaceId, TableId};
     use datafusion::{
         arrow::{array::new_null_array, datatypes::DataType},
         physical_plan::stream::RecordBatchStreamAdapter,
@@ -159,7 +158,7 @@ mod tests {
             Arc::clone(&schema),
             futures::stream::once(async move { Ok(record_batch_captured) }),
         ));
-        let partition_hash_id = partition.partition_hash_id.clone();
+        let partition_id = partition.transition_partition_id();
         assert_eq!(
             sink.store(stream, Arc::clone(&partition), level, max_l0_created_at)
                 .await
@@ -167,8 +166,7 @@ mod tests {
             Some(ParquetFileParams {
                 namespace_id: NamespaceId::new(2),
                 table_id: TableId::new(3),
-                partition_id: PartitionId::new(1),
-                partition_hash_id,
+                partition_id,
                 object_store_id: Uuid::from_u128(2),
                 min_time: Timestamp::new(0),
                 max_time: Timestamp::new(0),
@@ -223,7 +221,7 @@ mod tests {
             Arc::clone(&schema),
             futures::stream::empty(),
         ));
-        let partition_hash_id = partition.partition_hash_id.clone();
+        let partition_id = partition.transition_partition_id();
         assert_eq!(
             sink.store(stream, Arc::clone(&partition), level, max_l0_created_at)
                 .await
@@ -231,8 +229,7 @@ mod tests {
             Some(ParquetFileParams {
                 namespace_id: NamespaceId::new(2),
                 table_id: TableId::new(3),
-                partition_id: PartitionId::new(1),
-                partition_hash_id,
+                partition_id,
                 object_store_id: Uuid::from_u128(0),
                 min_time: Timestamp::new(0),
                 max_time: Timestamp::new(0),

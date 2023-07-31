@@ -52,6 +52,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let proto_files = vec![
         authz_path.join("authz.proto"),
         catalog_path.join("parquet_file.proto"),
+        catalog_path.join("partition_identifier.proto"),
         catalog_path.join("service.proto"),
         compactor_path.join("service.proto"),
         delete_path.join("service.proto"),

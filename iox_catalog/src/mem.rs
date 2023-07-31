@@ -887,14 +887,28 @@ impl ParquetFileRepo for MemTxn {
     ) -> Result<Vec<ParquetFile>> {
         let stage = self.stage();
 
+        let partition = stage
+            .partitions
+            .iter()
+            .find(|p| match partition_id {
+                TransitionPartitionId::Deterministic(hash_id) => p
+                    .hash_id()
+                    .map(|p_hash_id| p_hash_id == hash_id)
+                    .unwrap_or(false),
+                TransitionPartitionId::Deprecated(id) => id == &p.id,
+            })
+            .unwrap()
+            .clone();
+
         Ok(stage
             .parquet_files
             .iter()
-            .filter(|f| match partition_id {
-                TransitionPartitionId::Deterministic(hash_id) => {
-                    f.partition_hash_id.as_ref().map_or(false, |h| h == hash_id)
-                }
-                TransitionPartitionId::Deprecated(id) => f.partition_id == *id,
+            .filter(|f| match &f.partition_id {
+                TransitionPartitionId::Deterministic(hash_id) => partition
+                    .hash_id()
+                    .map(|p_hash_id| p_hash_id == hash_id)
+                    .unwrap_or(false),
+                TransitionPartitionId::Deprecated(id) => id == &partition.id,
             })
             .filter(|f| f.to_delete.is_none())
             .cloned()
@@ -996,17 +1010,15 @@ async fn create_parquet_file(
         ParquetFileId::new(stage.parquet_files.len() as i64 + 1),
     );
     let created_at = parquet_file.created_at;
-    let partition_id = parquet_file.partition_id;
+    let partition_id = parquet_file.partition_id.clone();
     stage.parquet_files.push(parquet_file);
 
     // Update the new_file_at field its partition to the time of created_at
     let partition = stage
         .partitions
         .iter_mut()
-        .find(|p| p.id == partition_id)
-        .ok_or(Error::PartitionNotFound {
-            id: TransitionPartitionId::Deprecated(partition_id),
-        })?;
+        .find(|p| p.transition_partition_id() == partition_id)
+        .ok_or(Error::PartitionNotFound { id: partition_id })?;
     partition.new_file_at = Some(created_at);
 
     Ok(stage.parquet_files.last().unwrap().clone())
