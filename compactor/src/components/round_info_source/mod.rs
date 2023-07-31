@@ -172,7 +172,11 @@ impl RoundInfoSource for LevelBasedRoundInfo {
         _partition_info: &PartitionInfo,
         files: &[ParquetFile],
     ) -> Result<RoundInfo, DynError> {
-        let start_level = get_start_level(files);
+        let start_level = get_start_level(
+            files,
+            self.max_num_files_per_plan,
+            self.max_total_file_size_per_plan,
+        );
 
         if self.too_many_small_files_to_compact(files, start_level) {
             return Ok(RoundInfo::ManySmallFiles {
@@ -187,23 +191,53 @@ impl RoundInfoSource for LevelBasedRoundInfo {
     }
 }
 
-fn get_start_level(files: &[ParquetFile]) -> CompactionLevel {
+// get_start_level decides what level to start compaction from.  Often this is the lowest level
+// we have ParquetFiles in, but occasionally we decide to compact L1->L2 when L0s still exist.
+//
+// If we ignore the invariants (where intra-level overlaps are allowed), this would be a math problem
+// to optimize write amplification.
+//
+// However, allowing intra-level overlaps in L0 but not L1/L2 adds extra challenge to compacting L0s to L1.
+// This is especially true when there are large quantitites of overlapping L0s and L1s, potentially resulting
+// in many split/compact cycles to resolve the overlaps.
+//
+// Since L1 & L2 only have inter-level overlaps, they can be compacted with just a few splits to align the L1s
+// with the L2s.  The relative ease of moving data from L1 to L2 provides additional motivation to compact the
+// L1s to L2s when a backlog of L0s exist. The easily solvable L1->L2 compaction can give us a clean slate in
+// L1, greatly simplifying the remaining L0->L1 compactions.
+fn get_start_level(files: &[ParquetFile], max_files: usize, max_bytes: usize) -> CompactionLevel {
     // panic if the files are empty
     assert!(!files.is_empty());
 
-    // Start with initial level
-    // If there are files in  this level, itis the start level
-    // Otherwise repeat until reaching the final level.
-    let mut level = CompactionLevel::Initial;
-    while level != CompactionLevel::Final {
-        if files.iter().any(|f| f.compaction_level == level) {
-            return level;
-        }
+    let mut l0_cnt: usize = 0;
+    let mut l0_bytes: usize = 0;
+    let mut l1_bytes: usize = 0;
 
-        level = level.next();
+    for f in files {
+        match f.compaction_level {
+            CompactionLevel::Initial => {
+                l0_cnt += 1;
+                l0_bytes += f.file_size_bytes as usize;
+            }
+            CompactionLevel::FileNonOverlapped => {
+                l1_bytes += f.file_size_bytes as usize;
+            }
+            _ => {}
+        }
     }
 
-    level
+    if l1_bytes > 3 * max_bytes && (l0_cnt > max_files || l0_bytes > max_bytes) {
+        // L1 is big enough to pose an overlap challenge compacting from L0, and there is quite a bit more coming from L0.
+        // The criteria for this early L1->L2 compaction significanly impacts write amplification.  The above values optimize
+        // existing test cases, but may be changed as additional test cases are added.
+        CompactionLevel::FileNonOverlapped
+    } else if l0_bytes > 0 {
+        CompactionLevel::Initial
+    } else if l1_bytes > 0 {
+        CompactionLevel::FileNonOverlapped
+    } else {
+        CompactionLevel::Final
+    }
 }
 
 fn get_num_overlapped_files(

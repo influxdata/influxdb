@@ -301,7 +301,26 @@ pub fn merge_small_l0_chains(
     for chain in &chains {
         let this_chain_bytes = chain.iter().map(|f| f.file_size_bytes as usize).sum();
 
-        if prior_chain_bytes > 0 && prior_chain_bytes + this_chain_bytes <= max_compact_size {
+        // matching max_lo_created_at times indicates that the files were deliberately split.  We shouldn't merge
+        // chains with matching max_lo_created_at times, because that would encourage undoing the previous split,
+        // which minimally increases write amplification, and may cause unproductive split/compact loops.
+        let mut matches = 0;
+        if prior_chain_bytes > 0 {
+            for f in chain.iter() {
+                for f2 in &merged_chains[prior_chain_idx as usize] {
+                    if f.max_l0_created_at == f2.max_l0_created_at {
+                        matches += 1;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Merge it if: there a prior chain to merge with, and merging wouldn't make it too big, or undo a previous split
+        if prior_chain_bytes > 0
+            && prior_chain_bytes + this_chain_bytes <= max_compact_size
+            && matches == 0
+        {
             // this chain can be added to the prior chain.
             merged_chains[prior_chain_idx as usize].append(&mut chain.clone());
             prior_chain_bytes += this_chain_bytes;
