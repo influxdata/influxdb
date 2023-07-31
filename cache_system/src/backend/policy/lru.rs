@@ -3,6 +3,7 @@
 //! # Usage
 //!
 //! ```
+//! # tokio::runtime::Runtime::new().unwrap().block_on(async {
 //! use std::{
 //!     collections::HashMap,
 //!     ops::{Add, Sub},
@@ -19,6 +20,7 @@
 //!     },
 //!     resource_consumption::{Resource, ResourceEstimator},
 //! };
+//! use tokio::runtime::Handle;
 //!
 //! // first we implement a strongly-typed RAM size measurement
 //! #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -68,6 +70,7 @@
 //!     "my_pool",
 //!     limit,
 //!     metric_registry,
+//!     &Handle::current(),
 //! ));
 //!
 //! // set up first pool user: a u64->String map
@@ -106,6 +109,11 @@
 //!
 //! // fill up pool
 //! backend1.set(3, String::from("this_will_evict_data"));
+//!
+//! // the policy will eventually evict the data, in tests we can use a help
+//! // method to wait for that
+//! pool.wait_converged().await;
+//!
 //! assert!(backend1.get(&1).is_some());
 //! assert!(backend1.get(&2).is_none());
 //! assert!(backend1.get(&3).is_some());
@@ -139,11 +147,13 @@
 //!
 //! // eviction works for all pool members
 //! backend2.set(1, vec![1, 2, 3, 4]);
+//! pool.wait_converged().await;
 //! assert!(backend1.get(&1).is_none());
 //! assert!(backend1.get(&2).is_none());
 //! assert!(backend1.get(&3).is_some());
 //! assert!(backend2.get(&1).is_some());
 //! assert_eq!(pool.current(), RamSize(33));
+//! # });
 //! ```
 //!
 //! # Internals
@@ -154,8 +164,8 @@
 //!
 //! - **Single Pool:** Have a single resource pool for multiple LRU backends.
 //! - **Eviction Cascade:** Adding data to any of the backends (or modifying an existing entry) should check if there is
-//!   enough space left in the LRU backend. If not, we must remove the least recently used entries over all backends
-//!   (including the one that just got a new entry) until there is enough space.
+//!   enough space left in the LRU backend. If not, we must EVENTUALLY remove the least recently used entries over all
+//!   backends (including the one that just got a new entry) until there is enough space.
 //!
 //! This has the following consequences:
 //!
@@ -167,49 +177,39 @@
 //! ## Data Structures
 //!
 //! ```text
-//!               .~~~~~~~~~~~~~~.            .~~~~~~~~~~~~~~~~~~~.
-//! ------------->: ResourcePool :--(mutex)-->: ResourcePoolInner :-------------------------------+
-//!               :     <S>      :            :        <S>        :                               |
-//!               .~~~~~~~~~~~~~~.            .~~~~~~~~~~~~~~~~~~~.                               |
-//!                   ^                                                                           |
-//!                   |                                                                           |
-//!                 (arc)                                                                         |
-//!                   |                                                                           |
-//!                   |                                                                           |
-//!                   |  .~~~~~~~~~~~~~~~~~.   .~~~~~~~~~~~~~~~~~~~~~.        .~~~~~~~~~~~~~~~~~. |
-//!                   |  : LruPolicyInner  :<--: PoolMemberGuardImpl :<-(dyn)-: PoolMemberGuard : |
-//!                   |  : <K1, V1, S>     :   :     <K1, V1, S>     :        :       <S>       : |
-//!                   |  .~~~~~~~~~~~~~~~~~.   .~~~~~~~~~~~~~~~~~~~~~.        .~~~~~~~~~~~~~~~~~. |
-//!                   |        ^                           ^                           ^          |
-//!                   |        |                           |                           |          |
-//!                   |        |                           +-------------+-------------+          |
-//!                   |        |                                    (call lock)                   |
-//!                   |        |                           +-------------+-------------+          |
-//!                   |     (mutex)                        |                           |          |
-//!   .~~~~~~~~~~~~~. |        |                   .~~~~~~~~~~~~~~~~.           .~~~~~~~~~~~~.    |
-//! ->: LruPolicy   :-+      (arc)                 : PoolMemberImpl :           : PoolMember :<---+
-//!   : <K1, V1, S> : |        |                   :   <K1, V1, S>  :           :    <S>     :    |
-//!   :             :----------+-------------------:                :<--(dyn)---:            :    |
-//!   .~~~~~~~~~~~~~. |                            .~~~~~~~~~~~~~~~~.           .~~~~~~~~~~~~.    |
-//!                   |                                                                           |
-//!                   |                                                                           |
-//!                   |                                                                           |
-//!                   |                                                                           |
-//!                   |  .~~~~~~~~~~~~~~~~~.   .~~~~~~~~~~~~~~~~~~~~~.        .~~~~~~~~~~~~~~~~~. |
-//!                   |  : LruPolicyInner  :<--: PoolMemberGuardImpl :<-(dyn)-: PoolMemberGuard : |
-//!                   |  : <K2, V2, S>     :   :     <K2, V2, S>     :        :       <S>       : |
-//!                   |  .~~~~~~~~~~~~~~~~~.   .~~~~~~~~~~~~~~~~~~~~~.        .~~~~~~~~~~~~~~~~~. |
-//!                   |        ^                           ^                           ^          |
-//!                   |        |                           |                           |          |
-//!                   |        |                           +-------------+-------------+          |
-//!                   |        |                                    (call lock)                   |
-//!                   |        |                           +-------------+-------------+          |
-//!                   |     (mutex)                        |                           |          |
-//!   .~~~~~~~~~~~~~. |        |                   .~~~~~~~~~~~~~~~~.           .~~~~~~~~~~~~.    |
-//! ->: LruPolicy   :-+      (arc)                 : PoolMemberImpl :           : PoolMember :<---+
-//!   : <K2, V2, S> :          |                   :   <K2, V2, S>  :           :    <S>     :
-//!   :             :----------+-------------------:                :<--(dyn)---:            :
-//!   .~~~~~~~~~~~~~.                              .~~~~~~~~~~~~~~~~.           .~~~~~~~~~~~~.
+//!                                                   .~~~~~~~~~~~~~~~~.
+//!           +---------------------------------------: CallbackHandle :
+//!           |                                       :  <K, V>        :
+//!           |                                       .~~~~~~~~~~~~~~~~.
+//!           |                                                 ^
+//!           |                        .~~~~~~~~~~~~~~~~~.      |
+//!           |                        : AddressableHeap :      |
+//!           |                        : <K, S, Time>    :   (mutex)
+//!           |                        .~~~~~~~~~~~~~~~~~.      |
+//!           |                                ^                |
+//!           |                                |                |
+//!           V                             (mutex)             |
+//!    .~~~~~~~~~~~~~~~.    .~~~~~~~~~~~.      |      .~~~~~~~~~~~~~~~~.           .~~~~~~~~~~~~.
+//! -->: PolicyBackend :--->: LruPolicy :    (arc)    : PoolMemberImpl :           : PoolMember :
+//!    :  <K, V>       :    : <K, V, S> :      |      :   <K, V, S>    :           :    <S>     :
+//!    :               :    :           :------+------:                :<--(dyn)---:            :
+//!    .~~~~~~~~~~~~~~~.    .~~~~~~~~~~~.             .~~~~~~~~~~~~~~~~.           .~~~~~~~~~~~~.
+//!                               |                                                      ^
+//!                             (arc)                                                    |
+//!                               |                                                      |
+//!                               V                                                      |
+//!                        .~~~~~~~~~~~~~~.                                        .~~~~~~~~~~~~~.
+//! ---------------------->: ResourcePool :-----+-------(arc)--------------------->: SharedState :
+//!                        :     <S>      :     |                                  :   <S>       :
+//!                        .~~~~~~~~~~~~~~.     |                                  .~~~~~~~~~~~~~.
+//!                               |             |
+//!                            (handle)         |
+//!                               |             |
+//!                               V             |
+//!                        .~~~~~~~~~~~~~~~.    |
+//!                        : clean_up_loop :----+
+//!                        :     <S>       :
+//!                        .~~~~~~~~~~~~~~~.
 //! ```
 //!
 //! ## State
@@ -229,125 +229,129 @@
 //!
 //! ### Get
 //! For [`GET`] we only need to update the "last used" timestamp for the affected entry. No
-//! pool-wide operations are required. We just [`LruPolicyInner`] and perform the read operation of the inner backend
-//! and the modification of the "last used" timestamp.
+//! pool-wide operations are required. We update [`AddressableHeap`] and then perform the read operation of the inner
+//! backend.
 //!
 //! ### Remove
 //! For [`REMOVE`] the pool usage can only decrease, so other backends are never affected. We
-//! first lock [`LruPolicyInner`] and check if the entry is present. If it is, we also lock [`ResourcePoolInner`]
-//! and then perform the modification on both.
+//! first lock [`AddressableHeap`] and check if the entry is present. If it is, we also the "current" counter in
+//! [`SharedState`] and then perform the modification on both.
 //!
 //! ### Set
-//! [`SET`] is the most complex operation and requires a bit of a lock dance:
+//! [`SET`] locks [`AddressableHeap`] to figure out if th item exists. If it does, it locks the "current" counter in
+//! [`SharedState`] and removes the old value. Then it updates [`AddressableHeap`] with the new value and locks&updates
+//! the "current" counter in [`SharedState`] again. It then notifies the clean-up loop that there was an up.
 //!
-//! 0. Lock [`PolicyBackend`] internals of the "source" of the set operation. This is an indirect operation.
-//! 1. Lock [`ResourcePoolInner`]
-//! 2. Lock "source" [`LruPolicyInner`]
-//! 3. Check if the entry already exists and remove it.
-//! 4. Drop lock of "source" [`LruPolicyInner`] so that the pool can use it to free up space.
-//! 5. Request to add more data to the pool:
-//!    1. Check if we need to free up space, otherwise we can already proceed to step 6.
-//!    2. Lock all pool members ([`PoolMember::lock`] which ultimately locks [`LruPolicyInner`])
-//!    3. Loop:
-//!       1. Ask pool members if they have anything to free.
-//!       2. Pick least recently used result and create (but not execute) [`ChangeRequest`] that would free it.
-//!    4. For all members that are NOT the source of the operation: Bundle collected [`ChangeRequest`]s into one per
-//!       member, pre-pended with a lock drop. This gives:
-//!       1. Lock [`PolicyBackend`]
-//!       2. Drop lock of [`LruPolicyInner`].
-//!       3. Perform "remove" changes. (This will again acquire a lock on [`LruPolicyInner`] but does NOT result in
-//!          a lock-gap!)
-//!    5. Drop lock of [`LruPolicyInner`] on "source" member
-//! 6. Lock "source"  [`LruPolicyInner`]
-//! 7. Perform bookeeping changes for account for new member.
-//! 8. Drop lock of "source" [`LruPolicyInner`] and [`ResourcePoolInner`]
-//! 9. Let "source" [`PolicyBackend`] play out its change requests.
-//! 10. Drop internal [`PolicyBackend`] lock.
+//! Note that in case of an override, the existing "last used" time will be used instead of "now", because just
+//! replacing an existing value (e.g. via a [refresh]) should not count as a use.
 //!
-//! The global locks in step 5.2 are required so that the reads in step 5.3.1 and the resulting actions in step 5.3.2
-//! and step 5.4.3 are consistent. Otherwise an interleaved `get` request might invalidate the results.
+//! ### Clean-up Loop
+//! This is the beefy bit. First it locks and reads the "current" counter in [`SharedState`]. It instantly unlocks the
+//! value to not block all pool members adding new values while it we figure out what to evict. Then it selects victims
+//! one by one by asking the individual pool members what they could remove. This shortly locks their
+//! [`AddressableHeap`]s (one member at the time). After enough victims where selected for eviction, it will delete in
+//! them one pool member at the time. Each pool member will lock their [`CallbackHandle`] and when the deletion happens
+//! also their [`AddressableHeap`] and the "current" counter in [`SharedState`]. However the lock order is identical to
+//! a normal "remove" operation.
+//!
+//! Note that the clean up loop does not directly update the "current" counter in [`SharedState`] since the "remove"
+//! routine already does that.
+//!
+//! ## Consistency
+//! This system is eventually consistent and we are a bit loose at a few places to make it more efficient and easier to
+//! implement. This subsection explains cases where this could be visible to an observer.
+//!
+//! ### Overcommit
+//! Since we add new data to the cache pool and the clean-up loop will eventually evict data, we overcommit the pool for
+//! a short time. In practice however we already allocated the memory before adding it to the pool.
+//!
+//! There is a another risk that the cached users will add data so fast that the clean-up loop cannot keep up. This
+//! however is highly unlikely, since the loop selects enough victims to get the resource usage below the limit and
+//! deletes these victims in batches. The more it runs behind, the large the batch will be.
+//!
+//! ### Overdelete
+//! Similar to "overcommit", it is possible that the clean-up loop deletes more items than necessary. This can happen
+//! when between victim selection and actual deletion, entries are removed from the cache (e.g. via [TTL]). However the
+//! timing for that is very tight and we would have deleted the data anyways if the delete would have happened a tiny
+//! bit later, so in reality this is not a concern. On the other hand, the effect might also be a cache miss that was
+//! not strictly necessary and in turn worse performance than we could have had.
+//!
+//! ### Victim-Use-Delete
+//! It is possible that a key is used between victim selection and its removal. In theory we should not remove the key
+//! in this case because its no longer "least recently used". However if the key usage would have occurred only a bit
+//! later, we would have removed the key anyways so this tight race has no practical meaning. No user can rely on such
+//! tight timings and the fullness of a cache pool.
+//!
+//! ### Victim-Downsize-Delete
+//! A selected victim might be replaced with a smaller one between victim selection and its deletion. In this case, the
+//! clean-up loop does not delete enough data in its current try but needs an additional iteration.  In reality this is
+//! very unlikely since most cached entries rarely shrink and even if they do, the clean-up loop will eventually catch
+//! up again.
 //!
 //!
 //! [`GET`]: Subscriber::get
-//! [`SET`]: Subscriber::set
-//! [`REMOVE`]: Subscriber::remove
 //! [`PolicyBackend`]: super::PolicyBackend
+//! [refresh]: super::refresh
+//! [`REMOVE`]: Subscriber::remove
+//! [`SET`]: Subscriber::set
+//! [TTL]: super::ttl
 use std::{
     any::Any,
     collections::{btree_map::Entry, BTreeMap},
     fmt::Debug,
     hash::Hash,
-    marker::PhantomData,
     sync::Arc,
 };
 
 use iox_time::Time;
 use metric::{U64Counter, U64Gauge};
-use parking_lot::{Mutex, MutexGuard};
+use observability_deps::tracing::trace;
+use parking_lot::Mutex;
+use tokio::{runtime::Handle, sync::Notify, task::JoinSet};
 
 use crate::{
     addressable_heap::AddressableHeap,
+    backend::CacheBackend,
     resource_consumption::{Resource, ResourceEstimator},
 };
 
 use super::{CallbackHandle, ChangeRequest, Subscriber};
 
-#[derive(Debug)]
 /// Wrapper around something that can be converted into `u64`
 /// to enable emitting metrics.
-struct MeasuredT<T> {
-    v: T,
+#[derive(Debug)]
+struct MeasuredT<S>
+where
+    S: Resource,
+{
+    v: S,
     metric: U64Gauge,
 }
 
-impl<T> MeasuredT<T> {
-    fn new(v: T, metric: U64Gauge) -> Self
-    where
-        T: Copy + Into<u64>,
-    {
+impl<S> MeasuredT<S>
+where
+    S: Resource,
+{
+    fn new(v: S, metric: U64Gauge) -> Self {
         metric.set(v.into());
 
         Self { v, metric }
     }
 
-    fn inc(&mut self, delta: &T)
-    where
-        T: std::ops::Add<Output = T> + Copy + Into<u64>,
-    {
+    fn inc(&mut self, delta: &S) {
         self.v = self.v + *delta;
         self.metric.inc((*delta).into());
     }
 
-    fn dec(&mut self, delta: &T)
-    where
-        T: std::ops::Sub<Output = T> + Copy + Into<u64>,
-    {
+    fn dec(&mut self, delta: &S) {
         self.v = self.v - *delta;
         self.metric.dec((*delta).into());
     }
 }
 
-impl<T> PartialEq for MeasuredT<T>
-where
-    T: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.v == other.v
-    }
-}
-
-impl<T> PartialOrd for MeasuredT<T>
-where
-    T: PartialOrd,
-{
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.v.partial_cmp(&other.v)
-    }
-}
-
-/// Inner state of [`ResourcePool`] which is always behind a mutex.
+/// Shared state between [`ResourcePool`] and [`clean_up_loop`].
 #[derive(Debug)]
-struct ResourcePoolInner<S>
+struct SharedState<S>
 where
     S: Resource,
 {
@@ -355,23 +359,57 @@ where
     limit: MeasuredT<S>,
 
     /// Current resource usage.
-    current: MeasuredT<S>,
+    current: Mutex<MeasuredT<S>>,
 
     /// Members (= backends) that use this pool.
-    members: BTreeMap<&'static str, Box<dyn PoolMember<S = S>>>,
+    members: Mutex<BTreeMap<&'static str, Box<dyn PoolMember<S = S>>>>,
+
+    /// Notification when [`current`](Self::current) as changed.
+    change_notify: Notify,
 }
 
-impl<S> ResourcePoolInner<S>
+/// Resource pool.
+///
+/// This can be used with [`LruPolicy`].
+#[derive(Debug)]
+pub struct ResourcePool<S>
 where
     S: Resource,
 {
-    /// Create new, empty pool.
-    fn new(limit: S, pool_name: &'static str, metric_registry: &metric::Registry) -> Self {
-        let current = S::zero();
+    /// Name of the pool.
+    name: &'static str,
 
+    /// Shared state.
+    shared: Arc<SharedState<S>>,
+
+    /// Metric registry associated with the pool.
+    ///
+    /// This is used to generate member-specific metrics as well.
+    metric_registry: Arc<metric::Registry>,
+
+    /// Background task.
+    _background_task: JoinSet<()>,
+
+    /// Notification when the background worker is idle, so tests know that the state has converged and that they can
+    /// continue working.
+    #[allow(dead_code)]
+    notify_idle_test_side: tokio::sync::mpsc::UnboundedSender<tokio::sync::oneshot::Sender<()>>,
+}
+
+impl<S> ResourcePool<S>
+where
+    S: Resource,
+{
+    /// Creates new empty resource pool with given limit.
+    pub fn new(
+        name: &'static str,
+        limit: S,
+        metric_registry: Arc<metric::Registry>,
+        runtime_handle: &Handle,
+    ) -> Self {
         let metric_limit = metric_registry
             .register_metric::<U64Gauge>("cache_lru_pool_limit", "Limit of the LRU resource pool")
-            .recorder(&[("unit", S::unit()), ("pool", pool_name)]);
+            .recorder(&[("unit", S::unit()), ("pool", name)]);
         let limit = MeasuredT::new(limit, metric_limit);
 
         let metric_current = metric_registry
@@ -379,22 +417,48 @@ where
                 "cache_lru_pool_usage",
                 "Current consumption of the LRU resource pool",
             )
-            .recorder(&[("unit", S::unit()), ("pool", pool_name)]);
-        let current = MeasuredT::new(current, metric_current);
+            .recorder(&[("unit", S::unit()), ("pool", name)]);
+        let current = Mutex::new(MeasuredT::new(S::zero(), metric_current));
 
-        Self {
+        let shared = Arc::new(SharedState {
             limit,
             current,
-            members: BTreeMap::new(),
+            members: Default::default(),
+            change_notify: Default::default(),
+        });
+
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let mut background_task = JoinSet::new();
+        background_task.spawn_on(clean_up_loop(Arc::clone(&shared), rx), runtime_handle);
+
+        Self {
+            name,
+            shared,
+            metric_registry,
+            _background_task: background_task,
+            notify_idle_test_side: tx,
         }
+    }
+
+    /// Get pool limit.
+    pub fn limit(&self) -> S {
+        self.shared.limit.v
+    }
+
+    /// Get current pool usage.
+    pub fn current(&self) -> S {
+        self.shared.current.lock().v
     }
 
     /// Register new pool member.
     ///
     /// # Panic
     /// Panics when a member with the specific ID is already registered.
-    fn register_member(&mut self, id: &'static str, member: Box<dyn PoolMember<S = S>>) {
-        match self.members.entry(id) {
+    fn register_member(&self, id: &'static str, member: Box<dyn PoolMember<S = S>>) {
+        let mut members = self.shared.members.lock();
+
+        match members.entry(id) {
             Entry::Vacant(v) => {
                 v.insert(member);
             }
@@ -408,116 +472,42 @@ where
     ///
     /// # Panic
     /// Panics when the member with the specified ID is unknown (or was already unregistered).
-    fn unregister_member(&mut self, id: &str) {
-        assert!(self.members.remove(id).is_some(), "Member '{id}' unknown");
+    fn unregister_member(&self, id: &str) {
+        let mut members = self.shared.members.lock();
+
+        assert!(members.remove(id).is_some(), "Member '{id}' unknown");
     }
 
-    /// Add used resource too pool.
-    ///
-    /// Returns a list of type-erased [`ChangeRequest`]s.
-    fn add(&mut self, s: S, source_member_id: &'static str) -> Vec<Box<dyn Any>> {
-        self.current.inc(&s);
-
-        // collect requests to source member to avoid recursive access to their underlying backend
-        let mut requests_to_source = vec![];
-
-        if self.current > self.limit {
-            // lock all members
-            let mut members: Vec<_> = self
-                .members
-                .iter()
-                .map(|(id, member)| (*id, member.lock(), vec![]))
-                .collect();
-
-            // evict data until we are below the limit
-            while self.current > self.limit {
-                let mut options: Vec<_> = members
-                    .iter_mut()
-                    .filter_map(|(id, member, requests)| {
-                        member.could_remove().map(|t| (t, member, id, requests))
-                    })
-                    .collect();
-                options.sort_by_key(|(t, _member, _id, _requests)| *t);
-
-                let (_t, member, _id, requests) =
-                    options.first_mut().expect("accounting out of sync");
-                let (s, request) = member.remove_oldest();
-
-                self.current.dec(&s);
-                requests.push(request);
-            }
-
-            // submit change requests
-            for (id, member, requests) in members {
-                if id == source_member_id {
-                    requests_to_source = requests;
-                } else {
-                    member.execute_requests(requests);
-                }
-            }
+    /// Add used resource from pool.
+    fn add(&self, s: S) {
+        let mut current = self.shared.current.lock();
+        current.inc(&s);
+        if current.v > self.shared.limit.v {
+            self.shared.change_notify.notify_one();
         }
-
-        requests_to_source
     }
 
     /// Remove used resource from pool.
-    fn remove(&mut self, s: S) {
-        self.current.dec(&s);
-    }
-}
-
-/// Resource pool.
-///
-/// This can be used with [`LruPolicy`].
-#[derive(Debug)]
-pub struct ResourcePool<S>
-where
-    S: Resource,
-{
-    inner: Mutex<ResourcePoolInner<S>>,
-    name: &'static str,
-    metric_registry: Arc<metric::Registry>,
-}
-
-impl<S> ResourcePool<S>
-where
-    S: Resource,
-{
-    /// Creates new empty resource pool with given limit.
-    pub fn new(name: &'static str, limit: S, metric_registry: Arc<metric::Registry>) -> Self {
-        Self {
-            inner: Mutex::new(ResourcePoolInner::new(limit, name, &metric_registry)),
-            name,
-            metric_registry,
-        }
+    fn remove(&self, s: S) {
+        self.shared.current.lock().dec(&s);
     }
 
-    /// Get pool limit.
-    pub fn limit(&self) -> S {
-        self.inner.lock().limit.v
+    /// Wait for the pool to converge to a steady state.
+    ///
+    /// This usually means that the background worker that runs the eviction loop is idle.
+    ///
+    /// # Panic
+    /// Panics if the background worker is not idle within 5s or if the worker died.
+    pub async fn wait_converged(&self) {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.notify_idle_test_side
+            .send(tx)
+            .expect("background worker alive");
+        tokio::time::timeout(std::time::Duration::from_secs(5), rx)
+            .await
+            .unwrap()
+            .unwrap();
     }
-
-    /// Get current pool usage.
-    pub fn current(&self) -> S {
-        self.inner.lock().current.v
-    }
-}
-
-/// Inner state of [`LruPolicy`].
-///
-/// This is used by [`LruPolicy`] directly but also by [`PoolMemberImpl`] to add it to a [`ResourcePool`]/[`ResourcePoolInner`].
-#[derive(Debug)]
-struct LruPolicyInner<K, V, S>
-where
-    K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
-    S: Resource,
-{
-    last_used: AddressableHeap<K, S, Time>,
-    metric_count: U64Gauge,
-    metric_usage: U64Gauge,
-    metric_evicted: U64Counter,
-    _phantom: PhantomData<V>,
 }
 
 /// Cache policy that wraps another backend and limits its resource usage.
@@ -528,10 +518,26 @@ where
     V: Clone + Debug + Send + 'static,
     S: Resource,
 {
+    /// Pool member ID.
     id: &'static str,
-    inner: Arc<Mutex<LruPolicyInner<K, V, S>>>,
+
+    /// Link to central resource pool.
     pool: Arc<ResourcePool<S>>,
+
+    /// Resource estimator that is used for new (via [`SET`](Subscriber::set)) entries.
     resource_estimator: Arc<dyn ResourceEstimator<K = K, V = V, S = S>>,
+
+    /// Tracks when an element was used last.
+    ///
+    /// This is shared with [`PoolMemberImpl`], because [`clean_up_loop`] uses it via [`PoolMember::could_remove`] to
+    /// select victims for LRU evictions.
+    last_used: Arc<Mutex<AddressableHeap<K, S, Time>>>,
+
+    /// Count number of elements within this specific pool member.
+    metric_count: U64Gauge,
+
+    /// Count resource usage of this specific pool member.
+    metric_usage: U64Gauge,
 }
 
 impl<K, V, S> LruPolicy<K, V, S>
@@ -578,27 +584,25 @@ where
         move |mut callback_handle| {
             callback_handle.execute_requests(vec![ChangeRequest::ensure_empty()]);
 
-            let inner = Arc::new(Mutex::new(LruPolicyInner {
-                last_used: AddressableHeap::new(),
-                metric_count,
-                metric_usage,
-                metric_evicted,
-                _phantom: PhantomData,
-            }));
+            let last_used = Arc::new(Mutex::new(AddressableHeap::new()));
 
-            pool.inner.lock().register_member(
+            pool.register_member(
                 id,
                 Box::new(PoolMemberImpl {
-                    inner: Arc::clone(&inner),
+                    id,
+                    last_used: Arc::clone(&last_used),
+                    metric_evicted,
                     callback_handle: Mutex::new(callback_handle),
                 }),
             );
 
             Self {
                 id,
-                inner,
                 pool,
                 resource_estimator,
+                last_used,
+                metric_count,
+                metric_usage,
             }
         }
     }
@@ -611,7 +615,7 @@ where
     S: Resource,
 {
     fn drop(&mut self) {
-        self.pool.inner.lock().unregister_member(self.id);
+        self.pool.unregister_member(self.id);
     }
 }
 
@@ -625,10 +629,11 @@ where
     type V = V;
 
     fn get(&mut self, k: &Self::K, now: Time) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
-        let mut inner = self.inner.lock();
+        trace!(?k, now = now.timestamp(), "LRU get",);
+        let mut last_used = self.last_used.lock();
 
         // update "last used"
-        inner.last_used.update_order(k, now);
+        last_used.update_order(k, now);
 
         vec![]
     }
@@ -639,65 +644,61 @@ where
         v: &Self::V,
         now: Time,
     ) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
+        trace!(?k, now = now.timestamp(), "LRU set",);
+
         // determine all attributes before getting any locks
         let consumption = self.resource_estimator.consumption(k, v);
 
         // "last used" time for new entry
         // Note: this might be updated if the entry already exists
-        let mut last_used = now;
-
-        // get locks
-        let mut pool = self.pool.inner.lock();
+        let mut last_used_t = now;
 
         // check for oversized entries
-        if consumption > pool.limit.v {
+        if consumption > self.pool.shared.limit.v {
             return vec![ChangeRequest::remove(k.clone())];
         }
 
-        // maybe clean from pool
         {
-            let mut inner = self.inner.lock();
-            if let Some((consumption, last_used_previously)) = inner.last_used.remove(k) {
-                pool.remove(consumption);
-                inner.metric_count.dec(1);
-                inner.metric_usage.dec(consumption.into());
-                last_used = last_used_previously;
+            let mut last_used = self.last_used.lock();
+
+            // maybe clean from pool
+            if let Some((consumption, last_used_t_previously)) = last_used.remove(k) {
+                self.pool.remove(consumption);
+                self.metric_count.dec(1);
+                self.metric_usage.dec(consumption.into());
+                last_used_t = last_used_t_previously;
             }
+
+            // add new entry to inner backend BEFORE adding it to the pool, because the we can overcommit for a short
+            // time and we want to give the pool a chance to also evict the new resource
+            last_used.insert(k.clone(), consumption, last_used_t);
+            self.metric_count.inc(1);
+            self.metric_usage.inc(consumption.into());
         }
 
         // pool-wide operation
-        // Since this may call back to this very backend to remove entries, we MUST NOT hold an inner lock at this
-        // point.
-        let change_requests = pool.add(consumption, self.id);
+        // Since this may wake-up the background worker and cause evictions, drop the `last_used` lock before doing this (see
+        // block above) to avoid lock contention.
+        self.pool.add(consumption);
 
-        // add new entry to inner backend AFTER adding it to the pool, so we are never overcommitting resources.
-        let mut inner = self.inner.lock();
-        inner.last_used.insert(k.clone(), consumption, last_used);
-        inner.metric_count.inc(1);
-        inner.metric_usage.inc(consumption.into());
-
-        downcast_change_requests(change_requests)
+        vec![]
     }
 
-    fn remove(&mut self, k: &Self::K, _now: Time) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
-        let mut inner = self.inner.lock();
+    fn remove(&mut self, k: &Self::K, now: Time) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
+        trace!(?k, now = now.timestamp(), "LRU remove",);
+        let mut last_used = self.last_used.lock();
 
-        if let Some((consumption, _last_used)) = inner.last_used.remove(k) {
-            // only lock pool after we are sure that there is anything to do prevent lock contention
-            let mut pool = self.pool.inner.lock();
-
-            pool.remove(consumption);
-            inner.metric_count.dec(1);
-            inner.metric_usage.dec(consumption.into());
+        if let Some((consumption, _last_used)) = last_used.remove(k) {
+            self.pool.remove(consumption);
+            self.metric_count.dec(1);
+            self.metric_usage.dec(consumption.into());
         }
 
         vec![]
     }
 }
 
-/// A member of a [`ResourcePool`]/[`ResourcePoolInner`].
-///
-/// Must be [locked](Self::lock) to gain access.
+/// A member of a [`ResourcePool`]/[`SharedState`].
 ///
 /// The only implementation of this is [`PoolMemberImpl`]. This indirection is required to erase `K` and `V` from specific
 /// backend so we can stick it into the generic pool.
@@ -705,8 +706,18 @@ trait PoolMember: Debug + Send + 'static {
     /// Resource type.
     type S;
 
-    /// Lock pool member.
-    fn lock(&self) -> Box<dyn PoolMemberGuard<S = Self::S> + '_>;
+    /// Check if this member has anything that could be removed.
+    ///
+    /// If so, return:
+    /// - "last used" timestamp
+    /// - resource consumption of that entry
+    /// - type-erased key
+    fn could_remove(&self) -> Option<(Time, Self::S, Box<dyn Any>)>;
+
+    /// Remove given set of keys.
+    ///
+    /// The keys MUST be a result of [`could_remove`](Self::could_remove), otherwise the downcasting may not work and panic.
+    fn remove_keys(&self, keys: Vec<Box<dyn Any>>);
 }
 
 /// The only implementation of [`PoolMember`].
@@ -719,8 +730,32 @@ where
     V: Clone + Debug + Send + 'static,
     S: Resource,
 {
+    /// Pool member ID.
+    id: &'static str,
+
+    /// Count number of evicted items.
+    metric_evicted: U64Counter,
+
+    /// Tracks usage of the last used elements.
+    ///
+    /// See documentation of [`callback_handle`](Self::callback_handle) for a reasoning about locking.
+    last_used: Arc<Mutex<AddressableHeap<K, S, Time>>>,
+
+    /// Handle to call back into the [`PolicyBackend`] to evict data.
+    ///
+    /// # Locking
+    /// This MUST NOT share a lock with [`last_used`](Self::last_used) because otherwise we would deadlock during
+    /// eviction:
+    ///
+    /// 1. [`remove_keys`](PoolMember::remove_keys)
+    /// 2. lock both [`callback_handle`](Self::callback_handle) and [`last_used`](Self::last_used)
+    /// 3. [`CallbackHandle::execute_requests`]
+    /// 4. [`Subscriber::remove`]
+    /// 5. need to lock [`last_used`](Self::last_used) again
+    ///
+    ///
+    /// [`PolicyBackend`]: super::PolicyBackend
     callback_handle: Mutex<CallbackHandle<K, V>>,
-    inner: Arc<Mutex<LruPolicyInner<K, V, S>>>,
 }
 
 impl<K, V, S> PoolMember for PoolMemberImpl<K, V, S>
@@ -731,111 +766,119 @@ where
 {
     type S = S;
 
-    fn lock(&self) -> Box<dyn PoolMemberGuard<S = Self::S> + '_> {
-        Box::new(PoolMemberGuardImpl {
-            callback_handle: self.callback_handle.lock(),
-            inner: Some(self.inner.lock()),
-        })
-    }
-}
-
-/// Locked [`ResourcePool`]/[`ResourcePoolInner`] member.
-///
-/// The only implementation of this is [`PoolMemberGuardImpl`]. This indirection is required to erase `K` and `V` from
-/// specific backend so we can stick it into the generic pool.
-trait PoolMemberGuard: Debug {
-    /// Resource type.
-    type S;
-
-    /// Check if this member has anything that could be removed. If so, return the "last used" timestamp of the oldest
-    /// entry.
-    fn could_remove(&self) -> Option<Time>;
-
-    /// Remove oldest entry and return consumption of the removed entry and an opaque [`ChangeRequest`].
-    ///
-    /// This method is used for pool members that did NOT trigger the removal.
-    ///
-    /// # Panic
-    /// This must only be used if [`could_remove`](Self::could_remove) was used to check if there is anything to check
-    /// if there is an entry that could be removed. Panics if this is not the case.
-    fn remove_oldest(&mut self) -> (Self::S, Box<dyn Any>);
-
-    /// Perform opaque [`ChangeRequest`]s on pool member.
-    fn execute_requests(self: Box<Self>, requests: Vec<Box<dyn Any>>);
-}
-
-/// The only implementation of [`PoolMemberGuard`].
-///
-/// In contrast to the trait, this still contains `K` and `V`.
-#[derive(Debug)]
-pub struct PoolMemberGuardImpl<'a, K, V, S>
-where
-    K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
-    S: Resource,
-{
-    callback_handle: MutexGuard<'a, CallbackHandle<K, V>>,
-    inner: Option<MutexGuard<'a, LruPolicyInner<K, V, S>>>,
-}
-
-impl<'a, K, V, S> PoolMemberGuard for PoolMemberGuardImpl<'a, K, V, S>
-where
-    K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
-    S: Resource,
-{
-    type S = S;
-
-    fn could_remove(&self) -> Option<Time> {
-        let inner = self.inner.as_ref().expect("not yet finalized");
-        inner.last_used.peek().map(|(_k, _s, t)| *t)
+    fn could_remove(&self) -> Option<(Time, Self::S, Box<dyn Any>)> {
+        let last_used = self.last_used.lock();
+        last_used
+            .peek()
+            .map(|(k, s, t)| (*t, *s, Box::new(k.clone()) as _))
     }
 
-    fn remove_oldest(&mut self) -> (Self::S, Box<dyn Any>) {
-        let inner = self.inner.as_mut().expect("not yet finalized");
+    fn remove_keys(&self, keys: Vec<Box<dyn Any>>) {
+        let keys = keys
+            .into_iter()
+            .map(|k| *k.downcast::<K>().expect("wrong type"))
+            .collect::<Vec<K>>();
 
-        let (k, s, _t) = inner.last_used.pop().expect("nothing to remove");
-        inner.metric_count.dec(1);
-        inner.metric_usage.dec(s.into());
-        inner.metric_evicted.inc(1);
-        (s, Box::new(ChangeRequest::<'static, K, V>::remove(k)))
-    }
+        trace!(
+            id = self.id,
+            ?keys,
+            "evicting cache entries due to LRU pressure",
+        );
+        self.metric_evicted.inc(keys.len() as u64);
 
-    fn execute_requests(mut self: Box<Self>, requests: Vec<Box<dyn Any>>) {
-        let requests = downcast_change_requests::<K, V>(requests);
-        let inner = self.inner.take().expect("not yet finalized");
-
-        let combined = ChangeRequest::from_fn(|backend| {
-            drop(inner);
-
-            for request in requests {
-                request.eval(backend);
+        let combined = ChangeRequest::from_fn(move |backend| {
+            for k in keys {
+                backend.remove(&k);
             }
         });
 
-        self.callback_handle.execute_requests(vec![combined]);
+        self.callback_handle.lock().execute_requests(vec![combined]);
     }
 }
 
-fn downcast_change_requests<K, V>(requests: Vec<Box<dyn Any>>) -> Vec<ChangeRequest<'static, K, V>>
-where
-    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
-    V: Clone + Debug + Send + 'static,
+/// Background worker that eventually cleans up data if the pool reaches capacity.
+///
+/// This method NEVER returns.
+async fn clean_up_loop<S>(
+    shared: Arc<SharedState<S>>,
+    mut notify_idle_worker_side: tokio::sync::mpsc::UnboundedReceiver<
+        tokio::sync::oneshot::Sender<()>,
+    >,
+) where
+    S: Resource,
 {
-    requests
-        .into_iter()
-        .map(|cr| {
-            *cr.downcast::<ChangeRequest<'static, K, V>>()
-                .expect("Inner change request type")
-        })
-        .collect()
+    'outer: loop {
+        // yield to tokio so that the runtime has a chance to abort this function during shutdown
+        tokio::task::yield_now().await;
+
+        // get current value but drop the lock immediately
+        // Especially we must NOT hold the lock when we later execute the change requests, otherwise there will be two
+        // lock direction:
+        // - someone adding new resource: member -> pool
+        // - clean up loop: pool -> memeber
+        let mut current = {
+            let guard = shared.current.lock();
+            guard.v
+        };
+
+        if current <= shared.limit.v {
+            // nothing to do, sleep and then continue w/ next round
+            loop {
+                tokio::select! {
+                    // biased sleep so we can notify test hooks if we're idle
+                    biased;
+
+                    _ = shared.change_notify.notified() => {continue 'outer;},
+
+                    idle_notify = notify_idle_worker_side.recv() => {
+                        if let Some(n) = idle_notify {
+                            n.send(()).ok();
+                        }
+                    },
+                }
+            }
+        }
+
+        // hold member lock
+        // this is OK since this is only modified when new members are added. The members itself do NOT interact with
+        // this value.
+        let members = shared.members.lock();
+
+        // select victims
+        let mut victims: BTreeMap<&'static str, Vec<Box<dyn Any>>> = Default::default();
+        while current > shared.limit.v {
+            let mut options: Vec<_> = members
+                .iter()
+                .filter_map(|(id, member)| member.could_remove().map(|(t, s, k)| (t, s, k, *id)))
+                .collect();
+            options.sort_by_key(|(t, _s, _k, _id)| *t);
+
+            match options.into_iter().next() {
+                Some((_t, s, k, id)) => {
+                    current = current - s;
+                    victims.entry(id).or_default().push(k);
+                }
+                None => {
+                    // data was deleted in the meantime, stop looping
+                    break;
+                }
+            }
+        }
+
+        for (id, keys) in victims {
+            let member = members
+                .get(id)
+                .expect("did not drop the lock in the meantime");
+            member.remove_keys(keys);
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, time::Duration};
 
-    use iox_time::MockProvider;
+    use iox_time::{MockProvider, SystemProvider};
     use metric::{Observation, RawReporter};
 
     use crate::{
@@ -845,14 +888,15 @@ mod tests {
 
     use super::*;
 
-    #[test]
+    #[tokio::test]
     #[should_panic(expected = "inner backend is not empty")]
-    fn test_panic_inner_not_empty() {
+    async fn test_panic_inner_not_empty() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
             TestSize(10),
             Arc::new(metric::Registry::new()),
+            &Handle::current(),
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
@@ -868,14 +912,15 @@ mod tests {
         })
     }
 
-    #[test]
+    #[tokio::test]
     #[should_panic(expected = "Member 'id' already registered")]
-    fn test_panic_id_collision() {
+    async fn test_panic_id_collision() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
             TestSize(10),
             Arc::new(metric::Registry::new()),
+            &Handle::current(),
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
@@ -894,13 +939,14 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn test_reregister_member() {
+    #[tokio::test]
+    async fn test_reregister_member() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
             TestSize(10),
             Arc::new(metric::Registry::new()),
+            &Handle::current(),
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
@@ -921,13 +967,14 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn test_empty() {
+    #[tokio::test]
+    async fn test_empty() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
             TestSize(10),
             Arc::new(metric::Registry::new()),
+            &Handle::current(),
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
@@ -943,13 +990,14 @@ mod tests {
         assert_eq!(pool.current().0, 0);
     }
 
-    #[test]
-    fn test_double_set() {
+    #[tokio::test]
+    async fn test_double_set() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
             TestSize(2),
             Arc::new(metric::Registry::new()),
+            &Handle::current(),
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
@@ -971,17 +1019,19 @@ mod tests {
         time_provider.inc(Duration::from_millis(1));
 
         backend.set(String::from("c"), 1usize);
+        pool.wait_converged().await;
 
         assert_eq!(backend.get(&String::from("a")), None);
     }
 
-    #[test]
-    fn test_override() {
+    #[tokio::test]
+    async fn test_override() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
             TestSize(10),
             Arc::new(metric::Registry::new()),
+            &Handle::current(),
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
@@ -1002,13 +1052,14 @@ mod tests {
         assert_eq!(pool.current().0, 7);
     }
 
-    #[test]
-    fn test_remove() {
+    #[tokio::test]
+    async fn test_remove() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
             TestSize(10),
             Arc::new(metric::Registry::new()),
+            &Handle::current(),
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
@@ -1036,13 +1087,14 @@ mod tests {
         assert_eq!(pool.current().0, 3);
     }
 
-    #[test]
-    fn test_eviction_order() {
+    #[tokio::test]
+    async fn test_eviction_order() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
             TestSize(21),
             Arc::new(metric::Registry::new()),
+            &Handle::current(),
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
@@ -1078,6 +1130,7 @@ mod tests {
         time_provider.inc(Duration::from_millis(1));
 
         // now are exactly at capacity
+        pool.wait_converged().await;
         assert_inner_backend(
             &mut backend1,
             [
@@ -1094,6 +1147,7 @@ mod tests {
 
         // adding a single element will drop the smallest key from the first backend (by ID)
         backend1.set(String::from("foo1"), 1usize);
+        pool.wait_converged().await;
         assert_eq!(pool.current().0, 19);
         assert_inner_backend(
             &mut backend1,
@@ -1111,6 +1165,7 @@ mod tests {
 
         // now we can fill up data up to the capacity again
         backend1.set(String::from("foo2"), 2usize);
+        pool.wait_converged().await;
         assert_eq!(pool.current().0, 21);
         assert_inner_backend(
             &mut backend1,
@@ -1129,6 +1184,7 @@ mod tests {
 
         // can evict two keys at the same time
         backend1.set(String::from("foo3"), 2usize);
+        pool.wait_converged().await;
         assert_eq!(pool.current().0, 18);
         assert_inner_backend(
             &mut backend1,
@@ -1146,6 +1202,7 @@ mod tests {
 
         // can evict from another backend
         backend1.set(String::from("foo4"), 4usize);
+        pool.wait_converged().await;
         assert_eq!(pool.current().0, 20);
         assert_inner_backend(
             &mut backend1,
@@ -1161,6 +1218,7 @@ mod tests {
 
         // can evict multiple timestamps
         backend1.set(String::from("foo5"), 7usize);
+        pool.wait_converged().await;
         assert_eq!(pool.current().0, 16);
         assert_inner_backend(
             &mut backend1,
@@ -1175,13 +1233,14 @@ mod tests {
         assert_inner_backend(&mut backend2, []);
     }
 
-    #[test]
-    fn test_get_updates_last_used() {
+    #[tokio::test]
+    async fn test_get_updates_last_used() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
             TestSize(6),
             Arc::new(metric::Registry::new()),
+            &Handle::current(),
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
@@ -1198,6 +1257,7 @@ mod tests {
         time_provider.inc(Duration::from_millis(1));
 
         backend.set(String::from("c"), 3usize);
+        pool.wait_converged().await;
 
         time_provider.inc(Duration::from_millis(1));
 
@@ -1214,6 +1274,7 @@ mod tests {
         );
 
         backend.set(String::from("foo"), 3usize);
+        pool.wait_converged().await;
         assert_eq!(pool.current().0, 4);
         assert_inner_backend(
             &mut backend,
@@ -1221,13 +1282,14 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_oversized_entries() {
+    #[tokio::test]
+    async fn test_oversized_entries() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
             TestSize(10),
             Arc::new(metric::Registry::new()),
+            &Handle::current(),
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
@@ -1239,20 +1301,23 @@ mod tests {
         ));
 
         backend.set(String::from("a"), 1usize);
+        pool.wait_converged().await;
         backend.set(String::from("b"), 11usize);
+        pool.wait_converged().await;
 
         // "a" did NOT get evicted. Instead we removed the oversized entry straight away.
         assert_eq!(pool.current().0, 1);
         assert_inner_backend(&mut backend, [(String::from("a"), 1)]);
     }
 
-    #[test]
-    fn test_values_are_dropped() {
+    #[tokio::test]
+    async fn test_values_are_dropped() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
             TestSize(3),
             Arc::new(metric::Registry::new()),
+            &Handle::current(),
         ));
 
         #[derive(Debug)]
@@ -1285,22 +1350,25 @@ mod tests {
         let v1_weak = Arc::downgrade(&v1);
 
         backend.set(k1, v1);
+        pool.wait_converged().await;
 
         time_provider.inc(Duration::from_millis(1));
 
         backend.set(k2, v2);
+        pool.wait_converged().await;
 
         assert_eq!(k1_weak.strong_count(), 0);
         assert_eq!(v1_weak.strong_count(), 0);
     }
 
-    #[test]
-    fn test_backends_are_dropped() {
+    #[tokio::test]
+    async fn test_backends_are_dropped() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
             TestSize(3),
             Arc::new(metric::Registry::new()),
+            &Handle::current(),
         ));
 
         let resource_estimator = Arc::new(TestResourceEstimator {});
@@ -1358,14 +1426,15 @@ mod tests {
         assert_eq!(marker_weak.strong_count(), 0);
     }
 
-    #[test]
-    fn test_metrics() {
+    #[tokio::test]
+    async fn test_metrics() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let metric_registry = Arc::new(metric::Registry::new());
         let pool = Arc::new(ResourcePool::new(
             "pool",
             TestSize(10),
             Arc::clone(&metric_registry),
+            &Handle::current(),
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
@@ -1439,11 +1508,17 @@ mod tests {
         );
 
         backend.set(String::from("a"), 1usize); // usage = 1
+        pool.wait_converged().await;
         backend.set(String::from("b"), 2usize); // usage = 3
+        pool.wait_converged().await;
         backend.set(String::from("b"), 3usize); // usage = 4
+        pool.wait_converged().await;
         backend.set(String::from("c"), 4usize); // usage = 8
+        pool.wait_converged().await;
         backend.set(String::from("d"), 3usize); // usage = 10 (evicted "a")
+        pool.wait_converged().await;
         backend.remove(&String::from("c")); // usage = 6
+        pool.wait_converged().await;
 
         let mut reporter = RawReporter::default();
         metric_registry.report(&mut reporter);
@@ -1489,8 +1564,13 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_generic_backend() {
+    /// A note regarding the test flavor:
+    ///
+    /// The main generic test function is not async, so the background clean-up would never fire because we don't
+    /// yield to tokio. The test will pass in both cases (w/ a single worker and w/ multiple), however if the
+    /// background worker is a actually doing anything it might be a more realistic test case.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_generic_backend() {
         use crate::backend::test_util::test_generic;
 
         #[derive(Debug)]
@@ -1512,6 +1592,7 @@ mod tests {
                 "pool",
                 TestSize(10),
                 Arc::new(metric::Registry::new()),
+                &Handle::current(),
             ));
             let resource_estimator = Arc::new(ZeroSizeProvider {});
 
@@ -1523,6 +1604,68 @@ mod tests {
             ));
             backend
         });
+    }
+
+    /// Regression test for <https://github.com/influxdata/influxdb_iox/issues/8334>.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_deadlock() {
+        #[derive(Debug)]
+        struct OneSizeProvider {}
+
+        impl ResourceEstimator for OneSizeProvider {
+            type K = u128;
+            type V = ();
+            type S = TestSize;
+
+            fn consumption(&self, _k: &Self::K, _v: &Self::V) -> Self::S {
+                TestSize(1)
+            }
+        }
+
+        let time_provider = Arc::new(SystemProvider::new()) as _;
+        let pool = Arc::new(ResourcePool::new(
+            "pool",
+            TestSize(100),
+            Arc::new(metric::Registry::new()),
+            &Handle::current(),
+        ));
+        let resource_estimator = Arc::new(OneSizeProvider {});
+
+        let mut backend1 = PolicyBackend::hashmap_backed(Arc::clone(&time_provider));
+        backend1.add_policy(LruPolicy::new(
+            Arc::clone(&pool),
+            "id1",
+            Arc::clone(&resource_estimator) as _,
+        ));
+
+        let mut backend2 = PolicyBackend::hashmap_backed(Arc::clone(&time_provider));
+        backend2.add_policy(LruPolicy::new(
+            Arc::clone(&pool),
+            "id2",
+            Arc::clone(&resource_estimator) as _,
+        ));
+
+        let worker1 = tokio::spawn(async move {
+            let mut counter = 0u128;
+            loop {
+                backend1.set(counter, ());
+                counter += 2;
+                tokio::task::yield_now().await;
+            }
+        });
+        let worker2 = tokio::spawn(async move {
+            let mut counter = 1u128;
+            loop {
+                backend2.set(counter, ());
+                counter += 2;
+                tokio::task::yield_now().await;
+            }
+        });
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        worker1.abort();
+        worker2.abort();
     }
 
     #[derive(Debug)]

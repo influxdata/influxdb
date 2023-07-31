@@ -393,7 +393,11 @@ where
     /// structures while calling this function if you plan to also [subscribe](Subscriber) to
     /// changes because this would easily lead to deadlocks.
     pub fn execute_requests(&mut self, change_requests: Vec<ChangeRequest<'_, K, V>>) {
-        let inner = self.inner.upgrade().expect("backend gone");
+        let Some(inner) = self.inner.upgrade() else {
+            // backend gone, can happen during shutdowns, try not to panic
+            return;
+        };
+
         lock_inner!(mut guard = inner);
         perform_changes(&mut guard, change_requests);
     }

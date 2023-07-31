@@ -23,6 +23,7 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 [dev-dependencies]
 criterion = { version = "0.5", default-features = false, features = ["rayon"]}
 proptest = { version = "1", default_features = false, features = ["std"] }
+test_helpers = { path = "../test_helpers" }
 
 [lib]
 # Allow --save-baseline to work
