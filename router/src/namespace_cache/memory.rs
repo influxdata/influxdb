@@ -12,7 +12,7 @@ use super::{ChangeStats, NamespaceCache};
 #[derive(Debug, Error)]
 #[error("namespace {namespace} not found in cache")]
 pub struct CacheMissErr {
-    pub(super) namespace: NamespaceName<'static>,
+    pub(crate) namespace: NamespaceName<'static>,
 }
 
 /// An in-memory cache of [`NamespaceSchema`] backed by a hashmap protected with
