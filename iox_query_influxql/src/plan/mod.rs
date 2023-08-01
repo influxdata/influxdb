@@ -7,7 +7,6 @@ mod planner_rewrite_expression;
 mod planner_time_range_expression;
 mod rewriter;
 mod test_utils;
-mod udaf;
 mod udf;
 mod util;
 mod util_copy;

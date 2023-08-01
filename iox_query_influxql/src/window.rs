@@ -9,6 +9,7 @@ use std::sync::Arc;
 mod cumulative_sum;
 mod derivative;
 mod difference;
+mod moving_average;
 mod non_negative;
 mod percent_row_number;
 
@@ -49,6 +50,20 @@ pub(crate) static DIFFERENCE: Lazy<WindowFunction> = Lazy::new(|| {
     WindowFunction::WindowUDF(Arc::new(WindowUDF::new(
         difference::NAME,
         &difference::SIGNATURE,
+        &return_type,
+        &partition_evaluator_factory,
+    )))
+});
+
+/// Definition of the `MOVING_AVERAGE` user-defined window function.
+pub(crate) static MOVING_AVERAGE: Lazy<WindowFunction> = Lazy::new(|| {
+    let return_type: ReturnTypeFunction = Arc::new(moving_average::return_type);
+    let partition_evaluator_factory: PartitionEvaluatorFactory =
+        Arc::new(moving_average::partition_evaluator_factory);
+
+    WindowFunction::WindowUDF(Arc::new(WindowUDF::new(
+        moving_average::NAME,
+        &moving_average::SIGNATURE,
         &return_type,
         &partition_evaluator_factory,
     )))
