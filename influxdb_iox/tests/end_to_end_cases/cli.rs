@@ -441,6 +441,23 @@ async fn create_tables_negative() {
                         .stderr(predicate::str::contains(
                             "Partition templates may have a maximum of 8 parts",
                         ));
+
+                    // Update an existing table
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("update")
+                        .arg(namespace)
+                        .arg("h2o_temperature")
+                        .arg("--partition-template")
+                        .arg("{\"parts\":[{\"tagValue\":\"col1\"}] }")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(
+                            "error: unrecognized subcommand 'update'",
+                        ));
                 }
                 .boxed()
             })),
@@ -1422,6 +1439,489 @@ async fn namespace_create_service_limits() {
                 }
                 .boxed()
             })),
+        ],
+    )
+    .run()
+    .await
+}
+
+/// Test setting partition template while creating namespaces, negative tests
+#[tokio::test]
+async fn namespace_create_partition_template_negative() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns_negative";
+
+                    // No partition tempplate specified
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("--partition-template")
+                        .assert()
+                        .failure()
+                        .stderr(
+                            predicate::str::contains(
+                                "error: a value is required for '--partition-template <PARTITION_TEMPLATE>' but none was supplied"
+                            )
+                        );
+
+                    // Wrong spelling `prts`
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("--partition-template")
+                        .arg("{\"prts\": [{\"tagValue\": \"location\"}, {\"tagValue\": \"state\"}, {\"timeFormat\": \"%Y-%m\"}] }")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(
+                            "Client Error: Invalid partition template format : unknown field `prts`",
+                        ));
+
+                    // Time as tag
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("--partition-template")
+                        .arg("{\"parts\": [{\"tagValue\": \"location\"}, {\"tagValue\": \"time\"}, {\"timeFormat\": \"%Y-%m\"}] }")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(
+                            "Client error: Client specified an invalid argument: invalid tag value in partition template: time cannot be used",
+                        ));
+
+                    // Time format is `%42` which is invalid
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("--partition-template")
+                        .arg("{\"parts\": [{\"tagValue\": \"location\"}, {\"timeFormat\": \"%42\"}] }")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(
+                            "Client error: Client specified an invalid argument: invalid strftime format in partition template",
+                        ));
+
+                    // Over 8 parts
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("--partition-template")
+                        .arg("{\"parts\": [{\"tagValue\": \"1\"},{\"tagValue\": \"2\"},{\"timeFormat\": \"%Y-%m\"},{\"tagValue\": \"4\"},{\"tagValue\": \"5\"},{\"tagValue\": \"6\"},{\"tagValue\": \"7\"},{\"tagValue\": \"8\"},{\"tagValue\": \"9\"}]}")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(
+                            "Partition templates may have a maximum of 8 parts",
+                        ));
+                }
+                .boxed()
+            }))
+        ],
+    )
+    .run()
+    .await
+}
+
+/// Test setting partition template while creating namespaces, positive tests
+#[tokio::test]
+async fn namespace_create_partition_template_positive() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+
+                    // No partition template specified
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg("ns_partition_template_1")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("ns_partition_template_1"));
+
+                    // Partition template with time format
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg("ns_partition_template_2")
+                        .arg("--partition-template")
+                        .arg("{\"parts\":[{\"timeFormat\":\"%Y-%m\"}] }")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("ns_partition_template_2"));
+
+                    // Partition template with tag value
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg("ns_partition_template_3")
+                        .arg("--partition-template")
+                        .arg("{\"parts\":[{\"tagValue\":\"col1\"}] }")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("ns_partition_template_3"));
+
+                    // Partition template with time format, tag value, and tag of unsual column name
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg("ns_partition_template_4")
+                        .arg("--partition-template")
+                        .arg("{\"parts\":[{\"tagValue\":\"col1\"},{\"timeFormat\":\"%Y-%d\"},{\"tagValue\":\"yes,col name\"}] }")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("ns_partition_template_4"));
+
+                    // Update an existing namespace
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("update")
+                        .arg("ns_partition_template_4")
+                        .arg("--partition-template")
+                        .arg("{\"parts\":[{\"tagValue\":\"col1\"}] }")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(
+                            "error: unrecognized subcommand 'update'",
+                        ));
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+/// Test partition template for namespace and table creation:
+///   When a namespace is created *with* a custom partition template
+///   and a table is created implicitly, i.e. *without* a partition template,
+///   the namespace's partition template will be applied to this table
+#[tokio::test]
+async fn namespace_create_partition_template_implicit_table_creation() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let namespace = "ns_createtableimplicit";
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            // Explicitly create a namespace with a custom partition template
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns_createtableimplicit";
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("--partition-template")
+                        .arg(
+                            "{\"parts\":[{\"timeFormat\":\"%Y-%m\"}, {\"tagValue\":\"location\"}]}",
+                        )
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(namespace));
+                }
+                .boxed()
+            })),
+            // Write, which implicitly creates the table with the namespace's custom partition template
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_http_base().to_string();
+                    let namespace = "ns_createtableimplicit";
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-v")
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("write")
+                        .arg(namespace)
+                        .arg("../test_fixtures/lineproto/temperature.lp")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("591 Bytes OK"));
+                }
+                .boxed()
+            })),
+            // Read data
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    // data from 'air_and_water.lp'
+                    wait_for_query_result_with_namespace(
+                        namespace,
+                        state,
+                        "SELECT * from h2o_temperature order by time desc limit 10",
+                        None,
+                        "| 51.3           | coyote_creek | CA    | 55.1            | 1970-01-01T00:00:01.568756160Z |"
+                    ).await;
+                }
+                .boxed()
+            })),
+            // Check partition keys that use the namespace's partition template
+            Step::PartitionKeys {
+                table_name: "h2o_temperature".to_string(),
+                namespace_name: Some(namespace.to_string()),
+                expected: vec![
+                    "1970-01|coyote_creek",
+                    "1970-01|puget_sound",
+                    "1970-01|santa_monica",
+                ],
+            },
+        ],
+    )
+    .run()
+    .await
+}
+
+/// Test partition template for namespace and table creation:
+///   When a namespace is created *with* a custom partition template
+///   and a table is created *without* a partition template,
+///   the namespace's partition template will be applied to this table
+#[tokio::test]
+async fn namespace_create_partition_template_explicit_table_creation_without_partition_template() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let namespace = "ns_createtableexplicitwithout";
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            // Explicitly create a namespace with a custom partition template
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns_createtableexplicitwithout";
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("--partition-template")
+                        .arg("{\"parts\":[{\"timeFormat\":\"%Y-%m\"}, {\"tagValue\":\"state\"}]}")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(namespace));
+                }
+                .boxed()
+            })),
+            // Explicitly create a table *without* a custom partition template
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns_createtableexplicitwithout";
+                    let table_name = "h2o_temperature";
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-v")
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg(table_name)
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(table_name));
+                }
+                .boxed()
+            })),
+            // Write to the just-created table
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_http_base().to_string();
+                    let namespace = "ns_createtableexplicitwithout";
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-v")
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("write")
+                        .arg(namespace)
+                        .arg("../test_fixtures/lineproto/temperature.lp")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("591 Bytes OK"));
+                }
+                .boxed()
+            })),
+            // Read data
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    // data from 'air_and_water.lp'
+                    wait_for_query_result_with_namespace(
+                        namespace,
+                        state,
+                        "SELECT * from h2o_temperature order by time desc limit 10",
+                        None,
+                        "| 51.3           | coyote_creek | CA    | 55.1            | 1970-01-01T00:00:01.568756160Z |"
+                    ).await;
+                }
+                .boxed()
+            })),
+            // Check partition keys that use the namespace's partition template
+            Step::PartitionKeys{table_name: "h2o_temperature".to_string(), namespace_name: Some(namespace.to_string()), expected: vec!["1970-01|CA", "1970-01|WA"]},
+        ],
+    )
+    .run()
+    .await
+}
+
+/// Test partition template for namespace and table creation:
+///   When a namespace is created *with* a custom partition template
+///   and a table is created *with* a partition template,
+///   the table's partition template will be applied to this table
+#[tokio::test]
+async fn namespace_create_partition_template_explicit_table_creation_with_partition_template() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let namespace = "ns_createtableexplicitwith";
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            // Explicitly create a namespace with a custom partition template
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns_createtableexplicitwith";
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("--partition-template")
+                        .arg("{\"parts\":[{\"timeFormat\":\"%Y-%m\"}, {\"tagValue\":\"state\"}]}")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(namespace));
+                }
+                .boxed()
+            })),
+            // Explicitly create a table *with* a custom partition template
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns_createtableexplicitwith";
+                    let table_name = "h2o_temperature";
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-v")
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg(table_name)
+                        .arg("--partition-template")
+                        .arg("{\"parts\":[{\"tagValue\":\"location\"}, {\"timeFormat\":\"%Y-%m\"}]}")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(table_name));
+                }
+                .boxed()
+            })),
+            // Write to the just-created table
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_http_base().to_string();
+                    let namespace = "ns_createtableexplicitwith";
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-v")
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("write")
+                        .arg(namespace)
+                        .arg("../test_fixtures/lineproto/temperature.lp")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("591 Bytes OK"));
+                }
+                .boxed()
+            })),
+            // Read data
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    // data from 'air_and_water.lp'
+                    wait_for_query_result_with_namespace(
+                        namespace,
+                        state,
+                        "SELECT * from h2o_temperature order by time desc limit 10",
+                        None,
+                        "| 51.3           | coyote_creek | CA    | 55.1            | 1970-01-01T00:00:01.568756160Z |"
+                    ).await;
+                }
+                .boxed()
+            })),
+            // Check partition keys that use the table's partition template
+            Step::PartitionKeys{table_name: "h2o_temperature".to_string(), namespace_name: Some(namespace.to_string()), expected: vec!["coyote_creek|1970-01", "puget_sound|1970-01", "santa_monica|1970-01"]},
         ],
     )
     .run()
