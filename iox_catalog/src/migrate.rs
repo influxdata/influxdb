@@ -51,7 +51,7 @@ use observability_deps::tracing::info;
 use siphasher::sip::SipHasher13;
 use sqlx::{
     migrate::{AppliedMigration, Migrate, MigrateError, Migration, MigrationType, Migrator},
-    query, query_scalar, Acquire, Connection, Executor, PgConnection,
+    query, query_scalar, Acquire, Connection, Executor, PgConnection, Postgres, Transaction,
 };
 
 /// A single [`IOxMigration`] step.
@@ -93,19 +93,19 @@ impl IOxMigrationStep {
         C: IOxMigrate,
     {
         match self {
-            Self::SqlStatement {
-                sql,
-                in_transaction,
-            } => {
-                if *in_transaction {
-                    conn.exec_with_transaction(sql).await?;
-                } else {
-                    conn.exec_without_transaction(sql).await?;
-                }
+            Self::SqlStatement { sql, .. } => {
+                conn.exec(sql).await?;
             }
         }
 
         Ok(())
+    }
+
+    /// Will this step set up a transaction if there is non yet?
+    fn in_transaction(&self) -> bool {
+        match self {
+            Self::SqlStatement { in_transaction, .. } => *in_transaction,
+        }
     }
 }
 
@@ -136,27 +136,26 @@ impl IOxMigration {
     where
         C: IOxMigrate,
     {
+        let single_transaction = self.steps.iter().all(|s| s.in_transaction());
         info!(
             version = self.version,
             description = self.description.as_ref(),
             steps = self.steps.len(),
+            single_transaction,
             "applying migration"
         );
-        let start = Instant::now();
 
-        conn.start_migration(self).await?;
-
-        for (i, step) in self.steps.iter().enumerate() {
-            info!(
-                version = self.version,
-                step = i + 1,
-                "applying migration step"
-            );
-            step.apply(conn).await?;
-        }
-
-        let elapsed = start.elapsed();
-        conn.finish_migration(self, elapsed).await?;
+        let elapsed = if single_transaction {
+            let mut txn = conn.begin_txn().await?;
+            let elapsed = {
+                let conn = txn.acquire_conn().await?;
+                self.apply_inner(conn, true).await?
+            };
+            txn.commit_txn().await?;
+            elapsed
+        } else {
+            self.apply_inner(conn, false).await?
+        };
 
         info!(
             version = self.version,
@@ -165,6 +164,51 @@ impl IOxMigration {
             elapsed_secs = elapsed.as_secs_f64(),
             "migration applied"
         );
+
+        Ok(elapsed)
+    }
+
+    /// Run actual application.
+    ///
+    /// This may or may NOT be guarded by an transaction block.
+    async fn apply_inner<C>(&self, conn: &mut C, single_txn: bool) -> Result<Duration, MigrateError>
+    where
+        C: IOxMigrate,
+    {
+        let start = Instant::now();
+        conn.start_migration(self).await?;
+
+        for (i, step) in self.steps.iter().enumerate() {
+            info!(
+                version = self.version,
+                steps = self.steps.len(),
+                step = i + 1,
+                single_txn,
+                in_transaction = step.in_transaction(),
+                "applying migration step"
+            );
+
+            if step.in_transaction() && !single_txn {
+                let mut txn = conn.begin_txn().await?;
+                {
+                    let conn = txn.acquire_conn().await?;
+                    step.apply(conn).await?;
+                }
+                txn.commit_txn().await?;
+            } else {
+                step.apply(conn).await?;
+            }
+
+            info!(
+                version = self.version,
+                steps = self.steps.len(),
+                step = i + 1,
+                "applied migration step"
+            );
+        }
+
+        let elapsed = start.elapsed();
+        conn.finish_migration(self, elapsed).await?;
 
         Ok(elapsed)
     }
@@ -335,11 +379,35 @@ fn validate_applied_migrations(
     Ok(())
 }
 
+/// Transaction type linked to [`IOxMigrate`].
+///
+/// This is a separate type because we need to own the transaction object at some point before handing out mutable
+/// borrows to the actual connection again.
+#[async_trait]
+pub trait IOxMigrateTxn: Send {
+    /// The migration interface.
+    type M: IOxMigrate;
+
+    /// Acquire connection.
+    async fn acquire_conn(&mut self) -> Result<&mut Self::M, MigrateError>;
+
+    /// Commit transaction.
+    async fn commit_txn(self) -> Result<(), MigrateError>;
+}
+
 /// Interface of a specific database implementation (like Postgres) and the IOx migration system.
 ///
 /// This mostly delegates to the SQLx [`Migrate`] interface but also has some extra methods.
 #[async_trait]
-pub trait IOxMigrate: Migrate + Send {
+pub trait IOxMigrate: Connection + Migrate + Send {
+    /// Transaction type.
+    type Txn<'a>: IOxMigrateTxn
+    where
+        Self: 'a;
+
+    /// Start new transaction.
+    async fn begin_txn<'a>(&'a mut self) -> Result<Self::Txn<'a>, MigrateError>;
+
     /// Generate a lock ID that is used for [`lock`](Self::lock) and [`unlock`](Self::unlock).
     async fn generate_lock_id(&mut self) -> Result<i64, MigrateError>;
 
@@ -359,17 +427,34 @@ pub trait IOxMigrate: Migrate + Send {
         elapsed: Duration,
     ) -> Result<(), MigrateError>;
 
-    /// Execute a SQL statement (that may contain multiple sub-statements) within a transaction block.
-    ///
-    /// Note that the SQL text can in theory contain `BEGIN`/`COMMIT` commands but shouldn't.
-    async fn exec_with_transaction(&mut self, sql: &str) -> Result<(), MigrateError>;
+    /// Execute a SQL statement (that may contain multiple sub-statements)
+    async fn exec(&mut self, sql: &str) -> Result<(), MigrateError>;
+}
 
-    /// Execute a SQL statement (that may contain multiple sub-statements) without a transaction block.
-    async fn exec_without_transaction(&mut self, sql: &str) -> Result<(), MigrateError>;
+#[async_trait]
+impl<'a> IOxMigrateTxn for Transaction<'a, Postgres> {
+    type M = PgConnection;
+
+    async fn acquire_conn(&mut self) -> Result<&mut Self::M, MigrateError> {
+        let conn = self.acquire().await?;
+        Ok(conn)
+    }
+
+    async fn commit_txn(self) -> Result<(), MigrateError> {
+        self.commit().await?;
+        Ok(())
+    }
 }
 
 #[async_trait]
 impl IOxMigrate for PgConnection {
+    type Txn<'a> = Transaction<'a, Postgres>;
+
+    async fn begin_txn<'a>(&'a mut self) -> Result<Self::Txn<'a>, MigrateError> {
+        let txn = <Self as Connection>::begin(self).await?;
+        Ok(txn)
+    }
+
     async fn generate_lock_id(&mut self) -> Result<i64, MigrateError> {
         let db: String = query_scalar("SELECT current_database()")
             .fetch_one(self)
@@ -449,14 +534,7 @@ WHERE version = $2
         Ok(())
     }
 
-    async fn exec_with_transaction(&mut self, sql: &str) -> Result<(), MigrateError> {
-        let mut tx = <Self as Connection>::begin(self).await?;
-        let _ = tx.execute(sql).await?;
-        tx.commit().await?;
-        Ok(())
-    }
-
-    async fn exec_without_transaction(&mut self, sql: &str) -> Result<(), MigrateError> {
+    async fn exec(&mut self, sql: &str) -> Result<(), MigrateError> {
         let _ = self.execute(sql).await?;
         Ok(())
     }
@@ -635,30 +713,39 @@ mod tests {
         #[tokio::test]
         async fn test_step_sql_statement_no_transaction() {
             maybe_skip_integration!();
-            let mut conn = setup().await;
-            let conn = &mut *conn;
 
-            conn.execute("CREATE TABLE t (x INT);").await.unwrap();
+            for in_transaction in [false, true] {
+                println!("in_transaction: {in_transaction}");
 
-            let create_index_concurrently = "CREATE INDEX CONCURRENTLY i ON t (x);";
+                let mut conn = setup().await;
+                let conn = &mut *conn;
 
-            // `CREATE INDEX CONCURRENTLY` is NOT possible w/ a transaction. Verify that.
-            IOxMigrationStep::SqlStatement {
-                sql: create_index_concurrently.into(),
-                in_transaction: true,
+                conn.execute("CREATE TABLE t (x INT);").await.unwrap();
+
+                let migrator = IOxMigrator::new([IOxMigration {
+                    version: 1,
+                    description: "".into(),
+                    steps: vec![IOxMigrationStep::SqlStatement {
+                        sql: "CREATE INDEX CONCURRENTLY i ON t (x);".into(),
+                        in_transaction,
+                    }],
+                    checksum: vec![].into(),
+                }]);
+                let res = migrator.run_direct(conn).await;
+
+                match in_transaction {
+                    false => {
+                        assert_eq!(res.unwrap(), HashSet::from([1]),);
+                    }
+                    true => {
+                        // `CREATE INDEX CONCURRENTLY` is NOT possible w/ a transaction. Verify that.
+                        assert_eq!(
+                            res.unwrap_err().to_string(),
+                            "while executing migrations: error returned from database: CREATE INDEX CONCURRENTLY cannot run inside a transaction block",
+                        );
+                    }
+                }
             }
-            .apply(conn)
-            .await
-            .unwrap_err();
-
-            // ... but it IS possible w/o a transaction.
-            IOxMigrationStep::SqlStatement {
-                sql: create_index_concurrently.into(),
-                in_transaction: false,
-            }
-            .apply(conn)
-            .await
-            .unwrap();
         }
 
         #[tokio::test]
@@ -815,6 +902,8 @@ mod tests {
                 description: "".into(),
                 steps: vec![IOxMigrationStep::SqlStatement {
                     sql: "foo".into(),
+                    // set to NO transaction, otherwise the migrator will happily wrap the migration bookkeeping and the
+                    // migration script itself into a single transaction to avoid the "dirty" state
                     in_transaction: false,
                 }],
                 checksum: vec![1, 2, 3].into(),
@@ -835,6 +924,75 @@ mod tests {
                 err.to_string(),
                 "migration 1 is partially applied; fix and remove row from `_sqlx_migrations` table"
             );
+        }
+
+        #[tokio::test]
+        async fn test_migrator_uses_single_transaction_when_possible() {
+            maybe_skip_integration!();
+            let mut conn = setup().await;
+            let conn = &mut *conn;
+
+            conn.execute("CREATE TABLE t (x INT);").await.unwrap();
+
+            let steps_ok = vec![
+                IOxMigrationStep::SqlStatement {
+                    sql: "INSERT INTO t VALUES (1);".into(),
+                    in_transaction: true,
+                },
+                IOxMigrationStep::SqlStatement {
+                    sql: "INSERT INTO t VALUES (2);".into(),
+                    in_transaction: true,
+                },
+                IOxMigrationStep::SqlStatement {
+                    sql: "INSERT INTO t VALUES (3);".into(),
+                    in_transaction: true,
+                },
+            ];
+
+            // break in-between step that is sandwiched by two valid ones
+            let mut steps_broken = steps_ok.clone();
+            steps_broken[1] = IOxMigrationStep::SqlStatement {
+                sql: "foo".into(),
+                in_transaction: true,
+            };
+
+            let test_query = "SELECT COALESCE(SUM(x), 0)::INT AS r FROM t;";
+
+            let migrator = IOxMigrator::new([IOxMigration {
+                version: 1,
+                description: "".into(),
+                steps: steps_broken,
+                // use a placeholder checksum (normally this would be calculated based on the steps)
+                checksum: vec![1, 2, 3].into(),
+            }]);
+            migrator.run_direct(conn).await.unwrap_err();
+
+            // all or nothing: nothing
+            let r = sqlx::query_as::<_, Res>(test_query)
+                .fetch_one(&mut *conn)
+                .await
+                .unwrap()
+                .r;
+            assert_eq!(r, 0);
+
+            let migrator = IOxMigrator::new([IOxMigration {
+                version: 1,
+                description: "".into(),
+                steps: steps_ok,
+                // same checksum, but now w/ valid steps (to simulate a once failed SQL statement)
+                checksum: vec![1, 2, 3].into(),
+            }]);
+
+            let applied = migrator.run_direct(conn).await.unwrap();
+            assert_eq!(applied, HashSet::from([1]),);
+
+            // all or nothing: all
+            let r = sqlx::query_as::<_, Res>(test_query)
+                .fetch_one(conn)
+                .await
+                .unwrap()
+                .r;
+            assert_eq!(r, 6);
         }
 
         /// Tests that `CREATE INDEX CONCURRENTLY` doesn't deadlock.
