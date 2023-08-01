@@ -142,6 +142,16 @@ pub struct RouterConfig {
         value_parser = parse_duration
     )]
     pub rpc_write_health_error_window_seconds: Duration,
+
+    /// Specify the number of probe requests made within a probing window of
+    /// 1 second to compare against the maximum error ratio of 80% when the
+    /// is making judgements about the health of downstream RPC write handlers.
+    #[clap(
+        long = "rpc-write-health-num-probes",
+        env = "INFLUXDB_IOX_RPC_WRITE_HEALTH_NUM_PROBES",
+        default_value = "10"
+    )]
+    pub rpc_write_health_num_probes: u64,
 }
 
 /// Map a string containing an integer number of seconds into a [`Duration`].

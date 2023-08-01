@@ -491,6 +491,7 @@ impl Config {
             rpc_write_replicas: 1.try_into().unwrap(),
             rpc_write_max_outgoing_bytes: ingester_config.rpc_write_max_incoming_bytes,
             rpc_write_health_error_window_seconds: Duration::from_secs(5),
+            rpc_write_health_num_probes: 10,
             gossip_config: GossipConfig::disabled(),
         };
 
