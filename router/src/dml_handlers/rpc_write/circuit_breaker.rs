@@ -131,7 +131,7 @@ const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 /// If the configured number of probe requests have been completed and the ratio of errors to
 /// successes continues to be above [`MAX_ERROR_RATIO`], transition back to
 /// "open/unhealthy" to wait another [`PROBE_INTERVAL`] delay before
-/// transitioning back to the probing state and allowing another the set of probe
+/// transitioning back to the probing state and allowing another set of probe
 /// requests to proceed.
 ///
 /// If there are not enough requests made to exceed the configured number of probes within a
