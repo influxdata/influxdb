@@ -11,15 +11,20 @@ pub enum Error {
     NoParts,
 }
 
-/// Partition template in format:
-/// {"parts": [{"TimeFormat": "%Y.%j"}, {"TagValue": "col1"}, {"TagValue": "col2,col3 col4"}] }
-///  - TimeFormat and TagFormat can be in any order
-///  - The value of TimeFormat and TagFormat are string and can be whatever at parsing time.
-///    If they are not in the right format the server expcected, the server will return error.
-///  - The number of TimeFormats and TagFormats are not limited at parsing time. Server limits
-///    the total number of them and will send back error if it exceeds the limit.
 #[derive(Debug, clap::Parser, Default, Clone)]
 pub struct PartitionTemplateConfig {
+    /// Partition template format:
+    ///
+    /// e.g. {"parts": [{"timeFormat": "%Y-%m"}, {"tagValue": "col1"}, {"tagValue": "col2,col3,col4"}]}
+    ///
+    ///  - timeFormat and tagValue can be in any order
+    ///
+    ///  - The value of timeFormat and tagValue are string and can be whatever at parsing time.
+    ///    If they are not in the right format the server expcected, the server will return error.
+    ///    Note that "time" is a reserved word and cannot be used in timeFormat.
+    ///
+    ///  - The number of timeFormats and tagValues are not limited at parsing time. Server limits
+    ///    the total number of them and will send back error if it exceeds the limit 8.
     #[clap(
         action,
         long = "partition-template",

@@ -1,6 +1,6 @@
 use influxdb_iox_client::connection::Connection;
 
-use crate::commands::namespace::Result;
+use crate::commands::{namespace::Result, partition_template::PartitionTemplateConfig};
 use influxdb_iox_client::namespace::generated_types::ServiceProtectionLimits;
 
 /// Write data into the specified database
@@ -23,6 +23,10 @@ pub struct Config {
 
     #[clap(flatten)]
     service_protection_limits: ServiceProtectionLimitsArgs,
+
+    /// Partition template
+    #[clap(flatten)]
+    partition_template_config: PartitionTemplateConfig,
 }
 
 #[derive(Debug, clap::Args)]
@@ -57,6 +61,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         namespace,
         retention_hours,
         service_protection_limits,
+        partition_template_config,
     } = config;
 
     let mut client = influxdb_iox_client::namespace::Client::new(connection);
@@ -74,10 +79,57 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             &namespace,
             retention,
             service_protection_limits.into(),
-            None,
+            partition_template_config.partition_template,
         )
         .await?;
     println!("{}", serde_json::to_string_pretty(&namespace)?);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::commands::namespace::create::Config;
+    use clap::Parser;
+    use influxdb_iox_client::table::generated_types::{Part, PartitionTemplate, TemplatePart};
+
+    // Valid config without partition template
+    #[test]
+    fn valid_no_partition_template() {
+        let config = Config::try_parse_from(["server", "namespace"]).unwrap();
+
+        assert_eq!(config.namespace, "namespace");
+        assert_eq!(config.partition_template_config.partition_template, None);
+    }
+
+    // Valid config with partition template
+    #[test]
+    fn valid_partition_template() {
+        let config = Config::try_parse_from([
+            "server",
+            "namespace",
+            "--partition-template",
+            "{\"parts\": [{\"tagValue\": \"col1\"}, {\"timeFormat\": \"%Y.%j\"}, {\"tagValue\": \"col2,col3 col4\"}] }",
+        ]).unwrap();
+
+        let expected = Some(PartitionTemplate {
+            parts: vec![
+                TemplatePart {
+                    part: Some(Part::TagValue("col1".to_string())),
+                },
+                TemplatePart {
+                    part: Some(Part::TimeFormat("%Y.%j".to_string())),
+                },
+                TemplatePart {
+                    part: Some(Part::TagValue("col2,col3 col4".to_string())),
+                },
+            ],
+        });
+
+        assert_eq!(config.namespace, "namespace");
+        assert_eq!(
+            config.partition_template_config.partition_template,
+            expected
+        );
+    }
 }
