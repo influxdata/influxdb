@@ -1070,12 +1070,13 @@ mod tests {
                 async move {
                     let endpoints = upstreams.into_iter()
                         .map(|(circuit, client)| {
-                            CircuitBreakingClient::new(client, "bananas",ARBITRARY_TEST_ERROR_WINDOW,
-
-
-            ARBITRARY_TEST_NUM_PROBES,
-                        )
-                                .with_circuit_breaker(circuit)
+                            CircuitBreakingClient::new(
+                                client,
+                                "bananas",
+                                ARBITRARY_TEST_ERROR_WINDOW,
+                                ARBITRARY_TEST_NUM_PROBES,
+                            )
+                            .with_circuit_breaker(circuit)
                         });
 
                     make_request(endpoints, n_copies).await

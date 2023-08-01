@@ -144,7 +144,7 @@ pub struct RouterConfig {
     pub rpc_write_health_error_window_seconds: Duration,
 
     /// Specify the maximum number of probe requests to be sent per second.
-    /// 
+    ///
     /// At least 20% of these requests must succeed within a second for the
     /// endpoint to be considered healthy.
     #[clap(
