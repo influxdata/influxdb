@@ -143,9 +143,10 @@ pub struct RouterConfig {
     )]
     pub rpc_write_health_error_window_seconds: Duration,
 
-    /// Specify the number of probe requests made within a probing window of
-    /// 1 second to compare against the maximum error ratio of 80% when the
-    /// is making judgements about the health of downstream RPC write handlers.
+    /// Specify the maximum number of probe requests to be sent per second.
+    /// 
+    /// At least 20% of these requests must succeed within a second for the
+    /// endpoint to be considered healthy.
     #[clap(
         long = "rpc-write-health-num-probes",
         env = "INFLUXDB_IOX_RPC_WRITE_HEALTH_NUM_PROBES",
