@@ -20,10 +20,8 @@ use tokio::{
 /// healthy. If updating this value, remember to update the documentation
 /// in the CLI flag for the configurable error window.
 const MAX_ERROR_RATIO: f32 = 0.8;
-/// The maximum number of probe requests to allow when in an unhealthy state.
-const NUM_PROBES: u64 = 10;
-/// The length of time during which up to [`NUM_PROBES`] are allowed when in an
-/// unhealthy state.
+/// The length of time during which up to the configured number of probes
+/// are allowed when in an unhealthy state.
 const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 
 /// A low-overhead, error ratio gated [`CircuitBreaker`].
@@ -41,7 +39,7 @@ const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 /// to detect recovery (with an expectation this will likely fail). The
 /// [`CircuitBreaker`] selects callers to send a probe request, indicated by a
 /// `true` return value from [`CircuitBreaker::should_probe()`]. At least
-/// [`NUM_PROBES`] must be sent to drive a [`CircuitBreaker`] to a healthy
+/// the configured number of probes must be sent to drive a [`CircuitBreaker`] to a healthy
 /// state, so callers must call [`CircuitBreaker::should_probe()`] periodically.
 ///
 /// When requests made to the ingester return, [`CircuitBreaker::observe()`] is
@@ -63,7 +61,7 @@ const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 /// The circuit breaker is considered unhealthy when 80% ([`MAX_ERROR_RATIO`])
 /// of requests within the configured error window fail. The breaker
 /// becomes healthy again when the error rate falls below 80%
-/// ([`MAX_ERROR_RATIO`]) for the, at most, 10 probe requests ([`NUM_PROBES`])
+/// ([`MAX_ERROR_RATIO`]) for the, at most, configured number of probe requests
 /// allowed through within 1 second ([`PROBE_INTERVAL`]).
 ///
 /// The circuit breaker initialises in the healthy state.
@@ -90,7 +88,7 @@ const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 ///
 ///   * Half-open: A transition state between "open/unhealthy" and
 ///     "closed/healthy"; a majority of traffic is refused, but up to
-///     [`NUM_PROBES`] number of requests are allowed to proceed per
+///     the configured number of probes number of requests are allowed to proceed per
 ///     [`PROBE_INTERVAL`]. Once the probes are sent, the error ratio is
 ///     evaluated, and the system returns to either open or closed as
 ///     appropriate.
@@ -103,7 +101,7 @@ const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 /// [`MAX_ERROR_RATIO`] within a single window to open the circuit breaker to
 /// start being considered unhealthy.
 ///
-/// A floor of at least [`MAX_ERROR_RATIO`] * [`NUM_PROBES`] must be observed per
+/// A floor of at least [`MAX_ERROR_RATIO`] * `configured num_probes` must be observed per
 /// error window before the circuit breaker opens / becomes unhealthy.
 ///
 /// Error ratios are measured on every call to [`CircuitBreaker::is_healthy`],
@@ -118,7 +116,7 @@ const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 ///
 /// ## Probing / Closing (becoming healthy)
 ///
-/// Once a circuit breaker transitions to "open/unhealthy", up to 10 [`NUM_PROBES`]
+/// Once a circuit breaker transitions to "open/unhealthy", up to the configured number of probe
 /// requests are allowed per 1s [`PROBE_INTERVAL`], as determined by calling
 /// [`CircuitBreaker::should_probe`] before sending a request. This is referred
 /// to as "probing", allowing the client to discover the state of the
@@ -126,17 +124,17 @@ const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 /// may fail as a result.
 ///
 /// Whilst in the probing state, the result of each allowed probing request is
-/// recorded - once at least [`NUM_PROBES`] requests have been completed and the
+/// recorded - once at least the configured number of probe requests have been completed and the
 /// ratio of errors drops below [`MAX_ERROR_RATIO`], the circuit breaker
 /// transitions to "closed/healthy".
 ///
-/// If [`NUM_PROBES`] requests have been completed and the ratio of errors to
+/// If the configured number of probe requests have been completed and the ratio of errors to
 /// successes continues to be above [`MAX_ERROR_RATIO`], transition back to
 /// "open/unhealthy" to wait another [`PROBE_INTERVAL`] delay before
-/// transitioning back to the probing state and allowing another [`NUM_PROBES`]
+/// transitioning back to the probing state and allowing another set of probe
 /// requests to proceed.
 ///
-/// If there are not enough requests made to exceed [`NUM_PROBES`] within a
+/// If there are not enough requests made to exceed the configured number of probes within a
 /// period of [`PROBE_INTERVAL`], all requests are probes and are allowed
 /// through.
 #[derive(Debug)]
@@ -145,7 +143,7 @@ pub struct CircuitBreaker {
     /// current error window.
     ///
     /// When the total number of requests ([`RequestCounterValue::total()`]) is
-    /// less than [`NUM_PROBES`], the circuit is in the "probing" regime. When
+    /// less than the configured number of probes, the circuit is in the "probing" regime. When
     /// the number of requests is greater than this amount, the circuit
     /// open/closed state depends on the current error ratio.
     requests: Arc<RequestCounter>,
@@ -161,13 +159,15 @@ pub struct CircuitBreaker {
     ///
     /// Used for logging context only.
     endpoint: Arc<str>,
+
+    num_probes: u64,
 }
 
 #[derive(Debug, Default)]
 struct ProbeState {
     /// The instant at which this set of probes started to be sent.
     ///
-    /// Up to [`NUM_PROBES`] SHOULD be sent in the time range between this
+    /// Up to the configured probe limit SHOULD be sent in the time range between this
     /// timestamp plus [`PROBE_INTERVAL`].
     probe_window_started_at: Option<Instant>,
     /// The number of probes sent so far in this [`PROBE_INTERVAL`].
@@ -175,7 +175,11 @@ struct ProbeState {
 }
 
 impl CircuitBreaker {
-    pub(crate) fn new(endpoint: impl Into<Arc<str>>, error_window: Duration) -> Self {
+    pub(crate) fn new(
+        endpoint: impl Into<Arc<str>>,
+        error_window: Duration,
+        num_probes: u64,
+    ) -> Self {
         let requests = Arc::new(RequestCounter::default());
         let s = Self {
             requests: Arc::clone(&requests),
@@ -185,10 +189,11 @@ impl CircuitBreaker {
                 ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
                 loop {
                     ticker.tick().await;
-                    reset_closed_state_counters(&requests);
+                    reset_closed_state_counters(&requests, num_probes);
                 }
             }),
             endpoint: endpoint.into(),
+            num_probes,
         };
         s.set_healthy();
         s
@@ -196,7 +201,7 @@ impl CircuitBreaker {
 
     /// Force-set the state of the circuit breaker to "closed" / healthy.
     pub(crate) fn set_healthy(&self) {
-        self.requests.set(NUM_PROBES as u32, 0);
+        self.requests.set(self.num_probes as u32, 0);
     }
 
     /// Observe a request result, recording the success/error.
@@ -223,7 +228,7 @@ impl CircuitBreaker {
         // If the counts have previously transitioned to being in the probing
         // state, the circuit breaker can't be healthy, and we don't need to
         // check the error ratio.
-        if is_probing(counts) {
+        if is_probing(counts, self.num_probes) {
             return false;
         }
 
@@ -238,7 +243,7 @@ impl CircuitBreaker {
     /// "closed/healthy" state; callers should check `is_healthy` first and only
     /// call this if `is_healthy` returns `false`.
     ///
-    /// This method will return `true` at most [`NUM_PROBES`] per
+    /// This method will return `true` at most `num_probes` per
     /// [`PROBE_INTERVAL`] discrete duration.
     ///
     /// # Blocking
@@ -250,7 +255,7 @@ impl CircuitBreaker {
     /// Concurrent requests that were started before (or after) `self` switches
     /// to the probing regime without observing [`Self::should_probe()`] as
     /// `true` count as probes when evaluating the state of the circuit. These
-    /// requests are in addition to the [`NUM_PROBES`] guaranteed to observe
+    /// requests are in addition to the configured number of probes guaranteed to observe
     /// `true` when calling this method.
     pub(crate) fn should_probe(&self) -> bool {
         // Enable this code path only when probing needs to start, or has
@@ -273,7 +278,7 @@ impl CircuitBreaker {
                 // has been reset because of the `return false` in the next
                 // match arm that prevents the increase of
                 // `guard.probes_started` if it has reached `NUM_PROBES`.
-                assert!(guard.probes_started <= NUM_PROBES);
+                assert!(guard.probes_started <= self.num_probes);
                 // Record the start of a probing interval.
                 guard.probe_window_started_at = Some(now);
                 // Reset the number of probes allowed.
@@ -292,7 +297,7 @@ impl CircuitBreaker {
                 //
                 // If there have already been the configured number of probes,
                 // do not allow more.
-                if guard.probes_started >= NUM_PROBES {
+                if guard.probes_started >= self.num_probes {
                     debug!(
                         endpoint=%self.endpoint,
                         "probes exhausted"
@@ -316,7 +321,7 @@ impl CircuitBreaker {
 
         debug!(
             nth_probe = guard.probes_started,
-            max_probes = NUM_PROBES,
+            max_probes = self.num_probes,
             endpoint=%self.endpoint,
             "sending probe"
         );
@@ -333,12 +338,12 @@ impl Drop for CircuitBreaker {
 
 // Returns `true` if the circuit is currently in the "probe" state.
 #[inline]
-fn is_probing(counts: RequestCounterValue) -> bool {
+fn is_probing(counts: RequestCounterValue, num_probes: u64) -> bool {
     // When there are less than `NUM_PROBES` completed requests, the circuit is
     // not closed/healthy, as some previous call to `should_probe` has observed
     // an error rate to put the circuit into the probing state, which resets the
     // request counts to start at 0.
-    counts.total() < NUM_PROBES
+    counts.total() < num_probes
 }
 
 /// Return `true` if the current ratio of errors is below MAX_ERROR_RATIO,
@@ -363,17 +368,17 @@ fn is_healthy(counts: RequestCounterValue) -> bool {
 
 /// Resets the absolute request counter values if the current circuit state is
 /// "closed" (healthy, not probing) at the time of the call, such that the there
-/// must be [`NUM_PROBES`] * [`MAX_ERROR_RATIO`] number of failed requests to open the
+/// must be `num_probes` * [`MAX_ERROR_RATIO`] number of failed requests to open the
 /// circuit (mark as unhealthy).
 ///
 /// Retains the closed/healthy state of the circuit. This is NOT an atomic
 /// operation.
-fn reset_closed_state_counters(counters: &RequestCounter) {
+fn reset_closed_state_counters(counters: &RequestCounter, num_probes: u64) {
     let counts = counters.read();
-    if !is_healthy(counts) || is_probing(counts) {
+    if !is_healthy(counts) || is_probing(counts, num_probes) {
         return;
     }
-    counters.set(NUM_PROBES as u32, 0);
+    counters.set(num_probes as u32, 0);
 }
 
 /// A store of two `u32` that can be read atomically; one tracking successful
@@ -449,9 +454,9 @@ mod tests {
 
     /// Assert that calling [`reset_closed_state_counters`] does nothing.
     #[track_caller]
-    fn assert_reset_is_nop(counters: &RequestCounter) {
+    fn assert_reset_is_nop(counters: &RequestCounter, num_probes: u64) {
         let v = counters.read();
-        reset_closed_state_counters(counters);
+        reset_closed_state_counters(counters, num_probes);
         assert_eq!(v, counters.read());
     }
 
@@ -463,7 +468,7 @@ mod tests {
 
     /// Return a new [`CircuitBreaker`] with the reset ticker disabled.
     fn new_no_reset() -> CircuitBreaker {
-        let c = CircuitBreaker::new("bananas", Duration::from_secs(5));
+        let c = CircuitBreaker::new("bananas", Duration::from_secs(5), 10);
         c.reset_task.abort();
         c
     }
@@ -478,7 +483,7 @@ mod tests {
         // The circuit breaker starts in a healthy state.
         assert!(c.is_healthy());
         assert!(!c.should_probe());
-        assert_reset_is_nop(&c.requests);
+        assert_reset_is_nop(&c.requests, c.num_probes);
 
         // Observe enough errors to become unhealthy
         let n = errors_to_unhealthy(&c.requests);
@@ -490,12 +495,12 @@ mod tests {
 
         // It should then transition to the probe state, and allow the
         // configured amount of probe requests.
-        for _ in 0..NUM_PROBES {
+        for _ in 0..c.num_probes {
             assert!(!c.is_healthy());
             assert!(c.should_probe());
             // Counter resets should not be allowed when the circuit is not
             // healthy.
-            assert_reset_is_nop(&c.requests);
+            assert_reset_is_nop(&c.requests, c.num_probes);
         }
 
         // And once NUM_PROBES is reached, stop allowing more probes.
@@ -503,7 +508,7 @@ mod tests {
         // It should remain unhealthy during this time.
         assert!(!c.should_probe());
         assert!(!c.is_healthy());
-        assert_reset_is_nop(&c.requests);
+        assert_reset_is_nop(&c.requests, c.num_probes);
 
         // Pretend it is time to probe again.
         c.probes.lock().probe_window_started_at = Some(
@@ -512,13 +517,13 @@ mod tests {
                 .expect("instant cannot roll back far enough - test issue, not code issue"),
         );
 
-        for _ in 0..(NUM_PROBES - 1) {
+        for _ in 0..(c.num_probes - 1) {
             // Recording a successful probe request should not mark the circuit
             // as healthy until the NUM_PROBES has been observed.
             assert!(c.should_probe());
             assert!(!c.is_healthy());
             c.requests.observe::<(), ()>(&Ok(()));
-            assert_reset_is_nop(&c.requests);
+            assert_reset_is_nop(&c.requests, c.num_probes);
         }
 
         // Upon reaching NUM_PROBES of entirely successful requests, the circuit
@@ -553,27 +558,27 @@ mod tests {
         //
         // Observing half of them as failing should end probing until the next
         // probe period.
-        let n_failed = NUM_PROBES / 2;
+        let n_failed = c.num_probes / 2;
         for _ in 0..(n_failed) {
             assert!(!c.is_healthy());
             assert!(c.should_probe());
-            assert_reset_is_nop(&c.requests);
+            assert_reset_is_nop(&c.requests, c.num_probes);
             c.requests.observe::<(), ()>(&Ok(()));
         }
-        for _ in 0..(NUM_PROBES - n_failed) {
+        for _ in 0..(c.num_probes - n_failed) {
             assert!(!c.is_healthy());
             assert!(c.should_probe());
-            assert_reset_is_nop(&c.requests);
+            assert_reset_is_nop(&c.requests, c.num_probes);
             c.requests.observe::<(), ()>(&Err(()));
         }
-        assert_eq!(c.requests.read().total(), NUM_PROBES);
+        assert_eq!(c.requests.read().total(), c.num_probes);
 
         // The probes did not drive the circuit breaker to closed/healthy.
         assert!(!c.is_healthy());
         // And no more probes should be allowed.
         assert!(!c.should_probe());
         // The request counters should not reset when unhealthy.
-        assert_reset_is_nop(&c.requests);
+        assert_reset_is_nop(&c.requests, c.num_probes);
 
         // Pretend it is time to probe again.
         c.probes.lock().probe_window_started_at = Some(
@@ -583,10 +588,10 @@ mod tests {
         );
 
         // Do the probe requests, all succeeding.
-        for _ in 0..NUM_PROBES {
+        for _ in 0..c.num_probes {
             assert!(!c.is_healthy());
             assert!(c.should_probe());
-            assert_reset_is_nop(&c.requests);
+            assert_reset_is_nop(&c.requests, c.num_probes);
             c.requests.observe::<(), ()>(&Ok(()));
         }
 
@@ -602,11 +607,11 @@ mod tests {
     /// error window periods from changing the circuit to open/unhealthy.
     #[tokio::test]
     async fn test_periodic_counter_reset() {
-        let c = CircuitBreaker::new("bananas", Duration::from_secs(5));
+        let c = CircuitBreaker::new("bananas", Duration::from_secs(5), 10);
 
         // Assert the circuit breaker as healthy.
         assert!(c.is_healthy());
-        assert_reset_is_nop(&c.requests);
+        assert_reset_is_nop(&c.requests, c.num_probes);
 
         // Calculate how many errors are needed to mark the circuit breaker as
         // unhealthy.
@@ -622,7 +627,7 @@ mod tests {
 
         // Reset the counters for the new error observation window
         let v = c.requests.read();
-        reset_closed_state_counters(&c.requests);
+        reset_closed_state_counters(&c.requests, c.num_probes);
         assert_ne!(v, c.requests.read());
 
         assert!(c.is_healthy());
@@ -668,7 +673,7 @@ mod tests {
                             // the error window advances and the counters are
                             // reset.
                             if (random::<usize>() % 50) == 0 {
-                                reset_closed_state_counters(&c.requests);
+                                reset_closed_state_counters(&c.requests, c.num_probes);
                             }
                         }
                     }
@@ -690,7 +695,7 @@ mod tests {
         );
 
         // Drive successful probes if needed.
-        for _ in 0..NUM_PROBES {
+        for _ in 0..c.num_probes {
             if c.should_probe() {
                 c.requests.observe::<(), ()>(&Ok(()));
             }
@@ -700,5 +705,35 @@ mod tests {
         // healthy at the end of the fuzz threads, or because it was
         // successfully probed and driven healthy afterwards.
         assert!(c.is_healthy(), "{c:?}");
+    }
+
+    /// Assert that when configured for low write volumes, a single successful
+    /// request is sufficient to drive the state to "healthy".
+    #[tokio::test]
+    async fn test_low_volume_configuration() {
+        let c = CircuitBreaker::new("bananas", Duration::from_secs(5), 1);
+        c.reset_task.abort();
+
+        // Assert the circuit breaker as healthy.
+        assert!(c.is_healthy());
+        assert_reset_is_nop(&c.requests, c.num_probes);
+
+        // Calculate how many errors are needed to mark the circuit breaker as
+        // unhealthy.
+        let n = errors_to_unhealthy(&c.requests);
+
+        // Drive the circuit to unhealthy.
+        for _ in 0..n {
+            assert!(c.is_healthy());
+            c.requests.observe::<(), ()>(&Err(()));
+        }
+        assert!(!c.is_healthy());
+
+        // Observe a single successful request
+        assert!(c.should_probe());
+        c.requests.observe::<(), ()>(&Ok(()));
+
+        // And the circuit should now be healthy.
+        assert!(c.is_healthy());
     }
 }

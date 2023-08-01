@@ -116,7 +116,9 @@ pub struct RpcWrite<T, C = CircuitBreaker> {
 
 impl<T> RpcWrite<T> {
     /// Initialise a new [`RpcWrite`] that sends requests to an arbitrary
-    /// downstream Ingester, using a round-robin strategy.
+    /// downstream Ingester, using a round-robin strategy. Health checks are
+    /// configured by `error_window` and `num_probes` as laid out by the
+    /// documentation for [`CircuitBreaker`].
     ///
     /// If [`Some`], `replica_copies` specifies the number of additional
     /// upstream ingesters that must receive and acknowledge the write for it to
@@ -131,6 +133,7 @@ impl<T> RpcWrite<T> {
         n_copies: NonZeroUsize,
         metrics: &metric::Registry,
         error_window: Duration,
+        num_probes: u64,
     ) -> Self
     where
         T: Send + Sync + Debug + 'static,
@@ -138,7 +141,7 @@ impl<T> RpcWrite<T> {
     {
         let endpoints = Balancer::new(
             endpoints.into_iter().map(|(client, name)| {
-                CircuitBreakingClient::new(client, name.into(), error_window)
+                CircuitBreakingClient::new(client, name.into(), error_window, num_probes)
             }),
             Some(metrics),
         );
@@ -385,6 +388,7 @@ mod tests {
     const NAMESPACE_NAME: &str = "bananas";
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
     const ARBITRARY_TEST_ERROR_WINDOW: Duration = Duration::from_secs(5);
+    const ARBITRARY_TEST_NUM_PROBES: u64 = 10;
 
     // Start a new `NamespaceSchema` with only the given ID; the rest of the fields are arbitrary.
     fn new_empty_namespace_schema() -> Arc<NamespaceSchema> {
@@ -463,6 +467,7 @@ mod tests {
             1.try_into().unwrap(),
             &metric::Registry::default(),
             ARBITRARY_TEST_ERROR_WINDOW,
+            ARBITRARY_TEST_NUM_PROBES,
         );
 
         // Drive the RPC writer
@@ -526,6 +531,7 @@ mod tests {
             1.try_into().unwrap(),
             &metric::Registry::default(),
             ARBITRARY_TEST_ERROR_WINDOW,
+            ARBITRARY_TEST_NUM_PROBES,
         );
 
         // Drive the RPC writer
@@ -595,6 +601,7 @@ mod tests {
             1.try_into().unwrap(),
             &metric::Registry::default(),
             ARBITRARY_TEST_ERROR_WINDOW,
+            ARBITRARY_TEST_NUM_PROBES,
         );
 
         // Drive the RPC writer
@@ -645,10 +652,13 @@ mod tests {
         circuit_1.set_healthy(false);
 
         let got = make_request(
-            [
-                CircuitBreakingClient::new(client_1, "client_1", ARBITRARY_TEST_ERROR_WINDOW)
-                    .with_circuit_breaker(circuit_1),
-            ],
+            [CircuitBreakingClient::new(
+                client_1,
+                "client_1",
+                ARBITRARY_TEST_ERROR_WINDOW,
+                ARBITRARY_TEST_NUM_PROBES,
+            )
+            .with_circuit_breaker(circuit_1)],
             1,
         )
         .await;
@@ -669,10 +679,13 @@ mod tests {
         circuit_1.set_healthy(true);
 
         let got = make_request(
-            [
-                CircuitBreakingClient::new(client_1, "client_1", ARBITRARY_TEST_ERROR_WINDOW)
-                    .with_circuit_breaker(circuit_1),
-            ],
+            [CircuitBreakingClient::new(
+                client_1,
+                "client_1",
+                ARBITRARY_TEST_ERROR_WINDOW,
+                ARBITRARY_TEST_NUM_PROBES,
+            )
+            .with_circuit_breaker(circuit_1)],
             1,
         )
         .await;
@@ -693,10 +706,13 @@ mod tests {
         circuit_1.set_healthy(true);
 
         let got = make_request(
-            [
-                CircuitBreakingClient::new(client_1, "client_1", ARBITRARY_TEST_ERROR_WINDOW)
-                    .with_circuit_breaker(circuit_1),
-            ],
+            [CircuitBreakingClient::new(
+                client_1,
+                "client_1",
+                ARBITRARY_TEST_ERROR_WINDOW,
+                ARBITRARY_TEST_NUM_PROBES,
+            )
+            .with_circuit_breaker(circuit_1)],
             1,
         )
         .await;
@@ -728,10 +744,20 @@ mod tests {
 
         let got = make_request(
             [
-                CircuitBreakingClient::new(client_1, "client_1", ARBITRARY_TEST_ERROR_WINDOW)
-                    .with_circuit_breaker(circuit_1),
-                CircuitBreakingClient::new(client_2, "client_2", ARBITRARY_TEST_ERROR_WINDOW)
-                    .with_circuit_breaker(circuit_2),
+                CircuitBreakingClient::new(
+                    client_1,
+                    "client_1",
+                    ARBITRARY_TEST_ERROR_WINDOW,
+                    ARBITRARY_TEST_NUM_PROBES,
+                )
+                .with_circuit_breaker(circuit_1),
+                CircuitBreakingClient::new(
+                    client_2,
+                    "client_2",
+                    ARBITRARY_TEST_ERROR_WINDOW,
+                    ARBITRARY_TEST_NUM_PROBES,
+                )
+                .with_circuit_breaker(circuit_2),
             ],
             2, // 2 copies required
         )
@@ -758,12 +784,14 @@ mod tests {
                     Arc::clone(&client_1),
                     "client_1",
                     ARBITRARY_TEST_ERROR_WINDOW,
+                    ARBITRARY_TEST_NUM_PROBES,
                 )
                 .with_circuit_breaker(circuit_1),
                 CircuitBreakingClient::new(
                     Arc::clone(&client_2),
                     "client_2",
                     ARBITRARY_TEST_ERROR_WINDOW,
+                    ARBITRARY_TEST_NUM_PROBES,
                 )
                 .with_circuit_breaker(circuit_2),
             ],
@@ -802,12 +830,14 @@ mod tests {
                 Arc::clone(&client_1),
                 "client_1",
                 ARBITRARY_TEST_ERROR_WINDOW,
+                ARBITRARY_TEST_NUM_PROBES,
             )
             .with_circuit_breaker(circuit_1),
             CircuitBreakingClient::new(
                 Arc::clone(&client_2),
                 "client_2",
                 ARBITRARY_TEST_ERROR_WINDOW,
+                ARBITRARY_TEST_NUM_PROBES,
             )
             .with_circuit_breaker(circuit_2),
         ];
@@ -856,12 +886,14 @@ mod tests {
                     Arc::clone(&client_1),
                     "client_1",
                     ARBITRARY_TEST_ERROR_WINDOW,
+                    ARBITRARY_TEST_NUM_PROBES,
                 )
                 .with_circuit_breaker(circuit_1),
                 CircuitBreakingClient::new(
                     Arc::clone(&client_2),
                     "client_2",
                     ARBITRARY_TEST_ERROR_WINDOW,
+                    ARBITRARY_TEST_NUM_PROBES,
                 )
                 .with_circuit_breaker(circuit_2),
             ],
@@ -920,18 +952,21 @@ mod tests {
                 Arc::clone(&client_1),
                 "client_1",
                 ARBITRARY_TEST_ERROR_WINDOW,
+                ARBITRARY_TEST_NUM_PROBES,
             )
             .with_circuit_breaker(circuit_1),
             CircuitBreakingClient::new(
                 Arc::clone(&client_2),
                 "client_2",
                 ARBITRARY_TEST_ERROR_WINDOW,
+                ARBITRARY_TEST_NUM_PROBES,
             )
             .with_circuit_breaker(circuit_2),
             CircuitBreakingClient::new(
                 Arc::clone(&client_3),
                 "client_3",
                 ARBITRARY_TEST_ERROR_WINDOW,
+                ARBITRARY_TEST_NUM_PROBES,
             )
             .with_circuit_breaker(circuit_3),
         ];
@@ -1035,8 +1070,13 @@ mod tests {
                 async move {
                     let endpoints = upstreams.into_iter()
                         .map(|(circuit, client)| {
-                            CircuitBreakingClient::new(client, "bananas",ARBITRARY_TEST_ERROR_WINDOW)
-                                .with_circuit_breaker(circuit)
+                            CircuitBreakingClient::new(
+                                client,
+                                "bananas",
+                                ARBITRARY_TEST_ERROR_WINDOW,
+                                ARBITRARY_TEST_NUM_PROBES,
+                            )
+                            .with_circuit_breaker(circuit)
                         });
 
                     make_request(endpoints, n_copies).await
