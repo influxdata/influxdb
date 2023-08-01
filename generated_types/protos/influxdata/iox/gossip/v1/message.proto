@@ -1,0 +1,112 @@
+syntax = "proto3";
+package influxdata.iox.gossip.v1;
+option go_package = "github.com/influxdata/iox/gossip/v1";
+
+import "influxdata/iox/partition_template/v1/template.proto";
+
+// A message exchanged via the IOx gossip mechanism.
+message GossipMessage {
+  oneof msg {
+    // A new namespace was created.
+    NamespaceCreated namespace_created = 1;
+
+    // A new table was created.
+    TableCreated table_created = 2;
+
+    // One or more new columns were added to an existing table.
+    TableUpdated table_updated = 3;
+  }
+}
+
+// Initialisation of a new namespace occured.
+//
+// If the local peer already knows of this namespace, this is a no-op.
+message NamespaceCreated {
+  string namespace_name = 1;
+  int64 namespace_id = 2;
+
+  // Immutable fields.
+  //
+  // Fields below this line MUST be immutable for the lifetime of a table -
+  // there is no merge stategy for them.
+  influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 3;
+
+  // Mutable fields.
+  //
+  // Fields below this line may change over the lifetime of the namespace, and
+  // may differ on the local node when it receives this message.
+  //
+  // If the local peer has values that differ from these, the local value takes
+  // prescidence.
+  uint64 max_columns_per_table = 4;
+  uint64 max_tables = 5;
+  optional int64 retention_period_ns = 6;
+}
+
+// An incremental/differential addition to an existing table.
+//
+// If the receiving peer does not know of the table being updated, this is a
+// no-op.
+//
+// This type is designed to function as a commutative, operation-based CRDT.
+//
+// A table can contain many columns, each with a string name, and therefore the
+// serialised representation of an entire table can grow to be fairly large -
+// it's infeasible to send all columns for every update due to space constraints
+// of the gossip message transport. Instead only differentials/new additions are
+// gossiped between peers and an external system is relied on to converge state
+// in the case of lost updates.
+message TableUpdated {
+  string table_name = 1;
+  string namespace_name = 2;
+  int64 table_id = 3;
+
+  // The set of columns in this update.
+  repeated Column columns = 4;
+}
+
+// Initialisation of a new table occured.
+//
+// This is a superset of the merge-able TableUpdated message, containing
+// immutable and large fields that should not be propagated for each column
+// addition for frame size/performance reasons.
+message TableCreated {
+  // The initialised state of the new table, including all, or a subset of,
+  // columns.
+  //
+  // If the serialised message exceeds the underlying max transport frame size,
+  // a subset of columns is transmitted instead of the full set, and one or more
+  // TableUpdated frames MAY be sent containing the remaining columns.
+  TableUpdated table = 1;
+
+  // Fields below this line MUST be immutable for the lifetime of a table -
+  // there is no merge stategy for them.
+
+  // The table partition template used for partitioning writes for this table.
+  influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 2;
+}
+
+// Representation of a column schema within a table.
+//
+// Values within this structure MUST be immutable for the lifetime of the
+// column.
+message Column {
+  string name = 1;
+  int64 column_id = 2;
+  ColumnType column_type = 5;
+
+  enum ColumnType {
+    // An unknown column data type.
+    //
+    // This is an invalid value and SHOULD never be specified.
+    COLUMN_TYPE_UNSPECIFIED = 0;
+
+    COLUMN_TYPE_I64 = 1;
+    COLUMN_TYPE_U64 = 2;
+    COLUMN_TYPE_F64 = 3;
+    COLUMN_TYPE_BOOL = 4;
+    COLUMN_TYPE_STRING = 5;
+    COLUMN_TYPE_TIME = 6;
+    COLUMN_TYPE_TAG = 7;
+  }
+}
