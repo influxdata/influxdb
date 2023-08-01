@@ -262,9 +262,24 @@ pub static PARTITION_BY_DAY_PROTO: Lazy<Arc<proto::PartitionTemplate>> = Lazy::n
 });
 
 /// A partition template specified by a namespace record.
+///
+/// Internally this type is [`None`] when no namespace-level override is
+/// specified, resulting in the default being used.
 #[derive(Debug, PartialEq, Clone, Default, sqlx::Type)]
 #[sqlx(transparent, no_pg_array)]
 pub struct NamespacePartitionTemplateOverride(Option<serialization::Wrapper>);
+
+impl NamespacePartitionTemplateOverride {
+    /// A const "default" impl for testing.
+    pub const fn const_default() -> Self {
+        Self(None)
+    }
+
+    /// Return the protobuf representation of this template.
+    pub fn as_proto(&self) -> Option<&proto::PartitionTemplate> {
+        self.0.as_ref().map(|v| v.inner())
+    }
+}
 
 impl TryFrom<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
     type Error = ValidationError;
