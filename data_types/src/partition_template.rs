@@ -372,6 +372,11 @@ impl TablePartitionTemplateOverride {
                 })
                 .unwrap_or_default()
     }
+
+    /// Return the protobuf representation of this template.
+    pub fn as_proto(&self) -> Option<&proto::PartitionTemplate> {
+        self.0.as_ref().map(|v| v.inner())
+    }
 }
 
 /// This manages the serialization/deserialization of the `proto::PartitionTemplate` type to and
