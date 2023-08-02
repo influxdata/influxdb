@@ -159,6 +159,9 @@ fn is_comparison(op: Operator) -> bool {
         Operator::RegexNotMatch => true,
         Operator::RegexNotIMatch => true,
         Operator::StringConcat => false,
+        // array containment operators
+        Operator::ArrowAt => true,
+        Operator::AtArrow => true,
     }
 }
 

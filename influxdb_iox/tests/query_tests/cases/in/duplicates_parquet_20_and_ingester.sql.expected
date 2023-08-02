@@ -1,20 +1,20 @@
 -- Test Setup: TwentySortedParquetFilesAndIngester
 -- SQL: select count(*), sum(f) from m;
-+-----------------+----------+
-| COUNT(UInt8(1)) | SUM(m.f) |
-+-----------------+----------+
-| 21              | 33.0     |
-+-----------------+----------+
++----------+----------+
+| COUNT(*) | SUM(m.f) |
++----------+----------+
+| 21       | 33.0     |
++----------+----------+
 -- SQL: EXPLAIN select count(*), sum(f) from m;
 -- Results After Normalizing UUIDs
 ----------
 | plan_type    | plan    |
 ----------
-| logical_plan    | Aggregate: groupBy=[[]], aggr=[[COUNT(UInt8(1)), SUM(m.f)]]    |
+| logical_plan    | Aggregate: groupBy=[[]], aggr=[[COUNT(UInt8(1)) AS COUNT(*), SUM(m.f)]]    |
 |    |   TableScan: m projection=[f]    |
-| physical_plan    | AggregateExec: mode=Final, gby=[], aggr=[COUNT(UInt8(1)), SUM(m.f)]    |
+| physical_plan    | AggregateExec: mode=Final, gby=[], aggr=[COUNT(*), SUM(m.f)]    |
 |    |   CoalescePartitionsExec    |
-|    |     AggregateExec: mode=Partial, gby=[], aggr=[COUNT(UInt8(1)), SUM(m.f)]    |
+|    |     AggregateExec: mode=Partial, gby=[], aggr=[COUNT(*), SUM(m.f)]    |
 |    |       UnionExec    |
 |    |         ParquetExec: file_groups={4 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet, 1/1/1/00000000-0000-0000-0000-000000000001.parquet, 1/1/1/00000000-0000-0000-0000-000000000002.parquet], [1/1/1/00000000-0000-0000-0000-000000000003.parquet, 1/1/1/00000000-0000-0000-0000-000000000004.parquet, 1/1/1/00000000-0000-0000-0000-000000000005.parquet], [1/1/1/00000000-0000-0000-0000-000000000006.parquet, 1/1/1/00000000-0000-0000-0000-000000000007.parquet], [1/1/1/00000000-0000-0000-0000-000000000008.parquet, 1/1/1/00000000-0000-0000-0000-000000000009.parquet]]}, projection=[f]    |
 |    |         ProjectionExec: expr=[f@1 as f]    |

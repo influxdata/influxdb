@@ -85,11 +85,11 @@
 |    |    |
 ----------
 -- SQL: select count(*) from h2o;
-+-----------------+
-| COUNT(UInt8(1)) |
-+-----------------+
-| 18              |
-+-----------------+
++----------+
+| COUNT(*) |
++----------+
+| 18       |
++----------+
 -- SQL: EXPLAIN ANALYZE SELECT * from h2o where state = 'MA'
 -- Results After Normalizing UUIDs
 -- Results After Normalizing Metrics
