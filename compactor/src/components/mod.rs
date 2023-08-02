@@ -5,7 +5,7 @@ use self::{
     compaction_job_stream::CompactionJobStream, df_plan_exec::DataFusionPlanExec,
     df_planner::DataFusionPlanner, divide_initial::DivideInitial, file_classifier::FileClassifier,
     ir_planner::IRPlanner, parquet_files_sink::ParquetFilesSink,
-    partition_done_sink::PartitionDoneSink, partition_files_source::PartitionFilesSource,
+    partition_done_sink::CompactionJobDoneSink, partition_files_source::PartitionFilesSource,
     partition_filter::PartitionFilter, partition_info_source::PartitionInfoSource,
     post_classification_partition_filter::PostClassificationPartitionFilter,
     round_info_source::RoundInfoSource, round_split::RoundSplit, scratchpad::ScratchpadGen,
@@ -58,8 +58,8 @@ pub struct Components {
     pub partition_filter: Arc<dyn PartitionFilter>,
     /// condition to avoid running out of resources during compaction
     pub post_classification_partition_filter: Arc<dyn PostClassificationPartitionFilter>,
-    /// Records "partition is done" status for given partition.
-    pub partition_done_sink: Arc<dyn PartitionDoneSink>,
+    /// Records "compaction job is done" status for given partition.
+    pub compaction_job_done_sink: Arc<dyn CompactionJobDoneSink>,
     /// Commits changes (i.e. deletion and creation).
     pub commit: Arc<CommitToScheduler>,
     /// Creates `PlanIR` that describes what files should be compacted and updated

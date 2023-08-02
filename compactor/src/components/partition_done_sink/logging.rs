@@ -1,33 +1,33 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::PartitionId;
+use compactor_scheduler::CompactionJob;
 use observability_deps::tracing::{error, info};
 
 use crate::error::{DynError, ErrorKindExt};
 
-use super::PartitionDoneSink;
+use super::CompactionJobDoneSink;
 
 #[derive(Debug)]
-pub struct LoggingPartitionDoneSinkWrapper<T>
+pub struct LoggingCompactionJobDoneSinkWrapper<T>
 where
-    T: PartitionDoneSink,
+    T: CompactionJobDoneSink,
 {
     inner: T,
 }
 
-impl<T> LoggingPartitionDoneSinkWrapper<T>
+impl<T> LoggingCompactionJobDoneSinkWrapper<T>
 where
-    T: PartitionDoneSink,
+    T: CompactionJobDoneSink,
 {
     pub fn new(inner: T) -> Self {
         Self { inner }
     }
 }
 
-impl<T> Display for LoggingPartitionDoneSinkWrapper<T>
+impl<T> Display for LoggingCompactionJobDoneSinkWrapper<T>
 where
-    T: PartitionDoneSink,
+    T: CompactionJobDoneSink,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "logging({})", self.inner)
@@ -35,30 +35,31 @@ where
 }
 
 #[async_trait]
-impl<T> PartitionDoneSink for LoggingPartitionDoneSinkWrapper<T>
+impl<T> CompactionJobDoneSink for LoggingCompactionJobDoneSinkWrapper<T>
 where
-    T: PartitionDoneSink,
+    T: CompactionJobDoneSink,
 {
-    async fn record(
-        &self,
-        partition: PartitionId,
-        res: Result<(), DynError>,
-    ) -> Result<(), DynError> {
+    async fn record(&self, job: CompactionJob, res: Result<(), DynError>) -> Result<(), DynError> {
         match &res {
             Ok(()) => {
-                info!(partition_id = partition.get(), "Finished partition",);
+                info!(
+                    partition_id = job.partition_id.get(),
+                    job_uuid = job.uuid().to_string(),
+                    "Finished compaction job",
+                );
             }
             Err(e) => {
                 // log compactor errors, classified by compactor ErrorKind
                 error!(
                     %e,
                     kind=e.classify().name(),
-                    partition_id = partition.get(),
+                    partition_id = job.partition_id.get(),
+                    job_uuid = job.uuid().to_string(),
                     "Error while compacting partition",
                 );
             }
         }
-        self.inner.record(partition, res).await
+        self.inner.record(job, res).await
     }
 }
 
@@ -66,57 +67,59 @@ where
 mod tests {
     use std::{collections::HashMap, sync::Arc};
 
+    use data_types::PartitionId;
     use object_store::Error as ObjectStoreError;
     use test_helpers::tracing::TracingCapture;
 
-    use super::{super::mock::MockPartitionDoneSink, *};
+    use super::{super::mock::MockCompactionJobDoneSink, *};
 
     #[test]
     fn test_display() {
-        let sink = LoggingPartitionDoneSinkWrapper::new(MockPartitionDoneSink::new());
+        let sink = LoggingCompactionJobDoneSinkWrapper::new(MockCompactionJobDoneSink::new());
         assert_eq!(sink.to_string(), "logging(mock)");
     }
 
     #[tokio::test]
     async fn test_record() {
-        let inner = Arc::new(MockPartitionDoneSink::new());
-        let sink = LoggingPartitionDoneSinkWrapper::new(Arc::clone(&inner));
+        let inner = Arc::new(MockCompactionJobDoneSink::new());
+        let sink = LoggingCompactionJobDoneSinkWrapper::new(Arc::clone(&inner));
 
         let capture = TracingCapture::new();
 
-        sink.record(PartitionId::new(1), Err("msg 1".into()))
+        let cj_1 = CompactionJob::new(PartitionId::new(1));
+        let cj_2 = CompactionJob::new(PartitionId::new(2));
+        let cj_3 = CompactionJob::new(PartitionId::new(3));
+
+        sink.record(cj_1.clone(), Err("msg 1".into()))
             .await
             .expect("record failed");
-        sink.record(PartitionId::new(2), Err("msg 2".into()))
+        sink.record(cj_2.clone(), Err("msg 2".into()))
             .await
             .expect("record failed");
         sink.record(
-            PartitionId::new(1),
+            cj_1.clone(),
             Err(Box::new(ObjectStoreError::NotImplemented)),
         )
         .await
         .expect("record failed");
-        sink.record(PartitionId::new(3), Ok(()))
+        sink.record(cj_3.clone(), Ok(()))
             .await
             .expect("record failed");
 
         assert_eq!(
             capture.to_string(),
-            "level = ERROR; message = Error while compacting partition; e = msg 1; kind = \"unknown\"; partition_id = 1; \n\
-level = ERROR; message = Error while compacting partition; e = msg 2; kind = \"unknown\"; partition_id = 2; \n\
-level = ERROR; message = Error while compacting partition; e = Operation not yet implemented.; kind = \"object_store\"; partition_id = 1; \n\
-level = INFO; message = Finished partition; partition_id = 3; ",
+            format!("level = ERROR; message = Error while compacting partition; e = msg 1; kind = \"unknown\"; partition_id = 1; job_uuid = {:?}; \n\
+level = ERROR; message = Error while compacting partition; e = msg 2; kind = \"unknown\"; partition_id = 2; job_uuid = {:?}; \n\
+level = ERROR; message = Error while compacting partition; e = Operation not yet implemented.; kind = \"object_store\"; partition_id = 1; job_uuid = {:?}; \n\
+level = INFO; message = Finished compaction job; partition_id = 3; job_uuid = {:?}; ", cj_1.uuid().to_string(), cj_2.uuid().to_string(), cj_1.uuid().to_string(), cj_3.uuid().to_string()),
         );
 
         assert_eq!(
             inner.results(),
             HashMap::from([
-                (
-                    PartitionId::new(1),
-                    Err(String::from("Operation not yet implemented.")),
-                ),
-                (PartitionId::new(2), Err(String::from("msg 2"))),
-                (PartitionId::new(3), Ok(())),
+                (cj_1, Err(String::from("Operation not yet implemented.")),),
+                (cj_2, Err(String::from("msg 2"))),
+                (cj_3, Ok(())),
             ]),
         );
     }

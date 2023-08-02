@@ -93,7 +93,7 @@ async fn compact_partition(
     let res = match res {
         // If `try_compact_partition` timed out and didn't make any progress, something is wrong
         // with this partition and it should get added to the `skipped_compactions` table by
-        // sending a timeout error to the `partition_done_sink`.
+        // sending a timeout error to the `compaction_job_done_sink`.
         TimeoutWithProgress::NoWorkTimeOutError => Err(Box::new(SimpleError::new(
             ErrorKind::Timeout,
             "timeout without making any progress",
@@ -103,19 +103,16 @@ async fn compact_partition(
         TimeoutWithProgress::SomeWorkTryAgain => Ok(()),
         // If `try_compact_partition` finished before the timeout, return the `Result` that it
         // returned. If an error was returned, there could be something wrong with the partiton;
-        // let the `partition_done_sink` decide if the error means the partition should be added
+        // let the `compaction_job_done_sink` decide if the error means the partition should be added
         // to the `skipped_compactions` table or not.
         TimeoutWithProgress::Completed(res) => res,
     };
 
     // TODO: how handle errors detected in the CompactionJob ending actions?
-    let _ = components
-        .partition_done_sink
-        .record(partition_id, res)
-        .await;
+    let _ = components.compaction_job_done_sink.record(job, res).await;
 
     scratchpad.clean().await;
-    info!(partition_id = partition_id.get(), "compacted partition",);
+    info!(partition_id = partition_id.get(), "compaction job done",);
 }
 
 /// Main function to compact files of a single partition.

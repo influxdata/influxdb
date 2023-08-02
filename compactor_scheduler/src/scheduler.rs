@@ -60,7 +60,7 @@ impl std::fmt::Display for SchedulerConfig {
 }
 
 /// Job assignment for a given partition.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CompactionJob {
     #[allow(dead_code)]
     /// Unique identifier for this job.
@@ -77,6 +77,11 @@ impl CompactionJob {
             uuid: Uuid::new_v4(),
             partition_id,
         }
+    }
+
+    /// Get job uuid.
+    pub fn uuid(&self) -> Uuid {
+        self.uuid
     }
 }
 

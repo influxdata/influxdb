@@ -4,38 +4,33 @@ use async_trait::async_trait;
 use compactor_scheduler::{
     CompactionJob, CompactionJobEnd, CompactionJobEndVariant, Scheduler, SkipReason,
 };
-use data_types::PartitionId;
 
 use crate::DynError;
 
-use super::PartitionDoneSink;
+use super::CompactionJobDoneSink;
 
 #[derive(Debug)]
-pub struct PartitionDoneSinkToScheduler {
+pub struct CompactionJobDoneSinkToScheduler {
     scheduler: Arc<dyn Scheduler>,
 }
 
-impl PartitionDoneSinkToScheduler {
+impl CompactionJobDoneSinkToScheduler {
     pub fn new(scheduler: Arc<dyn Scheduler>) -> Self {
         Self { scheduler }
     }
 }
 
-impl Display for PartitionDoneSinkToScheduler {
+impl Display for CompactionJobDoneSinkToScheduler {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PartitionDoneSinkToScheduler")
+        write!(f, "CompactionJobDoneSinkToScheduler")
     }
 }
 
 #[async_trait]
-impl PartitionDoneSink for PartitionDoneSinkToScheduler {
-    async fn record(
-        &self,
-        partition: PartitionId,
-        res: Result<(), DynError>,
-    ) -> Result<(), DynError> {
+impl CompactionJobDoneSink for CompactionJobDoneSinkToScheduler {
+    async fn record(&self, job: CompactionJob, res: Result<(), DynError>) -> Result<(), DynError> {
         let end_action = CompactionJobEnd {
-            job: CompactionJob::new(partition),
+            job,
             end_action: match res {
                 Ok(_) => CompactionJobEndVariant::Complete,
                 Err(e) => CompactionJobEndVariant::RequestToSkip(SkipReason(e.to_string())),

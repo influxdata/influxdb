@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::PartitionId;
+use compactor_scheduler::CompactionJob;
 
 use crate::DynError;
 
@@ -14,29 +14,21 @@ pub mod metrics;
 pub mod mock;
 pub mod outcome;
 
-/// Records "partition is done" status for given partition.
+/// Records "compaction job is done" status for given partition.
 #[async_trait]
-pub trait PartitionDoneSink: Debug + Display + Send + Sync {
-    /// Record "partition is done" status for given partition.
+pub trait CompactionJobDoneSink: Debug + Display + Send + Sync {
+    /// Record "compaction job is done" status for given partition.
     ///
     /// This method should retry.
-    async fn record(
-        &self,
-        partition: PartitionId,
-        res: Result<(), DynError>,
-    ) -> Result<(), DynError>;
+    async fn record(&self, job: CompactionJob, res: Result<(), DynError>) -> Result<(), DynError>;
 }
 
 #[async_trait]
-impl<T> PartitionDoneSink for Arc<T>
+impl<T> CompactionJobDoneSink for Arc<T>
 where
-    T: PartitionDoneSink + ?Sized,
+    T: CompactionJobDoneSink + ?Sized,
 {
-    async fn record(
-        &self,
-        partition: PartitionId,
-        res: Result<(), DynError>,
-    ) -> Result<(), DynError> {
-        self.as_ref().record(partition, res).await
+    async fn record(&self, job: CompactionJob, res: Result<(), DynError>) -> Result<(), DynError> {
+        self.as_ref().record(job, res).await
     }
 }

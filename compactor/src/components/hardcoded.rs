@@ -44,9 +44,9 @@ use super::{
     },
     parquet_files_sink::{dispatch::DispatchParquetFilesSink, ParquetFilesSink},
     partition_done_sink::{
-        error_kind::ErrorKindPartitionDoneSinkWrapper, logging::LoggingPartitionDoneSinkWrapper,
-        metrics::MetricsPartitionDoneSinkWrapper, outcome::PartitionDoneSinkToScheduler,
-        PartitionDoneSink,
+        error_kind::ErrorKindCompactionJobDoneSinkWrapper,
+        logging::LoggingCompactionJobDoneSinkWrapper, metrics::MetricsCompactionJobDoneSinkWrapper,
+        outcome::CompactionJobDoneSinkToScheduler, CompactionJobDoneSink,
     },
     partition_files_source::{
         catalog::{CatalogPartitionFilesSource, QueryRateLimiter},
@@ -92,8 +92,8 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         Arc::clone(&config.metric_registry),
         config.shadow_mode,
     );
-    let (compaction_jobs_source, commit, partition_done_sink) =
-        make_jobs_source_commit_partition_sink(config, Arc::clone(&scheduler));
+    let (compaction_jobs_source, commit, compaction_job_done_sink) =
+        make_jobs_source_commit_jobs_sink(config, Arc::clone(&scheduler));
 
     Arc::new(Components {
         compaction_job_stream: make_compaction_job_stream(config, compaction_jobs_source),
@@ -101,7 +101,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         partition_files_source: make_partition_files_source(config),
         round_info_source: make_round_info_source(config),
         partition_filter: make_partition_filter(config),
-        partition_done_sink,
+        compaction_job_done_sink,
         commit,
         ir_planner: make_ir_planner(config),
         df_planner: make_df_planner(config),
@@ -116,27 +116,27 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     })
 }
 
-fn make_jobs_source_commit_partition_sink(
+fn make_jobs_source_commit_jobs_sink(
     config: &Config,
     scheduler: Arc<dyn Scheduler>,
 ) -> (
     Arc<dyn CompactionJobsSource>,
     Arc<CommitToScheduler>,
-    Arc<dyn PartitionDoneSink>,
+    Arc<dyn CompactionJobDoneSink>,
 ) {
     let compaction_jobs_source = ScheduledCompactionJobsSource::new(Arc::clone(&scheduler));
 
     let commit = CommitToScheduler::new(Arc::clone(&scheduler));
 
-    let partition_done_sink = PartitionDoneSinkToScheduler::new(Arc::clone(&scheduler));
+    let compaction_job_done_sink = CompactionJobDoneSinkToScheduler::new(Arc::clone(&scheduler));
 
     // compactors are responsible for error classification
     // and any future decisions regarding graceful shutdown
-    let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.all_errors_are_fatal {
-        Arc::new(partition_done_sink)
+    let compaction_job_done_sink: Arc<dyn CompactionJobDoneSink> = if config.all_errors_are_fatal {
+        Arc::new(compaction_job_done_sink)
     } else {
-        Arc::new(ErrorKindPartitionDoneSinkWrapper::new(
-            partition_done_sink,
+        Arc::new(ErrorKindCompactionJobDoneSinkWrapper::new(
+            compaction_job_done_sink,
             ErrorKind::variants()
                 .iter()
                 .filter(|kind| {
@@ -151,8 +151,8 @@ fn make_jobs_source_commit_partition_sink(
             scheduler,
         ))
     };
-    let partition_done_sink = Arc::new(LoggingPartitionDoneSinkWrapper::new(
-        MetricsPartitionDoneSinkWrapper::new(partition_done_sink, &config.metric_registry),
+    let compaction_job_done_sink = Arc::new(LoggingCompactionJobDoneSinkWrapper::new(
+        MetricsCompactionJobDoneSinkWrapper::new(compaction_job_done_sink, &config.metric_registry),
     ));
 
     // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work
@@ -177,7 +177,7 @@ fn make_jobs_source_commit_partition_sink(
     (
         compaction_jobs_source,
         Arc::new(commit),
-        partition_done_sink,
+        compaction_job_done_sink,
     )
 }
 
