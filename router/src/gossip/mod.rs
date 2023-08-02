@@ -73,7 +73,7 @@ mod tests {
     use data_types::{
         partition_template::{
             test_table_partition_override, NamespacePartitionTemplateOverride,
-            PARTITION_BY_DAY_PROTO,
+            TablePartitionTemplateOverride, PARTITION_BY_DAY_PROTO,
         },
         Column, ColumnId, ColumnsByName, NamespaceId, NamespaceName, NamespaceSchema, TableId,
         TableSchema,
@@ -171,6 +171,80 @@ mod tests {
                 (**PARTITION_BY_DAY_PROTO).clone(),
             )
             .unwrap(),
+        };
+
+        // Put the new schema into A's cache
+        node_a.put_schema(namespace_name.clone(), schema.clone());
+
+        // And read it back in B
+        let got = async {
+            loop {
+                if let Ok(v) = node_b.get_schema(&namespace_name).await {
+                    return v;
+                }
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+        .with_timeout_panic(Duration::from_secs(5))
+        .await;
+
+        // Ensuring the content is identical
+        assert_eq!(*got, schema);
+    }
+
+    // As above, but ensuring default partition templates propagate correctly.
+    #[tokio::test]
+    async fn test_integration_default_partition_templates() {
+        // Two adaptors that will plug one "node" into the other.
+        let gossip_a = Arc::new(GossipPipe::default());
+        let gossip_b = Arc::new(GossipPipe::default());
+
+        // Setup a cache for node A and wrap it in the gossip layer.
+        let node_a_cache = Arc::new(MemoryNamespaceCache::default());
+        let dispatcher_a = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&node_a_cache)));
+        let dispatcher_a = GossipMessageDispatcher::new(dispatcher_a, 100);
+        let node_a = SchemaChangeObserver::new(Arc::clone(&node_a_cache), Arc::clone(&gossip_b));
+
+        // Setup a cache for node B.
+
+        let node_b_cache = Arc::new(MemoryNamespaceCache::default());
+        let dispatcher_b = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&node_b_cache)));
+        let dispatcher_b = GossipMessageDispatcher::new(dispatcher_b, 100);
+        let node_b = SchemaChangeObserver::new(Arc::clone(&node_b_cache), Arc::clone(&gossip_b));
+
+        // Connect them together
+        gossip_a.set_dispatcher(dispatcher_a).await;
+        gossip_b.set_dispatcher(dispatcher_b).await;
+
+        // Fill in a table with a column to insert into A
+        let mut tables = BTreeMap::new();
+        tables.insert(
+            "platanos".to_string(),
+            TableSchema {
+                id: TableId::new(4242),
+                partition_template: TablePartitionTemplateOverride::try_new(
+                    None,
+                    &NamespacePartitionTemplateOverride::default(),
+                )
+                .unwrap(),
+                columns: ColumnsByName::new([Column {
+                    id: ColumnId::new(1234),
+                    table_id: TableId::new(4242),
+                    name: "c1".to_string(),
+                    column_type: data_types::ColumnType::U64,
+                }]),
+            },
+        );
+
+        // Wrap the tables into a schema
+        let namespace_name = NamespaceName::try_from("bananas").unwrap();
+        let schema = NamespaceSchema {
+            id: NamespaceId::new(4242),
+            tables,
+            max_columns_per_table: 1,
+            max_tables: 2,
+            retention_period_ns: Some(1234),
+            partition_template: NamespacePartitionTemplateOverride::default(),
         };
 
         // Put the new schema into A's cache
