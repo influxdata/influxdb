@@ -40,6 +40,7 @@ where
     ///
     /// This call spawns a tokio task, and as such must be called from within a
     /// tokio runtime.
+    #[must_use = "gossip reactor stops when handle drops"]
     pub fn build(self, socket: UdpSocket) -> GossipHandle {
         // Obtain a channel to communicate between the actor, and all handles
         let (tx, rx) = mpsc::channel(1000);
