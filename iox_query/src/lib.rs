@@ -23,15 +23,10 @@ use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, TransitionPartitionId};
 use datafusion::{error::DataFusionError, physical_plan::Statistics, prelude::SessionContext};
 use exec::IOxSessionContext;
-use hashbrown::HashMap;
-use observability_deps::tracing::trace;
 use once_cell::sync::Lazy;
 use parquet_file::storage::ParquetExecInput;
 use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
-use schema::{
-    sort::{SortKey, SortKeyBuilder},
-    InfluxColumnType, Projection, Schema, TIME_COLUMN_NAME,
-};
+use schema::{sort::SortKey, Projection, Schema};
 use std::{any::Any, fmt::Debug, sync::Arc};
 
 pub mod chunk_statistics;
@@ -334,61 +329,6 @@ pub fn chunks_have_distinct_counts<'a>(
             .column_statistics else {return false};
         col_stats.iter().all(|col| col.distinct_count.is_some())
     })
-}
-
-pub fn compute_sort_key_for_chunks<'a>(
-    schema: &Schema,
-    chunks: impl Copy + IntoIterator<Item = &'a Arc<dyn QueryChunk>>,
-) -> SortKey {
-    if !chunks_have_distinct_counts(chunks) {
-        // chunks have not enough stats, return its pk that is
-        // sorted lexicographically but time column always last
-        SortKey::from_columns(schema.primary_key())
-    } else {
-        compute_sort_key(chunks.into_iter())
-    }
-}
-
-/// Compute a sort key that orders lower _estimated_ cardinality columns first
-///
-/// In the absence of more precise information, this should yield a
-/// good ordering for RLE compression.
-///
-/// The cardinality is estimated by the sum of unique counts over all summaries. This may overestimate cardinality since
-/// it does not account for shared/repeated values.
-fn compute_sort_key<'a>(chunks: impl Iterator<Item = &'a Arc<dyn QueryChunk>>) -> SortKey {
-    let mut cardinalities: HashMap<String, u64> = Default::default();
-    for chunk in chunks {
-        let stats = chunk.stats();
-        let Some(col_stats) = stats.column_statistics.as_ref() else {continue};
-        for ((influxdb_type, field), stats) in chunk.schema().iter().zip(col_stats) {
-            if influxdb_type != InfluxColumnType::Tag {
-                continue;
-            }
-
-            let cnt = stats.distinct_count.unwrap_or_default() as u64;
-            *cardinalities.entry_ref(field.name().as_str()).or_default() += cnt;
-        }
-    }
-
-    trace!(cardinalities=?cardinalities, "cardinalities of of columns to compute sort key");
-
-    let mut cardinalities: Vec<_> = cardinalities.into_iter().collect();
-    // Sort by (cardinality, column_name) to have deterministic order if same cardinality
-    cardinalities
-        .sort_by(|(name_1, card_1), (name_2, card_2)| (card_1, name_1).cmp(&(card_2, name_2)));
-
-    let mut builder = SortKeyBuilder::with_capacity(cardinalities.len() + 1);
-    for (col, _) in cardinalities {
-        builder = builder.with_col(col)
-    }
-    builder = builder.with_col(TIME_COLUMN_NAME);
-
-    let key = builder.build();
-
-    trace!(computed_sort_key=?key, "Value of sort key from compute_sort_key");
-
-    key
 }
 
 // Note: I would like to compile this module only in the 'test' cfg,
