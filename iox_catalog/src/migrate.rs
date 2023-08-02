@@ -22,7 +22,7 @@
 //! ```
 //!
 //! ## Transactions
-//! Each step will be executed in its own transaction. However you can opt-out of this:
+//! Each step will be executed within a transaction. However you can opt-out of this:
 //!
 //! ```sql
 //! -- this step is wrapped in a transaction
@@ -34,6 +34,13 @@
 //! -- IOX_NO_TRANSACTION
 //! CREATE TABLE t2 (x INT);
 //! ```
+//!
+//! If all steps steps can run in a transaction, the entire migration including its bookkeeping will be executed in a
+//! transaction. In this case the transaction is automatically idempotent.
+//!
+//! Migrations that opt out of the transaction handling are NOT by default considered idempotent. This can lead to
+//! migrations being stuck. We plan to fix this, see <https://github.com/influxdata/influxdb_iox/issues/7897> for more
+//! details.
 //!
 //! ## Non-SQL steps
 //! At the moment, we only support SQL-based migrationsteps but other step types can easily be added.
