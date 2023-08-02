@@ -28,6 +28,7 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 
 * [SQL command line tips and tricks](sql.md)
 * [CLI command line tips and tricks](cli.md)
+* [CLI cookbook for `influxdb_iox table create` and `influxdb_iox namespace create`](cli-create-namespace-table.md)
 
 ###  Developer Content
 
