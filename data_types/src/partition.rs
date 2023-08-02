@@ -78,9 +78,13 @@ impl std::fmt::Display for TransitionPartitionId {
 }
 
 impl TransitionPartitionId {
-    /// Create a new `TransitionPartitionId::Deterministic` with the given table ID and partition
-    /// key. Provided to reduce typing and duplication a bit, and because this variant should be
-    /// most common now.
+    /// Create a new `TransitionPartitionId::Deterministic` with the given table
+    /// ID and partition key. Provided to reduce typing and duplication a bit,
+    /// and because this variant should be most common now.
+    ///
+    /// This MUST NOT be used for partitions that are addressed using legacy /
+    /// deprecated catalog row IDs, which should use
+    /// [`TransitionPartitionId::Deprecated`] instead.
     pub fn new(table_id: TableId, partition_key: &PartitionKey) -> Self {
         Self::Deterministic(PartitionHashId::new(table_id, partition_key))
     }
