@@ -40,25 +40,19 @@ fn init_ns_cache(
 fn namespace_schema_cache_benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("namespace_schema_cache_add_new_tables_with_columns");
 
-    bench_add_new_tables_with_columns(&mut group, 1, 100);
-    bench_add_new_tables_with_columns(&mut group, 10, 100);
-    bench_add_new_tables_with_columns(&mut group, 100, 100);
+    for i in [1, 10, 100] {
+        bench_add_new_tables_with_columns(&mut group, i, 100);
+    }
 
     group.finish();
 
     let mut group = c.benchmark_group("namespace_schema_cache_add_columns_to_existing_table");
 
-    bench_add_columns_to_existing_table(&mut group, 1, 1);
-    bench_add_columns_to_existing_table(&mut group, 1, 10);
-    bench_add_columns_to_existing_table(&mut group, 1, 100);
-
-    bench_add_columns_to_existing_table(&mut group, 10, 1);
-    bench_add_columns_to_existing_table(&mut group, 10, 10);
-    bench_add_columns_to_existing_table(&mut group, 10, 100);
-
-    bench_add_columns_to_existing_table(&mut group, 50, 1);
-    bench_add_columns_to_existing_table(&mut group, 50, 10);
-    bench_add_columns_to_existing_table(&mut group, 50, 100);
+    for i in [1, 10, 50] {
+        bench_add_columns_to_existing_table(&mut group, i, 1);
+        bench_add_columns_to_existing_table(&mut group, i, 10);
+        bench_add_columns_to_existing_table(&mut group, i, 100);
+    }
 
     group.finish();
 }
@@ -87,7 +81,7 @@ fn bench_add_new_tables_with_columns(
             |(ns_cache, namespace_name, schema_update)| {
                 ns_cache.put_schema(namespace_name, schema_update)
             },
-            BatchSize::SmallInput,
+            BatchSize::NumIterations(1),
         );
     });
 }
@@ -115,7 +109,7 @@ fn bench_add_columns_to_existing_table(
             |(ns_cache, namespace_name, schema_update)| {
                 ns_cache.put_schema(namespace_name, schema_update)
             },
-            BatchSize::SmallInput,
+            BatchSize::NumIterations(1),
         );
     });
 }
