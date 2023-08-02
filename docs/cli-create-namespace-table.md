@@ -196,11 +196,11 @@ Examples:
 
 When using the partition template, the following partition key will be derived:
 
-| Partition template                                    | Data shape                                 | Partition key      |
-| ----------------------------------------------------- | ------------------------------------------ | ------------------ |
-| {"parts":[{"TagValue":"%Y-%m"}, {"TagValue":"col1"}]} | time=2023-01-01,col1=bananas,col2=plátanos | 2023&#124;bananas  |
-| {"parts":[{"TagValue":"%Y-%m"}, {"TagValue":"col2"}]} | time=2023-01-01,col1=bananas,col2=plátanos | 2023&#124;plátanos |
-| {"parts":[{"TagValue":"col1"}, {"TagValue":"%Y-%m"}]} | time=2023-01-01,col1=bananas,col2=plátanos | bananas&#124;2023  |
+| Partition template                                      | Data shape                                 | Partition key         |
+| ------------------------------------------------------- | ------------------------------------------ | --------------------- |
+| {"parts":[{"timeFormat":"%Y-%m"}, {"tagValue":"col1"}]} | time=2023-01-01,col1=bananas,col2=plátanos | 2023-01&#124;bananas  |
+| {"parts":[{"timeFormat":"%Y-%m"}, {"tagValue":"col2"}]} | time=2023-01-01,col1=bananas,col2=plátanos | 2023-01&#124;plátanos |
+| {"parts":[{"tagValue":"col1"}, {"timeFormat":"%Y-%m"}]} | time=2023-01-01,col1=bananas,col2=plátanos | bananas&#124;2023-01  |
 
 A partitioning template is resolved by evaluating the following (in order of precedence):
 
