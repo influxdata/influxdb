@@ -50,6 +50,9 @@ impl GossipHandle {
     ///
     /// This is a best-effort operation - peers are not guaranteed to receive
     /// this broadcast.
+    ///
+    /// If the outgoing message queue is full, this method blocks and waits for
+    /// space to become available.
     pub async fn broadcast<T>(&self, payload: T) -> Result<(), PayloadSizeError>
     where
         T: Into<Bytes> + Send,
