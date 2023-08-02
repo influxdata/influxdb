@@ -28,10 +28,10 @@ use data_types::{
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, Instrument, MetricKind};
 use observability_deps::tracing::{debug, info, warn};
+use once_cell::sync::Lazy;
 use parking_lot::{RwLock, RwLockWriteGuard};
 use snafu::prelude::*;
 use sqlx::{
-    migrate::Migrator,
     postgres::{PgConnectOptions, PgPoolOptions},
     types::Uuid,
     Acquire, ConnectOptions, Executor, Postgres, Row,
@@ -42,7 +42,7 @@ use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, fmt::Display, str::FromStr, sync::Arc, time::Duration};
 
-static MIGRATOR: Migrator = sqlx::migrate!();
+static MIGRATOR: Lazy<IOxMigrator> = Lazy::new(|| IOxMigrator::from(&sqlx::migrate!()));
 
 /// Postgres connection options.
 #[derive(Debug, Clone)]
@@ -247,8 +247,7 @@ impl Catalog for PostgresCatalog {
             .await
             .map_err(|e| Error::Setup { source: e })?;
 
-        let migrator = IOxMigrator::from(&MIGRATOR);
-        migrator
+        MIGRATOR
             .run(&self.pool)
             .await
             .map_err(|e| Error::Setup { source: e.into() })?;
@@ -2029,7 +2028,7 @@ mod tests {
     use data_types::partition_template::TemplatePart;
     use generated_types::influxdata::iox::partition_template::v1 as proto;
     use metric::{Attributes, DurationHistogram, Metric, Observation, RawReporter};
-    use std::{io::Write, sync::Arc, time::Instant};
+    use std::{io::Write, ops::Deref, sync::Arc, time::Instant};
     use tempfile::NamedTempFile;
     use test_helpers::maybe_start_logging;
 
@@ -2043,6 +2042,14 @@ mod tests {
 
         let hit_count = histogram.sample_count();
         assert!(hit_count > 0, "metric did not record any calls");
+    }
+
+    /// Small no-op test just to print out the migrations.
+    ///
+    /// This is helpful to look up migration checksums and debug parsing of the migration files.
+    #[test]
+    fn print_migrations() {
+        println!("{:#?}", MIGRATOR.deref());
     }
 
     #[tokio::test]
