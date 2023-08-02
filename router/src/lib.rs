@@ -137,6 +137,7 @@ use criterion as _;
 use workspace_hack as _;
 
 pub mod dml_handlers;
+pub mod gossip;
 pub mod namespace_cache;
 pub mod namespace_resolver;
 pub mod server;
