@@ -359,6 +359,8 @@ fn encode_response(
     span: Option<Span>,
     frame_encoding_duration_metric: Arc<DurationHistogram>,
 ) -> impl Stream<Item = Result<FlightData, FlightError>> {
+    let span = SpanRecorder::new(span.clone()).span().cloned();
+
     response.into_partition_stream().flat_map(move |partition| {
         let partition_id = partition.id().clone();
         let completed_persistence_count = partition.completed_persistence_count();
@@ -413,6 +415,7 @@ mod tests {
     use data_types::PartitionId;
     use proto::ingester_query_response_metadata::PartitionIdentifier;
     use tonic::Code;
+    use trace::{ctx::SpanContext, RingBufferTraceCollector, TraceCollector};
 
     #[tokio::test]
     async fn sends_only_partition_hash_id_if_present() {
@@ -529,6 +532,44 @@ mod tests {
                 assert_eq!(s.code(), Code::ResourceExhausted);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_encoded_spans_attached_to_collector() {
+        let ingester_id = IngesterId::new();
+
+        // A dummy batch of data.
+        let (batch, _) = make_batch!(
+            Int32Array("int" => vec![1, 2, 3]),
+        );
+
+        let query_response = QueryResponse::new(PartitionStream::new(futures::stream::iter([
+            PartitionResponse::new(vec![batch], ARBITRARY_TRANSITION_PARTITION_ID.clone(), 42),
+        ])));
+
+        let histogram = Arc::new(
+            metric::Registry::default()
+                .register_metric::<DurationHistogram>("test", "")
+                .recorder([]),
+        );
+
+        // Initialise a tracing backend to capture the emitted traces.
+        let trace_collector = Arc::new(RingBufferTraceCollector::new(5));
+        let trace_observer: Arc<dyn TraceCollector> = Arc::new(Arc::clone(&trace_collector));
+        let span_ctx = SpanContext::new(Arc::clone(&trace_observer));
+        let query_span = span_ctx.child("query span");
+
+        // test with encode_response
+        let call_chain = encode_response(query_response, ingester_id, Some(query_span), histogram);
+        call_chain.collect::<Vec<_>>().await;
+
+        let spans = trace_collector.spans();
+        assert_matches!(spans.as_slice(), [parent_span, frame_encoding_span_1, frame_encoding_span_2, frame_encoding_span_3] => {
+            assert_eq!(parent_span.name, "query span");
+            assert_eq!(frame_encoding_span_1.name, "frame encoding");
+            assert_eq!(frame_encoding_span_2.name, "frame encoding");
+            assert_eq!(frame_encoding_span_3.name, "frame encoding");
+        });
     }
 
     /// Regression test for https://github.com/influxdata/idpe/issues/17408
