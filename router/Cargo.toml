@@ -73,3 +73,7 @@ harness = false
 [[bench]]
 name = "partitioner"
 harness = false
+
+[[bench]]
+name = "namespace_schema_cache"
+harness = false

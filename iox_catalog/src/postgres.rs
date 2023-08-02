@@ -42,7 +42,8 @@ use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, fmt::Display, str::FromStr, sync::Arc, time::Duration};
 
-static MIGRATOR: Lazy<IOxMigrator> = Lazy::new(|| IOxMigrator::from(&sqlx::migrate!()));
+static MIGRATOR: Lazy<IOxMigrator> =
+    Lazy::new(|| IOxMigrator::try_from(&sqlx::migrate!()).expect("valid migration"));
 
 /// Postgres connection options.
 #[derive(Debug, Clone)]

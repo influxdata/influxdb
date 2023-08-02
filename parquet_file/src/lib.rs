@@ -128,7 +128,7 @@ impl From<&ParquetFileParams> for ParquetFilePath {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::{PartitionHashId, PartitionId, PartitionKey, TransitionPartitionId};
+    use data_types::{PartitionId, PartitionKey, TransitionPartitionId};
 
     #[test]
     fn parquet_file_absolute_dirs_and_file_path_database_partition_ids() {
@@ -151,10 +151,7 @@ mod tests {
         let pfp = ParquetFilePath::new(
             NamespaceId::new(1),
             table_id,
-            &TransitionPartitionId::Deterministic(PartitionHashId::new(
-                table_id,
-                &PartitionKey::from("hello there"),
-            )),
+            &TransitionPartitionId::new(table_id, &PartitionKey::from("hello there")),
             Uuid::nil(),
         );
         let path = pfp.object_store_path();

@@ -275,13 +275,19 @@ impl IOxMigration {
     }
 }
 
-impl From<&Migration> for IOxMigration {
-    fn from(migration: &Migration) -> Self {
-        assert!(
-            migration.migration_type == MigrationType::Simple,
-            "migration type has to be simple but is {:?}",
-            migration.migration_type,
-        );
+impl TryFrom<&Migration> for IOxMigration {
+    type Error = MigrateError;
+
+    fn try_from(migration: &Migration) -> Result<Self, Self::Error> {
+        if migration.migration_type != MigrationType::Simple {
+            return Err(MigrateError::Source(
+                format!(
+                    "migration type has to be simple but is {:?}",
+                    migration.migration_type
+                )
+                .into(),
+            ));
+        }
 
         let steps = migration
             .sql
@@ -295,13 +301,14 @@ impl From<&Migration> for IOxMigration {
                 }
             })
             .collect();
-        Self {
+
+        Ok(Self {
             version: migration.version,
             description: migration.description.clone(),
             steps,
             // Keep original (unprocessed) checksum for backwards compatibility.
             checksum: migration.checksum.deref().into(),
-        }
+        })
     }
 }
 
@@ -315,28 +322,36 @@ pub struct IOxMigrator {
 impl IOxMigrator {
     /// Create new migrator.
     ///
-    /// # Panics
-    /// Panics if migrations are not sorted or if there are duplication [versions](IOxMigration::version).
-    pub fn new(migrations: impl IntoIterator<Item = IOxMigration>) -> Self {
+    /// # Error
+    /// Fails if migrations are not sorted or if there are duplication [versions](IOxMigration::version).
+    pub fn try_new(
+        migrations: impl IntoIterator<Item = IOxMigration>,
+    ) -> Result<Self, MigrateError> {
         let migrations = migrations.into_iter().collect::<Vec<_>>();
 
         if let Some(m) = migrations.windows(2).find(|m| m[0].version > m[1].version) {
-            panic!(
-                "migrations are not sorted: version {} is before {} but should not",
-                m[0].version, m[1].version,
-            );
+            return Err(MigrateError::Source(
+                format!(
+                    "migrations are not sorted: version {} is before {} but should not",
+                    m[0].version, m[1].version,
+                )
+                .into(),
+            ));
         }
         if let Some(m) = migrations.windows(2).find(|m| m[0].version == m[1].version) {
-            panic!(
-                "migrations are not not unique: version {} found twice",
-                m[0].version,
-            );
+            return Err(MigrateError::Source(
+                format!(
+                    "migrations are not not unique: version {} found twice",
+                    m[0].version,
+                )
+                .into(),
+            ));
         }
 
-        Self { migrations }
+        Ok(Self { migrations })
     }
 
-    /// Run migragtor on connection/pool.
+    /// Run migrator on connection/pool.
     ///
     /// Returns set of executed [migrations](IOxMigration).
     ///
@@ -351,7 +366,7 @@ impl IOxMigrator {
         self.run_direct(&mut *conn).await
     }
 
-    /// Run migragtor on open connection.
+    /// Run migrator on open connection.
     ///
     /// See docs for [run](Self::run).
     async fn run_direct<C>(&self, conn: &mut C) -> Result<HashSet<i64>, MigrateError>
@@ -394,21 +409,30 @@ impl IOxMigrator {
     }
 }
 
-impl From<&Migrator> for IOxMigrator {
-    fn from(migrator: &Migrator) -> Self {
-        assert!(
-            !migrator.ignore_missing,
-            "`Migragtor::ignore_missing` MUST NOT be set"
-        );
-        assert!(migrator.locking, "`Migrator::locking` MUST be set");
+impl TryFrom<&Migrator> for IOxMigrator {
+    type Error = MigrateError;
+
+    fn try_from(migrator: &Migrator) -> Result<Self, Self::Error> {
+        if migrator.ignore_missing {
+            return Err(MigrateError::Source(
+                "`Migrator::ignore_missing` MUST NOT be set"
+                    .to_owned()
+                    .into(),
+            ));
+        }
+        if !migrator.locking {
+            return Err(MigrateError::Source(
+                "`Migrator::locking` MUST be set".to_owned().into(),
+            ));
+        }
 
         let migrations = migrator
             .migrations
             .iter()
-            .map(|migration| migration.into())
-            .collect::<Vec<_>>();
+            .map(|migration| migration.try_into())
+            .collect::<Result<Vec<_>, _>>()?;
 
-        Self::new(migrations)
+        Self::try_new(migrations)
     }
 }
 
@@ -645,11 +669,8 @@ mod tests {
         }
 
         #[test]
-        #[should_panic(
-            expected = "migrations are not sorted: version 2 is before 1 but should not"
-        )]
-        fn test_migrator_new_panic_not_sorted() {
-            IOxMigrator::new([
+        fn test_migrator_new_error_not_sorted() {
+            let err = IOxMigrator::try_new([
                 IOxMigration {
                     version: 2,
                     description: "".into(),
@@ -662,13 +683,18 @@ mod tests {
                     steps: [].into(),
                     checksum: [].into(),
                 },
-            ]);
+            ])
+            .unwrap_err();
+
+            assert_eq!(
+                err.to_string(),
+                "while resolving migrations: migrations are not sorted: version 2 is before 1 but should not",
+            );
         }
 
         #[test]
-        #[should_panic(expected = "migrations are not not unique: version 2 found twice")]
-        fn test_migrator_new_panic_not_unique() {
-            IOxMigrator::new([
+        fn test_migrator_new_error_not_unique() {
+            let err = IOxMigrator::try_new([
                 IOxMigration {
                     version: 2,
                     description: "".into(),
@@ -681,33 +707,47 @@ mod tests {
                     steps: [].into(),
                     checksum: [].into(),
                 },
-            ]);
+            ])
+            .unwrap_err();
+
+            assert_eq!(
+                err.to_string(),
+                "while resolving migrations: migrations are not not unique: version 2 found twice",
+            );
         }
 
         #[test]
-        #[should_panic(expected = "`Migrator::locking` MUST be set")]
-        fn test_convert_migrator_from_sqlx_panic_no_locking() {
-            let _ = IOxMigrator::from(&Migrator {
+        fn test_convert_migrator_from_sqlx_error_no_locking() {
+            let err = IOxMigrator::try_from(&Migrator {
                 migrations: vec![].into(),
                 ignore_missing: false,
                 locking: false,
-            });
+            })
+            .unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "while resolving migrations: `Migrator::locking` MUST be set",
+            );
         }
 
         #[test]
-        #[should_panic(expected = "`Migragtor::ignore_missing` MUST NOT be set")]
-        fn test_convert_migrator_from_sqlx_panic_ignore_missing() {
-            let _ = IOxMigrator::from(&Migrator {
+        fn test_convert_migrator_from_sqlx_error_ignore_missing() {
+            let err = IOxMigrator::try_from(&Migrator {
                 migrations: vec![].into(),
                 ignore_missing: true,
                 locking: true,
-            });
+            })
+            .unwrap_err();
+
+            assert_eq!(
+                err.to_string(),
+                "while resolving migrations: `Migrator::ignore_missing` MUST NOT be set",
+            );
         }
 
         #[test]
-        #[should_panic(expected = "migration type has to be simple but is ReversibleUp")]
-        fn test_convert_migrator_from_sqlx_panic_invalid_migration_type_rev_up() {
-            let _ = IOxMigrator::from(&Migrator {
+        fn test_convert_migrator_from_sqlx_error_invalid_migration_type_rev_up() {
+            let err = IOxMigrator::try_from(&Migrator {
                 migrations: vec![Migration {
                     version: 1,
                     description: "".into(),
@@ -718,13 +758,18 @@ mod tests {
                 .into(),
                 ignore_missing: false,
                 locking: true,
-            });
+            })
+            .unwrap_err();
+
+            assert_eq!(
+                err.to_string(),
+                "while resolving migrations: migration type has to be simple but is ReversibleUp",
+            );
         }
 
         #[test]
-        #[should_panic(expected = "migration type has to be simple but is ReversibleDown")]
-        fn test_convert_migrator_from_sqlx_panic_invalid_migration_type_rev_down() {
-            let _ = IOxMigrator::from(&Migrator {
+        fn test_convert_migrator_from_sqlx_error_invalid_migration_type_rev_down() {
+            let err = IOxMigrator::try_from(&Migrator {
                 migrations: vec![Migration {
                     version: 1,
                     description: "".into(),
@@ -735,12 +780,18 @@ mod tests {
                 .into(),
                 ignore_missing: false,
                 locking: true,
-            });
+            })
+            .unwrap_err();
+
+            assert_eq!(
+                err.to_string(),
+                "while resolving migrations: migration type has to be simple but is ReversibleDown",
+            );
         }
 
         #[test]
         fn test_convert_migrator_from_sqlx_ok() {
-            let actual = IOxMigrator::from(&Migrator {
+            let actual = IOxMigrator::try_from(&Migrator {
                 migrations: vec![
                     Migration {
                         version: 1,
@@ -761,7 +812,8 @@ mod tests {
                 .into(),
                 ignore_missing: false,
                 locking: true,
-            });
+            })
+            .unwrap();
 
             let expected = IOxMigrator {
                 migrations: vec![
@@ -821,7 +873,7 @@ mod tests {
 
                 conn.execute("CREATE TABLE t (x INT);").await.unwrap();
 
-                let migrator = IOxMigrator::new([IOxMigration {
+                let migrator = IOxMigrator::try_new([IOxMigration {
                     version: 1,
                     description: "".into(),
                     steps: [IOxMigrationStep::SqlStatement {
@@ -830,7 +882,8 @@ mod tests {
                     }]
                     .into(),
                     checksum: [].into(),
-                }]);
+                }])
+                .unwrap();
                 let res = migrator.run_direct(conn).await;
 
                 match in_transaction {
@@ -854,7 +907,7 @@ mod tests {
             let mut conn = setup().await;
             let conn = &mut *conn;
 
-            let migrator = IOxMigrator::new([
+            let migrator = IOxMigrator::try_new([
                 IOxMigration {
                     version: 1,
                     description: "".into(),
@@ -882,7 +935,8 @@ mod tests {
                     .into(),
                     checksum: [].into(),
                 },
-            ]);
+            ])
+            .unwrap();
 
             let applied = migrator.run_direct(conn).await.unwrap();
             assert_eq!(applied, HashSet::from([1, 2]));
@@ -902,7 +956,7 @@ mod tests {
             let mut conn = setup().await;
             let conn = &mut *conn;
 
-            let migrator = IOxMigrator::new([IOxMigration {
+            let migrator = IOxMigrator::try_new([IOxMigration {
                 version: 1,
                 description: "".into(),
                 steps: [IOxMigrationStep::SqlStatement {
@@ -912,12 +966,13 @@ mod tests {
                 }]
                 .into(),
                 checksum: [].into(),
-            }]);
+            }])
+            .unwrap();
 
             let applied = migrator.run_direct(conn).await.unwrap();
             assert_eq!(applied, HashSet::from([1]));
 
-            let migrator = IOxMigrator::new(
+            let migrator = IOxMigrator::try_new(
                 migrator.migrations.iter().cloned().chain([IOxMigration {
                     version: 2,
                     description: "".into(),
@@ -929,7 +984,8 @@ mod tests {
                     .into(),
                     checksum: [].into(),
                 }]),
-            );
+            )
+            .unwrap();
 
             let applied = migrator.run_direct(conn).await.unwrap();
             assert_eq!(applied, HashSet::from([2]));
@@ -944,21 +1000,23 @@ mod tests {
             let mut conn = setup().await;
             let conn = &mut *conn;
 
-            let migrator = IOxMigrator::new([IOxMigration {
+            let migrator = IOxMigrator::try_new([IOxMigration {
                 version: 1,
                 description: "".into(),
                 steps: [].into(),
                 checksum: [].into(),
-            }]);
+            }])
+            .unwrap();
 
             migrator.run_direct(conn).await.unwrap();
 
-            let migrator = IOxMigrator::new([IOxMigration {
+            let migrator = IOxMigrator::try_new([IOxMigration {
                 version: 2,
                 description: "".into(),
                 steps: [].into(),
                 checksum: [].into(),
-            }]);
+            }])
+            .unwrap();
 
             let err = migrator.run_direct(conn).await.unwrap_err();
             assert_eq!(
@@ -973,21 +1031,23 @@ mod tests {
             let mut conn = setup().await;
             let conn = &mut *conn;
 
-            let migrator = IOxMigrator::new([IOxMigration {
+            let migrator = IOxMigrator::try_new([IOxMigration {
                 version: 1,
                 description: "".into(),
                 steps: [].into(),
                 checksum: [1, 2, 3].into(),
-            }]);
+            }])
+            .unwrap();
 
             migrator.run_direct(conn).await.unwrap();
 
-            let migrator = IOxMigrator::new([IOxMigration {
+            let migrator = IOxMigrator::try_new([IOxMigration {
                 version: 1,
                 description: "".into(),
                 steps: [].into(),
                 checksum: [4, 5, 6].into(),
-            }]);
+            }])
+            .unwrap();
 
             let err = migrator.run_direct(conn).await.unwrap_err();
             assert_eq!(
@@ -1002,7 +1062,7 @@ mod tests {
             let mut conn = setup().await;
             let conn = &mut *conn;
 
-            let migrator = IOxMigrator::new([IOxMigration {
+            let migrator = IOxMigrator::try_new([IOxMigration {
                 version: 1,
                 description: "".into(),
                 steps: [IOxMigrationStep::SqlStatement {
@@ -1013,17 +1073,19 @@ mod tests {
                 }]
                 .into(),
                 checksum: [1, 2, 3].into(),
-            }]);
+            }])
+            .unwrap();
 
             migrator.run_direct(conn).await.unwrap_err();
 
-            let migrator = IOxMigrator::new([IOxMigration {
+            let migrator = IOxMigrator::try_new([IOxMigration {
                 version: 1,
                 description: "".into(),
                 steps: [].into(),
                 // same checksum, but now w/ valid steps (to simulate a once failed SQL statement)
                 checksum: [1, 2, 3].into(),
-            }]);
+            }])
+            .unwrap();
 
             let err = migrator.run_direct(conn).await.unwrap_err();
             assert_eq!(
@@ -1064,13 +1126,14 @@ mod tests {
 
             let test_query = "SELECT COALESCE(SUM(x), 0)::INT AS r FROM t;";
 
-            let migrator = IOxMigrator::new([IOxMigration {
+            let migrator = IOxMigrator::try_new([IOxMigration {
                 version: 1,
                 description: "".into(),
                 steps: steps_broken.into(),
                 // use a placeholder checksum (normally this would be calculated based on the steps)
                 checksum: [1, 2, 3].into(),
-            }]);
+            }])
+            .unwrap();
             migrator.run_direct(conn).await.unwrap_err();
 
             // all or nothing: nothing
@@ -1081,13 +1144,14 @@ mod tests {
                 .r;
             assert_eq!(r, 0);
 
-            let migrator = IOxMigrator::new([IOxMigration {
+            let migrator = IOxMigrator::try_new([IOxMigration {
                 version: 1,
                 description: "".into(),
                 steps: steps_ok.into(),
                 // same checksum, but now w/ valid steps (to simulate a once failed SQL statement)
                 checksum: [1, 2, 3].into(),
-            }]);
+            }])
+            .unwrap();
 
             let applied = migrator.run_direct(conn).await.unwrap();
             assert_eq!(applied, HashSet::from([1]),);
@@ -1118,24 +1182,27 @@ mod tests {
             maybe_start_logging();
             let pool = setup_db_no_migration().await.into_pool();
 
-            let migrator = Arc::new(IOxMigrator::new((0..N_TABLES_AND_INDICES).map(|i| {
-                IOxMigration {
-                    version: i as i64,
-                    description: "".into(),
-                    steps: [
-                        IOxMigrationStep::SqlStatement {
-                            sql: format!("CREATE TABLE t{i} (x INT);").into(),
-                            in_transaction: false,
-                        },
-                        IOxMigrationStep::SqlStatement {
-                            sql: format!("CREATE INDEX CONCURRENTLY i{i} ON t{i} (x);").into(),
-                            in_transaction: false,
-                        },
-                    ]
-                    .into(),
-                    checksum: [].into(),
-                }
-            })));
+            let migrator = Arc::new(
+                IOxMigrator::try_new((0..N_TABLES_AND_INDICES).map(|i| {
+                    IOxMigration {
+                        version: i as i64,
+                        description: "".into(),
+                        steps: [
+                            IOxMigrationStep::SqlStatement {
+                                sql: format!("CREATE TABLE t{i} (x INT);").into(),
+                                in_transaction: false,
+                            },
+                            IOxMigrationStep::SqlStatement {
+                                sql: format!("CREATE INDEX CONCURRENTLY i{i} ON t{i} (x);").into(),
+                                in_transaction: false,
+                            },
+                        ]
+                        .into(),
+                        checksum: [].into(),
+                    }
+                }))
+                .unwrap(),
+            );
 
             let mut futures: FuturesUnordered<_> = (0..N_CONCURRENT_MIGRATIONS)
                 .map(move |_| {

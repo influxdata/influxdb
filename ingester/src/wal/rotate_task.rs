@@ -105,8 +105,8 @@ mod tests {
         persist::queue::mock::MockPersistQueue,
         test_util::{
             make_write_op, new_persist_notification, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
-            ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
-            ARBITRARY_TABLE_NAME,
+            ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
+            ARBITRARY_TRANSITION_PARTITION_ID,
         },
         wal::traits::WalAppender,
     };
@@ -235,7 +235,7 @@ mod tests {
 
         assert_matches!(persist_handle.calls().as_slice(), [got] => {
             let guard = got.lock();
-            assert_eq!(guard.partition_id(), ARBITRARY_PARTITION_ID);
+            assert_eq!(guard.partition_id(), &*ARBITRARY_TRANSITION_PARTITION_ID);
         })
     }
 

@@ -1,5 +1,9 @@
-use std::sync::Arc;
-
+use crate::{
+    config::IoxConfigExt,
+    physical_optimizer::chunk_extraction::extract_chunks,
+    provider::{chunks_to_physical_nodes, DeduplicateExec},
+    QueryChunk,
+};
 use datafusion::{
     common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
@@ -9,13 +13,7 @@ use datafusion::{
 };
 use hashbrown::HashMap;
 use observability_deps::tracing::warn;
-
-use crate::{
-    config::IoxConfigExt,
-    physical_optimizer::chunk_extraction::extract_chunks,
-    provider::{chunks_to_physical_nodes, DeduplicateExec},
-    QueryChunk,
-};
+use std::sync::Arc;
 
 /// Split de-duplication operations based on partitons.
 ///
@@ -44,7 +42,7 @@ impl PhysicalOptimizerRule for PartitionSplit {
                     Default::default();
                 for chunk in chunks {
                     chunks_by_partition
-                        .entry(chunk.transition_partition_id().clone())
+                        .entry(chunk.partition_id().clone())
                         .or_default()
                         .push(chunk);
                 }
@@ -166,13 +164,13 @@ mod tests {
 
     #[test]
     fn test_different_partitions() {
-        let chunk1 = chunk(1).with_partition_id(1);
-        let chunk2 = chunk(2).with_partition_id(2);
+        let chunk1 = chunk(1).with_partition(1);
+        let chunk2 = chunk(2).with_partition(2);
         // use at least 3 parquet files for one of the two partitions to validate that `target_partitions` is forwared correctly
-        let chunk3 = chunk(3).with_dummy_parquet_file().with_partition_id(1);
-        let chunk4 = chunk(4).with_dummy_parquet_file().with_partition_id(2);
-        let chunk5 = chunk(5).with_dummy_parquet_file().with_partition_id(1);
-        let chunk6 = chunk(6).with_dummy_parquet_file().with_partition_id(1);
+        let chunk3 = chunk(3).with_dummy_parquet_file().with_partition(1);
+        let chunk4 = chunk(4).with_dummy_parquet_file().with_partition(2);
+        let chunk5 = chunk(5).with_dummy_parquet_file().with_partition(1);
+        let chunk6 = chunk(6).with_dummy_parquet_file().with_partition(1);
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3, chunk4, chunk5, chunk6]);
         let opt = PartitionSplit;
@@ -210,33 +208,24 @@ mod tests {
             TransitionPartitionId::Deprecated(PartitionId::new(legacy_partition_id));
 
         // Partition with hash ID in the catalog
-        let partition_id = 2;
         let transition_partition_id =
             TransitionPartitionId::Deterministic(PartitionHashId::arbitrary_for_testing());
 
-        let chunk1 = chunk(1)
-            .with_partition_id(legacy_partition_id)
-            .with_transition_partition_id(legacy_transition_partition_id.clone());
-        let chunk2 = chunk(2)
-            .with_partition_id(partition_id)
-            .with_transition_partition_id(transition_partition_id.clone());
+        let chunk1 = chunk(1).with_partition_id(legacy_transition_partition_id.clone());
+        let chunk2 = chunk(2).with_partition_id(transition_partition_id.clone());
 
         let chunk3 = chunk(3)
             .with_dummy_parquet_file()
-            .with_partition_id(legacy_partition_id)
-            .with_transition_partition_id(legacy_transition_partition_id.clone());
+            .with_partition_id(legacy_transition_partition_id.clone());
         let chunk4 = chunk(4)
             .with_dummy_parquet_file()
-            .with_partition_id(partition_id)
-            .with_transition_partition_id(transition_partition_id);
+            .with_partition_id(transition_partition_id.clone());
         let chunk5 = chunk(5)
             .with_dummy_parquet_file()
-            .with_partition_id(legacy_partition_id)
-            .with_transition_partition_id(legacy_transition_partition_id.clone());
+            .with_partition_id(legacy_transition_partition_id.clone());
         let chunk6 = chunk(6)
             .with_dummy_parquet_file()
-            .with_partition_id(legacy_partition_id)
-            .with_transition_partition_id(legacy_transition_partition_id);
+            .with_partition_id(legacy_transition_partition_id.clone());
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3, chunk4, chunk5, chunk6]);
         let opt = PartitionSplit;
@@ -268,9 +257,9 @@ mod tests {
 
     #[test]
     fn test_max_split() {
-        let chunk1 = chunk(1).with_partition_id(1);
-        let chunk2 = chunk(2).with_partition_id(2);
-        let chunk3 = chunk(3).with_partition_id(3);
+        let chunk1 = chunk(1).with_partition(1);
+        let chunk2 = chunk(2).with_partition(2);
+        let chunk3 = chunk(3).with_partition(3);
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3]);
         let opt = PartitionSplit;

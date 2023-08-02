@@ -32,7 +32,7 @@ where
             let data = p.lock().mark_persisting()?;
 
             debug!(
-                partition_id=data.partition_id().get(),
+                partition_id=%data.partition_id(),
                 lock_wait=?Instant::now().duration_since(t),
                 "read data for persistence"
             );

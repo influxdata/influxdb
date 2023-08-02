@@ -332,8 +332,7 @@ where
                 *this.partition_count += 1;
 
                 // Extract all the fields of the PartitionResponse
-                let id = p.id();
-                let hash_id = p.partition_hash_id().cloned();
+                let id = p.id().clone();
                 let persist_count = p.completed_persistence_count();
 
                 // And wrap the underlying stream of RecordBatch for this
@@ -346,12 +345,7 @@ where
                 this.record_batch_count
                     .fetch_add(data.len(), Ordering::Relaxed);
 
-                Poll::Ready(Some(PartitionResponse::new(
-                    data,
-                    id,
-                    hash_id,
-                    persist_count,
-                )))
+                Poll::Ready(Some(PartitionResponse::new(data, id, persist_count)))
             }
             Poll::Ready(None) => {
                 // Record the wall clock timestamp of the stream end.
@@ -435,12 +429,10 @@ mod tests {
         make_batch, make_partition_stream,
         query::mock_query_exec::MockQueryExec,
         test_util::{
-            ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_HASH_ID, ARBITRARY_PARTITION_ID,
-            ARBITRARY_TABLE_ID,
+            ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, ARBITRARY_TRANSITION_PARTITION_ID,
         },
     };
     use arrow::array::{Float32Array, Int64Array};
-    use data_types::PartitionHashId;
     use futures::{stream, StreamExt};
     use iox_time::MockProvider;
     use metric::{assert_histogram, Attributes};
@@ -457,8 +449,7 @@ mod tests {
         // Construct a stream with no batches.
         let stream = PartitionStream::new(stream::iter([PartitionResponse::new(
             vec![],
-            ARBITRARY_PARTITION_ID,
-            Some(ARBITRARY_PARTITION_HASH_ID.clone()),
+            ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             42,
         )]));
 

@@ -29,7 +29,7 @@ use crate::{
     persist::completion_observer::CompletedPersist,
 };
 
-pub(crate) const ARBITRARY_PARTITION_ID: PartitionId = PartitionId::new(1);
+pub(crate) const ARBITRARY_CATALOG_PARTITION_ID: PartitionId = PartitionId::new(1);
 pub(crate) const ARBITRARY_NAMESPACE_ID: NamespaceId = NamespaceId::new(3);
 pub(crate) const ARBITRARY_TABLE_ID: TableId = TableId::new(4);
 pub(crate) const ARBITRARY_PARTITION_KEY_STR: &str = "platanos";
@@ -85,10 +85,7 @@ lazy_static! {
 /// Build a [`PartitionData`] with mostly arbitrary-yet-valid values for tests.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PartitionDataBuilder {
-    partition_id: Option<PartitionId>,
-    // Whether to send `None` to simulate an older partition without a hash id in the database.
-    // Defaults to `false`, which creates `PartitionData` with a hash ID from the table ID and partition key.
-    remove_partition_hash_id: bool,
+    partition_id: Option<TransitionPartitionId>,
     partition_key: Option<PartitionKey>,
     namespace_id: Option<NamespaceId>,
     table_id: Option<TableId>,
@@ -102,13 +99,8 @@ impl PartitionDataBuilder {
         Self::default()
     }
 
-    pub(crate) fn with_partition_id(mut self, partition_id: PartitionId) -> Self {
-        self.partition_id = Some(partition_id);
-        self
-    }
-
-    pub(crate) fn without_partition_hash_id(mut self) -> Self {
-        self.remove_partition_hash_id = true;
+    pub(crate) fn with_deprecated_partition_id(mut self, partition_id: PartitionId) -> Self {
+        self.partition_id = Some(TransitionPartitionId::Deprecated(partition_id));
         self
     }
 
@@ -155,14 +147,12 @@ impl PartitionDataBuilder {
         let partition_key = self
             .partition_key
             .unwrap_or_else(|| ARBITRARY_PARTITION_KEY.clone());
+        let partition_id = self.partition_id.unwrap_or_else(|| {
+            TransitionPartitionId::Deterministic(PartitionHashId::new(table_id, &partition_key))
+        });
 
         PartitionData::new(
-            self.partition_id.unwrap_or(ARBITRARY_PARTITION_ID),
-            if self.remove_partition_hash_id {
-                None
-            } else {
-                Some(PartitionHashId::new(table_id, &partition_key))
-            },
+            partition_id,
             partition_key,
             self.namespace_id.unwrap_or(ARBITRARY_NAMESPACE_ID),
             self.namespace_loader
@@ -256,6 +246,7 @@ macro_rules! make_partition_stream {
                 query::{response::PartitionStream, partition_response::PartitionResponse},
                 test_util::ARBITRARY_PARTITION_KEY,
             };
+            use data_types::{TableId, TransitionPartitionId};
             use futures::stream;
 
             PartitionStream::new(stream::iter([
@@ -274,18 +265,9 @@ macro_rules! make_partition_stream {
 
                     PartitionResponse::new(
                         batches,
-                        // Using the $id as both the PartitionId and the TableId in the
-                        // PartitionHashId is a temporary way to reduce duplication in tests where
-                        // the important part is which batches are in the same partition and which
-                        // batches are in a different partition, not what the actual identifier
-                        // values are. This will go away when the ingester no longer sends
-                        // PartitionIds.
-                        data_types::PartitionId::new($id),
-                        Some(
-                            PartitionHashId::new(
-                                TableId::new($id),
-                                &*ARBITRARY_PARTITION_KEY
-                            )
+                        TransitionPartitionId::new(
+                            TableId::new($id),
+                            &*ARBITRARY_PARTITION_KEY,
                         ),
                         42,
                     )

@@ -70,13 +70,6 @@ message IngesterQueryResponseMetadata {
   reserved "batch_partition_ids";
   reserved 6;
 
-  // Partition id for this batch.
-  int64 partition_id = 7;
-
-  // A unique identifier of this partition, deterministically created from the table ID and
-  // partition key.
-  optional bytes partition_hash_id = 11;
-
   // Was partition status.
   reserved "status";
   reserved 8;
@@ -86,6 +79,29 @@ message IngesterQueryResponseMetadata {
 
   // Number of Parquet files that have been persisted to object storage for this partition.
   uint64 completed_persistence_count = 10;
+
+  // Either the catalog-assigned partition ID or the deterministic identifier
+  // created from the table ID and partition key.
+  //
+  // For "old-style" partitions that were created before the switch to
+  // deterministic partition IDs, a `catalog_id` is returned, and this is used
+  // to address the partition by row ID.
+  //
+  // For "new-style" partitions, a deterministic hash-based ID is used to
+  // address a partition.
+  //
+  // Invariant: a partition is EITHER an "old-style", row addressed partition,
+  // OR a "new-style" hash ID addressed partition for the lifetime of the
+  // partition.
+  //
+  // See <https://github.com/influxdata/idpe/issues/17476>.
+  oneof partition_identifier {
+    // An "old-style" partition addressed by catalog row ID.
+    int64 catalog_id = 7;
+
+    // A "new-style" partition addressed by a deterministic hash ID.
+    bytes hash_id = 11;
+  }
 }
 
 // Serialization of `predicate::predicate::Predicate` that contains DataFusion `Expr`s
