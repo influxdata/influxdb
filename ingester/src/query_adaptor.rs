@@ -5,7 +5,7 @@ use std::{any::Any, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
-use data_types::{ChunkId, ChunkOrder, PartitionId, TimestampMinMax, TransitionPartitionId};
+use data_types::{ChunkId, ChunkOrder, TimestampMinMax, TransitionPartitionId};
 use datafusion::physical_plan::Statistics;
 use iox_query::{
     util::{compute_timenanosecond_min_max, create_basic_summary},
@@ -30,11 +30,8 @@ pub struct QueryAdaptor {
     /// interning the merged schema in [`Self::schema()`].
     data: Vec<RecordBatch>,
 
-    /// The catalog ID of the partition the this data is part of.
-    partition_id: PartitionId,
-
     /// The identifier of the partition this data is part of.
-    transition_partition_id: TransitionPartitionId,
+    partition_id: TransitionPartitionId,
 
     /// Chunk ID.
     id: ChunkId,
@@ -53,11 +50,7 @@ impl QueryAdaptor {
     ///
     /// This constructor panics if `data` contains no [`RecordBatch`], or all
     /// [`RecordBatch`] are empty.
-    pub(crate) fn new(
-        partition_id: PartitionId,
-        transition_partition_id: TransitionPartitionId,
-        data: Vec<RecordBatch>,
-    ) -> Self {
+    pub(crate) fn new(partition_id: TransitionPartitionId, data: Vec<RecordBatch>) -> Self {
         // There must always be at least one record batch and one row.
         //
         // This upholds an invariant that simplifies dealing with empty
@@ -68,7 +61,6 @@ impl QueryAdaptor {
         Self {
             data,
             partition_id,
-            transition_partition_id,
             // To return a value for debugging and make it consistent with ChunkId created in Compactor,
             // use Uuid for this. Draw this UUID during chunk generation so that it is stable during the whole query process.
             id: ChunkId::new(),
@@ -88,10 +80,10 @@ impl QueryAdaptor {
         self.data
     }
 
-    /// Returns the partition ID from which the data this [`QueryAdaptor`] was
+    /// Returns the partition identifier from which the data this [`QueryAdaptor`] was
     /// sourced from.
-    pub(crate) fn partition_id(&self) -> PartitionId {
-        self.partition_id
+    pub(crate) fn partition_id(&self) -> &TransitionPartitionId {
+        &self.partition_id
     }
 
     /// Number of rows, useful for building stats
@@ -124,12 +116,8 @@ impl QueryChunk for QueryAdaptor {
         &self.schema
     }
 
-    fn partition_id(&self) -> PartitionId {
-        self.partition_id
-    }
-
-    fn transition_partition_id(&self) -> &TransitionPartitionId {
-        &self.transition_partition_id
+    fn partition_id(&self) -> &TransitionPartitionId {
+        &self.partition_id
     }
 
     fn sort_key(&self) -> Option<&SortKey> {

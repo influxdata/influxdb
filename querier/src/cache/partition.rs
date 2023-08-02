@@ -193,7 +193,7 @@ impl PartitionCache {
 
                             if invalidates {
                                 debug!(
-                                    partition_id = %partition_id,
+                                    %partition_id,
                                     "invalidate partition cache",
                                 );
                             }
@@ -367,8 +367,8 @@ mod tests {
     };
     use async_trait::async_trait;
     use data_types::{
-        partition_template::TablePartitionTemplateOverride, ColumnType, PartitionHashId,
-        PartitionId, PartitionKey, TableId,
+        partition_template::TablePartitionTemplateOverride, ColumnType, PartitionId, PartitionKey,
+        TableId,
     };
     use futures::StreamExt;
     use generated_types::influxdata::iox::partition_template::v1::{
@@ -475,10 +475,10 @@ mod tests {
             let res = cache
                 .get_one(
                     Arc::clone(&cached_table),
-                    &TransitionPartitionId::Deterministic(PartitionHashId::new(
+                    &TransitionPartitionId::new(
                         TableId::new(i64::MAX),
                         &PartitionKey::from("bananas_not_found"),
-                    )),
+                    ),
                     &[],
                     None,
                 )
@@ -496,7 +496,7 @@ mod tests {
                 .get_one(
                     Arc::clone(&cached_table),
                     &TransitionPartitionId::Deprecated(PartitionId::new(i64::MAX)),
-                    &Vec::new(),
+                    &[],
                     None,
                 )
                 .await;
@@ -732,10 +732,10 @@ mod tests {
             let res = cache
                 .get_one(
                     Arc::clone(&cached_table),
-                    &TransitionPartitionId::Deterministic(PartitionHashId::new(
+                    &TransitionPartitionId::new(
                         TableId::new(i64::MAX),
                         &PartitionKey::from("bananas_not_found"),
-                    )),
+                    ),
                     &[],
                     None,
                 )
@@ -847,7 +847,7 @@ mod tests {
                 c2.column.name.as_str(),
             ]))
             .await;
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_hash_id", 1);
 
         // expire & fetch
         let p_sort_key = p.partition.sort_key();
@@ -969,10 +969,10 @@ mod tests {
                         sort_key_should_cover: vec![],
                     },
                     PartitionRequest {
-                        partition_id: TransitionPartitionId::Deterministic(PartitionHashId::new(
+                        partition_id: TransitionPartitionId::new(
                             TableId::new(i64::MAX),
                             &PartitionKey::from("bananas_not_found"),
-                        )),
+                        ),
                         sort_key_should_cover: vec![],
                     },
                 ],

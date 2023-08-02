@@ -90,8 +90,8 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use bytes::Bytes;
 use data_types::{
     ColumnId, ColumnSet, ColumnSummary, CompactionLevel, InfluxDbType, NamespaceId,
-    ParquetFileParams, PartitionHashId, PartitionId, PartitionKey, StatValues, Statistics, TableId,
-    Timestamp, TransitionPartitionId,
+    ParquetFileParams, PartitionKey, StatValues, Statistics, TableId, Timestamp,
+    TransitionPartitionId,
 };
 use generated_types::influxdata::iox::ingester::v1 as proto;
 use iox_time::Time;
@@ -434,8 +434,7 @@ impl IoxMetadata {
     /// [`RecordBatch`]: arrow::record_batch::RecordBatch
     pub fn to_parquet_file<F>(
         &self,
-        partition_id: PartitionId,
-        partition_hash_id: Option<PartitionHashId>,
+        partition_id: TransitionPartitionId,
         file_size_bytes: usize,
         metadata: &IoxParquetMetaData,
         column_id_map: F,
@@ -443,7 +442,6 @@ impl IoxMetadata {
     where
         F: for<'a> Fn(&'a str) -> ColumnId,
     {
-        let partition_id = TransitionPartitionId::from((partition_id, partition_hash_id.as_ref()));
         let decoded = metadata.decode().expect("invalid IOx metadata");
         trace!(
             ?partition_id,

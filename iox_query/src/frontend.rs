@@ -342,7 +342,7 @@ mod test {
         let chunk1 = Arc::new(
             TestChunk::new("t")
                 .with_order(1)
-                .with_partition_id(1)
+                .with_partition(1)
                 .with_time_column_with_stats(Some(50), Some(max_time))
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
                 .with_i64_field_column("field_int")
@@ -353,7 +353,7 @@ mod test {
         let chunk2 = Arc::new(
             TestChunk::new("t")
                 .with_order(2)
-                .with_partition_id(1)
+                .with_partition(1)
                 .with_time_column_with_stats(Some(28000), Some(220000))
                 .with_tag_column_with_stats("tag1", Some("UT"), Some("WA"))
                 .with_i64_field_column("field_int")

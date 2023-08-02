@@ -6,7 +6,7 @@ use arrow_flight::{
     FlightData, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PutResult,
     SchemaResult, Ticket,
 };
-use data_types::{NamespaceId, PartitionHashId, PartitionId, TableId};
+use data_types::{NamespaceId, TableId, TransitionPartitionId};
 use flatbuffers::FlatBufferBuilder;
 use futures::{Stream, StreamExt, TryStreamExt};
 use ingester_query_grpc::influxdata::iox::ingester::v1 as proto;
@@ -303,10 +303,8 @@ where
 
 /// Encode the partition information as a None flight data with meatadata
 fn encode_partition(
-    // Partition ID.
-    partition_id: PartitionId,
-    // Partition hash ID.
-    partition_hash_id: Option<PartitionHashId>,
+    // Partition identifier.
+    partition_id: TransitionPartitionId,
     // Count of persisted Parquet files for the [`PartitionData`] instance this
     // [`PartitionResponse`] was generated from.
     //
@@ -315,10 +313,20 @@ fn encode_partition(
     completed_persistence_count: u64,
     ingester_id: IngesterId,
 ) -> Result<FlightData, FlightError> {
+    use proto::ingester_query_response_metadata::PartitionIdentifier;
+
     let mut bytes = bytes::BytesMut::new();
+    let partition_identifier = match partition_id {
+        TransitionPartitionId::Deterministic(hash_id) => {
+            PartitionIdentifier::HashId(hash_id.as_bytes().to_owned())
+        }
+        TransitionPartitionId::Deprecated(partition_id) => {
+            PartitionIdentifier::CatalogId(partition_id.get())
+        }
+    };
+
     let app_metadata = proto::IngesterQueryResponseMetadata {
-        partition_id: partition_id.get(),
-        partition_hash_id: partition_hash_id.map(|hash_id| hash_id.as_bytes().to_owned()),
+        partition_identifier: Some(partition_identifier),
         ingester_uuid: ingester_id.to_string(),
         completed_persistence_count,
     };
@@ -352,18 +360,12 @@ fn encode_response(
     frame_encoding_duration_metric: Arc<DurationHistogram>,
 ) -> impl Stream<Item = Result<FlightData, FlightError>> {
     response.into_partition_stream().flat_map(move |partition| {
-        let partition_id = partition.id();
-        let partition_hash_id = partition.partition_hash_id().cloned();
+        let partition_id = partition.id().clone();
         let completed_persistence_count = partition.completed_persistence_count();
 
         // prefix payload data w/ metadata for that particular partition
         let head = futures::stream::once(async move {
-            encode_partition(
-                partition_id,
-                partition_hash_id,
-                completed_persistence_count,
-                ingester_id,
-            )
+            encode_partition(partition_id, completed_persistence_count, ingester_id)
         });
 
         // An output vector of FlightDataEncoder streams, each entry stream with
@@ -402,25 +404,25 @@ mod tests {
             mock_query_exec::MockQueryExec, partition_response::PartitionResponse,
             response::PartitionStream,
         },
-        test_util::ARBITRARY_PARTITION_HASH_ID,
+        test_util::{ARBITRARY_PARTITION_HASH_ID, ARBITRARY_TRANSITION_PARTITION_ID},
     };
     use arrow::array::{Float64Array, Int32Array};
     use arrow_flight::decode::{DecodedPayload, FlightRecordBatchStream};
     use assert_matches::assert_matches;
     use bytes::Bytes;
+    use data_types::PartitionId;
+    use proto::ingester_query_response_metadata::PartitionIdentifier;
     use tonic::Code;
 
     #[tokio::test]
-    async fn sends_partition_hash_id_if_present() {
+    async fn sends_only_partition_hash_id_if_present() {
         let ingester_id = IngesterId::new();
-        // let partition_hash_id = PartitionHashId::new(TableId::new(3), &ARBITRARY_PARTITION_KEY);
 
         let flight = FlightService::new(
             MockQueryExec::default().with_result(Ok(QueryResponse::new(PartitionStream::new(
                 futures::stream::iter([PartitionResponse::new(
                     vec![],
-                    PartitionId::new(2),
-                    Some(ARBITRARY_PARTITION_HASH_ID.clone()),
+                    ARBITRARY_TRANSITION_PARTITION_ID.clone(),
                     42,
                 )]),
             )))),
@@ -447,8 +449,9 @@ mod tests {
         let md_actual =
             proto::IngesterQueryResponseMetadata::decode(flight_data[0].app_metadata()).unwrap();
         let md_expected = proto::IngesterQueryResponseMetadata {
-            partition_id: 2,
-            partition_hash_id: Some(ARBITRARY_PARTITION_HASH_ID.as_bytes().to_vec()),
+            partition_identifier: Some(PartitionIdentifier::HashId(
+                ARBITRARY_PARTITION_HASH_ID.as_bytes().to_vec(),
+            )),
             ingester_uuid: ingester_id.to_string(),
             completed_persistence_count: 42,
         };
@@ -462,8 +465,7 @@ mod tests {
             MockQueryExec::default().with_result(Ok(QueryResponse::new(PartitionStream::new(
                 futures::stream::iter([PartitionResponse::new(
                     vec![],
-                    PartitionId::new(2),
-                    None,
+                    TransitionPartitionId::Deprecated(PartitionId::new(2)),
                     42,
                 )]),
             )))),
@@ -490,8 +492,7 @@ mod tests {
         let md_actual =
             proto::IngesterQueryResponseMetadata::decode(flight_data[0].app_metadata()).unwrap();
         let md_expected = proto::IngesterQueryResponseMetadata {
-            partition_id: 2,
-            partition_hash_id: None,
+            partition_identifier: Some(PartitionIdentifier::CatalogId(2)),
             ingester_uuid: ingester_id.to_string(),
             completed_persistence_count: 42,
         };
@@ -534,7 +535,6 @@ mod tests {
     #[tokio::test]
     async fn test_chunks_with_different_schemas() {
         let ingester_id = IngesterId::new();
-        let partition_hash_id = Some(ARBITRARY_PARTITION_HASH_ID.clone());
         let (batch1, schema1) = make_batch!(
             Float64Array("float" => vec![1.1, 2.2, 3.3]),
             Int32Array("int" => vec![1, 2, 3]),
@@ -562,8 +562,7 @@ mod tests {
                         batch3.clone(),
                         batch4.clone(),
                     ],
-                    PartitionId::new(2),
-                    partition_hash_id.clone(),
+                    ARBITRARY_TRANSITION_PARTITION_ID.clone(),
                     42,
                 )]),
             )))),
@@ -591,8 +590,9 @@ mod tests {
         let md_actual =
             proto::IngesterQueryResponseMetadata::decode(flight_data[0].app_metadata()).unwrap();
         let md_expected = proto::IngesterQueryResponseMetadata {
-            partition_id: 2,
-            partition_hash_id: partition_hash_id.map(|hash_id| hash_id.as_bytes().to_vec()),
+            partition_identifier: Some(PartitionIdentifier::HashId(
+                ARBITRARY_PARTITION_HASH_ID.as_bytes().to_vec(),
+            )),
             ingester_uuid: ingester_id.to_string(),
             completed_persistence_count: 42,
         };

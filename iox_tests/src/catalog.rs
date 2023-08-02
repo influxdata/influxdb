@@ -15,9 +15,10 @@ use datafusion_util::{unbounded_memory_pool, MemoryStream};
 use generated_types::influxdata::iox::partition_template::v1::PartitionTemplate;
 use iox_catalog::{
     interface::{
-        get_schema_by_id, get_table_columns_by_id, Catalog, PartitionRepo, SoftDeletedRows,
+        get_schema_by_id, get_table_columns_by_id, Catalog, RepoCollection, SoftDeletedRows,
     },
     mem::MemCatalog,
+    partition_lookup,
     test_helpers::arbitrary_table,
 };
 use iox_query::{
@@ -437,17 +438,14 @@ pub struct TestPartition {
 impl TestPartition {
     /// Update sort key.
     pub async fn update_sort_key(self: &Arc<Self>, sort_key: SortKey) -> Arc<Self> {
-        let old_sort_key = self
-            .catalog
-            .catalog
-            .repositories()
-            .await
-            .partitions()
-            .get_by_id(self.partition.id)
-            .await
-            .unwrap()
-            .unwrap()
-            .sort_key;
+        let old_sort_key = partition_lookup(
+            self.catalog.catalog.repositories().await.as_mut(),
+            &self.partition.transition_partition_id(),
+        )
+        .await
+        .unwrap()
+        .unwrap()
+        .sort_key;
 
         let partition = self
             .catalog
@@ -456,7 +454,7 @@ impl TestPartition {
             .await
             .partitions()
             .cas_sort_key(
-                &TransitionPartitionId::Deprecated(self.partition.id),
+                &self.partition.transition_partition_id(),
                 Some(old_sort_key),
                 &sort_key.to_columns().collect::<Vec<_>>(),
             )
@@ -553,7 +551,12 @@ impl TestPartition {
 
         let result = self.create_parquet_file_catalog_record(builder).await;
         let mut repos = self.catalog.catalog.repositories().await;
-        update_catalog_sort_key_if_needed(repos.partitions(), self.partition.id, sort_key).await;
+        update_catalog_sort_key_if_needed(
+            repos.as_mut(),
+            &self.partition.transition_partition_id(),
+            sort_key,
+        )
+        .await;
         result
     }
 
@@ -762,17 +765,15 @@ impl TestParquetFileBuilder {
     }
 }
 
-async fn update_catalog_sort_key_if_needed(
-    partitions_catalog: &mut dyn PartitionRepo,
-    partition_id: PartitionId,
+async fn update_catalog_sort_key_if_needed<R>(
+    repos: &mut R,
+    id: &TransitionPartitionId,
     sort_key: SortKey,
-) {
+) where
+    R: RepoCollection + ?Sized,
+{
     // Fetch the latest partition info from the catalog
-    let partition = partitions_catalog
-        .get_by_id(partition_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let partition = partition_lookup(repos, id).await.unwrap().unwrap();
 
     // Similarly to what the ingester does, if there's an existing sort key in the catalog, add new
     // columns onto the end
@@ -787,9 +788,10 @@ async fn update_catalog_sort_key_if_needed(
                     catalog_sort_key.to_columns().collect::<Vec<_>>(),
                     &new_columns,
                 );
-                partitions_catalog
+                repos
+                    .partitions()
                     .cas_sort_key(
-                        &TransitionPartitionId::Deprecated(partition_id),
+                        id,
                         Some(
                             catalog_sort_key
                                 .to_columns()
@@ -805,12 +807,9 @@ async fn update_catalog_sort_key_if_needed(
         None => {
             let new_columns = sort_key.to_columns().collect::<Vec<_>>();
             debug!("Updating sort key from None to {:?}", &new_columns);
-            partitions_catalog
-                .cas_sort_key(
-                    &TransitionPartitionId::Deprecated(partition_id),
-                    None,
-                    &new_columns,
-                )
+            repos
+                .partitions()
+                .cas_sort_key(id, None, &new_columns)
                 .await
                 .unwrap();
         }

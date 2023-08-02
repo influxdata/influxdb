@@ -5,7 +5,8 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    ColumnId, CompactionLevel, NamespaceId, PartitionId, TableId, Timestamp, TransitionPartitionId,
+    ColumnId, CompactionLevel, NamespaceId, PartitionId, PartitionKey, TableId, Timestamp,
+    TransitionPartitionId,
 };
 use datafusion_util::{unbounded_memory_pool, MemoryStream};
 use iox_time::Time;
@@ -368,17 +369,18 @@ async fn test_derive_parquet_file_params() {
 
     // And the metadata the batch would be encoded with if it came through the
     // IOx write path.
-    let partition_id = PartitionId::new(4);
-    let partition_hash_id = None;
-    let transition_partition_id = TransitionPartitionId::Deprecated(partition_id);
+    let table_id = TableId::new(3);
+    let partition_key = PartitionKey::from("potato");
+    let partition_id = TransitionPartitionId::new(table_id, &partition_key);
+
     let meta = IoxMetadata {
         object_store_id: Default::default(),
         creation_timestamp: Time::from_timestamp_nanos(1234),
         namespace_id: NamespaceId::new(1),
         namespace_name: "bananas".into(),
-        table_id: TableId::new(3),
+        table_id,
         table_name: "platanos".into(),
-        partition_key: "potato".into(),
+        partition_key,
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
         max_l0_created_at: Time::from_timestamp_nanos(1234),
@@ -400,12 +402,7 @@ async fn test_derive_parquet_file_params() {
     let storage = ParquetStorage::new(object_store, StorageId::from("iox"));
 
     let (iox_parquet_meta, file_size) = storage
-        .upload(
-            stream,
-            &transition_partition_id,
-            &meta,
-            unbounded_memory_pool(),
-        )
+        .upload(stream, &partition_id, &meta, unbounded_memory_pool())
         .await
         .expect("failed to serialize & persist record batch");
 
@@ -415,13 +412,9 @@ async fn test_derive_parquet_file_params() {
         ("some_field".into(), ColumnId::new(1)),
         ("time".into(), ColumnId::new(2)),
     ]);
-    let catalog_data = meta.to_parquet_file(
-        partition_id,
-        partition_hash_id,
-        file_size,
-        &iox_parquet_meta,
-        |name| *column_id_map.get(name).unwrap(),
-    );
+    let catalog_data = meta.to_parquet_file(partition_id, file_size, &iox_parquet_meta, |name| {
+        *column_id_map.get(name).unwrap()
+    });
 
     // And verify the resulting statistics used in the catalog.
     //

@@ -282,7 +282,7 @@ impl QuerierTable {
         let chunks = partitions
             .into_iter()
             .filter_map(|mut c| {
-                let cached_partition = cached_partitions.get(&c.transition_partition_id())?;
+                let cached_partition = cached_partitions.get(&c.partition_id())?;
                 c.set_partition_column_ranges(&cached_partition.column_ranges);
                 Some(c)
             })
@@ -328,13 +328,14 @@ impl QuerierTable {
         let mut should_cover: HashMap<TransitionPartitionId, HashSet<ColumnId>> =
             HashMap::with_capacity(ingester_partitions.len());
 
-        // For ingester partitions we only need the column ranges -- which are static -- not the sort key. So it is
-        // sufficient to collect the partition IDs.
+        // For ingester partitions we only need the column ranges -- which are static -- not the
+        // sort key. So it is sufficient to collect the partition IDs.
         for p in ingester_partitions {
-            should_cover.entry(p.transition_partition_id()).or_default();
+            should_cover.entry(p.partition_id()).or_default();
         }
 
-        // For parquet files we must ensure that the -- potentially evolving -- sort key coveres the primary key.
+        // For parquet files we must ensure that the -- potentially evolving -- sort key coveres
+        // the primary key.
         let pk = cached_table
             .primary_key_column_ids
             .iter()
@@ -878,7 +879,7 @@ mod tests {
         .with_lp(["table foo=1 1"]);
 
         // set up performs a few lookups
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_hash_id", 4);
 
         let querier_table = TestQuerierTable::new(&catalog, &table)
             .await
@@ -886,7 +887,7 @@ mod tests {
 
         let chunks = querier_table.chunks().await.unwrap();
         assert_eq!(chunks.len(), 5);
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_hash_id", 4);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
             "partition_get_by_hash_id_batch",
@@ -896,7 +897,7 @@ mod tests {
 
         let chunks = querier_table.chunks().await.unwrap();
         assert_eq!(chunks.len(), 5);
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_hash_id", 4);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
             "partition_get_by_hash_id_batch",
@@ -909,7 +910,7 @@ mod tests {
                 TestParquetFileBuilder::default().with_line_protocol("table,tag1=a foo=1,bar=1 11"),
             )
             .await;
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_hash_id", 5);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
             "partition_get_by_hash_id_batch",
@@ -919,7 +920,7 @@ mod tests {
         // file not visible yet
         let chunks = querier_table.chunks().await.unwrap();
         assert_eq!(chunks.len(), 5);
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_hash_id", 5);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
             "partition_get_by_hash_id_batch",
@@ -933,7 +934,7 @@ mod tests {
             .with_ingester_partition(ingester_partition_builder.build());
         let chunks = querier_table.chunks().await.unwrap();
         assert_eq!(chunks.len(), 6);
-        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_hash_id", 5);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
             "partition_get_by_hash_id_batch",

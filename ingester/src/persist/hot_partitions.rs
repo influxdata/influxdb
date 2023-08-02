@@ -49,7 +49,7 @@ where
         mut guard: MutexGuard<'_, PartitionData>,
     ) {
         info!(
-            partition_id = guard.partition_id().get(),
+            partition_id = %guard.partition_id(),
             cost_estimate, "marking hot partition for persistence"
         );
 

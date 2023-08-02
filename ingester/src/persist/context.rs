@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use data_types::{
-    NamespaceId, ParquetFileParams, PartitionHashId, PartitionId, PartitionKey, TableId,
-    TransitionPartitionId,
-};
+use data_types::{NamespaceId, ParquetFileParams, PartitionKey, TableId, TransitionPartitionId};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use schema::sort::SortKey;
@@ -68,8 +65,8 @@ impl PersistRequest {
         )
     }
 
-    /// Return the partition ID of the persisting data.
-    pub(super) fn partition_id(&self) -> PartitionId {
+    /// Return the partition identifier of the persisting data.
+    pub(super) fn partition_id(&self) -> &TransitionPartitionId {
         self.data.partition_id()
     }
 }
@@ -88,8 +85,7 @@ pub(super) struct Context {
     /// IDs loaded from the partition at construction time.
     namespace_id: NamespaceId,
     table_id: TableId,
-    partition_id: PartitionId,
-    partition_hash_id: Option<PartitionHashId>,
+    partition_id: TransitionPartitionId,
 
     // The partition key for this partition
     partition_key: PartitionKey,
@@ -137,7 +133,7 @@ impl Context {
     /// Locks the [`PartitionData`] in `req` to read various properties which
     /// are then cached in the [`Context`].
     pub(super) fn new(req: PersistRequest) -> Self {
-        let partition_id = req.data.partition_id();
+        let partition_id = req.data.partition_id().clone();
 
         // Obtain the partition lock and load the immutable values that will be
         // used during this persistence.
@@ -153,7 +149,7 @@ impl Context {
             let p = Arc::clone(&partition);
             let guard = p.lock();
 
-            assert_eq!(partition_id, guard.partition_id());
+            assert_eq!(&partition_id, guard.partition_id());
 
             Self {
                 partition,
@@ -161,7 +157,6 @@ impl Context {
                 namespace_id: guard.namespace_id(),
                 table_id: guard.table_id(),
                 partition_id,
-                partition_hash_id: guard.partition_hash_id().cloned(),
                 partition_key: guard.partition_key().clone(),
                 namespace_name: Arc::clone(guard.namespace_name()),
                 table: Arc::clone(guard.table()),
@@ -292,16 +287,8 @@ impl Context {
         self.table_id
     }
 
-    pub(super) fn partition_id(&self) -> PartitionId {
-        self.partition_id
-    }
-
-    pub(super) fn partition_hash_id(&self) -> Option<PartitionHashId> {
-        self.partition_hash_id.clone()
-    }
-
-    pub(super) fn transition_partition_id(&self) -> TransitionPartitionId {
-        TransitionPartitionId::from((self.partition_id, self.partition_hash_id.as_ref()))
+    pub(super) fn partition_id(&self) -> &TransitionPartitionId {
+        &self.partition_id
     }
 
     pub(super) fn partition_key(&self) -> &PartitionKey {

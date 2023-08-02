@@ -24,7 +24,7 @@ pub struct QuerierParquetChunkMeta {
     /// Sort key.
     sort_key: Option<SortKey>,
 
-    /// Partition ID.
+    /// Partition identifier.
     partition_id: TransitionPartitionId,
 }
 
@@ -39,7 +39,7 @@ impl QuerierParquetChunkMeta {
         self.sort_key.as_ref()
     }
 
-    /// Partition ID.
+    /// Partition identifier.
     pub fn partition_id(&self) -> &TransitionPartitionId {
         &self.partition_id
     }

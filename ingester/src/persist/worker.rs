@@ -278,12 +278,7 @@ where
     let pool = worker_state.exec.pool();
     let (md, file_size) = worker_state
         .store
-        .upload(
-            record_stream,
-            &ctx.transition_partition_id(),
-            &iox_metadata,
-            pool,
-        )
+        .upload(record_stream, ctx.partition_id(), &iox_metadata, pool)
         .await
         .expect("unexpected fatal persist error");
 
@@ -310,12 +305,8 @@ where
 
     // Build the data that must be inserted into the parquet_files catalog
     // table in order to make the file visible to queriers.
-    let parquet_table_data = iox_metadata.to_parquet_file(
-        ctx.partition_id(),
-        ctx.partition_hash_id(),
-        file_size,
-        &md,
-        |name| {
+    let parquet_table_data =
+        iox_metadata.to_parquet_file(ctx.partition_id().clone(), file_size, &md, |name| {
             columns
                 .get(name)
                 .unwrap_or_else(|| {
@@ -325,8 +316,7 @@ where
                     )
                 })
                 .id
-        },
-    );
+        });
 
     (catalog_sort_key_update, parquet_table_data)
 }
@@ -376,11 +366,7 @@ where
                 let mut repos = catalog.repositories().await;
                 match repos
                     .partitions()
-                    .cas_sort_key(
-                        &ctx.transition_partition_id(),
-                        old_sort_key.clone(),
-                        &new_sort_key_str,
-                    )
+                    .cas_sort_key(ctx.partition_id(), old_sort_key.clone(), &new_sort_key_str)
                     .await
                 {
                     Ok(_) => ControlFlow::Break(Ok(())),

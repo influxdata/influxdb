@@ -74,7 +74,7 @@ impl ParquetFileSink for ObjectStoreParquetFileSink {
         let pool = Arc::clone(&self.pool);
         let (parquet_meta, file_size) = match self
             .store
-            .upload(stream, &partition.transition_partition_id(), &meta, pool)
+            .upload(stream, &partition.partition_id(), &meta, pool)
             .await
         {
             Ok(v) => v,
@@ -91,20 +91,15 @@ impl ParquetFileSink for ObjectStoreParquetFileSink {
             }
         };
 
-        let parquet_file = meta.to_parquet_file(
-            partition.partition_id,
-            partition.partition_hash_id.clone(),
-            file_size,
-            &parquet_meta,
-            |name| {
+        let parquet_file =
+            meta.to_parquet_file(partition.partition_id(), file_size, &parquet_meta, |name| {
                 partition
                     .table_schema
                     .columns
                     .get(name)
                     .expect("unknown column")
                     .id
-            },
-        );
+            });
 
         Ok(Some(parquet_file))
     }
