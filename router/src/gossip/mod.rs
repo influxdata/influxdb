@@ -47,3 +47,4 @@
 
 pub mod dispatcher;
 pub mod handle;
+pub mod namespace_cache;
