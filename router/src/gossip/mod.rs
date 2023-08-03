@@ -80,7 +80,6 @@ mod tests {
     };
     use gossip::Dispatcher;
     use test_helpers::timeout::FutureTimeout;
-    use tokio::sync::Mutex;
 
     use crate::namespace_cache::{MemoryNamespaceCache, NamespaceCache};
 
@@ -89,14 +88,14 @@ mod tests {
         schema_change_observer::SchemaChangeObserver, traits::SchemaBroadcast,
     };
 
-    #[derive(Debug, Default)]
+    #[derive(Debug)]
     struct GossipPipe {
-        dispatcher: Mutex<Option<GossipMessageDispatcher>>,
+        dispatcher: GossipMessageDispatcher,
     }
 
     impl GossipPipe {
-        async fn set_dispatcher(&self, dispatcher: GossipMessageDispatcher) {
-            *self.dispatcher.lock().await = Some(dispatcher);
+        fn new(dispatcher: GossipMessageDispatcher) -> Self {
+            Self { dispatcher }
         }
     }
 
@@ -104,14 +103,33 @@ mod tests {
     impl SchemaBroadcast for Arc<GossipPipe> {
         async fn broadcast(&self, payload: Vec<u8>) {
             self.dispatcher
-                .lock()
-                .await
-                .as_mut()
-                .unwrap()
                 .dispatch(payload.into())
                 .with_timeout_panic(Duration::from_secs(5))
                 .await;
         }
+    }
+
+    /// Return a pair of "nodes" (independent caches) layered in the various
+    /// gossip components, with a mock gossip communication layer.
+    fn new_node_pair() -> (impl NamespaceCache, impl NamespaceCache) {
+        // Setup a cache for node A and wrap it in the gossip layer.
+        let node_a_cache = Arc::new(MemoryNamespaceCache::default());
+        let dispatcher_a = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&node_a_cache)));
+        let dispatcher_a = GossipMessageDispatcher::new(dispatcher_a, 100);
+        let gossip_a = Arc::new(GossipPipe::new(dispatcher_a));
+
+        // Setup a cache for node B.
+        let node_b_cache = Arc::new(MemoryNamespaceCache::default());
+        let dispatcher_b = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&node_b_cache)));
+        let dispatcher_b = GossipMessageDispatcher::new(dispatcher_b, 100);
+        let gossip_b = Arc::new(GossipPipe::new(dispatcher_b));
+
+        // Connect the two nodes via adaptors that will plug one "node" into the
+        // other.
+        let node_a = SchemaChangeObserver::new(Arc::clone(&node_a_cache), Arc::clone(&gossip_b));
+        let node_b = SchemaChangeObserver::new(Arc::clone(&node_b_cache), Arc::clone(&gossip_a));
+
+        (node_a, node_b)
     }
 
     // Place a new namespace with a table and column into node A, and check it
@@ -120,26 +138,7 @@ mod tests {
     // This is an integration test of the various schema gossip components.
     #[tokio::test]
     async fn test_integration() {
-        // Two adaptors that will plug one "node" into the other.
-        let gossip_a = Arc::new(GossipPipe::default());
-        let gossip_b = Arc::new(GossipPipe::default());
-
-        // Setup a cache for node A and wrap it in the gossip layer.
-        let node_a_cache = Arc::new(MemoryNamespaceCache::default());
-        let dispatcher_a = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&node_a_cache)));
-        let dispatcher_a = GossipMessageDispatcher::new(dispatcher_a, 100);
-        let node_a = SchemaChangeObserver::new(Arc::clone(&node_a_cache), Arc::clone(&gossip_b));
-
-        // Setup a cache for node B.
-
-        let node_b_cache = Arc::new(MemoryNamespaceCache::default());
-        let dispatcher_b = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&node_b_cache)));
-        let dispatcher_b = GossipMessageDispatcher::new(dispatcher_b, 100);
-        let node_b = SchemaChangeObserver::new(Arc::clone(&node_b_cache), Arc::clone(&gossip_b));
-
-        // Connect them together
-        gossip_a.set_dispatcher(dispatcher_a).await;
-        gossip_b.set_dispatcher(dispatcher_b).await;
+        let (node_a, node_b) = new_node_pair();
 
         // Fill in a table with a column to insert into A
         let mut tables = BTreeMap::new();
@@ -195,26 +194,7 @@ mod tests {
     // As above, but ensuring default partition templates propagate correctly.
     #[tokio::test]
     async fn test_integration_default_partition_templates() {
-        // Two adaptors that will plug one "node" into the other.
-        let gossip_a = Arc::new(GossipPipe::default());
-        let gossip_b = Arc::new(GossipPipe::default());
-
-        // Setup a cache for node A and wrap it in the gossip layer.
-        let node_a_cache = Arc::new(MemoryNamespaceCache::default());
-        let dispatcher_a = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&node_a_cache)));
-        let dispatcher_a = GossipMessageDispatcher::new(dispatcher_a, 100);
-        let node_a = SchemaChangeObserver::new(Arc::clone(&node_a_cache), Arc::clone(&gossip_b));
-
-        // Setup a cache for node B.
-
-        let node_b_cache = Arc::new(MemoryNamespaceCache::default());
-        let dispatcher_b = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&node_b_cache)));
-        let dispatcher_b = GossipMessageDispatcher::new(dispatcher_b, 100);
-        let node_b = SchemaChangeObserver::new(Arc::clone(&node_b_cache), Arc::clone(&gossip_b));
-
-        // Connect them together
-        gossip_a.set_dispatcher(dispatcher_a).await;
-        gossip_b.set_dispatcher(dispatcher_b).await;
+        let (node_a, node_b) = new_node_pair();
 
         // Fill in a table with a column to insert into A
         let mut tables = BTreeMap::new();
