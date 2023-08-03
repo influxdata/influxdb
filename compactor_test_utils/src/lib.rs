@@ -145,7 +145,6 @@ impl TestSetupBuilder<false> {
             partition_timeout: Duration::from_secs(3_600),
             shadow_mode: false,
             enable_scratchpad: true,
-            ignore_partition_skip_marker: false,
             min_num_l1_files_to_compact: MIN_NUM_L1_FILES_TO_COMPACT,
             process_once: true,
             simulate_without_object_store: false,

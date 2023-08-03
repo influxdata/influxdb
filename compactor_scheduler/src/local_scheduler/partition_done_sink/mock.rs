@@ -19,7 +19,7 @@ impl MockPartitionDoneSink {
     }
 
     /// Get the last recorded results.
-    #[allow(dead_code)] // used for testing
+    #[cfg(test)]
     pub(crate) fn results(&self) -> HashMap<PartitionId, Result<(), String>> {
         self.last.lock().clone()
     }

@@ -174,16 +174,6 @@ pub struct CompactorConfig {
     )]
     pub enable_scratchpad: bool,
 
-    /// Ignores "partition marked w/ error and shall be skipped" entries in the catalog.
-    ///
-    /// This is mostly useful for debugging.
-    #[clap(
-        long = "compaction-ignore-partition-skip-marker",
-        env = "INFLUXDB_IOX_COMPACTION_IGNORE_PARTITION_SKIP_MARKER",
-        action
-    )]
-    pub ignore_partition_skip_marker: bool,
-
     /// Maximum number of files that the compactor will try and
     /// compact in a single plan.
     ///

@@ -58,8 +58,7 @@ use super::{
         greater_size_matching_files::GreaterSizeMatchingFilesPartitionFilter,
         has_files::HasFilesPartitionFilter, has_matching_file::HasMatchingFilePartitionFilter,
         logging::LoggingPartitionFilterWrapper, max_num_columns::MaxNumColumnsPartitionFilter,
-        metrics::MetricsPartitionFilterWrapper, never_skipped::NeverSkippedPartitionFilter,
-        or::OrPartitionFilter, PartitionFilter,
+        metrics::MetricsPartitionFilterWrapper, or::OrPartitionFilter, PartitionFilter,
     },
     partition_info_source::{sub_sources::SubSourcePartitionInfoSource, PartitionInfoSource},
     partition_source::{
@@ -74,7 +73,6 @@ use super::{
     round_info_source::{LevelBasedRoundInfo, LoggingRoundInfoWrapper, RoundInfoSource},
     round_split::many_files::ManyFilesRoundSplit,
     scratchpad::{noop::NoopScratchpadGen, prod::ProdScratchpadGen, ScratchpadGen},
-    skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
     split_or_compact::{
         logging::LoggingSplitOrCompactWrapper, metrics::MetricsSplitOrCompactWrapper,
         split_compact::SplitCompact,
@@ -246,15 +244,6 @@ fn exceptional_cases_partition_filters(config: &Config) -> Vec<Arc<dyn Partition
     // Capacity is hardcoded to a somewhat arbitrary number to prevent some reallocations
     let mut partition_filters: Vec<Arc<dyn PartitionFilter>> = Vec::with_capacity(8);
     partition_filters.push(Arc::new(HasFilesPartitionFilter::new()));
-
-    if !config.ignore_partition_skip_marker {
-        partition_filters.push(Arc::new(NeverSkippedPartitionFilter::new(
-            CatalogSkippedCompactionsSource::new(
-                config.backoff_config.clone(),
-                Arc::clone(&config.catalog),
-            ),
-        )));
-    }
 
     partition_filters.push(Arc::new(MaxNumColumnsPartitionFilter::new(
         config.max_num_columns_per_table,

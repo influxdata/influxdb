@@ -25,7 +25,6 @@ pub(crate) struct MockCommit {
 }
 
 impl MockCommit {
-    #[allow(dead_code)] // not used anywhere
     pub(crate) fn new() -> Self {
         Self {
             history: Default::default(),
@@ -33,7 +32,7 @@ impl MockCommit {
         }
     }
 
-    #[allow(dead_code)] // not used anywhere
+    #[cfg(test)]
     pub(crate) fn history(&self) -> Vec<CommitHistoryEntry> {
         self.history.lock().clone()
     }

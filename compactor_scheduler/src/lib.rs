@@ -100,6 +100,7 @@ pub fn create_test_scheduler(
                 partition_ids.into_iter().collect::<HashSet<PartitionId>>(),
             ),
             shard_config: None,
+            ignore_partition_skip_marker: false,
         }),
     };
     create_scheduler(

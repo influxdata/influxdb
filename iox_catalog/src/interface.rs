@@ -429,11 +429,11 @@ pub trait PartitionRepo: Send + Sync {
         limit_bytes: u64,
     ) -> Result<()>;
 
-    /// Get the record of a partition being skipped.
-    async fn get_in_skipped_compaction(
+    /// Get the record of partitions being skipped.
+    async fn get_in_skipped_compactions(
         &mut self,
-        partition_id: PartitionId,
-    ) -> Result<Option<SkippedCompaction>>;
+        partition_id: &[PartitionId],
+    ) -> Result<Vec<SkippedCompaction>>;
 
     /// List the records of compacting a partition being skipped. This is mostly useful for testing.
     async fn list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>>;
@@ -1485,37 +1485,52 @@ pub(crate) mod test_helpers {
         let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
 
         let mut created = BTreeMap::new();
-        for key in ["foo", "bar"] {
-            let partition = repos
-                .partitions()
-                .create_or_get(key.into(), table.id)
-                .await
-                .expect("failed to create partition");
-            created.insert(partition.id, partition);
-        }
-        let other_partition = repos
+        // partition to use
+        let partition = repos
+            .partitions()
+            .create_or_get("foo".into(), table.id)
+            .await
+            .expect("failed to create partition");
+        created.insert(partition.id, partition.clone());
+        // partition to use
+        let partition_bar = repos
+            .partitions()
+            .create_or_get("bar".into(), table.id)
+            .await
+            .expect("failed to create partition");
+        created.insert(partition_bar.id, partition_bar);
+        // partition to be skipped later
+        let to_skip_partition = repos
             .partitions()
             .create_or_get("asdf".into(), table.id)
             .await
             .unwrap();
+        created.insert(to_skip_partition.id, to_skip_partition.clone());
+        // partition to be skipped later
+        let to_skip_partition_too = repos
+            .partitions()
+            .create_or_get("asdf too".into(), table.id)
+            .await
+            .unwrap();
+        created.insert(to_skip_partition_too.id, to_skip_partition_too.clone());
 
         // partitions can be retrieved easily
         let mut created_sorted = created.values().cloned().collect::<Vec<_>>();
         created_sorted.sort_by_key(|p| p.id);
         assert_eq!(
-            other_partition,
+            to_skip_partition,
             repos
                 .partitions()
-                .get_by_id(other_partition.id)
+                .get_by_id(to_skip_partition.id)
                 .await
                 .unwrap()
                 .unwrap()
         );
         assert_eq!(
-            other_partition,
+            to_skip_partition,
             repos
                 .partitions()
-                .get_by_hash_id(other_partition.hash_id().unwrap())
+                .get_by_hash_id(to_skip_partition.hash_id().unwrap())
                 .await
                 .unwrap()
                 .unwrap()
@@ -1571,7 +1586,6 @@ pub(crate) mod test_helpers {
             .map(|v| (v.id, v))
             .collect::<BTreeMap<_, _>>();
 
-        created.insert(other_partition.id, other_partition.clone());
         assert_eq!(created, listed);
 
         let listed = repos
@@ -1585,13 +1599,13 @@ pub(crate) mod test_helpers {
         assert_eq!(created.keys().copied().collect::<BTreeSet<_>>(), listed);
 
         // sort_key should be empty on creation
-        assert!(other_partition.sort_key.is_empty());
+        assert!(to_skip_partition.sort_key.is_empty());
 
         // test update_sort_key from None to Some
         repos
             .partitions()
             .cas_sort_key(
-                &other_partition.transition_partition_id(),
+                &to_skip_partition.transition_partition_id(),
                 None,
                 &["tag2", "tag1", "time"],
             )
@@ -1602,7 +1616,7 @@ pub(crate) mod test_helpers {
         let err = repos
             .partitions()
             .cas_sort_key(
-                &other_partition.transition_partition_id(),
+                &to_skip_partition.transition_partition_id(),
                 Some(["bananas".to_string()].to_vec()),
                 &["tag2", "tag1", "tag3 , with comma", "time"],
             )
@@ -1615,7 +1629,7 @@ pub(crate) mod test_helpers {
         // test getting the new sort key
         let updated_other_partition = repos
             .partitions()
-            .get_by_id(other_partition.id)
+            .get_by_id(to_skip_partition.id)
             .await
             .unwrap()
             .unwrap();
@@ -1625,7 +1639,7 @@ pub(crate) mod test_helpers {
         );
         let updated_other_partition = repos
             .partitions()
-            .get_by_hash_id(other_partition.hash_id().unwrap())
+            .get_by_hash_id(to_skip_partition.hash_id().unwrap())
             .await
             .unwrap()
             .unwrap();
@@ -1638,7 +1652,7 @@ pub(crate) mod test_helpers {
         let err = repos
             .partitions()
             .cas_sort_key(
-                &other_partition.transition_partition_id(),
+                &to_skip_partition.transition_partition_id(),
                 None,
                 &["tag2", "tag1", "tag3 , with comma", "time"],
             )
@@ -1652,7 +1666,7 @@ pub(crate) mod test_helpers {
         let err = repos
             .partitions()
             .cas_sort_key(
-                &other_partition.transition_partition_id(),
+                &to_skip_partition.transition_partition_id(),
                 Some(["bananas".to_string()].to_vec()),
                 &["tag2", "tag1", "tag3 , with comma", "time"],
             )
@@ -1666,7 +1680,7 @@ pub(crate) mod test_helpers {
         repos
             .partitions()
             .cas_sort_key(
-                &other_partition.transition_partition_id(),
+                &to_skip_partition.transition_partition_id(),
                 Some(
                     ["tag2", "tag1", "time"]
                         .into_iter()
@@ -1681,7 +1695,7 @@ pub(crate) mod test_helpers {
         // test getting the new sort key
         let updated_other_partition = repos
             .partitions()
-            .get_by_id(other_partition.id)
+            .get_by_id(to_skip_partition.id)
             .await
             .unwrap()
             .unwrap();
@@ -1691,7 +1705,7 @@ pub(crate) mod test_helpers {
         );
         let updated_other_partition = repos
             .partitions()
-            .get_by_hash_id(other_partition.hash_id().unwrap())
+            .get_by_hash_id(to_skip_partition.hash_id().unwrap())
             .await
             .unwrap()
             .unwrap();
@@ -1708,78 +1722,158 @@ pub(crate) mod test_helpers {
         );
         repos
             .partitions()
-            .record_skipped_compaction(other_partition.id, "I am le tired", 1, 2, 4, 10, 20)
+            .record_skipped_compaction(to_skip_partition.id, "I am le tired", 1, 2, 4, 10, 20)
             .await
             .unwrap();
         let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
         assert_eq!(skipped_compactions.len(), 1);
-        assert_eq!(skipped_compactions[0].partition_id, other_partition.id);
+        assert_eq!(skipped_compactions[0].partition_id, to_skip_partition.id);
         assert_eq!(skipped_compactions[0].reason, "I am le tired");
         assert_eq!(skipped_compactions[0].num_files, 1);
         assert_eq!(skipped_compactions[0].limit_num_files, 2);
         assert_eq!(skipped_compactions[0].estimated_bytes, 10);
         assert_eq!(skipped_compactions[0].limit_bytes, 20);
         //
-        let skipped_partition_record = repos
+        let skipped_partition_records = repos
             .partitions()
-            .get_in_skipped_compaction(other_partition.id)
+            .get_in_skipped_compactions(&[to_skip_partition.id])
             .await
-            .unwrap()
             .unwrap();
-        assert_eq!(skipped_partition_record.partition_id, other_partition.id);
-        assert_eq!(skipped_partition_record.reason, "I am le tired");
+        assert_eq!(
+            skipped_partition_records[0].partition_id,
+            to_skip_partition.id
+        );
+        assert_eq!(skipped_partition_records[0].reason, "I am le tired");
 
         // Only save the last reason that any particular partition was skipped (really if the
         // partition appears in the skipped compactions, it shouldn't become a compaction candidate
         // again, but race conditions and all that)
         repos
             .partitions()
-            .record_skipped_compaction(other_partition.id, "I'm on fire", 11, 12, 24, 110, 120)
+            .record_skipped_compaction(to_skip_partition.id, "I'm on fire", 11, 12, 24, 110, 120)
             .await
             .unwrap();
         let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
         assert_eq!(skipped_compactions.len(), 1);
-        assert_eq!(skipped_compactions[0].partition_id, other_partition.id);
+        assert_eq!(skipped_compactions[0].partition_id, to_skip_partition.id);
         assert_eq!(skipped_compactions[0].reason, "I'm on fire");
         assert_eq!(skipped_compactions[0].num_files, 11);
         assert_eq!(skipped_compactions[0].limit_num_files, 12);
         assert_eq!(skipped_compactions[0].estimated_bytes, 110);
         assert_eq!(skipped_compactions[0].limit_bytes, 120);
         //
-        let skipped_partition_record = repos
+        let skipped_partition_records = repos
             .partitions()
-            .get_in_skipped_compaction(other_partition.id)
+            .get_in_skipped_compactions(&[to_skip_partition.id])
             .await
-            .unwrap()
             .unwrap();
-        assert_eq!(skipped_partition_record.partition_id, other_partition.id);
-        assert_eq!(skipped_partition_record.reason, "I'm on fire");
+        assert_eq!(
+            skipped_partition_records[0].partition_id,
+            to_skip_partition.id
+        );
+        assert_eq!(skipped_partition_records[0].reason, "I'm on fire");
 
-        // Delete the skipped compaction
+        // Can receive multiple skipped compactions for different partitions
+        repos
+            .partitions()
+            .record_skipped_compaction(
+                to_skip_partition_too.id,
+                "I am le tired too",
+                1,
+                2,
+                4,
+                10,
+                20,
+            )
+            .await
+            .unwrap();
+        let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
+        assert_eq!(skipped_compactions.len(), 2);
+        assert_eq!(skipped_compactions[0].partition_id, to_skip_partition.id);
+        assert_eq!(
+            skipped_compactions[1].partition_id,
+            to_skip_partition_too.id
+        );
+        // confirm can fetch subset of skipped compactions (a.k.a. have two, only fetch 1)
+        let skipped_partition_records = repos
+            .partitions()
+            .get_in_skipped_compactions(&[to_skip_partition.id])
+            .await
+            .unwrap();
+        assert_eq!(skipped_partition_records.len(), 1);
+        assert_eq!(skipped_compactions[0].partition_id, to_skip_partition.id);
+        let skipped_partition_records = repos
+            .partitions()
+            .get_in_skipped_compactions(&[to_skip_partition_too.id])
+            .await
+            .unwrap();
+        assert_eq!(skipped_partition_records.len(), 1);
+        assert_eq!(
+            skipped_partition_records[0].partition_id,
+            to_skip_partition_too.id
+        );
+        // confirm can fetch both skipped compactions, and not the unskipped one
+        // also confirm will not error on non-existing partition
+        let non_existing_partition_id = PartitionId::new(9999);
+        let skipped_partition_records = repos
+            .partitions()
+            .get_in_skipped_compactions(&[
+                partition.id,
+                to_skip_partition.id,
+                to_skip_partition_too.id,
+                non_existing_partition_id,
+            ])
+            .await
+            .unwrap();
+        assert_eq!(skipped_partition_records.len(), 2);
+        assert_eq!(
+            skipped_partition_records[0].partition_id,
+            to_skip_partition.id
+        );
+        assert_eq!(
+            skipped_partition_records[1].partition_id,
+            to_skip_partition_too.id
+        );
+
+        // Delete the skipped compactions
         let deleted_skipped_compaction = repos
             .partitions()
-            .delete_skipped_compactions(other_partition.id)
+            .delete_skipped_compactions(to_skip_partition.id)
             .await
             .unwrap()
             .expect("The skipped compaction should have been returned");
-
-        assert_eq!(deleted_skipped_compaction.partition_id, other_partition.id);
+        assert_eq!(
+            deleted_skipped_compaction.partition_id,
+            to_skip_partition.id
+        );
         assert_eq!(deleted_skipped_compaction.reason, "I'm on fire");
         assert_eq!(deleted_skipped_compaction.num_files, 11);
         assert_eq!(deleted_skipped_compaction.limit_num_files, 12);
         assert_eq!(deleted_skipped_compaction.estimated_bytes, 110);
         assert_eq!(deleted_skipped_compaction.limit_bytes, 120);
         //
-        let skipped_partition_record = repos
+        let deleted_skipped_compaction = repos
             .partitions()
-            .get_in_skipped_compaction(other_partition.id)
+            .delete_skipped_compactions(to_skip_partition_too.id)
+            .await
+            .unwrap()
+            .expect("The skipped compaction should have been returned");
+        assert_eq!(
+            deleted_skipped_compaction.partition_id,
+            to_skip_partition_too.id
+        );
+        assert_eq!(deleted_skipped_compaction.reason, "I am le tired too");
+        //
+        let skipped_partition_records = repos
+            .partitions()
+            .get_in_skipped_compactions(&[to_skip_partition.id])
             .await
             .unwrap();
-        assert!(skipped_partition_record.is_none());
+        assert!(skipped_partition_records.is_empty());
 
         let not_deleted_skipped_compaction = repos
             .partitions()
-            .delete_skipped_compactions(other_partition.id)
+            .delete_skipped_compactions(to_skip_partition.id)
             .await
             .unwrap();
 
@@ -1799,14 +1893,14 @@ pub(crate) mod test_helpers {
             .most_recent_n(10)
             .await
             .expect("should list most recent");
-        assert_eq!(recent.len(), 3);
+        assert_eq!(recent.len(), 4);
 
         let recent = repos
             .partitions()
-            .most_recent_n(3)
+            .most_recent_n(4)
             .await
             .expect("should list most recent");
-        assert_eq!(recent.len(), 3);
+        assert_eq!(recent.len(), 4); // no off by one error
 
         let recent = repos
             .partitions()

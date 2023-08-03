@@ -2,19 +2,19 @@ use std::{fmt::Display, sync::Arc};
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{PartitionId, SkippedCompaction};
+use data_types::PartitionId;
 use iox_catalog::interface::Catalog;
 
-use super::SkippedCompactionsSource;
+use super::PartitionsSubsetSource;
 
 #[derive(Debug)]
-pub struct CatalogSkippedCompactionsSource {
+pub(crate) struct SkippedPartitionsSource {
     backoff_config: BackoffConfig,
     catalog: Arc<dyn Catalog>,
 }
 
-impl CatalogSkippedCompactionsSource {
-    pub fn new(backoff_config: BackoffConfig, catalog: Arc<dyn Catalog>) -> Self {
+impl SkippedPartitionsSource {
+    pub(crate) fn new(backoff_config: BackoffConfig, catalog: Arc<dyn Catalog>) -> Self {
         Self {
             backoff_config,
             catalog,
@@ -22,25 +22,28 @@ impl CatalogSkippedCompactionsSource {
     }
 }
 
-impl Display for CatalogSkippedCompactionsSource {
+impl Display for SkippedPartitionsSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "catalog")
+        write!(f, "skipped_partitions_catalog")
     }
 }
 
 #[async_trait]
-impl SkippedCompactionsSource for CatalogSkippedCompactionsSource {
-    async fn fetch(&self, partition: PartitionId) -> Option<SkippedCompaction> {
+impl PartitionsSubsetSource for SkippedPartitionsSource {
+    async fn fetch(&self, partitions: &[PartitionId]) -> Vec<PartitionId> {
         Backoff::new(&self.backoff_config)
-            .retry_all_errors("skipped_compaction_of_given_partition", || async {
+            .retry_all_errors("skipped_compaction_of_given_partitions", || async {
                 self.catalog
                     .repositories()
                     .await
                     .partitions()
-                    .get_in_skipped_compaction(partition)
+                    .get_in_skipped_compactions(partitions)
                     .await
             })
             .await
             .expect("retry forever")
+            .iter()
+            .map(|sc| sc.partition_id)
+            .collect()
     }
 }

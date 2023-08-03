@@ -1116,24 +1116,21 @@ skipped_at = EXCLUDED.skipped_at;
         Ok(())
     }
 
-    async fn get_in_skipped_compaction(
+    async fn get_in_skipped_compactions(
         &mut self,
-        partition_id: PartitionId,
-    ) -> Result<Option<SkippedCompaction>> {
-        let rec = sqlx::query_as::<_, SkippedCompaction>(
-            r#"SELECT * FROM skipped_compactions WHERE partition_id = $1;"#,
+        partition_ids: &[PartitionId],
+    ) -> Result<Vec<SkippedCompaction>> {
+        let ids = partition_ids.iter().map(|p| p.get()).collect::<Vec<_>>();
+        let rec = sqlx::query_as::<sqlx::sqlite::Sqlite, SkippedCompaction>(
+            r#"SELECT * FROM skipped_compactions WHERE partition_id IN (SELECT value FROM json_each($1));"#,
         )
-        .bind(partition_id) // $1
-        .fetch_one(self.inner.get_mut())
+        .bind(Json(&ids[..]))
+        .fetch_all(self.inner.get_mut())
         .await;
 
-        if let Err(sqlx::Error::RowNotFound) = rec {
-            return Ok(None);
-        }
+        let skipped_partition_records = rec.map_err(|e| Error::SqlxError { source: e })?;
 
-        let skipped_partition_record = rec.map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(Some(skipped_partition_record))
+        Ok(skipped_partition_records)
     }
 
     async fn list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>> {

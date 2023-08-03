@@ -6,3 +6,4 @@
 pub(crate) mod catalog_all;
 pub(crate) mod catalog_to_compact;
 pub(crate) mod filter;
+pub(crate) mod never_skipped;

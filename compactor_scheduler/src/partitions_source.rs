@@ -47,7 +47,7 @@ mod mock {
         }
 
         /// Set PartitionIds for MockPartitionsSource.
-        #[allow(dead_code)] // not used anywhere
+        #[cfg(test)]
         pub(crate) fn set(&self, partitions: Vec<PartitionId>) {
             *self.partitions.lock() = partitions;
         }

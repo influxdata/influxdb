@@ -180,7 +180,6 @@ pub async fn create_compactor_server_type(
         partition_timeout: Duration::from_secs(compactor_config.partition_timeout_secs),
         shadow_mode: compactor_config.shadow_mode,
         enable_scratchpad: compactor_config.enable_scratchpad,
-        ignore_partition_skip_marker: compactor_config.ignore_partition_skip_marker,
         min_num_l1_files_to_compact: compactor_config.min_num_l1_files_to_compact,
         process_once: compactor_config.process_once,
         simulate_without_object_store: false,

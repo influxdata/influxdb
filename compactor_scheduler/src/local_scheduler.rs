@@ -5,6 +5,7 @@ pub(crate) mod id_only_partition_filter;
 pub(crate) mod partition_done_sink;
 pub(crate) mod partitions_source;
 pub(crate) mod partitions_source_config;
+pub(crate) mod partitions_subset_source;
 pub(crate) mod shard_config;
 
 use std::{sync::Arc, time::Duration};
@@ -35,8 +36,9 @@ use self::{
     partitions_source::{
         catalog_all::CatalogAllPartitionsSource,
         catalog_to_compact::CatalogToCompactPartitionsSource,
-        filter::FilterPartitionsSourceWrapper,
+        filter::FilterPartitionsSourceWrapper, never_skipped::NeverSkippedPartitionsSource,
     },
+    partitions_subset_source::skipped::SkippedPartitionsSource,
 };
 
 /// Configuration specific to the local scheduler.
@@ -50,6 +52,8 @@ pub struct LocalSchedulerConfig {
     pub partitions_source_config: PartitionsSourceConfig,
     /// The shard config used by the local sceduler.
     pub shard_config: Option<ShardConfig>,
+    /// If skipped partitions should be removed from the partitions_source.
+    pub ignore_partition_skip_marker: bool,
 }
 
 /// Implementation of the scheduler for local (per compactor) scheduling.
@@ -116,23 +120,32 @@ impl LocalScheduler {
         time_provider: Arc<dyn TimeProvider>,
     ) -> Arc<dyn PartitionsSource> {
         let shard_config = config.shard_config;
-        let partitions_source: Arc<dyn PartitionsSource> = match &config.partitions_source_config {
-            PartitionsSourceConfig::CatalogRecentWrites { threshold } => {
-                Arc::new(CatalogToCompactPartitionsSource::new(
-                    backoff_config,
+
+        let mut partitions_source: Arc<dyn PartitionsSource> =
+            match &config.partitions_source_config {
+                PartitionsSourceConfig::CatalogRecentWrites { threshold } => {
+                    Arc::new(CatalogToCompactPartitionsSource::new(
+                        backoff_config.clone(),
+                        Arc::clone(&catalog),
+                        *threshold,
+                        None, // Recent writes is `threshold` ago to now
+                        time_provider,
+                    ))
+                }
+                PartitionsSourceConfig::CatalogAll => Arc::new(CatalogAllPartitionsSource::new(
+                    backoff_config.clone(),
                     Arc::clone(&catalog),
-                    *threshold,
-                    None, // Recent writes is `threshold` ago to now
-                    time_provider,
-                ))
-            }
-            PartitionsSourceConfig::CatalogAll => Arc::new(CatalogAllPartitionsSource::new(
-                backoff_config,
-                Arc::clone(&catalog),
-            )),
-            PartitionsSourceConfig::Fixed(ids) => {
-                Arc::new(MockPartitionsSource::new(ids.iter().cloned().collect()))
-            }
+                )),
+                PartitionsSourceConfig::Fixed(ids) => {
+                    Arc::new(MockPartitionsSource::new(ids.iter().cloned().collect()))
+                }
+            };
+
+        if !config.ignore_partition_skip_marker {
+            partitions_source = Arc::new(NeverSkippedPartitionsSource::new(
+                partitions_source,
+                SkippedPartitionsSource::new(backoff_config, Arc::clone(&catalog)),
+            ));
         };
 
         let mut id_only_partition_filters: Vec<Arc<dyn IdOnlyPartitionFilter>> = vec![];
@@ -323,6 +336,7 @@ mod tests {
             commit_wrapper: None,
             partitions_source_config: PartitionsSourceConfig::default(),
             shard_config,
+            ignore_partition_skip_marker: false,
         };
 
         let scheduler = LocalScheduler::new(

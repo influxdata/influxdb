@@ -13,7 +13,6 @@ pub mod has_matching_file;
 pub mod logging;
 pub mod max_num_columns;
 pub mod metrics;
-pub mod never_skipped;
 pub mod or;
 
 /// Filters partition based on ID and Parquet files.

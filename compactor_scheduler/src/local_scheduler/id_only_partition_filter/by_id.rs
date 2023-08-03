@@ -12,7 +12,7 @@ pub(crate) struct ByIdPartitionFilter {
 }
 
 impl ByIdPartitionFilter {
-    #[allow(dead_code)] // not used anywhere
+    #[cfg(test)]
     pub(crate) fn new(ids: HashSet<PartitionId>) -> Self {
         Self { ids }
     }

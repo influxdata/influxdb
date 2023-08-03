@@ -511,7 +511,6 @@ impl Config {
             partition_timeout_secs: 30 * 60, // 30 minutes
             shadow_mode: false,
             enable_scratchpad: true,
-            ignore_partition_skip_marker: false,
             min_num_l1_files_to_compact: 1,
             process_once: false,
             max_num_columns_per_table: 200,

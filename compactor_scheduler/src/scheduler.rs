@@ -25,6 +25,7 @@ impl SchedulerConfig {
             shard_config: None,
             partitions_source_config: PartitionsSourceConfig::default(),
             commit_wrapper: Some(commit_wrapper),
+            ignore_partition_skip_marker: false,
         })
     }
 }
@@ -42,6 +43,7 @@ impl std::fmt::Display for SchedulerConfig {
                 commit_wrapper,
                 shard_config,
                 partitions_source_config: _,
+                ignore_partition_skip_marker: _,
             }) => match (&shard_config, commit_wrapper) {
                 (None, None) => write!(f, "local_compaction_scheduler_cfg"),
                 (Some(shard_config), None) => {

@@ -188,26 +188,25 @@ async fn test_what_skip_request_does() {
     // mark partition as skipped (also completes the job)
     helpers::can_do_skip_request(Arc::clone(&scheduler), jobs[0].clone()).await;
 
-    // TEST: partition still appears in get_jobs()
-    // todo: plan to update this behavior. Move compactor skip-filtering to scheduler.
+    // skipped partitions are no longer available
     jobs = scheduler.get_jobs().await;
     assert_matches!(
         jobs[..],
-        [CompactionJob { partition_id, .. }] if partition_id == expected_partition,
-        "expect partition is still available in get_jobs() (because skip-filtering is compactor-side), instead found {:?}", jobs
+        [],
+        "expect partition is not returned from get_jobs(), instead found {:?}",
+        jobs
     );
 
-    // but partition in catalog is marked as skipped
-    // will be consumed in compactor `SkippedCompactionsSource`
+    // confirm is marked as skipped in catalog
     let catalog_marked_as_skipped = catalog
         .repositories()
         .await
         .partitions()
-        .get_in_skipped_compaction(expected_partition)
+        .get_in_skipped_compactions(&[expected_partition])
         .await;
     assert_matches!(
-        catalog_marked_as_skipped,
-        Ok(Some(SkippedCompaction { partition_id, .. })) if partition_id == expected_partition,
+        catalog_marked_as_skipped.as_deref(),
+        Ok([SkippedCompaction { partition_id, .. }]) if *partition_id == expected_partition,
         "expect partition should be marked as skipped in catalog, instead found {:?}", catalog_marked_as_skipped
     );
 }

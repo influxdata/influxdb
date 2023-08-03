@@ -16,6 +16,7 @@ fn convert_partitions_source_config(
         partition_filter,
         process_all_partitions,
         compaction_partition_minute_threshold,
+        ignore_partition_skip_marker: _,
     } = config;
 
     match (partition_filter, process_all_partitions) {
@@ -68,9 +69,12 @@ pub(crate) fn convert_scheduler_config(config: CompactorSchedulerConfig) -> Sche
         CompactorSchedulerType::Local => SchedulerConfig::Local(LocalSchedulerConfig {
             commit_wrapper: None,
             partitions_source_config: convert_partitions_source_config(
-                config.partition_source_config,
+                config.partition_source_config.clone(),
             ),
             shard_config: convert_shard_config(config.shard_config),
+            ignore_partition_skip_marker: config
+                .partition_source_config
+                .ignore_partition_skip_marker,
         }),
         CompactorSchedulerType::Remote => unimplemented!("Remote scheduler not implemented"),
     }
@@ -89,6 +93,7 @@ mod tests {
             compaction_partition_minute_threshold: 10,
             partition_filter: Some(vec![1, 7]),
             process_all_partitions: true,
+            ignore_partition_skip_marker: false,
         };
         convert_partitions_source_config(config);
     }
@@ -99,6 +104,7 @@ mod tests {
             compaction_partition_minute_threshold: 10,
             partition_filter: Some(vec![1, 7]),
             process_all_partitions: false,
+            ignore_partition_skip_marker: false,
         };
         let partitions_source_config = convert_partitions_source_config(config);
 
@@ -114,6 +120,7 @@ mod tests {
             compaction_partition_minute_threshold: 10,
             partition_filter: None,
             process_all_partitions: true,
+            ignore_partition_skip_marker: false,
         };
         let partitions_source_config = convert_partitions_source_config(config);
 
@@ -126,6 +133,7 @@ mod tests {
             compaction_partition_minute_threshold: 10,
             partition_filter: None,
             process_all_partitions: false,
+            ignore_partition_skip_marker: false,
         };
         let partitions_source_config = convert_partitions_source_config(config);
 

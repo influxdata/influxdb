@@ -98,11 +98,6 @@ pub struct Config {
     /// This is useful for disabling the scratchpad in production to evaluate the performance & memory impacts.
     pub enable_scratchpad: bool,
 
-    /// Ignores "partition marked w/ error and shall be skipped" entries in the catalog.
-    ///
-    /// This is mostly useful for debugging.
-    pub ignore_partition_skip_marker: bool,
-
     /// Minimum number of L1 files to compact to L2
     /// This is to prevent too many small files
     pub min_num_l1_files_to_compact: usize,

@@ -1413,24 +1413,24 @@ skipped_at = EXCLUDED.skipped_at;
         Ok(())
     }
 
-    async fn get_in_skipped_compaction(
+    async fn get_in_skipped_compactions(
         &mut self,
-        partition_id: PartitionId,
-    ) -> Result<Option<SkippedCompaction>> {
+        partition_ids: &[PartitionId],
+    ) -> Result<Vec<SkippedCompaction>> {
         let rec = sqlx::query_as::<_, SkippedCompaction>(
-            r#"SELECT * FROM skipped_compactions WHERE partition_id = $1;"#,
+            r#"SELECT * FROM skipped_compactions WHERE partition_id = ANY($1);"#,
         )
-        .bind(partition_id) // $1
-        .fetch_one(&mut self.inner)
+        .bind(partition_ids) // $1
+        .fetch_all(&mut self.inner)
         .await;
 
         if let Err(sqlx::Error::RowNotFound) = rec {
-            return Ok(None);
+            return Ok(Vec::new());
         }
 
-        let skipped_partition_record = rec.map_err(|e| Error::SqlxError { source: e })?;
+        let skipped_partition_records = rec.map_err(|e| Error::SqlxError { source: e })?;
 
-        Ok(Some(skipped_partition_record))
+        Ok(skipped_partition_records)
     }
 
     async fn list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>> {
