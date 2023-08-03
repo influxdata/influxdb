@@ -42,7 +42,7 @@ use crate::{
 /// these queries should be minimised.
 ///
 /// By building a bloom filter containing the set of all old-style partitions at
-/// startup, the number of hot-path queries can be be reduced to ~0 for new
+/// startup, the number of hot-path queries can be reduced to ~0 for new
 /// partitions by not performing a query if the bloom filter does not contain
 /// the requested partition. This eliminates queries in the hot path for a large
 /// majority of the workload (all non-backfill workloads).
@@ -159,7 +159,7 @@ where
                 "identified as hash-ID addressed partition"
             );
 
-            // This partition definitely is NOT and old-style / row-ID-addressed
+            // This partition definitely is NOT an old-style / row-ID-addressed
             // partition.
             //
             // This partition definitely does not exist in the set, so it MUST
@@ -391,7 +391,7 @@ mod tests {
         );
         let want_id = p.transition_partition_id().clone();
 
-        // Initialise a filter with the target partition.
+        // Initialise a filter not containing the target partition.
         let metrics = Arc::new(metric::Registry::default());
         let filter = OldPartitionBloomFilter::new(
             catalog,
@@ -404,7 +404,7 @@ mod tests {
 
         // Ask the filter for the partition.
         //
-        // If the filter is successful and determining this is a hash ID, no
+        // If the filter is successful in determining this is a hash ID, no
         // panic will occur. If not, the mock will be asked for the partition it
         // doesn't know about, and it'll panic.
         let got = filter
