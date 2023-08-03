@@ -1,6 +1,6 @@
 //! [`NamespaceCache`] decorator to gossip schema changes.
 
-use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
+use std::{borrow::Cow, collections::BTreeMap, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{
@@ -11,16 +11,16 @@ use data_types::{
 use generated_types::influxdata::iox::gossip::v1::{
     gossip_message::Msg, NamespaceCreated, TableCreated, TableUpdated,
 };
-use observability_deps::tracing::{debug, error, warn};
+use observability_deps::tracing::{debug, error, trace, warn};
 use thiserror::Error;
 
-use crate::namespace_cache::{CacheMissErr, ChangeStats, NamespaceCache};
+use crate::namespace_cache::{CacheMissErr, NamespaceCache};
 
 use super::dispatcher::GossipMessageHandler;
 
 /// Errors caused by incoming schema gossip messages from cluster peers.
 #[derive(Debug, Error)]
-enum IncomingError {
+enum Error {
     #[error("table create contains no table information")]
     MissingTableUpdate,
 
@@ -51,41 +51,18 @@ pub struct NamespaceSchemaGossip<C> {
     inner: C,
 }
 
-/// A pass-through [`NamespaceCache`] implementation that gossips new schema
-/// additions.
-#[async_trait]
-impl<C> NamespaceCache for NamespaceSchemaGossip<C>
-where
-    C: NamespaceCache,
-{
-    type ReadError = C::ReadError;
-
-    async fn get_schema(
-        &self,
-        namespace: &NamespaceName<'static>,
-    ) -> Result<Arc<NamespaceSchema>, Self::ReadError> {
-        self.inner.get_schema(namespace).await
-    }
-
-    fn put_schema(
-        &self,
-        namespace: NamespaceName<'static>,
-        schema: NamespaceSchema,
-    ) -> (Arc<NamespaceSchema>, ChangeStats) {
-        self.inner.put_schema(namespace, schema)
-    }
-}
-
 /// A handler of incoming gossip events.
 ///
 /// Merges the content of each event with the existing [`NamespaceCache`]
 /// contents, if any.
 #[async_trait]
-impl<C> GossipMessageHandler for NamespaceSchemaGossip<C>
+impl<C> GossipMessageHandler for Arc<NamespaceSchemaGossip<C>>
 where
     C: NamespaceCache<ReadError = CacheMissErr>,
 {
     async fn handle(&self, message: Msg) {
+        trace!(?message, "received schema message");
+
         let res = match message {
             Msg::NamespaceCreated(v) => self.handle_namespace_created(v).await,
             Msg::TableCreated(v) => self.handle_table_created(v).await,
@@ -118,7 +95,7 @@ where
     ///
     /// This method panics if the gossiped immutable values do not match the
     /// local state.
-    async fn handle_namespace_created(&self, note: NamespaceCreated) -> Result<(), IncomingError> {
+    async fn handle_namespace_created(&self, note: NamespaceCreated) -> Result<(), Error> {
         // Check if this namespace exists already
         let namespace_name = NamespaceName::try_from(note.namespace_name)?;
 
@@ -138,7 +115,7 @@ where
             .unwrap_or_default();
 
         // Insert the namespace or do nothing if it exists.
-        match self.get_schema(&namespace_name).await {
+        match self.inner.get_schema(&namespace_name).await {
             Ok(v) => {
                 // It does! This is a no-op.
 
@@ -152,12 +129,20 @@ where
             Err(CacheMissErr {
                 namespace: namespace_name,
             }) => {
+                debug!(
+                    namespace_id = note.namespace_id,
+                    max_columns_per_table = note.max_columns_per_table,
+                    max_tables = note.max_tables,
+                    retention_period_ns = note.retention_period_ns,
+                    ?partition_template,
+                    "discovered new namespace via gossip"
+                );
                 // It does not - initialise the namespace schema and place it
                 // into the cache.
                 //
                 // If another thread has populated the cache since the above
                 // check, this becomes a merge operation.
-                self.put_schema(
+                self.inner.put_schema(
                     namespace_name,
                     NamespaceSchema {
                         id: NamespaceId::new(note.namespace_id),
@@ -183,15 +168,16 @@ where
     ///
     /// This method panics if the gossiped immutable values do not match the
     /// local state.
-    async fn handle_updated_table(&self, update: TableUpdated) -> Result<(), IncomingError> {
+    async fn handle_updated_table(&self, update: TableUpdated) -> Result<(), Error> {
         let table_name = update.table_name.clone();
 
         // Obtain the existing namespace to modify.
         let namespace_name = NamespaceName::try_from(update.namespace_name.clone())?;
         let ns = self
+            .inner
             .get_schema(&namespace_name)
             .await
-            .map_err(|v| IncomingError::Lookup(Box::from(v)))?;
+            .map_err(|v| Error::Lookup(Box::from(v)))?;
 
         // Load the table from it.
         //
@@ -200,7 +186,7 @@ where
         let table = ns
             .tables
             .get(&update.table_name)
-            .ok_or_else(|| IncomingError::TableNotFound(table_name.clone()))?;
+            .ok_or_else(|| Error::TableNotFound(table_name.clone()))?;
 
         // Invariant: name -> ID mappings MUST be immutable and consistent
         // across the cluster.
@@ -226,9 +212,9 @@ where
     /// # Panics
     ///
     /// This method panics if the immutable table fields differ.
-    async fn handle_table_created(&self, v: TableCreated) -> Result<(), IncomingError> {
+    async fn handle_table_created(&self, v: TableCreated) -> Result<(), Error> {
         // Extract the table update from the message.
-        let update = v.table.ok_or(IncomingError::MissingTableUpdate)?;
+        let update = v.table.ok_or(Error::MissingTableUpdate)?;
 
         let table_id = TableId::new(update.table_id);
         let table_name = update.table_name.clone();
@@ -236,9 +222,10 @@ where
         // Obtain the existing namespace to modify.
         let namespace_name = NamespaceName::try_from(update.namespace_name.clone())?;
         let ns = self
+            .inner
             .get_schema(&namespace_name)
             .await
-            .map_err(|v| IncomingError::Lookup(Box::from(v)))?;
+            .map_err(|v| Error::Lookup(Box::from(v)))?;
 
         let partition_template =
             TablePartitionTemplateOverride::try_new(v.partition_template, &ns.partition_template)?;
@@ -270,7 +257,7 @@ where
                         Ok((v.name, schema))
                     })
                     .collect::<Result<BTreeMap<String, _>, _>>()
-                    .map_err(IncomingError::ColumnSchema)?;
+                    .map_err(Error::ColumnSchema)?;
 
                 debug!(
                     table_name=%update.table_name,
@@ -298,10 +285,7 @@ where
 }
 
 /// Apply `update` to `table`, returning an updated copy, if any.
-fn update_table(
-    table: &TableSchema,
-    update: TableUpdated,
-) -> Result<Option<TableSchema>, IncomingError> {
+fn update_table(table: &TableSchema, update: TableUpdated) -> Result<Option<TableSchema>, Error> {
     let table_id = TableId::new(update.table_id);
 
     // Invariant: name -> ID mappings MUST be immutable and consistent across
@@ -313,7 +297,7 @@ fn update_table(
 
     // Union the gossiped columns with the existing table's columns.
     for v in update.columns {
-        let column = ColumnSchema::try_from(&v).map_err(IncomingError::ColumnSchema)?;
+        let column = ColumnSchema::try_from(&v).map_err(Error::ColumnSchema)?;
         let name = v.name;
 
         if let Some(v) = table.columns.get(&name) {
@@ -408,7 +392,9 @@ mod tests {
                 #[tokio::test]
                 async fn [<test_handle_gossip_message_ $name>]() {
                     let inner = Arc::new(MemoryNamespaceCache::default());
-                    let layer = NamespaceSchemaGossip::new(Arc::clone(&inner));
+                    let layer = Arc::new(NamespaceSchemaGossip::new(
+                        Arc::clone(&inner),
+                    ));
                     let name = NamespaceName::try_from(NAMESPACE_NAME).unwrap();
 
                     // Optionally pre-populate the NamespaceSchema before the
