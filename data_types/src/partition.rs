@@ -347,7 +347,7 @@ where
 
 /// Data object for a partition. The combination of table and key are unique (i.e. only one record
 /// can exist for each combo)
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Hash)]
 pub struct Partition {
     /// the id of the partition
     pub id: PartitionId,

@@ -17,5 +17,7 @@ pub(crate) use sort_key::*;
 mod coalesce;
 pub(crate) use coalesce::*;
 
+pub mod old_filter;
+
 #[cfg(test)]
 pub(crate) mod mock;

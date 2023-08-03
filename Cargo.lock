@@ -672,6 +672,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bloom2"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c98be1f13d32fb5676bcb77888c5e7b485b72bb90cdcde220f565b688d6aee4e"
+
+[[package]]
 name = "brotli"
 version = "3.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2643,6 +2649,7 @@ dependencies = [
  "async-channel",
  "async-trait",
  "backoff",
+ "bloom2",
  "bytes",
  "criterion",
  "crossbeam-utils",
@@ -2674,6 +2681,7 @@ dependencies = [
  "paste",
  "pin-project",
  "predicate",
+ "proptest",
  "prost",
  "rand",
  "schema",
