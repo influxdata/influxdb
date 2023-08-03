@@ -230,11 +230,6 @@ async fn try_compact_partition(
             return Ok(());
         }
 
-        let round_info = components
-            .round_info_source
-            .calculate(&partition_info, &files)
-            .await?;
-
         // This is the stop condition which will be different for different version of compaction
         // and describe where the filter is created at version_specific_partition_filters function
         if !components
@@ -245,13 +240,14 @@ async fn try_compact_partition(
             return Ok(());
         }
 
-        let (files_now, files_later) = components.round_split.split(files, round_info);
-
-        // Each branch must not overlap with each other
-        let branches = components
-            .divide_initial
-            .divide(files_now, round_info)
-            .into_iter();
+        let (round_info, branches, files_later) = components
+            .round_info_source
+            .calculate(
+                Arc::<Components>::clone(&components),
+                &partition_info,
+                files,
+            )
+            .await?;
 
         files = files_later;
 
