@@ -18,11 +18,8 @@ pub trait SchemaBroadcast: Send + Sync + Debug {
 #[async_trait]
 impl SchemaBroadcast for Arc<gossip::GossipHandle> {
     async fn broadcast(&self, payload: Vec<u8>) {
-        if gossip::GossipHandle::broadcast(self, payload)
-            .await
-            .is_err()
-        {
-            error!("payload size exceeds maximum allowed");
+        if let Err(e) = gossip::GossipHandle::broadcast(self, payload).await {
+            error!(error=%e, "failed to broadcast payload");
         }
     }
 }
