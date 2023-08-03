@@ -699,7 +699,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6798148dccfbff0fae41c7574d2fa8f1ef3492fba0face179de5d8d447d67b05"
 dependencies = [
  "memchr",
- "regex-automata 0.3.3",
+ "regex-automata 0.3.4",
  "serde",
 ]
 
@@ -4569,7 +4569,7 @@ checksum = "b2eae68fc220f7cf2532e4494aded17545fce192d59cd996e0fe7887f4ceb575"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-automata 0.3.3",
+ "regex-automata 0.3.4",
  "regex-syntax 0.7.4",
 ]
 
@@ -4584,9 +4584,9 @@ dependencies = [
 
 [[package]]
 name = "regex-automata"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39354c10dd07468c2e73926b23bb9c2caca74c5501e38a35da70406f1d923310"
+checksum = "b7b6d6190b7594385f61bd3911cd1be99dfddcfc365a4160cc2ab5bff4aed294"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -6866,7 +6866,7 @@ dependencies = [
  "rand",
  "rand_core",
  "regex",
- "regex-automata 0.3.3",
+ "regex-automata 0.3.4",
  "regex-syntax 0.7.4",
  "reqwest",
  "ring",
