@@ -16,9 +16,6 @@ pub struct RpcWriteRouterServer<D, N> {
 
     http: HttpDelegate<D, N>,
     grpc: RpcWriteGrpcDelegate,
-
-    // TODO: this shouldn't be here but it is here while it's unused elsewhere
-    _gossip_handle: Option<gossip::GossipHandle>,
 }
 
 impl<D, N> RpcWriteRouterServer<D, N> {
@@ -29,14 +26,12 @@ impl<D, N> RpcWriteRouterServer<D, N> {
         grpc: RpcWriteGrpcDelegate,
         metrics: Arc<metric::Registry>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
-        gossip_handle: Option<gossip::GossipHandle>,
     ) -> Self {
         Self {
             metrics,
             trace_collector,
             http,
             grpc,
-            _gossip_handle: gossip_handle,
         }
     }
 

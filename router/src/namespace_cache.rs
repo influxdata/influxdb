@@ -64,3 +64,43 @@ pub struct ChangeStats {
     /// existed.
     pub(crate) did_update: bool,
 }
+
+/// An optional [`NamespaceCache`] decorator layer.
+#[derive(Debug)]
+pub enum MaybeLayer<T, U> {
+    /// With the optional layer.
+    With(T),
+    /// Without the operational layer.
+    Without(U),
+}
+
+#[async_trait]
+impl<T, U, E> NamespaceCache for MaybeLayer<T, U>
+where
+    T: NamespaceCache<ReadError = E>,
+    U: NamespaceCache<ReadError = E>,
+    E: Error + Send,
+{
+    type ReadError = E;
+
+    async fn get_schema(
+        &self,
+        namespace: &NamespaceName<'static>,
+    ) -> Result<Arc<NamespaceSchema>, Self::ReadError> {
+        match self {
+            MaybeLayer::With(v) => v.get_schema(namespace).await,
+            MaybeLayer::Without(v) => v.get_schema(namespace).await,
+        }
+    }
+
+    fn put_schema(
+        &self,
+        namespace: NamespaceName<'static>,
+        schema: NamespaceSchema,
+    ) -> (Arc<NamespaceSchema>, ChangeStats) {
+        match self {
+            MaybeLayer::With(v) => v.put_schema(namespace, schema),
+            MaybeLayer::Without(v) => v.put_schema(namespace, schema),
+        }
+    }
+}

@@ -12,7 +12,6 @@
 )]
 #![allow(clippy::default_constructed_unit_structs)]
 
-use gossip::NopDispatcher;
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -52,9 +51,13 @@ use router::{
         lazy_connector::LazyConnector, DmlHandler, DmlHandlerChainExt, FanOutAdaptor,
         InstrumentationDecorator, Partitioner, RetentionValidator, RpcWrite, SchemaValidator,
     },
+    gossip::{
+        dispatcher::GossipMessageDispatcher, namespace_cache::NamespaceSchemaGossip,
+        schema_change_observer::SchemaChangeObserver,
+    },
     namespace_cache::{
-        metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache, ReadThroughCache,
-        ShardedCache,
+        metrics::InstrumentedCache, MaybeLayer, MemoryNamespaceCache, NamespaceCache,
+        ReadThroughCache, ShardedCache,
     },
     namespace_resolver::{
         MissingNamespaceAction, NamespaceAutocreation, NamespaceResolver, NamespaceSchemaResolver,
@@ -257,19 +260,89 @@ pub async fn create_router_server_type(
     // Initialise an instrumented namespace cache to be shared with the schema
     // validator, and namespace auto-creator that reports cache hit/miss/update
     // metrics.
-    let ns_cache = Arc::new(ReadThroughCache::new(
-        Arc::new(InstrumentedCache::new(
-            Arc::new(ShardedCache::new(
-                std::iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
-            )),
-            &metrics,
+    let ns_cache = Arc::new(InstrumentedCache::new(
+        Arc::new(ShardedCache::new(
+            std::iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
         )),
-        Arc::clone(&catalog),
+        &metrics,
     ));
 
+    // Pre-warm the cache before adding the gossip layer to avoid broadcasting
+    // the full cache content at startup.
     pre_warm_schema_cache(&ns_cache, &*catalog)
         .await
         .expect("namespace cache pre-warming failed");
+
+    // Optionally initialise the schema gossip subsystem.
+    //
+    // The schema gossip primitives sit in the stack of NamespaceCache layers:
+    //
+    //                   ┌───────────────────────────┐
+    //                   │     ReadThroughCache      │
+    //                   └───────────────────────────┘
+    //                                 │
+    //                                 ▼
+    //                   ┌───────────────────────────┐
+    //                   │   SchemaChangeObserver    │◀ ─ ─ ─ ─
+    //                   └───────────────────────────┘         │
+    //                                 │                     peers
+    //                                 ▼                       ▲
+    //                   ┌───────────────────────────┐         │
+    //                   │   Incoming Gossip Apply   │─ ─ ─ ─ ─
+    //                   └───────────────────────────┘
+    //                                 │
+    //                                 ▼
+    //                   ┌───────────────────────────┐
+    //                   │      Underlying Impl      │
+    //                   └───────────────────────────┘
+    //
+    //
+    //   - SchemaChangeObserver: sends outgoing gossip schema diffs
+    //   - NamespaceSchemaGossip: applies incoming gossip diffs locally
+    //
+    // The SchemaChangeObserver is responsible for gossiping any diffs that pass
+    // through it - it MUST sit above the NamespaceSchemaGossip layer
+    // responsible for applying gossip diffs from peers (otherwise the local
+    // node will receive a gossip diff and apply it, which passes through the
+    // diff layer, and causes the local node to gossip it again).
+    //
+    // These gossip layers sit below the catalog lookups, so that they do not
+    // drive catalog queries themselves (defeating the point of the gossiping!).
+    // If a local node has to perform a catalog lookup, it gossips the result to
+    // other peers, helping converge them.
+    let ns_cache = match gossip_config.gossip_bind_address {
+        Some(bind_addr) => {
+            // Initialise the NamespaceSchemaGossip responsible for applying the
+            // incoming gossip schema diffs.
+            let gossip_reader = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&ns_cache)));
+            // Adapt it to the gossip subsystem via the "Dispatcher" trait
+            let dispatcher = GossipMessageDispatcher::new(Arc::clone(&gossip_reader), 100);
+
+            // Initialise the gossip subsystem, delegating message processing to
+            // the above dispatcher.
+            let handle = gossip::Builder::new(
+                gossip_config.seed_list.clone(),
+                dispatcher,
+                Arc::clone(&metrics),
+            )
+            .bind(*bind_addr)
+            .await
+            .map_err(Error::GossipBind)?;
+
+            // Initialise the local diff observer responsible for gossiping any
+            // local changes made to the cache content.
+            //
+            // This sits above / wraps the NamespaceSchemaGossip layer.
+            let ns_cache = SchemaChangeObserver::new(ns_cache, Arc::new(handle));
+
+            MaybeLayer::With(ns_cache)
+        }
+        None => MaybeLayer::Without(ns_cache),
+    };
+
+    // Wrap the NamespaceCache in a read-through layer that queries the catalog
+    // for cache misses, and populates the local cache with the result.
+    let ns_cache = Arc::new(ReadThroughCache::new(ns_cache, Arc::clone(&catalog)));
 
     // # Schema validator
     //
@@ -341,28 +414,6 @@ pub async fn create_router_server_type(
     // Record the overall request handling latency
     let handler_stack = InstrumentationDecorator::new("request", &metrics, handler_stack);
 
-    // Optionally initialised the gossip subsystem.
-    //
-    // NOTE: the handle is completely unused, but needs to live as long as the
-    // server does to do anything useful (RAII), so it is placed int he
-    // RpcWriteRouterServer, which doesn't need it at all.
-    //
-    // TODO: remove handle from RpcWriteRouterServer when using handle
-    let gossip_handle = match gossip_config.gossip_bind_address {
-        Some(bind_addr) => {
-            let handle = gossip::Builder::new(
-                gossip_config.seed_list.clone(),
-                NopDispatcher::default(),
-                Arc::clone(&metrics),
-            )
-            .bind(*bind_addr)
-            .await
-            .map_err(Error::GossipBind)?;
-            Some(handle)
-        }
-        None => None,
-    };
-
     // Initialize the HTTP API delegate
     let write_request_unifier: Result<Box<dyn WriteRequestUnifier>> = match (
         router_config.single_tenant_deployment,
@@ -409,13 +460,8 @@ pub async fn create_router_server_type(
     // `RpcWriteRouterServerType`.
     let grpc = RpcWriteGrpcDelegate::new(catalog, object_store);
 
-    let router_server = RpcWriteRouterServer::new(
-        http,
-        grpc,
-        metrics,
-        common_state.trace_collector(),
-        gossip_handle,
-    );
+    let router_server =
+        RpcWriteRouterServer::new(http, grpc, metrics, common_state.trace_collector());
     let server_type = Arc::new(RpcWriteRouterServerType::new(router_server, common_state));
     Ok(server_type)
 }
