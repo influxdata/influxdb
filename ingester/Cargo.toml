@@ -72,7 +72,7 @@ lazy_static = "1.4.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store = { workspace = true }
 paste = "1.0.14"
-proptest = "1.2.0"
+proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = "3.7.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 tokio = { version = "1.29", features = ["macros", "time", "test-util"] }
