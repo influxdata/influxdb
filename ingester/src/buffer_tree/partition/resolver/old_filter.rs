@@ -399,7 +399,7 @@ mod tests {
             BackoffConfig::default(),
             Duration::MAX,
             metrics,
-            std::iter::once(p.clone()),
+            std::iter::empty(),
         );
 
         // Ask the filter for the partition.
