@@ -364,7 +364,7 @@ fn serialise_table_create_frames(mut msg: TableCreated) -> Vec<Msg> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeSet, sync::Arc};
+    use std::sync::Arc;
 
     use crate::{
         gossip::mock_schema_broadcast::MockSchemaBroadcast, namespace_cache::MemoryNamespaceCache,
@@ -461,36 +461,34 @@ mod tests {
                 assert!(!v.columns.is_empty());
             }
 
-            let got_ids = out.iter()
-                .flat_map(|v| v.columns.iter().map(|v| v.column_id))
-                .collect::<BTreeSet<_>>();
+            let got_ids = into_sorted_vec(out.iter()
+                .flat_map(|v| v.columns.iter().map(|v| v.column_id)));
 
             // Build the set of IDs that should appear.
             let want_ids = if success {
                 // All column IDs must appear in the output as the splitting was
                 // successful.
-                (0..n_columns).collect::<BTreeSet<_>>()
+                (0..n_columns).collect::<Vec<_>>()
             } else {
                 // Splitting failed.
                 //
                 // Build the set of column IDs expected to be in the output
                 // (those that are under the maximum size on their own).
                 let cols = std::mem::take(&mut msg.columns);
-                let want_ids = cols.into_iter().filter_map(|v| {
+                let want_ids = into_sorted_vec(cols.into_iter().filter_map(|v| {
                         let column_id = v.column_id;
                         msg.columns = vec![v];
                         if msg.encoded_len() > max_frame_bytes {
                             return None;
                         }
                         Some(column_id)
-                    })
-                    .collect::<BTreeSet<_>>();
+                    }));
 
                 // Assert at least one column must be too large to be packed
                 // into an update containing only that column if one was
                 // provided.
                 if n_columns != 0 {
-                    assert!(want_ids.len() != n_columns as usize);
+                    assert_ne!(want_ids.len(), n_columns as usize);
                 }
 
                 want_ids
@@ -583,11 +581,21 @@ mod tests {
 
             // Columns now contains all the columns, across all the output
             // messages.
-            let got_ids = columns.into_iter().map(|v| v.column_id).collect::<BTreeSet<_>>();
+            let got_ids = into_sorted_vec(columns.into_iter().map(|v| v.column_id));
 
             // Which should match the full input set of column IDs
             assert!((0..n_columns).eq(got_ids.into_iter()));
         }
+    }
+
+    /// Generate a `Vec` of sorted `T`, preserving duplicates, if any.
+    fn into_sorted_vec<T>(v: impl IntoIterator<Item = T>) -> Vec<T>
+    where
+        T: Ord,
+    {
+        let mut v = v.into_iter().collect::<Vec<_>>();
+        v.sort_unstable();
+        v
     }
 
     macro_rules! test_observe {
