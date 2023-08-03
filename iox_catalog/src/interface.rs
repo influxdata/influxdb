@@ -455,6 +455,12 @@ pub trait PartitionRepo: Send + Sync {
         minimum_time: Timestamp,
         maximum_time: Option<Timestamp>,
     ) -> Result<Vec<PartitionId>>;
+
+    /// Return all partitions that do not have deterministic hash IDs in the catalog. Used in
+    /// the ingester's `OldPartitionBloomFilter` to determine whether a catalog query is necessary.
+    /// Can be removed when all partitions have hash IDs and support for old-style partitions is no
+    /// longer needed.
+    async fn list_old_style(&mut self) -> Result<Vec<Partition>>;
 }
 
 /// Functions for working with parquet file pointers in the catalog
@@ -1597,6 +1603,15 @@ pub(crate) mod test_helpers {
             .collect::<BTreeSet<_>>();
 
         assert_eq!(created.keys().copied().collect::<BTreeSet<_>>(), listed);
+
+        // The code no longer supports creating old-style partitions, so this list is always empty
+        // in these tests. See each catalog implementation for tests that insert old-style
+        // partitions directly and verify they're returned.
+        let old_style = repos.partitions().list_old_style().await.unwrap();
+        assert!(
+            old_style.is_empty(),
+            "Expected no old-style partitions, got {old_style:?}"
+        );
 
         // sort_key should be empty on creation
         assert!(to_skip_partition.sort_key.is_empty());

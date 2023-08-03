@@ -183,6 +183,7 @@ decorate!(
         "partition_most_recent_n" = most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>>;
         "partition_partitions_new_file_between" = partitions_new_file_between(&mut self, minimum_time: Timestamp, maximum_time: Option<Timestamp>) -> Result<Vec<PartitionId>>;
         "partition_get_in_skipped_compactions" = get_in_skipped_compactions(&mut self, partition_ids: &[PartitionId]) -> Result<Vec<SkippedCompaction>>;
+        "partition_list_old_style" = list_old_style(&mut self) -> Result<Vec<Partition>>;
     ]
 );
 
