@@ -12,6 +12,7 @@ arrow-flight = { workspace = true }
 async-channel = "1.9.0"
 async-trait = "0.1.72"
 backoff = { version = "0.1.0", path = "../backoff" }
+bloom2 = "0.3.1"
 bytes = "1.4.0"
 crossbeam-utils = "0.8.16"
 data_types = { version = "0.1.0", path = "../data_types" }
@@ -38,10 +39,18 @@ rand = "0.8.5"
 schema = { version = "0.1.0", path = "../schema" }
 service_grpc_catalog = { version = "0.1.0", path = "../service_grpc_catalog" }
 sharder = { version = "0.1.0", path = "../sharder" }
-test_helpers = { path = "../test_helpers", features = ["future_timeout"], optional = true }
+test_helpers = { path = "../test_helpers", features = [
+    "future_timeout",
+], optional = true }
 thiserror = "1.0.44"
 tracker = { path = "../tracker" }
-tokio = { version = "1.29", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.29", features = [
+    "macros",
+    "parking_lot",
+    "rt-multi-thread",
+    "sync",
+    "time",
+] }
 tokio-util = "0.7.8"
 tonic = { workspace = true }
 trace = { version = "0.1.0", path = "../trace" }
@@ -52,7 +61,9 @@ gossip = { version = "0.1.0", path = "../gossip" }
 
 [dev-dependencies]
 assert_matches = "1.5.0"
-criterion = { version = "0.5", default-features = false, features = ["async_tokio"]}
+criterion = { version = "0.5", default-features = false, features = [
+    "async_tokio",
+] }
 datafusion_util = { path = "../datafusion_util" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 ingester_test_ctx = { path = "../ingester_test_ctx" }
@@ -61,6 +72,7 @@ lazy_static = "1.4.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store = { workspace = true }
 paste = "1.0.14"
+proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = "3.7.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 tokio = { version = "1.29", features = ["macros", "time", "test-util"] }
@@ -75,13 +87,13 @@ bench = false
 [[bench]]
 name = "wal"
 harness = false
- # Require some internal types be made visible for benchmark code.
+# Require some internal types be made visible for benchmark code.
 required-features = ["benches"]
 
 [[bench]]
 name = "write"
 harness = false
- # Require some internal types be made visible for benchmark code.
+# Require some internal types be made visible for benchmark code.
 required-features = ["benches"]
 
 [[bench]]
