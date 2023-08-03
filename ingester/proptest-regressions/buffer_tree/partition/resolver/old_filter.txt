@@ -1,7 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc 2245b396657531cf4e84e2458c7df8777d6184317693aa5263015acf2ba92d3f # shrinks to init_partitions = {}, control_partitions = {Partition { id: PartitionId(0), hash_id: None, table_id: TableId(0), partition_key: PartitionKey("\0"), sort_key: [], new_file_at: None }}
