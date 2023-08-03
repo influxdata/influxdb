@@ -45,7 +45,41 @@ enum Error {
     TableNotFound(String),
 }
 
-/// A [`NamespaceCache`] implementation for gossip.
+/// A [`NamespaceCache`] decorator applying incoming schema change notifications
+/// via the [`gossip`] subsystem.
+///
+/// Any schema additions received from peers are applied to the decorated
+/// [`NamespaceCache`], helping to keep the peers approximately in-sync on a
+/// best-effort basis.
+///
+/// # Applying Peer Changes
+///
+/// Other peers participating in schema gossiping send changes made to their
+/// local state - this allows this local node (and all the other peers) to
+/// populate their cache before a write request is received by the local node
+/// that would cause a cache miss resulting in a catalog query, and the
+/// associated latency penalty and catalog load that comes with it.
+///
+/// This type implements the [`GossipMessageHandler`] which is invoked with the
+/// [`Msg`] received from an opaque peer by the [`gossip`] subsystem (off of the
+/// hot path), which when processed causes the cache contents to be updated if
+/// appropriate through the usual [`NamespaceCache::get_schema()`] and
+/// [`NamespaceCache::put_schema()`] abstraction.
+///
+/// # Peer Trust, Immutability, and Panic
+///
+/// Certain values are immutable for the lifetime of the associated entity; for
+/// example, the data type of a column must never change.
+///
+/// If a peer gossips an event that contradicts the local state w.r.t an
+/// immutable value, the handler will panic. This is designed to bring down the
+/// local node and cause it to rebuild the cache state from the source of truth
+/// (the catalog) at startup to converge any differences.
+///
+/// This requires trusted peers within the network this node is operating
+/// within. A malicious peer can trivially panic peers by gossiping malicious
+/// schema updates. This lays outside the threat model of the gossip system
+/// which explicitly trusts all gossip peers by design.
 #[derive(Debug)]
 pub struct NamespaceSchemaGossip<C> {
     inner: C,

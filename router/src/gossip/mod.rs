@@ -5,17 +5,29 @@
 //! * [`gossip`] crate: provides the gossip transport, the [`GossipHandle`], and
 //!   the [`Dispatcher`]. This crate operates on raw bytes.
 //!
-//! * The [`SchemaChangeObserver`]: a router-specific wrapper over the underlying
-//!   [`GossipHandle`]. This type translates the application calls into protobuf
-//!   [`Msg`], and serialises them into bytes for the underlying [`gossip`]
-//!   impl.
+//! * The outgoing [`SchemaChangeObserver`]: a router-specific wrapper over the
+//!   underlying [`GossipHandle`]. This type translates the application calls
+//!   into protobuf [`Msg`], and serialises them into bytes, sending them over
+//!   the underlying [`gossip`] impl.
 //!
-//! * The [`GossipMessageDispatcher`]: deserialises the incoming bytes from the
-//!   gossip [`Dispatcher`] into [`Msg`] and passes them off to the
-//!   [`GossipMessageHandler`] implementation for processing.
+//! * The incoming [`GossipMessageDispatcher`]: deserialises the incoming bytes
+//!   from the gossip [`Dispatcher`] into [`Msg`] and passes them off to the
+//!   [`NamespaceSchemaGossip`] implementation for processing.
+//!
+//! * The incoming [`NamespaceSchemaGossip`]: processes [`Msg`] received from
+//!   peers, applying them to the local cache state if necessary.
 //!
 //! ```text
-//!                   event                      handler
+//!         ┌────────────────────────────────────────────────────┐
+//!         │                   NamespaceCache                   │
+//!         └────────────────────────────────────────────────────┘
+//!                     │                           ▲
+//!                     │                           │
+//!                   diff                        diff
+//!                     │                           │
+//!                     │              ┌─────────────────────────┐
+//!                     │              │  NamespaceSchemaGossip  │
+//!                     │              └─────────────────────────┘
 //!                     │                           ▲
 //!                     │                           │
 //!                     │     Application types     │
@@ -43,7 +55,7 @@
 //! [`SchemaChangeObserver`]: schema_change_observer::SchemaChangeObserver
 //! [`Msg`]: generated_types::influxdata::iox::gossip::v1::gossip_message::Msg
 //! [`GossipMessageDispatcher`]: dispatcher::GossipMessageDispatcher
-//! [`GossipMessageHandler`]: dispatcher::GossipMessageHandler
+//! [`NamespaceSchemaGossip`]: namespace_cache::NamespaceSchemaGossip
 
 pub mod dispatcher;
 pub mod namespace_cache;
