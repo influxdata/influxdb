@@ -23,7 +23,6 @@ async fn create_negative() {
                     let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
                     let namespace = "ns_tablenegative";
 
-                    println!("Create namespace {namespace}");
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
                         .arg("-h")
@@ -168,7 +167,6 @@ async fn create_positive() {
                     let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
                     let namespace = "ns_tablepositive";
 
-                    println!("Create namespace {namespace}");
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
                         .arg("-h")
@@ -187,8 +185,6 @@ async fn create_positive() {
                     // Need router grpc based addres to create tables
                     let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
                     let namespace = "ns_tablepositive";
-
-                    println!("Creating tables h2o_temperature, m0, cpu explicitly into {namespace}");
 
                     // no partition template specified
                     Command::cargo_bin("influxdb_iox")
@@ -273,7 +269,6 @@ async fn create_write_and_query() {
                     let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
                     let namespace = "ns_createtables";
 
-                    println!("Create namespace {namespace}");
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
                         .arg("-h")
@@ -293,8 +288,6 @@ async fn create_write_and_query() {
                     // Need router grpc based addres to create tables
                     let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
                     let namespace = "ns_createtables";
-
-                    println!("Creating tables h2o_temperature, m0, cpu explicitly into {namespace}");
 
                     // create tables h2o_temperature, m0, cpu
                     Command::cargo_bin("influxdb_iox")
@@ -350,8 +343,6 @@ async fn create_write_and_query() {
                     // write must use router http based address
                     let router_http_addr = state.cluster().router().router_http_base().to_string();
                     let namespace = "ns_createtables";
-
-                    println!("Writing into {namespace}");
 
                     // Validate the output of the schema CLI command
                     Command::cargo_bin("influxdb_iox")
