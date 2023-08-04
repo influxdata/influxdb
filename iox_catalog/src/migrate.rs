@@ -21,7 +21,7 @@
 //! CREATE TABLE t2 (x INT);
 //! ```
 //!
-//! ## Transactions
+//! ## Transactions & Idemptoency
 //! Each step will be executed within a transaction. However you can opt-out of this:
 //!
 //! ```sql
@@ -38,9 +38,8 @@
 //! If all steps steps can run in a transaction, the entire migration including its bookkeeping will be executed in a
 //! transaction. In this case the transaction is automatically idempotent.
 //!
-//! Migrations that opt out of the transaction handling are NOT by default considered idempotent. This can lead to
-//! migrations being stuck. We plan to fix this, see <https://github.com/influxdata/influxdb_iox/issues/7897> for more
-//! details.
+//! Migrations that opt out of the transaction handling MUST ensure that they are idempotent. This also includes that
+//! they end up in the desired target state even if they were interrupted midway in a previous run.
 //!
 //! ## Updating / Fixing Migrations
 //! **⚠️ In general a migration MUST NOT be updated / changed after it was committed to `main`. ⚠️**
@@ -110,11 +109,12 @@ use std::{
 };
 
 use async_trait::async_trait;
-use observability_deps::tracing::{debug, info};
+use observability_deps::tracing::{debug, info, warn};
 use siphasher::sip::SipHasher13;
 use sqlx::{
-    migrate::{AppliedMigration, Migrate, MigrateError, Migration, MigrationType, Migrator},
-    query, query_scalar, Acquire, Connection, Executor, PgConnection, Postgres, Transaction,
+    migrate::{Migrate, MigrateError, Migration, MigrationType, Migrator},
+    query, query_as, query_scalar, Acquire, Connection, Executor, PgConnection, Postgres,
+    Transaction,
 };
 
 /// A single [`IOxMigration`] step.
@@ -480,21 +480,18 @@ impl IOxMigrator {
         // eventually this will likely migrate previous versions of the table
         conn.ensure_migrations_table().await?;
 
-        let version = conn.dirty_version().await?;
-        if let Some(version) = version {
-            // We currently assume that migrations are NOT idempotent and hence we cannot re-apply them.
-            return Err(MigrateError::Dirty(version));
-        }
-
-        let applied_migrations = conn.list_applied_migrations().await?;
+        let applied_migrations = <C as IOxMigrate>::list_applied_migrations(conn).await?;
         validate_applied_migrations(&applied_migrations, self)?;
 
-        let applied_migrations: HashSet<_> =
-            applied_migrations.into_iter().map(|m| m.version).collect();
+        let applied_and_not_dirty: HashSet<_> = applied_migrations
+            .into_iter()
+            .filter(|m| !m.dirty)
+            .map(|m| m.version)
+            .collect();
 
         let mut new_migrations = HashSet::new();
         for migration in &self.migrations {
-            if applied_migrations.contains(&migration.version) {
+            if applied_and_not_dirty.contains(&migration.version) {
                 continue;
             }
             migration.apply(conn).await?;
@@ -539,7 +536,7 @@ impl TryFrom<&Migrator> for IOxMigrator {
 /// - applied migration is known
 /// - checksum of applied migration and known migration match
 fn validate_applied_migrations(
-    applied_migrations: &[AppliedMigration],
+    applied_migrations: &[IOxAppliedMigration],
     migrator: &IOxMigrator,
 ) -> Result<(), MigrateError> {
     let migrations: HashMap<_, _> = migrator.migrations.iter().map(|m| (m.version, m)).collect();
@@ -556,11 +553,32 @@ fn validate_applied_migrations(
                 {
                     return Err(MigrateError::VersionMismatch(migration.version));
                 }
+                if applied_migration.dirty {
+                    warn!(
+                        version = migration.version,
+                        "found dirty migration, trying to recover"
+                    );
+                }
             }
         }
     }
 
     Ok(())
+}
+
+/// Information about an migration found in the database.
+#[derive(Debug)]
+pub struct IOxAppliedMigration {
+    /// Version of the migration.
+    pub version: i64,
+
+    /// Checksum.
+    pub checksum: Cow<'static, [u8]>,
+
+    /// Dirty flag.
+    ///
+    /// If this is set, then the migration was interrupted midway.
+    pub dirty: bool,
 }
 
 /// Transaction type linked to [`IOxMigrate`].
@@ -600,6 +618,9 @@ pub trait IOxMigrate: Connection + Migrate + Send {
 
     /// Unlock database after migration.
     async fn unlock(&mut self, lock_id: i64) -> Result<(), MigrateError>;
+
+    /// Get list of applied migrations.
+    async fn list_applied_migrations(&mut self) -> Result<Vec<IOxAppliedMigration>, MigrateError>;
 
     /// Start a migration and mark it as "not finished".
     async fn start_migration(&mut self, migration: &IOxMigration) -> Result<(), MigrateError>;
@@ -699,11 +720,32 @@ impl IOxMigrate for PgConnection {
         Ok(())
     }
 
+    async fn list_applied_migrations(&mut self) -> Result<Vec<IOxAppliedMigration>, MigrateError> {
+        let rows: Vec<(i64, Vec<u8>, bool)> = query_as(
+            "SELECT version, checksum, NOT success FROM _sqlx_migrations ORDER BY version",
+        )
+        .fetch_all(self)
+        .await?;
+
+        let migrations = rows
+            .into_iter()
+            .map(|(version, checksum, dirty)| IOxAppliedMigration {
+                version,
+                checksum: checksum.into(),
+                dirty,
+            })
+            .collect();
+
+        Ok(migrations)
+    }
+
     async fn start_migration(&mut self, migration: &IOxMigration) -> Result<(), MigrateError> {
         let _ = query(
             r#"
 INSERT INTO _sqlx_migrations ( version, description, success, checksum, execution_time )
 VALUES ( $1, $2, FALSE, $3, -1 )
+ON CONFLICT (version)
+DO NOTHING
             "#,
         )
         .bind(migration.version)
@@ -1414,21 +1456,87 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_migrator_fail_dirty() {
+        async fn test_migrator_recover_dirty_same() {
+            test_migrator_recover_dirty_inner(RecoverFromDirtyMode::Same).await;
+        }
+
+        #[tokio::test]
+        async fn test_migrator_recover_dirty_fix_non_transactional() {
+            test_migrator_recover_dirty_inner(RecoverFromDirtyMode::FixNonTransactional).await;
+        }
+
+        #[tokio::test]
+        async fn test_migrator_recover_dirty_fix_transactional() {
+            test_migrator_recover_dirty_inner(RecoverFromDirtyMode::FixTransactional).await;
+        }
+
+        /// Modes for [`test_migrator_recover_dirty_inner`]
+        #[derive(Debug)]
+        enum RecoverFromDirtyMode {
+            /// Recover from a fluke.
+            ///
+            /// The checksum of the migration stays the same and it is non-transactional (otherwise we wouldn't have
+            /// ended up in a dirty state to begin with).
+            Same,
+
+            /// Recover using a fixed version, the fix is still non-transactional.
+            FixNonTransactional,
+
+            /// Recover using a fixed version, the fix is transactional (in contrast to the original version).
+            FixTransactional,
+        }
+
+        impl RecoverFromDirtyMode {
+            fn same_checksum(&self) -> bool {
+                match self {
+                    Self::Same => true,
+                    Self::FixNonTransactional => false,
+                    Self::FixTransactional => false,
+                }
+            }
+
+            fn fix_is_transactional(&self) -> bool {
+                match self {
+                    Self::Same => false,
+                    Self::FixNonTransactional => false,
+                    Self::FixTransactional => true,
+                }
+            }
+        }
+
+        async fn test_migrator_recover_dirty_inner(mode: RecoverFromDirtyMode) {
             maybe_skip_integration!();
             let mut conn = setup().await;
             let conn = &mut *conn;
 
+            conn.execute("CREATE TABLE t (x INT);").await.unwrap();
+            let test_query = "SELECT COALESCE(SUM(x), 0)::INT AS r FROM t;";
+
+            let steps_ok = vec![
+                IOxMigrationStep::SqlStatement {
+                    sql: "INSERT INTO t VALUES (1);".into(),
+                    // set to NO transaction, otherwise the migrator will happily wrap the migration bookkeeping and the
+                    // migration script itself into a single transaction to avoid the "dirty" state
+                    in_transaction: mode.fix_is_transactional(),
+                },
+                IOxMigrationStep::SqlStatement {
+                    sql: "INSERT INTO t VALUES (2);".into(),
+                    in_transaction: mode.fix_is_transactional(),
+                },
+            ];
+
+            let mut steps_broken = steps_ok.clone();
+            steps_broken[0] = IOxMigrationStep::SqlStatement {
+                sql: "foo".into(),
+                // set to NO transaction, otherwise the migrator will happily wrap the migration bookkeeping and the
+                // migration script itself into a single transaction to avoid the "dirty" state
+                in_transaction: false,
+            };
+
             let migrator = IOxMigrator::try_new([IOxMigration {
                 version: 1,
                 description: "".into(),
-                steps: [IOxMigrationStep::SqlStatement {
-                    sql: "foo".into(),
-                    // set to NO transaction, otherwise the migrator will happily wrap the migration bookkeeping and the
-                    // migration script itself into a single transaction to avoid the "dirty" state
-                    in_transaction: false,
-                }]
-                .into(),
+                steps: steps_broken.into(),
                 checksum: [1, 2, 3].into(),
                 other_compatible_checksums: [].into(),
             }])
@@ -1436,21 +1544,37 @@ mod tests {
 
             migrator.run_direct(conn).await.unwrap_err();
 
+            let r: i32 = query_scalar(test_query)
+                .fetch_one(&mut *conn)
+                .await
+                .unwrap();
+            assert_eq!(r, 0);
+
             let migrator = IOxMigrator::try_new([IOxMigration {
                 version: 1,
                 description: "".into(),
-                steps: [].into(),
-                // same checksum, but now w/ valid steps (to simulate a once failed SQL statement)
-                checksum: [1, 2, 3].into(),
-                other_compatible_checksums: [].into(),
+                steps: steps_ok.into(),
+                checksum: if mode.same_checksum() {
+                    [1, 2, 3].into()
+                } else {
+                    [4, 5, 6].into()
+                },
+                other_compatible_checksums: if mode.same_checksum() {
+                    [].into()
+                } else {
+                    [[1, 2, 3].into()].into()
+                },
             }])
             .unwrap();
 
-            let err = migrator.run_direct(conn).await.unwrap_err();
-            assert_eq!(
-                err.to_string(),
-                "migration 1 is partially applied; fix and remove row from `_sqlx_migrations` table"
-            );
+            let applied = migrator.run_direct(conn).await.unwrap();
+            assert_eq!(applied, HashSet::from([1]));
+
+            let r: i32 = query_scalar(test_query)
+                .fetch_one(&mut *conn)
+                .await
+                .unwrap();
+            assert_eq!(r, 3);
         }
 
         #[tokio::test]
@@ -1581,17 +1705,24 @@ mod tests {
             while futures.next().await.is_some() {}
         }
 
+        /// This tests that:
+        ///
+        /// - indexes are sanity-checked
+        /// - sanity checks are applied after each new/dirty migration and we keep the migration dirty until the checks pass
+        /// - we can manually recover the database and make the non-idempotent migration pass
         #[tokio::test]
-        async fn test_sanity_checks_index() {
+        async fn test_sanity_checks_index_1() {
             maybe_skip_integration!();
             let pool = setup_pool().await;
 
             let mut conn = pool.acquire().await.unwrap();
             let conn = &mut *conn;
 
-            conn.execute("CREATE TABLE t (x INT);").await.unwrap();
-            conn.execute("INSERT INTO t VALUES (1);").await.unwrap();
-            conn.execute("INSERT INTO t VALUES (1);").await.unwrap();
+            conn.execute("CREATE TABLE t (x INT, y INT);")
+                .await
+                .unwrap();
+            conn.execute("INSERT INTO t VALUES (1, 1);").await.unwrap();
+            conn.execute("INSERT INTO t VALUES (1, 2);").await.unwrap();
 
             let migrator = IOxMigrator::try_new([IOxMigration {
                 version: 1,
@@ -1610,16 +1741,77 @@ mod tests {
             let err = migrator.run_direct(conn).await.unwrap_err();
             assert_eq!(err.to_string(), "while executing migrations: error returned from database: could not create unique index \"i\"");
 
-            // currently we do NOT retry the dirty migration
+            // re-applying fails due to sanity checks
+            // NOTE: Even though the actual migration script passes, the sanity checks DO NOT and hence the migration is
+            //       still considered dirty. It will be re-applied after the manual intervention below.
             let err = migrator.run_direct(conn).await.unwrap_err();
-            assert_eq!(err.to_string(), "migration 1 is partially applied; fix and remove row from `_sqlx_migrations` table");
-
-            // the sanity checks fail
-            let err = conn.run_sanity_checks().await.unwrap_err();
             assert_eq!(
                 err.to_string(),
                 "while resolving migrations: Found invalid indexes: i"
             );
+
+            // fix data and wipe index
+            conn.execute("DELETE FROM t WHERE y = 2;").await.unwrap();
+            conn.execute("DROP INDEX i;").await.unwrap();
+
+            // applying works
+            let applied = migrator.run_direct(conn).await.unwrap();
+            assert_eq!(HashSet::from([1]), applied);
+        }
+
+        /// This tests that:
+        ///
+        /// - indexes are sanity-checked
+        /// - we can fix a data error and a proper, idempotent migration will eventually pass
+        #[tokio::test]
+        async fn test_sanity_checks_index_2() {
+            maybe_skip_integration!();
+            let pool = setup_pool().await;
+
+            let mut conn = pool.acquire().await.unwrap();
+            let conn = &mut *conn;
+
+            conn.execute("CREATE TABLE t (x INT, y INT);")
+                .await
+                .unwrap();
+            conn.execute("INSERT INTO t VALUES (1, 1);").await.unwrap();
+            conn.execute("INSERT INTO t VALUES (1, 2);").await.unwrap();
+
+            let migrator = IOxMigrator::try_new([IOxMigration {
+                version: 1,
+                description: "".into(),
+                steps: [
+                    IOxMigrationStep::SqlStatement {
+                        sql: "DROP INDEX IF EXISTS i;".into(),
+                        in_transaction: false,
+                    },
+                    IOxMigrationStep::SqlStatement {
+                        sql: "CREATE UNIQUE INDEX CONCURRENTLY i ON t (x);".into(),
+                        in_transaction: false,
+                    },
+                ]
+                .into(),
+                checksum: [1, 2, 3].into(),
+                other_compatible_checksums: [].into(),
+            }])
+            .unwrap();
+
+            // fails because is not unique
+            let err = migrator.run_direct(conn).await.unwrap_err();
+            assert_eq!(err.to_string(), "while executing migrations: error returned from database: could not create unique index \"i\"");
+
+            // re-applying fails with same error (index is wiped but fails w/ same error)
+            let err = migrator.run_direct(conn).await.unwrap_err();
+            assert_eq!(err.to_string(), "while executing migrations: error returned from database: could not create unique index \"i\"");
+
+            // fix data issue
+            conn.execute("UPDATE t SET x = 2 WHERE y = 2")
+                .await
+                .unwrap();
+
+            // now it works
+            let applied = migrator.run_direct(conn).await.unwrap();
+            assert_eq!(HashSet::from([1]), applied);
         }
 
         async fn setup_pool() -> HotSwapPool<Postgres> {
