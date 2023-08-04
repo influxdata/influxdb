@@ -185,7 +185,7 @@ pub struct CompactorConfig {
     #[clap(
         long = "compaction-max-num-files-per-plan",
         env = "INFLUXDB_IOX_COMPACTION_MAX_NUM_FILES_PER_PLAN",
-        default_value = "200",
+        default_value = "20",
         action
     )]
     pub max_num_files_per_plan: usize,
