@@ -2,7 +2,7 @@
 
 use arrow_util::assert_batches_sorted_eq;
 use assert_cmd::Command;
-use predicates::prelude::*;
+use predicates::{prelude::*, BoxPredicate};
 use std::time::{Duration, Instant};
 use test_helpers_end_to_end::{MiniCluster, StepTestState};
 
@@ -125,4 +125,153 @@ pub async fn assert_ingester_contains_results(
     assert!(!ingester_uuid.is_empty());
 
     assert_batches_sorted_eq!(expected, &ingester_partition.record_batches);
+}
+
+#[derive(Debug, Clone)]
+pub struct NamespaceCmd {
+    subcommand: String,
+    namespace_name: String,
+    retention_hours: Option<i64>,
+    max_tables: Option<i64>,
+    max_columns_per_table: Option<i64>,
+    partition_template: Option<String>,
+}
+
+impl NamespaceCmd {
+    /// Build a new call to an `influxdb_iox namespace` command.
+    pub fn new(subcommand: impl Into<String>, namespace_name: impl Into<String>) -> Self {
+        Self {
+            subcommand: subcommand.into(),
+            namespace_name: namespace_name.into(),
+            retention_hours: None,
+            max_tables: None,
+            max_columns_per_table: None,
+            partition_template: None,
+        }
+    }
+
+    /// Add the `--retention-hours` argument to this command with the specified value.
+    pub fn with_retention_hours(mut self, retention_hours: i64) -> Self {
+        self.retention_hours = Some(retention_hours);
+        self
+    }
+
+    /// Add the `--max-tables` argument to this command with the specified value.
+    pub fn with_max_tables(mut self, max_tables: i64) -> Self {
+        self.max_tables = Some(max_tables);
+        self
+    }
+
+    /// Add the `--max-columns-per-table` argument to this command with the specified value.
+    pub fn with_max_columns_per_table(mut self, max_columns_per_table: i64) -> Self {
+        self.max_columns_per_table = Some(max_columns_per_table);
+        self
+    }
+
+    /// Add the `--partition-template` argument to this command with the specified value.
+    pub fn with_partition_template(mut self, partition_template: impl Into<String>) -> Self {
+        self.partition_template = Some(partition_template.into());
+        self
+    }
+
+    /// Build the `Command` with the specified arguments, but don't run it. Useful for adding
+    /// custom assertions such as expecting the command to fail.
+    pub fn build_command(self, state: &mut StepTestState<'_>) -> Command {
+        let addr = state.cluster().router().router_grpc_base().to_string();
+
+        let mut command = Command::cargo_bin("influxdb_iox").unwrap();
+        command
+            .arg("-h")
+            .arg(&addr)
+            .arg("namespace")
+            .arg(&self.subcommand);
+
+        if self.subcommand != "list" {
+            command.arg(self.namespace_name);
+        }
+
+        if let Some(retention_hours) = self.retention_hours {
+            command
+                .arg("--retention-hours")
+                .arg(retention_hours.to_string());
+        }
+
+        if let Some(max_tables) = self.max_tables {
+            command.arg("--max-tables").arg(max_tables.to_string());
+        }
+
+        if let Some(max_columns_per_table) = self.max_columns_per_table {
+            command
+                .arg("--max-columns-per-table")
+                .arg(max_columns_per_table.to_string());
+        }
+
+        if let Some(partition_template) = self.partition_template {
+            command.arg("--partition-template").arg(partition_template);
+        }
+
+        command
+    }
+
+    /// Build the predicates to test stdout with in the usual, happy-path case.
+    fn build_expected_output(&self) -> BoxPredicate<str> {
+        // All commands expect to see the specified namespace in their output.
+        let mut expected_output =
+            BoxPredicate::new(predicate::str::contains(self.namespace_name.to_string()));
+
+        match self.subcommand.as_str() {
+            // List doesn't expect to see anything other than the namespace we're interested in.
+            "list" => {}
+            // Delete expects to see the literal "Deleted namespace".
+            "delete" => {
+                expected_output = BoxPredicate::new(
+                    expected_output.and(predicate::str::contains("Deleted namespace")),
+                );
+            }
+            // This arm covers the remaining subcommands: "create", "retention", "update-limit"
+            _ => {
+                match self.retention_hours {
+                    // If the retention is set to 0 or not specified, we shouldn't see retention
+                    // in the output.
+                    Some(0) | None => {
+                        expected_output = BoxPredicate::new(
+                            expected_output
+                                .and(predicate::str::contains("retentionPeriodNs".to_string()))
+                                .not(),
+                        );
+                    }
+                    // If nonzero retention is specified, we should see that in the output.
+                    Some(retention_hours) => {
+                        let retention_period_ns = retention_hours * 60 * 60 * 1_000_000_000;
+
+                        expected_output = BoxPredicate::new(
+                            expected_output
+                                .and(predicate::str::contains(retention_period_ns.to_string())),
+                        );
+                    }
+                }
+
+                let expected_max_tables = self.max_tables.unwrap_or(500);
+                expected_output = BoxPredicate::new(expected_output.and(predicate::str::contains(
+                    format!(r#""maxTables": {expected_max_tables}"#),
+                )));
+
+                let expected_max_columns_per_table = self.max_columns_per_table.unwrap_or(200);
+                expected_output = BoxPredicate::new(expected_output.and(predicate::str::contains(
+                    format!(r#""maxColumnsPerTable": {expected_max_columns_per_table}"#),
+                )));
+            }
+        }
+
+        expected_output
+    }
+
+    /// Build and run the command, then assert happy-path output is printed.
+    pub fn run(self, state: &mut StepTestState<'_>) {
+        let expected_output = self.build_expected_output();
+
+        let mut command = self.build_command(state);
+
+        command.assert().success().stdout(expected_output);
+    }
 }

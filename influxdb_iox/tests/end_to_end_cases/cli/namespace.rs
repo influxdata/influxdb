@@ -5,7 +5,7 @@ use futures::FutureExt;
 use predicates::prelude::*;
 use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState};
 
-use super::wait_for_query_result_with_namespace;
+use super::{wait_for_query_result_with_namespace, NamespaceCmd};
 
 #[tokio::test]
 async fn list() {
@@ -22,18 +22,7 @@ async fn list() {
             )),
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
-
-                    // Validate the output of the schema CLI command
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&querier_addr)
-                        .arg("namespace")
-                        .arg("list")
-                        .assert()
-                        .success()
-                        .stdout(predicate::str::contains(state.cluster().namespace()));
+                    NamespaceCmd::new("list", state.cluster().namespace()).run(state);
                 }
                 .boxed()
             })),
@@ -55,164 +44,41 @@ async fn retention() {
             Step::WriteLineProtocol(String::from(
                 "my_awesome_table2,tag1=A,tag2=B val=42i 123456",
             )),
-            // Set the retention period to 2 hours
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = state.cluster().namespace();
-                    let retention_period_hours = 2;
-                    let retention_period_ns =
-                        retention_period_hours as i64 * 60 * 60 * 1_000_000_000;
-
-                    // Validate the output of the namespace retention command
-                    //
-                    //     {
-                    //      "id": "1",
-                    //      "name": "0911430016317810_8303971312605107",
-                    //      "retentionPeriodNs": "7200000000000"
-                    //    }
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("retention")
-                        .arg("--retention-hours")
-                        .arg(retention_period_hours.to_string())
-                        .arg(namespace)
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains(namespace)
-                                .and(predicate::str::contains(retention_period_ns.to_string())),
-                        );
+                    NamespaceCmd::new("retention", state.cluster().namespace())
+                        .with_retention_hours(2)
+                        .run(state);
                 }
                 .boxed()
             })),
-            // set the retention period to null
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = state.cluster().namespace();
-                    let retention_period_hours = 0; // will be updated to null
-
-                    // Validate the output of the namespace retention command
-                    //
-                    //     {
-                    //      "id": "1",
-                    //      "name": "6699752880299094_1206270074309156"
-                    //    }
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("retention")
-                        .arg("--retention-hours")
-                        .arg(retention_period_hours.to_string())
-                        .arg(namespace)
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains(namespace)
-                                .and(predicate::str::contains("retentionPeriodNs".to_string()))
-                                .not(),
-                        );
+                    NamespaceCmd::new("retention", state.cluster().namespace())
+                        .with_retention_hours(0)
+                        .run(state);
                 }
                 .boxed()
             })),
-            // create a new namespace and set the retention period to 2 hours
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "namespace_2";
-                    let retention_period_hours = 2;
-                    let retention_period_ns =
-                        retention_period_hours as i64 * 60 * 60 * 1_000_000_000;
-
-                    // Validate the output of the namespace retention command
-                    //
-                    //     {
-                    //      "id": "1",
-                    //      "name": "namespace_2",
-                    //      "retentionPeriodNs": "7200000000000"
-                    //    }
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("create")
-                        .arg("--retention-hours")
-                        .arg(retention_period_hours.to_string())
-                        .arg(namespace)
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains(namespace)
-                                .and(predicate::str::contains(retention_period_ns.to_string())),
-                        );
+                    NamespaceCmd::new("create", "namespace_2")
+                        .with_retention_hours(2)
+                        .run(state);
                 }
                 .boxed()
             })),
-            // create a namespace without retention. 0 represeting null/infinite will be used
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "namespace_3";
-
-                    // Validate the output of the namespace retention command
-                    //
-                    //     {
-                    //      "id": "1",
-                    //      "name": "namespace_3",
-                    //    }
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("create")
-                        .arg(namespace)
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains(namespace)
-                                .and(predicate::str::contains("retentionPeriodNs".to_string()))
-                                .not(),
-                        );
+                    NamespaceCmd::new("create", "namespace_3").run(state);
                 }
                 .boxed()
             })),
-            // create a namespace retention 0 represeting null/infinite will be used
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "namespace_4";
-                    let retention_period_hours = 0;
-
-                    // Validate the output of the namespace retention command
-                    //
-                    //     {
-                    //      "id": "1",
-                    //      "name": "namespace_4",
-                    //    }
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("create")
-                        .arg("--retention-hours")
-                        .arg(retention_period_hours.to_string())
-                        .arg(namespace)
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains(namespace)
-                                .and(predicate::str::contains("retentionPeriodNs".to_string()))
-                                .not(),
-                        );
+                    NamespaceCmd::new("create", "namespace_4")
+                        .with_retention_hours(0)
+                        .run(state);
                 }
                 .boxed()
             })),
@@ -233,68 +99,27 @@ async fn deletion() {
     StepTest::new(
         &mut cluster,
         vec![
-            // create a new namespace without retention policy
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-                    let retention_period_hours = 0;
-
-                    // Validate the output of the namespace retention command
-                    //
-                    //     {
-                    //      "id": "1",
-                    //      "name": "bananas_namespace",
-                    //    }
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("create")
-                        .arg("--retention-hours")
-                        .arg(retention_period_hours.to_string())
-                        .arg(NAMESPACE_NAME)
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains(NAMESPACE_NAME)
-                                .and(predicate::str::contains("retentionPeriodNs".to_string()))
-                                .not(),
-                        );
+                    NamespaceCmd::new("create", NAMESPACE_NAME)
+                        .with_retention_hours(0)
+                        .run(state);
                 }
                 .boxed()
             })),
             // delete the newly created namespace
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("delete")
-                        .arg(NAMESPACE_NAME)
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains("Deleted namespace")
-                                .and(predicate::str::contains(NAMESPACE_NAME)),
-                        );
+                    NamespaceCmd::new("delete", NAMESPACE_NAME).run(state);
                 }
                 .boxed()
             })),
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let mut list_cmd =
+                        NamespaceCmd::new("list", state.cluster().namespace()).build_command(state);
 
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("list")
+                    list_cmd
                         .assert()
                         .success()
                         .stdout(predicate::str::contains(NAMESPACE_NAME).not());
@@ -318,41 +143,14 @@ async fn create_service_limits() {
         vec![
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace_name = "ns1";
-
-                    // {
-                    //   "id": <foo>,
-                    //   "name": "ns1",
-                    //   "serviceProtectionLimits": {
-                    //     "maxTables": 123,
-                    //     "maxColumnsPerTable": 200
-                    //   }
-                    // }
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("create")
-                        .arg(namespace_name)
-                        .arg("--max-tables")
-                        .arg("123")
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains(namespace_name)
-                                .and(predicate::str::contains(r#""maxTables": 123"#))
-                                .and(predicate::str::contains(r#""maxColumnsPerTable": 200"#)),
-                        );
+                    NamespaceCmd::new("create", "ns1")
+                        .with_max_tables(123)
+                        .run(state);
                 }
                 .boxed()
             })),
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace_name = "ns2";
-
                     // {
                     //   "id": <foo>,
                     //   "name": "ns2",
@@ -361,30 +159,14 @@ async fn create_service_limits() {
                     //     "maxColumnsPerTable": 321
                     //   }
                     // }
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("create")
-                        .arg(namespace_name)
-                        .arg("--max-columns-per-table")
-                        .arg("321")
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains(namespace_name)
-                                .and(predicate::str::contains(r#""maxTables": 500"#))
-                                .and(predicate::str::contains(r#""maxColumnsPerTable": 321"#)),
-                        );
+                    NamespaceCmd::new("create", "ns2")
+                        .with_max_columns_per_table(321)
+                        .run(state);
                 }
                 .boxed()
             })),
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace_name = "ns3";
-
                     // {
                     //   "id": <foo>,
                     //   "name": "ns3",
@@ -393,24 +175,10 @@ async fn create_service_limits() {
                     //     "maxColumnsPerTable": 321
                     //   }
                     // }
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("create")
-                        .arg(namespace_name)
-                        .arg("--max-tables")
-                        .arg("123")
-                        .arg("--max-columns-per-table")
-                        .arg("321")
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains(namespace_name)
-                                .and(predicate::str::contains(r#""maxTables": 123"#))
-                                .and(predicate::str::contains(r#""maxColumnsPerTable": 321"#)),
-                        );
+                    NamespaceCmd::new("create", "ns3")
+                        .with_max_tables(123)
+                        .with_max_columns_per_table(321)
+                        .run(state);
                 }
                 .boxed()
             })),
@@ -433,8 +201,6 @@ async fn update_service_limit() {
         vec![
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-
                     // {
                     //   "id": <foo>,
                     //   "name": "service_limiter_namespace",
@@ -443,27 +209,12 @@ async fn update_service_limit() {
                     //     "maxColumnsPerTable": 200
                     //   }
                     // }
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("create")
-                        .arg(NAMESPACE_NAME)
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains(NAMESPACE_NAME)
-                                .and(predicate::str::contains(r#""maxTables": 500"#))
-                                .and(predicate::str::contains(r#""maxColumnsPerTable": 200"#)),
-                        );
+                    NamespaceCmd::new("create", NAMESPACE_NAME).run(state);
                 }
                 .boxed()
             })),
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-
                     // {
                     //   "id": <foo>,
                     //   "name": "service_limiter_namespace",
@@ -472,29 +223,14 @@ async fn update_service_limit() {
                     //     "maxColumnsPerTable": 200
                     //   }
                     // }
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("update-limit")
-                        .arg("--max-tables")
-                        .arg("1337")
-                        .arg(NAMESPACE_NAME)
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains(NAMESPACE_NAME)
-                                .and(predicate::str::contains(r#""maxTables": 1337"#))
-                                .and(predicate::str::contains(r#""maxColumnsPerTable": 200"#)),
-                        );
+                    NamespaceCmd::new("update-limit", NAMESPACE_NAME)
+                        .with_max_tables(1337)
+                        .run(state);
                 }
                 .boxed()
             })),
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-
                     // {
                     //   "id": <foo>,
                     //   "name": "service_limiter_namespace",
@@ -503,22 +239,17 @@ async fn update_service_limit() {
                     //     "maxColumnsPerTable": 42
                     //   }
                     // }
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("update-limit")
-                        .arg("--max-columns-per-table")
-                        .arg("42")
-                        .arg(NAMESPACE_NAME)
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains(NAMESPACE_NAME)
-                                .and(predicate::str::contains(r#""maxTables": 1337"#))
-                                .and(predicate::str::contains(r#""maxColumnsPerTable": 42"#)),
-                        );
+                    let mut update_cmd = NamespaceCmd::new("update-limit", NAMESPACE_NAME)
+                        .with_max_columns_per_table(42)
+                        .build_command(state);
+
+                    // Customize assertion to check that `maxTables` is the value the previous step
+                    // set it to without sending `--max-tables` again
+                    update_cmd.assert().success().stdout(
+                        predicate::str::contains(NAMESPACE_NAME)
+                            .and(predicate::str::contains(r#""maxTables": 1337"#))
+                            .and(predicate::str::contains(r#""maxColumnsPerTable": 42"#)),
+                    );
                 }
                 .boxed()
             })),
@@ -540,16 +271,12 @@ async fn create_partition_template_negative() {
         &mut cluster,
         vec![Step::Custom(Box::new(|state: &mut StepTestState| {
             async {
-                let addr = state.cluster().router().router_grpc_base().to_string();
+                let create_cmd = NamespaceCmd::new("create", NAMESPACE_NAME);
 
-                // No partition tempplate specified
-                Command::cargo_bin("influxdb_iox")
-                    .unwrap()
-                    .arg("-h")
-                    .arg(&addr)
-                    .arg("namespace")
-                    .arg("create")
-                    .arg(NAMESPACE_NAME)
+                // No partition template value specified is an error
+                create_cmd
+                    .clone()
+                    .build_command(state)
                     .arg("--partition-template")
                     .assert()
                     .failure()
@@ -558,22 +285,17 @@ async fn create_partition_template_negative() {
                                 <PARTITION_TEMPLATE>' but none was supplied",
                     ));
 
-                // Wrong spelling `prts`
-                Command::cargo_bin("influxdb_iox")
-                    .unwrap()
-                    .arg("-h")
-                    .arg(&addr)
-                    .arg("namespace")
-                    .arg("create")
-                    .arg(NAMESPACE_NAME)
-                    .arg("--partition-template")
-                    .arg(
+                // Wrong spelling `prts` in JSON is an error
+                create_cmd
+                    .clone()
+                    .with_partition_template(
                         "{\"prts\": [\
                             {\"tagValue\": \"location\"}, \
                             {\"tagValue\": \"state\"}, \
                             {\"timeFormat\": \"%Y-%m\"}\
                         ]}",
                     )
+                    .build_command(state)
                     .assert()
                     .failure()
                     .stderr(predicate::str::contains(
@@ -581,22 +303,17 @@ async fn create_partition_template_negative() {
                             unknown field `prts`",
                     ));
 
-                // Time as tag
-                Command::cargo_bin("influxdb_iox")
-                    .unwrap()
-                    .arg("-h")
-                    .arg(&addr)
-                    .arg("namespace")
-                    .arg("create")
-                    .arg(NAMESPACE_NAME)
-                    .arg("--partition-template")
-                    .arg(
+                // Attempting to use `time` as a tag in the partition template is an error
+                create_cmd
+                    .clone()
+                    .with_partition_template(
                         "{\"parts\": [\
                             {\"tagValue\": \"location\"}, \
                             {\"tagValue\": \"time\"}, \
                             {\"timeFormat\": \"%Y-%m\"}\
                         ]}",
                     )
+                    .build_command(state)
                     .assert()
                     .failure()
                     .stderr(predicate::str::contains(
@@ -604,21 +321,16 @@ async fn create_partition_template_negative() {
                             invalid tag value in partition template: time cannot be used",
                     ));
 
-                // Time format is `%42` which is invalid
-                Command::cargo_bin("influxdb_iox")
-                    .unwrap()
-                    .arg("-h")
-                    .arg(&addr)
-                    .arg("namespace")
-                    .arg("create")
-                    .arg(NAMESPACE_NAME)
-                    .arg("--partition-template")
-                    .arg(
+                // Attempting to use time format `%42` is an error
+                create_cmd
+                    .clone()
+                    .with_partition_template(
                         "{\"parts\": [\
                             {\"tagValue\": \"location\"}, \
                             {\"timeFormat\": \"%42\"}\
                         ]}",
                     )
+                    .build_command(state)
                     .assert()
                     .failure()
                     .stderr(predicate::str::contains(
@@ -626,16 +338,10 @@ async fn create_partition_template_negative() {
                             invalid strftime format in partition template",
                     ));
 
-                // Over 8 parts
-                Command::cargo_bin("influxdb_iox")
-                    .unwrap()
-                    .arg("-h")
-                    .arg(&addr)
-                    .arg("namespace")
-                    .arg("create")
-                    .arg(NAMESPACE_NAME)
-                    .arg("--partition-template")
-                    .arg(
+                // Over 8 parts in a partition template is an error
+                create_cmd
+                    .clone()
+                    .with_partition_template(
                         "{\"parts\": \
                             [{\"tagValue\": \"1\"},\
                             {\"tagValue\": \"2\"},\
@@ -648,6 +354,7 @@ async fn create_partition_template_negative() {
                             {\"tagValue\": \"9\"}\
                         ]}",
                     )
+                    .build_command(state)
                     .assert()
                     .failure()
                     .stderr(predicate::str::contains(
@@ -671,82 +378,35 @@ async fn create_partition_template_positive() {
         &mut cluster,
         vec![Step::Custom(Box::new(|state: &mut StepTestState| {
             async {
-                let addr = state.cluster().router().router_grpc_base().to_string();
-
-                let namespace_name_1 = "ns_partition_template_1";
                 // No partition template specified
-                Command::cargo_bin("influxdb_iox")
-                    .unwrap()
-                    .arg("-h")
-                    .arg(&addr)
-                    .arg("namespace")
-                    .arg("create")
-                    .arg(namespace_name_1)
-                    .assert()
-                    .success()
-                    .stdout(predicate::str::contains(namespace_name_1));
+                NamespaceCmd::new("create", "ns_partition_template_1").run(state);
 
                 // Partition template with time format
-                let namespace_name_2 = "ns_partition_template_2";
-                Command::cargo_bin("influxdb_iox")
-                    .unwrap()
-                    .arg("-h")
-                    .arg(&addr)
-                    .arg("namespace")
-                    .arg("create")
-                    .arg(namespace_name_2)
-                    .arg("--partition-template")
-                    .arg("{\"parts\":[{\"timeFormat\":\"%Y-%m\"}]}")
-                    .assert()
-                    .success()
-                    .stdout(predicate::str::contains(namespace_name_2));
+                NamespaceCmd::new("create", "ns_partition_template_2")
+                    .with_partition_template("{\"parts\":[{\"timeFormat\":\"%Y-%m\"}]}")
+                    .run(state);
 
                 // Partition template with tag value
-                let namespace_name_3 = "ns_partition_template_3";
-                Command::cargo_bin("influxdb_iox")
-                    .unwrap()
-                    .arg("-h")
-                    .arg(&addr)
-                    .arg("namespace")
-                    .arg("create")
-                    .arg(namespace_name_3)
-                    .arg("--partition-template")
-                    .arg("{\"parts\":[{\"tagValue\":\"col1\"}]}")
-                    .assert()
-                    .success()
-                    .stdout(predicate::str::contains(namespace_name_3));
+                NamespaceCmd::new("create", "ns_partition_template_3")
+                    .with_partition_template("{\"parts\":[{\"tagValue\":\"col1\"}]}")
+                    .run(state);
 
                 // Partition template with time format, tag value, and tag of unsual column name
                 let namespace_name_4 = "ns_partition_template_4";
-                Command::cargo_bin("influxdb_iox")
-                    .unwrap()
-                    .arg("-h")
-                    .arg(&addr)
-                    .arg("namespace")
-                    .arg("create")
-                    .arg(namespace_name_4)
-                    .arg("--partition-template")
-                    .arg(
+                NamespaceCmd::new("create", namespace_name_4)
+                    .with_partition_template(
                         "{\"parts\":[\
                             {\"tagValue\":\"col1\"},\
                             {\"timeFormat\":\"%Y-%d\"},\
                             {\"tagValue\":\"yes,col name\"}\
                         ]}",
                     )
-                    .assert()
-                    .success()
-                    .stdout(predicate::str::contains(namespace_name_4));
+                    .run(state);
 
-                // Update an existing namespace
-                Command::cargo_bin("influxdb_iox")
-                    .unwrap()
-                    .arg("-h")
-                    .arg(&addr)
-                    .arg("namespace")
-                    .arg("update")
-                    .arg(namespace_name_4)
-                    .arg("--partition-template")
-                    .arg("{\"parts\":[{\"tagValue\":\"col1\"}]}")
+                // `update` isn't a valid command
+                NamespaceCmd::new("update", namespace_name_4)
+                    .with_partition_template("{\"parts\":[{\"tagValue\":\"col1\"}]}")
+                    .build_command(state)
                     .assert()
                     .failure()
                     .stderr(predicate::str::contains(
@@ -778,29 +438,19 @@ async fn create_partition_template_implicit_table_creation() {
             // Explicitly create a namespace with a custom partition template
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("create")
-                        .arg(NAMESPACE_NAME)
-                        .arg("--partition-template")
-                        .arg(
+                    NamespaceCmd::new("create", NAMESPACE_NAME)
+                        .with_partition_template(
                             "{\"parts\":[\
                             {\"timeFormat\":\"%Y-%m\"}, \
                             {\"tagValue\":\"location\"}\
                         ]}",
                         )
-                        .assert()
-                        .success()
-                        .stdout(predicate::str::contains(NAMESPACE_NAME));
+                        .run(state);
                 }
                 .boxed()
             })),
-            // Write, which implicitly creates the table with the namespace's custom partition template
+            // Write, which implicitly creates the table with the namespace's custom partition
+            // template
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_http_base().to_string();
@@ -872,25 +522,14 @@ async fn create_partition_template_explicit_table_creation_without_partition_tem
             // Explicitly create a namespace with a custom partition template
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("create")
-                        .arg(NAMESPACE_NAME)
-                        .arg("--partition-template")
-                        .arg(
+                    NamespaceCmd::new("create", NAMESPACE_NAME)
+                        .with_partition_template(
                             "{\"parts\":[\
                             {\"timeFormat\":\"%Y-%m\"}, \
                             {\"tagValue\":\"state\"}\
                         ]}",
                         )
-                        .assert()
-                        .success()
-                        .stdout(predicate::str::contains(NAMESPACE_NAME));
+                        .run(state);
                 }
                 .boxed()
             })),
@@ -983,25 +622,14 @@ async fn create_partition_template_explicit_table_creation_with_partition_templa
             // Explicitly create a namespace with a custom partition template
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let addr = state.cluster().router().router_grpc_base().to_string();
-
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&addr)
-                        .arg("namespace")
-                        .arg("create")
-                        .arg(NAMESPACE_NAME)
-                        .arg("--partition-template")
-                        .arg(
+                    NamespaceCmd::new("create", NAMESPACE_NAME)
+                        .with_partition_template(
                             "{\"parts\":[\
                             {\"timeFormat\":\"%Y-%m\"}, \
                             {\"tagValue\":\"state\"}\
                         ]}",
                         )
-                        .assert()
-                        .success()
-                        .stdout(predicate::str::contains(NAMESPACE_NAME));
+                        .run(state);
                 }
                 .boxed()
             })),
