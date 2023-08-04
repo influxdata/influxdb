@@ -277,10 +277,14 @@ impl QuerierTable {
         // build final chunk list
         let chunks = partitions
             .into_iter()
-            .filter_map(|mut c| {
-                let cached_partition = cached_partitions.get(&c.partition_id())?;
-                c.set_partition_column_ranges(&cached_partition.column_ranges);
-                Some(c)
+            .map(|mut c| {
+                // If we have a cached partition, set this partition's column ranges to the
+                // cached column ranges. If not, don't modify the partition-- it's likely from
+                // the ingester and doesn't have column ranges in the catalog yet.
+                if let Some(cached_partition) = cached_partitions.get(&c.partition_id()) {
+                    c.set_partition_column_ranges(&cached_partition.column_ranges);
+                }
+                c
             })
             .flat_map(|c| c.into_chunks().into_iter())
             .map(|c| Arc::new(c) as Arc<dyn QueryChunk>)
