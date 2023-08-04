@@ -331,6 +331,7 @@ impl IOxMigration {
         }
 
         let elapsed = start.elapsed();
+        conn.run_sanity_checks().await?;
         conn.finish_migration(self, elapsed).await?;
 
         Ok(elapsed)
@@ -612,6 +613,11 @@ pub trait IOxMigrate: Connection + Migrate + Send {
 
     /// Execute a SQL statement (that may contain multiple sub-statements)
     async fn exec(&mut self, sql: &str) -> Result<(), MigrateError>;
+
+    /// Run DB-specific sanity checks on the schema.
+    ///
+    /// This mostly includes checks for "validity" markers (e.g. for indices).
+    async fn run_sanity_checks(&mut self) -> Result<(), MigrateError>;
 }
 
 #[async_trait]
@@ -731,6 +737,29 @@ WHERE version = $2
 
     async fn exec(&mut self, sql: &str) -> Result<(), MigrateError> {
         let _ = self.execute(sql).await?;
+        Ok(())
+    }
+
+    async fn run_sanity_checks(&mut self) -> Result<(), MigrateError> {
+        let dirty_indices: Vec<String> = query_scalar(
+            r#"
+SELECT pg_class.relname
+FROM pg_index
+JOIN pg_class     ON pg_index.indexrelid   = pg_class.oid
+JOIN pg_namespace ON pg_class.relnamespace = pg_namespace.oid
+WHERE pg_namespace.nspname = current_schema() AND NOT pg_index.indisvalid
+ORDER BY pg_class.relname
+            "#,
+        )
+        .fetch_all(self)
+        .await?;
+
+        if !dirty_indices.is_empty() {
+            return Err(MigrateError::Source(
+                format!("Found invalid indexes: {}", dirty_indices.join(", ")).into(),
+            ));
+        }
+
         Ok(())
     }
 }
@@ -1550,6 +1579,47 @@ mod tests {
                 })
                 .collect();
             while futures.next().await.is_some() {}
+        }
+
+        #[tokio::test]
+        async fn test_sanity_checks_index() {
+            maybe_skip_integration!();
+            let pool = setup_pool().await;
+
+            let mut conn = pool.acquire().await.unwrap();
+            let conn = &mut *conn;
+
+            conn.execute("CREATE TABLE t (x INT);").await.unwrap();
+            conn.execute("INSERT INTO t VALUES (1);").await.unwrap();
+            conn.execute("INSERT INTO t VALUES (1);").await.unwrap();
+
+            let migrator = IOxMigrator::try_new([IOxMigration {
+                version: 1,
+                description: "".into(),
+                steps: [IOxMigrationStep::SqlStatement {
+                    sql: "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS i ON t (x);".into(),
+                    in_transaction: false,
+                }]
+                .into(),
+                checksum: [1, 2, 3].into(),
+                other_compatible_checksums: [].into(),
+            }])
+            .unwrap();
+
+            // fails because is not unique
+            let err = migrator.run_direct(conn).await.unwrap_err();
+            assert_eq!(err.to_string(), "while executing migrations: error returned from database: could not create unique index \"i\"");
+
+            // currently we do NOT retry the dirty migration
+            let err = migrator.run_direct(conn).await.unwrap_err();
+            assert_eq!(err.to_string(), "migration 1 is partially applied; fix and remove row from `_sqlx_migrations` table");
+
+            // the sanity checks fail
+            let err = conn.run_sanity_checks().await.unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "while resolving migrations: Found invalid indexes: i"
+            );
         }
 
         async fn setup_pool() -> HotSwapPool<Postgres> {
