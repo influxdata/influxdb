@@ -805,7 +805,7 @@ mod tests {
             .with_ingester_partition(
                 IngesterPartitionBuilder::new(schema.clone(), &partition_a)
                     .with_lp(["table,tag1=val1a,tag2=val2a foo=3,bar=4 11"])
-                    .with_colum_ranges(Arc::new(HashMap::from([(
+                    .with_column_ranges(Arc::new(HashMap::from([(
                         Arc::from("tag1"),
                         ColumnRange {
                             min_value: Arc::new(ScalarValue::from("val1a")),
