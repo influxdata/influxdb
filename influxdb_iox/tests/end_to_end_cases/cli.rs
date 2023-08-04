@@ -11,7 +11,6 @@ use arrow_util::assert_batches_sorted_eq;
 use assert_cmd::Command;
 use assert_matches::assert_matches;
 use futures::FutureExt;
-use lazy_static::lazy_static;
 use predicates::prelude::*;
 use tempfile::tempdir;
 use test_helpers_end_to_end::{
@@ -617,8 +616,7 @@ async fn query_ingester() {
     .await
 }
 
-lazy_static! {
-static ref TEMPERATURE_RESULTS: Vec<&'static str> = vec![
+static TEMPERATURE_RESULTS: &[&str] = &[
                         "+----------------+--------------+-------+-----------------+--------------------------------+",
                         "| bottom_degrees | location     | state | surface_degrees | time                           |",
                         "+----------------+--------------+-------+-----------------+--------------------------------+",
@@ -630,8 +628,6 @@ static ref TEMPERATURE_RESULTS: Vec<&'static str> = vec![
                         "| 40.1           | puget_sound  | WA    | 54.7            | 1970-01-01T00:00:01.600756160Z |",
                         "+----------------+--------------+-------+-----------------+--------------------------------+",
                     ];
-
-}
 
 #[tokio::test]
 async fn write_lp_from_wal() {
@@ -688,7 +684,7 @@ async fn write_lp_from_wal() {
                     assert_ingester_contains_results(
                         state.cluster(),
                         table_name,
-                        &TEMPERATURE_RESULTS,
+                        TEMPERATURE_RESULTS,
                     )
                     .await;
                 }
@@ -779,7 +775,7 @@ async fn write_lp_from_wal() {
                     assert_ingester_contains_results(
                         state.cluster(),
                         table_name,
-                        &TEMPERATURE_RESULTS,
+                        TEMPERATURE_RESULTS,
                     )
                     .await;
                 }
