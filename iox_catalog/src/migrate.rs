@@ -110,7 +110,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use observability_deps::tracing::info;
+use observability_deps::tracing::{debug, info};
 use siphasher::sip::SipHasher13;
 use sqlx::{
     migrate::{AppliedMigration, Migrate, MigrateError, Migration, MigrationType, Migrator},
@@ -259,7 +259,7 @@ impl IOxMigration {
     where
         C: IOxMigrate,
     {
-        let single_transaction = self.steps.iter().all(|s| s.in_transaction());
+        let single_transaction = self.single_transaction();
         info!(
             version = self.version,
             description = self.description.as_ref(),
@@ -334,6 +334,11 @@ impl IOxMigration {
         conn.finish_migration(self, elapsed).await?;
 
         Ok(elapsed)
+    }
+
+    /// This migration can be run in a single transaction and will never by dirty.
+    pub fn single_transaction(&self) -> bool {
+        self.steps.iter().all(|s| s.in_transaction())
     }
 }
 
@@ -448,6 +453,28 @@ impl IOxMigrator {
         let lock_id = conn.generate_lock_id().await?;
         <C as IOxMigrate>::lock(conn, lock_id).await?;
 
+        let run_res = self.run_inner(conn).await;
+
+        // always try to unlock, even when we failed.
+        // While PG is timing out the lock, unlocking manually will give others the chance to re-lock faster. This is
+        // mostly relevant for tests where we re-use connections.
+        let unlock_res = <C as IOxMigrate>::unlock(conn, lock_id).await;
+
+        // return first error but also first OK (there doesn't seem to be an stdlib method for this)
+        match (run_res, unlock_res) {
+            (Err(e), _) => Err(e),
+            (Ok(_), Err(e)) => Err(e),
+            (Ok(res), Ok(())) => Ok(res),
+        }
+    }
+
+    /// Run migragtor.
+    ///
+    /// This expects that locking was already done.
+    async fn run_inner<C>(&self, conn: &mut C) -> Result<HashSet<i64>, MigrateError>
+    where
+        C: IOxMigrate,
+    {
         // creates [_migrations] table only if needed
         // eventually this will likely migrate previous versions of the table
         conn.ensure_migrations_table().await?;
@@ -472,10 +499,6 @@ impl IOxMigrator {
             migration.apply(conn).await?;
             new_migrations.insert(migration.version);
         }
-
-        // unlock the migrator to allow other migrators to run
-        // but do nothing as we already migrated
-        <C as IOxMigrate>::unlock(conn, lock_id).await?;
 
         Ok(new_migrations)
     }
@@ -645,15 +668,27 @@ impl IOxMigrate for PgConnection {
                 return Ok(());
             }
 
-            tokio::time::sleep(Duration::from_millis(20)).await;
+            let t_wait = Duration::from_millis(20);
+            debug!(
+                lock_id,
+                t_wait_millis = t_wait.as_millis(),
+                "lock held, waiting"
+            );
+            tokio::time::sleep(t_wait).await;
         }
     }
 
     async fn unlock(&mut self, lock_id: i64) -> Result<(), MigrateError> {
-        let _ = query("SELECT pg_advisory_unlock($1)")
+        let was_locked: bool = query_scalar("SELECT pg_advisory_unlock($1)")
             .bind(lock_id)
-            .execute(self)
+            .fetch_one(self)
             .await?;
+
+        if !was_locked {
+            return Err(MigrateError::Source(
+                format!("did not own lock: {lock_id}").into(),
+            ));
+        }
 
         Ok(())
     }
@@ -980,11 +1015,142 @@ mod tests {
 
         use futures::{stream::FuturesUnordered, StreamExt};
         use sqlx::{pool::PoolConnection, Postgres};
+        use sqlx_hotswap_pool::HotSwapPool;
         use test_helpers::maybe_start_logging;
 
         use crate::postgres::test_utils::{maybe_skip_integration, setup_db_no_migration};
 
         use super::*;
+
+        #[tokio::test]
+        async fn test_lock_id_deterministic() {
+            maybe_skip_integration!();
+
+            let mut conn = setup().await;
+            let conn = &mut *conn;
+
+            let first = conn.generate_lock_id().await.unwrap();
+            let second = conn.generate_lock_id().await.unwrap();
+            assert_eq!(first, second);
+        }
+
+        #[tokio::test]
+        async fn test_lock_unlock_twice() {
+            maybe_skip_integration!();
+
+            let mut conn = setup().await;
+            let conn = &mut *conn;
+
+            let lock_id = conn.generate_lock_id().await.unwrap();
+
+            <PgConnection as IOxMigrate>::lock(conn, lock_id)
+                .await
+                .unwrap();
+            <PgConnection as IOxMigrate>::unlock(conn, lock_id)
+                .await
+                .unwrap();
+
+            <PgConnection as IOxMigrate>::lock(conn, lock_id)
+                .await
+                .unwrap();
+            <PgConnection as IOxMigrate>::unlock(conn, lock_id)
+                .await
+                .unwrap();
+        }
+
+        #[tokio::test]
+        async fn test_lock_prevents_2nd_lock() {
+            maybe_skip_integration!();
+
+            let pool = setup_pool().await;
+
+            let mut conn1 = pool.acquire().await.unwrap();
+            let conn1 = &mut *conn1;
+
+            let mut conn2 = pool.acquire().await.unwrap();
+            let conn2 = &mut *conn2;
+
+            let lock_id = conn1.generate_lock_id().await.unwrap();
+
+            <PgConnection as IOxMigrate>::lock(conn1, lock_id)
+                .await
+                .unwrap();
+            tokio::time::timeout(Duration::from_secs(1), async {
+                <PgConnection as IOxMigrate>::lock(conn2, lock_id)
+                    .await
+                    .unwrap();
+            })
+            .await
+            .unwrap_err();
+            <PgConnection as IOxMigrate>::unlock(conn1, lock_id)
+                .await
+                .unwrap();
+
+            <PgConnection as IOxMigrate>::lock(conn2, lock_id)
+                .await
+                .unwrap();
+            <PgConnection as IOxMigrate>::unlock(conn2, lock_id)
+                .await
+                .unwrap();
+        }
+
+        #[tokio::test]
+        async fn test_locks_are_scoped() {
+            maybe_skip_integration!();
+
+            let pool = setup_pool().await;
+
+            let mut conn1 = pool.acquire().await.unwrap();
+            let conn1 = &mut *conn1;
+
+            let mut conn2 = pool.acquire().await.unwrap();
+            let conn2 = &mut *conn2;
+
+            let lock_id1 = conn1.generate_lock_id().await.unwrap();
+            let lock_id2 = !lock_id1;
+
+            <PgConnection as IOxMigrate>::lock(conn1, lock_id1)
+                .await
+                .unwrap();
+            <PgConnection as IOxMigrate>::lock(conn1, lock_id2)
+                .await
+                .unwrap();
+            <PgConnection as IOxMigrate>::unlock(conn1, lock_id1)
+                .await
+                .unwrap();
+
+            // id2 is still lock (i.e. unlock is also scoped)
+            tokio::time::timeout(Duration::from_secs(1), async {
+                <PgConnection as IOxMigrate>::lock(conn2, lock_id2)
+                    .await
+                    .unwrap();
+            })
+            .await
+            .unwrap_err();
+
+            <PgConnection as IOxMigrate>::unlock(conn1, lock_id2)
+                .await
+                .unwrap();
+        }
+
+        #[tokio::test]
+        async fn test_unlock_without_lock_fails() {
+            maybe_skip_integration!();
+
+            let mut conn = setup().await;
+            let conn = &mut *conn;
+
+            let lock_id = conn.generate_lock_id().await.unwrap();
+
+            let err = <PgConnection as IOxMigrate>::unlock(conn, lock_id)
+                .await
+                .unwrap_err();
+
+            assert_starts_with(
+                &err.to_string(),
+                "while resolving migrations: did not own lock:",
+            );
+        }
 
         #[tokio::test]
         async fn test_step_sql_statement_no_transaction() {
@@ -1069,11 +1235,10 @@ mod tests {
             let applied = migrator.run_direct(conn).await.unwrap();
             assert_eq!(applied, HashSet::from([1, 2]));
 
-            let r = sqlx::query_as::<_, Res>("SELECT SUM(x)::INT AS r FROM t;")
+            let r: i32 = query_scalar("SELECT SUM(x)::INT AS r FROM t;")
                 .fetch_one(conn)
                 .await
-                .unwrap()
-                .r;
+                .unwrap();
 
             assert_eq!(r, 111);
         }
@@ -1303,11 +1468,10 @@ mod tests {
             migrator.run_direct(conn).await.unwrap_err();
 
             // all or nothing: nothing
-            let r = sqlx::query_as::<_, Res>(test_query)
+            let r: i32 = query_scalar(test_query)
                 .fetch_one(&mut *conn)
                 .await
-                .unwrap()
-                .r;
+                .unwrap();
             assert_eq!(r, 0);
 
             let migrator = IOxMigrator::try_new([IOxMigration {
@@ -1324,11 +1488,7 @@ mod tests {
             assert_eq!(applied, HashSet::from([1]),);
 
             // all or nothing: all
-            let r = sqlx::query_as::<_, Res>(test_query)
-                .fetch_one(conn)
-                .await
-                .unwrap()
-                .r;
+            let r: i32 = query_scalar(test_query).fetch_one(conn).await.unwrap();
             assert_eq!(r, 6);
         }
 
@@ -1392,16 +1552,22 @@ mod tests {
             while futures.next().await.is_some() {}
         }
 
-        async fn setup() -> PoolConnection<Postgres> {
+        async fn setup_pool() -> HotSwapPool<Postgres> {
             maybe_start_logging();
 
-            let pool = setup_db_no_migration().await.into_pool();
+            setup_db_no_migration().await.into_pool()
+        }
+
+        async fn setup() -> PoolConnection<Postgres> {
+            let pool = setup_pool().await;
             pool.acquire().await.unwrap()
         }
 
-        #[derive(sqlx::FromRow)]
-        struct Res {
-            r: i32,
+        #[track_caller]
+        fn assert_starts_with(s: &str, prefix: &str) {
+            if !s.starts_with(prefix) {
+                panic!("'{s}' does not start with '{prefix}'");
+            }
         }
     }
 }
