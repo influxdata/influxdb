@@ -23,7 +23,7 @@
 //! use tokio::runtime::Handle;
 //!
 //! // first we implement a strongly-typed RAM size measurement
-//! #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+//! #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 //! struct RamSize(usize);
 //!
 //! impl Resource for RamSize {
@@ -299,7 +299,7 @@
 //! [TTL]: super::ttl
 use std::{
     any::Any,
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{btree_map::Entry, BTreeMap, BinaryHeap},
     fmt::Debug,
     hash::Hash,
     sync::{Arc, Weak},
@@ -308,11 +308,12 @@ use std::{
 use iox_time::Time;
 use metric::{U64Counter, U64Gauge};
 use observability_deps::tracing::trace;
+use ouroboros::self_referencing;
 use parking_lot::Mutex;
 use tokio::{runtime::Handle, sync::Notify, task::JoinSet};
 
 use crate::{
-    addressable_heap::AddressableHeap,
+    addressable_heap::{AddressableHeap, AddressableHeapIter},
     backend::CacheBackend,
     resource_consumption::{Resource, ResourceEstimator},
 };
@@ -599,7 +600,7 @@ where
 
             let member = Arc::new(PoolMemberImpl {
                 id,
-                last_used: Mutex::new(AddressableHeap::new()),
+                last_used: Arc::new(Mutex::new(AddressableHeap::new())),
                 metric_evicted,
                 callback_handle: Mutex::new(callback_handle),
             });
@@ -646,7 +647,7 @@ where
     type V = V;
 
     fn get(&mut self, k: &Self::K, now: Time) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
-        trace!(?k, now = now.timestamp(), "LRU get",);
+        trace!(?k, now = now.timestamp_nanos(), "LRU get",);
         let mut last_used = self.member.last_used.lock();
 
         // update "last used"
@@ -661,7 +662,7 @@ where
         v: &Self::V,
         now: Time,
     ) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
-        trace!(?k, now = now.timestamp(), "LRU set",);
+        trace!(?k, now = now.timestamp_nanos(), "LRU set",);
 
         // determine all attributes before getting any locks
         let consumption = self.resource_estimator.consumption(k, v);
@@ -702,7 +703,7 @@ where
     }
 
     fn remove(&mut self, k: &Self::K, now: Time) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
-        trace!(?k, now = now.timestamp(), "LRU remove",);
+        trace!(?k, now = now.timestamp_nanos(), "LRU remove",);
         let mut last_used = self.member.last_used.lock();
 
         if let Some((consumption, _last_used)) = last_used.remove(k) {
@@ -714,6 +715,11 @@ where
         vec![]
     }
 }
+
+/// Iterator for enumerating removal candidates of a [`PoolMember`].
+///
+/// This is type-erased to make [`PoolMember`] object-safe.
+type PoolMemberCouldRemove<S> = Box<dyn Iterator<Item = (Time, S, Box<dyn Any>)>>;
 
 /// A member of a [`ResourcePool`]/[`SharedState`].
 ///
@@ -729,7 +735,9 @@ trait PoolMember: Debug + Send + Sync + 'static {
     /// - "last used" timestamp
     /// - resource consumption of that entry
     /// - type-erased key
-    fn could_remove(&self) -> Option<(Time, Self::S, Box<dyn Any>)>;
+    ///
+    /// Elements are returned in order of the "last used" timestamp, in increasing order.
+    fn could_remove(&self) -> PoolMemberCouldRemove<Self::S>;
 
     /// Remove given set of keys.
     ///
@@ -756,7 +764,7 @@ where
     /// Tracks usage of the last used elements.
     ///
     /// See documentation of [`callback_handle`](Self::callback_handle) for a reasoning about locking.
-    last_used: Mutex<AddressableHeap<K, S, Time>>,
+    last_used: Arc<Mutex<AddressableHeap<K, S, Time>>>,
 
     /// Handle to call back into the [`PolicyBackend`] to evict data.
     ///
@@ -783,11 +791,8 @@ where
 {
     type S = S;
 
-    fn could_remove(&self) -> Option<(Time, Self::S, Box<dyn Any>)> {
-        let last_used = self.last_used.lock();
-        last_used
-            .peek()
-            .map(|(k, s, t)| (*t, *s, Box::new(k.clone()) as _))
+    fn could_remove(&self) -> Box<dyn Iterator<Item = (Time, Self::S, Box<dyn Any>)>> {
+        it::build_it(self.last_used.lock_arc())
     }
 
     fn remove_keys(&self, keys: Vec<Box<dyn Any>>) {
@@ -810,6 +815,67 @@ where
         });
 
         self.callback_handle.lock().execute_requests(vec![combined]);
+    }
+}
+
+/// Helper module that wraps the iterator handling for [`PoolMember`]/[`PoolMemberImpl`].
+///
+/// This is required because [`ouroboros`] generates a bunch of code that we do not want to leak all over the place.
+mod it {
+    // ignore some lints for the ouroboros codegen
+    #![allow(clippy::future_not_send)]
+
+    use super::*;
+
+    /// The lock that we need to generate a candidate iterator.
+    pub type Lock<K, S> =
+        parking_lot::lock_api::ArcMutexGuard<parking_lot::RawMutex, AddressableHeap<K, S, Time>>;
+
+    #[self_referencing]
+    struct PoolMemberIter<K, S>
+    where
+        K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
+        S: Resource,
+    {
+        lock: Lock<K, S>,
+
+        #[borrows(lock)]
+        #[covariant]
+        it: AddressableHeapIter<'this, K, S, Time>,
+    }
+
+    impl<K, S> Iterator for PoolMemberIter<K, S>
+    where
+        K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
+        S: Resource,
+    {
+        type Item = (Time, S, Box<dyn Any>);
+
+        fn next(&mut self) -> Option<Self::Item> {
+            self.with_it_mut(|it| {
+                it.next()
+                    .map(|(k, s, t)| (*t, *s, Box::new(k.clone()) as _))
+            })
+        }
+
+        fn size_hint(&self) -> (usize, Option<usize>) {
+            self.borrow_it().size_hint()
+        }
+    }
+
+    /// Build iterator.
+    pub fn build_it<K, S>(lock: Lock<K, S>) -> PoolMemberCouldRemove<S>
+    where
+        K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
+        S: Resource,
+    {
+        Box::new(
+            PoolMemberIterBuilder {
+                lock,
+                it_builder: |lock| lock.iter(),
+            }
+            .build(),
+        )
     }
 }
 
@@ -859,31 +925,143 @@ async fn clean_up_loop<S>(
         // receive members
         // Do NOT hold the member lock during the deletion later because this can lead to deadlocks during shutdown.
         let members = shared.members();
+        if members.is_empty() {
+            // early retry, there's nothing we can do
+            continue;
+        }
 
         // select victims
         let mut victims: BTreeMap<&'static str, Vec<Box<dyn Any>>> = Default::default();
-        while current > shared.limit.v {
-            let mut options: Vec<_> = members
-                .iter()
-                .filter_map(|(id, member)| member.could_remove().map(|(t, s, k)| (t, s, k, *id)))
-                .collect();
-            options.sort_by_key(|(t, _s, _k, _id)| *t);
+        {
+            trace!(
+                current = current.into(),
+                limit = shared.limit.v.into(),
+                "select eviction victims"
+            );
 
-            match options.into_iter().next() {
-                Some((_t, s, k, id)) => {
-                    current = current - s;
-                    victims.entry(id).or_default().push(k);
+            // limit scope of member iterators, because they contain locks and we MUST drop them before proceeding to
+            // the actual deletion
+            let mut heap: BinaryHeap<EvictionCandidateIter<S>> = members
+                .iter()
+                .map(|(id, member)| EvictionCandidateIter::new(id, member.could_remove()))
+                .collect();
+
+            while current > shared.limit.v {
+                let candidate = heap.pop().expect("checked that we have at least 1 member");
+                let (candidate, victim) = candidate.next();
+
+                match victim {
+                    Some((t, s, k)) => {
+                        trace!(
+                            id = candidate.id,
+                            s = s.into(),
+                            t_ns = t.timestamp_nanos(),
+                            "found victim"
+                        );
+                        current = current - s;
+                        victims.entry(candidate.id).or_default().push(k);
+                    }
+                    None => {
+                        // The custom `Ord` implementation ensures that we prefer iterators with data over iterators
+                        // without any candidates. So if the "best" iterators has NO candidates, this means that ALL
+                        // iterators are empty.
+                        //
+                        // Or in other words: some data was deleted between retrieving the "current" value and locking
+                        // the iterators. This is fine, just stop looping and remove the victims that we have selected
+                        // so far.
+                        trace!("no more data");
+                        break;
+                    }
                 }
-                None => {
-                    // data was deleted in the meantime, stop looping
-                    break;
-                }
+
+                heap.push(candidate);
             }
+
+            trace!("done selecting eviction victims");
         }
 
         for (id, keys) in victims {
             let member = members.get(id).expect("did get this ID from this map");
             member.remove_keys(keys);
+        }
+    }
+}
+
+/// Current element presented by the [`EvictionCandidateIter`].
+type EvictionCandidate<S> = Option<(Time, S, Box<dyn Any>)>;
+
+/// Wraps a [`PoolMember`] so we can compare it in a "tournament" to find out what data to evict.
+struct EvictionCandidateIter<S>
+where
+    S: Resource,
+{
+    id: &'static str,
+    it: PoolMemberCouldRemove<S>,
+    current: EvictionCandidate<S>,
+}
+
+impl<S> EvictionCandidateIter<S>
+where
+    S: Resource,
+{
+    fn new(id: &'static str, mut it: PoolMemberCouldRemove<S>) -> Self {
+        let current = it.next();
+        Self { id, it, current }
+    }
+
+    /// Get next eviction candidate.
+    ///
+    /// This advances the internal state so that this iterator compares correctly afterwards.
+    fn next(mut self) -> (Self, EvictionCandidate<S>) {
+        let mut tmp = self.it.next();
+        std::mem::swap(&mut tmp, &mut self.current);
+        (self, tmp)
+    }
+}
+
+impl<S> PartialEq for EvictionCandidateIter<S>
+where
+    S: Resource,
+{
+    fn eq(&self, other: &Self) -> bool {
+        match (self.current.as_ref(), other.current.as_ref()) {
+            (None, None) | (Some(_), None) | (None, Some(_)) => false,
+            (Some((t1, s1, _k1)), Some((t2, s2, _k2))) => (t1, s1) == (t2, s2),
+        }
+    }
+}
+
+impl<S> Eq for EvictionCandidateIter<S> where S: Resource {}
+
+impl<S> PartialOrd for EvictionCandidateIter<S>
+where
+    S: Resource,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<S> Ord for EvictionCandidateIter<S>
+where
+    S: Resource,
+{
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // Note: reverse order because iterators are kept in a MAX heap
+        match (self.current.as_ref(), other.current.as_ref()) {
+            (None, None) => {
+                // break tie
+                self.id.cmp(other.id).reverse()
+            }
+
+            // prefer iterators with candidates over empty iterators
+            (Some(_), None) => std::cmp::Ordering::Greater,
+            (None, Some(_)) => std::cmp::Ordering::Less,
+
+            (Some((t1, _s1, _k1)), Some((t2, _s2, _k2))) => {
+                // compare by time, break tie using member ID
+                (t1, self.id).cmp(&(t2, other.id)).reverse()
+            }
         }
     }
 }
@@ -894,6 +1072,7 @@ mod tests {
 
     use iox_time::{MockProvider, SystemProvider};
     use metric::{Observation, RawReporter};
+    use test_helpers::maybe_start_logging;
 
     use crate::{
         backend::{policy::PolicyBackend, CacheBackend},
@@ -1109,6 +1288,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_eviction_order() {
+        maybe_start_logging();
+
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
@@ -1697,6 +1878,143 @@ mod tests {
         worker2.abort();
     }
 
+    #[tokio::test]
+    async fn test_efficient_eviction() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let metric_registry = Arc::new(metric::Registry::new());
+        let pool = Arc::new(ResourcePool::new(
+            "pool",
+            TestSize(10),
+            Arc::clone(&metric_registry),
+            &Handle::current(),
+        ));
+        let resource_estimator = Arc::new(TestResourceEstimator {});
+
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
+        backend.add_policy(LruPolicy::new(
+            Arc::clone(&pool),
+            "id",
+            Arc::clone(&resource_estimator) as _,
+        ));
+
+        // fill up pool
+        for i in 0..10 {
+            backend.set(i.to_string(), 1usize);
+        }
+        assert_eq!(pool.current(), TestSize(10));
+
+        // evict all members using a single large one
+        time_provider.inc(Duration::from_millis(1));
+        backend.set(String::from("big"), 10usize);
+        pool.wait_converged().await;
+        assert_eq!(pool.current(), TestSize(10));
+
+        let mut reporter = RawReporter::default();
+        metric_registry.report(&mut reporter);
+        assert_eq!(
+            reporter
+                .metric("cache_lru_member_evicted")
+                .unwrap()
+                .observation(&[("pool", "pool"), ("member", "id")])
+                .unwrap(),
+            // it is important that all 10 items are evicted with a single eviction
+            &Observation::U64Counter(10)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_eviction_half_half() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let metric_registry = Arc::new(metric::Registry::new());
+        let pool = Arc::new(ResourcePool::new(
+            "pool",
+            TestSize(20),
+            Arc::clone(&metric_registry),
+            &Handle::current(),
+        ));
+        let resource_estimator = Arc::new(TestResourceEstimator {});
+
+        let mut backend1 = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
+        backend1.add_policy(LruPolicy::new(
+            Arc::clone(&pool),
+            "id1",
+            Arc::clone(&resource_estimator) as _,
+        ));
+
+        let mut backend2 = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
+        backend2.add_policy(LruPolicy::new(
+            Arc::clone(&pool),
+            "id2",
+            Arc::clone(&resource_estimator) as _,
+        ));
+
+        // fill up pool
+        for i in 0..10 {
+            backend1.set(i.to_string(), 1usize);
+            backend2.set(i.to_string(), 1usize);
+            time_provider.inc(Duration::from_millis(1));
+        }
+        assert_eq!(pool.current(), TestSize(20));
+
+        // evict members using a single large one
+        time_provider.inc(Duration::from_millis(1));
+        backend1.set(String::from("big"), 10usize);
+        pool.wait_converged().await;
+        assert_eq!(pool.current(), TestSize(20));
+
+        // every member lost 5 entries
+        // Note: backend1 has 5+1 items because it own the "big" key
+        assert_inner_len(&mut backend1, 6);
+        assert_inner_len(&mut backend2, 5);
+    }
+
+    #[tokio::test]
+    async fn test_eviction_one_member_all_other_member_some() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let metric_registry = Arc::new(metric::Registry::new());
+        let pool = Arc::new(ResourcePool::new(
+            "pool",
+            TestSize(3),
+            Arc::clone(&metric_registry),
+            &Handle::current(),
+        ));
+        let resource_estimator = Arc::new(TestResourceEstimator {});
+
+        let mut backend1 = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
+        backend1.add_policy(LruPolicy::new(
+            Arc::clone(&pool),
+            "id1",
+            Arc::clone(&resource_estimator) as _,
+        ));
+
+        let mut backend2 = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
+        backend2.add_policy(LruPolicy::new(
+            Arc::clone(&pool),
+            "id2",
+            Arc::clone(&resource_estimator) as _,
+        ));
+
+        // fill up pool
+        backend1.set(String::from("a"), 1usize);
+        time_provider.inc(Duration::from_millis(1));
+        backend2.set(String::from("a"), 1usize);
+        time_provider.inc(Duration::from_millis(1));
+        backend2.set(String::from("b"), 1usize);
+        assert_eq!(pool.current(), TestSize(3));
+
+        // evict members using a single large one
+        time_provider.inc(Duration::from_millis(1));
+        backend2.set(String::from("big"), 2usize);
+        pool.wait_converged().await;
+        assert_eq!(pool.current(), TestSize(3));
+
+        assert_inner_backend(&mut backend1, []);
+        assert_inner_backend(
+            &mut backend2,
+            [(String::from("b"), 1usize), (String::from("big"), 2usize)],
+        );
+    }
+
     #[derive(Debug)]
     struct TestResourceEstimator {}
 
@@ -1710,6 +2028,7 @@ mod tests {
         }
     }
 
+    #[track_caller]
     fn assert_inner_backend<const N: usize>(
         backend: &mut PolicyBackend<String, usize>,
         data: [(String, usize); N],
@@ -1721,5 +2040,15 @@ mod tests {
             .unwrap();
         let expected = HashMap::from(data);
         assert_eq!(inner_backend, &expected);
+    }
+
+    #[track_caller]
+    fn assert_inner_len(backend: &mut PolicyBackend<String, usize>, len: usize) {
+        let inner_backend = backend.inner_ref();
+        let inner_backend = inner_backend
+            .as_any()
+            .downcast_ref::<HashMap<String, usize>>()
+            .unwrap();
+        assert_eq!(inner_backend.len(), len);
     }
 }

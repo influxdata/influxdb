@@ -13,6 +13,7 @@ pub trait Resource:
     + Copy
     + Debug
     + Into<u64>
+    + Ord
     + PartialOrd
     + Send
     + Sync

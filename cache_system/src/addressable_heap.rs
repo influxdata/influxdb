@@ -89,16 +89,7 @@ where
 
     /// Peek first element (by smallest `O`).
     pub fn peek(&self) -> Option<(&K, &V, &O)> {
-        if let Some((o, k)) = self.queue.front() {
-            let (v, o2) = self
-                .key_to_order_and_value
-                .get(k)
-                .expect("value is in queue");
-            assert!(o == o2);
-            Some((k, v, o))
-        } else {
-            None
-        }
+        self.iter().next()
     }
 
     /// Pop first element (by smallest `O`) from heap.
@@ -112,6 +103,16 @@ where
             Some((k, v, o))
         } else {
             None
+        }
+    }
+
+    /// Iterate over elements in order of `O` (starting at smallest).
+    ///
+    /// This is equivalent to calling [`pop`](Self::pop) multiple times, but does NOT modify the collection.
+    pub fn iter(&self) -> AddressableHeapIter<'_, K, V, O> {
+        AddressableHeapIter {
+            key_to_order_and_value: &self.key_to_order_and_value,
+            queue_iter: self.queue.iter(),
         }
     }
 
@@ -178,6 +179,39 @@ where
 /// Project tuple references.
 fn project_tuple<A, B>(t: &(A, B)) -> (&A, &B) {
     (&t.0, &t.1)
+}
+
+/// Iterator of [`AddressableHeap::iter`].
+pub struct AddressableHeapIter<'a, K, V, O>
+where
+    K: Clone + Eq + Hash + Ord,
+    O: Clone + Ord,
+{
+    key_to_order_and_value: &'a HashMap<K, (V, O)>,
+    queue_iter: std::collections::vec_deque::Iter<'a, (O, K)>,
+}
+
+impl<'a, K, V, O> Iterator for AddressableHeapIter<'a, K, V, O>
+where
+    K: Clone + Eq + Hash + Ord,
+    O: Clone + Ord,
+{
+    type Item = (&'a K, &'a V, &'a O);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.queue_iter.next().map(|(o, k)| {
+            let (v, o2) = self
+                .key_to_order_and_value
+                .get(k)
+                .expect("value is in queue");
+            assert!(o == o2);
+            (k, v, o)
+        })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.queue_iter.size_hint()
+    }
 }
 
 #[cfg(test)]
@@ -461,6 +495,12 @@ mod tests {
                 .map(|(k, v, o)| (k, v, o))
         }
 
+        fn dump_ordered(&self) -> Vec<(u8, String, i8)> {
+            let mut inner = self.inner.clone();
+            inner.sort_by_key(|(k, _v, o)| (*o, *k));
+            inner
+        }
+
         fn pop(&mut self) -> Option<(u8, String, i8)> {
             self.inner
                 .iter()
@@ -504,6 +544,7 @@ mod tests {
         IsEmpty,
         Insert { k: u8, v: String, o: i8 },
         Peek,
+        Iter,
         Pop,
         Get { k: u8 },
         Remove { k: u8 },
@@ -516,6 +557,7 @@ mod tests {
             Just(Action::IsEmpty),
             (any::<u8>(), ".*", any::<i8>()).prop_map(|(k, v, o)| Action::Insert { k, v, o }),
             Just(Action::Peek),
+            Just(Action::Iter),
             Just(Action::Pop),
             any::<u8>().prop_map(|k| Action::Get { k }),
             any::<u8>().prop_map(|k| Action::Remove { k }),
@@ -544,6 +586,11 @@ mod tests {
                     Action::Peek => {
                         let res1 = heap.peek();
                         let res2 = sim.peek();
+                        assert_eq!(res1, res2);
+                    }
+                    Action::Iter => {
+                        let res1 = heap.iter().map(|(k, v, o)| (*k, v.clone(), *o)).collect::<Vec<_>>();
+                        let res2 = sim.dump_ordered();
                         assert_eq!(res1, res2);
                     }
                     Action::Pop => {
