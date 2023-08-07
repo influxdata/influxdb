@@ -118,6 +118,9 @@ jobs:
       - run:
           name: Yamllint
           command: yamllint --config-file .circleci/yamllint.yml --strict .
+      - run:
+          name: migrations check
+          command: iox_catalog/check_linear_migrations.sh migrations
   cargo_audit:
     docker:
       - image: quay.io/influxdb/rust:ci
