@@ -228,6 +228,8 @@ async fn deletion() {
     let database_url = maybe_skip_integration!();
     let mut cluster = MiniCluster::create_shared(database_url).await;
 
+    const NAMESPACE_NAME: &str = "bananas_namespace";
+
     StepTest::new(
         &mut cluster,
         vec![
@@ -236,7 +238,6 @@ async fn deletion() {
                 async {
                     let addr = state.cluster().router().router_grpc_base().to_string();
                     let retention_period_hours = 0;
-                    let namespace = "bananas_namespace";
 
                     // Validate the output of the namespace retention command
                     //
@@ -252,11 +253,11 @@ async fn deletion() {
                         .arg("create")
                         .arg("--retention-hours")
                         .arg(retention_period_hours.to_string())
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .assert()
                         .success()
                         .stdout(
-                            predicate::str::contains(namespace)
+                            predicate::str::contains(NAMESPACE_NAME)
                                 .and(predicate::str::contains("retentionPeriodNs".to_string()))
                                 .not(),
                         );
@@ -267,7 +268,6 @@ async fn deletion() {
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "bananas_namespace";
 
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
@@ -275,12 +275,12 @@ async fn deletion() {
                         .arg(&addr)
                         .arg("namespace")
                         .arg("delete")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .assert()
                         .success()
                         .stdout(
                             predicate::str::contains("Deleted namespace")
-                                .and(predicate::str::contains(namespace)),
+                                .and(predicate::str::contains(NAMESPACE_NAME)),
                         );
                 }
                 .boxed()
@@ -288,7 +288,6 @@ async fn deletion() {
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "bananas_namespace";
 
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
@@ -298,7 +297,7 @@ async fn deletion() {
                         .arg("list")
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains(namespace).not());
+                        .stdout(predicate::str::contains(NAMESPACE_NAME).not());
                 }
                 .boxed()
             })),
@@ -320,7 +319,7 @@ async fn create_service_limits() {
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns1";
+                    let namespace_name = "ns1";
 
                     // {
                     //   "id": <foo>,
@@ -336,13 +335,13 @@ async fn create_service_limits() {
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(namespace_name)
                         .arg("--max-tables")
                         .arg("123")
                         .assert()
                         .success()
                         .stdout(
-                            predicate::str::contains(namespace)
+                            predicate::str::contains(namespace_name)
                                 .and(predicate::str::contains(r#""maxTables": 123"#))
                                 .and(predicate::str::contains(r#""maxColumnsPerTable": 200"#)),
                         );
@@ -352,7 +351,7 @@ async fn create_service_limits() {
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns2";
+                    let namespace_name = "ns2";
 
                     // {
                     //   "id": <foo>,
@@ -368,13 +367,13 @@ async fn create_service_limits() {
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(namespace_name)
                         .arg("--max-columns-per-table")
                         .arg("321")
                         .assert()
                         .success()
                         .stdout(
-                            predicate::str::contains(namespace)
+                            predicate::str::contains(namespace_name)
                                 .and(predicate::str::contains(r#""maxTables": 500"#))
                                 .and(predicate::str::contains(r#""maxColumnsPerTable": 321"#)),
                         );
@@ -384,7 +383,7 @@ async fn create_service_limits() {
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns3";
+                    let namespace_name = "ns3";
 
                     // {
                     //   "id": <foo>,
@@ -400,7 +399,7 @@ async fn create_service_limits() {
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(namespace_name)
                         .arg("--max-tables")
                         .arg("123")
                         .arg("--max-columns-per-table")
@@ -408,7 +407,7 @@ async fn create_service_limits() {
                         .assert()
                         .success()
                         .stdout(
-                            predicate::str::contains(namespace)
+                            predicate::str::contains(namespace_name)
                                 .and(predicate::str::contains(r#""maxTables": 123"#))
                                 .and(predicate::str::contains(r#""maxColumnsPerTable": 321"#)),
                         );
@@ -427,12 +426,13 @@ async fn update_service_limit() {
     let database_url = maybe_skip_integration!();
     let mut cluster = MiniCluster::create_shared(database_url).await;
 
+    const NAMESPACE_NAME: &str = "service_limiter_namespace";
+
     StepTest::new(
         &mut cluster,
         vec![
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let namespace = "service_limiter_namespace";
                     let addr = state.cluster().router().router_grpc_base().to_string();
 
                     // {
@@ -449,11 +449,11 @@ async fn update_service_limit() {
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .assert()
                         .success()
                         .stdout(
-                            predicate::str::contains(namespace)
+                            predicate::str::contains(NAMESPACE_NAME)
                                 .and(predicate::str::contains(r#""maxTables": 500"#))
                                 .and(predicate::str::contains(r#""maxColumnsPerTable": 200"#)),
                         );
@@ -462,7 +462,6 @@ async fn update_service_limit() {
             })),
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let namespace = "service_limiter_namespace";
                     let addr = state.cluster().router().router_grpc_base().to_string();
 
                     // {
@@ -481,11 +480,11 @@ async fn update_service_limit() {
                         .arg("update-limit")
                         .arg("--max-tables")
                         .arg("1337")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .assert()
                         .success()
                         .stdout(
-                            predicate::str::contains(namespace)
+                            predicate::str::contains(NAMESPACE_NAME)
                                 .and(predicate::str::contains(r#""maxTables": 1337"#))
                                 .and(predicate::str::contains(r#""maxColumnsPerTable": 200"#)),
                         );
@@ -494,7 +493,6 @@ async fn update_service_limit() {
             })),
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let namespace = "service_limiter_namespace";
                     let addr = state.cluster().router().router_grpc_base().to_string();
 
                     // {
@@ -513,11 +511,11 @@ async fn update_service_limit() {
                         .arg("update-limit")
                         .arg("--max-columns-per-table")
                         .arg("42")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .assert()
                         .success()
                         .stdout(
-                            predicate::str::contains(namespace)
+                            predicate::str::contains(NAMESPACE_NAME)
                                 .and(predicate::str::contains(r#""maxTables": 1337"#))
                                 .and(predicate::str::contains(r#""maxColumnsPerTable": 42"#)),
                         );
@@ -536,13 +534,14 @@ async fn create_partition_template_negative() {
     let database_url = maybe_skip_integration!();
     let mut cluster = MiniCluster::create_shared(database_url).await;
 
+    const NAMESPACE_NAME: &str = "ns_negative";
+
     StepTest::new(
         &mut cluster,
         vec![
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_negative";
 
                     // No partition tempplate specified
                     Command::cargo_bin("influxdb_iox")
@@ -551,7 +550,7 @@ async fn create_partition_template_negative() {
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .arg("--partition-template")
                         .assert()
                         .failure()
@@ -568,7 +567,7 @@ async fn create_partition_template_negative() {
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .arg("--partition-template")
                         .arg("{\"prts\": [{\"tagValue\": \"location\"}, {\"tagValue\": \"state\"}, {\"timeFormat\": \"%Y-%m\"}] }")
                         .assert()
@@ -584,7 +583,7 @@ async fn create_partition_template_negative() {
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .arg("--partition-template")
                         .arg("{\"parts\": [{\"tagValue\": \"location\"}, {\"tagValue\": \"time\"}, {\"timeFormat\": \"%Y-%m\"}] }")
                         .assert()
@@ -600,7 +599,7 @@ async fn create_partition_template_negative() {
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .arg("--partition-template")
                         .arg("{\"parts\": [{\"tagValue\": \"location\"}, {\"timeFormat\": \"%42\"}] }")
                         .assert()
@@ -616,7 +615,7 @@ async fn create_partition_template_negative() {
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .arg("--partition-template")
                         .arg("{\"parts\": [{\"tagValue\": \"1\"},{\"tagValue\": \"2\"},{\"timeFormat\": \"%Y-%m\"},{\"tagValue\": \"4\"},{\"tagValue\": \"5\"},{\"tagValue\": \"6\"},{\"tagValue\": \"7\"},{\"tagValue\": \"8\"},{\"tagValue\": \"9\"}]}")
                         .assert()
@@ -646,6 +645,7 @@ async fn create_partition_template_positive() {
                 async {
                     let addr = state.cluster().router().router_grpc_base().to_string();
 
+                    let namespace_name_1 = "ns_partition_template_1";
                     // No partition template specified
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
@@ -653,52 +653,55 @@ async fn create_partition_template_positive() {
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg("ns_partition_template_1")
+                        .arg(namespace_name_1)
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains("ns_partition_template_1"));
+                        .stdout(predicate::str::contains(namespace_name_1));
 
                     // Partition template with time format
+                    let namespace_name_2 = "ns_partition_template_2";
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
                         .arg("-h")
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg("ns_partition_template_2")
+                        .arg(namespace_name_2)
                         .arg("--partition-template")
                         .arg("{\"parts\":[{\"timeFormat\":\"%Y-%m\"}] }")
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains("ns_partition_template_2"));
+                        .stdout(predicate::str::contains(namespace_name_2));
 
                     // Partition template with tag value
+                    let namespace_name_3 = "ns_partition_template_3";
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
                         .arg("-h")
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg("ns_partition_template_3")
+                        .arg(namespace_name_3)
                         .arg("--partition-template")
                         .arg("{\"parts\":[{\"tagValue\":\"col1\"}] }")
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains("ns_partition_template_3"));
+                        .stdout(predicate::str::contains(namespace_name_3));
 
                     // Partition template with time format, tag value, and tag of unsual column name
+                    let namespace_name_4 = "ns_partition_template_4";
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
                         .arg("-h")
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg("ns_partition_template_4")
+                        .arg(namespace_name_4)
                         .arg("--partition-template")
                         .arg("{\"parts\":[{\"tagValue\":\"col1\"},{\"timeFormat\":\"%Y-%d\"},{\"tagValue\":\"yes,col name\"}] }")
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains("ns_partition_template_4"));
+                        .stdout(predicate::str::contains(namespace_name_4));
 
                     // Update an existing namespace
                     Command::cargo_bin("influxdb_iox")
@@ -707,7 +710,7 @@ async fn create_partition_template_positive() {
                         .arg(&addr)
                         .arg("namespace")
                         .arg("update")
-                        .arg("ns_partition_template_4")
+                        .arg(namespace_name_4)
                         .arg("--partition-template")
                         .arg("{\"parts\":[{\"tagValue\":\"col1\"}] }")
                         .assert()
@@ -733,7 +736,8 @@ async fn create_partition_template_implicit_table_creation() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
     let mut cluster = MiniCluster::create_shared(database_url).await;
-    let namespace = "ns_createtableimplicit";
+
+    const NAMESPACE_NAME: &str = "ns_createtableimplicit";
 
     StepTest::new(
         &mut cluster,
@@ -742,7 +746,6 @@ async fn create_partition_template_implicit_table_creation() {
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_createtableimplicit";
 
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
@@ -750,14 +753,14 @@ async fn create_partition_template_implicit_table_creation() {
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .arg("--partition-template")
                         .arg(
                             "{\"parts\":[{\"timeFormat\":\"%Y-%m\"}, {\"tagValue\":\"location\"}]}",
                         )
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains(namespace));
+                        .stdout(predicate::str::contains(NAMESPACE_NAME));
                 }
                 .boxed()
             })),
@@ -765,7 +768,6 @@ async fn create_partition_template_implicit_table_creation() {
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_http_base().to_string();
-                    let namespace = "ns_createtableimplicit";
 
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
@@ -773,7 +775,7 @@ async fn create_partition_template_implicit_table_creation() {
                         .arg("-h")
                         .arg(&addr)
                         .arg("write")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .arg("../test_fixtures/lineproto/temperature.lp")
                         .assert()
                         .success()
@@ -786,7 +788,7 @@ async fn create_partition_template_implicit_table_creation() {
                 async {
                     // data from 'air_and_water.lp'
                     wait_for_query_result_with_namespace(
-                        namespace,
+                        NAMESPACE_NAME,
                         state,
                         "SELECT * from h2o_temperature order by time desc limit 10",
                         None,
@@ -798,7 +800,7 @@ async fn create_partition_template_implicit_table_creation() {
             // Check partition keys that use the namespace's partition template
             Step::PartitionKeys {
                 table_name: "h2o_temperature".to_string(),
-                namespace_name: Some(namespace.to_string()),
+                namespace_name: Some(NAMESPACE_NAME.to_string()),
                 expected: vec![
                     "1970-01|coyote_creek",
                     "1970-01|puget_sound",
@@ -820,7 +822,8 @@ async fn create_partition_template_explicit_table_creation_without_partition_tem
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
     let mut cluster = MiniCluster::create_shared(database_url).await;
-    let namespace = "ns_createtableexplicitwithout";
+
+    const NAMESPACE_NAME: &str = "ns_createtableexplicitwithout";
 
     StepTest::new(
         &mut cluster,
@@ -829,7 +832,6 @@ async fn create_partition_template_explicit_table_creation_without_partition_tem
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_createtableexplicitwithout";
 
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
@@ -837,12 +839,12 @@ async fn create_partition_template_explicit_table_creation_without_partition_tem
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .arg("--partition-template")
                         .arg("{\"parts\":[{\"timeFormat\":\"%Y-%m\"}, {\"tagValue\":\"state\"}]}")
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains(namespace));
+                        .stdout(predicate::str::contains(NAMESPACE_NAME));
                 }
                 .boxed()
             })),
@@ -850,7 +852,6 @@ async fn create_partition_template_explicit_table_creation_without_partition_tem
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_createtableexplicitwithout";
                     let table_name = "h2o_temperature";
 
                     Command::cargo_bin("influxdb_iox")
@@ -860,7 +861,7 @@ async fn create_partition_template_explicit_table_creation_without_partition_tem
                         .arg(&addr)
                         .arg("table")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .arg(table_name)
                         .assert()
                         .success()
@@ -872,7 +873,6 @@ async fn create_partition_template_explicit_table_creation_without_partition_tem
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_http_base().to_string();
-                    let namespace = "ns_createtableexplicitwithout";
 
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
@@ -880,7 +880,7 @@ async fn create_partition_template_explicit_table_creation_without_partition_tem
                         .arg("-h")
                         .arg(&addr)
                         .arg("write")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .arg("../test_fixtures/lineproto/temperature.lp")
                         .assert()
                         .success()
@@ -893,7 +893,7 @@ async fn create_partition_template_explicit_table_creation_without_partition_tem
                 async {
                     // data from 'air_and_water.lp'
                     wait_for_query_result_with_namespace(
-                        namespace,
+                        NAMESPACE_NAME,
                         state,
                         "SELECT * from h2o_temperature order by time desc limit 10",
                         None,
@@ -903,7 +903,7 @@ async fn create_partition_template_explicit_table_creation_without_partition_tem
                 .boxed()
             })),
             // Check partition keys that use the namespace's partition template
-            Step::PartitionKeys{table_name: "h2o_temperature".to_string(), namespace_name: Some(namespace.to_string()), expected: vec!["1970-01|CA", "1970-01|WA"]},
+            Step::PartitionKeys{table_name: "h2o_temperature".to_string(), namespace_name: Some(NAMESPACE_NAME.to_string()), expected: vec!["1970-01|CA", "1970-01|WA"]},
         ],
     )
     .run()
@@ -919,7 +919,8 @@ async fn create_partition_template_explicit_table_creation_with_partition_templa
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
     let mut cluster = MiniCluster::create_shared(database_url).await;
-    let namespace = "ns_createtableexplicitwith";
+
+    const NAMESPACE_NAME: &str = "ns_createtableexplicitwith";
 
     StepTest::new(
         &mut cluster,
@@ -928,7 +929,6 @@ async fn create_partition_template_explicit_table_creation_with_partition_templa
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_createtableexplicitwith";
 
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
@@ -936,12 +936,12 @@ async fn create_partition_template_explicit_table_creation_with_partition_templa
                         .arg(&addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .arg("--partition-template")
                         .arg("{\"parts\":[{\"timeFormat\":\"%Y-%m\"}, {\"tagValue\":\"state\"}]}")
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains(namespace));
+                        .stdout(predicate::str::contains(NAMESPACE_NAME));
                 }
                 .boxed()
             })),
@@ -949,7 +949,6 @@ async fn create_partition_template_explicit_table_creation_with_partition_templa
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_createtableexplicitwith";
                     let table_name = "h2o_temperature";
 
                     Command::cargo_bin("influxdb_iox")
@@ -959,7 +958,7 @@ async fn create_partition_template_explicit_table_creation_with_partition_templa
                         .arg(&addr)
                         .arg("table")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .arg(table_name)
                         .arg("--partition-template")
                         .arg("{\"parts\":[{\"tagValue\":\"location\"}, {\"timeFormat\":\"%Y-%m\"}]}")
@@ -973,7 +972,6 @@ async fn create_partition_template_explicit_table_creation_with_partition_templa
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let addr = state.cluster().router().router_http_base().to_string();
-                    let namespace = "ns_createtableexplicitwith";
 
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
@@ -981,7 +979,7 @@ async fn create_partition_template_explicit_table_creation_with_partition_templa
                         .arg("-h")
                         .arg(&addr)
                         .arg("write")
-                        .arg(namespace)
+                        .arg(NAMESPACE_NAME)
                         .arg("../test_fixtures/lineproto/temperature.lp")
                         .assert()
                         .success()
@@ -994,7 +992,7 @@ async fn create_partition_template_explicit_table_creation_with_partition_templa
                 async {
                     // data from 'air_and_water.lp'
                     wait_for_query_result_with_namespace(
-                        namespace,
+                        NAMESPACE_NAME,
                         state,
                         "SELECT * from h2o_temperature order by time desc limit 10",
                         None,
@@ -1004,7 +1002,7 @@ async fn create_partition_template_explicit_table_creation_with_partition_templa
                 .boxed()
             })),
             // Check partition keys that use the table's partition template
-            Step::PartitionKeys{table_name: "h2o_temperature".to_string(), namespace_name: Some(namespace.to_string()), expected: vec!["coyote_creek|1970-01", "puget_sound|1970-01", "santa_monica|1970-01"]},
+            Step::PartitionKeys{table_name: "h2o_temperature".to_string(), namespace_name: Some(NAMESPACE_NAME.to_string()), expected: vec!["coyote_creek|1970-01", "puget_sound|1970-01", "santa_monica|1970-01"]},
         ],
     )
     .run()
