@@ -55,7 +55,8 @@ async fn create_negative() {
                         .assert()
                         .failure()
                         .stderr(predicate::str::contains(
-                            "error: a value is required for '--partition-template <PARTITION_TEMPLATE>' but none was supplied",
+                            "error: a value is required for '--partition-template \
+                            <PARTITION_TEMPLATE>' but none was supplied",
                         ));
 
                     // Wrong spelling `prts`
@@ -69,11 +70,18 @@ async fn create_negative() {
                         .arg(namespace)
                         .arg("h2o_temperature")
                         .arg("--partition-template")
-                        .arg("{\"prts\": [{\"tagValue\": \"location\"}, {\"tagValue\": \"state\"}, {\"timeFormat\": \"%Y-%m\"}] }")
+                        .arg(
+                            "{\"prts\": [\
+                            {\"tagValue\": \"location\"}, \
+                            {\"tagValue\": \"state\"}, \
+                            {\"timeFormat\": \"%Y-%m\"}\
+                        ]}",
+                        )
                         .assert()
                         .failure()
                         .stderr(predicate::str::contains(
-                            "Client Error: Invalid partition template format : unknown field `prts`",
+                            "Client Error: Invalid partition template format : \
+                            unknown field `prts`",
                         ));
 
                     // Time as tag
@@ -86,29 +94,42 @@ async fn create_negative() {
                         .arg(namespace)
                         .arg("h2o_temperature")
                         .arg("--partition-template")
-                        .arg("{\"parts\": [{\"tagValue\": \"location\"}, {\"tagValue\": \"time\"}, {\"timeFormat\": \"%Y-%m\"}] }")
+                        .arg(
+                            "{\"parts\": [\
+                            {\"tagValue\": \"location\"}, \
+                            {\"tagValue\": \"time\"}, \
+                            {\"timeFormat\": \"%Y-%m\"}\
+                        ]}",
+                        )
                         .assert()
                         .failure()
                         .stderr(predicate::str::contains(
-                            "Client error: Client specified an invalid argument: invalid tag value in partition template: time cannot be used",
+                            "Client error: Client specified an invalid argument: \
+                            invalid tag value in partition template: time cannot be used",
                         ));
 
                     // Time format is `%42` which is invalid
                     Command::cargo_bin("influxdb_iox")
-                    .unwrap()
-                    .arg("-h")
-                    .arg(&router_grpc_addr)
-                    .arg("table")
-                    .arg("create")
-                    .arg(namespace)
-                    .arg("h2o_temperature")
-                    .arg("--partition-template")
-                    .arg("{\"parts\": [{\"tagValue\": \"location\"}, {\"timeFormat\": \"%42\"}] }")
-                    .assert()
-                    .failure()
-                    .stderr(predicate::str::contains(
-                        "Client error: Client specified an invalid argument: invalid strftime format in partition template",
-                    ));
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("h2o_temperature")
+                        .arg("--partition-template")
+                        .arg(
+                            "{\"parts\": [\
+                        {\"tagValue\": \"location\"}, \
+                        {\"timeFormat\": \"%42\"}\
+                    ]}",
+                        )
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(
+                            "Client error: Client specified an invalid argument: \
+                        invalid strftime format in partition template",
+                        ));
 
                     // Over 8 parts
                     Command::cargo_bin("influxdb_iox")
@@ -120,7 +141,19 @@ async fn create_negative() {
                         .arg(namespace)
                         .arg("h2o_temperature")
                         .arg("--partition-template")
-                        .arg("{\"parts\": [{\"tagValue\": \"1\"},{\"tagValue\": \"2\"},{\"timeFormat\": \"%Y-%m\"},{\"tagValue\": \"4\"},{\"tagValue\": \"5\"},{\"tagValue\": \"6\"},{\"tagValue\": \"7\"},{\"tagValue\": \"8\"},{\"tagValue\": \"9\"}]}")
+                        .arg(
+                            "{\"parts\": [\
+                            {\"tagValue\": \"1\"},\
+                            {\"tagValue\": \"2\"},\
+                            {\"timeFormat\": \"%Y-%m\"},\
+                            {\"tagValue\": \"4\"},\
+                            {\"tagValue\": \"5\"},\
+                            {\"tagValue\": \"6\"},\
+                            {\"tagValue\": \"7\"},\
+                            {\"tagValue\": \"8\"},\
+                            {\"tagValue\": \"9\"}\
+                        ]}",
+                        )
                         .assert()
                         .failure()
                         .stderr(predicate::str::contains(
@@ -137,7 +170,7 @@ async fn create_negative() {
                         .arg(namespace)
                         .arg("h2o_temperature")
                         .arg("--partition-template")
-                        .arg("{\"parts\":[{\"tagValue\":\"col1\"}] }")
+                        .arg("{\"parts\":[{\"tagValue\":\"col1\"}]}")
                         .assert()
                         .failure()
                         .stderr(predicate::str::contains(
@@ -146,9 +179,10 @@ async fn create_negative() {
                 }
                 .boxed()
             })),
-        ])
-        .run()
-        .await
+        ],
+    )
+    .run()
+    .await
 }
 
 #[tokio::test]
@@ -209,7 +243,7 @@ async fn create_positive() {
                         .arg(namespace)
                         .arg("t2")
                         .arg("--partition-template")
-                        .arg("{\"parts\":[{\"timeFormat\":\"%Y-%m\"}] }")
+                        .arg("{\"parts\":[{\"timeFormat\":\"%Y-%m\"}]}")
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("t2"));
@@ -224,7 +258,7 @@ async fn create_positive() {
                         .arg(namespace)
                         .arg("t3")
                         .arg("--partition-template")
-                        .arg("{\"parts\":[{\"tagValue\":\"col1\"}] }")
+                        .arg("{\"parts\":[{\"tagValue\":\"col1\"}]}")
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("t3"));
@@ -239,16 +273,23 @@ async fn create_positive() {
                         .arg(namespace)
                         .arg("t4")
                         .arg("--partition-template")
-                        .arg("{\"parts\":[{\"tagValue\":\"col1\"},{\"timeFormat\":\"%Y-%d\"},{\"tagValue\":\"yes,col name\"}] }")
+                        .arg(
+                            "{\"parts\":[\
+                            {\"tagValue\":\"col1\"},\
+                            {\"timeFormat\":\"%Y-%d\"},\
+                            {\"tagValue\":\"yes,col name\"}\
+                        ]}",
+                        )
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("t4"));
                 }
                 .boxed()
             })),
-        ])
-        .run()
-        .await
+        ],
+    )
+    .run()
+    .await
 }
 
 #[tokio::test]
@@ -300,7 +341,13 @@ async fn create_write_and_query() {
                         .arg(namespace)
                         .arg("h2o_temperature")
                         .arg("--partition-template")
-                        .arg("{\"parts\": [{\"tagValue\": \"location\"}, {\"tagValue\": \"state\"}, {\"timeFormat\": \"%Y-%m\"}] }")
+                        .arg(
+                            "{\"parts\": [\
+                            {\"tagValue\": \"location\"},\
+                            {\"tagValue\": \"state\"},\
+                            {\"timeFormat\": \"%Y-%m\"}\
+                        ]}",
+                        )
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("h2o_temperature"));
@@ -315,7 +362,7 @@ async fn create_write_and_query() {
                         .arg(namespace)
                         .arg("m0")
                         .arg("--partition-template")
-                        .arg("{\"parts\": [{\"timeFormat\": \"%Y.%j\"}] }")
+                        .arg("{\"parts\": [{\"timeFormat\": \"%Y.%j\"}]}")
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("m0"));
@@ -330,7 +377,12 @@ async fn create_write_and_query() {
                         .arg(namespace)
                         .arg("cpu")
                         .arg("--partition-template")
-                        .arg("{\"parts\": [{\"timeFormat\": \"%Y-%m-%d\"}, {\"tagValue\": \"cpu\"}] }")
+                        .arg(
+                            "{\"parts\": [\
+                            {\"timeFormat\": \"%Y-%m-%d\"}, \
+                            {\"tagValue\": \"cpu\"}\
+                        ]}",
+                        )
                         .assert()
                         .success()
                         .stdout(predicate::str::contains("cpu"));
@@ -376,8 +428,13 @@ async fn create_write_and_query() {
                         state,
                         "SELECT * from h2o_temperature order by time desc limit 10",
                         None,
-                        "| 51.3           | coyote_creek | CA    | 55.1            | 1970-01-01T00:00:01.568756160Z |"
-                    ).await;
+                        "| 51.3           \
+                         | coyote_creek \
+                         | CA    \
+                         | 55.1            \
+                         | 1970-01-01T00:00:01.568756160Z |",
+                    )
+                    .await;
 
                     // data from 'read_filter.lp.gz', specific query language type
                     wait_for_query_result_with_namespace(
@@ -385,8 +442,15 @@ async fn create_write_and_query() {
                         state,
                         "SELECT * from m0 order by time desc limit 10;",
                         Some(QueryLanguage::Sql),
-                        "| value1 | value9 | value9 | value49 | value0 | 2021-04-26T13:47:39.727574Z | 1.0 |"
-                    ).await;
+                        "| value1 \
+                         | value9 \
+                         | value9 \
+                         | value49 \
+                         | value0 \
+                         | 2021-04-26T13:47:39.727574Z \
+                         | 1.0 |",
+                    )
+                    .await;
 
                     // data from 'cpu.parquet'
                     wait_for_query_result_with_namespace(
@@ -394,15 +458,32 @@ async fn create_write_and_query() {
                         state,
                         "SELECT * from cpu where cpu = 'cpu2' order by time desc limit 10",
                         None,
-                        "cpu2 | MacBook-Pro-8.hsd1.ma.comcast.net | 2022-09-30T12:55:00Z"
-                    ).await;
+                        "cpu2 | MacBook-Pro-8.hsd1.ma.comcast.net | 2022-09-30T12:55:00Z",
+                    )
+                    .await;
                 }
                 .boxed()
             })),
             // Check partition keys
-            Step::PartitionKeys{table_name: "h2o_temperature".to_string(), namespace_name: Some(namespace.to_string()), expected: vec!["coyote_creek|CA|1970-01", "puget_sound|WA|1970-01", "santa_monica|CA|1970-01"]},
-            Step::PartitionKeys{table_name: "m0".to_string(), namespace_name: Some(namespace.to_string()), expected: vec!["2021.116"]},
-            Step::PartitionKeys{table_name: "cpu".to_string(), namespace_name: Some(namespace.to_string()), expected: vec!["2022-09-30|cpu2"]},
+            Step::PartitionKeys {
+                table_name: "h2o_temperature".to_string(),
+                namespace_name: Some(namespace.to_string()),
+                expected: vec![
+                    "coyote_creek|CA|1970-01",
+                    "puget_sound|WA|1970-01",
+                    "santa_monica|CA|1970-01",
+                ],
+            },
+            Step::PartitionKeys {
+                table_name: "m0".to_string(),
+                namespace_name: Some(namespace.to_string()),
+                expected: vec!["2021.116"],
+            },
+            Step::PartitionKeys {
+                table_name: "cpu".to_string(),
+                namespace_name: Some(namespace.to_string()),
+                expected: vec!["2022-09-30|cpu2"],
+            },
         ],
     )
     .run()
