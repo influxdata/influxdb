@@ -20,6 +20,9 @@ pub(crate) enum IngestStateError {
 
     #[error("ingester is shutting down")]
     GracefulStop = 1 << 1,
+
+    #[error("ingester disk full - persisting write-ahead log")]
+    DiskFull = 1 << 2,
 }
 
 impl IngestStateError {
@@ -159,6 +162,10 @@ fn as_err(state: usize) -> Result<(), IngestStateError> {
         return Err(IngestStateError::GracefulStop);
     }
 
+    if state & IngestStateError::DiskFull.as_bits() != 0 {
+        return Err(IngestStateError::DiskFull);
+    }
+
     if state & IngestStateError::PersistSaturated.as_bits() != 0 {
         return Err(IngestStateError::PersistSaturated);
     }
@@ -177,12 +184,20 @@ mod tests {
         assert!(IngestStateError::PersistSaturated.as_bits() < usize::BITS as usize);
         assert_eq!(IngestStateError::PersistSaturated.as_bits().count_ones(), 1);
 
-        assert!(IngestStateError::GracefulStop.as_bits() < usize::BITS as usize);
-        assert_eq!(IngestStateError::PersistSaturated.as_bits().count_ones(), 1);
+        assert!(IngestStateError::DiskFull.as_bits() < usize::BITS as usize);
+        assert_eq!(IngestStateError::DiskFull.as_bits().count_ones(), 1);
 
+        assert!(IngestStateError::GracefulStop.as_bits() < usize::BITS as usize);
+        assert_eq!(IngestStateError::GracefulStop.as_bits().count_ones(), 1);
+
+        // Use transitive property to ensure none of the states are the same bits
         assert_ne!(
             IngestStateError::PersistSaturated.as_bits(),
             IngestStateError::GracefulStop.as_bits()
+        );
+        assert_ne!(
+            IngestStateError::GracefulStop.as_bits(),
+            IngestStateError::DiskFull.as_bits()
         );
     }
 
@@ -209,6 +224,12 @@ mod tests {
 
         assert!(state.unset(IngestStateError::GracefulStop));
         assert_matches!(state.read(), Ok(()));
+
+        assert!(state.set(IngestStateError::DiskFull));
+        assert_matches!(state.read(), Err(IngestStateError::DiskFull));
+
+        assert!(state.unset(IngestStateError::DiskFull));
+        assert_matches!(state.read(), Ok(()));
     }
 
     #[test]
@@ -217,6 +238,9 @@ mod tests {
 
         state.set(IngestStateError::PersistSaturated);
         assert_matches!(state.read(), Err(IngestStateError::PersistSaturated));
+
+        state.set(IngestStateError::DiskFull);
+        assert_matches!(state.read(), Err(IngestStateError::DiskFull));
 
         state.set(IngestStateError::GracefulStop);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
@@ -227,8 +251,18 @@ mod tests {
         state.set(IngestStateError::PersistSaturated);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
 
-        // Un-setting the shutdown state shows the persist state.
+        // And neither does the disk full state.
+        state.unset(IngestStateError::DiskFull);
+        assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+        state.set(IngestStateError::DiskFull);
+        assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+
+        // Un-setting the shutdown state shows the disk full state.
         state.unset(IngestStateError::GracefulStop);
+        assert_matches!(state.read(), Err(IngestStateError::DiskFull));
+
+        // Un-setting the disk full state then shows the persist saturated state.
+        state.unset(IngestStateError::DiskFull);
         assert_matches!(state.read(), Err(IngestStateError::PersistSaturated));
     }
 
@@ -257,9 +291,21 @@ mod tests {
         assert!(!state.unset(IngestStateError::GracefulStop));
         assert!(state.set(IngestStateError::GracefulStop));
 
-        // Un-setting one state does not reset the other state
+        // Repeat the above for the disk full state, checking it is reported
+        // as the first caller.
+        assert!(state.set(IngestStateError::DiskFull));
+        // Second call does not see "first == true"
+        assert!(!state.set(IngestStateError::DiskFull));
+
+        // Un-setting, and re-setting reports first == true again.
+        assert!(state.unset(IngestStateError::DiskFull));
+        assert!(!state.unset(IngestStateError::DiskFull));
+        assert!(state.set(IngestStateError::DiskFull));
+
+        // Un-setting one state does not reset the other states
         assert!(state.unset(IngestStateError::GracefulStop));
         assert!(!state.unset(IngestStateError::GracefulStop));
+        assert!(!state.set(IngestStateError::DiskFull));
         assert!(!state.set(IngestStateError::PersistSaturated));
     }
 }
