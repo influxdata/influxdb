@@ -535,6 +535,9 @@ impl TryFrom<&Migrator> for IOxMigrator {
 ///
 /// - applied migration is known
 /// - checksum of applied migration and known migration match
+/// - new migrations are newer than both the successfully applied and the dirty version
+/// - there is at most one dirty migration (bug check)
+/// - the dirty migration is the last applied one (bug check)
 fn validate_applied_migrations(
     applied_migrations: &[IOxAppliedMigration],
     migrator: &IOxMigrator,
@@ -560,6 +563,69 @@ fn validate_applied_migrations(
                     );
                 }
             }
+        }
+    }
+
+    let dirty_versions = applied_migrations
+        .iter()
+        .filter(|m| m.dirty)
+        .map(|m| m.version)
+        .collect::<Vec<_>>();
+    if dirty_versions.len() > 1 {
+        return Err(MigrateError::Source(format!(
+            "there are multiple dirty versions, this should not happen and is considered a bug: {:?}",
+            dirty_versions,
+        ).into()));
+    }
+    let dirty_version = dirty_versions.into_iter().next();
+
+    let applied_last = applied_migrations
+        .iter()
+        .filter(|m| Some(m.version) != dirty_version)
+        .map(|m| m.version)
+        .max();
+    if let (Some(applied_last), Some(dirty_version)) = (applied_last, dirty_version) {
+        // algorithm error in this method, use an assertion
+        assert_ne!(applied_last, dirty_version);
+
+        if applied_last > dirty_version {
+            // database state error, so use a proper error
+            return Err(MigrateError::Source(format!(
+                "dirty version ({dirty_version}) is not the last applied version ({applied_last}), this is a bug",
+            ).into()));
+        }
+    }
+
+    let applied_set = applied_migrations
+        .iter()
+        .map(|m| m.version)
+        .collect::<HashSet<_>>();
+    let new_first = migrator
+        .migrations
+        .iter()
+        .filter(|m| !applied_set.contains(&m.version))
+        .map(|m| m.version)
+        .min();
+    if let (Some(dirty_version), Some(new_first)) = (dirty_version, new_first) {
+        // algorithm error in this method, use an assertion
+        assert_ne!(dirty_version, new_first);
+
+        if dirty_version > new_first {
+            // database state error, so use a proper error
+            return Err(MigrateError::Source(format!(
+                "new migration ({new_first}) goes before dirty version ({dirty_version}), this should not have been merged!",
+            ).into()));
+        }
+    }
+    if let (Some(applied_last), Some(new_first)) = (applied_last, new_first) {
+        // algorithm error in this method, use an assertion
+        assert_ne!(applied_last, new_first);
+
+        if applied_last > new_first {
+            // database state error, so use a proper error
+            return Err(MigrateError::Source(format!(
+                "new migration ({new_first}) goes before last applied migration ({applied_last}), this should not have been merged!",
+            ).into()));
         }
     }
 
@@ -1361,7 +1427,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_migrator_fail_migration_missing() {
+        async fn test_migrator_fail_clean_migration_missing() {
             maybe_skip_integration!();
             let mut conn = setup().await;
             let conn = &mut *conn;
@@ -1394,7 +1460,44 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_migrator_fail_checksum_mismatch() {
+        async fn test_migrator_fail_dirty_migration_missing() {
+            maybe_skip_integration!();
+            let mut conn = setup().await;
+            let conn = &mut *conn;
+
+            let migrator = IOxMigrator::try_new([IOxMigration {
+                version: 1,
+                description: "".into(),
+                steps: [IOxMigrationStep::SqlStatement {
+                    sql: "foo".into(),
+                    in_transaction: false,
+                }]
+                .into(),
+                checksum: [].into(),
+                other_compatible_checksums: [].into(),
+            }])
+            .unwrap();
+
+            migrator.run_direct(conn).await.unwrap_err();
+
+            let migrator = IOxMigrator::try_new([IOxMigration {
+                version: 2,
+                description: "".into(),
+                steps: [].into(),
+                checksum: [].into(),
+                other_compatible_checksums: [].into(),
+            }])
+            .unwrap();
+
+            let err = migrator.run_direct(conn).await.unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "migration 1 was previously applied but is missing in the resolved migrations"
+            );
+        }
+
+        #[tokio::test]
+        async fn test_migrator_fail_clean_checksum_mismatch() {
             maybe_skip_integration!();
             let mut conn = setup().await;
             let conn = &mut *conn;
@@ -1414,6 +1517,47 @@ mod tests {
                 version: 1,
                 description: "".into(),
                 steps: [].into(),
+                checksum: [4, 5, 6].into(),
+                other_compatible_checksums: [].into(),
+            }])
+            .unwrap();
+
+            let err = migrator.run_direct(conn).await.unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "migration 1 was previously applied but has been modified"
+            );
+        }
+
+        #[tokio::test]
+        async fn test_migrator_fail_dirty_checksum_mismatch() {
+            maybe_skip_integration!();
+            let mut conn = setup().await;
+            let conn = &mut *conn;
+
+            let migrator = IOxMigrator::try_new([IOxMigration {
+                version: 1,
+                description: "".into(),
+                steps: [IOxMigrationStep::SqlStatement {
+                    sql: "foo".into(),
+                    in_transaction: false,
+                }]
+                .into(),
+                checksum: [1, 2, 3].into(),
+                other_compatible_checksums: [].into(),
+            }])
+            .unwrap();
+
+            migrator.run_direct(conn).await.unwrap_err();
+
+            let migrator = IOxMigrator::try_new([IOxMigration {
+                version: 1,
+                description: "".into(),
+                steps: [IOxMigrationStep::SqlStatement {
+                    sql: "foo".into(),
+                    in_transaction: false,
+                }]
+                .into(),
                 checksum: [4, 5, 6].into(),
                 other_compatible_checksums: [].into(),
             }])
@@ -1453,6 +1597,41 @@ mod tests {
             .unwrap();
 
             migrator.run_direct(conn).await.unwrap();
+        }
+
+        /// Migrations may have the same checksum.
+        ///
+        /// This is helpful if you want to revert a change later, e.g.:
+        ///
+        /// 1. add a index
+        /// 2. remove the index
+        /// 3. decide that you actually need the index again
+        #[tokio::test]
+        async fn test_migrator_migrations_can_have_same_checksum() {
+            maybe_skip_integration!();
+            let mut conn = setup().await;
+            let conn = &mut *conn;
+
+            let migrator = IOxMigrator::try_new([
+                IOxMigration {
+                    version: 1,
+                    description: "".into(),
+                    steps: [].into(),
+                    checksum: [1, 2, 3].into(),
+                    other_compatible_checksums: [].into(),
+                },
+                IOxMigration {
+                    version: 2,
+                    description: "".into(),
+                    steps: [].into(),
+                    checksum: [1, 2, 3].into(),
+                    other_compatible_checksums: [].into(),
+                },
+            ])
+            .unwrap();
+
+            let applied = migrator.run_direct(conn).await.unwrap();
+            assert_eq!(applied, HashSet::from([1, 2]));
         }
 
         #[tokio::test]
@@ -1660,7 +1839,7 @@ mod tests {
 
             maybe_skip_integration!();
             maybe_start_logging();
-            let pool = setup_db_no_migration().await.into_pool();
+            let pool = setup_pool().await;
 
             let migrator = Arc::new(
                 IOxMigrator::try_new((0..N_TABLES_AND_INDICES).map(|i| {
@@ -1713,9 +1892,7 @@ mod tests {
         #[tokio::test]
         async fn test_sanity_checks_index_1() {
             maybe_skip_integration!();
-            let pool = setup_pool().await;
-
-            let mut conn = pool.acquire().await.unwrap();
+            let mut conn = setup().await;
             let conn = &mut *conn;
 
             conn.execute("CREATE TABLE t (x INT, y INT);")
@@ -1766,9 +1943,7 @@ mod tests {
         #[tokio::test]
         async fn test_sanity_checks_index_2() {
             maybe_skip_integration!();
-            let pool = setup_pool().await;
-
-            let mut conn = pool.acquire().await.unwrap();
+            let mut conn = setup().await;
             let conn = &mut *conn;
 
             conn.execute("CREATE TABLE t (x INT, y INT);")
@@ -1812,6 +1987,81 @@ mod tests {
             // now it works
             let applied = migrator.run_direct(conn).await.unwrap();
             assert_eq!(HashSet::from([1]), applied);
+        }
+
+        #[tokio::test]
+        async fn test_migrator_fail_new_migration_before_applied() {
+            maybe_skip_integration!();
+            let mut conn = setup().await;
+            let conn = &mut *conn;
+
+            let migration_1 = IOxMigration {
+                version: 1,
+                description: "".into(),
+                steps: [].into(),
+                checksum: [1, 2, 3].into(),
+                other_compatible_checksums: [].into(),
+            };
+            let migration_2 = IOxMigration {
+                version: 2,
+                description: "".into(),
+                steps: [].into(),
+                checksum: [4, 5, 6].into(),
+                other_compatible_checksums: [].into(),
+            };
+
+            let migrator = IOxMigrator::try_new([migration_2.clone()]).unwrap();
+
+            let applied = migrator.run_direct(conn).await.unwrap();
+            assert_eq!(HashSet::from([2]), applied);
+
+            let migrator = IOxMigrator::try_new([migration_1, migration_2]).unwrap();
+
+            let err = migrator.run_direct(conn).await.unwrap_err();
+
+            assert_eq!(
+                err.to_string(),
+                "while resolving migrations: new migration (1) goes before last applied migration (2), this should not have been merged!",
+            );
+        }
+
+        #[tokio::test]
+        async fn test_migrator_fail_new_migration_before_dirty() {
+            maybe_skip_integration!();
+            let mut conn = setup().await;
+            let conn = &mut *conn;
+
+            let migration_1 = IOxMigration {
+                version: 1,
+                description: "".into(),
+                steps: [].into(),
+                checksum: [1, 2, 3].into(),
+                other_compatible_checksums: [].into(),
+            };
+            let migration_2 = IOxMigration {
+                version: 2,
+                description: "".into(),
+                steps: [IOxMigrationStep::SqlStatement {
+                    sql: "foo".into(),
+                    in_transaction: false,
+                }]
+                .into(),
+                checksum: [4, 5, 6].into(),
+                other_compatible_checksums: [].into(),
+            };
+
+            let migrator = IOxMigrator::try_new([migration_2.clone()]).unwrap();
+
+            migrator.run_direct(conn).await.unwrap_err();
+
+            let migrator = IOxMigrator::try_new([migration_1, migration_2]).unwrap();
+
+            let err = migrator.run_direct(conn).await.unwrap_err();
+
+            assert_eq!(
+                err.to_string(),
+                "while resolving migrations: new migration (1) goes before dirty version (2), this should not have been merged!",
+            );
         }
 
         async fn setup_pool() -> HotSwapPool<Postgres> {
