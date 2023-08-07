@@ -299,11 +299,14 @@ impl QuerierTable {
             .into_iter()
             .map(|mut c| {
                 // If we have a cached partition, set this partition's column ranges to the
-                // cached column ranges. If not, don't modify the partition-- it's likely from
-                // the ingester and doesn't have column ranges in the catalog yet.
-                if let Some(cached_partition) = cached_partitions.get(&c.partition_id()) {
-                    c.set_partition_column_ranges(&cached_partition.column_ranges);
-                }
+                // cached column ranges. If not, this partition is likely from the ingester
+                // and doesn't have a catalog entry yet-- set its stats based on an empty range.
+                c.set_partition_column_ranges(
+                    &cached_partitions
+                        .get(&c.partition_id())
+                        .map(|cached_partition| Arc::clone(&cached_partition.column_ranges))
+                        .unwrap_or_default(),
+                );
                 c
             })
             .flat_map(|c| c.into_chunks().into_iter())
