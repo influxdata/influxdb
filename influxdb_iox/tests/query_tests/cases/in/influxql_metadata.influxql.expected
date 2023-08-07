@@ -1461,3 +1461,12 @@ Error while planning query: This feature is not implemented: SHOW TAG KEYS ON <d
 Error while planning query: This feature is not implemented: retention policy in from clause
 -- InfluxQL: SHOW TAG KEYS FROM x.y.my_db;
 Error while planning query: This feature is not implemented: database name in from clause
+-- InfluxQL: SHOW RETENTION POLICIES;
+name: retention_policies
++---------+----------+--------------------+----------+---------+
+| name    | duration | shardGroupDuration | replicaN | default |
++---------+----------+--------------------+----------+---------+
+| autogen | 0s       | 168h0m0s           | 1        | true    |
++---------+----------+--------------------+----------+---------+
+-- InfluxQL: SHOW RETENTION POLICIES ON my_db;
+Error while planning query: This feature is not implemented: SHOW RETENTION POLICIES ON <database>

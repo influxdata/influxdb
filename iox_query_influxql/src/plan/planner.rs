@@ -20,7 +20,10 @@ use crate::window::{
     CUMULATIVE_SUM, DERIVATIVE, DIFFERENCE, MOVING_AVERAGE, NON_NEGATIVE_DERIVATIVE,
     NON_NEGATIVE_DIFFERENCE, PERCENT_ROW_NUMBER,
 };
-use arrow::array::{StringBuilder, StringDictionaryBuilder};
+use arrow::array::{
+    BooleanArray, DictionaryArray, Int32Array, Int64Array, StringArray, StringBuilder,
+    StringDictionaryBuilder,
+};
 use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as ArrowSchema};
 use arrow::record_batch::RecordBatch;
 use chrono_tz::Tz;
@@ -60,6 +63,7 @@ use influxdb_influxql_parser::show_field_keys::ShowFieldKeysStatement;
 use influxdb_influxql_parser::show_measurements::{
     ShowMeasurementsStatement, WithMeasurementClause,
 };
+use influxdb_influxql_parser::show_retention_policies::ShowRetentionPoliciesStatement;
 use influxdb_influxql_parser::show_tag_keys::ShowTagKeysStatement;
 use influxdb_influxql_parser::show_tag_values::{ShowTagValuesStatement, WithKeyClause};
 use influxdb_influxql_parser::simple_from_clause::ShowFromClause;
@@ -451,8 +455,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             Statement::ShowMeasurements(show_measurements) => {
                 self.show_measurements_to_plan(*show_measurements)
             }
-            Statement::ShowRetentionPolicies(_) => {
-                error::not_implemented("SHOW RETENTION POLICIES")
+            Statement::ShowRetentionPolicies(show_retention_policies) => {
+                self.show_retention_policies_to_plan(*show_retention_policies)
             }
             Statement::ShowTagKeys(show_tag_keys) => self.show_tag_keys_to_plan(*show_tag_keys),
             Statement::ShowTagValues(show_tag_values) => {
@@ -2828,6 +2832,76 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         Ok(plan)
     }
 
+    /// A limited implementation of SHOW RETENTION POLICIES that assumes
+    /// any database has a single, default, retention policy.
+    fn show_retention_policies_to_plan(
+        &self,
+        show_retention_policies: ShowRetentionPoliciesStatement,
+    ) -> Result<LogicalPlan> {
+        if show_retention_policies.database.is_some() {
+            // This syntax is not yet handled.
+            return error::not_implemented("SHOW RETENTION POLICIES ON <database>");
+        }
+
+        let output_schema = Arc::new(ArrowSchema::new(vec![
+            ArrowField::new(
+                INFLUXQL_MEASUREMENT_COLUMN_NAME,
+                (&InfluxColumnType::Tag).into(),
+                false,
+            ),
+            ArrowField::new(
+                "name",
+                (&InfluxColumnType::Field(InfluxFieldType::String)).into(),
+                false,
+            ),
+            ArrowField::new(
+                "duration",
+                (&InfluxColumnType::Field(InfluxFieldType::String)).into(),
+                false,
+            ),
+            ArrowField::new(
+                "shardGroupDuration",
+                (&InfluxColumnType::Field(InfluxFieldType::String)).into(),
+                false,
+            ),
+            ArrowField::new(
+                "replicaN",
+                (&InfluxColumnType::Field(InfluxFieldType::Integer)).into(),
+                false,
+            ),
+            ArrowField::new(
+                "default",
+                (&InfluxColumnType::Field(InfluxFieldType::Boolean)).into(),
+                false,
+            ),
+        ]));
+        let record_batch = RecordBatch::try_new(
+            Arc::clone(&output_schema),
+            vec![
+                Arc::new(DictionaryArray::try_new(
+                    Int32Array::from(vec![0]),
+                    Arc::new(StringArray::from(vec![Some("retention_policies")])),
+                )?),
+                Arc::new(StringArray::from(vec![Some("autogen")])),
+                Arc::new(StringArray::from(vec![Some("0s")])),
+                Arc::new(StringArray::from(vec![Some("168h0m0s")])),
+                Arc::new(Int64Array::from(vec![1])),
+                Arc::new(BooleanArray::from(vec![true])),
+            ],
+        )?;
+        let table = Arc::new(MemTable::try_new(output_schema, vec![vec![record_batch]])?);
+        let plan = LogicalPlanBuilder::scan("retention policies", provider_as_source(table), None)?
+            .build()?;
+        let plan = plan_with_metadata(
+            plan,
+            &InfluxQlMetadata {
+                measurement_column_index: MEASUREMENT_COLUMN_INDEX,
+                tag_key_columns: vec![],
+            },
+        )?;
+        Ok(plan)
+    }
+
     fn metadata_cutoff(&self) -> MetadataCutoff {
         self.iox_ctx
             .inner()
@@ -3373,7 +3447,6 @@ mod test {
         assert_snapshot!(plan("DELETE FROM foo"), @"This feature is not implemented: DELETE");
         assert_snapshot!(plan("DROP MEASUREMENT foo"), @"This feature is not implemented: DROP MEASUREMENT");
         assert_snapshot!(plan("SHOW DATABASES"), @"This feature is not implemented: SHOW DATABASES");
-        assert_snapshot!(plan("SHOW RETENTION POLICIES"), @"This feature is not implemented: SHOW RETENTION POLICIES");
     }
 
     mod metadata_queries {
@@ -3730,6 +3803,16 @@ mod test {
                   Projection: data.bar [bar:Dictionary(Int32, Utf8);N]
                     Filter: data.time >= TimestampNanosecond(1338, None) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
                       TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+        }
+
+        #[test]
+        fn test_show_retention_policies() {
+            assert_snapshot!(plan("SHOW RETENTION POLICIES"), @r###"
+            TableScan: retention policies [iox::measurement:Dictionary(Int32, Utf8), name:Utf8, duration:Utf8, shardGroupDuration:Utf8, replicaN:Int64, default:Boolean]
+            "###);
+            assert_snapshot!(plan("SHOW RETENTION POLICIES ON my_db"), @r###"
+            This feature is not implemented: SHOW RETENTION POLICIES ON <database>
             "###);
         }
     }

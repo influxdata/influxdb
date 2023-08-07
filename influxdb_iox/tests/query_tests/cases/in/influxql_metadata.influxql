@@ -98,3 +98,12 @@ SHOW TAG KEYS WHERE tag0 = 'a';
 SHOW TAG KEYS ON my_db;
 SHOW TAG KEYS FROM x.my_db;
 SHOW TAG KEYS FROM x.y.my_db;
+
+-- SHOW RETENTION POLICIES
+-- N.B. The current implemention is extremely simplistic and assumes
+-- every database contains a single, default, retention policy. This
+-- to avoid the need for complex catalogue queries.
+SHOW RETENTION POLICIES;
+
+-- unimplemented features in `SHOW RETENTION POLICIES`
+SHOW RETENTION POLICIES ON my_db;
