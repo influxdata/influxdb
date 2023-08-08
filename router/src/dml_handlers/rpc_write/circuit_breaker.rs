@@ -16,10 +16,13 @@ use tokio::{
 };
 
 /// The limit on the ratio of the number of error requests to the number of
-/// successful requests within the configured error window to be considered
-/// healthy. If updating this value, remember to update the documentation
-/// in the CLI flag for the configurable error window.
+/// successful requests within an [`ERROR_WINDOW`] interval to be considered
+/// healthy.
 const MAX_ERROR_RATIO: f32 = 0.8;
+/// The (discrete) slices of time in which the error ratio must exceed
+/// [`MAX_ERROR_RATIO`] to cause the [`CircuitBreaker`] to transition to the
+/// unhealthy state.
+const ERROR_WINDOW: Duration = Duration::from_secs(5);
 /// The length of time during which up to the configured number of probes
 /// are allowed when in an unhealthy state.
 const PROBE_INTERVAL: Duration = Duration::from_secs(1);
@@ -59,7 +62,7 @@ const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 /// # Implementation
 ///
 /// The circuit breaker is considered unhealthy when 80% ([`MAX_ERROR_RATIO`])
-/// of requests within the configured error window fail. The breaker
+/// of requests within a 5 second window [`ERROR_WINDOW`] fail. The breaker
 /// becomes healthy again when the error rate falls below 80%
 /// ([`MAX_ERROR_RATIO`]) for the, at most, configured number of probe requests
 /// allowed through within 1 second ([`PROBE_INTERVAL`]).
@@ -75,7 +78,7 @@ const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 ///     breaker is considered healthy when the ratio of the number of error
 ///     requests to the number of successful requests in the current window is
 ///     less than [`MAX_ERROR_RATIO`]. If the ratio of errors exceeds
-///     [`MAX_ERROR_RATIO`] within a single error window,
+///     [`MAX_ERROR_RATIO`] within a single [`ERROR_WINDOW`] duration of time,
 ///     the circuit breaker is then considered to be in the "open/unhealthy"
 ///     state.
 ///
@@ -97,12 +100,12 @@ const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 ///
 /// Successful requests and errors are recorded when passed to
 /// [`CircuitBreaker::observe()`]. These counters are reset at intervals of
-/// the configured error window, meaning that the ratio of errors must exceed
+/// [`ERROR_WINDOW`], meaning that the ratio of errors must exceed
 /// [`MAX_ERROR_RATIO`] within a single window to open the circuit breaker to
 /// start being considered unhealthy.
 ///
 /// A floor of at least [`MAX_ERROR_RATIO`] * `configured num_probes` must be observed per
-/// error window before the circuit breaker opens / becomes unhealthy.
+/// [`ERROR_WINDOW`] before the circuit breaker opens / becomes unhealthy.
 ///
 /// Error ratios are measured on every call to [`CircuitBreaker::is_healthy`],
 /// which should be done before determining whether to perform each request.
@@ -140,7 +143,7 @@ const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 #[derive(Debug)]
 pub struct CircuitBreaker {
     /// Counters tracking the number of [`Ok`] and [`Err`] observed in the
-    /// current error window.
+    /// [`ERROR_WINDOW`].
     ///
     /// When the total number of requests ([`RequestCounterValue::total()`]) is
     /// less than the configured number of probes, the circuit is in the "probing" regime. When
@@ -152,7 +155,7 @@ pub struct CircuitBreaker {
     /// should be allowed and resetting the [`PROBE_INTERVAL`].
     probes: Mutex<ProbeState>,
 
-    /// A task to reset the request count at the configured error window.
+    /// A task to reset the request count at intervals of [`ERROR_WINDOW`].
     reset_task: JoinHandle<()>,
 
     /// A string description of the endpoint this [`CircuitBreaker`] models.
@@ -175,17 +178,13 @@ struct ProbeState {
 }
 
 impl CircuitBreaker {
-    pub(crate) fn new(
-        endpoint: impl Into<Arc<str>>,
-        error_window: Duration,
-        num_probes: u64,
-    ) -> Self {
+    pub(crate) fn new(endpoint: impl Into<Arc<str>>, num_probes: u64) -> Self {
         let requests = Arc::new(RequestCounter::default());
         let s = Self {
             requests: Arc::clone(&requests),
             probes: Mutex::new(ProbeState::default()),
             reset_task: tokio::spawn(async move {
-                let mut ticker = tokio::time::interval(error_window);
+                let mut ticker = tokio::time::interval(ERROR_WINDOW);
                 ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
                 loop {
                     ticker.tick().await;
@@ -468,7 +467,7 @@ mod tests {
 
     /// Return a new [`CircuitBreaker`] with the reset ticker disabled.
     fn new_no_reset() -> CircuitBreaker {
-        let c = CircuitBreaker::new("bananas", Duration::from_secs(5), 10);
+        let c = CircuitBreaker::new("bananas", 10);
         c.reset_task.abort();
         c
     }
@@ -601,13 +600,13 @@ mod tests {
     }
 
     /// The circuit is marked unhealthy if the error rate exceeds
-    /// MAX_ERROR_RATIO within a single error window (approximately).
+    /// MAX_ERROR_RATIO within a single [`ERROR_WINDOW`] (approximately).
     ///
     /// This test ensures the counter reset logic prevents errors from different
     /// error window periods from changing the circuit to open/unhealthy.
     #[tokio::test]
     async fn test_periodic_counter_reset() {
-        let c = CircuitBreaker::new("bananas", Duration::from_secs(5), 10);
+        let c = CircuitBreaker::new("bananas", 10);
 
         // Assert the circuit breaker as healthy.
         assert!(c.is_healthy());
@@ -711,7 +710,7 @@ mod tests {
     /// request is sufficient to drive the state to "healthy".
     #[tokio::test]
     async fn test_low_volume_configuration() {
-        let c = CircuitBreaker::new("bananas", Duration::from_secs(5), 1);
+        let c = CircuitBreaker::new("bananas", 1);
         c.reset_task.abort();
 
         // Assert the circuit breaker as healthy.
