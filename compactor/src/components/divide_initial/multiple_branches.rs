@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use data_types::{CompactionLevel, ParquetFile};
+use data_types::{CompactionLevel, ParquetFile, Timestamp};
 
 use crate::{
     components::split_or_compact::start_level_files_to_split::{
@@ -27,7 +27,12 @@ impl Display for MultipleBranchesDivideInitial {
 }
 
 impl DivideInitial for MultipleBranchesDivideInitial {
-    fn divide(&self, files: Vec<ParquetFile>, round_info: RoundInfo) -> Vec<Vec<ParquetFile>> {
+    fn divide(
+        &self,
+        files: Vec<ParquetFile>,
+        round_info: RoundInfo,
+    ) -> (Vec<Vec<ParquetFile>>, Vec<ParquetFile>) {
+        let mut more_for_later = vec![];
         match round_info {
             RoundInfo::ManySmallFiles {
                 start_level,
@@ -107,7 +112,12 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                                 panic!("Size of a file {} is larger than the max size limit to compact. Please adjust the settings. See ticket https://github.com/influxdata/idpe/issues/17209" , f.file_size_bytes);
                             }
 
-                            branches.push(current_branch);
+                            if current_branch.len() == 1 {
+                                // Compacting a branch of 1 won't help us reduce the L0 file count.  Put it on the ignore list.
+                                more_for_later.push(current_branch.pop().unwrap());
+                            } else {
+                                branches.push(current_branch);
+                            }
                             current_branch = Vec::with_capacity(capacity);
                             current_branch_size = 0;
                         }
@@ -117,13 +127,85 @@ impl DivideInitial for MultipleBranchesDivideInitial {
 
                     // push the last branch
                     if !current_branch.is_empty() {
-                        branches.push(current_branch);
+                        if current_branch.len() == 1 {
+                            // Compacting a branch of 1 won't help us reduce the L0 file count.  Put it on the ignore list.
+                            more_for_later.push(current_branch.pop().unwrap());
+                        } else {
+                            branches.push(current_branch);
+                        }
                     }
                 }
 
-                branches
+                (branches, more_for_later)
             }
-            RoundInfo::TargetLevel { .. } => vec![files],
+
+            RoundInfo::TargetLevel { .. } => (vec![files], more_for_later),
+
+            RoundInfo::SimulatedLeadingEdge {
+                max_num_files_to_group,
+                max_total_file_size_to_group,
+            } => {
+                // There may be a lot of L0s, but we're going to keep it simple and just look at the first (few).
+                let start_level = CompactionLevel::Initial;
+
+                // Separate start_level_files (L0s) from target_level_files (L1), and `more_for_later` which is all the rest of the files (L2).
+                // We'll then with the first L0 and see how many L1s it needs to drag into its compaction, and then look at the next L0
+                // and see how many L1s it needs, etc.  We'll end up with 1 or more L0s, and whatever L1s they need to compact with.
+                // When we can't add any more without getting "too big", we'll consider that our branch, and all remaining L0s, L1s & L2s
+                // are returned as
+
+                let (start_level_files, rest): (Vec<ParquetFile>, Vec<ParquetFile>) = files
+                    .into_iter()
+                    .partition(|f| f.compaction_level == start_level);
+
+                let (mut target_level_files, mut more_for_later): (
+                    Vec<ParquetFile>,
+                    Vec<ParquetFile>,
+                ) = rest
+                    .into_iter()
+                    .partition(|f| f.compaction_level == start_level.next());
+
+                let mut start_level_files = order_files(start_level_files, start_level);
+                let mut current_branch = Vec::with_capacity(start_level_files.len());
+                let mut current_branch_size = 0;
+                let mut min_time = Timestamp::new(i64::MAX);
+                let mut max_time = Timestamp::new(0);
+
+                // Until we run out of L0s or return early with a branch to compact, keep adding L0s & their overlapping L1s to the current branch.
+                while !start_level_files.is_empty() {
+                    let f = start_level_files.remove(0);
+
+                    // overlaps of this new file isn't enough - we must look for overlaps of this + all previously added L0s, because the result of
+                    // compacting them will be that whole time range.  Therefore, we must include all L1s overlapping that entire time range.
+                    min_time = min_time.min(f.min_time);
+                    max_time = max_time.max(f.max_time);
+
+                    let (mut overlaps, remainder): (Vec<ParquetFile>, Vec<ParquetFile>) =
+                        target_level_files
+                            .into_iter()
+                            .partition(|f2| f2.overlaps_time_range(min_time, max_time));
+
+                    target_level_files = remainder;
+
+                    if current_branch_size == 0 || // minimum 1 start level file
+                    (current_branch.len() + overlaps.len() < max_num_files_to_group && current_branch_size + f.size() < max_total_file_size_to_group)
+                    {
+                        // This L0 & its overlapping L1s fit in the current branch.
+                        current_branch_size += f.size();
+                        current_branch.push(f);
+                        current_branch.append(&mut overlaps);
+                    } else {
+                        // This L0 & its overlapping L1s would make the current branch too big.
+                        // We're done - what we previously added to the branch will be compacted, everything else goes in more_for_later.
+                        more_for_later.push(f);
+                        more_for_later.append(&mut overlaps);
+                        more_for_later.append(&mut start_level_files);
+                        more_for_later.append(&mut target_level_files);
+                        return (vec![current_branch], more_for_later);
+                    }
+                }
+                (vec![current_branch], more_for_later)
+            }
         }
     }
 }
@@ -176,7 +258,10 @@ mod tests {
         let divide = MultipleBranchesDivideInitial::new();
 
         // empty input
-        assert_eq!(divide.divide(vec![], round_info), Vec::<Vec<_>>::new());
+        assert_eq!(
+            divide.divide(vec![], round_info),
+            (Vec::<Vec<_>>::new(), Vec::new())
+        );
 
         // not empty
         let f1 = ParquetFileBuilder::new(1)
@@ -195,11 +280,11 @@ mod tests {
         // files in random order of max_l0_created_at
         let files = vec![f2.clone(), f3.clone(), f1.clone()];
 
-        let branches = divide.divide(files, round_info);
+        let (branches, more_for_later) = divide.divide(files, round_info);
         // output must be split into their max_l0_created_at
-        assert_eq!(branches.len(), 2);
+        assert_eq!(branches.len(), 1);
+        assert_eq!(more_for_later.len(), 1);
         assert_eq!(branches[0], vec![f1, f2]);
-        assert_eq!(branches[1], vec![f3]);
     }
 
     #[test]
@@ -229,7 +314,7 @@ mod tests {
         let files = vec![f2, f1];
 
         // panic
-        let _branches = divide.divide(files, round_info);
+        let (_branches, _more_for_later) = divide.divide(files, round_info);
     }
 
     #[test]
@@ -260,10 +345,10 @@ mod tests {
         // files in random order of max_l0_created_at
         let files = vec![f2.clone(), f3.clone(), f1.clone()];
 
-        let branches = divide.divide(files, round_info);
+        let (branches, more_for_later) = divide.divide(files, round_info);
         // output must be split into their max_l0_created_at
-        assert_eq!(branches.len(), 2);
-        assert_eq!(branches[0], vec![f1]);
-        assert_eq!(branches[1], vec![f2, f3]);
+        assert_eq!(branches.len(), 1);
+        assert_eq!(more_for_later.len(), 1);
+        assert_eq!(branches[0], vec![f2, f3]);
     }
 }

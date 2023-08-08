@@ -131,6 +131,7 @@ impl SplitOrCompact for SplitCompact {
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
         let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let specific_splits = keep_and_split_or_compact.specific_splits();
         let mut files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         if !files_to_compact.is_empty() {
@@ -138,6 +139,18 @@ impl SplitOrCompact for SplitCompact {
                 FilesToSplitOrCompact::Compact(
                     files_to_compact,
                     CompactReason::FoundSubsetLessThanMaxCompactSize,
+                ),
+                files_to_keep,
+            );
+        }
+
+        if !specific_splits.is_empty() {
+            // limit_files_to_compact picked start level files, then the target level files that overlap them, but those
+            // target level files overlap more start level files, and that was too much.
+            return (
+                FilesToSplitOrCompact::Split(
+                    specific_splits,
+                    SplitReason::StartLevelOverlapsTooBig,
                 ),
                 files_to_keep,
             );

@@ -139,6 +139,26 @@ where
             );
         }
 
+        if round_info.is_simulated_leading_edge() {
+            match round_info {
+                RoundInfo::SimulatedLeadingEdge { .. } => {
+                    // file division already done in round_info_source
+                    return FileClassification {
+                        target_level: round_info.target_level(),
+                        files_to_make_progress_on: FilesForProgress {
+                            upgrade: vec![],
+                            split_or_compact: FilesToSplitOrCompact::Compact(
+                                files_to_compact,
+                                CompactReason::TotalSizeLessThanMaxCompactSize,
+                            ),
+                        },
+                        files_to_keep: vec![],
+                    };
+                }
+                _ => unreachable!(),
+            }
+        }
+
         // Split files into files_to_compact, files_to_upgrade, and files_to_keep
         //
         // Since output of one compaction is used as input of next compaction, all files that are not
