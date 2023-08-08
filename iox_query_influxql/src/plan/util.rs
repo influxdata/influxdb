@@ -1,7 +1,6 @@
 use crate::error;
-use crate::plan::util_copy;
 use arrow::datatypes::{DataType, TimeUnit};
-use datafusion::common::tree_node::{TreeNode, VisitRecursion};
+use datafusion::common::tree_node::{Transformed, TreeNode, VisitRecursion};
 use datafusion::common::{DFSchemaRef, Result};
 use datafusion::logical_expr::utils::expr_as_column_expr;
 use datafusion::logical_expr::{lit, Expr, ExprSchemable, LogicalPlan, Operator};
@@ -150,24 +149,24 @@ pub(crate) fn rebase_expr(
     plan: &LogicalPlan,
 ) -> Result<Expr> {
     if let Some(value) = fill_if_null {
-        util_copy::clone_with_replacement(expr, &|nested_expr| {
-            Ok(if base_exprs.contains(nested_expr) {
-                let col_expr = expr_as_column_expr(nested_expr, plan)?;
+        expr.clone().transform_up(&|nested_expr| {
+            Ok(if base_exprs.contains(&nested_expr) {
+                let col_expr = expr_as_column_expr(&nested_expr, plan)?;
                 let data_type = col_expr.get_type(plan.schema())?;
-                Some(coalesce_struct(vec![
+                Transformed::Yes(coalesce_struct(vec![
                     col_expr,
                     lit(number_to_scalar(value, &data_type)?),
                 ]))
             } else {
-                None
+                Transformed::No(nested_expr)
             })
         })
     } else {
-        util_copy::clone_with_replacement(expr, &|nested_expr| {
-            Ok(if base_exprs.contains(nested_expr) {
-                Some(expr_as_column_expr(nested_expr, plan)?)
+        expr.clone().transform_up(&|nested_expr| {
+            Ok(if base_exprs.contains(&nested_expr) {
+                Transformed::Yes(expr_as_column_expr(&nested_expr, plan)?)
             } else {
-                None
+                Transformed::No(nested_expr)
             })
         })
     }
@@ -185,4 +184,54 @@ pub(crate) fn contains_expr(expr: &Expr, needle: &Expr) -> bool {
     })
     .expect("cannot fail");
     found
+}
+
+/// Search the provided `Expr`'s, and all of their nested `Expr`, for any that
+/// pass the provided test. The returned `Expr`'s are deduplicated and returned
+/// in order of appearance (depth first).
+///
+/// # NOTE
+///
+/// Copied from DataFusion
+pub(crate) fn find_exprs_in_exprs<F>(exprs: &[Expr], test_fn: &F) -> Vec<Expr>
+where
+    F: Fn(&Expr) -> bool,
+{
+    exprs
+        .iter()
+        .flat_map(|expr| find_exprs_in_expr(expr, test_fn))
+        .fold(vec![], |mut acc, expr| {
+            if !acc.contains(&expr) {
+                acc.push(expr)
+            }
+            acc
+        })
+}
+
+/// Search an `Expr`, and all of its nested `Expr`'s, for any that pass the
+/// provided test. The returned `Expr`'s are deduplicated and returned in order
+/// of appearance (depth first).
+///
+/// # NOTE
+///
+/// Copied from DataFusion
+fn find_exprs_in_expr<F>(expr: &Expr, test_fn: &F) -> Vec<Expr>
+where
+    F: Fn(&Expr) -> bool,
+{
+    let mut exprs = vec![];
+    expr.apply(&mut |expr| {
+        if test_fn(expr) {
+            if !(exprs.contains(expr)) {
+                exprs.push(expr.clone())
+            }
+            // stop recursing down this expr once we find a match
+            return Ok(VisitRecursion::Skip);
+        }
+
+        Ok(VisitRecursion::Continue)
+    })
+    // pre_visit always returns OK, so this will always too
+    .expect("no way to return error during recursion");
+    exprs
 }

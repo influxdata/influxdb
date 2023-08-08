@@ -15,7 +15,7 @@ use crate::plan::udf::{
 };
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, IQLSchema};
 use crate::plan::var_ref::var_ref_data_type_to_data_type;
-use crate::plan::{planner_rewrite_expression, udf, util_copy};
+use crate::plan::{planner_rewrite_expression, udf};
 use crate::window::{
     CUMULATIVE_SUM, DERIVATIVE, DIFFERENCE, MOVING_AVERAGE, NON_NEGATIVE_DERIVATIVE,
     NON_NEGATIVE_DIFFERENCE, PERCENT_ROW_NUMBER,
@@ -28,7 +28,7 @@ use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as Arrow
 use arrow::record_batch::RecordBatch;
 use chrono_tz::Tz;
 use datafusion::catalog::TableReference;
-use datafusion::common::tree_node::{TreeNode, VisitRecursion};
+use datafusion::common::tree_node::{Transformed, TreeNode, VisitRecursion};
 use datafusion::common::{DFSchema, DFSchemaRef, DataFusionError, Result, ScalarValue, ToDFSchema};
 use datafusion::datasource::{provider_as_source, MemTable};
 use datafusion::logical_expr::expr::{Alias, ScalarFunction};
@@ -99,7 +99,6 @@ use std::sync::Arc;
 
 use super::parse_regex;
 use super::util::contains_expr;
-use super::util_copy::clone_with_replacement;
 
 /// The column index of the measurement column.
 const MEASUREMENT_COLUMN_INDEX: u32 = 0;
@@ -1186,12 +1185,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
                     udf.args.append(&mut additional_args);
                     let selector_new = Expr::AggregateUDF(udf);
-                    select_exprs[selector_index] =
-                        clone_with_replacement(&select_exprs[selector_index], &|expr| {
-                            if expr == &selector {
-                                Ok(Some(selector_new.clone()))
+                    select_exprs[selector_index] = select_exprs[selector_index]
+                        .clone()
+                        .transform_up(&|expr| {
+                            if expr == selector {
+                                Ok(Transformed::Yes(selector_new.clone()))
                             } else {
-                                Ok(None)
+                                Ok(Transformed::No(expr))
                             }
                         })
                         .expect("cannot fail");
@@ -1381,11 +1381,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let select_exprs = select_exprs
             .iter()
             .map(|expr| {
-                util_copy::clone_with_replacement(expr, &|udf_expr| {
-                    Ok(if udfs.contains(udf_expr) {
-                        Some(expr_as_column_expr(udf_expr, &plan)?)
+                expr.clone().transform_up(&|udf_expr| {
+                    Ok(if udfs.contains(&udf_expr) {
+                        Transformed::Yes(expr_as_column_expr(&udf_expr, &plan)?)
                     } else {
-                        None
+                        Transformed::No(udf_expr)
                     })
                 })
             })

@@ -9,7 +9,6 @@ mod rewriter;
 mod test_utils;
 mod udf;
 mod util;
-mod util_copy;
 mod var_ref;
 
 pub use planner::InfluxQLToLogicalPlan;
