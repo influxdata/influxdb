@@ -39,9 +39,9 @@ use datafusion::logical_expr::utils::{expr_as_column_expr, find_aggregate_exprs}
 use datafusion::logical_expr::{
     binary_expr, col, date_bin, expr, expr::WindowFunction, lit, lit_timestamp_nano, now, union,
     window_function, AggregateFunction, AggregateUDF, Between, BuiltInWindowFunction,
-    BuiltinScalarFunction, EmptyRelation, Explain, Expr, ExprSchemable, Extension, GetIndexedField,
-    LogicalPlan, LogicalPlanBuilder, Operator, PlanType, Projection, ScalarUDF, TableSource,
-    ToStringifiedPlan, WindowFrame, WindowFrameBound, WindowFrameUnits,
+    BuiltinScalarFunction, EmptyRelation, Explain, Expr, ExprSchemable, Extension, LogicalPlan,
+    LogicalPlanBuilder, Operator, PlanType, Projection, ScalarUDF, TableSource, ToStringifiedPlan,
+    WindowFrame, WindowFrameBound, WindowFrameUnits,
 };
 use datafusion::optimizer::utils::conjunction;
 use datafusion::physical_expr::execution_props::ExecutionProps;
@@ -1198,11 +1198,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     aggr_exprs[0] = selector_new.clone();
 
                     for (idx, struct_name, out_alias) in fields_to_extract {
-                        select_exprs[idx] = Expr::GetIndexedField(GetIndexedField {
-                            expr: Box::new(selector_new.clone()),
-                            key: ScalarValue::Utf8(Some(struct_name)),
-                        })
-                        .alias(out_alias);
+                        select_exprs[idx] =
+                            selector_new.clone().field(struct_name).alias(out_alias);
                         should_fill_expr[idx] = true;
                     }
                 }
@@ -1244,10 +1241,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     }
                 };
 
-                Expr::GetIndexedField(GetIndexedField {
-                    expr: Box::new(selector),
-                    key: ScalarValue::Utf8(Some("time".to_owned())),
-                })
+                selector.field("time")
             } else {
                 lit_timestamp_nano(0)
             }
@@ -2013,10 +2007,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 }
                 .call(vec![expr, "time".as_expr()]);
 
-                Ok(Expr::GetIndexedField(GetIndexedField {
-                    expr: Box::new(selector_udf),
-                    key: ScalarValue::Utf8(Some("value".to_owned())),
-                }))
+                Ok(selector_udf.field("value"))
             }
             "difference" => {
                 check_arg_count(name, args, 1)?;

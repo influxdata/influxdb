@@ -22,11 +22,8 @@ use data_types::ChunkId;
 use datafusion::{
     common::DFSchemaRef,
     error::DataFusionError,
-    logical_expr::{
-        utils::exprlist_to_columns, ExprSchemable, GetIndexedField, LogicalPlan, LogicalPlanBuilder,
-    },
+    logical_expr::{utils::exprlist_to_columns, ExprSchemable, LogicalPlan, LogicalPlanBuilder},
     prelude::{when, Column, Expr},
-    scalar::ScalarValue,
 };
 use datafusion_util::AsExpr;
 use futures::{Stream, StreamExt, TryStreamExt};
@@ -1624,22 +1621,10 @@ impl AggExprs {
             let selector = make_selector_expr(agg, field.clone())?;
 
             let field_name = field.name;
-            agg_exprs.push(
-                Expr::GetIndexedField(GetIndexedField {
-                    expr: Box::new(selector.clone()),
-                    key: ScalarValue::from("value"),
-                })
-                .alias(field_name),
-            );
+            agg_exprs.push(selector.clone().field("value").alias(field_name));
 
             let time_column_name = format!("{TIME_COLUMN_NAME}_{field_name}");
-            agg_exprs.push(
-                Expr::GetIndexedField(GetIndexedField {
-                    expr: Box::new(selector.clone()),
-                    key: ScalarValue::from("time"),
-                })
-                .alias(&time_column_name),
-            );
+            agg_exprs.push(selector.field("time").alias(&time_column_name));
 
             field_list.push((
                 Arc::from(field_name), // value name
