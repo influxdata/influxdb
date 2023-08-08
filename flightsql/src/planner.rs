@@ -20,7 +20,6 @@ use arrow_flight::{
 use arrow_util::flight::prepare_schema_for_flight;
 use bytes::Bytes;
 use datafusion::{
-    error::DataFusionError,
     logical_expr::{LogicalPlan, TableType},
     physical_plan::ExecutionPlan,
     sql::TableReference,
@@ -30,7 +29,7 @@ use observability_deps::tracing::debug;
 use once_cell::sync::Lazy;
 use prost::Message;
 
-use crate::{error::*, sql_info::iox_sql_info_list, xdbc_type_info::TYPE_INFO_RECORD_BATCH};
+use crate::{error::*, sql_info::iox_sql_info_list, xdbc_type_info::xdbc_type_info_data};
 use crate::{FlightSQLCommand, PreparedStatementHandle};
 
 /// Logic for creating plans for various Flight messages against a query database
@@ -218,9 +217,9 @@ impl FlightSQLPlanner {
                 let plan = plan_get_table_types(ctx).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
-            FlightSQLCommand::CommandGetXdbcTypeInfo(CommandGetXdbcTypeInfo { data_type }) => {
-                debug!(?data_type, "Planning GetXdbcTypeInfo query");
-                let plan = plan_get_xdbc_type_info(ctx, data_type).await?;
+            FlightSQLCommand::CommandGetXdbcTypeInfo(cmd) => {
+                debug!(?cmd, "Planning GetXdbcTypeInfo query");
+                let plan = plan_get_xdbc_type_info(ctx, cmd).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
             FlightSQLCommand::ActionClosePreparedStatementRequest(_)
@@ -471,15 +470,10 @@ async fn plan_get_table_types(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
 /// Return a `LogicalPlan` for GetXdbcTypeInfo
 async fn plan_get_xdbc_type_info(
     ctx: &IOxSessionContext,
-    data_type: Option<i32>,
+    cmd: CommandGetXdbcTypeInfo,
 ) -> Result<LogicalPlan> {
-    match data_type {
-        None => Ok(ctx.batch_to_logical_plan(TYPE_INFO_RECORD_BATCH.clone())?),
-        // TODO chunchun: support search by data_type
-        Some(_data_type) => Err(Error::from(DataFusionError::NotImplemented(
-            "GetXdbcTypeInfo does not yet support filtering by data_type".to_string(),
-        ))),
-    }
+    let batch = cmd.into_builder(xdbc_type_info_data()).build()?;
+    Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
 /// The schema for GetTableTypes
