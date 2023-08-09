@@ -2068,6 +2068,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_migration_generic() {
+        use crate::migrate::test_utils::test_migration;
+
+        maybe_skip_integration!();
+        maybe_start_logging();
+
+        test_migration(&MIGRATOR, || async {
+            setup_db_no_migration().await.into_pool()
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
     async fn test_catalog() {
         maybe_skip_integration!();
 

@@ -872,6 +872,105 @@ ORDER BY pg_class.relname
     }
 }
 
+/// Testing tools for migrations.
+#[cfg(test)]
+pub mod test_utils {
+    use super::*;
+
+    use std::future::Future;
+
+    /// Test migration.
+    ///
+    /// This runs the migrations to check if they pass. The given factory must provide an empty schema (i.e. w/o any
+    /// migrations applied).
+    ///
+    /// # Tests
+    /// This tests that:
+    ///
+    /// - **run once:** All migrations work when ran once.
+    /// - **idempotency:** Migrations marked as [`idempotent`](IOxMigration::idempotent) can be executed twice.
+    ///
+    /// # Error
+    /// Fails if this finds a bug.
+    pub async fn test_migration<Factory, FactoryFut, Pool>(
+        migrator: &IOxMigrator,
+        factory: Factory,
+    ) -> Result<(), MigrateError>
+    where
+        Factory: (Fn() -> FactoryFut) + Send + Sync,
+        FactoryFut: Future<Output = Pool> + Send,
+        Pool: Send,
+        for<'a> &'a Pool: Acquire<'a> + Send,
+        for<'a> <<&'a Pool as Acquire<'a>>::Connection as Deref>::Target: IOxMigrate,
+    {
+        {
+            info!("test: run all migrations");
+            let conn = factory().await;
+            let applied = migrator.run(&conn).await?;
+            assert_eq!(applied.len(), migrator.migrations.len());
+        }
+
+        info!("interrupt non-transaction migrations");
+        for (idx_m, m) in migrator.migrations.iter().enumerate() {
+            if m.single_transaction() {
+                info!(
+                    version = m.version,
+                    "skip migration because single transaction property"
+                );
+                continue;
+            }
+
+            let steps = m.steps.len();
+            info!(
+                version = m.version,
+                steps, "found non-transactional migration"
+            );
+
+            for step in 1..(steps + 1) {
+                info!(version = m.version, steps, step, "test: die after step");
+
+                let broken_cmd = "iox_this_is_a_broken_test_cmd";
+                let migrator_broken = IOxMigrator::try_new(
+                    migrator
+                        .migrations
+                        .iter()
+                        .take(idx_m)
+                        .cloned()
+                        .chain(std::iter::once(IOxMigration {
+                            steps: m
+                                .steps
+                                .iter()
+                                .take(step)
+                                .cloned()
+                                .chain(std::iter::once(IOxMigrationStep::SqlStatement {
+                                    sql: broken_cmd.into(),
+                                    in_transaction: false,
+                                }))
+                                .collect(),
+                            ..m.clone()
+                        })),
+                )
+                .expect("bug in test");
+
+                let conn = factory().await;
+                let err = migrator_broken.run(&conn).await.unwrap_err();
+                if !err.to_string().contains(broken_cmd) {
+                    panic!("migrator broke in expected way, bug in test setup: {err}");
+                }
+
+                info!(
+                    version = m.version,
+                    steps, step, "test: die after step, recover from error"
+                );
+                let applied = migrator.run(&conn).await?;
+                assert!(applied.contains(&m.version));
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2061,6 +2160,185 @@ mod tests {
             assert_eq!(
                 err.to_string(),
                 "while resolving migrations: new migration (1) goes before dirty version (2), this should not have been merged!",
+            );
+        }
+
+        #[tokio::test]
+        async fn test_migrator_bug_selftest_multiple_dirty_migrations() {
+            maybe_skip_integration!();
+            let mut conn = setup().await;
+            let conn = &mut *conn;
+
+            let migrator = IOxMigrator::try_new([
+                IOxMigration {
+                    version: 1,
+                    description: "".into(),
+                    steps: [].into(),
+                    checksum: [1, 2, 3].into(),
+                    other_compatible_checksums: [].into(),
+                },
+                IOxMigration {
+                    version: 2,
+                    description: "".into(),
+                    steps: [].into(),
+                    checksum: [4, 5, 6].into(),
+                    other_compatible_checksums: [].into(),
+                },
+            ])
+            .unwrap();
+
+            migrator.run_direct(conn).await.unwrap();
+
+            conn.execute("UPDATE _sqlx_migrations SET success = FALSE;")
+                .await
+                .unwrap();
+
+            let err = migrator.run_direct(conn).await.unwrap_err();
+
+            assert_eq!(
+                err.to_string(),
+                "while resolving migrations: there are multiple dirty versions, this should not happen and is considered a bug: [1, 2]",
+            );
+        }
+
+        #[tokio::test]
+        async fn test_migrator_bug_selftest_applied_after_dirty() {
+            maybe_skip_integration!();
+            let mut conn = setup().await;
+            let conn = &mut *conn;
+
+            let migrator = IOxMigrator::try_new([
+                IOxMigration {
+                    version: 1,
+                    description: "".into(),
+                    steps: [].into(),
+                    checksum: [1, 2, 3].into(),
+                    other_compatible_checksums: [].into(),
+                },
+                IOxMigration {
+                    version: 2,
+                    description: "".into(),
+                    steps: [].into(),
+                    checksum: [4, 5, 6].into(),
+                    other_compatible_checksums: [].into(),
+                },
+            ])
+            .unwrap();
+
+            migrator.run_direct(conn).await.unwrap();
+
+            conn.execute("UPDATE _sqlx_migrations SET success = FALSE WHERE version = 1;")
+                .await
+                .unwrap();
+
+            let err = migrator.run_direct(conn).await.unwrap_err();
+
+            assert_eq!(
+                err.to_string(),
+                "while resolving migrations: dirty version (1) is not the last applied version (2), this is a bug",
+            );
+        }
+
+        #[tokio::test]
+        async fn test_tester_finds_invalid_migration() {
+            maybe_skip_integration!();
+
+            let migrator = IOxMigrator::try_new([IOxMigration {
+                version: 1,
+                description: "".into(),
+                steps: [IOxMigrationStep::SqlStatement {
+                    sql: "foo".into(),
+                    in_transaction: true,
+                }]
+                .into(),
+                checksum: [1, 2, 3].into(),
+                other_compatible_checksums: [].into(),
+            }])
+            .unwrap();
+
+            let err = test_utils::test_migration(&migrator, setup_pool)
+                .await
+                .unwrap_err();
+
+            assert_eq!(
+                err.to_string(),
+                "while executing migrations: error returned from database: syntax error at or near \"foo\"",
+            );
+        }
+
+        #[tokio::test]
+        async fn test_tester_finds_non_idempotent_migration_package() {
+            maybe_skip_integration!();
+
+            let migrator = IOxMigrator::try_new([IOxMigration {
+                version: 1,
+                description: "".into(),
+                steps: [IOxMigrationStep::SqlStatement {
+                    sql: "CREATE TABLE t (x INT);".into(),
+                    // do NOT run this in a transaction, otherwise this is automatically idempotent
+                    in_transaction: false,
+                }]
+                .into(),
+                checksum: [1, 2, 3].into(),
+                other_compatible_checksums: [].into(),
+            }])
+            .unwrap();
+
+            let err = test_utils::test_migration(&migrator, setup_pool)
+                .await
+                .unwrap_err();
+
+            assert_eq!(
+                err.to_string(),
+                "while executing migrations: error returned from database: relation \"t\" already exists",
+            );
+        }
+
+        #[tokio::test]
+        async fn test_tester_finds_non_idempotent_migration_step() {
+            maybe_skip_integration!();
+
+            let migrator = IOxMigrator::try_new([
+                IOxMigration {
+                    version: 1,
+                    description: "".into(),
+                    steps: [IOxMigrationStep::SqlStatement {
+                        sql: "CREATE TABLE t (x INT);".into(),
+                        in_transaction: true,
+                    }]
+                    .into(),
+                    checksum: [1, 2, 3].into(),
+                    other_compatible_checksums: [].into(),
+                },
+                IOxMigration {
+                    version: 2,
+                    description: "".into(),
+                    steps: [
+                        IOxMigrationStep::SqlStatement {
+                            sql: "DROP TABLE t;".into(),
+                            // do NOT run this in a transaction, otherwise this is automatically idempotent
+                            in_transaction: false,
+                        },
+                        IOxMigrationStep::SqlStatement {
+                            sql: "CREATE TABLE t (x INT);".into(),
+                            // do NOT run this in a transaction, otherwise this is automatically idempotent
+                            in_transaction: false,
+                        },
+                    ]
+                    .into(),
+                    checksum: [4, 5, 6].into(),
+                    other_compatible_checksums: [].into(),
+                },
+            ])
+            .unwrap();
+
+            let err = test_utils::test_migration(&migrator, setup_pool)
+                .await
+                .unwrap_err();
+
+            assert_eq!(
+                err.to_string(),
+                "while executing migrations: error returned from database: table \"t\" does not exist",
             );
         }
 
