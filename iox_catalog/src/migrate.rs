@@ -419,7 +419,7 @@ impl IOxMigrator {
         if let Some(m) = migrations.windows(2).find(|m| m[0].version == m[1].version) {
             return Err(MigrateError::Source(
                 format!(
-                    "migrations are not not unique: version {} found twice",
+                    "migrations are not unique: version {} found twice",
                     m[0].version,
                 )
                 .into(),
@@ -1062,7 +1062,7 @@ mod tests {
 
             assert_eq!(
                 err.to_string(),
-                "while resolving migrations: migrations are not not unique: version 2 found twice",
+                "while resolving migrations: migrations are not unique: version 2 found twice",
             );
         }
 
