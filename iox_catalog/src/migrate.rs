@@ -410,7 +410,7 @@ impl IOxMigrator {
         if let Some(m) = migrations.windows(2).find(|m| m[0].version > m[1].version) {
             return Err(MigrateError::Source(
                 format!(
-                    "migrations are not sorted: version {} is before {} but should not",
+                    "migrations are not sorted: version {} is before {} but should not be",
                     m[0].version, m[1].version,
                 )
                 .into(),
@@ -1036,7 +1036,7 @@ mod tests {
 
             assert_eq!(
                 err.to_string(),
-                "while resolving migrations: migrations are not sorted: version 2 is before 1 but should not",
+                "while resolving migrations: migrations are not sorted: version 2 is before 1 but should not be",
             );
         }
 
