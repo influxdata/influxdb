@@ -401,7 +401,7 @@ impl IOxMigrator {
     /// Create new migrator.
     ///
     /// # Error
-    /// Fails if migrations are not sorted or if there are duplication [versions](IOxMigration::version).
+    /// Fails if migrations are not sorted or if there are duplicate [versions](IOxMigration::version).
     pub fn try_new(
         migrations: impl IntoIterator<Item = IOxMigration>,
     ) -> Result<Self, MigrateError> {
