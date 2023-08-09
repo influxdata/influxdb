@@ -7,7 +7,7 @@ use cache_system::{
         remove_if::{RemoveIfHandle, RemoveIfPolicy},
         PolicyBackend,
     },
-    cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
+    cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache, CacheGetStatus},
     loader::{
         batch::{BatchLoader, BatchLoaderFlusher, BatchLoaderFlusherExt},
         metrics::MetricsLoader,
@@ -164,7 +164,7 @@ impl PartitionCache {
         partitions: Vec<PartitionRequest>,
         span: Option<Span>,
     ) -> Vec<CachedPartition> {
-        let span_recorder = SpanRecorder::new(span);
+        let mut span_recorder = SpanRecorder::new(span);
 
         let futures = partitions
             .into_iter()
@@ -174,9 +174,12 @@ impl PartitionCache {
                      sort_key_should_cover,
                  }| {
                     let cached_table = Arc::clone(&cached_table);
-                    let span = span_recorder.child_span("single partition cache lookup");
 
-                    self.remove_if_handle.remove_if_and_get(
+                    // Do NOT create a span per partition because that floods the tracing system. Just pass `None`
+                    // instead. The metric wrappers will still fill emit aggregated metrics which is good enough.
+                    let span = None;
+
+                    self.remove_if_handle.remove_if_and_get_with_status(
                         &self.cache,
                         partition_id.clone(),
                         move |cached_partition| {
@@ -208,7 +211,27 @@ impl PartitionCache {
 
         let res = self.flusher.auto_flush(futures).await;
 
-        res.into_iter().flatten().collect()
+        let mut n_miss = 0u64;
+        let mut n_hit = 0u64;
+        let mut n_miss_already_loading = 0u64;
+        let out = res
+            .into_iter()
+            .filter_map(|(p, status)| {
+                match status {
+                    CacheGetStatus::Miss => n_miss += 1,
+                    CacheGetStatus::Hit => n_hit += 1,
+                    CacheGetStatus::MissAlreadyLoading => n_miss_already_loading += 1,
+                }
+                p
+            })
+            .collect();
+
+        span_recorder.set_metadata("n_miss", n_miss.to_string());
+        span_recorder.set_metadata("n_hit", n_hit.to_string());
+        span_recorder.set_metadata("n_miss_already_loading", n_miss_already_loading.to_string());
+        span_recorder.ok("done");
+
+        out
     }
 }
 

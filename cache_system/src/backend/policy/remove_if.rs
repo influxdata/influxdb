@@ -132,13 +132,13 @@ where
     /// This function only works if cache values evolve in one direction. This is that the predicate can only flip from
     /// `true` to `false` over time (i.e. it detects an outdated value and then an up-to-date value), NOT the other way
     /// around (i.e. data cannot get outdated under the same predicate).
-    pub async fn remove_if_and_get<P, C, GetExtra>(
+    pub async fn remove_if_and_get_with_status<P, C, GetExtra>(
         &self,
         cache: &C,
         k: K,
         predicate: P,
         extra: GetExtra,
-    ) -> V
+    ) -> (V, CacheGetStatus)
     where
         P: Fn(V) -> bool + Send,
         C: Cache<K = K, V = V, GetExtra = GetExtra>,
@@ -155,11 +155,11 @@ where
             match status {
                 CacheGetStatus::Hit => {
                     // key existed and no other process loaded it => safe to use
-                    return v;
+                    return (v, status);
                 }
                 CacheGetStatus::Miss => {
                     // key didn't exist and we loaded it => safe to use
-                    return v;
+                    return (v, status);
                 }
                 CacheGetStatus::MissAlreadyLoading => {
                     if removed {
@@ -171,16 +171,34 @@ where
                             continue;
                         } else {
                             // didn't remove => safe to use
-                            return v;
+                            return (v, status);
                         }
                     } else {
                         // there was a load action in process but the key was already up-to-date, so it's OK to use the new
                         // data as well (forward process)
-                        return v;
+                        return (v, status);
                     }
                 }
             }
         }
+    }
+
+    /// Same as [`remove_if_and_get_with_status`](Self::remove_if_and_get_with_status) but without the status.
+    pub async fn remove_if_and_get<P, C, GetExtra>(
+        &self,
+        cache: &C,
+        k: K,
+        predicate: P,
+        extra: GetExtra,
+    ) -> V
+    where
+        P: Fn(V) -> bool + Send,
+        C: Cache<K = K, V = V, GetExtra = GetExtra>,
+        GetExtra: Clone + Send,
+    {
+        self.remove_if_and_get_with_status(cache, k, predicate, extra)
+            .await
+            .0
     }
 }
 
