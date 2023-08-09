@@ -1,17 +1,21 @@
 //! Better migrations.
 //!
 //! # Why
-//! SQLx migrations don't work for use, see:
+//!
+//! SQLx migrations don't work for us, see:
 //!
 //! - <https://github.com/launchbadge/sqlx/issues/2085>
 //! - <https://github.com/influxdata/influxdb_iox/issues/5031>
 //!
 //! # Usage
+//!
 //! Just place your migration in the `migrations` folder. They basically work like normal SQLx migrations but there are
 //! a few extra, magic comments you can put in your code to modify the behavior.
 //!
 //! ## Steps
-//! The entire SQL text will be executed as a single statement. However you can split it into multiple steps by using a marker:
+//!
+//! The entire SQL text will be executed as a single statement. However, you can split it into multiple steps by using
+//! a marker:
 //!
 //! ```sql
 //! CREATE TABLE t1 (x INT);
@@ -21,8 +25,9 @@
 //! CREATE TABLE t2 (x INT);
 //! ```
 //!
-//! ## Transactions & Idemptoency
-//! Each step will be executed within a transaction. However you can opt-out of this:
+//! ## Transactions & Idempotency
+//!
+//! All steps will be executed within one transaction. However, you can opt-out of this:
 //!
 //! ```sql
 //! -- this step is wrapped in a transaction
@@ -35,35 +40,37 @@
 //! CREATE TABLE t2 (x INT);
 //! ```
 //!
-//! If all steps steps can run in a transaction, the entire migration including its bookkeeping will be executed in a
-//! transaction. In this case the transaction is automatically idempotent.
+//! If all steps can be run in a transaction, the entire migration (including its bookkeeping) will be executed in a
+//! transaction. In this case, the transaction is automatically idempotent.
 //!
 //! Migrations that opt out of the transaction handling MUST ensure that they are idempotent. This also includes that
 //! they end up in the desired target state even if they were interrupted midway in a previous run.
 //!
 //! ## Updating / Fixing Migrations
+//!
 //! **⚠️ In general a migration MUST NOT be updated / changed after it was committed to `main`. ⚠️**
 //!
-//! However there is one exception to this rule: if the new version has the same outcome when applied successfully. This
-//! can be due to:
+//! However, there is one exception to this rule: if the new version has the same outcome when applied successfully.
+//! This can be due to:
 //!
-//! - **Optimization:** The migration script turns out to be too slow in production workloads but you find a better
+//! - **Optimization:** The migration script turns out to be too slow in production workloads, but you find a better
 //!   version that does the same but runs faster.
 //! - **Failure:** The script worked fine during testing but in prod it always fails, e.g. because it is missing NULL
-//!   handling. It is important to remember that the fix MUST NOT change the outcome of the success runs.
-//! - **Idemptoency:** The script works only w/o transactions (see section above) and cannot be re-applied when be
+//!   handling. It is important to remember that the fix MUST NOT change the outcome of the successful runs.
+//! - **Idempotency:** The script works only w/o transactions (see section above) and cannot be re-applied when
 //!   interrupted midway. One common case is `CREATE INDEX CONCURRENTLY ...` where you MUST drop the index beforehand
 //!   via `DROP INDEX IF EXISTS ...` because a previous interrupted migration might have left it in an invalid state.
 //!   See ["Building Indexes Concurrently"].
 //!
-//! If you are very sure that you found a fix for your migration that does the same, you still MUST NOT just change it.
-//! The reason is that we keep a checksum of the migration stored in the database and changing the script will change
-//! the checksum will lead to a [failure](MigrateError::VersionMismatch) when running the migrations. You can work
-//! around that by obtaining the old checksum (in hex) and add it to the new version as: `-- IOX_OTHER_CHECKSUM:
-//! 42feedbull`. This pragma can be repeated multiple times.
+//! If you are very sure that you found a fix for your migration that does the same operation, you still MUST NOT just
+//! change the existing migration. The reason is that we keep a checksum of the migration stored in the database.
+//! Changing the script will change the checksum, which will lead to a [failure](MigrateError::VersionMismatch) when
+//! running the migrations. You can work around that by obtaining the old checksum (in hex) and adding it to the new
+//! version as: `-- IOX_OTHER_CHECKSUM: 42feedbull`. This pragma can be repeated multiple times.
 //!
 //! ### Example
-//! The old script looks like this:
+//!
+//! If the old migration script looks like this:
 //!
 //! ```sql
 //! -- IOX_NO_TRANSACTION
@@ -75,7 +82,7 @@
 //! CREATE INDEX CONCURRENTLY IF NOT EXISTS i ON t (x);
 //! ```
 //!
-//! You can fix the idemptoency by updating it to:
+//! You can fix the idempotency by creating a new migration that contains:
 //!
 //! ```sql
 //! -- IOX_OTHER_CHECKSUM: 067431eaa74f26ee86200aaed4992a5fe22354322102f1ed795e424ec529469079569072d856e96ee9fdb6cc848b6137
@@ -94,8 +101,8 @@
 //! ```
 //!
 //! ## Non-SQL steps
-//! At the moment, we only support SQL-based migrationsteps but other step types can easily be added.
 //!
+//! At the moment, we only support SQL-based migration steps, but other step types can easily be added.
 //!
 //! ["Building Indexes Concurrently"]: https://www.postgresql.org/docs/15/sql-createindex.html#SQL-CREATEINDEX-CONCURRENTLY
 
@@ -138,12 +145,13 @@ pub enum IOxMigrationStep {
     SqlStatement {
         /// The SQL text.
         ///
-        /// If [`in_transaction`](Self::SqlStatement::in_transaction) is set, this MUST NOT contain any transaction modifiers like `COMMIT`/`ROLLBACK`/`BEGIN`!
+        /// If [`in_transaction`](Self::SqlStatement::in_transaction) is set, this MUST NOT contain any transaction
+        /// modifiers like `COMMIT`/`ROLLBACK`/`BEGIN`!
         sql: Cow<'static, str>,
 
         /// Should the execution of the SQL text be wrapped into a transaction?
         ///
-        /// Whenever possible, you likely want to set this to `true`. However some database changes like `CREATE INDEX
+        /// Whenever possible, you likely want to set this to `true`. However, some database changes like `CREATE INDEX
         /// CONCURRENTLY` under PostgreSQL cannot be executed within a transaction.
         in_transaction: bool,
     },
@@ -233,7 +241,7 @@ pub struct IOxMigration {
     /// This is used to order migrations.
     pub version: i64,
 
-    /// Humand-readable description.
+    /// Human-readable description.
     pub description: Cow<'static, str>,
 
     /// Steps that compose this migration.
@@ -249,7 +257,7 @@ pub struct IOxMigration {
     ///
     /// **Using this should be a rare exception!**
     ///
-    /// This can be used to convert an non-idempotent migration into an idempotent one.
+    /// This can be used to convert a non-idempotent migration into an idempotent one.
     pub other_compatible_checksums: Box<[Checksum]>,
 }
 
@@ -291,9 +299,9 @@ impl IOxMigration {
         Ok(elapsed)
     }
 
-    /// Run actual application.
+    /// Run actual application of the migration.
     ///
-    /// This may or may NOT be guarded by an transaction block.
+    /// This may or may NOT be guarded by a transaction block.
     async fn apply_inner<C>(&self, conn: &mut C, single_txn: bool) -> Result<Duration, MigrateError>
     where
         C: IOxMigrate,
@@ -337,7 +345,7 @@ impl IOxMigration {
         Ok(elapsed)
     }
 
-    /// This migration can be run in a single transaction and will never by dirty.
+    /// This migration can be run in a single transaction and will never be dirty.
     pub fn single_transaction(&self) -> bool {
         self.steps.iter().all(|s| s.in_transaction())
     }
@@ -433,8 +441,8 @@ impl IOxMigrator {
     ///
     /// Returns set of executed [migrations](IOxMigration).
     ///
-    /// This may fail and some migrations may be applied. Also it is possible that a migration itself fails half-way in
-    /// which case it is marked as dirty. Subsequent migrations will fail until the issue is resolved.
+    /// This may fail and some migrations may be applied. Also, it is possible that a migration itself fails half-way,
+    /// in which case it is marked as dirty. Subsequent migrations will fail until the issue is resolved.
     pub async fn run<'a, A>(&self, migrator: A) -> Result<HashSet<i64>, MigrateError>
     where
         A: Acquire<'a> + Send,
@@ -469,7 +477,7 @@ impl IOxMigrator {
         }
     }
 
-    /// Run migragtor.
+    /// Run migrator.
     ///
     /// This expects that locking was already done.
     async fn run_inner<C>(&self, conn: &mut C) -> Result<HashSet<i64>, MigrateError>
@@ -632,7 +640,7 @@ fn validate_applied_migrations(
     Ok(())
 }
 
-/// Information about an migration found in the database.
+/// Information about a migration found in the database.
 #[derive(Debug)]
 pub struct IOxAppliedMigration {
     /// Version of the migration.
@@ -885,12 +893,14 @@ pub mod test_utils {
     /// migrations applied).
     ///
     /// # Tests
+    ///
     /// This tests that:
     ///
     /// - **run once:** All migrations work when ran once.
     /// - **idempotency:** Migrations marked as [`idempotent`](IOxMigration::idempotent) can be executed twice.
     ///
     /// # Error
+    ///
     /// Fails if this finds a bug.
     pub async fn test_migration<Factory, FactoryFut, Pool>(
         migrator: &IOxMigrator,
@@ -1986,7 +1996,8 @@ mod tests {
         /// This tests that:
         ///
         /// - indexes are sanity-checked
-        /// - sanity checks are applied after each new/dirty migration and we keep the migration dirty until the checks pass
+        /// - sanity checks are applied after each new/dirty migration and we keep the migration dirty until the checks
+        ///   pass
         /// - we can manually recover the database and make the non-idempotent migration pass
         #[tokio::test]
         async fn test_sanity_checks_index_1() {
