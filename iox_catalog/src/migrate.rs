@@ -164,7 +164,7 @@ impl IOxMigrationStep {
         Ok(())
     }
 
-    /// Will this step set up a transaction if there is non yet?
+    /// Will this step set up a transaction if there is none yet?
     fn in_transaction(&self) -> bool {
         match self {
             Self::SqlStatement { in_transaction, .. } => *in_transaction,
