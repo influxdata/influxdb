@@ -15,7 +15,7 @@ use crate::plan::udf::{
 };
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, IQLSchema};
 use crate::plan::var_ref::var_ref_data_type_to_data_type;
-use crate::plan::{planner_rewrite_expression, udf, util_copy};
+use crate::plan::{planner_rewrite_expression, udf};
 use crate::window::{
     CUMULATIVE_SUM, DERIVATIVE, DIFFERENCE, MOVING_AVERAGE, NON_NEGATIVE_DERIVATIVE,
     NON_NEGATIVE_DIFFERENCE, PERCENT_ROW_NUMBER,
@@ -28,7 +28,7 @@ use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as Arrow
 use arrow::record_batch::RecordBatch;
 use chrono_tz::Tz;
 use datafusion::catalog::TableReference;
-use datafusion::common::tree_node::{TreeNode, VisitRecursion};
+use datafusion::common::tree_node::{Transformed, TreeNode, VisitRecursion};
 use datafusion::common::{DFSchema, DFSchemaRef, DataFusionError, Result, ScalarValue, ToDFSchema};
 use datafusion::datasource::{provider_as_source, MemTable};
 use datafusion::logical_expr::expr::{Alias, ScalarFunction};
@@ -39,9 +39,9 @@ use datafusion::logical_expr::utils::{expr_as_column_expr, find_aggregate_exprs}
 use datafusion::logical_expr::{
     binary_expr, col, date_bin, expr, expr::WindowFunction, lit, lit_timestamp_nano, now, union,
     window_function, AggregateFunction, AggregateUDF, Between, BuiltInWindowFunction,
-    BuiltinScalarFunction, EmptyRelation, Explain, Expr, ExprSchemable, Extension, GetIndexedField,
-    LogicalPlan, LogicalPlanBuilder, Operator, PlanType, Projection, ScalarUDF, TableSource,
-    ToStringifiedPlan, WindowFrame, WindowFrameBound, WindowFrameUnits,
+    BuiltinScalarFunction, EmptyRelation, Explain, Expr, ExprSchemable, Extension, LogicalPlan,
+    LogicalPlanBuilder, Operator, PlanType, Projection, ScalarUDF, TableSource, ToStringifiedPlan,
+    WindowFrame, WindowFrameBound, WindowFrameUnits,
 };
 use datafusion::optimizer::utils::conjunction;
 use datafusion::physical_expr::execution_props::ExecutionProps;
@@ -99,7 +99,6 @@ use std::sync::Arc;
 
 use super::parse_regex;
 use super::util::contains_expr;
-use super::util_copy::clone_with_replacement;
 
 /// The column index of the measurement column.
 const MEASUREMENT_COLUMN_INDEX: u32 = 0;
@@ -1186,23 +1185,21 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
                     udf.args.append(&mut additional_args);
                     let selector_new = Expr::AggregateUDF(udf);
-                    select_exprs[selector_index] =
-                        clone_with_replacement(&select_exprs[selector_index], &|expr| {
-                            if expr == &selector {
-                                Ok(Some(selector_new.clone()))
+                    select_exprs[selector_index] = select_exprs[selector_index]
+                        .clone()
+                        .transform_up(&|expr| {
+                            if expr == selector {
+                                Ok(Transformed::Yes(selector_new.clone()))
                             } else {
-                                Ok(None)
+                                Ok(Transformed::No(expr))
                             }
                         })
                         .expect("cannot fail");
                     aggr_exprs[0] = selector_new.clone();
 
                     for (idx, struct_name, out_alias) in fields_to_extract {
-                        select_exprs[idx] = Expr::GetIndexedField(GetIndexedField {
-                            expr: Box::new(selector_new.clone()),
-                            key: ScalarValue::Utf8(Some(struct_name)),
-                        })
-                        .alias(out_alias);
+                        select_exprs[idx] =
+                            selector_new.clone().field(struct_name).alias(out_alias);
                         should_fill_expr[idx] = true;
                     }
                 }
@@ -1244,10 +1241,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     }
                 };
 
-                Expr::GetIndexedField(GetIndexedField {
-                    expr: Box::new(selector),
-                    key: ScalarValue::Utf8(Some("time".to_owned())),
-                })
+                selector.field("time")
             } else {
                 lit_timestamp_nano(0)
             }
@@ -1387,11 +1381,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let select_exprs = select_exprs
             .iter()
             .map(|expr| {
-                util_copy::clone_with_replacement(expr, &|udf_expr| {
-                    Ok(if udfs.contains(udf_expr) {
-                        Some(expr_as_column_expr(udf_expr, &plan)?)
+                expr.clone().transform_up(&|udf_expr| {
+                    Ok(if udfs.contains(&udf_expr) {
+                        Transformed::Yes(expr_as_column_expr(&udf_expr, &plan)?)
                     } else {
-                        None
+                        Transformed::No(udf_expr)
                     })
                 })
             })
@@ -2013,10 +2007,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 }
                 .call(vec![expr, "time".as_expr()]);
 
-                Ok(Expr::GetIndexedField(GetIndexedField {
-                    expr: Box::new(selector_udf),
-                    key: ScalarValue::Utf8(Some("value".to_owned())),
-                }))
+                Ok(selector_udf.field("value"))
             }
             "difference" => {
                 check_arg_count(name, args, 1)?;

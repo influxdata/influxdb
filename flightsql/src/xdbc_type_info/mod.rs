@@ -56,200 +56,123 @@
 //!
 //! [Arrow FlightSQL Specification]: https://github.com/apache/arrow/blob/9588da967c756b2923e213ccc067378ba6c90a86/format/FlightSql.proto#L1064-L1113
 
-mod value;
-
-use std::sync::Arc;
-
-use arrow::{
-    array::{
-        ArrayRef, BooleanArray, Int32Array, ListArray, ListBuilder, StringArray, StringBuilder,
-    },
-    datatypes::{DataType, Field, Schema, SchemaRef},
-    record_batch::RecordBatch,
-};
+use arrow_flight::sql::metadata::{XdbcTypeInfo, XdbcTypeInfoData, XdbcTypeInfoDataBuilder};
+use arrow_flight::sql::{Nullable, Searchable, XdbcDataType, XdbcDatetimeSubcode};
 use once_cell::sync::Lazy;
 
-use value::{XdbcTypeInfo, ALL_DATA_TYPES};
+pub(crate) fn xdbc_type_info_data() -> &'static XdbcTypeInfoData {
+    &XDBC_TYPE_INFO_DATA
+}
 
-/// The schema for GetXdbcTypeInfo
-static GET_XDBC_TYPE_INFO_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
-    Arc::new(Schema::new(vec![
-        Field::new("type_name", DataType::Utf8, false),
-        Field::new("data_type", DataType::Int32, false),
-        Field::new("column_size", DataType::Int32, true),
-        Field::new("literal_prefix", DataType::Utf8, true),
-        Field::new("literal_suffix", DataType::Utf8, true),
-        Field::new(
-            "create_params",
-            DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))),
-            true,
-        ),
-        Field::new("nullable", DataType::Int32, false), // Nullable enum: https://github.com/apache/arrow/blob/9588da967c756b2923e213ccc067378ba6c90a86/format/FlightSql.proto#L1014-L1029
-        Field::new("case_sensitive", DataType::Boolean, false),
-        Field::new("searchable", DataType::Int32, false), // Searchable enum: https://github.com/apache/arrow/blob/9588da967c756b2923e213ccc067378ba6c90a86/format/FlightSql.proto#L1031-L1056
-        Field::new("unsigned_attribute", DataType::Boolean, true),
-        Field::new("fixed_prec_scale", DataType::Boolean, false),
-        Field::new("auto_increment", DataType::Boolean, true),
-        Field::new("local_type_name", DataType::Utf8, true),
-        Field::new("minimum_scale", DataType::Int32, true),
-        Field::new("maximum_scale", DataType::Int32, true),
-        Field::new("sql_data_type", DataType::Int32, false),
-        Field::new("datetime_subcode", DataType::Int32, true), // XdbcDatetimeSubcode value: https://github.com/apache/arrow/blob/9588da967c756b2923e213ccc067378ba6c90a86/format/FlightSql.proto#L978-L1012
-        Field::new("num_prec_radix", DataType::Int32, true),
-        Field::new("interval_precision", DataType::Int32, true),
-    ]))
-});
-
-pub static TYPE_INFO_RECORD_BATCH: Lazy<RecordBatch> = Lazy::new(|| {
-    let type_names: Vec<&str> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.type_name)
-        .collect();
-    let type_name = Arc::new(StringArray::from(type_names)) as ArrayRef;
-
-    let data_types: Vec<i32> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.data_type.clone() as i32) // case XdbcDataType enum to i32
-        .collect();
-    let data_type = Arc::new(Int32Array::from(data_types)) as ArrayRef;
-
-    let column_sizes: Vec<Option<i32>> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.column_size)
-        .collect();
-    let column_size = Arc::new(Int32Array::from(column_sizes)) as ArrayRef;
-
-    let literal_prefixes: Vec<Option<&str>> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.literal_prefix as Option<&str>)
-        .collect();
-    let literal_prefix = Arc::new(StringArray::from(literal_prefixes)) as ArrayRef;
-
-    let literal_suffixes: Vec<Option<&str>> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.literal_suffix as Option<&str>)
-        .collect();
-    let literal_suffix = Arc::new(StringArray::from(literal_suffixes)) as ArrayRef;
-
-    let mut create_params_builder: ListBuilder<StringBuilder> =
-        ListBuilder::new(StringBuilder::new());
-    ALL_DATA_TYPES.iter().for_each(|entry: &XdbcTypeInfo| {
-        match &entry.create_params {
-            Some(params) => {
-                params
-                    .iter()
-                    .for_each(|value| create_params_builder.values().append_value(value));
-                create_params_builder.append(true);
-            }
-            None => create_params_builder.append(false), // create_params is nullable
-        }
+/// Data Types supported by DataFusion
+/// <https://arrow.apache.org/datafusion/user-guide/sql/data_types.html>
+static XDBC_TYPE_INFO_DATA: Lazy<XdbcTypeInfoData> = Lazy::new(|| {
+    let mut builder = XdbcTypeInfoDataBuilder::new();
+    builder.append(XdbcTypeInfo {
+        type_name: "VARCHAR".to_string(),
+        data_type: XdbcDataType::XdbcVarchar,
+        column_size: Some(i32::MAX), // https://github.com/apache/arrow-datafusion/blob/3801d45fe5ea3d9b207488527b758a0264665263/datafusion/core/src/catalog/information_schema.rs#L532
+        literal_prefix: Some("'".to_string()),
+        literal_suffix: Some("'".to_string()),
+        create_params: Some(vec!["length".to_string()]),
+        nullable: Nullable::NullabilityNullable,
+        case_sensitive: true,
+        searchable: Searchable::Full,
+        unsigned_attribute: None,
+        fixed_prec_scale: false,
+        auto_increment: None,
+        local_type_name: Some("VARCHAR".to_string()),
+        minimum_scale: None,
+        maximum_scale: None,
+        sql_data_type: XdbcDataType::XdbcVarchar,
+        datetime_subcode: None,
+        num_prec_radix: None,
+        interval_precision: None,
     });
-    let (field, offsets, values, nulls) = create_params_builder.finish().into_parts();
-    // Re-defined the field to be non-nullable
-    let new_field = Arc::new(field.as_ref().clone().with_nullable(false));
-    let create_params = Arc::new(ListArray::new(new_field, offsets, values, nulls)) as ArrayRef;
+    builder.append(XdbcTypeInfo {
+        type_name: "INTEGER".to_string(),
+        data_type: XdbcDataType::XdbcInteger,
+        column_size: Some(32), // https://github.com/apache/arrow-datafusion/blob/3801d45fe5ea3d9b207488527b758a0264665263/datafusion/core/src/catalog/information_schema.rs#L563
+        literal_prefix: None,
+        literal_suffix: None,
+        create_params: None,
+        nullable: Nullable::NullabilityNullable,
+        case_sensitive: false,
+        searchable: Searchable::Full,
+        unsigned_attribute: Some(false),
+        fixed_prec_scale: false,
+        auto_increment: Some(false),
+        local_type_name: Some("INTEGER".to_string()),
+        minimum_scale: None,
+        maximum_scale: None,
+        sql_data_type: XdbcDataType::XdbcInteger,
+        datetime_subcode: None,
+        num_prec_radix: Some(2), // https://github.com/apache/arrow-datafusion/blob/3801d45fe5ea3d9b207488527b758a0264665263/datafusion/core/src/catalog/information_schema.rs#L563
+        interval_precision: None,
+    });
+    builder.append(XdbcTypeInfo {
+        type_name: "FLOAT".to_string(),
+        data_type: XdbcDataType::XdbcFloat,
+        column_size: Some(24), // https://github.com/apache/arrow-datafusion/blob/3801d45fe5ea3d9b207488527b758a0264665263/datafusion/core/src/catalog/information_schema.rs#L568
+        literal_prefix: None,
+        literal_suffix: None,
+        create_params: None,
+        nullable: Nullable::NullabilityNullable,
+        case_sensitive: false,
+        searchable: Searchable::Full,
+        unsigned_attribute: Some(false),
+        fixed_prec_scale: false,
+        auto_increment: Some(false),
+        local_type_name: Some("FLOAT".to_string()),
+        minimum_scale: None,
+        maximum_scale: None,
+        sql_data_type: XdbcDataType::XdbcFloat,
+        datetime_subcode: None,
+        num_prec_radix: Some(2), // https://github.com/apache/arrow-datafusion/blob/3801d45fe5ea3d9b207488527b758a0264665263/datafusion/core/src/catalog/information_schema.rs#L568
+        interval_precision: None,
+    });
+    builder.append(XdbcTypeInfo {
+        type_name: "TIMESTAMP".to_string(),
+        data_type: XdbcDataType::XdbcTimestamp,
+        column_size: Some(i32::MAX), // https://github.com/apache/arrow-datafusion/blob/4297547df6dc297d692ca82566cfdf135d4730b5/datafusion/proto/src/generated/prost.rs#L894
+        literal_prefix: Some("'".to_string()),
+        literal_suffix: Some("'".to_string()),
+        create_params: None,
+        nullable: Nullable::NullabilityNullable,
+        case_sensitive: false,
+        searchable: Searchable::Full,
+        unsigned_attribute: None,
+        fixed_prec_scale: false,
+        auto_increment: None,
+        local_type_name: Some("TIMESTAMP".to_string()),
+        minimum_scale: None,
+        maximum_scale: None,
+        sql_data_type: XdbcDataType::XdbcTimestamp,
+        datetime_subcode: None,
+        num_prec_radix: None,
+        interval_precision: None,
+    });
+    builder.append(XdbcTypeInfo {
+        type_name: "INTERVAL".to_string(),
+        data_type: XdbcDataType::XdbcInterval,
+        column_size: Some(i32::MAX), // https://github.com/apache/arrow-datafusion/blob/4297547df6dc297d692ca82566cfdf135d4730b5/datafusion/proto/src/generated/prost.rs#L1031-L1038
+        literal_prefix: Some("'".to_string()),
+        literal_suffix: Some("'".to_string()),
+        create_params: None,
+        nullable: Nullable::NullabilityNullable,
+        case_sensitive: false,
+        searchable: Searchable::Full,
+        unsigned_attribute: None,
+        fixed_prec_scale: false,
+        auto_increment: None,
+        local_type_name: Some("INTERVAL".to_string()),
+        minimum_scale: None,
+        maximum_scale: None,
+        sql_data_type: XdbcDataType::XdbcInterval,
+        datetime_subcode: Some(XdbcDatetimeSubcode::XdbcSubcodeUnknown),
+        num_prec_radix: None,
+        interval_precision: None, // https://github.com/apache/arrow-datafusion/blob/6be75ff2dcc47128b78a695477512ba86c46373f/datafusion/core/src/catalog/information_schema.rs#L581-L582
+    });
 
-    let nullabilities: Vec<i32> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.nullable.clone() as i32) // cast Nullable enum to i32
-        .collect();
-    let nullable = Arc::new(Int32Array::from(nullabilities)) as ArrayRef;
-
-    let case_sensitivities: Vec<bool> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.case_sensitive)
-        .collect();
-    let case_sensitive = Arc::new(BooleanArray::from(case_sensitivities));
-
-    let searchabilities: Vec<i32> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.searchable.clone() as i32) // cast Searchable enum to i32
-        .collect();
-    let searchable = Arc::new(Int32Array::from(searchabilities)) as ArrayRef;
-
-    let unsigned_attributes: Vec<Option<bool>> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.unsigned_attribute as Option<bool>)
-        .collect();
-    let unsigned_attribute = Arc::new(BooleanArray::from(unsigned_attributes)) as ArrayRef;
-
-    let fixed_prec_scales: Vec<bool> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.fixed_prec_scale)
-        .collect();
-    let fixed_prec_scale = Arc::new(BooleanArray::from(fixed_prec_scales)) as ArrayRef;
-
-    let auto_increments: Vec<Option<bool>> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.auto_increment)
-        .collect();
-    let auto_increment = Arc::new(BooleanArray::from(auto_increments)) as ArrayRef;
-
-    let local_type_names: Vec<Option<&str>> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.local_type_name)
-        .collect();
-    let local_type_name = Arc::new(StringArray::from(local_type_names)) as ArrayRef;
-
-    let minimum_scales: Vec<Option<i32>> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.minimum_scale)
-        .collect();
-    let minimum_scale = Arc::new(Int32Array::from(minimum_scales)) as ArrayRef;
-
-    let maximum_scales: Vec<Option<i32>> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.maximum_scale)
-        .collect();
-    let maximum_scale = Arc::new(Int32Array::from(maximum_scales)) as ArrayRef;
-
-    let sql_data_types: Vec<i32> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.sql_data_type.clone() as i32) // case XdbcDataType enum to i32
-        .collect();
-    let sql_data_type = Arc::new(Int32Array::from(sql_data_types)) as ArrayRef;
-
-    let datetime_subcodes: Vec<Option<i32>> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.datetime_subcode)
-        .collect();
-    let datetime_subcode = Arc::new(Int32Array::from(datetime_subcodes)) as ArrayRef;
-
-    let num_prec_radices: Vec<Option<i32>> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.num_prec_radix)
-        .collect();
-    let num_prec_radix = Arc::new(Int32Array::from(num_prec_radices)) as ArrayRef;
-
-    let interval_precisions: Vec<Option<i32>> = ALL_DATA_TYPES
-        .iter()
-        .map(|entry: &XdbcTypeInfo| entry.interval_precision)
-        .collect();
-    let interval_precision = Arc::new(Int32Array::from(interval_precisions)) as ArrayRef;
-
-    RecordBatch::try_new(
-        Arc::clone(&GET_XDBC_TYPE_INFO_SCHEMA),
-        vec![
-            type_name,
-            data_type,
-            column_size,
-            literal_prefix,
-            literal_suffix,
-            create_params,
-            nullable,
-            case_sensitive,
-            searchable,
-            unsigned_attribute,
-            fixed_prec_scale,
-            auto_increment,
-            local_type_name,
-            minimum_scale,
-            maximum_scale,
-            sql_data_type,
-            datetime_subcode,
-            num_prec_radix,
-            interval_precision,
-        ],
-    )
-    .unwrap()
+    builder.build().expect("created XdbcTypeInfo")
 });

@@ -5,7 +5,8 @@ use std::{
 };
 
 use crate::components::{
-    split_or_compact::start_level_files_to_split::split_into_chains, Components,
+    split_or_compact::start_level_files_to_split::{merge_small_l0_chains, split_into_chains},
+    Components,
 };
 use async_trait::async_trait;
 use data_types::{CompactionLevel, ParquetFile, Timestamp};
@@ -14,7 +15,12 @@ use observability_deps::tracing::debug;
 
 use crate::{error::DynError, PartitionInfo, RoundInfo};
 
-/// Calculates information about what this compaction round does
+/// Calculates information about what this compaction round does.
+/// When we get deeper into the compaction decision making, there
+/// may not be as much context information available.  It may not
+/// be possible to reach the same conclusions about the intention
+/// for this compaction round.  So RoundInfo must contain enough
+/// information carry that intention through the compactions.
 #[async_trait]
 pub trait RoundInfoSource: Debug + Display + Send + Sync {
     async fn calculate(
@@ -79,6 +85,29 @@ impl LevelBasedRoundInfo {
             max_num_files_per_plan,
             max_total_file_size_per_plan,
         }
+    }
+
+    /// Returns true if the scenario looks like ManySmallFiles, but we can't group them well into branches.
+    pub fn many_ungroupable_files(
+        &self,
+        files: &[ParquetFile],
+        start_level: CompactionLevel,
+        max_total_file_size_to_group: usize,
+    ) -> bool {
+        if self.too_many_small_files_to_compact(files, CompactionLevel::Initial) {
+            let start_level_files = files
+                .iter()
+                .filter(|f| f.compaction_level == start_level)
+                .collect::<Vec<_>>();
+            let start_count = start_level_files.len();
+            let mut chains = split_into_chains(start_level_files.into_iter().cloned().collect());
+            chains = merge_small_l0_chains(chains, max_total_file_size_to_group);
+
+            if chains.len() > 1 && chains.len() > start_count / 3 {
+                return true;
+            }
+        }
+        false
     }
 
     /// Returns true if number of files of the given start_level and
@@ -174,32 +203,47 @@ impl LevelBasedRoundInfo {
 
 #[async_trait]
 impl RoundInfoSource for LevelBasedRoundInfo {
+    // The calculated RoundInfo is the most impactful decision for this round of compactions.
+    // Later decisions should be just working out details to implement what RoundInfo dictates.
     async fn calculate(
         &self,
         components: Arc<Components>,
         _partition_info: &PartitionInfo,
         files: Vec<ParquetFile>,
     ) -> Result<(RoundInfo, Vec<Vec<ParquetFile>>, Vec<ParquetFile>), DynError> {
+        // start_level is usually the lowest level we have files in, but occasionally we decide to
+        // compact L1->L2 when L0s still exist.  If this comes back as L1, we'll ignore L0s for this
+        // round and force an early L1-L2 compaction.
         let start_level = get_start_level(
             &files,
             self.max_num_files_per_plan,
             self.max_total_file_size_per_plan,
         );
 
-        let round_info = if self.too_many_small_files_to_compact(&files, start_level) {
+        let round_info = if start_level == CompactionLevel::Initial
+            && self.many_ungroupable_files(&files, start_level, self.max_num_files_per_plan)
+        {
+            RoundInfo::SimulatedLeadingEdge {
+                max_num_files_to_group: self.max_num_files_per_plan,
+                max_total_file_size_to_group: self.max_total_file_size_per_plan,
+            }
+        } else if start_level == CompactionLevel::Initial
+            && self.too_many_small_files_to_compact(&files, start_level)
+        {
             RoundInfo::ManySmallFiles {
                 start_level,
                 max_num_files_to_group: self.max_num_files_per_plan,
                 max_total_file_size_to_group: self.max_total_file_size_per_plan,
             }
         } else {
-            let target_level = pick_level(&files);
+            let target_level = start_level.next();
             RoundInfo::TargetLevel { target_level }
         };
 
-        let (files_now, files_later) = components.round_split.split(files, round_info);
+        let (files_now, mut files_later) = components.round_split.split(files, round_info);
 
-        let branches = components.divide_initial.divide(files_now, round_info);
+        let (branches, more_for_later) = components.divide_initial.divide(files_now, round_info);
+        files_later.extend(more_for_later);
 
         Ok((round_info, branches, files_later))
     }
@@ -283,22 +327,6 @@ fn get_num_overlapped_files(
         .count();
 
     count_overlapped
-}
-
-fn pick_level(files: &[ParquetFile]) -> CompactionLevel {
-    // Start with initial level
-    // If there are files in  this level, the compaction's target level will be the next level.
-    // Otherwise repeat until reaching the final level.
-    let mut level = CompactionLevel::Initial;
-    while level != CompactionLevel::Final {
-        if files.iter().any(|f| f.compaction_level == level) {
-            return level.next();
-        }
-
-        level = level.next();
-    }
-
-    level
 }
 
 #[cfg(test)]
