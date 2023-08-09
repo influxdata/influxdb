@@ -1,6 +1,7 @@
 use crate::NUMERICS;
 use arrow::array::{Array, ArrayRef};
-use arrow::compute::{shift, subtract_dyn};
+use arrow::compute::kernels::numeric::sub_wrapping;
+use arrow::compute::shift;
 use arrow::datatypes::DataType;
 use datafusion::common::{Result, ScalarValue};
 use datafusion::logical_expr::{PartitionEvaluator, Signature, TypeSignature, Volatility};
@@ -42,7 +43,7 @@ impl PartitionEvaluator for DifferencePartitionEvaluator {
         let array = Arc::clone(&values[0]);
         if array.null_count() == 0 {
             // If there are no gaps then use arrow kernels.
-            Ok(subtract_dyn(&array, &shift(&array, 1)?)?)
+            Ok(sub_wrapping(&array, &shift(&array, 1)?)?)
         } else {
             let mut idx: usize = 0;
             let mut last: ScalarValue = array.data_type().try_into()?;
