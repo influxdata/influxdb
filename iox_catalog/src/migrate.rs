@@ -620,9 +620,13 @@ fn validate_applied_migrations(
 
         if dirty_version > new_first {
             // database state error, so use a proper error
-            return Err(MigrateError::Source(format!(
-                "new migration ({new_first}) goes before dirty version ({dirty_version}), this should not have been merged!",
-            ).into()));
+            return Err(MigrateError::Source(
+                format!(
+                    "new migration ({new_first}) goes before dirty version ({dirty_version}), \
+                this should not have been merged!",
+                )
+                .into(),
+            ));
         }
     }
     if let (Some(applied_last), Some(new_first)) = (applied_last, new_first) {
@@ -631,9 +635,13 @@ fn validate_applied_migrations(
 
         if applied_last > new_first {
             // database state error, so use a proper error
-            return Err(MigrateError::Source(format!(
-                "new migration ({new_first}) goes before last applied migration ({applied_last}), this should not have been merged!",
-            ).into()));
+            return Err(MigrateError::Source(
+                format!(
+                "new migration ({new_first}) goes before last applied migration ({applied_last}), \
+                this should not have been merged!",
+            )
+                .into(),
+            ));
         }
     }
 
@@ -1004,7 +1012,9 @@ mod tests {
 
         #[test]
         fn test_parse_valid_checksum() {
-            let actual = Checksum::from_str("b88c635e27f8b9ba8547b24efcb081429a8f3e85b70f35916e1900dffc4e6a77eed8a02acc7c72526dd7d50166b63fbd").unwrap();
+            let actual = Checksum::from_str(
+                "b88c635e27f8b9ba8547b24efcb081429a8f3e85b70f35916e1900dffc4e6a77eed8a02acc7c72526dd7d50166b63fbd"
+            ).unwrap();
             let expected = Checksum::from([
                 184, 140, 99, 94, 39, 248, 185, 186, 133, 71, 178, 78, 252, 176, 129, 66, 154, 143,
                 62, 133, 183, 15, 53, 145, 110, 25, 0, 223, 252, 78, 106, 119, 238, 216, 160, 42,
@@ -1432,7 +1442,8 @@ mod tests {
                         // `CREATE INDEX CONCURRENTLY` is NOT possible w/ a transaction. Verify that.
                         assert_eq!(
                             res.unwrap_err().to_string(),
-                            "while executing migrations: error returned from database: CREATE INDEX CONCURRENTLY cannot run inside a transaction block",
+                            "while executing migrations: error returned from database: \
+                            CREATE INDEX CONCURRENTLY cannot run inside a transaction block",
                         );
                     }
                 }
@@ -2026,7 +2037,10 @@ mod tests {
 
             // fails because is not unique
             let err = migrator.run_direct(conn).await.unwrap_err();
-            assert_eq!(err.to_string(), "while executing migrations: error returned from database: could not create unique index \"i\"");
+            assert_eq!(
+                err.to_string(),
+                "while executing migrations: error returned from database: could not create unique index \"i\""
+            );
 
             // re-applying fails due to sanity checks
             // NOTE: Even though the actual migration script passes, the sanity checks DO NOT and hence the migration is
@@ -2083,11 +2097,17 @@ mod tests {
 
             // fails because is not unique
             let err = migrator.run_direct(conn).await.unwrap_err();
-            assert_eq!(err.to_string(), "while executing migrations: error returned from database: could not create unique index \"i\"");
+            assert_eq!(
+                err.to_string(),
+                "while executing migrations: error returned from database: could not create unique index \"i\""
+            );
 
             // re-applying fails with same error (index is wiped but fails w/ same error)
             let err = migrator.run_direct(conn).await.unwrap_err();
-            assert_eq!(err.to_string(), "while executing migrations: error returned from database: could not create unique index \"i\"");
+            assert_eq!(
+                err.to_string(),
+                "while executing migrations: error returned from database: could not create unique index \"i\""
+            );
 
             // fix data issue
             conn.execute("UPDATE t SET x = 2 WHERE y = 2")
@@ -2131,7 +2151,8 @@ mod tests {
 
             assert_eq!(
                 err.to_string(),
-                "while resolving migrations: new migration (1) goes before last applied migration (2), this should not have been merged!",
+                "while resolving migrations: new migration (1) goes before last applied migration (2), \
+                this should not have been merged!",
             );
         }
 
@@ -2170,7 +2191,8 @@ mod tests {
 
             assert_eq!(
                 err.to_string(),
-                "while resolving migrations: new migration (1) goes before dirty version (2), this should not have been merged!",
+                "while resolving migrations: new migration (1) goes before dirty version (2), \
+                this should not have been merged!",
             );
         }
 
@@ -2208,7 +2230,8 @@ mod tests {
 
             assert_eq!(
                 err.to_string(),
-                "while resolving migrations: there are multiple dirty versions, this should not happen and is considered a bug: [1, 2]",
+                "while resolving migrations: there are multiple dirty versions, \
+                this should not happen and is considered a bug: [1, 2]",
             );
         }
 
