@@ -56,9 +56,11 @@ impl QueryNamespace for QuerierNamespace {
             }
         };
 
+        let filters = predicate.filter_expr().into_iter().collect::<Vec<_>>();
+
         let mut chunks = table
             .chunks(
-                predicate,
+                &filters,
                 ctx.child_span("QuerierNamespace chunks"),
                 projection,
             )

@@ -15,7 +15,7 @@ use client_util::connection;
 use data_types::{
     ChunkId, ChunkOrder, NamespaceId, PartitionHashId, PartitionId, TransitionPartitionId,
 };
-use datafusion::physical_plan::Statistics;
+use datafusion::{physical_plan::Statistics, prelude::Expr};
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use ingester_query_grpc::{
     encode_proto_predicate_as_base64,
@@ -191,7 +191,7 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
         namespace_id: NamespaceId,
         cached_table: Arc<CachedTable>,
         columns: Vec<String>,
-        predicate: &Predicate,
+        filters: &[Expr],
         span: Option<Span>,
     ) -> Result<Vec<IngesterPartition>>;
 
@@ -312,7 +312,7 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
             metric.record(ingester_duration);
 
             debug!(
-                predicate=?self.request.predicate,
+                filters=?self.request.filters,
                 namespace_id=self.request.namespace_id.get(),
                 table_id=self.request.cached_table.id.get(),
                 n_partitions=?ok_status.map(|s| s.n_partitions),
@@ -395,7 +395,7 @@ struct GetPartitionForIngester<'a> {
     ingester_address: Arc<str>,
     namespace_id: NamespaceId,
     columns: Vec<String>,
-    predicate: &'a Predicate,
+    filters: &'a [Expr],
     cached_table: Arc<CachedTable>,
 }
 
@@ -410,7 +410,7 @@ async fn execute(
         ingester_address,
         namespace_id,
         columns,
-        predicate,
+        filters,
         cached_table,
     } = request;
 
@@ -418,7 +418,7 @@ async fn execute(
         namespace_id,
         table_id: cached_table.id,
         columns: columns.clone(),
-        predicate: Some(predicate.clone()),
+        predicate: Some(Predicate::default().with_exprs(filters.iter().cloned())),
     };
 
     let query_res = {
@@ -468,8 +468,8 @@ async fn execute(
                 namespace_id=namespace_id.get(),
                 table_id=cached_table.id.get(),
                 columns=columns.join(",").as_str(),
-                predicate_str=%predicate,
-                predicate_binary=encode_predicate_as_base64(predicate).as_str(),
+                filters_str=?filters,
+                filters_binary=encode_filters_as_base64(filters).as_str(),
                 "Failed to perform ingester query",
             );
 
@@ -650,15 +650,16 @@ impl IngesterStreamDecoder {
     }
 }
 
-fn encode_predicate_as_base64(predicate: &Predicate) -> String {
+fn encode_filters_as_base64(filters: &[Expr]) -> String {
     use ingester_query_grpc::influxdata::iox::ingester::v1::Predicate as ProtoPredicate;
 
-    let predicate = match ProtoPredicate::try_from(predicate.clone()) {
-        Ok(predicate) => predicate,
-        Err(_) => {
-            return String::from("<invalid>");
-        }
-    };
+    let predicate =
+        match ProtoPredicate::try_from(Predicate::default().with_exprs(filters.iter().cloned())) {
+            Ok(predicate) => predicate,
+            Err(_) => {
+                return String::from("<invalid>");
+            }
+        };
 
     match encode_proto_predicate_as_base64(&predicate) {
         Ok(s) => s,
@@ -674,7 +675,7 @@ impl IngesterConnection for IngesterConnectionImpl {
         namespace_id: NamespaceId,
         cached_table: Arc<CachedTable>,
         columns: Vec<String>,
-        predicate: &Predicate,
+        filters: &[Expr],
         span: Option<Span>,
     ) -> Result<Vec<IngesterPartition>> {
         let mut span_recorder = SpanRecorder::new(span);
@@ -690,7 +691,7 @@ impl IngesterConnection for IngesterConnectionImpl {
                 namespace_id,
                 cached_table: Arc::clone(&cached_table),
                 columns: columns.clone(),
-                predicate,
+                filters,
             };
 
             let backoff_config = self.backoff_config.clone();
@@ -1367,13 +1368,7 @@ mod tests {
         let ingester_conn = mock_flight_client.ingester_conn().await;
         let columns = vec![String::from("col")];
         let err = ingester_conn
-            .partitions(
-                NamespaceId::new(1),
-                cached_table(),
-                columns,
-                &Predicate::default(),
-                None,
-            )
+            .partitions(NamespaceId::new(1), cached_table(), columns, &[], None)
             .await
             .unwrap_err();
 
@@ -1406,13 +1401,7 @@ mod tests {
         let ingester_conn = mock_flight_client.ingester_conn().await;
         let columns = vec![String::from("col")];
         let err = ingester_conn
-            .partitions(
-                NamespaceId::new(1),
-                cached_table(),
-                columns,
-                &Predicate::default(),
-                None,
-            )
+            .partitions(NamespaceId::new(1), cached_table(), columns, &[], None)
             .await
             .unwrap_err();
 
@@ -1447,13 +1436,7 @@ mod tests {
         let ingester_conn = mock_flight_client.ingester_conn().await;
         let columns = vec![String::from("col")];
         let partitions = ingester_conn
-            .partitions(
-                NamespaceId::new(1),
-                cached_table(),
-                columns,
-                &Predicate::default(),
-                None,
-            )
+            .partitions(NamespaceId::new(1), cached_table(), columns, &[], None)
             .await
             .unwrap();
 
@@ -1582,13 +1565,7 @@ mod tests {
     ) -> Result<Vec<IngesterPartition>, Error> {
         let columns = vec![String::from("col")];
         ingester_conn
-            .partitions(
-                NamespaceId::new(1),
-                cached_table(),
-                columns,
-                &Predicate::default(),
-                span,
-            )
+            .partitions(NamespaceId::new(1), cached_table(), columns, &[], span)
             .await
     }
 

@@ -20,7 +20,6 @@ use datafusion::{
     prelude::Expr,
 };
 use observability_deps::tracing::trace;
-use predicate::Predicate;
 use schema::{sort::SortKey, Schema};
 
 use crate::{
@@ -94,7 +93,7 @@ pub trait ChunkPruner: Sync + Send + std::fmt::Debug {
         table_name: &str,
         table_schema: &Schema,
         chunks: Vec<Arc<dyn QueryChunk>>,
-        predicate: &Predicate,
+        filters: &[Expr],
     ) -> Result<Vec<Arc<dyn QueryChunk>>>;
 }
 
@@ -310,6 +309,7 @@ mod test {
         test::{format_execution_plan, TestChunk},
     };
     use datafusion::prelude::{col, lit};
+    use predicate::Predicate;
 
     #[tokio::test]
     async fn provider_scan_default() {
