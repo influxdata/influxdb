@@ -1,5 +1,7 @@
 //! Types having to do with partitions.
 
+use crate::ColumnSet;
+
 use super::{TableId, Timestamp};
 
 use schema::sort::SortKey;
@@ -358,9 +360,15 @@ pub struct Partition {
     pub table_id: TableId,
     /// the string key of the partition
     pub partition_key: PartitionKey,
-    /// vector of column names that describes how *every* parquet file
+
+    // TODO: This `sort_key` will be removed after `sort_key_ids` is fully implemented
+    /// See comments of [`Partition::sort_key_ids`] for this as it plays the
+    /// same role but stores column IDs instead of names
+    pub sort_key: Vec<String>,
+
+    /// vector of column IDs that describes how *every* parquet file
     /// in this [`Partition`] is sorted. The sort_key contains all the
-    /// primary key (PK) columns that have been persisted, and nothing
+    /// ID of primary key (PK) columns that have been persisted, and nothing
     /// else. The PK columns are all `tag` columns and the `time`
     /// column.
     ///
@@ -383,7 +391,7 @@ pub struct Partition {
     /// For example, updating `A,B,C` to either `A,D,B,C` or `A,B,C,D`
     /// is legal. However, updating to `A,C,D,B` is not because the
     /// relative order of B and C have been reversed.
-    pub sort_key: Vec<String>,
+    pub sort_key_ids: ColumnSet,
 
     /// The time at which the newest file of the partition is created
     pub new_file_at: Option<Timestamp>,
@@ -399,6 +407,7 @@ impl Partition {
         table_id: TableId,
         partition_key: PartitionKey,
         sort_key: Vec<String>,
+        sort_key_ids: ColumnSet,
         new_file_at: Option<Timestamp>,
     ) -> Self {
         let hash_id = PartitionHashId::new(table_id, &partition_key);
@@ -408,6 +417,7 @@ impl Partition {
             table_id,
             partition_key,
             sort_key,
+            sort_key_ids,
             new_file_at,
         }
     }
@@ -424,6 +434,7 @@ impl Partition {
         table_id: TableId,
         partition_key: PartitionKey,
         sort_key: Vec<String>,
+        sort_key_ids: ColumnSet,
         new_file_at: Option<Timestamp>,
     ) -> Self {
         Self {
@@ -432,6 +443,7 @@ impl Partition {
             table_id,
             partition_key,
             sort_key,
+            sort_key_ids,
             new_file_at,
         }
     }

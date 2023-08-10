@@ -3,10 +3,10 @@
 use async_trait::async_trait;
 use data_types::{
     partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
-    Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    NamespaceSchema, NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId,
-    ParquetFileParams, Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction,
-    Table, TableId, TableSchema, Timestamp, TransitionPartitionId,
+    Column, ColumnSet, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId,
+    NamespaceName, NamespaceSchema, NamespaceServiceProtectionLimitsOverride, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionHashId, PartitionId, PartitionKey,
+    SkippedCompaction, Table, TableId, TableSchema, Timestamp, TransitionPartitionId,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -413,6 +413,7 @@ pub trait PartitionRepo: Send + Sync {
         partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
         new_sort_key: &[&str],
+        new_sort_key_ids: &ColumnSet,
     ) -> Result<Partition, CasFailure<Vec<String>>>;
 
     /// Record an instance of a partition being selected for compaction but compaction was not
@@ -1598,19 +1599,24 @@ pub(crate) mod test_helpers {
 
         assert_eq!(created.keys().copied().collect::<BTreeSet<_>>(), listed);
 
-        // sort_key should be empty on creation
+        // sort_key and sort_key_ids should be empty on creation
         assert!(to_skip_partition.sort_key.is_empty());
+        assert!(to_skip_partition.sort_key_ids.is_empty());
 
         // test update_sort_key from None to Some
-        repos
+        let partition = repos
             .partitions()
             .cas_sort_key(
                 &to_skip_partition.transition_partition_id(),
                 None,
                 &["tag2", "tag1", "time"],
+                &ColumnSet::from([1, 2, 3]),
             )
             .await
             .unwrap();
+        // verify sort key and sort key ids  are updated
+        assert_eq!(partition.sort_key, &["tag2", "tag1", "time"]);
+        assert_eq!(partition.sort_key_ids, ColumnSet::from([1, 2, 3]));
 
         // test sort key CAS with an incorrect value
         let err = repos
@@ -1619,6 +1625,7 @@ pub(crate) mod test_helpers {
                 &to_skip_partition.transition_partition_id(),
                 Some(["bananas".to_string()].to_vec()),
                 &["tag2", "tag1", "tag3 , with comma", "time"],
+                &ColumnSet::from([1, 2, 3, 4]),
             )
             .await
             .expect_err("CAS with incorrect value should fail");
@@ -1655,6 +1662,7 @@ pub(crate) mod test_helpers {
                 &to_skip_partition.transition_partition_id(),
                 None,
                 &["tag2", "tag1", "tag3 , with comma", "time"],
+                &ColumnSet::from([1, 2, 3, 4]),
             )
             .await
             .expect_err("CAS with incorrect value should fail");
@@ -1669,6 +1677,7 @@ pub(crate) mod test_helpers {
                 &to_skip_partition.transition_partition_id(),
                 Some(["bananas".to_string()].to_vec()),
                 &["tag2", "tag1", "tag3 , with comma", "time"],
+                &ColumnSet::from([1, 2, 3, 4]),
             )
             .await
             .expect_err("CAS with incorrect value should fail");
@@ -1688,6 +1697,7 @@ pub(crate) mod test_helpers {
                         .collect(),
                 ),
                 &["tag2", "tag1", "tag3 , with comma", "time"],
+                &ColumnSet::from([1, 2, 3, 4]),
             )
             .await
             .unwrap();
