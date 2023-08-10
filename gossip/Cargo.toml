@@ -12,7 +12,7 @@ hashbrown.workspace = true
 metric = { version = "0.1.0", path = "../metric" }
 prost = "0.11.9"
 thiserror = "1.0.44"
-tokio = { version = "1.28.2", features = ["net", "io-util", "time", "rt", "sync", "macros"] }
+tokio = { version = "1.30.0", features = ["net", "io-util", "time", "rt", "sync", "macros"] }
 tracing = "0.1.37"
 uuid = { version = "1.4.1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
