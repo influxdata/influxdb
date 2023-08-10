@@ -166,7 +166,7 @@ impl TreeNodeRewriter for SortRewriter {
                     Arc::clone(repartition_exec.input()),
                     repartition_exec.output_partitioning(),
                 )?
-                .with_preserve_order(),
+                .with_preserve_order(true),
             ))
         } else if let Some(union_exec) = plan.as_any().downcast_ref::<UnionExec>() {
             // Any children of the UnionExec that are not already sorted,
