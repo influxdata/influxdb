@@ -62,7 +62,7 @@ pub struct TestDatabase {
     column_names: Arc<Mutex<Option<StringSetRef>>>,
 
     /// The predicate passed to the most recent call to `chunks()`
-    chunks_predicate: Mutex<Predicate>,
+    chunks_predicate: Mutex<Vec<Expr>>,
 
     /// Retention time ns.
     retention_time_ns: Option<i64>,
@@ -104,7 +104,7 @@ impl TestDatabase {
     }
 
     /// Return the most recent predicate passed to get_chunks()
-    pub fn get_chunks_predicate(&self) -> Predicate {
+    pub fn get_chunks_predicate(&self) -> Vec<Expr> {
         self.chunks_predicate.lock().clone()
     }
 
@@ -129,13 +129,14 @@ impl QueryNamespace for TestDatabase {
     async fn chunks(
         &self,
         table_name: &str,
-        predicate: &Predicate,
+        filters: &[Expr],
         _projection: Option<&Vec<usize>>,
         _ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         // save last predicate
-        *self.chunks_predicate.lock() = predicate.clone();
+        *self.chunks_predicate.lock() = filters.to_vec();
 
+        let predicate = Predicate::default().with_exprs(filters.iter().cloned());
         let partitions = self.partitions.lock().clone();
         Ok(partitions
             .values()
@@ -147,7 +148,7 @@ impl QueryNamespace for TestDatabase {
                 prune_chunks(
                     c.schema(),
                     &[Arc::clone(*c) as Arc<dyn QueryChunk>],
-                    predicate,
+                    &predicate,
                 )
                 .ok()
                 .map(|res| res[0])
