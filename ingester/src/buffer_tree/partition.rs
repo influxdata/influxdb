@@ -423,7 +423,6 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use assert_matches::assert_matches;
     use backoff::BackoffConfig;
-    use data_types::ColumnSet;
     use datafusion::{
         physical_expr::PhysicalSortExpr,
         physical_plan::{expressions::col, memory::MemoryExec, ExecutionPlan},
@@ -1007,12 +1006,7 @@ mod tests {
             .repositories()
             .await
             .partitions()
-            .cas_sort_key(
-                &partition.transition_partition_id(),
-                None,
-                &["terrific"],
-                &ColumnSet::from([1]),
-            )
+            .cas_sort_key(&partition.transition_partition_id(), None, &["terrific"])
             .await
             .unwrap();
 

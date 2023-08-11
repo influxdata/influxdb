@@ -53,7 +53,6 @@ impl SortKeyResolver {
 
 #[cfg(test)]
 mod tests {
-    use data_types::ColumnSet;
     use std::sync::Arc;
 
     use super::*;
@@ -96,7 +95,6 @@ mod tests {
                 &partition.transition_partition_id(),
                 None,
                 &["uno", "dos", "bananas"],
-                &ColumnSet::from([1, 2, 3]),
             )
             .await
             .expect("should update existing partition key");
