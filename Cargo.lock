@@ -2725,6 +2725,7 @@ dependencies = [
  "query_functions",
  "serde",
  "snafu",
+ "tonic",
  "tonic-build",
  "workspace-hack",
 ]
