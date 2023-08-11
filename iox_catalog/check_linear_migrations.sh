@@ -55,7 +55,9 @@ fi
 # check edited versions
 files_modified="$(git diff --name-only --diff-filter=M --no-renames "$main_branch" HEAD -- "$path" | sort)"
 if [[ -n "$files_modified" ]]; then
-    for f in "$files_modified"; do
+    readarray -t files_modified <<<"$files_modified"
+
+    for f in "${files_modified[@]}"; do
         version="$(basename "$f" | sed -E 's:^([0-9]+).*:\1:g')"
         checksum_old="$(git show "$main_branch:$f" | sha384sum | sed -E 's:^([0-9a-f]+).*:\1:g')"
         pragma="-- IOX_OTHER_CHECKSUM: $checksum_old"

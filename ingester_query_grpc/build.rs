@@ -20,9 +20,13 @@ fn main() -> Result<()> {
 ///
 /// - `influxdata.iox.ingester.v1.rs`
 fn generate_grpc_types(root: &Path) -> Result<()> {
-    let ingester_path = root.join("influxdata/iox/ingester/v1");
+    let ingester_path_v1 = root.join("influxdata/iox/ingester/v1");
+    let ingester_path_v2 = root.join("influxdata/iox/ingester/v2");
 
-    let proto_files = vec![ingester_path.join("query.proto")];
+    let proto_files = vec![
+        ingester_path_v1.join("query.proto"),
+        ingester_path_v2.join("query.proto"),
+    ];
 
     // Tell cargo to recompile if any of these proto files are changed
     for proto_file in &proto_files {

@@ -13,7 +13,7 @@ use datafusion::{
 use iox_query::{
     exec::SessionContextIOxExt,
     provider::{ChunkPruner, Error as ProviderError, ProviderBuilder},
-    pruning::{prune_chunks, NotPrunedReason, PruningObserver},
+    pruning::{prune_chunks, retention_expr, NotPrunedReason, PruningObserver},
     QueryChunk,
 };
 use predicate::Predicate;
@@ -63,31 +63,18 @@ impl TableProvider for QuerierTable {
                     .now()
                     .timestamp_nanos()
                     - d.as_nanos() as i64;
+
                 filters
                     .iter()
                     .cloned()
-                    .chain(
-                        Predicate::default()
-                            .with_retention(ts)
-                            .filter_expr()
-                            .into_iter(),
-                    )
+                    .chain(std::iter::once(retention_expr(ts)))
                     .collect::<Vec<_>>()
             }
             None => filters.to_vec(),
         };
 
-        let pruning_predicate = filters
-            .iter()
-            .cloned()
-            .fold(Predicate::default(), Predicate::with_expr);
-
         let chunks = self
-            .chunks(
-                &pruning_predicate,
-                ctx.child_span("QuerierTable chunks"),
-                projection,
-            )
+            .chunks(&filters, ctx.child_span("QuerierTable chunks"), projection)
             .await?;
 
         for chunk in chunks {
@@ -127,11 +114,12 @@ impl ChunkPruner for QuerierTableChunkPruner {
         _table_name: &str,
         table_schema: &Schema,
         chunks: Vec<Arc<dyn QueryChunk>>,
-        predicate: &Predicate,
+        filters: &[Expr],
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ProviderError> {
         let observer = &MetricPruningObserver::new(Arc::clone(&self.metrics));
 
-        let chunks = match prune_chunks(table_schema, &chunks, predicate) {
+        let predicate = Predicate::default().with_exprs(filters.iter().cloned());
+        let chunks = match prune_chunks(table_schema, &chunks, &predicate) {
             Ok(keeps) => {
                 assert_eq!(chunks.len(), keeps.len());
                 chunks

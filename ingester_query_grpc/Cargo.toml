@@ -16,6 +16,7 @@ prost = "0.11"
 query_functions = { path = "../query_functions" }
 serde = { version = "1.0", features = ["derive"] }
 snafu = "0.7"
+tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [build-dependencies] # In alphabetical order

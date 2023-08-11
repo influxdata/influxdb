@@ -16,7 +16,7 @@ ouroboros = "0.17"
 parking_lot = { version = "0.12", features = ["arc_lock"] }
 pdatastructs = { version = "0.7", default-features = false, features = ["fixedbitset"] }
 rand = "0.8.3"
-tokio = { version = "1.29", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.30", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.8" }
 trace = { path = "../trace"}
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

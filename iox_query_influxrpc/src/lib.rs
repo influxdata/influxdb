@@ -1289,13 +1289,14 @@ fn table_chunk_stream<'a>(
                     Some(ret) => predicate.clone().with_retention(ret),
                     None => predicate.clone(),
                 };
+                let filters = predicate.filter_expr().into_iter().collect::<Vec<_>>();
                 let projection =
                     columns_in_predicates(need_fields, &table_schema, table_name, &predicate);
 
-                let chunks = namespace
+                let mut chunks = namespace
                     .chunks(
                         table_name,
-                        &predicate,
+                        &filters,
                         projection.as_ref(),
                         ctx.child_ctx("table chunks"),
                     )
@@ -1303,6 +1304,20 @@ fn table_chunk_stream<'a>(
                     .context(GettingChunksSnafu {
                         table_name: table_name.as_ref(),
                     })?;
+
+                // if there is a field restriction on the predicate, only
+                // chunks with that field should be returned. If the chunk has
+                // none of the fields specified, then it doesn't match
+                // TODO: test this branch
+                if let Some(field_columns) = &predicate.field_columns {
+                    chunks.retain(|chunk| {
+                        let schema = chunk.schema();
+                        // keep chunk if it has any of the columns requested
+                        field_columns
+                            .iter()
+                            .any(|col| schema.find_index_of(col).is_some())
+                    })
+                }
 
                 Ok((table_name, Arc::clone(&table_schema), predicate, chunks))
             }
@@ -2352,19 +2367,6 @@ mod tests {
           Sort: h2o.foo ASC NULLS FIRST, h2o.time ASC NULLS FIRST [foo:Dictionary(Int32, Utf8);N, foo.bar:Float64;N, time:Timestamp(Nanosecond, None)]
             TableScan: h2o [foo:Dictionary(Int32, Utf8);N, foo.bar:Float64;N, time:Timestamp(Nanosecond, None)]
         "###);
-
-        let got_predicate = test_db.get_chunks_predicate();
-        let exp_predicate = Predicate::new()
-            .with_field_columns(vec!["foo.bar"])
-            .unwrap()
-            .with_value_expr(
-                "_value"
-                    .as_expr()
-                    .eq(lit(1.2))
-                    .try_into()
-                    .expect("failed to convert _value expression"),
-            );
-        assert_eq!(got_predicate, exp_predicate);
     }
 
     #[tokio::test]
@@ -2447,8 +2449,7 @@ mod tests {
         let silly_predicate = Predicate::new().with_expr(expr.eq(lit("bar")));
 
         // verify that the predicate was rewritten to `foo = 'bar'`
-        let expr = col("foo").eq(lit_dict("bar"));
-        let expected_predicate = Predicate::new().with_expr(expr);
+        let expected_predicate = vec![col("foo").eq(lit_dict("bar"))];
 
         run_test_with_predicate(&func, silly_predicate, expected_predicate).await;
 
@@ -2461,9 +2462,7 @@ mod tests {
 
         // verify that the predicate was rewritten to `false` as the
         // measurement name is `h20`
-        let expr = lit(false);
-
-        let expected_predicate = Predicate::new().with_expr(expr);
+        let expected_predicate = vec![lit(false)];
         run_test_with_predicate(&func, silly_predicate, expected_predicate).await;
 
         // ------------- Test 3 ----------------
@@ -2483,9 +2482,7 @@ mod tests {
             Box::new(DataType::Int32),
             Box::new(ScalarValue::Utf8(Some("bar".to_string()))),
         );
-        let expr = col("foo").eq(lit(dict));
-
-        let expected_predicate = Predicate::new().with_expr(expr);
+        let expected_predicate = vec![col("foo").eq(lit(dict))];
         run_test_with_predicate(&func, silly_predicate, expected_predicate).await;
     }
 
@@ -2494,7 +2491,7 @@ mod tests {
     async fn run_test_with_predicate<T>(
         func: &T,
         predicate: Predicate,
-        expected_predicate: Predicate,
+        expected_predicate: Vec<Expr>,
     ) where
         T: Fn(Arc<TestDatabase>, InfluxRpcPredicate) -> BoxFuture<'static, ()> + Send + Sync,
     {

@@ -1389,7 +1389,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "28.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=27c7ae8978205dfebe7a96d6c1e28779df670bc2#27c7ae8978205dfebe7a96d6c1e28779df670bc2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=161c6d32824fc87307341f942ffad7b4d452c82f#161c6d32824fc87307341f942ffad7b4d452c82f"
 dependencies = [
  "ahash",
  "arrow",
@@ -1437,7 +1437,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "28.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=27c7ae8978205dfebe7a96d6c1e28779df670bc2#27c7ae8978205dfebe7a96d6c1e28779df670bc2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=161c6d32824fc87307341f942ffad7b4d452c82f#161c6d32824fc87307341f942ffad7b4d452c82f"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1451,11 +1451,13 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "28.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=27c7ae8978205dfebe7a96d6c1e28779df670bc2#27c7ae8978205dfebe7a96d6c1e28779df670bc2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=161c6d32824fc87307341f942ffad7b4d452c82f#161c6d32824fc87307341f942ffad7b4d452c82f"
 dependencies = [
+ "arrow",
  "dashmap",
  "datafusion-common",
  "datafusion-expr",
+ "futures",
  "hashbrown 0.14.0",
  "log",
  "object_store",
@@ -1468,7 +1470,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "28.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=27c7ae8978205dfebe7a96d6c1e28779df670bc2#27c7ae8978205dfebe7a96d6c1e28779df670bc2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=161c6d32824fc87307341f942ffad7b4d452c82f#161c6d32824fc87307341f942ffad7b4d452c82f"
 dependencies = [
  "ahash",
  "arrow",
@@ -1482,7 +1484,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "28.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=27c7ae8978205dfebe7a96d6c1e28779df670bc2#27c7ae8978205dfebe7a96d6c1e28779df670bc2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=161c6d32824fc87307341f942ffad7b4d452c82f#161c6d32824fc87307341f942ffad7b4d452c82f"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1499,7 +1501,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "28.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=27c7ae8978205dfebe7a96d6c1e28779df670bc2#27c7ae8978205dfebe7a96d6c1e28779df670bc2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=161c6d32824fc87307341f942ffad7b4d452c82f#161c6d32824fc87307341f942ffad7b4d452c82f"
 dependencies = [
  "ahash",
  "arrow",
@@ -1533,7 +1535,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "28.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=27c7ae8978205dfebe7a96d6c1e28779df670bc2#27c7ae8978205dfebe7a96d6c1e28779df670bc2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=161c6d32824fc87307341f942ffad7b4d452c82f#161c6d32824fc87307341f942ffad7b4d452c82f"
 dependencies = [
  "arrow",
  "chrono",
@@ -1547,7 +1549,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "28.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=27c7ae8978205dfebe7a96d6c1e28779df670bc2#27c7ae8978205dfebe7a96d6c1e28779df670bc2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=161c6d32824fc87307341f942ffad7b4d452c82f#161c6d32824fc87307341f942ffad7b4d452c82f"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -2320,7 +2322,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2",
+ "socket2 0.4.9",
  "tokio",
  "tower-service",
  "tracing",
@@ -2723,6 +2725,7 @@ dependencies = [
  "query_functions",
  "serde",
  "snafu",
+ "tonic",
  "tonic-build",
  "workspace-hack",
 ]
@@ -4179,9 +4182,9 @@ dependencies = [
 
 [[package]]
 name = "pin-project-lite"
-version = "0.2.10"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c40d25201921e5ff0c862a505c6557ea88568a4e3ace775ab55e93f2f4f9d57"
+checksum = "12cc1b0bf1727a77a54b6654e7b5f1af8604923edc8b81885f8ec92f9e3f0a05"
 
 [[package]]
 name = "pin-utils"
@@ -4819,9 +4822,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.7"
+version = "0.38.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "172891ebdceb05aa0005f533a6cbfca599ddd7d966f6f5d4d9b2e70478e70399"
+checksum = "19ed4fa021d81c8392ce04db050a3da9a60299050b7ae1cf482d862b54a7218f"
 dependencies = [
  "bitflags 2.3.3",
  "errno",
@@ -5311,6 +5314,16 @@ checksum = "64a4a911eed85daf18834cfaa86a79b7d266ff93ff5ba14005426219480ed662"
 dependencies = [
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "socket2"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2538b18701741680e0322a2302176d3253a35388e2e62f172f64f4f16605f877"
+dependencies = [
+ "libc",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -5925,11 +5938,10 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.29.1"
+version = "1.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "532826ff75199d5833b9d2c5fe410f29235e25704ee5f0ef599fb51c21f4a4da"
+checksum = "2d3ce25f50619af8b0aec2eb23deebe84249e19e2ddd393a6e16e3300a6dadfd"
 dependencies = [
- "autocfg",
  "backtrace",
  "bytes",
  "libc",
@@ -5938,7 +5950,7 @@ dependencies = [
  "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
- "socket2",
+ "socket2 0.5.3",
  "tokio-macros",
  "tracing",
  "windows-sys 0.48.0",

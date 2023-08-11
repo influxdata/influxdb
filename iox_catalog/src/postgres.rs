@@ -20,7 +20,7 @@ use data_types::{
     partition_template::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
     },
-    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
+    Column, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
     NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId, ParquetFileParams,
     Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
     Timestamp, TransitionPartitionId,
@@ -1163,12 +1163,12 @@ impl PartitionRepo for PostgresTxn {
         let v = sqlx::query_as::<_, Partition>(
             r#"
 INSERT INTO partition
-    (partition_key, shard_id, table_id, hash_id, sort_key)
+    (partition_key, shard_id, table_id, hash_id, sort_key, sort_key_ids)
 VALUES
-    ( $1, $2, $3, $4, '{}')
+    ( $1, $2, $3, $4, '{}', '{}')
 ON CONFLICT ON CONSTRAINT partition_key_unique
 DO UPDATE SET partition_key = partition.partition_key
-RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
         )
         .bind(key) // $1
@@ -1191,7 +1191,7 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>> {
         let rec = sqlx::query_as::<_, Partition>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE id = $1;
         "#,
@@ -1214,7 +1214,7 @@ WHERE id = $1;
 
         sqlx::query_as::<_, Partition>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE id = ANY($1);
         "#,
@@ -1231,7 +1231,7 @@ WHERE id = ANY($1);
     ) -> Result<Option<Partition>> {
         let rec = sqlx::query_as::<_, Partition>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE hash_id = $1;
         "#,
@@ -1257,7 +1257,7 @@ WHERE hash_id = $1;
 
         sqlx::query_as::<_, Partition>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE hash_id = ANY($1);
         "#,
@@ -1271,7 +1271,7 @@ WHERE hash_id = ANY($1);
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
         sqlx::query_as::<_, Partition>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE table_id = $1;
             "#,
@@ -1305,32 +1305,42 @@ WHERE table_id = $1;
         partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
         new_sort_key: &[&str],
+        new_sort_key_ids: &ColumnSet,
     ) -> Result<Partition, CasFailure<Vec<String>>> {
+        // panic if new_sort_key and new_sort_key_ids have different lengths
+        assert_eq!(
+            new_sort_key.len(),
+            new_sort_key_ids.len(),
+            "new_sort_key and new_sort_key_ids must be the same length"
+        );
+
         let old_sort_key = old_sort_key.unwrap_or_default();
         // This `match` will go away when all partitions have hash IDs in the database.
         let query = match partition_id {
             TransitionPartitionId::Deterministic(hash_id) => sqlx::query_as::<_, Partition>(
                 r#"
 UPDATE partition
-SET sort_key = $1
+SET sort_key = $1, sort_key_ids = $4
 WHERE hash_id = $2 AND sort_key = $3
-RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(new_sort_key) // $1
             .bind(hash_id) // $2
-            .bind(&old_sort_key), // $3
+            .bind(&old_sort_key) // $3
+            .bind(new_sort_key_ids), // $4
             TransitionPartitionId::Deprecated(id) => sqlx::query_as::<_, Partition>(
                 r#"
 UPDATE partition
-SET sort_key = $1
+SET sort_key = $1, sort_key_ids = $4
 WHERE id = $2 AND sort_key = $3
-RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(new_sort_key) // $1
             .bind(id) // $2
-            .bind(&old_sort_key), // $3
+            .bind(&old_sort_key) // $3
+            .bind(new_sort_key_ids), // $4
         };
 
         let res = query.fetch_one(&mut self.inner).await;
@@ -1366,6 +1376,7 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
             ?partition_id,
             ?old_sort_key,
             ?new_sort_key,
+            ?new_sort_key_ids,
             "partition sort key cas successful"
         );
 
@@ -1464,7 +1475,7 @@ RETURNING *
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
         sqlx::query_as(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, persisted_sequence_number, new_file_at
 FROM partition
 ORDER BY id DESC
 LIMIT $1;"#,
@@ -2194,12 +2205,12 @@ mod tests {
         sqlx::query(
             r#"
 INSERT INTO partition
-    (partition_key, shard_id, table_id, sort_key)
+    (partition_key, shard_id, table_id, sort_key, sort_key_ids)
 VALUES
-    ( $1, $2, $3, '{}')
+    ( $1, $2, $3, '{}', '{}')
 ON CONFLICT ON CONSTRAINT partition_key_unique
 DO UPDATE SET partition_key = partition.partition_key
-RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids,  new_file_at;
         "#,
         )
         .bind(&key) // $1

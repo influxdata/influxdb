@@ -215,6 +215,7 @@ mod tests {
     // Harmless in tests - saves a bunch of extra vars.
     #![allow(clippy::await_holding_lock)]
 
+    use data_types::ColumnSet;
     use iox_catalog::mem::MemCatalog;
 
     use super::*;
@@ -287,6 +288,7 @@ mod tests {
             ARBITRARY_TABLE_ID,
             stored_partition_key.clone(),
             vec!["dos".to_string(), "bananas".to_string()],
+            ColumnSet::from([1, 2]),
             Default::default(),
         );
 
@@ -349,6 +351,7 @@ mod tests {
             ARBITRARY_PARTITION_KEY.clone(),
             Default::default(),
             Default::default(),
+            Default::default(),
         );
 
         let cache = new_cache(inner, [partition]);
@@ -384,6 +387,7 @@ mod tests {
             ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TABLE_ID,
             ARBITRARY_PARTITION_KEY.clone(),
+            Default::default(),
             Default::default(),
             Default::default(),
         );

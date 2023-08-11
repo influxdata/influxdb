@@ -2,6 +2,7 @@ use super::IngesterConnection;
 use crate::cache::namespace::CachedTable;
 use async_trait::async_trait;
 use data_types::NamespaceId;
+use datafusion::prelude::Expr;
 use parking_lot::Mutex;
 use schema::Schema as IOxSchema;
 use std::{any::Any, collections::HashSet, sync::Arc};
@@ -33,7 +34,7 @@ impl IngesterConnection for MockIngesterConnection {
         _namespace_id: NamespaceId,
         _cached_table: Arc<CachedTable>,
         columns: Vec<String>,
-        _predicate: &predicate::Predicate,
+        _filters: &[Expr],
         _span: Option<Span>,
     ) -> super::Result<Vec<super::IngesterPartition>> {
         let Some(partitions) = self.next_response.lock().take() else {

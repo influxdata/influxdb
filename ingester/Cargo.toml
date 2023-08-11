@@ -44,7 +44,7 @@ test_helpers = { path = "../test_helpers", features = [
 ], optional = true }
 thiserror = "1.0.44"
 tracker = { path = "../tracker" }
-tokio = { version = "1.29", features = [
+tokio = { version = "1.30", features = [
     "macros",
     "parking_lot",
     "rt-multi-thread",
@@ -75,7 +75,7 @@ paste = "1.0.14"
 proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = "3.7.1"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
-tokio = { version = "1.29", features = ["macros", "time", "test-util"] }
+tokio = { version = "1.30", features = ["macros", "time", "test-util"] }
 
 [features]
 # Export some internal types for benchmark purposes only.

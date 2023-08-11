@@ -20,5 +20,5 @@ generated_types = { version = "0.1.0", path = "../generated_types" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { version = "0.1.0", path = "../mutable_batch_pb" }
 test_helpers = { path = "../test_helpers" }
-tokio = { version = "1.29", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.30", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 wal = { version = "0.1.0", path = "../wal" }

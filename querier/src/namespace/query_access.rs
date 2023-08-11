@@ -12,6 +12,7 @@ use datafusion::{
     catalog::{schema::SchemaProvider, CatalogProvider},
     datasource::TableProvider,
     error::DataFusionError,
+    prelude::Expr,
 };
 use datafusion_util::config::DEFAULT_SCHEMA;
 use iox_query::{
@@ -19,7 +20,7 @@ use iox_query::{
     QueryChunk, QueryCompletedToken, QueryNamespace, QueryText,
 };
 use observability_deps::tracing::{debug, trace};
-use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
+use predicate::rpc_predicate::QueryNamespaceMeta;
 use schema::Schema;
 use std::{any::Any, collections::HashMap, sync::Arc};
 use trace::ctx::SpanContext;
@@ -41,11 +42,11 @@ impl QueryNamespace for QuerierNamespace {
     async fn chunks(
         &self,
         table_name: &str,
-        predicate: &Predicate,
+        filters: &[Expr],
         projection: Option<&Vec<usize>>,
         ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        debug!(%table_name, %predicate, "Finding chunks for table");
+        debug!(%table_name, ?filters, "Finding chunks for table");
         // get table metadata
         let table = match self.tables.get(table_name).map(Arc::clone) {
             Some(table) => table,
@@ -56,27 +57,14 @@ impl QueryNamespace for QuerierNamespace {
             }
         };
 
-        let mut chunks = table
+        let chunks = table
             .chunks(
-                predicate,
+                filters,
                 ctx.child_span("QuerierNamespace chunks"),
                 projection,
             )
             .await?;
 
-        // if there is a field restriction on the predicate, only
-        // chunks with that field should be returned. If the chunk has
-        // none of the fields specified, then it doesn't match
-        // TODO: test this branch
-        if let Some(field_columns) = &predicate.field_columns {
-            chunks.retain(|chunk| {
-                let schema = chunk.schema();
-                // keep chunk if it has any of the columns requested
-                field_columns
-                    .iter()
-                    .any(|col| schema.find_index_of(col).is_some())
-            })
-        }
         Ok(chunks)
     }
 

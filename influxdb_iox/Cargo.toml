@@ -73,7 +73,7 @@ snafu = "0.7"
 tempfile = "3.7.1"
 thiserror = "1.0.44"
 tikv-jemalloc-ctl = { version = "0.5.4", optional = true }
-tokio = { version = "1.29", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "io-std"] }
+tokio = { version = "1.30", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "io-std"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.8", features = ["compat"] }
 tonic = { workspace = true }

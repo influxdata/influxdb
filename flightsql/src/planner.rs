@@ -29,7 +29,7 @@ use observability_deps::tracing::debug;
 use once_cell::sync::Lazy;
 use prost::Message;
 
-use crate::{error::*, sql_info::iox_sql_info_list, xdbc_type_info::xdbc_type_info_data};
+use crate::{error::*, sql_info::iox_sql_info_data, xdbc_type_info::xdbc_type_info_data};
 use crate::{FlightSQLCommand, PreparedStatementHandle};
 
 /// Logic for creating plans for various Flight messages against a query database
@@ -58,7 +58,7 @@ impl FlightSQLPlanner {
                 get_schema_for_query(handle.query(), ctx).await
             }
             FlightSQLCommand::CommandGetSqlInfo(CommandGetSqlInfo { .. }) => {
-                Ok(iox_sql_info_list().schema())
+                Ok(iox_sql_info_data().schema())
             }
             FlightSQLCommand::CommandGetCatalogs(req) => Ok(req.into_builder().schema()),
             FlightSQLCommand::CommandGetCrossReference(CommandGetCrossReference { .. }) => {
@@ -110,9 +110,9 @@ impl FlightSQLPlanner {
                 debug!(%query, "Planning FlightSQL prepared query");
                 Ok(ctx.sql_to_physical_plan(query).await?)
             }
-            FlightSQLCommand::CommandGetSqlInfo(CommandGetSqlInfo { info }) => {
-                debug!("Planning GetSqlInfo query");
-                let plan = plan_get_sql_info(ctx, info).await?;
+            FlightSQLCommand::CommandGetSqlInfo(cmd) => {
+                debug!(?cmd, "Planning GetSqlInfo query");
+                let plan = plan_get_sql_info(ctx, cmd).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
             FlightSQLCommand::CommandGetCatalogs(cmd) => {
@@ -307,10 +307,8 @@ fn encode_schema(schema: &Schema) -> Result<Bytes> {
 }
 
 /// Return a `LogicalPlan` for GetSqlInfo
-///
-/// The infos are passed directly from the [`CommandGetSqlInfo::info`]
-async fn plan_get_sql_info(ctx: &IOxSessionContext, info: Vec<u32>) -> Result<LogicalPlan> {
-    let batch = iox_sql_info_list().filter(&info).encode()?;
+async fn plan_get_sql_info(ctx: &IOxSessionContext, cmd: CommandGetSqlInfo) -> Result<LogicalPlan> {
+    let batch = cmd.into_builder(iox_sql_info_data()).build()?;
     Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
