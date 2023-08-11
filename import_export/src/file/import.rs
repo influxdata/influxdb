@@ -6,9 +6,8 @@ use data_types::{
     partition_template::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, PARTITION_BY_DAY_PROTO,
     },
-    ColumnSet, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceName,
-    NamespaceNameError, ParquetFileParams, Partition, PartitionKey, Statistics, Table, TableId,
-    Timestamp,
+    ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceName, NamespaceNameError,
+    ParquetFileParams, Partition, Statistics, Table, TableId, Timestamp,
 };
 use generated_types::influxdata::iox::catalog::v1 as proto;
 //    ParquetFile as ProtoParquetFile, Partition as ProtoPartition,
@@ -370,10 +369,8 @@ impl RemoteImporter {
         let table_id = table.id;
         debug!(%table_id, "Inserting catalog records into table");
 
-        // Create a new partition
-        let partition_key = iox_metadata.partition_key.clone();
-        let mut partition = self
-            .create_partition(repos.as_mut(), &table, partition_key)
+        let partition = self
+            .partition_for_parquet_file(repos.as_mut(), &table, &iox_metadata)
             .await?;
 
         // Note that for some reason, the object_store_id that is
@@ -418,11 +415,6 @@ impl RemoteImporter {
                 return Err(Error::Catalog(e));
             }
         };
-
-        // Update partition sort key
-        let partition = self
-            .update_partition(&mut partition, repos.as_mut(), &table, &iox_metadata)
-            .await?;
 
         // Now copy the parquet files into the object store
         //let partition_id = TransitionPartitionId::Deprecated(partition.id);
@@ -479,39 +471,24 @@ impl RemoteImporter {
         Ok(table)
     }
 
-    /// Create the catalog [`Partition`] into which the specified parquet
+    /// Return the catalog [`Partition`] into which the specified parquet
     /// file shoudl be inserted.
-    ///
-    /// The sort_key and sort_key_ids of the partition should be empty when it is first created
-    /// because there are no columns in any parquet files to use for sorting yet.
-    /// The sort_key and sort_key_ids will be updated after the parquet files are created.
-    async fn create_partition(
-        &self,
-        repos: &mut dyn RepoCollection,
-        table: &Table,
-        partition_key: PartitionKey,
-    ) -> Result<Partition> {
-        let partition = repos
-            .partitions()
-            .create_or_get(partition_key, table.id)
-            .await?;
-
-        Ok(partition)
-    }
-
-    /// Update sort keys of the partition
     ///
     /// First attempts to use any available metadata from the
     /// catalog export, and falls back to what is in the iox
     /// metadata stored in the parquet file, if needed
-    async fn update_partition(
+    async fn partition_for_parquet_file(
         &self,
-        partition: &mut Partition,
         repos: &mut dyn RepoCollection,
         table: &Table,
         iox_metadata: &IoxMetadata,
     ) -> Result<Partition> {
         let partition_key = iox_metadata.partition_key.clone();
+
+        let partition = repos
+            .partitions()
+            .create_or_get(partition_key.clone(), table.id)
+            .await?;
 
         // Note we use the table_id embedded in the file's metadata
         // from the source catalog to match the exported catlog (which
@@ -521,21 +498,14 @@ impl RemoteImporter {
             .exported_contents
             .partition_metadata(iox_metadata.table_id.get(), partition_key.inner());
 
-        let (new_sort_key, new_sort_key_ids) = if let Some(proto_partition) =
-            proto_partition.as_ref()
-        {
+        let new_sort_key: Vec<&str> = if let Some(proto_partition) = proto_partition.as_ref() {
             // Use the sort key from the source catalog
             debug!(array_sort_key=?proto_partition.array_sort_key, "Using sort key from catalog export");
-            let new_sort_key = proto_partition
+            proto_partition
                 .array_sort_key
                 .iter()
                 .map(|s| s.as_str())
-                .collect::<Vec<&str>>();
-
-            let new_sort_key_ids =
-                ColumnSet::from(proto_partition.array_sort_key_ids.iter().cloned());
-
-            (new_sort_key, new_sort_key_ids)
+                .collect()
         } else {
             warn!("Could not find sort key in catalog metadata export, falling back to embedded metadata");
             let sort_key = iox_metadata
@@ -543,13 +513,7 @@ impl RemoteImporter {
                 .as_ref()
                 .ok_or_else(|| Error::NoSortKey)?;
 
-            let new_sort_key = sort_key.to_columns().collect::<Vec<_>>();
-
-            // fecth table columns
-            let columns = ColumnsByName::new(repos.columns().list_by_table_id(table.id).await?);
-            let new_sort_key_ids = columns.ids_for_names(&new_sort_key);
-
-            (new_sort_key, new_sort_key_ids)
+            sort_key.to_columns().collect()
         };
 
         if !partition.sort_key.is_empty() && partition.sort_key != new_sort_key {
@@ -565,7 +529,6 @@ impl RemoteImporter {
                     &partition.transition_partition_id(),
                     Some(partition.sort_key.clone()),
                     &new_sort_key,
-                    &new_sort_key_ids,
                 )
                 .await;
 

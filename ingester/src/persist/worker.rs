@@ -2,7 +2,7 @@ use std::{ops::ControlFlow, sync::Arc};
 
 use async_channel::RecvError;
 use backoff::Backoff;
-use data_types::{ColumnsByName, CompactionLevel, ParquetFileParams};
+use data_types::{CompactionLevel, ParquetFileParams};
 use iox_catalog::interface::{get_table_columns_by_id, CasFailure, Catalog};
 use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
@@ -174,15 +174,8 @@ async fn compact_and_upload<O>(
 where
     O: Send + Sync,
 {
-    // load sort key
-    let sort_key = ctx.sort_key().get().await;
-    // fetch column map
-    // THIS MUST BE DONE AFTER THE SORT KEY IS LOADED
-    let columns = fetch_column_map(ctx, worker_state, sort_key.as_ref()).await?;
-
-    let compacted = compact(ctx, worker_state, sort_key).await;
-    let (sort_key_update, parquet_table_data) =
-        upload(ctx, worker_state, compacted, &columns).await;
+    let compacted = compact(ctx, worker_state).await;
+    let (sort_key_update, parquet_table_data) = upload(ctx, worker_state, compacted).await;
 
     if let Some(update) = sort_key_update {
         update_catalog_sort_key(
@@ -190,7 +183,6 @@ where
             worker_state,
             update,
             parquet_table_data.object_store_id,
-            &columns,
         )
         .await?
     }
@@ -200,14 +192,12 @@ where
 
 /// Compact the data in `ctx` using sorted by the sort key returned from
 /// [`Context::sort_key()`].
-async fn compact<O>(
-    ctx: &Context,
-    worker_state: &SharedWorkerState<O>,
-    sort_key: Option<SortKey>,
-) -> CompactedStream
+async fn compact<O>(ctx: &Context, worker_state: &SharedWorkerState<O>) -> CompactedStream
 where
     O: Send + Sync,
 {
+    let sort_key = ctx.sort_key().get().await;
+
     debug!(
         namespace_id = %ctx.namespace_id(),
         namespace_name = %ctx.namespace_name(),
@@ -241,7 +231,6 @@ async fn upload<O>(
     ctx: &Context,
     worker_state: &SharedWorkerState<O>,
     compacted: CompactedStream,
-    columns: &ColumnsByName,
 ) -> (Option<SortKey>, ParquetFileParams)
 where
     O: Send + Sync,
@@ -305,6 +294,15 @@ where
         "partition parquet uploaded"
     );
 
+    // Read the table's columns from the catalog to get a map of column name -> column IDs.
+    let columns = Backoff::new(&Default::default())
+        .retry_all_errors("get table schema", || async {
+            let mut repos = worker_state.catalog.repositories().await;
+            get_table_columns_by_id(ctx.table_id(), repos.as_mut()).await
+        })
+        .await
+        .expect("retry forever");
+
     // Build the data that must be inserted into the parquet_files catalog
     // table in order to make the file visible to queriers.
     let parquet_table_data =
@@ -323,44 +321,6 @@ where
     (catalog_sort_key_update, parquet_table_data)
 }
 
-/// Fetch the table column map from the catalog and verify if they contain all columns in the sort key
-async fn fetch_column_map<O>(
-    ctx: &Context,
-    worker_state: &SharedWorkerState<O>,
-    // NOTE: CALLER MUST LOAD SORT KEY BEFORE CALLING THIS FUNCTION EVEN IF THE sort key IS NONE
-    // THIS IS A MUST TO GUARANTEE THE RETURNED COLUMN MAP CONTAINS ALL COLUMNS IN THE SORT KEY
-    // The purpose to put the sort_key as a param here is to make sure the caller has already loaded the sort key
-    sort_key: Option<&SortKey>,
-) -> Result<ColumnsByName, PersistError>
-where
-    O: Send + Sync,
-{
-    // Read the table's columns from the catalog to get a map of column name -> column IDs.
-    let column_map = Backoff::new(&Default::default())
-        .retry_all_errors("get table schema", || async {
-            let mut repos = worker_state.catalog.repositories().await;
-            get_table_columns_by_id(ctx.table_id(), repos.as_mut()).await
-        })
-        .await
-        .expect("retry forever");
-
-    // Verify that the sort key columns are in the column map
-    if let Some(sort_key) = sort_key {
-        for sort_key_column in sort_key.to_columns() {
-            if !column_map.contains_column_name(sort_key_column) {
-                panic!(
-                    "sort key column {} of partition id {} is not in the column map {:?}",
-                    sort_key_column,
-                    ctx.partition_id(),
-                    column_map
-                );
-            }
-        }
-    }
-
-    Ok(column_map)
-}
-
 /// Update the sort key value stored in the catalog for this [`Context`].
 ///
 /// # Concurrent Updates
@@ -373,7 +333,6 @@ async fn update_catalog_sort_key<O>(
     worker_state: &SharedWorkerState<O>,
     new_sort_key: SortKey,
     object_store_id: Uuid,
-    columns: &ColumnsByName,
 ) -> Result<(), PersistError>
 where
     O: Send + Sync,
@@ -401,19 +360,13 @@ where
         .retry_with_backoff("cas_sort_key", || {
             let old_sort_key = old_sort_key.clone();
             let new_sort_key_str = new_sort_key.to_columns().collect::<Vec<_>>();
-            let new_sort_key_colids = columns.ids_for_names(&new_sort_key_str);
             let catalog = Arc::clone(&worker_state.catalog);
             let ctx = &ctx;
             async move {
                 let mut repos = catalog.repositories().await;
                 match repos
                     .partitions()
-                    .cas_sort_key(
-                        ctx.partition_id(),
-                        old_sort_key.clone(),
-                        &new_sort_key_str,
-                        &new_sort_key_colids,
-                    )
+                    .cas_sort_key(ctx.partition_id(), old_sort_key.clone(), &new_sort_key_str)
                     .await
                 {
                     Ok(_) => ControlFlow::Break(Ok(())),
@@ -436,8 +389,7 @@ where
                             partition_key = %ctx.partition_key(),
                             expected=?old_sort_key,
                             ?observed,
-                            update_sort_key=?new_sort_key_str,
-                            update_sort_key_ids=?new_sort_key_colids,
+                            update=?new_sort_key_str,
                             "detected matching concurrent sort key update"
                         );
                         ControlFlow::Break(Ok(()))
@@ -463,8 +415,7 @@ where
                             partition_key = %ctx.partition_key(),
                             expected=?old_sort_key,
                             ?observed,
-                            update_sort_key=?new_sort_key_str,
-                            update_sort_key_ids=?new_sort_key_colids,
+                            update=?new_sort_key_str,
                             "detected concurrent sort key update, regenerating parquet"
                         );
                         // Stop the retry loop with an error containing the
