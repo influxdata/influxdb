@@ -20,7 +20,7 @@ use object_store::{
     ObjectMeta, ObjectStore,
 };
 use observability_deps::tracing::warn;
-use tokio::io::AsyncWrite;
+use tokio::{io::AsyncWrite, runtime::Handle, sync::oneshot::channel, task::JoinSet};
 use trace::span::Span;
 
 use super::ram::RamSize;
@@ -46,7 +46,7 @@ async fn read_from_store(
     Ok(Some(data))
 }
 
-type CacheT = Box<
+type CacheT = Arc<
     dyn Cache<
         K = Path,
         V = Option<Bytes>,
@@ -76,6 +76,7 @@ impl ObjectStoreCache {
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
+        handle: &Handle,
         testing: bool,
     ) -> Self {
         let object_store_captured = Arc::clone(&object_store);
@@ -121,14 +122,17 @@ impl ObjectStoreCache {
         ));
 
         let cache = CacheDriver::new(loader, backend);
-        let cache = Box::new(CacheWithMetrics::new(
+        let cache = Arc::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,
             time_provider,
             metric_registry,
         ));
 
-        let object_store = Arc::new(CachedObjectStore { cache });
+        let object_store = Arc::new(CachedObjectStore {
+            cache,
+            handle: handle.clone(),
+        });
 
         Self { object_store }
     }
@@ -142,17 +146,41 @@ impl ObjectStoreCache {
 #[derive(Debug)]
 struct CachedObjectStore {
     cache: CacheT,
+    handle: Handle,
 }
 
 impl CachedObjectStore {
+    /// Get data from cache.
+    ///
+    /// Ensures that the caller tokio runtime (usually the CPU-bound DataFusion runtime) is decoupled from the cache
+    /// runtime (usually our main runtime for async IO that also needs to keep connections alive).
     async fn get_data(&self, location: &Path) -> Result<Bytes, ObjectStoreError> {
-        self.cache
-            .get(location.clone(), ((), None))
-            .await
-            .ok_or_else(|| ObjectStoreError::NotFound {
-                path: location.to_string(),
-                source: String::from("not found").into(),
-            })
+        let cache = Arc::clone(&self.cache);
+        let location = location.clone();
+        let (tx, rx) = channel();
+
+        // ensure that we cancel request if we no longer need them
+        let mut join_set = JoinSet::new();
+        join_set.spawn_on(
+            async move {
+                let res = cache
+                    .get(location.clone(), ((), None))
+                    .await
+                    .ok_or_else(|| ObjectStoreError::NotFound {
+                        path: location.to_string(),
+                        source: String::from("not found").into(),
+                    });
+
+                // it's OK when the receiver is gone
+                tx.send(res).ok();
+            },
+            &self.handle,
+        );
+
+        rx.await.map_err(|e| ObjectStoreError::Generic {
+            store: "CachedObjectStore",
+            source: Box::new(e),
+        })?
     }
 }
 
@@ -347,6 +375,7 @@ mod tests {
             time_provider,
             &metric_registry,
             test_ram_pool(),
+            &Handle::current(),
             true,
         );
         let cached_store = cache.object_store();
