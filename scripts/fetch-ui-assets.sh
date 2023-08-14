@@ -4,7 +4,7 @@
 # repository. The built UI assets are attached to a release in "influxdata/ui",
 # which is linked here.
 #
-# The master branch of "influxdata/influxdb" (this repository) downloads from the
+# The main-2.x branch of "influxdata/influxdb" (this repository) downloads from the
 # release tagged at the latest released version of influxdb.
 # For example, if master is tracking slightly ahead of 2.6.1, then the tag would be OSS-v2.6.1.
 #

@@ -33,13 +33,13 @@ set -eu -o pipefail
 #
 # **For OSS-specific testing:**
 # Since the OSS private CI is very simple, retrying a failing job in the private CI is not supported.
-# OSS-specific testing can include evaluating changes on the OSS master branch against the latest UI acceptance image
+# OSS-specific testing can include evaluating changes on the OSS main-2.x branch against the latest UI acceptance image
 # to make sure OSS API changes don't break the UI, and evaluating changes to an OSS binary with embedded UI assets with
-# a specified UI commit that the UI is from (like a tagged release commit). This allows for the master branches of
-# both the UI and influxdb OSS respositories to always stay compatible, and for OSS release builds to be e2e tested
+# a specified UI commit that the UI is from (like a tagged release commit). This allows for the master branch of
+# both the UI and the main-2.x influxdb OSS respositories to always stay compatible, and for OSS release builds to be e2e tested
 # without needing to duplicate the entire private test infrastructure provided in monitor-ci.
 #
-# Required Env Vars for Testing Changes to OSS Master with the Latest Image Published from UI Master:
+# Required Env Vars for Testing Changes to OSS main-2.x with the Latest Image Published from UI Master:
 # - RUN_WORKFLOW='build_oss'
 # - OSS_SHA: the influxdb repo commit SHA we're running against
 #
@@ -177,24 +177,24 @@ found_failed_pipeline=0
 
 if [[ -z "${API_KEY:-}" ]] || [[ -z "${MONITOR_CI_BRANCH:-}" ]]; then
 	printf "\nERROR: monitor-ci pipeline missing required env vars. Must set API_KEY and MONITOR_CI_BRANCH.\n"
-	exit 1	
+	exit 1
 fi
 
 if [[ "${RUN_WORKFLOW}" == "build_oss" ]]; then
 	required_workflows=( "build_oss" )
 	if [[ -z "${OSS_SHA:-}" ]]; then
 		printf "\nERROR: monitor-ci pipeline missing required env vars. Must set OSS_SHA.\n"
-		exit 1	
+		exit 1
 	fi
 elif [[ "${RUN_WORKFLOW}" == "build_oss_embedded" ]]; then
 	required_workflows=( "build_oss_embedded" )
 	if [[ -z "${UI_SHA:-}" ]] || [[ -z "${UI_BRANCH:-}" ]] || [[ -z "${OSS_SHA:-}" ]]; then
 		printf "\nERROR: monitor-ci pipeline missing required env vars. Must set UI_SHA, UI_BRANCH, and OSS_SHA.\n"
-		exit 1	
+		exit 1
 	fi
 else
 	printf "\nERROR: monitor-ci pipeline missing env var RUN_WORKFLOW.\nMust choose one of: 'build_oss', 'build_oss_embedded'\n"
-	exit 1	
+	exit 1
 fi
 
 pipelineStartMsg="starting monitor-ci pipeline targeting monitor-ci branch ${MONITOR_CI_BRANCH}, UI branch ${UI_BRANCH:-master} and using UI SHA ${UI_SHA:-latest}, using OSS SHA ${OSS_SHA:-latest}."

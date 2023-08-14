@@ -181,7 +181,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - main-2.x
       - grace-test:
           <<: *any_filter
           requires:
@@ -195,12 +195,12 @@ workflows:
             - build-linux-amd64
           filters:
             branches:
-              only: master
+              only: main-2.x
       - share-testing-image:
           filters:
             branches:
               only:
-                - master
+                - main-2.x
           requires:
             - e2e-monitor-ci
 
@@ -212,7 +212,7 @@ workflows:
           filters:
             branches:
               only:
-                - "master"
+                - "main-2.x"
     jobs:
       - aws-destroy-by-date
 
