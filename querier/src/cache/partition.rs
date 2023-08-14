@@ -390,8 +390,8 @@ mod tests {
     };
     use async_trait::async_trait;
     use data_types::{
-        partition_template::TablePartitionTemplateOverride, ColumnSet, ColumnType, PartitionId,
-        PartitionKey, TableId,
+        partition_template::TablePartitionTemplateOverride, ColumnType, PartitionId, PartitionKey,
+        TableId,
     };
     use futures::StreamExt;
     use generated_types::influxdata::iox::partition_template::v1::{
@@ -410,7 +410,7 @@ mod tests {
         let c1 = t.create_column("tag", ColumnType::Tag).await;
         let c2 = t.create_column("time", ColumnType::Time).await;
         let p1 = t
-            .create_partition_with_sort_key("k1", &["tag", "time"], &[c1.id(), c2.id()])
+            .create_partition_with_sort_key("k1", &["tag", "time"])
             .await
             .partition
             .clone();
@@ -865,10 +865,10 @@ mod tests {
 
         // set sort key
         let p = p
-            .update_sort_key(
-                SortKey::from_columns([c1.column.name.as_str(), c2.column.name.as_str()]),
-                &ColumnSet::from([c1.column.id.get(), c2.column.id.get()]),
-            )
+            .update_sort_key(SortKey::from_columns([
+                c1.column.name.as_str(),
+                c2.column.name.as_str(),
+            ]))
             .await;
         assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_hash_id", 1);
 
@@ -1110,12 +1110,11 @@ mod tests {
                 partition_template: TablePartitionTemplateOverride::default(),
             });
             const N_PARTITIONS: usize = 20;
-            let c_id = c.column.id.get();
             let mut partitions = futures::stream::iter(0..N_PARTITIONS)
                 .then(|i| {
                     let t = Arc::clone(&t);
                     async move {
-                        t.create_partition_with_sort_key(&format!("p{i}"), &["time"], &[c_id])
+                        t.create_partition_with_sort_key(&format!("p{i}"), &["time"])
                             .await
                             .partition
                             .transition_partition_id()

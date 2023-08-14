@@ -16,10 +16,10 @@ use data_types::{
     partition_template::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
     },
-    Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
-    NamespaceName, NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId,
-    ParquetFileParams, Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction,
-    Table, TableId, Timestamp, TransitionPartitionId,
+    Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
+    NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId, ParquetFileParams,
+    Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
+    Timestamp, TransitionPartitionId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use snafu::ensure;
@@ -566,7 +566,6 @@ impl PartitionRepo for MemTxn {
                     table_id,
                     key,
                     vec![],
-                    Default::default(),
                     None,
                 );
                 stage.partitions.push(p);
@@ -662,15 +661,7 @@ impl PartitionRepo for MemTxn {
         partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
         new_sort_key: &[&str],
-        new_sort_key_ids: &ColumnSet,
     ) -> Result<Partition, CasFailure<Vec<String>>> {
-        // panic if new_sort_key and new_sort_key_ids have different lengths
-        assert_eq!(
-            new_sort_key.len(),
-            new_sort_key_ids.len(),
-            "new_sort_key and new_sort_key_ids must be the same length"
-        );
-
         let stage = self.stage();
         let old_sort_key = old_sort_key.unwrap_or_default();
 
@@ -682,7 +673,6 @@ impl PartitionRepo for MemTxn {
         }) {
             Some(p) if p.sort_key == old_sort_key => {
                 p.sort_key = new_sort_key.iter().map(|s| s.to_string()).collect();
-                p.sort_key_ids = new_sort_key_ids.clone();
                 Ok(p.clone())
             }
             Some(p) => return Err(CasFailure::ValueMismatch(p.sort_key.clone())),

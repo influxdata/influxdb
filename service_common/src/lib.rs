@@ -24,7 +24,7 @@ pub mod test_util;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use iox_query::{exec::ExecutionContextProvider, QueryNamespace};
+use iox_query::QueryNamespace;
 use trace::span::Span;
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
@@ -35,7 +35,7 @@ use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 #[async_trait]
 pub trait QueryNamespaceProvider: std::fmt::Debug + Send + Sync + 'static {
     /// Abstract namespace.
-    type Db: ExecutionContextProvider + QueryNamespace;
+    type Db: QueryNamespace;
 
     /// Get namespace if it exists.
     ///

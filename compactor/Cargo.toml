@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-async-trait = "0.1.72"
+async-trait = "0.1.73"
 backoff = { path = "../backoff" }
 bytes = "1.4"
 chrono = { version = "0.4", default-features = false }
