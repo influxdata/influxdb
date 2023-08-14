@@ -140,7 +140,7 @@ impl Planner {
     where
         N: QueryNamespace + 'static,
     {
-        let planner = InfluxRpcPlanner::new(self.ctx.child_ctx("planner table_names"));
+        let planner = InfluxRpcPlanner::new(self.ctx.child_ctx("planner table_names")).await;
 
         self.ctx
             .run(async move {
@@ -162,7 +162,7 @@ impl Planner {
     where
         N: QueryNamespace + 'static,
     {
-        let planner = InfluxRpcPlanner::new(self.ctx.child_ctx("planner tag_keys"));
+        let planner = InfluxRpcPlanner::new(self.ctx.child_ctx("planner tag_keys")).await;
 
         self.ctx
             .run(async move {
@@ -186,7 +186,7 @@ impl Planner {
         N: QueryNamespace + 'static,
     {
         let tag_name = tag_name.into();
-        let planner = InfluxRpcPlanner::new(self.ctx.child_ctx("planner tag_values"));
+        let planner = InfluxRpcPlanner::new(self.ctx.child_ctx("planner tag_values")).await;
 
         self.ctx
             .run(async move {
@@ -208,7 +208,7 @@ impl Planner {
     where
         N: QueryNamespace + 'static,
     {
-        let planner = InfluxRpcPlanner::new(self.ctx.child_ctx("planner field_columns"));
+        let planner = InfluxRpcPlanner::new(self.ctx.child_ctx("planner field_columns")).await;
 
         self.ctx
             .run(async move {
@@ -230,7 +230,7 @@ impl Planner {
     where
         N: QueryNamespace + 'static,
     {
-        let planner = InfluxRpcPlanner::new(self.ctx.child_ctx("planner read_filter"));
+        let planner = InfluxRpcPlanner::new(self.ctx.child_ctx("planner read_filter")).await;
 
         self.ctx
             .run(async move {
@@ -254,7 +254,7 @@ impl Planner {
     where
         N: QueryNamespace + 'static,
     {
-        let planner = InfluxRpcPlanner::new(self.ctx.child_ctx("planner read_group"));
+        let planner = InfluxRpcPlanner::new(self.ctx.child_ctx("planner read_group")).await;
 
         self.ctx
             .run(async move {
@@ -279,7 +279,8 @@ impl Planner {
     where
         N: QueryNamespace + 'static,
     {
-        let planner = InfluxRpcPlanner::new(self.ctx.child_ctx("planner read_window_aggregate"));
+        let planner =
+            InfluxRpcPlanner::new(self.ctx.child_ctx("planner read_window_aggregate")).await;
 
         self.ctx
             .run(async move {

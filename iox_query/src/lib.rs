@@ -29,7 +29,6 @@ use datafusion::{
 use exec::IOxSessionContext;
 use once_cell::sync::Lazy;
 use parquet_file::storage::ParquetExecInput;
-use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
 use schema::{sort::SortKey, Projection, Schema};
 use std::{any::Any, fmt::Debug, sync::Arc};
 
@@ -148,7 +147,7 @@ pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
 ///
 /// Namespaces store data organized by partitions and each partition stores data in Chunks.
 #[async_trait]
-pub trait QueryNamespace: QueryNamespaceMeta + Debug + Send + Sync {
+pub trait QueryNamespace: Debug + Send + Sync {
     /// Returns a set of chunks within the partition with data that may match the provided
     /// filter expression.
     ///
@@ -186,10 +185,8 @@ pub trait QueryNamespace: QueryNamespaceMeta + Debug + Send + Sync {
         query_text: QueryText,
     ) -> QueryCompletedToken;
 
-    /// Upcast to [`QueryNamespaceMeta`].
-    ///
-    /// This is required until <https://github.com/rust-lang/rust/issues/65991> is fixed.
-    fn as_meta(&self) -> &dyn QueryNamespaceMeta;
+    /// Returns a new execution context suitable for running queries
+    fn new_query_context(&self, span_ctx: Option<trace::ctx::SpanContext>) -> IOxSessionContext;
 }
 
 /// Raw data of a [`QueryChunk`].

@@ -37,10 +37,7 @@ use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use flightsql::FlightSQLCommand;
 use futures::{ready, Stream, StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::querier::v1 as proto;
-use iox_query::{
-    exec::{ExecutionContextProvider, IOxSessionContext},
-    QueryCompletedToken, QueryNamespace,
-};
+use iox_query::{exec::IOxSessionContext, QueryCompletedToken, QueryNamespace};
 use observability_deps::tracing::{debug, info, warn};
 use prost::Message;
 use request::{IoxGetRequest, RunQuery};

@@ -359,12 +359,6 @@ pub fn make_stream_split(input: LogicalPlan, split_exprs: Vec<Expr>) -> LogicalP
     LogicalPlan::Extension(Extension { node })
 }
 
-/// A type that can provide `IOxSessionContext` for query
-pub trait ExecutionContextProvider {
-    /// Returns a new execution context suitable for running queries
-    fn new_query_context(&self, span_ctx: Option<trace::ctx::SpanContext>) -> IOxSessionContext;
-}
-
 #[cfg(test)]
 mod tests {
     use arrow::{

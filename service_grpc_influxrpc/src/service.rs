@@ -33,8 +33,7 @@ use generated_types::{
 };
 use iox_query::{
     exec::{
-        fieldlist::FieldList, seriesset::converter::Error as SeriesSetError,
-        ExecutionContextProvider, IOxSessionContext,
+        fieldlist::FieldList, seriesset::converter::Error as SeriesSetError, IOxSessionContext,
     },
     QueryCompletedToken, QueryNamespace, QueryText,
 };
@@ -1136,7 +1135,7 @@ async fn measurement_name_impl<N>(
     ctx: &IOxSessionContext,
 ) -> Result<StringValuesResponse>
 where
-    N: QueryNamespace + ExecutionContextProvider + 'static,
+    N: QueryNamespace + 'static,
 {
     let rpc_predicate_string = format!("{rpc_predicate:?}");
     let db_name = db_name.as_str();
@@ -1180,7 +1179,7 @@ async fn tag_keys_impl<N>(
     ctx: &IOxSessionContext,
 ) -> Result<StringValuesResponse>
 where
-    N: QueryNamespace + ExecutionContextProvider + 'static,
+    N: QueryNamespace + 'static,
 {
     let rpc_predicate_string = format!("{rpc_predicate:?}");
     let db_name = db_name.as_str();
@@ -1224,7 +1223,7 @@ async fn tag_values_impl<N>(
     ctx: &IOxSessionContext,
 ) -> Result<StringValuesResponse>
 where
-    N: QueryNamespace + ExecutionContextProvider + 'static,
+    N: QueryNamespace + 'static,
 {
     let rpc_predicate_string = format!("{rpc_predicate:?}");
 
@@ -1270,7 +1269,7 @@ async fn tag_values_grouped_by_measurement_and_tag_key_impl<N>(
     ctx: &IOxSessionContext,
 ) -> Result<Vec<TagValuesResponse>, Error>
 where
-    N: QueryNamespace + ExecutionContextProvider + 'static,
+    N: QueryNamespace + 'static,
 {
     // Extract the tag key predicate.
     // See https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-tag-values
@@ -1344,7 +1343,7 @@ async fn read_filter_impl<N>(
     ctx: &IOxSessionContext,
 ) -> Result<impl Stream<Item = Result<Frame, Error>>, Error>
 where
-    N: QueryNamespace + ExecutionContextProvider + 'static,
+    N: QueryNamespace + 'static,
 {
     let db_name = db_name.as_str();
 
@@ -1405,7 +1404,7 @@ async fn query_group_impl<N>(
     ctx: &IOxSessionContext,
 ) -> Result<impl Stream<Item = Result<Frame, Error>>>
 where
-    N: QueryNamespace + ExecutionContextProvider + 'static,
+    N: QueryNamespace + 'static,
 {
     let db_name = db_name.as_str();
 
@@ -1474,7 +1473,7 @@ async fn field_names_impl<N>(
     ctx: &IOxSessionContext,
 ) -> Result<FieldList>
 where
-    N: QueryNamespace + ExecutionContextProvider + 'static,
+    N: QueryNamespace + 'static,
 {
     let rpc_predicate_string = format!("{rpc_predicate:?}");
 
@@ -1513,7 +1512,7 @@ async fn materialise_measurement_names<N>(
     ctx: &IOxSessionContext,
 ) -> Result<BTreeSet<String>, Error>
 where
-    N: QueryNamespace + ExecutionContextProvider + 'static,
+    N: QueryNamespace + 'static,
 {
     use generated_types::{
         node::{Comparison, Type, Value},
@@ -1592,7 +1591,7 @@ async fn materialise_tag_keys<N>(
     ctx: &IOxSessionContext,
 ) -> Result<BTreeSet<String>, Error>
 where
-    N: QueryNamespace + ExecutionContextProvider + 'static,
+    N: QueryNamespace + 'static,
 {
     use generated_types::tag_key_predicate::Value;
 
