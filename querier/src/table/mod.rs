@@ -12,7 +12,7 @@ use data_types::{ColumnId, NamespaceId, ParquetFile, TableId, TransitionPartitio
 use datafusion::{error::DataFusionError, prelude::Expr};
 use futures::join;
 use iox_query::{provider, provider::ChunkPruner, QueryChunk};
-use observability_deps::tracing::{debug, trace};
+use observability_deps::tracing::debug;
 use schema::Schema;
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -274,39 +274,51 @@ impl QuerierTable {
             )
             .await;
 
-        // build final chunk list
-        let chunks = partitions
+        // Prune Parquet file chunks (assuming the ingester has already pruned ingester chunks)
+        let parquet_file_chunks: Vec<_> = parquet_files
             .into_iter()
-            .filter_map(|mut c| {
-                let cached_partition = cached_partitions.get(&c.partition_id())?;
-                c.set_partition_column_ranges(&cached_partition.column_ranges);
-                Some(c)
-            })
-            .flat_map(|c| c.into_chunks().into_iter())
             .map(|c| Arc::new(c) as Arc<dyn QueryChunk>)
-            .chain(
-                parquet_files
-                    .into_iter()
-                    .map(|c| Arc::new(c) as Arc<dyn QueryChunk>),
-            )
-            .collect::<Vec<_>>();
-        trace!("Fetched chunks");
+            .collect();
+        let num_initial_parquet_file_chunks = parquet_file_chunks.len();
+        debug!(num_chunks=%num_initial_parquet_file_chunks, "Fetched Parquet file chunks");
 
-        let num_initial_chunks = chunks.len();
-        let chunks = self
+        let pruned_parquet_file_chunks = self
             .chunk_pruner()
             .prune_chunks(
                 self.table_name(),
                 // use up-to-date schema
                 &cached_table.schema,
-                chunks,
+                parquet_file_chunks,
                 filters,
             )
             .context(ChunkPruningSnafu)?;
+        let num_final_parquet_file_chunks = pruned_parquet_file_chunks.len();
+
+        // build final chunk list from ingester chunks + pruned parquet file chunks
+        let chunks: Vec<_> = partitions
+            .into_iter()
+            .map(|mut c| {
+                // If we have a cached partition, set this partition's column ranges to the
+                // cached column ranges. If not, this partition is likely from the ingester
+                // and doesn't have a catalog entry yet-- set its stats based on an empty range.
+                c.set_partition_column_ranges(
+                    &cached_partitions
+                        .get(&c.partition_id())
+                        .map(|cached_partition| Arc::clone(&cached_partition.column_ranges))
+                        .unwrap_or_default(),
+                );
+                c
+            })
+            .flat_map(|c| c.into_chunks().into_iter())
+            .map(|c| Arc::new(c) as Arc<dyn QueryChunk>)
+            .chain(pruned_parquet_file_chunks.into_iter())
+            .collect();
+
         debug!(
             ?filters,
-            num_initial_chunks,
-            num_final_chunks = chunks.len(),
+            num_initial_parquet_file_chunks,
+            num_final_parquet_file_chunks,
+            num_ingester_chunks = chunks.len() - num_final_parquet_file_chunks,
             "pruned with pushed down predicates"
         );
         Ok(chunks)
@@ -796,7 +808,7 @@ mod tests {
             .with_ingester_partition(
                 IngesterPartitionBuilder::new(schema.clone(), &partition_a)
                     .with_lp(["table,tag1=val1a,tag2=val2a foo=3,bar=4 11"])
-                    .with_colum_ranges(Arc::new(HashMap::from([(
+                    .with_column_ranges(Arc::new(HashMap::from([(
                         Arc::from("tag1"),
                         ColumnRange {
                             min_value: Arc::new(ScalarValue::from("val1a")),
@@ -804,21 +816,9 @@ mod tests {
                         },
                     )])))
                     .build(),
-            )
-            .with_ingester_partition(
-                IngesterPartitionBuilder::new(schema, &partition_b)
-                    .with_lp(["table,tag1=val1b,tag2=val2b foo=5,bar=6 11"])
-                    .with_colum_ranges(Arc::new(HashMap::from([(
-                        Arc::from("tag1"),
-                        ColumnRange {
-                            min_value: Arc::new(ScalarValue::from("val1b")),
-                            max_value: Arc::new(ScalarValue::from("val1b")),
-                        },
-                    )])))
-                    .build(),
             );
 
-        // Expect one chunk from the ingester
+        // Expect one chunk from the ingester because the ingester does its own pruning now
         let filters = vec![col("tag1").eq(lit(ScalarValue::Dictionary(
             Box::new(DataType::Int32),
             Box::new(ScalarValue::from("val1a")),
