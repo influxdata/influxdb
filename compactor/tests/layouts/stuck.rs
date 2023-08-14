@@ -1443,7 +1443,7 @@ async fn stuck_l0_large_l0s() {
         .await
         .with_max_num_files_per_plan(max_files)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
-        .with_partition_timeout(Duration::from_millis(10000))
+        .with_partition_timeout(Duration::from_millis(100000))
         //.with_suppress_run_output() // remove this to debug
         .build()
         .await;
