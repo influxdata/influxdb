@@ -128,10 +128,7 @@ impl ObjectStoreCache {
             metric_registry,
         ));
 
-        let object_store = Arc::new(CachedObjectStore {
-            cache,
-            inner: object_store,
-        });
+        let object_store = Arc::new(CachedObjectStore { cache });
 
         Self { object_store }
     }
@@ -145,7 +142,6 @@ impl ObjectStoreCache {
 #[derive(Debug)]
 struct CachedObjectStore {
     cache: CacheT,
-    inner: Arc<dyn ObjectStore>,
 }
 
 impl CachedObjectStore {
@@ -284,16 +280,16 @@ impl ObjectStore for CachedObjectStore {
 
     async fn list(
         &self,
-        prefix: Option<&Path>,
+        _prefix: Option<&Path>,
     ) -> Result<BoxStream<'_, Result<ObjectMeta, ObjectStoreError>>, ObjectStoreError> {
-        self.inner.list(prefix).await
+        Err(ObjectStoreError::NotImplemented)
     }
 
     async fn list_with_delimiter(
         &self,
-        prefix: Option<&Path>,
+        _prefix: Option<&Path>,
     ) -> Result<ListResult, ObjectStoreError> {
-        self.inner.list_with_delimiter(prefix).await
+        Err(ObjectStoreError::NotImplemented)
     }
 
     async fn copy(&self, _from: &Path, _to: &Path) -> Result<(), ObjectStoreError> {
@@ -308,7 +304,6 @@ impl ObjectStore for CachedObjectStore {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use futures::TryStreamExt;
     use iox_time::SystemProvider;
     use metric::{Attributes, DurationHistogram, Metric};
     use object_store::memory::InMemory;
@@ -413,72 +408,6 @@ mod tests {
         );
         assert_eq!(get_count_hit(&metric_registry), 1);
         assert_eq!(get_count_miss(&metric_registry), 1);
-
-        // list operations work but are uncached
-        assert_eq!(list_count(&metric_registry), 0);
-        assert_eq!(
-            list(cached_store.as_ref()).await,
-            vec![path_2.clone(), path_3.clone(), path_4.clone()]
-        );
-        assert_eq!(list_count(&metric_registry), 1);
-        assert_eq!(
-            list(cached_store.as_ref()).await,
-            vec![path_2, path_3, path_4.clone()]
-        );
-        assert_eq!(list_count(&metric_registry), 2);
-
-        // list with delimiter operations work but  are uncached
-        assert_eq!(
-            list_with_delimiter(cached_store.as_ref()).await,
-            vec![Path::from("bar")]
-        );
-        assert_eq!(list_count(&metric_registry), 3);
-        assert_eq!(
-            list_with_delimiter(cached_store.as_ref()).await,
-            vec![Path::from("bar")]
-        );
-        assert_eq!(list_count(&metric_registry), 4);
-
-        // listing still does NOT invalidate the cache
-        assert_matches!(
-            cached_store.get(&path_4).await.unwrap_err(),
-            ObjectStoreError::NotFound { .. }
-        );
-        assert_eq!(
-            cached_store
-                .get(&path_1)
-                .await
-                .unwrap()
-                .bytes()
-                .await
-                .unwrap(),
-            bytes_1,
-        );
-        assert_eq!(get_count_hit(&metric_registry), 1);
-        assert_eq!(get_count_miss(&metric_registry), 1);
-    }
-
-    async fn list(store: &dyn ObjectStore) -> Vec<Path> {
-        let mut paths: Vec<_> = store
-            .list(None)
-            .await
-            .unwrap()
-            .map_ok(|meta| meta.location)
-            .try_collect()
-            .await
-            .unwrap();
-        paths.sort();
-        paths
-    }
-
-    async fn list_with_delimiter(store: &dyn ObjectStore) -> Vec<Path> {
-        let mut paths = store
-            .list_with_delimiter(None)
-            .await
-            .unwrap()
-            .common_prefixes;
-        paths.sort();
-        paths
     }
 
     fn get_count_hit(metric_registry: &metric::Registry) -> u64 {
@@ -496,16 +425,6 @@ mod tests {
             .get_instrument::<Metric<DurationHistogram>>("object_store_op_duration")
             .unwrap()
             .get_observer(&Attributes::from(&[("op", "get"), ("result", "error")]))
-            .unwrap()
-            .fetch()
-            .sample_count()
-    }
-
-    fn list_count(metric_registry: &metric::Registry) -> u64 {
-        metric_registry
-            .get_instrument::<Metric<DurationHistogram>>("object_store_op_duration")
-            .unwrap()
-            .get_observer(&Attributes::from(&[("op", "list"), ("result", "success")]))
             .unwrap()
             .fetch()
             .sample_count()
