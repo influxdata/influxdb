@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies] # In alphabetical order
-async-trait = "0.1.72"
+async-trait = "0.1.73"
 bytes = "1.4"
 datafusion = { workspace = true }
 executor = { path = "../executor" }

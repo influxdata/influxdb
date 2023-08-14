@@ -7,7 +7,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-async-trait = "0.1.72"
+async-trait = "0.1.73"
 backoff = { path = "../backoff" }
 compactor = { path = "../compactor" }
 compactor_scheduler = { path = "../compactor_scheduler" }
