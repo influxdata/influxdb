@@ -205,16 +205,20 @@ pub fn limit_files_to_compact(
                         .collect::<Vec<_>>();
 
                     for f in overlapped_files.clone() {
+                        // When splitting, split time is the last ns included in the 'left' file on the split.
+                        // So if the the split time matches max time of a file, that file does not need split.
                         let split_times = all_split_times
                             .iter()
-                            .filter(|t| f.overlaps_time_range(**t, **t))
+                            .filter(|split| split >= &&f.min_time && split < &&f.max_time)
                             .map(|t| t.get())
                             .collect::<Vec<_>>();
 
-                        specific_splits.push(FileToSplit {
-                            file: f.clone(),
-                            split_times,
-                        });
+                        if !split_times.is_empty() {
+                            specific_splits.push(FileToSplit {
+                                file: f.clone(),
+                                split_times,
+                            });
+                        }
                     }
                 }
                 // If the above found some specific splits, we'll go with that.  Otherwise, make a general split decision.

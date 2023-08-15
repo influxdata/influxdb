@@ -41,22 +41,34 @@ pub fn compute_split_times_for_large_files(
         let min_time = file.min_time.get();
         let max_time = file.max_time.get();
 
+        // TODO: it would be nice to check if these files overlap (e.g. if they're multiple levels), and
+        // coordinate the split time across all the files, rather than deciding the split time for each file
+        // as if its the only file under consideration.
         // only split files that are larger than max_desired_file_size and have time range at least 2
         let max_file_size =
             (max_desired_file_size as f64 * (1.0 + PERCENTAGE_OF_SOFT_EXCEEDED)) as u64;
-        if file_size > max_file_size && file.min_time < file.max_time - 1 {
-            let file_times = vec![TimestampMinMax {
-                min: min_time,
-                max: max_time,
-            }];
-            let split_times = V1IRPlanner::compute_split_time(
-                file_times,
-                min_time,
-                max_time,
-                file_size,
-                max_desired_file_size,
-            );
-            files_to_split.push(FileToSplit { file, split_times });
+        if file_size > max_file_size && file.min_time < file.max_time {
+            if file.min_time < file.max_time - 1 {
+                // The time range of the file is big enough we have choices for split time(s), so compute them.
+                let file_times = vec![TimestampMinMax {
+                    min: min_time,
+                    max: max_time,
+                }];
+                let split_times = V1IRPlanner::compute_split_time(
+                    file_times,
+                    min_time,
+                    max_time,
+                    file_size,
+                    max_desired_file_size,
+                );
+                files_to_split.push(FileToSplit { file, split_times });
+            } else {
+                // The file covers 2ns.  There's nothing to compute, split it the only place possible.
+                // When splitting, split time is the last ns included in the 'left' file on the split.
+                // So setting `min` as the split time means `min` goes to the left, and `max` goes to the right.
+                let split_times = vec![file.min_time.get()];
+                files_to_split.push(FileToSplit { file, split_times });
+            }
         } else {
             files_not_to_split.push(file);
         }
@@ -379,9 +391,11 @@ mod tests {
 
         let (files_to_split, files_not_to_split) =
             compute_split_times_for_large_files(files, max_desired_file_size, max_compact_size);
-        // The split files should be L1_1 with 2 split times to split the file into 3 smaller files
-        assert_eq!(files_to_split.len(), 1);
-        assert_eq!(files_to_split[0].split_times.len(), 2);
+        // The split files should be L1_1 with 2 split times to split the file into 3 smaller files, and the L1 split at the only
+        // time possible (since its a 2ns file, there is only one choice)
+        assert_eq!(files_to_split.len(), 2);
+        assert_eq!(files_to_split[0].split_times.len(), 1);
+        assert_eq!(files_to_split[1].split_times.len(), 2);
 
         // See layout of 2 set of files
         let files_to_split = files_to_split
@@ -395,9 +409,9 @@ mod tests {
         - files to split
         - "L0, all files 300b                                                                                                 "
         - "L0.1[400,620] 120s       |-----------------------------------------L0.1------------------------------------------| "
-        - "files not to split:"
         - "L1, all files 300b                                                                                                 "
-        - "L1.11[400,401] 60s       |-----------------------------------------L1.11------------------------------------------|"
+        - "L1.11[400,401] 60s       |L1.11|                                                                                   "
+        - "files not to split:"
         "###
         );
     }
@@ -443,8 +457,10 @@ mod tests {
 
         let (files_to_split, files_not_to_split) =
             compute_split_times_for_large_files(files, max_desired_file_size, max_compact_size);
-        // The split files should be L1_1 with 2 split times to split the file into 3 smaller files
-        assert_eq!(files_to_split.len(), 0);
+        // The split files should be L1_11, split at the only time possible (since its a 2ns file, there is only one choice)
+        assert_eq!(files_to_split.len(), 1);
+        assert_eq!(files_to_split[0].split_times.len(), 1);
+        assert_eq!(files_to_split[0].split_times[0], 400);
 
         // See layout of 2 set of files
         let files_to_split = files_to_split
@@ -456,11 +472,11 @@ mod tests {
             @r###"
         ---
         - files to split
-        - "files not to split:"
-        - "L0, all files 300b                                                                                                 "
-        - "L0.1[400,400] 120s       |L0.1|                                                                                    "
         - "L1, all files 300b                                                                                                 "
         - "L1.11[400,401] 60s       |-----------------------------------------L1.11------------------------------------------|"
+        - "files not to split:"
+        - "L0, all files 300b                                                                                                 "
+        - "L0.1[400,400] 120s       |------------------------------------------L0.1------------------------------------------|"
         "###
         );
     }
