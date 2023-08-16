@@ -121,19 +121,25 @@ pub(crate) async fn guard_disk_capacity<P>(
         let observed_disk_usage_ratio = snapshot.disk_usage_ratio();
 
         if observed_disk_usage_ratio < DISK_USAGE_RATIO_THRESHOLD {
-            ingest_state.unset(IngestStateError::DiskFull);
+            if ingest_state.unset(IngestStateError::DiskFull) {
+                info!(
+                    observed_disk_usage_ratio,
+                    DISK_USAGE_RATIO_THRESHOLD,
+                    "wal disk usage ratio back within safe threshold, re-enabling ingest"
+                );
+            }
             continue;
         }
 
-        warn!(
-            observed_disk_usage_ratio,
-            DISK_USAGE_RATIO_THRESHOLD,
-            "safe wal disk usage ratio threshold exceeded, blocking ingest until capacity is freed up"
-        );
-
         // Usage threshold for disk capacity has been breached, block the ingest
         // and rotate the WAL to protect the durability of the data.
-        ingest_state.set(IngestStateError::DiskFull);
+        if ingest_state.set(IngestStateError::DiskFull) {
+            warn!(
+                observed_disk_usage_ratio,
+                DISK_USAGE_RATIO_THRESHOLD,
+                "safe wal disk usage ratio threshold exceeded, blocking ingest until capacity is freed up"
+            );
+        }
 
         if let Some(existing_cleanup) = &cleanup_handle {
             // An existing cleanup task may still be in progress, wait for it
@@ -147,6 +153,7 @@ pub(crate) async fn guard_disk_capacity<P>(
         // disk, keeping a handle to ensure only one is running at any given
         // time.
         cleanup_handle = Some(tokio::spawn({
+            info!("persisting outstanding writes and tidying up old files");
             let persisting_cleaner = Arc::clone(&persisting_cleaner);
             async move {
                 persisting_cleaner.persist_and_tidy().await;
