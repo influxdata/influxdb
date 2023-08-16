@@ -127,6 +127,7 @@ mod peers;
 mod proto;
 mod reactor;
 pub(crate) mod seed;
+mod topic_set;
 
 use std::time::Duration;
 
