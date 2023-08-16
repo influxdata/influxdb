@@ -470,6 +470,7 @@ async fn random_backfill_over_l2s() {
         .with_max_num_files_per_plan(10)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .with_partition_timeout(Duration::from_secs(10))
+        .with_writes_breakdown()
         .build()
         .await;
 
@@ -1021,6 +1022,12 @@ async fn random_backfill_over_l2s() {
     - "L2.135[765,799] 1.05us 55mb                                                                    |L2.135|              "
     - "L2.136[800,864] 1.05us 102mb                                                                        |L2.136|          "
     - "L2.137[865,899] 1.05us 55mb                                                                             |L2.137|     "
+    - "**** Breakdown of where bytes were written"
+    - 1.84gb written by split(CompactAndSplitOutput(FoundSubsetLessThanMaxCompactSize))
+    - 500mb written by compact(ManySmallFiles)
+    - 500mb written by split(HighL0OverlapSingleFile)
+    - 597mb written by split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))
+    - 665mb written by split(ReduceOverlap)
     "###
     );
 }
@@ -1040,6 +1047,7 @@ async fn actual_case_from_catalog_1() {
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .with_max_num_files_per_plan(20)
         .with_suppress_run_output()
+        .with_writes_breakdown()
         .with_partition_timeout(Duration::from_secs(10))
         .build()
         .await;
@@ -3084,6 +3092,12 @@ async fn actual_case_from_catalog_1() {
     - "L2.664[182,182] 342ns 19mb                                                |L2.664|                                  "
     - "L2.665[288,293] 342ns 114mb                                                                            |L2.665|      "
     - "L2.666[294,296] 342ns 57mb                                                                              |L2.666|    "
+    - "**** Breakdown of where bytes were written"
+    - 2.95gb written by split(CompactAndSplitOutput(FoundSubsetLessThanMaxCompactSize))
+    - 455mb written by split(ReduceOverlap)
+    - 456mb written by split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))
+    - 5.48gb written by compact(ManySmallFiles)
+    - 6.01gb written by split(HighL0OverlapTotalBacklog)
     - "WARNING: file L2.598[150,165] 342ns 224mb exceeds soft limit 100mb by more than 50%"
     - "WARNING: file L2.602[183,197] 342ns 267mb exceeds soft limit 100mb by more than 50%"
     - "WARNING: file L2.603[198,207] 342ns 157mb exceeds soft limit 100mb by more than 50%"

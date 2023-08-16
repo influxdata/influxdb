@@ -19,8 +19,9 @@ async fn stuck_l0() {
         .await
         .with_max_num_files_per_plan(20)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
-        .with_partition_timeout(Duration::from_millis(10000))
+        .with_partition_timeout(Duration::from_millis(100000))
         .with_suppress_run_output() // remove this to debug
+        .with_writes_breakdown()
         .build()
         .await;
 
@@ -1189,6 +1190,13 @@ async fn stuck_l0() {
     - "L2.1790[1686872478395764410,1686872728189189161] 1686936871.55s 51mb                                                                                      |L2.1790|"
     - "L2.1791[1686872728189189162,1686873217700530422] 1686936871.55s 100mb                                                                                       |L2.1791|"
     - "L2.1792[1686873217700530423,1686873599000000000] 1686936871.55s 78mb                                                                                        |L2.1792|"
+    - "**** Breakdown of where bytes were written"
+    - 1.66gb written by split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))
+    - 18.49gb written by split(CompactAndSplitOutput(FoundSubsetLessThanMaxCompactSize))
+    - 5.22gb written by compact(ManySmallFiles)
+    - 524mb written by split(StartLevelOverlapsTooBig)
+    - 7.29gb written by split(ReduceOverlap)
+    - 8.26gb written by split(HighL0OverlapTotalBacklog)
     "###
     );
 }
@@ -1202,6 +1210,7 @@ async fn stuck_l1() {
         .with_max_num_files_per_plan(20)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .with_partition_timeout(Duration::from_millis(100))
+        .with_writes_breakdown()
         .build()
         .await;
 
@@ -1424,6 +1433,9 @@ async fn stuck_l1() {
     - "L2.23[1686873630000000000,1686879262359644750] 1686928116.94s 100mb|-L2.23-|                                                                                 "
     - "L2.24[1686879262359644751,1686884894719289500] 1686928116.94s 100mb         |-L2.24-|                                                                        "
     - "L2.25[1686884894719289501,1686888172000000000] 1686928116.94s 58mb                   |L2.25|                                                                "
+    - "**** Breakdown of where bytes were written"
+    - 258mb written by split(CompactAndSplitOutput(FoundSubsetLessThanMaxCompactSize))
+    - 71mb written by split(ReduceOverlap)
     "###
     );
     // TODO(maybe): see matching comment in files_to_compact.rs/limit_files_to_compact
@@ -1445,6 +1457,7 @@ async fn stuck_l0_large_l0s() {
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .with_partition_timeout(Duration::from_millis(100000))
         //.with_suppress_run_output() // remove this to debug
+        .with_writes_breakdown()
         .build()
         .await;
 
@@ -11523,6 +11536,14 @@ async fn stuck_l0_large_l0s() {
     - "L2.3516[1682,723271] 199ns 100mb|-----------L2.3516------------|                                                          "
     - "L2.3517[723272,1444860] 199ns 100mb                                |-----------L2.3517------------|                          "
     - "L2.3518[1444861,1990000] 199ns 76mb                                                                 |-------L2.3518--------| "
+    - "**** Breakdown of where bytes were written"
+    - 1.43gb written by split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))
+    - 132b written by compact(FoundSubsetLessThanMaxCompactSize)
+    - 2.14gb written by compact(ManySmallFiles)
+    - 2kb written by compact(TotalSizeLessThanMaxCompactSize)
+    - 4.11gb written by split(HighL0OverlapTotalBacklog)
+    - 4.32gb written by split(CompactAndSplitOutput(FoundSubsetLessThanMaxCompactSize))
+    - 503mb written by split(ReduceOverlap)
     "###
     );
 }
@@ -11541,6 +11562,7 @@ async fn single_file_compaction() {
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .with_partition_timeout(Duration::from_millis(1000))
         .with_suppress_run_output() // remove this to debug
+        .with_writes_breakdown()
         .build()
         .await;
 
@@ -11934,6 +11956,8 @@ async fn single_file_compaction() {
     - "L1.30[1681776002714783000,1681862268794595000] 1683039505.9s 192kb|-----------------------------------------L1.30------------------------------------------|"
     - "L2                                                                                                                 "
     - "L2.1[1681776057065884000,1681848094846357000] 1681848108.8s 145kb|----------------------------------L2.1-----------------------------------|               "
+    - "**** Breakdown of where bytes were written"
+    - 192kb written by compact(TotalSizeLessThanMaxCompactSize)
     "###
     );
 }
@@ -11951,6 +11975,7 @@ async fn split_then_undo_it() {
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .with_partition_timeout(Duration::from_millis(1000))
         .with_suppress_run_output() // remove this to debug
+        .with_writes_breakdown()
         .build()
         .await;
 
@@ -12207,6 +12232,11 @@ async fn split_then_undo_it() {
     - "L2.61[1680046929099006065,1680047338160274709] 1681420678.89s 71mb                                                                                        |L2.61|"
     - "L2.62[1680047338160274710,1680047867631254942] 1681420678.89s 93mb                                                                                         |L2.62|"
     - "L2.63[1680047867631254943,1680047999999000000] 1681420678.89s 23mb                                                                                         |L2.63|"
+    - "**** Breakdown of where bytes were written"
+    - 1.17gb written by split(CompactAndSplitOutput(FoundSubsetLessThanMaxCompactSize))
+    - 11mb written by split(ReduceOverlap)
+    - 152mb written by split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))
+    - 185mb written by split(HighL0OverlapTotalBacklog)
     "###
     );
 }
@@ -12226,6 +12256,7 @@ async fn split_precent_loop() {
         .with_percentage_max_file_size(5)
         .with_split_percentage(80)
         .with_suppress_run_output() // remove this to debug
+        .with_writes_breakdown()
         .build()
         .await;
 
@@ -12835,6 +12866,12 @@ async fn split_precent_loop() {
     - "L2.261[1676018715629485680,1676027900853158703] 1676066475.26s 100mb                                   |-L2.261-|                                             "
     - "L2.262[1676027900853158704,1676037086076831726] 1676066475.26s 100mb                                              |-L2.262-|                                  "
     - "L2.263[1676037086076831727,1676045833054395545] 1676066475.26s 95mb                                                        |L2.263-|                         "
+    - "**** Breakdown of where bytes were written"
+    - 1.46gb written by split(CompactAndSplitOutput(FoundSubsetLessThanMaxCompactSize))
+    - 141mb written by split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))
+    - 176mb written by split(ReduceOverlap)
+    - 639mb written by compact(ManySmallFiles)
+    - 724mb written by split(HighL0OverlapTotalBacklog)
     "###
     );
 }
@@ -12858,6 +12895,7 @@ async fn very_big_overlapped_backlog() {
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .with_partition_timeout(Duration::from_millis(100000))
         .with_suppress_run_output() // remove this to debug
+        .with_writes_breakdown()
         .build()
         .await;
 
@@ -13621,6 +13659,12 @@ async fn very_big_overlapped_backlog() {
     - "L2.1150[197961,198942] 299ns 100mb                                                                                         |L2.1150|"
     - "L2.1151[198943,199923] 299ns 100mb                                                                                         |L2.1151|"
     - "L2.1152[199924,200000] 299ns 8mb                                                                                         |L2.1152|"
+    - "**** Breakdown of where bytes were written"
+    - 1000mb written by split(ReduceOverlap)
+    - 38.21gb written by split(CompactAndSplitOutput(FoundSubsetLessThanMaxCompactSize))
+    - 400mb written by compact(ManySmallFiles)
+    - 780mb written by split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))
+    - 860mb written by split(HighL0OverlapTotalBacklog)
     "###
     );
 }

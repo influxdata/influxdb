@@ -24,7 +24,7 @@ mod simulator;
 pub use display::{display_format, display_size, format_files, format_files_split};
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     future::Future,
     num::NonZeroUsize,
     sync::{atomic::AtomicUsize, Arc, Mutex},
@@ -83,6 +83,11 @@ pub struct TestSetupBuilder<const WITH_FILES: bool> {
     invariant_check: Arc<dyn InvariantCheck>,
     /// A shared count of total bytes written during test
     bytes_written: Arc<AtomicUsize>,
+    /// A shared count of the breakdown of where bytes were written
+    bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>>,
+    /// Suppresses showing detailed output of where bytes are written
+    suppress_writes_breakdown: bool,
+    /// Suppresses showing each 'run' (compact|split) output
     suppress_run_output: bool,
 }
 
@@ -112,6 +117,7 @@ impl TestSetupBuilder<false> {
         });
 
         let suppress_run_output = false;
+        let suppress_writes_breakdown = true;
 
         // Intercept all catalog commit calls to record them in
         // `run_log` as well as ensuring the invariants still hold
@@ -156,6 +162,8 @@ impl TestSetupBuilder<false> {
         };
 
         let bytes_written = Arc::new(AtomicUsize::new(0));
+        let bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>> =
+            Arc::new(Mutex::new(HashMap::new()));
 
         Self {
             config,
@@ -167,6 +175,8 @@ impl TestSetupBuilder<false> {
             run_log,
             invariant_check,
             bytes_written,
+            bytes_written_per_plan,
+            suppress_writes_breakdown,
             suppress_run_output,
         }
     }
@@ -292,6 +302,8 @@ impl TestSetupBuilder<false> {
         invariant_check.check().await;
 
         let bytes_written = Arc::new(AtomicUsize::new(0));
+        let bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>> =
+            Arc::new(Mutex::new(HashMap::new()));
 
         TestSetupBuilder::<true> {
             config: self.config,
@@ -303,6 +315,8 @@ impl TestSetupBuilder<false> {
             run_log: Arc::new(Mutex::new(vec![])),
             invariant_check,
             bytes_written,
+            bytes_written_per_plan,
+            suppress_writes_breakdown: true,
             suppress_run_output: false,
         }
     }
@@ -325,6 +339,8 @@ impl TestSetupBuilder<false> {
         invariant_check.check().await;
 
         let bytes_written = Arc::new(AtomicUsize::new(0));
+        let bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>> =
+            Arc::new(Mutex::new(HashMap::new()));
 
         TestSetupBuilder::<true> {
             config: self.config.clone(),
@@ -336,6 +352,8 @@ impl TestSetupBuilder<false> {
             run_log: Arc::new(Mutex::new(vec![])),
             invariant_check,
             bytes_written,
+            bytes_written_per_plan,
+            suppress_writes_breakdown: true,
             suppress_run_output: false,
         }
     }
@@ -359,6 +377,8 @@ impl TestSetupBuilder<false> {
         invariant_check.check().await;
 
         let bytes_written = Arc::new(AtomicUsize::new(0));
+        let bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>> =
+            Arc::new(Mutex::new(HashMap::new()));
 
         TestSetupBuilder::<true> {
             config: self.config.clone(),
@@ -370,6 +390,8 @@ impl TestSetupBuilder<false> {
             run_log: Arc::new(Mutex::new(vec![])),
             invariant_check,
             bytes_written,
+            bytes_written_per_plan,
+            suppress_writes_breakdown: true,
             suppress_run_output: false,
         }
     }
@@ -530,14 +552,24 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
         self
     }
 
+    /// Set option to show detailed output of where bytes are written
+    pub fn with_writes_breakdown(mut self) -> Self {
+        self.suppress_writes_breakdown = false;
+        self
+    }
+
     /// set simulate_without_object_store
     pub fn simulate_without_object_store(mut self) -> Self {
         let run_log = Arc::clone(&self.run_log);
         let bytes_written = Arc::clone(&self.bytes_written);
+        let bytes_written_per_plan = Arc::clone(&self.bytes_written_per_plan);
 
         self.config.simulate_without_object_store = true;
-        self.config.parquet_files_sink_override =
-            Some(Arc::new(ParquetFileSimulator::new(run_log, bytes_written)));
+        self.config.parquet_files_sink_override = Some(Arc::new(ParquetFileSimulator::new(
+            run_log,
+            bytes_written,
+            bytes_written_per_plan,
+        )));
         self
     }
 
@@ -587,7 +619,9 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
             config: Arc::new(self.config),
             run_log: self.run_log,
             bytes_written: self.bytes_written,
+            bytes_written_per_plan: self.bytes_written_per_plan,
             invariant_check: self.invariant_check,
+            suppress_writes_breakdown: self.suppress_writes_breakdown,
             suppress_run_output: self.suppress_run_output,
         }
     }
@@ -608,12 +642,16 @@ pub struct TestSetup {
     pub partition: Arc<TestPartition>,
     /// The compactor configuration
     pub config: Arc<Config>,
+    /// allows optionally suppressing detailed output of where bytes are written
+    pub suppress_writes_breakdown: bool,
     /// allows optionally suppressing output of running the test
     pub suppress_run_output: bool,
     /// a shared log of what happened during a simulated run
     run_log: Arc<Mutex<Vec<String>>>,
     /// A total of all bytes written during test.
     pub bytes_written: Arc<AtomicUsize>,
+    /// A total of bytes written during test per operation.
+    pub bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>>,
     /// Checker that catalog invariant are not violated
     invariant_check: Arc<dyn InvariantCheck>,
 }
