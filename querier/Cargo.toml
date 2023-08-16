@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 arrow = { workspace = true }
 arrow-flight = { workspace = true }
-async-trait = "0.1.72"
+async-trait = "0.1.73"
 backoff = { path = "../backoff" }
 bytes = "1.4"
 cache_system = { path = "../cache_system" }
@@ -35,7 +35,7 @@ rand = "0.8.3"
 service_common = { path = "../service_common" }
 schema = { path = "../schema" }
 snafu = "0.7"
-tokio = { version = "1.29", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.31", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.8" }
 tonic = { workspace = true }
 trace = { path = "../trace" }

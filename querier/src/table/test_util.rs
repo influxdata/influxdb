@@ -93,7 +93,7 @@ impl IngesterPartitionBuilder {
     }
 
     /// Set column ranges.
-    pub(crate) fn with_colum_ranges(mut self, column_ranges: ColumnRanges) -> Self {
+    pub(crate) fn with_column_ranges(mut self, column_ranges: ColumnRanges) -> Self {
         self.partition_column_ranges = column_ranges;
         self
     }

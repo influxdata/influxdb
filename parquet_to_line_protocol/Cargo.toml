@@ -14,7 +14,7 @@ num_cpus = "1.16.0"
 object_store = { workspace = true }
 parquet_file  = { path = "../parquet_file" }
 schema = { path = "../schema" }
-tokio = "1.29"
+tokio = "1.31"
 snafu = "0.7"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 

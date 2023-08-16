@@ -9,14 +9,14 @@ use datafusion::{
     physical_expr::execution_props::ExecutionProps,
     physical_optimizer::pruning::PruningStatistics,
     physical_plan::{ColumnStatistics, Statistics},
-    prelude::Column,
+    prelude::{col, lit_timestamp_nano, Column, Expr},
     scalar::ScalarValue,
 };
 use datafusion_util::create_pruning_predicate;
 use observability_deps::tracing::{debug, trace, warn};
 use predicate::Predicate;
 use query_functions::group_by::Aggregate;
-use schema::Schema;
+use schema::{Schema, TIME_COLUMN_NAME};
 use std::sync::Arc;
 
 /// Reason why a chunk could not be pruned.
@@ -206,6 +206,11 @@ fn get_aggregate(stats: &ColumnStatistics, aggregate: Aggregate) -> Option<&Scal
         Aggregate::Max => stats.max_value.as_ref(),
         _ => None,
     }
+}
+
+/// Retention time expression, "time > retention_time".
+pub fn retention_expr(retention_time: i64) -> Expr {
+    col(TIME_COLUMN_NAME).gt(lit_timestamp_nano(retention_time))
 }
 
 #[cfg(test)]

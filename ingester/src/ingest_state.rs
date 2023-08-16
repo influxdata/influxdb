@@ -20,6 +20,9 @@ pub(crate) enum IngestStateError {
 
     #[error("ingester is shutting down")]
     GracefulStop = 1 << 1,
+
+    #[error("ingester disk full - persisting write-ahead log")]
+    DiskFull = 1 << 2,
 }
 
 impl IngestStateError {
@@ -159,6 +162,10 @@ fn as_err(state: usize) -> Result<(), IngestStateError> {
         return Err(IngestStateError::GracefulStop);
     }
 
+    if state & IngestStateError::DiskFull.as_bits() != 0 {
+        return Err(IngestStateError::DiskFull);
+    }
+
     if state & IngestStateError::PersistSaturated.as_bits() != 0 {
         return Err(IngestStateError::PersistSaturated);
     }
@@ -169,22 +176,9 @@ fn as_err(state: usize) -> Result<(), IngestStateError> {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
+    use proptest::prelude::*;
 
     use super::*;
-
-    #[test]
-    fn test_disjoint_discriminant_bits() {
-        assert!(IngestStateError::PersistSaturated.as_bits() < usize::BITS as usize);
-        assert_eq!(IngestStateError::PersistSaturated.as_bits().count_ones(), 1);
-
-        assert!(IngestStateError::GracefulStop.as_bits() < usize::BITS as usize);
-        assert_eq!(IngestStateError::PersistSaturated.as_bits().count_ones(), 1);
-
-        assert_ne!(
-            IngestStateError::PersistSaturated.as_bits(),
-            IngestStateError::GracefulStop.as_bits()
-        );
-    }
 
     #[test]
     fn test_default_state() {
@@ -193,30 +187,14 @@ mod tests {
     }
 
     #[test]
-    fn test_set_unset() {
-        let state = IngestState::default();
-
-        assert_matches!(state.read(), Ok(()));
-
-        assert!(state.set(IngestStateError::PersistSaturated));
-        assert_matches!(state.read(), Err(IngestStateError::PersistSaturated));
-
-        assert!(state.unset(IngestStateError::PersistSaturated));
-        assert_matches!(state.read(), Ok(()));
-
-        assert!(state.set(IngestStateError::GracefulStop));
-        assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
-
-        assert!(state.unset(IngestStateError::GracefulStop));
-        assert_matches!(state.read(), Ok(()));
-    }
-
-    #[test]
     fn test_error_state_precedence() {
         let state = IngestState::default();
 
         state.set(IngestStateError::PersistSaturated);
         assert_matches!(state.read(), Err(IngestStateError::PersistSaturated));
+
+        state.set(IngestStateError::DiskFull);
+        assert_matches!(state.read(), Err(IngestStateError::DiskFull));
 
         state.set(IngestStateError::GracefulStop);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
@@ -227,39 +205,108 @@ mod tests {
         state.set(IngestStateError::PersistSaturated);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
 
-        // Un-setting the shutdown state shows the persist state.
+        // And neither does the disk full state.
+        state.unset(IngestStateError::DiskFull);
+        assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+        state.set(IngestStateError::DiskFull);
+        assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+
+        // Un-setting the shutdown state shows the disk full state.
         state.unset(IngestStateError::GracefulStop);
+        assert_matches!(state.read(), Err(IngestStateError::DiskFull));
+
+        // Un-setting the disk full state then shows the persist saturated state.
+        state.unset(IngestStateError::DiskFull);
         assert_matches!(state.read(), Err(IngestStateError::PersistSaturated));
     }
 
-    #[test]
-    fn test_set_first_caller() {
-        let state = IngestState::default();
+    /// A hand-rolled strategy to enumerate [`IngestStateError`] variants.
+    /// New variants MUST be added here.
+    fn ingest_state_errors() -> impl Strategy<Value = IngestStateError> {
+        prop_oneof![
+            Just(IngestStateError::PersistSaturated),
+            Just(IngestStateError::GracefulStop),
+            Just(IngestStateError::DiskFull)
+        ]
+    }
 
-        // First call is told it is the first to set the state.
-        assert!(state.set(IngestStateError::PersistSaturated));
-        // Second call does not see "first == true"
-        assert!(!state.set(IngestStateError::PersistSaturated));
+    proptest! {
+        // This test throws a compiler error if a new state is added and not
+        // covered by the test strategy generation for [`IngestStateError`].
+        #[test]
+        fn test_ingest_state_error_strategy(error in ingest_state_errors()) {
+            match error {
+                IngestStateError::PersistSaturated => {}
+                IngestStateError::GracefulStop => {}
+                IngestStateError::DiskFull => {}
+            }
+        }
 
-        // Un-setting, and re-setting reports first == true again.
-        assert!(state.unset(IngestStateError::PersistSaturated));
-        assert!(!state.unset(IngestStateError::PersistSaturated));
-        assert!(state.set(IngestStateError::PersistSaturated));
+        /// For every [`IngestStateError`] pair, ensure they do not overflow
+        /// a `usize`, contain a single bit and (if different variants), do
+        /// not share the bit placement.
+        #[test]
+        fn test_disjoint_discriminant_bits_prop(error_a in ingest_state_errors(), error_b in ingest_state_errors()) {
+            prop_assert!(error_a.as_bits() < usize::BITS as usize);
+            prop_assert_eq!(error_a.as_bits().count_ones(), 1);
 
-        // First call for a different state is told it is the first to set that
-        // state.
-        assert!(state.set(IngestStateError::GracefulStop));
-        // Second call does not see "first == true"
-        assert!(!state.set(IngestStateError::GracefulStop));
+            prop_assert!(error_b.as_bits() < usize::BITS as usize);
+            prop_assert_eq!(error_b.as_bits().count_ones(), 1);
 
-        // Un-setting, and re-setting reports first == true again.
-        assert!(state.unset(IngestStateError::GracefulStop));
-        assert!(!state.unset(IngestStateError::GracefulStop));
-        assert!(state.set(IngestStateError::GracefulStop));
+            if std::mem::discriminant(&error_a) != std::mem::discriminant(&error_b) {
+                prop_assert_ne!(error_a.as_bits(), error_b.as_bits());
+            }
+        }
 
-        // Un-setting one state does not reset the other state
-        assert!(state.unset(IngestStateError::GracefulStop));
-        assert!(!state.unset(IngestStateError::GracefulStop));
-        assert!(!state.set(IngestStateError::PersistSaturated));
+        /// For every [`IngestStateError`], setup a new [`IngestState`], ensure
+        /// it writes are proceedable for it, then toggle setting the state error
+        /// on and off.
+        #[test]
+        fn test_set_unset(error in ingest_state_errors()) {
+            let state = IngestState::default();
+
+            assert_matches!(state.read(), Ok(()));
+
+            prop_assert!(state.set(error));
+            assert_matches!(state.read(), Err(inner) => {
+                prop_assert_eq!(std::mem::discriminant(&inner), std::mem::discriminant(&error));
+            });
+
+            prop_assert!(state.unset(error));
+            assert_matches!(state.read(), Ok(()));
+        }
+
+        /// For every [`IngestStateError`] pair, this test checks that setting
+        /// and unsetting `error_a` reports correctly whether it is the first to
+        /// unset or set the state.
+        ///
+        /// This test also ensures that for disjoint `error_a` and `error_b`
+        /// setting/unsetting one does not reset or affect the other.
+        #[test]
+        fn test_set_first_caller(error_a in ingest_state_errors(), error_b in ingest_state_errors()) {
+            let state = IngestState::default();
+
+            // First call is always told it is the first to set the state.
+            prop_assert!(state.set(error_a));
+            // Second call does not see "first == true"
+            prop_assert!(!state.set(error_a));
+
+            // Unsetting, then resetting reports first == true again, as well
+            // as being informed it is the first to unset the state.
+            prop_assert!(state.unset(error_a));
+            prop_assert!(!state.unset(error_a));
+            prop_assert!(state.set(error_a));
+
+            // Remaining checks only apply if error_b is a different error state.
+            if std::mem::discriminant(&error_a) != std::mem::discriminant(&error_b) {
+                // First call for a different state is told it is the first to
+                // set that state.
+                prop_assert!(state.set(error_b));
+
+                // Unsetting one state must not reset the other.
+                prop_assert!(state.unset(error_b));
+                prop_assert!(!state.set(error_a));
+            }
+        }
     }
 }

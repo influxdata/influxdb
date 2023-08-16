@@ -53,6 +53,7 @@ impl From<RpcError> for tonic::Status {
         let code = match e {
             RpcError::Decode(_) | RpcError::NoPayload | RpcError::NoTables => Code::InvalidArgument,
             RpcError::SystemState(IngestStateError::PersistSaturated) => Code::ResourceExhausted,
+            RpcError::SystemState(IngestStateError::DiskFull) => Code::ResourceExhausted,
             RpcError::SystemState(IngestStateError::GracefulStop) => Code::FailedPrecondition,
         };
 
@@ -558,6 +559,71 @@ mod tests {
 
         // One write should have been passed through to the DML sinks.
         assert_matches!(*mock.get_calls(), [IngestOp::Write(_)]);
+    }
+
+    /// Validate that the disk being marked as full prevents the ingester from
+    /// accepting new writes (and that clearing the mark allows further writes).
+    #[tokio::test]
+    async fn test_rpc_write_disk_full() {
+        let mock = Arc::new(MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]));
+        let timestamp = Arc::new(TimestampOracle::new(0));
+
+        let ingest_state = Arc::new(IngestState::default());
+
+        let handler = RpcWrite::new(Arc::clone(&mock), timestamp, Arc::clone(&ingest_state));
+
+        let req = proto::WriteRequest {
+            payload: Some(DatabaseBatch {
+                database_id: ARBITRARY_NAMESPACE_ID.get(),
+                partition_key: ARBITRARY_PARTITION_KEY.to_string(),
+                table_batches: vec![TableBatch {
+                    table_id: ARBITRARY_TABLE_ID.get(),
+                    columns: vec![Column {
+                        column_name: "time".to_string(),
+                        semantic_type: SemanticType::Time.into(),
+                        values: Some(Values {
+                            i64_values: vec![4242],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                            packed_string_values: None,
+                            interned_string_values: None,
+                        }),
+                        null_mask: vec![0],
+                    }],
+                    row_count: 1,
+                }],
+            }),
+        };
+
+        // Perform an OK write
+        handler
+            .write(Request::new(req.clone()))
+            .await
+            .expect("write should succeed");
+
+        // Set the disk full state, try to write again and assert the error
+        // code and write not passed through.
+        ingest_state.set(IngestStateError::DiskFull);
+        assert_eq!(
+            handler
+                .write(Request::new(req.clone()))
+                .await
+                .expect_err("write should fail")
+                .code(),
+            Code::ResourceExhausted
+        );
+        assert_matches!(*mock.get_calls(), [IngestOp::Write(_)]);
+
+        // Unset the error state and ensure another write goes through
+        ingest_state.unset(IngestStateError::DiskFull);
+        handler
+            .write(Request::new(req.clone()))
+            .await
+            .expect("write should succeed");
+        assert_matches!(*mock.get_calls(), [IngestOp::Write(_), IngestOp::Write(_)]);
     }
 
     /// Validate that the ingester being marked as stopping prevents the

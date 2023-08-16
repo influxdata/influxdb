@@ -34,7 +34,7 @@ snafu = "0.7"
 sqlx = { version = "0.7.1", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }
 tempfile = "3.7.1"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
-tokio = { version = "1.29", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.31", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = "0.7"
 tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

@@ -21,11 +21,14 @@ use arrow::{
 };
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, TransitionPartitionId};
-use datafusion::{error::DataFusionError, physical_plan::Statistics, prelude::SessionContext};
+use datafusion::{
+    error::DataFusionError,
+    physical_plan::Statistics,
+    prelude::{Expr, SessionContext},
+};
 use exec::IOxSessionContext;
 use once_cell::sync::Lazy;
 use parquet_file::storage::ParquetExecInput;
-use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
 use schema::{sort::SortKey, Projection, Schema};
 use std::{any::Any, fmt::Debug, sync::Arc};
 
@@ -144,11 +147,11 @@ pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
 ///
 /// Namespaces store data organized by partitions and each partition stores data in Chunks.
 #[async_trait]
-pub trait QueryNamespace: QueryNamespaceMeta + Debug + Send + Sync {
+pub trait QueryNamespace: Debug + Send + Sync {
     /// Returns a set of chunks within the partition with data that may match the provided
-    /// predicate.
+    /// filter expression.
     ///
-    /// If possible, chunks which have no rows that can possibly match the predicate may be omitted.
+    /// If possible, chunks which have no rows that can possibly match the filter may be omitted.
     ///
     /// If projection is `None`, returned chunks will include all columns of its original data.
     /// Otherwise, returned chunks will include PK columns (tags and time) and columns specified in
@@ -157,7 +160,7 @@ pub trait QueryNamespace: QueryNamespaceMeta + Debug + Send + Sync {
     async fn chunks(
         &self,
         table_name: &str,
-        predicate: &Predicate,
+        filters: &[Expr],
         projection: Option<&Vec<usize>>,
         ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
@@ -182,10 +185,8 @@ pub trait QueryNamespace: QueryNamespaceMeta + Debug + Send + Sync {
         query_text: QueryText,
     ) -> QueryCompletedToken;
 
-    /// Upcast to [`QueryNamespaceMeta`].
-    ///
-    /// This is required until <https://github.com/rust-lang/rust/issues/65991> is fixed.
-    fn as_meta(&self) -> &dyn QueryNamespaceMeta;
+    /// Returns a new execution context suitable for running queries
+    fn new_query_context(&self, span_ctx: Option<trace::ctx::SpanContext>) -> IOxSessionContext;
 }
 
 /// Raw data of a [`QueryChunk`].

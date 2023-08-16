@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-async-trait = "0.1.72"
+async-trait = "0.1.73"
 backoff = { path = "../backoff" }
 data_types = { path = "../data_types" }
 futures = "0.3"
@@ -25,4 +25,4 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 assert_matches = "1.5.0"
 iox_tests = { path = "../iox_tests" }
 test_helpers = { path = "../test_helpers"}
-tokio = { version = "1.29", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.31", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }

@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-tokio = { version = "1.29", features = ["macros", "time"] }
+tokio = { version = "1.31", features = ["macros", "time"] }
 observability_deps = { path = "../observability_deps" }
 rand = "0.8"
 snafu = "0.7"

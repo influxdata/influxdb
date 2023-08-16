@@ -19,10 +19,10 @@ metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
 object_store = { workspace = true }
 router = { path = "../router" }
-thiserror = "1.0.44"
+thiserror = "1.0.46"
 tokio-util = { version = "0.7.8" }
 trace = { path = "../trace" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
-tokio = { version = "1.29", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.31", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }

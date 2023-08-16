@@ -20,7 +20,7 @@ use object_store::{
     ObjectMeta, ObjectStore,
 };
 use observability_deps::tracing::warn;
-use tokio::io::AsyncWrite;
+use tokio::{io::AsyncWrite, runtime::Handle, sync::oneshot::channel, task::JoinSet};
 use trace::span::Span;
 
 use super::ram::RamSize;
@@ -46,7 +46,7 @@ async fn read_from_store(
     Ok(Some(data))
 }
 
-type CacheT = Box<
+type CacheT = Arc<
     dyn Cache<
         K = Path,
         V = Option<Bytes>,
@@ -76,6 +76,7 @@ impl ObjectStoreCache {
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
+        handle: &Handle,
         testing: bool,
     ) -> Self {
         let object_store_captured = Arc::clone(&object_store);
@@ -121,7 +122,7 @@ impl ObjectStoreCache {
         ));
 
         let cache = CacheDriver::new(loader, backend);
-        let cache = Box::new(CacheWithMetrics::new(
+        let cache = Arc::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,
             time_provider,
@@ -130,7 +131,7 @@ impl ObjectStoreCache {
 
         let object_store = Arc::new(CachedObjectStore {
             cache,
-            inner: object_store,
+            handle: handle.clone(),
         });
 
         Self { object_store }
@@ -145,18 +146,41 @@ impl ObjectStoreCache {
 #[derive(Debug)]
 struct CachedObjectStore {
     cache: CacheT,
-    inner: Arc<dyn ObjectStore>,
+    handle: Handle,
 }
 
 impl CachedObjectStore {
+    /// Get data from cache.
+    ///
+    /// Ensures that the caller tokio runtime (usually the CPU-bound DataFusion runtime) is decoupled from the cache
+    /// runtime (usually our main runtime for async IO that also needs to keep connections alive).
     async fn get_data(&self, location: &Path) -> Result<Bytes, ObjectStoreError> {
-        self.cache
-            .get(location.clone(), ((), None))
-            .await
-            .ok_or_else(|| ObjectStoreError::NotFound {
-                path: location.to_string(),
-                source: String::from("not found").into(),
-            })
+        let cache = Arc::clone(&self.cache);
+        let location = location.clone();
+        let (tx, rx) = channel();
+
+        // ensure that we cancel request if we no longer need them
+        let mut join_set = JoinSet::new();
+        join_set.spawn_on(
+            async move {
+                let res = cache
+                    .get(location.clone(), ((), None))
+                    .await
+                    .ok_or_else(|| ObjectStoreError::NotFound {
+                        path: location.to_string(),
+                        source: String::from("not found").into(),
+                    });
+
+                // it's OK when the receiver is gone
+                tx.send(res).ok();
+            },
+            &self.handle,
+        );
+
+        rx.await.map_err(|e| ObjectStoreError::Generic {
+            store: "CachedObjectStore",
+            source: Box::new(e),
+        })?
     }
 }
 
@@ -284,16 +308,16 @@ impl ObjectStore for CachedObjectStore {
 
     async fn list(
         &self,
-        prefix: Option<&Path>,
+        _prefix: Option<&Path>,
     ) -> Result<BoxStream<'_, Result<ObjectMeta, ObjectStoreError>>, ObjectStoreError> {
-        self.inner.list(prefix).await
+        Err(ObjectStoreError::NotImplemented)
     }
 
     async fn list_with_delimiter(
         &self,
-        prefix: Option<&Path>,
+        _prefix: Option<&Path>,
     ) -> Result<ListResult, ObjectStoreError> {
-        self.inner.list_with_delimiter(prefix).await
+        Err(ObjectStoreError::NotImplemented)
     }
 
     async fn copy(&self, _from: &Path, _to: &Path) -> Result<(), ObjectStoreError> {
@@ -308,7 +332,6 @@ impl ObjectStore for CachedObjectStore {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use futures::TryStreamExt;
     use iox_time::SystemProvider;
     use metric::{Attributes, DurationHistogram, Metric};
     use object_store::memory::InMemory;
@@ -352,6 +375,7 @@ mod tests {
             time_provider,
             &metric_registry,
             test_ram_pool(),
+            &Handle::current(),
             true,
         );
         let cached_store = cache.object_store();
@@ -413,72 +437,6 @@ mod tests {
         );
         assert_eq!(get_count_hit(&metric_registry), 1);
         assert_eq!(get_count_miss(&metric_registry), 1);
-
-        // list operations work but are uncached
-        assert_eq!(list_count(&metric_registry), 0);
-        assert_eq!(
-            list(cached_store.as_ref()).await,
-            vec![path_2.clone(), path_3.clone(), path_4.clone()]
-        );
-        assert_eq!(list_count(&metric_registry), 1);
-        assert_eq!(
-            list(cached_store.as_ref()).await,
-            vec![path_2, path_3, path_4.clone()]
-        );
-        assert_eq!(list_count(&metric_registry), 2);
-
-        // list with delimiter operations work but  are uncached
-        assert_eq!(
-            list_with_delimiter(cached_store.as_ref()).await,
-            vec![Path::from("bar")]
-        );
-        assert_eq!(list_count(&metric_registry), 3);
-        assert_eq!(
-            list_with_delimiter(cached_store.as_ref()).await,
-            vec![Path::from("bar")]
-        );
-        assert_eq!(list_count(&metric_registry), 4);
-
-        // listing still does NOT invalidate the cache
-        assert_matches!(
-            cached_store.get(&path_4).await.unwrap_err(),
-            ObjectStoreError::NotFound { .. }
-        );
-        assert_eq!(
-            cached_store
-                .get(&path_1)
-                .await
-                .unwrap()
-                .bytes()
-                .await
-                .unwrap(),
-            bytes_1,
-        );
-        assert_eq!(get_count_hit(&metric_registry), 1);
-        assert_eq!(get_count_miss(&metric_registry), 1);
-    }
-
-    async fn list(store: &dyn ObjectStore) -> Vec<Path> {
-        let mut paths: Vec<_> = store
-            .list(None)
-            .await
-            .unwrap()
-            .map_ok(|meta| meta.location)
-            .try_collect()
-            .await
-            .unwrap();
-        paths.sort();
-        paths
-    }
-
-    async fn list_with_delimiter(store: &dyn ObjectStore) -> Vec<Path> {
-        let mut paths = store
-            .list_with_delimiter(None)
-            .await
-            .unwrap()
-            .common_prefixes;
-        paths.sort();
-        paths
     }
 
     fn get_count_hit(metric_registry: &metric::Registry) -> u64 {
@@ -496,16 +454,6 @@ mod tests {
             .get_instrument::<Metric<DurationHistogram>>("object_store_op_duration")
             .unwrap()
             .get_observer(&Attributes::from(&[("op", "get"), ("result", "error")]))
-            .unwrap()
-            .fetch()
-            .sample_count()
-    }
-
-    fn list_count(metric_registry: &metric::Registry) -> u64 {
-        metric_registry
-            .get_instrument::<Metric<DurationHistogram>>("object_store_op_duration")
-            .unwrap()
-            .get_observer(&Attributes::from(&[("op", "list"), ("result", "success")]))
             .unwrap()
             .fetch()
             .sample_count()

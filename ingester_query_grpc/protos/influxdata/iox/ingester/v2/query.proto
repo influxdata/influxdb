@@ -1,0 +1,113 @@
+syntax = "proto3";
+package influxdata.iox.ingester.v2;
+option go_package = "github.com/influxdata/iox/ingester/v2";
+
+message PartitionIdentifier {
+  // Either the catalog-assigned partition ID or the deterministic identifier
+  // created from the table ID and partition key.
+  //
+  // For "old-style" partitions that were created before the switch to
+  // deterministic partition IDs, a `catalog_id` is returned, and this is used
+  // to address the partition by row ID.
+  //
+  // For "new-style" partitions, a deterministic hash-based ID is used to
+  // address a partition.
+  //
+  // Invariant: a partition is EITHER an "old-style", row addressed partition,
+  // OR a "new-style" hash ID addressed partition for the lifetime of the
+  // partition.
+  //
+  // See <https://github.com/influxdata/idpe/issues/17476>.
+  oneof partition_identifier {
+    // An "old-style" partition addressed by catalog row ID.
+    int64 catalog_id = 7;
+
+    // A "new-style" partition addressed by a deterministic hash ID.
+    bytes hash_id = 11;
+  }
+}
+
+message Filters {
+  // Optional arbitrary predicates, represented as list of DataFusion expressions applied a logical
+  // conjunction (aka they are 'AND'ed together). Only rows that evaluate to TRUE for all these
+  // expressions should be returned. Other rows are excluded from the results.
+  //
+  // Encoded using DataFusion's Expr serialization code
+  repeated bytes exprs = 1;
+}
+
+message QueryRequest {
+  // Namespace to search
+  int64 namespace_id = 1;
+
+  // Table that should be queried.
+  int64 table_id = 2;
+
+  // Columns the query service is interested in
+  repeated string columns = 3;
+
+  // Predicate for filtering.
+  Filters filters = 4;
+}
+
+message IngesterQueryReponseMetadata {
+  message Partition {
+    // Partition ID.
+    PartitionIdentifier id = 1;
+
+    // Minimum timestamp.
+    int64 t_min = 2;
+
+    // Maximum timestamp (inclusive).
+    int64 t_max = 3;
+
+    // Projection of the partition.
+    //
+    // The projection is represented as a SORTED set of column indices. The indices are 0-based and point to the table schema
+    // transmitted in this metadata message. They MUST NOT contain any duplicates.
+    repeated int64 projection = 4;
+  }
+
+  // Ingester UUID
+  string ingester_uuid = 1;
+
+  // Number of persisted parquet files for this ingester.
+  int64 persist_counter = 2;
+
+  // Serialized table schema.
+  bytes table_schema = 3;
+
+  // Ingester partitions.
+  repeated Partition partitions = 4;
+}
+
+message IngesterQueryReponsePayload {
+  // Partition ID.
+  PartitionIdentifier partition_id = 1;
+
+  // Projection of the record batch.
+  //
+  // The projection is represented as a SORTED set of column indices. The indices are 0-based and point to the schema
+  // transmitted in metadata message. They MUST NOT contain any duplicates.
+  //
+  // This MUST be a subset of the partition projection transmitted in the metdata message.
+  repeated int64 projection = 2;
+
+  // Serialized RecordBatch (w/o schema)
+  bytes record_batch = 3;
+}
+
+message QueryResponse {
+  oneof msg {
+    // Metadata, this is ALWAYS the first message (even when there are no further messages) and MUST NOT be repeated.
+    IngesterQueryReponseMetadata metadata = 1;
+
+    // Payload, following the first message.
+    IngesterQueryReponsePayload payload = 2;
+  }
+}
+
+service IngesterQueryService {
+  // Query ingester for unpersisted data.
+  rpc Query (QueryRequest) returns (stream QueryResponse);
+}

@@ -16,4 +16,4 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 [dev-dependencies]
 metric = { path = "../metric" }
 uuid = { version = "1", features = ["v4"] }
-tokio = { version = "1.29", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.31", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }

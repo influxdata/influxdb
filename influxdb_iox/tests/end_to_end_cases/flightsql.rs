@@ -1174,15 +1174,24 @@ async fn flightsql_get_xdbc_type_info() {
             })),
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
+                    // test filter by type
                     let mut client = flightsql_client(state.cluster());
-                    // TODO chunchun: search by data_type test case
                     let data_type: Option<i32> = Some(6);
 
-                    let err = client.get_xdbc_type_info(data_type).await.unwrap_err();
+                    let stream = client.get_xdbc_type_info(data_type).await.unwrap();
+                    let batches = collect_stream(stream).await;
 
-                    assert_matches!(err, FlightError::Tonic(..));
-                    assert_contains!(err.to_string(), "GetXdbcTypeInfo does not yet support filtering by data_type");
-
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - +-----------+-----------+-------------+----------------+----------------+---------------+----------+----------------+------------+--------------------+------------------+----------------+-----------------+---------------+---------------+---------------+------------------+----------------+--------------------+
+                    - "| type_name | data_type | column_size | literal_prefix | literal_suffix | create_params | nullable | case_sensitive | searchable | unsigned_attribute | fixed_prec_scale | auto_increment | local_type_name | minimum_scale | maximum_scale | sql_data_type | datetime_subcode | num_prec_radix | interval_precision |"
+                    - +-----------+-----------+-------------+----------------+----------------+---------------+----------+----------------+------------+--------------------+------------------+----------------+-----------------+---------------+---------------+---------------+------------------+----------------+--------------------+
+                    - "| FLOAT     | 6         | 24          |                |                |               | 1        | false          | 3          | false              | false            | false          | FLOAT           |               |               | 6             |                  | 2              |                    |"
+                    - +-----------+-----------+-------------+----------------+----------------+---------------+----------+----------------+------------+--------------------+------------------+----------------+-----------------+---------------+---------------+---------------+------------------+----------------+--------------------+
+                    "###
+                    );
                 }
                 .boxed()
             })),

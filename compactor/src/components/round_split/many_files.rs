@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use data_types::ParquetFile;
+use data_types::{CompactionLevel, ParquetFile};
 
 use crate::RoundInfo;
 
@@ -36,8 +36,29 @@ impl RoundSplit for ManyFilesRoundSplit {
                     .partition(|f| f.compaction_level == start_level);
                 (start_level_files, rest)
             }
-            // Not a lot of files and do not need to split
-            RoundInfo::TargetLevel { .. } => (files, vec![]),
+
+            // A TargetLevel round only needs its start (source) and target (destination) levels.
+            // All other files are a distraction that should wait for another round.
+            RoundInfo::TargetLevel { target_level } => {
+                // Split start_level & target level from the rest
+                let start_level = target_level.prev();
+                let (start_files, rest) = files.into_iter().partition(|f| {
+                    f.compaction_level == start_level
+                        || f.compaction_level == target_level
+                        || f.compaction_level == CompactionLevel::Final
+                });
+                (start_files, rest)
+            }
+
+            RoundInfo::SimulatedLeadingEdge { .. } => {
+                // Split first two levels from the rest
+                let (start_files, rest) = files.into_iter().partition(|f| {
+                    f.compaction_level == CompactionLevel::Initial
+                        || f.compaction_level == CompactionLevel::FileNonOverlapped
+                });
+
+                (start_files, rest)
+            }
         }
     }
 }

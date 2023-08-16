@@ -5,10 +5,10 @@
 use crate::{
     exec::{
         stringset::{StringSet, StringSetRef},
-        ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext,
+        Executor, ExecutorType, IOxSessionContext,
     },
     pruning::prune_chunks,
-    Predicate, QueryChunk, QueryChunkData, QueryCompletedToken, QueryNamespace, QueryText,
+    QueryChunk, QueryChunkData, QueryCompletedToken, QueryNamespace, QueryText,
 };
 use arrow::array::{BooleanArray, Float64Array};
 use arrow::datatypes::SchemaRef;
@@ -32,12 +32,12 @@ use datafusion::{
     physical_plan::{ColumnStatistics, Statistics as DataFusionStatistics},
     scalar::ScalarValue,
 };
-use hashbrown::HashSet;
+use datafusion_util::config::DEFAULT_SCHEMA;
 use itertools::Itertools;
 use object_store::{path::Path, ObjectMeta};
 use parking_lot::Mutex;
 use parquet_file::storage::ParquetExecInput;
-use predicate::rpc_predicate::QueryNamespaceMeta;
+use predicate::Predicate;
 use schema::{
     builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, Schema, TIME_COLUMN_NAME,
 };
@@ -62,7 +62,7 @@ pub struct TestDatabase {
     column_names: Arc<Mutex<Option<StringSetRef>>>,
 
     /// The predicate passed to the most recent call to `chunks()`
-    chunks_predicate: Mutex<Predicate>,
+    chunks_predicate: Mutex<Vec<Expr>>,
 
     /// Retention time ns.
     retention_time_ns: Option<i64>,
@@ -104,7 +104,7 @@ impl TestDatabase {
     }
 
     /// Return the most recent predicate passed to get_chunks()
-    pub fn get_chunks_predicate(&self) -> Predicate {
+    pub fn get_chunks_predicate(&self) -> Vec<Expr> {
         self.chunks_predicate.lock().clone()
     }
 
@@ -129,13 +129,14 @@ impl QueryNamespace for TestDatabase {
     async fn chunks(
         &self,
         table_name: &str,
-        predicate: &Predicate,
+        filters: &[Expr],
         _projection: Option<&Vec<usize>>,
         _ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         // save last predicate
-        *self.chunks_predicate.lock() = predicate.clone();
+        *self.chunks_predicate.lock() = filters.to_vec();
 
+        let predicate = Predicate::default().with_exprs(filters.iter().cloned());
         let partitions = self.partitions.lock().clone();
         Ok(partitions
             .values()
@@ -147,7 +148,7 @@ impl QueryNamespace for TestDatabase {
                 prune_chunks(
                     c.schema(),
                     &[Arc::clone(*c) as Arc<dyn QueryChunk>],
-                    predicate,
+                    &predicate,
                 )
                 .ok()
                 .map(|res| res[0])
@@ -170,43 +171,6 @@ impl QueryNamespace for TestDatabase {
         QueryCompletedToken::new(|_| {})
     }
 
-    fn as_meta(&self) -> &dyn QueryNamespaceMeta {
-        self
-    }
-}
-
-impl QueryNamespaceMeta for TestDatabase {
-    fn table_schema(&self, table_name: &str) -> Option<Schema> {
-        let mut merger = SchemaMerger::new();
-        let mut found_one = false;
-
-        let partitions = self.partitions.lock();
-        for partition in partitions.values() {
-            for chunk in partition.values() {
-                if chunk.table_name() == table_name {
-                    merger = merger.merge(chunk.schema()).expect("consistent schemas");
-                    found_one = true;
-                }
-            }
-        }
-
-        found_one.then(|| merger.build())
-    }
-
-    fn table_names(&self) -> Vec<String> {
-        let mut values = HashSet::new();
-        let partitions = self.partitions.lock();
-        for chunks in partitions.values() {
-            for chunk in chunks.values() {
-                values.get_or_insert_owned(&chunk.table_name);
-            }
-        }
-
-        values.into_iter().collect()
-    }
-}
-
-impl ExecutionContextProvider for TestDatabase {
     fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext {
         // Note: unlike Db this does not register a catalog provider
         self.executor
@@ -218,9 +182,6 @@ impl ExecutionContextProvider for TestDatabase {
             .build()
     }
 }
-
-// The default schema name - this impacts what SQL queries use if not specified
-const DEFAULT_SCHEMA: &str = "iox";
 
 struct TestDatabaseCatalogProvider {
     partitions: BTreeMap<String, BTreeMap<ChunkId, Arc<TestChunk>>>,

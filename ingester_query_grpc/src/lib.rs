@@ -19,6 +19,7 @@
 use workspace_hack as _;
 
 use crate::influxdata::iox::ingester::v1 as proto;
+use crate::influxdata::iox::ingester::v2 as proto2;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use data_types::{NamespaceId, TableId, TimestampRange};
 use datafusion::{common::DataFusionError, prelude::Expr};
@@ -39,6 +40,17 @@ pub mod influxdata {
                 include!(concat!(
                     env!("OUT_DIR"),
                     "/influxdata.iox.ingester.v1.serde.rs"
+                ));
+            }
+
+            pub mod v2 {
+                // generated code violates a few lints, so opt-out of them
+                #![allow(clippy::future_not_send)]
+
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.ingester.v2.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.ingester.v2.serde.rs"
                 ));
             }
         }
@@ -175,6 +187,81 @@ impl TryFrom<IngesterQueryRequest> for proto::IngesterQueryRequest {
     }
 }
 
+/// Request from the querier service to the ingester service
+#[derive(Debug, PartialEq, Clone)]
+pub struct IngesterQueryRequest2 {
+    /// namespace to search
+    pub namespace_id: NamespaceId,
+
+    /// Table to search
+    pub table_id: TableId,
+
+    /// Columns the query service is interested in
+    pub columns: Vec<String>,
+
+    /// Predicate for filtering
+    pub filters: Vec<Expr>,
+}
+
+impl IngesterQueryRequest2 {
+    /// Make a request to return data for a specified table
+    pub fn new(
+        namespace_id: NamespaceId,
+        table_id: TableId,
+        columns: Vec<String>,
+        filters: Vec<Expr>,
+    ) -> Self {
+        Self {
+            namespace_id,
+            table_id,
+            columns,
+            filters,
+        }
+    }
+}
+
+impl TryFrom<proto2::QueryRequest> for IngesterQueryRequest2 {
+    type Error = FieldViolation;
+
+    fn try_from(proto: proto2::QueryRequest) -> Result<Self, Self::Error> {
+        let proto2::QueryRequest {
+            namespace_id,
+            table_id,
+            columns,
+            filters,
+        } = proto;
+
+        let namespace_id = NamespaceId::new(namespace_id);
+        let table_id = TableId::new(table_id);
+        let filters = filters
+            .map(TryInto::try_into)
+            .transpose()?
+            .unwrap_or_default();
+
+        Ok(Self::new(namespace_id, table_id, columns, filters))
+    }
+}
+
+impl TryFrom<IngesterQueryRequest2> for proto2::QueryRequest {
+    type Error = FieldViolation;
+
+    fn try_from(query: IngesterQueryRequest2) -> Result<Self, Self::Error> {
+        let IngesterQueryRequest2 {
+            namespace_id,
+            table_id,
+            columns,
+            filters,
+        } = query;
+
+        Ok(Self {
+            namespace_id: namespace_id.get(),
+            table_id: table_id.get(),
+            columns,
+            filters: Some(filters.try_into()?),
+        })
+    }
+}
+
 impl TryFrom<Predicate> for proto::Predicate {
     type Error = FieldViolation;
 
@@ -278,6 +365,41 @@ impl TryFrom<ValueExpr> for proto::ValueExpr {
     }
 }
 
+impl TryFrom<Vec<Expr>> for proto2::Filters {
+    type Error = FieldViolation;
+
+    fn try_from(filters: Vec<Expr>) -> Result<Self, Self::Error> {
+        let exprs = filters
+            .iter()
+            .map(|expr| {
+                expr.to_bytes()
+                    .map(|bytes| bytes.to_vec())
+                    .map_err(|e| expr_to_bytes_violation("exprs", e))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Self { exprs })
+    }
+}
+
+impl TryFrom<proto2::Filters> for Vec<Expr> {
+    type Error = FieldViolation;
+
+    fn try_from(proto: proto2::Filters) -> Result<Self, Self::Error> {
+        let proto2::Filters { exprs } = proto;
+
+        let exprs = exprs
+            .into_iter()
+            .map(|bytes| {
+                Expr::from_bytes_with_registry(&bytes, query_functions::registry())
+                    .map_err(|e| expr_from_bytes_violation("exprs", e))
+            })
+            .collect::<Result<Self, _>>()?;
+
+        Ok(exprs)
+    }
+}
+
 #[derive(Debug, Snafu)]
 pub enum EncodeProtoPredicateFromBase64Error {
     #[snafu(display("Cannot encode protobuf: {source}"))]
@@ -290,6 +412,15 @@ pub fn encode_proto_predicate_as_base64(
 ) -> Result<String, EncodeProtoPredicateFromBase64Error> {
     let mut buf = vec![];
     predicate.encode(&mut buf).context(ProtobufEncodeSnafu)?;
+    Ok(BASE64_STANDARD.encode(&buf))
+}
+
+/// Encodes [`proto2::Filters`] as base64.
+pub fn encode_proto2_filters_as_base64(
+    filters: &proto2::Filters,
+) -> Result<String, EncodeProtoPredicateFromBase64Error> {
+    let mut buf = vec![];
+    filters.encode(&mut buf).context(ProtobufEncodeSnafu)?;
     Ok(BASE64_STANDARD.encode(&buf))
 }
 
@@ -308,6 +439,14 @@ pub fn decode_proto_predicate_from_base64(
 ) -> Result<proto::Predicate, DecodeProtoPredicateFromBase64Error> {
     let predicate_binary = BASE64_STANDARD.decode(s).context(Base64DecodeSnafu)?;
     proto::Predicate::decode(predicate_binary.as_slice()).context(ProtobufDecodeSnafu)
+}
+
+/// Decodes [`proto2::Filters`] from base64 string.
+pub fn decode_proto2_filters_from_base64(
+    s: &str,
+) -> Result<proto2::Filters, DecodeProtoPredicateFromBase64Error> {
+    let predicate_binary = BASE64_STANDARD.decode(s).context(Base64DecodeSnafu)?;
+    proto2::Filters::decode(predicate_binary.as_slice()).context(ProtobufDecodeSnafu)
 }
 
 #[cfg(test)]
@@ -339,6 +478,22 @@ mod tests {
     }
 
     #[test]
+    fn query2_round_trip() {
+        let rust_query = IngesterQueryRequest2::new(
+            NamespaceId::new(42),
+            TableId::new(1337),
+            vec!["usage".into(), "time".into()],
+            vec![col("foo").eq(lit(1i64))],
+        );
+
+        let proto_query: proto2::QueryRequest = rust_query.clone().try_into().unwrap();
+
+        let rust_query_converted: IngesterQueryRequest2 = proto_query.try_into().unwrap();
+
+        assert_eq!(rust_query, rust_query_converted);
+    }
+
+    #[test]
     fn predicate_proto_base64_roundtrip() {
         let predicate = Predicate {
             field_columns: Some(BTreeSet::from([String::from("foo"), String::from("bar")])),
@@ -350,5 +505,18 @@ mod tests {
         let base64 = encode_proto_predicate_as_base64(&predicate).unwrap();
         let predicate2 = decode_proto_predicate_from_base64(&base64).unwrap();
         assert_eq!(predicate, predicate2);
+    }
+
+    #[test]
+    fn filters_proto2_base64_roundtrip() {
+        let filters = vec![col("col").eq(lit(1i64))];
+        let filters_1: proto2::Filters = filters.try_into().unwrap();
+
+        let base64_1 = encode_proto2_filters_as_base64(&filters_1).unwrap();
+        let filters_2 = decode_proto2_filters_from_base64(&base64_1).unwrap();
+        let base64_2 = encode_proto2_filters_as_base64(&filters_2).unwrap();
+
+        assert_eq!(filters_1, filters_2);
+        assert_eq!(base64_1, base64_2);
     }
 }

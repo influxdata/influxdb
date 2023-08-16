@@ -14,7 +14,7 @@ iox_time = { path = "../iox_time" }
 observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
 thrift = { version = "0.17.0" }
-tokio = { version = "1.29", features = ["macros", "parking_lot", "rt", "sync"] }
+tokio = { version = "1.31", features = ["macros", "parking_lot", "rt", "sync"] }
 trace = { path = "../trace" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 

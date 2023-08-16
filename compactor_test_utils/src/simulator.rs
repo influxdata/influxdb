@@ -278,7 +278,7 @@ fn even_time_split(
 ) -> Vec<SimulatedFile> {
     let overall_min_time = files.iter().map(|f| f.min_time).min().unwrap();
     let overall_max_time = files.iter().map(|f| f.max_time).max().unwrap();
-    let overall_time_range = overall_max_time - overall_min_time;
+    let overall_time_range = overall_max_time - overall_min_time + 1;
 
     let total_input_rows: i64 = files.iter().map(|f| f.row_count).sum();
     let total_input_size: i64 = files.iter().map(|f| f.file_size_bytes).sum();
@@ -291,6 +291,9 @@ fn even_time_split(
             "split times {last_split} {split} must be in ascending order",
         );
         assert!(
+            // split time is the last ns in the resulting 'left' file.  If split time
+            // matches the last ns of the input file, the input file does not need
+            // split at this time.
             Timestamp::new(*split) < overall_max_time,
             "split time {} must be less than time range max {}",
             split,
@@ -327,7 +330,8 @@ fn even_time_split(
     let mut simulated_files: Vec<_> = time_ranges
         .into_iter()
         .map(|(min_time, max_time)| {
-            let p = ((max_time - min_time).get() as f64) / ((overall_time_range).get() as f64);
+            let p =
+                ((max_time - min_time).get() as f64 + 1.0) / ((overall_time_range).get() as f64);
 
             let file_size_bytes = (total_input_size as f64 * p) as i64;
             let row_count = (total_input_rows as f64 * p) as i64;

@@ -159,6 +159,7 @@ impl CatalogCache {
             Arc::clone(&time_provider),
             &metric_registry,
             Arc::clone(&ram_pool_data),
+            handle,
             testing,
         );
 

@@ -15,14 +15,14 @@ observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 pin-project = "1.1"
 iox_time = { path = "../iox_time" }
-tokio = { version = "1.29", features = ["macros", "parking_lot", "sync", "time"] }
+tokio = { version = "1.31", features = ["macros", "parking_lot", "sync", "time"] }
 tokio-util = { version = "0.7.8" }
 trace = { path = "../trace"}
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
-sysinfo = "0.29.7"
+sysinfo = "0.29.8"
 
 [dev-dependencies]
 tempfile = "3.7.1"
 # Need the multi-threaded executor for testing
-tokio = { version = "1.29", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
+tokio = { version = "1.31", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
