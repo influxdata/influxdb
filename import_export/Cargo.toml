@@ -16,7 +16,7 @@ parquet_file = { path = "../parquet_file"  }
 object_store = { workspace=true }
 observability_deps = { path = "../observability_deps" }
 schema = { path = "../schema" }
-serde_json = "1.0.104"
+serde_json = "1.0.105"
 thiserror = "1.0.46"
 tokio = { version = "1.31" }
 tokio-util = { version = "0.7.8" }
