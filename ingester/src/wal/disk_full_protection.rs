@@ -40,7 +40,7 @@ where
     T: PartitionIter + Sync,
     P: PersistQueue + Clone,
 {
-    /// Create a new [`Wal`] based [`PersistingCleaner`] that uses the given
+    /// Create a new [`wal::Wal`] based [`PersistingCleaner`] that uses the given
     /// [`WalReferenceHandle`] to control tidying up of fully persisted WAL
     /// segments.
     pub fn new(
@@ -95,6 +95,8 @@ where
 /// Protect the ingester from the disk watched by `disk_snapshot_rx` filling up,
 /// marking the provided `ingest_state` with an error while persisting
 /// outstanding partitions until enough space is free to clear the [`IngestStateError`].
+///
+/// This task runs until it detects the [`Receiver`] is disconnected.
 pub(crate) async fn guard_disk_capacity<P>(
     mut disk_snapshot_rx: Receiver<DiskSpaceSnapshot>,
     ingest_state: Arc<IngestState>,
@@ -108,7 +110,9 @@ pub(crate) async fn guard_disk_capacity<P>(
     // Listen for new disk space snapshots in a loop, assessing the usage ratio
     // and taking protective action if needed.
     loop {
-        // If the sender has disconnected, this task cannot do anything meaningful.
+        // If the sender has disconnected, this task cannot do anything
+        // meaningful and is likely a signal that shutdown has been invoked
+        // - abort the task..
         if disk_snapshot_rx.changed().await.is_err() {
             return;
         }

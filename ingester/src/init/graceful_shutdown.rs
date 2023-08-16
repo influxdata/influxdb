@@ -65,10 +65,11 @@ pub(super) async fn graceful_shutdown_handler<F, T, P>(
     persist_partitions(buffer.partition_iter(), &persist).await;
 
     // There may have been concurrent persist jobs started previously by hot
-    // partition persistence or WAL rotation (or some other, arbitrary persist
-    // source) that have not yet completed (this is unlikely). There may also be
-    // late arriving writes that started before ingest was blocked, but did not
-    // buffer until after the persist was completed above (also unlikely).
+    // partition persistence, WAL rotation or disk full protection (or some
+    // other, arbitrary persist source) that have not yet completed (this
+    // is unlikely). There may also be late arriving writes that started before
+    // ingest was blocked, but did not buffer until after the persist was
+    // completed above (also unlikely).
     //
     // Wait until there is no data in the buffer at all before proceeding,
     // therefore ensuring those concurrent persist operations have completed and
