@@ -11,7 +11,7 @@ hashbrown.workspace = true
 mutable_batch = { version = "0.1.0", path = "../mutable_batch" }
 parquet_to_line_protocol = { version = "0.1.0", path = "../parquet_to_line_protocol" }
 schema = { version = "0.1.0", path = "../schema" }
-thiserror = "1.0.44"
+thiserror = "1.0.46"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order

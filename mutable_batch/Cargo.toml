@@ -18,7 +18,7 @@ hashbrown = { workspace = true }
 itertools = "0.11"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 percent-encoding = "2.2.0"
-thiserror = "1.0.44"
+thiserror = "1.0.46"
 unicode-segmentation = "1.10.1"
 
 [dev-dependencies]

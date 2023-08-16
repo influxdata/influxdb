@@ -30,7 +30,7 @@ trace = { path = "../trace" }
 arrow-flight = { workspace = true }
 async-trait = "0.1"
 hyper = "0.14"
-thiserror = "1.0.44"
+thiserror = "1.0.46"
 tokio = { version = "1.31", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
