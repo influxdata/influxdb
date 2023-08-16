@@ -429,7 +429,15 @@ impl RemoteImporter {
         debug!(?object_store_path, "copying data to object store");
         self.object_store.put(&object_store_path, bytes).await?;
 
-        info!(?file_path, %namespace_name, %object_store_path, %transition_partition_id, %table_id, "Successfully imported file");
+        info!(
+            ?file_path,
+            %namespace_name,
+            %object_store_path,
+            %transition_partition_id,
+            %table_id,
+            "Successfully imported file"
+        );
+
         Ok(())
     }
 
