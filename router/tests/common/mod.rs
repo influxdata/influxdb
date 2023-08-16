@@ -149,7 +149,6 @@ impl TestContext {
             [(Arc::clone(&client), "mock client")],
             1.try_into().unwrap(),
             &metrics,
-            rpc_write_error_window,
             rpc_write_num_probes,
         );
 

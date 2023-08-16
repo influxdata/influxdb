@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc, time::Duration};
+use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
@@ -54,15 +54,10 @@ impl<T> CircuitBreakingClient<T> {
     pub(super) fn new(
         inner: T,
         endpoint_name: impl Into<Arc<str>>,
-        error_window: Duration,
         num_probes_per_client: u64,
     ) -> Self {
         let endpoint_name = endpoint_name.into();
-        let state = CircuitBreaker::new(
-            Arc::clone(&endpoint_name),
-            error_window,
-            num_probes_per_client,
-        );
+        let state = CircuitBreaker::new(Arc::clone(&endpoint_name), num_probes_per_client);
         state.set_healthy();
         Self {
             inner,
@@ -190,13 +185,8 @@ mod tests {
     #[tokio::test]
     async fn test_healthy() {
         let circuit_breaker = Arc::new(MockCircuitBreaker::default());
-        let wrapper = CircuitBreakingClient::new(
-            MockWriteClient::default(),
-            "bananas",
-            Duration::from_secs(5),
-            10,
-        )
-        .with_circuit_breaker(Arc::clone(&circuit_breaker));
+        let wrapper = CircuitBreakingClient::new(MockWriteClient::default(), "bananas", 10)
+            .with_circuit_breaker(Arc::clone(&circuit_breaker));
 
         circuit_breaker.set_healthy(true);
         assert_eq!(wrapper.is_healthy(), circuit_breaker.is_healthy());
@@ -227,13 +217,8 @@ mod tests {
                 .into_iter(),
             )),
         );
-        let wrapper = CircuitBreakingClient::new(
-            Arc::clone(&mock_client),
-            "bananas",
-            Duration::from_secs(5),
-            10,
-        )
-        .with_circuit_breaker(Arc::clone(&circuit_breaker));
+        let wrapper = CircuitBreakingClient::new(Arc::clone(&mock_client), "bananas", 10)
+            .with_circuit_breaker(Arc::clone(&circuit_breaker));
 
         assert_eq!(circuit_breaker.ok_count(), 0);
         assert_eq!(circuit_breaker.err_count(), 0);
