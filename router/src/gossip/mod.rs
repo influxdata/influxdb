@@ -78,6 +78,7 @@ mod tests {
         Column, ColumnId, ColumnsByName, NamespaceId, NamespaceName, NamespaceSchema, TableId,
         TableSchema,
     };
+    use generated_types::influxdata::iox::gossip::Topic;
     use gossip::Dispatcher;
     use test_helpers::timeout::FutureTimeout;
 
@@ -103,7 +104,7 @@ mod tests {
     impl SchemaBroadcast for Arc<GossipPipe> {
         async fn broadcast(&self, payload: Vec<u8>) {
             self.dispatcher
-                .dispatch(payload.into())
+                .dispatch(Topic::SchemaChanges, payload.into())
                 .with_timeout_panic(Duration::from_secs(5))
                 .await;
         }

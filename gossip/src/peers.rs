@@ -1,4 +1,4 @@
-use std::{io, net::SocketAddr};
+use std::{future, io, net::SocketAddr};
 
 use futures::{stream::FuturesUnordered, StreamExt};
 use hashbrown::{hash_map::RawEntryMut, HashMap};
@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::{
     metric::{SentBytes, SentFrames},
+    topic_set::{Topic, TopicSet},
     MAX_FRAME_BYTES, MAX_PING_UNACKED,
 };
 
@@ -79,6 +80,7 @@ impl Identity {
 pub(crate) struct Peer {
     identity: Identity,
     addr: SocketAddr,
+    interests: TopicSet,
 
     /// The number of PING messages sent to this peer since the last message
     /// observed from it.
@@ -141,6 +143,7 @@ impl From<&Peer> for crate::proto::Peer {
         Self {
             identity: p.identity.as_bytes().clone(), // Ref-count
             address: p.addr.to_string(),
+            interests: u64::from(p.interests),
         }
     }
 }
@@ -199,8 +202,16 @@ impl PeerList {
     }
 
     /// Upsert a peer identified by `identity` to the peer list, associating it
-    /// with the provided `peer_addr`.
-    pub(crate) fn upsert(&mut self, identity: &Identity, peer_addr: SocketAddr) -> &mut Peer {
+    /// with the provided `peer_addr` and interested in `interests`.
+    ///
+    /// If this peer was already known, `interests` is discarded and the
+    /// existing value is used.
+    pub(crate) fn upsert(
+        &mut self,
+        identity: &Identity,
+        peer_addr: SocketAddr,
+        interests: TopicSet,
+    ) -> &mut Peer {
         let p = match self.list.raw_entry_mut().from_key(identity) {
             RawEntryMut::Vacant(v) => {
                 info!(%identity, %peer_addr, "discovered new peer");
@@ -211,6 +222,7 @@ impl PeerList {
                         addr: peer_addr,
                         identity: identity.to_owned(),
                         unacked_ping_count: 0,
+                        interests,
                     },
                 )
                 .1
@@ -224,24 +236,38 @@ impl PeerList {
 
     /// Broadcast `buf` to all known peers over `socket`, returning the number
     /// of bytes sent in total.
+    ///
+    /// If `topic` is provided, this frame is broadcast to only those peers with
+    /// an interest in `topic`. If `topic` is [`None`], this frame is broadcast
+    /// to all peers.
     pub(crate) async fn broadcast(
         &self,
         buf: &[u8],
         socket: &UdpSocket,
         frames_sent: &SentFrames,
         bytes_sent: &SentBytes,
-    ) -> usize {
+        topic: Option<Topic>,
+    ) {
         self.list
             .values()
-            .map(|v| v.send(buf, socket, frames_sent, bytes_sent))
-            .collect::<FuturesUnordered<_>>()
-            .fold(0, |acc, res| async move {
-                match res {
-                    Ok(n) => acc + n,
-                    Err(_) => acc,
+            .filter_map(|v| {
+                if let Some(topic) = topic {
+                    if !v.interests.is_interested(topic) {
+                        return None;
+                    }
+                    trace!(
+                        identity = %v.identity,
+                        peer_addr=%v.addr,
+                        ?topic,
+                        "sending to peer interested in broadcast topic"
+                    );
                 }
+
+                Some(v.send(buf, socket, frames_sent, bytes_sent))
             })
-            .await
+            .collect::<FuturesUnordered<_>>()
+            .for_each(|_| future::ready(()))
+            .await;
     }
 
     /// Send PING frames to all known nodes, and remove any that have not
@@ -257,7 +283,7 @@ impl PeerList {
         //
         // If a peer has exceeded the allowed maximum, it will be removed next,
         // but if it responds to this PING, it will be re-added again.
-        self.broadcast(ping_frame, socket, frames_sent, bytes_sent)
+        self.broadcast(ping_frame, socket, frames_sent, bytes_sent, None)
             .await;
 
         // Increment the PING counts and remove all peers that have not
