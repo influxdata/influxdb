@@ -417,7 +417,6 @@ impl RemoteImporter {
         };
 
         // Now copy the parquet files into the object store
-        //let partition_id = TransitionPartitionId::Deprecated(partition.id);
         let transition_partition_id = partition.transition_partition_id();
 
         let parquet_path = ParquetFilePath::new(
