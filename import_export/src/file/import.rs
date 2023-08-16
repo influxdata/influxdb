@@ -350,7 +350,7 @@ impl RemoteImporter {
                 let retention_period_ns = None;
                 let service_protection_limits = None;
 
-                info!(%namespace_name, "Namespace found, creating new namespace");
+                info!(%namespace_name, "Namespace not found, creating new namespace");
                 repos
                     .namespaces()
                     .create(
