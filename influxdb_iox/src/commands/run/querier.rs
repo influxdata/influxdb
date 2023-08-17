@@ -92,7 +92,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
 
     let time_provider = Arc::new(SystemProvider::new());
 
-    let num_query_threads = config.querier_config.num_query_threads();
+    let num_query_threads = config.querier_config.num_query_threads;
     let num_threads = num_query_threads.unwrap_or_else(|| {
         NonZeroUsize::new(num_cpus::get()).unwrap_or_else(|| NonZeroUsize::new(1).unwrap())
     });
@@ -103,7 +103,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
 
     let exec = Arc::new(Executor::new(
         num_threads,
-        config.querier_config.exec_mem_pool_bytes,
+        config.querier_config.exec_mem_pool_bytes.bytes(),
         Arc::clone(&metric_registry),
     ));
 

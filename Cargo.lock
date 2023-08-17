@@ -891,6 +891,7 @@ dependencies = [
  "object_store",
  "observability_deps",
  "snafu",
+ "sysinfo",
  "tempfile",
  "test_helpers",
  "trace_exporters",

@@ -25,6 +25,7 @@ pub mod garbage_collector;
 pub mod gossip;
 pub mod ingester;
 pub mod ingester_address;
+pub mod memory_size;
 pub mod object_store;
 pub mod querier;
 pub mod router;

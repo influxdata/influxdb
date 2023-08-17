@@ -204,8 +204,8 @@ pub async fn create_querier_server_type(
         args.time_provider,
         Arc::clone(&args.metric_registry),
         Arc::clone(&args.object_store),
-        args.querier_config.ram_pool_metadata_bytes(),
-        args.querier_config.ram_pool_data_bytes(),
+        args.querier_config.ram_pool_metadata_bytes.bytes(),
+        args.querier_config.ram_pool_data_bytes.bytes(),
         &Handle::current(),
     ));
 
@@ -261,7 +261,7 @@ pub async fn create_querier_server_type(
             Arc::clone(&args.metric_registry),
             args.exec,
             ingester_connections,
-            args.querier_config.max_concurrent_queries(),
+            args.querier_config.max_concurrent_queries,
             Arc::new(args.querier_config.datafusion_config),
         )
         .await?,
