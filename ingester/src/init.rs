@@ -327,14 +327,6 @@ where
     // and request coalescer.
     let partition_provider = CatalogPartitionResolver::new(Arc::clone(&catalog));
     let partition_provider = CoalescePartitionResolver::new(Arc::new(partition_provider));
-    let partition_provider = PartitionCache::new(
-        partition_provider,
-        recent_partitions,
-        persist_background_fetch_time,
-        Arc::clone(&catalog),
-        BackoffConfig::default(),
-        Arc::clone(&metrics),
-    );
     let partition_provider = OldPartitionBloomFilter::new(
         partition_provider,
         Arc::clone(&catalog),
@@ -342,6 +334,14 @@ where
         persist_background_fetch_time,
         Arc::clone(&metrics),
         old_style,
+    );
+    let partition_provider = PartitionCache::new(
+        partition_provider,
+        recent_partitions,
+        persist_background_fetch_time,
+        Arc::clone(&catalog),
+        BackoffConfig::default(),
+        Arc::clone(&metrics),
     );
     let partition_provider: Arc<dyn PartitionProvider> = Arc::new(partition_provider);
 
