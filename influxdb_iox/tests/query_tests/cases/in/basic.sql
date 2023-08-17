@@ -23,6 +23,10 @@ SELECT * from cpu where time > '1970-01-01T00:00:00' ORDER BY time;
 -- expect that to get a subset of the columns and in the order specified
 SELECT "user", region from cpu where time > to_timestamp('1970-01-01T00:00:00.000000120+00:00');
 
+-- Functions on tags
+--
+SELECT upper("region"), substring(region, 1, 2) from cpu where time > to_timestamp('1970-01-01T00:00:00.000000120+00:00');
+
 -- basic grouping
 SELECT count(*) from cpu group by region;
 
