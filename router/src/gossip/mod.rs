@@ -7,14 +7,14 @@
 //!
 //! * The outgoing [`SchemaChangeObserver`]: a router-specific wrapper over the
 //!   underlying [`GossipHandle`]. This type translates the application calls
-//!   into protobuf [`Msg`], and serialises them into bytes, sending them over
+//!   into protobuf [`Event`], and serialises them into bytes, sending them over
 //!   the underlying [`gossip`] impl.
 //!
 //! * The incoming [`GossipMessageDispatcher`]: deserialises the incoming bytes
-//!   from the gossip [`Dispatcher`] into [`Msg`] and passes them off to the
+//!   from the gossip [`Dispatcher`] into [`Event`] and passes them off to the
 //!   [`NamespaceSchemaGossip`] implementation for processing.
 //!
-//! * The incoming [`NamespaceSchemaGossip`]: processes [`Msg`] received from
+//! * The incoming [`NamespaceSchemaGossip`]: processes [`Event`] received from
 //!   peers, applying them to the local cache state if necessary.
 //!
 //! ```text
@@ -53,7 +53,8 @@
 //! [`GossipHandle`]: gossip::GossipHandle
 //! [`Dispatcher`]: gossip::Dispatcher
 //! [`SchemaChangeObserver`]: schema_change_observer::SchemaChangeObserver
-//! [`Msg`]: generated_types::influxdata::iox::gossip::v1::gossip_message::Msg
+//! [`Event`]:
+//!     generated_types::influxdata::iox::gossip::v1::schema_message::Event
 //! [`GossipMessageDispatcher`]: dispatcher::GossipMessageDispatcher
 //! [`NamespaceSchemaGossip`]: namespace_cache::NamespaceSchemaGossip
 

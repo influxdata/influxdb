@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use generated_types::{
-    influxdata::iox::gossip::v1::{gossip_message::Msg, GossipMessage},
+    influxdata::iox::gossip::v1::{schema_message::Event, SchemaMessage},
     prost::Message,
 };
 use parking_lot::Mutex;
@@ -28,14 +28,14 @@ impl MockSchemaBroadcast {
         self.payloads.lock().clone()
     }
 
-    /// Return the deserialised [`Msg`].
-    pub fn messages(&self) -> Vec<Msg> {
+    /// Return the deserialised [`Event`].
+    pub fn messages(&self) -> Vec<Event> {
         self.payloads
             .lock()
             .iter()
             .map(|v| {
-                GossipMessage::decode(v.as_slice())
-                    .map(|v| v.msg.expect("no message in payload"))
+                SchemaMessage::decode(v.as_slice())
+                    .map(|v| v.event.expect("no message in payload"))
                     .expect("invalid gossip payload")
             })
             .collect()

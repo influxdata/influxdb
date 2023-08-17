@@ -9,7 +9,7 @@ use data_types::{
     TableId, TableSchema,
 };
 use generated_types::influxdata::iox::gossip::v1::{
-    gossip_message::Msg, NamespaceCreated, TableCreated, TableUpdated,
+    schema_message::Event, NamespaceCreated, TableCreated, TableUpdated,
 };
 use observability_deps::tracing::{debug, error, trace, warn};
 use thiserror::Error;
@@ -61,7 +61,7 @@ enum Error {
 /// associated latency penalty and catalog load that comes with it.
 ///
 /// This type implements the [`GossipMessageHandler`] which is invoked with the
-/// [`Msg`] received from an opaque peer by the [`gossip`] subsystem (off of the
+/// [`Event`] received from an opaque peer by the [`gossip`] subsystem (off of the
 /// hot path), which when processed causes the cache contents to be updated if
 /// appropriate through the usual [`NamespaceCache::get_schema()`] and
 /// [`NamespaceCache::put_schema()`] abstraction.
@@ -94,13 +94,13 @@ impl<C> GossipMessageHandler for Arc<NamespaceSchemaGossip<C>>
 where
     C: NamespaceCache<ReadError = CacheMissErr>,
 {
-    async fn handle(&self, message: Msg) {
+    async fn handle(&self, message: Event) {
         trace!(?message, "received schema message");
 
         let res = match message {
-            Msg::NamespaceCreated(v) => self.handle_namespace_created(v).await,
-            Msg::TableCreated(v) => self.handle_table_created(v).await,
-            Msg::TableUpdated(v) => self.handle_updated_table(v).await,
+            Event::NamespaceCreated(v) => self.handle_namespace_created(v).await,
+            Event::TableCreated(v) => self.handle_table_created(v).await,
+            Event::TableUpdated(v) => self.handle_updated_table(v).await,
         };
 
         if let Err(error) = res {
@@ -456,7 +456,7 @@ mod tests {
     test_handle_gossip_message_!(
         table_created_namespace_miss,
         existing = None,
-        message = Msg::TableCreated(TableCreated {
+        message = Event::TableCreated(TableCreated {
             table: Some(TableUpdated {
                 table_name: "bananas".to_string(),
                 namespace_name: NAMESPACE_NAME.to_string(),
@@ -474,7 +474,7 @@ mod tests {
     test_handle_gossip_message_!(
         table_created_no_columns,
         existing = Some(DEFAULT_NAMESPACE.clone()),
-        message = Msg::TableCreated(TableCreated {
+        message = Event::TableCreated(TableCreated {
             table: Some(TableUpdated {
                 table_name: "bananas".to_string(),
                 namespace_name: NAMESPACE_NAME.to_string(),
@@ -507,7 +507,7 @@ mod tests {
     test_handle_gossip_message_!(
         table_created,
         existing = Some(DEFAULT_NAMESPACE.clone()),
-        message = Msg::TableCreated(TableCreated {
+        message = Event::TableCreated(TableCreated {
             table: Some(TableUpdated {
                 table_name: "bananas".to_string(),
                 namespace_name: NAMESPACE_NAME.to_string(),
@@ -550,7 +550,7 @@ mod tests {
     test_handle_gossip_message_!(
         table_created_no_partition_template,
         existing = Some(DEFAULT_NAMESPACE.clone()),
-        message = Msg::TableCreated(TableCreated {
+        message = Event::TableCreated(TableCreated {
             table: Some(TableUpdated {
                 table_name: "bananas".to_string(),
                 namespace_name: NAMESPACE_NAME.to_string(),
@@ -597,7 +597,7 @@ mod tests {
             ns
         }),
         // Send a gossip message adding a new column to the above
-        message = Msg::TableCreated(TableCreated {
+        message = Event::TableCreated(TableCreated {
             table: Some(TableUpdated {
                 table_name: "bananas".to_string(),
                 namespace_name: NAMESPACE_NAME.to_string(),
@@ -663,7 +663,7 @@ mod tests {
             ns
         }),
         // Send a gossip message adding a new column to the above
-        message = Msg::TableCreated(TableCreated {
+        message = Event::TableCreated(TableCreated {
             table: Some(TableUpdated {
                 table_name: "bananas".to_string(),
                 namespace_name: NAMESPACE_NAME.to_string(),
@@ -711,7 +711,7 @@ mod tests {
     test_handle_gossip_message_!(
         table_created_missing_update,
         existing = Some(DEFAULT_NAMESPACE),
-        message = Msg::TableCreated(TableCreated {
+        message = Event::TableCreated(TableCreated {
             table: None, // No inner content!
             partition_template: None,
         }),
@@ -724,7 +724,7 @@ mod tests {
     test_handle_gossip_message_!(
         table_created_missing_namespace_name,
         existing = Some(DEFAULT_NAMESPACE),
-        message = Msg::TableCreated(TableCreated {
+        message = Event::TableCreated(TableCreated {
             table: Some(TableUpdated {
                 table_name: "bananas".to_string(),
                 namespace_name: "".to_string(), // empty is missing in proto
@@ -742,7 +742,7 @@ mod tests {
     test_handle_gossip_message_!(
         table_updated_missing_namespace_name,
         existing = Some(DEFAULT_NAMESPACE),
-        message = Msg::TableUpdated(TableUpdated {
+        message = Event::TableUpdated(TableUpdated {
             table_name: "bananas".to_string(),
             namespace_name: "".to_string(), // empty is missing in proto
             table_id: 42,
@@ -757,7 +757,7 @@ mod tests {
     test_handle_gossip_message_!(
         table_updated_missing_namespace,
         existing = Some(DEFAULT_NAMESPACE),
-        message = Msg::TableUpdated(TableUpdated {
+        message = Event::TableUpdated(TableUpdated {
             table_name: "bananas".to_string(),
             namespace_name: "another".to_string(), // not known locally
             table_id: 42,
@@ -772,7 +772,7 @@ mod tests {
     test_handle_gossip_message_!(
         table_updated_missing_table,
         existing = Some(DEFAULT_NAMESPACE),
-        message = Msg::TableUpdated(TableUpdated {
+        message = Event::TableUpdated(TableUpdated {
             table_name: "bananas".to_string(), // Table not known locally
             namespace_name: NAMESPACE_NAME.to_string(),
             table_id: 42,
@@ -806,7 +806,7 @@ mod tests {
 
             ns
         }),
-        message = Msg::TableUpdated(TableUpdated {
+        message = Event::TableUpdated(TableUpdated {
             table_name: "bananas".to_string(), // Table not known locally
             namespace_name: NAMESPACE_NAME.to_string(),
             table_id: 42,
@@ -856,7 +856,7 @@ mod tests {
     test_handle_gossip_message_!(
         namespace_created_missing_name,
         existing = None,
-        message = Msg::NamespaceCreated(NamespaceCreated {
+        message = Event::NamespaceCreated(NamespaceCreated {
             namespace_name: "".to_string(), // missing in proto
             namespace_id: DEFAULT_NAMESPACE.id.get(),
             partition_template: Some((**PARTITION_BY_DAY_PROTO).clone()),
@@ -871,7 +871,7 @@ mod tests {
     test_handle_gossip_message_!(
         namespace_created,
         existing = None,
-        message = Msg::NamespaceCreated(NamespaceCreated {
+        message = Event::NamespaceCreated(NamespaceCreated {
             namespace_name: NAMESPACE_NAME.to_string(),
             namespace_id: DEFAULT_NAMESPACE.id.get(),
             partition_template: None,
@@ -889,7 +889,7 @@ mod tests {
     test_handle_gossip_message_!(
         namespace_created_specified_partition_template,
         existing = None,
-        message = Msg::NamespaceCreated(NamespaceCreated {
+        message = Event::NamespaceCreated(NamespaceCreated {
             namespace_name: NAMESPACE_NAME.to_string(), // missing in proto
             namespace_id: DEFAULT_NAMESPACE.id.get(),
             partition_template: Some((**PARTITION_BY_DAY_PROTO).clone()),
@@ -908,7 +908,7 @@ mod tests {
     test_handle_gossip_message_!(
         namespace_created_existing,
         existing = Some(DEFAULT_NAMESPACE),
-        message = Msg::NamespaceCreated(NamespaceCreated {
+        message = Event::NamespaceCreated(NamespaceCreated {
             namespace_name: NAMESPACE_NAME.to_string(), // missing in proto
             namespace_id: DEFAULT_NAMESPACE.id.get(),
 

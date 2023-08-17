@@ -4,9 +4,9 @@ option go_package = "github.com/influxdata/iox/gossip/v1";
 
 import "influxdata/iox/partition_template/v1/template.proto";
 
-// A message exchanged via the IOx gossip mechanism.
-message GossipMessage {
-  oneof msg {
+// A message exchanged via the IOx gossip mechanism describing schema changes.
+message SchemaMessage {
+  oneof event {
     // A new namespace was created.
     NamespaceCreated namespace_created = 1;
 
