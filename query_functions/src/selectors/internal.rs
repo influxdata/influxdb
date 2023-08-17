@@ -222,16 +222,24 @@ impl Selector {
                 .expect("Second argument was time");
 
             // Note: we still use the MINIMUM timestamp here even if this is the max VALUE aggregator.
-            self.time = match (array_min(time_arr), self.time) {
-                (Some(x), Some(y)) if x < y => Some(x),
-                (Some(_), Some(x)) => Some(x),
-                (None, Some(x)) => Some(x),
-                (Some(x), None) => Some(x),
-                (None, None) => None,
+            let found_new_time = match (array_min(time_arr), self.time) {
+                (Some(x), Some(y)) => {
+                    if x < y {
+                        self.time = Some(x);
+                        true
+                    } else {
+                        false
+                    }
+                }
+                (Some(x), None) => {
+                    self.time = Some(x);
+                    true
+                }
+                (None, _) => false,
             };
 
             // update other if required
-            if !self.other.is_empty() {
+            if found_new_time && !self.other.is_empty() {
                 let index = time_arr
                     .iter()
                     // arrow doesn't tell us what index had the
