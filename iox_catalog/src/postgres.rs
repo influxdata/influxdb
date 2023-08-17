@@ -1501,6 +1501,13 @@ LIMIT $1;"#,
     }
 
     async fn list_old_style(&mut self) -> Result<Vec<Partition>> {
+        // Correctness: the main caller of this function, the partition bloom
+        // filter, relies on all partitions being made available to it.
+        //
+        // This function MUST return the full set of old partitions to the
+        // caller - do NOT apply a LIMIT to this query.
+        //
+        // The load this query saves vastly outsizes the load this query causes.
         sqlx::query_as(
             r#"
 SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, persisted_sequence_number,
