@@ -204,13 +204,23 @@ impl Executor {
             register_iox_object_store(&runtime, id, Arc::clone(store));
         }
 
+        // As there should only be a single memory pool for any executor,
+        // verify that there was no existing instrument registered (for another pool)
+        let mut created = false;
+        let created_captured = &mut created;
+        let bridge =
+            DataFusionMemoryPoolMetricsBridge::new(&runtime.memory_pool, config.mem_pool_size);
+        let bridge_ctor = move || {
+            *created_captured = true;
+            bridge
+        };
         config
             .metric_registry
-            .register_instrument(
-                "datafusion_pool",
-                DataFusionMemoryPoolMetricsBridge::default,
-            )
-            .register_pool(&runtime.memory_pool, config.mem_pool_size);
+            .register_instrument("datafusion_pool", bridge_ctor);
+        assert!(
+            created,
+            "More than one execution pool created: previously existing instrument"
+        );
 
         Self {
             executors,
@@ -750,15 +760,11 @@ mod tests {
             registry.report(&mut reporter);
             let metric = reporter.metric("datafusion_mem_pool_bytes").unwrap();
 
-            let reserved = metric
-                .observation(&[("pool_id", "0"), ("state", "reserved")])
-                .unwrap();
+            let reserved = metric.observation(&[("state", "reserved")]).unwrap();
             let Observation::U64Gauge(reserved) = reserved else {
                 panic!("wrong metric type")
             };
-            let limit = metric
-                .observation(&[("pool_id", "0"), ("state", "limit")])
-                .unwrap();
+            let limit = metric.observation(&[("state", "limit")]).unwrap();
             let Observation::U64Gauge(limit) = limit else {
                 panic!("wrong metric type")
             };
