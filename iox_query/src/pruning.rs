@@ -14,7 +14,6 @@ use datafusion::{
 };
 use datafusion_util::create_pruning_predicate;
 use observability_deps::tracing::{debug, trace, warn};
-use predicate::Predicate;
 use query_functions::group_by::Aggregate;
 use schema::{Schema, TIME_COLUMN_NAME};
 use std::sync::Arc;
@@ -75,15 +74,15 @@ pub trait PruningObserver {
 pub fn prune_chunks(
     table_schema: &Schema,
     chunks: &[Arc<dyn QueryChunk>],
-    predicate: &Predicate,
+    filters: &[Expr],
 ) -> Result<Vec<bool>, NotPrunedReason> {
     let num_chunks = chunks.len();
-    debug!(num_chunks, %predicate, "Pruning chunks");
+    debug!(num_chunks, ?filters, "Pruning chunks");
     let summaries: Vec<_> = chunks
         .iter()
         .map(|c| (c.stats(), c.schema().as_arrow()))
         .collect();
-    prune_summaries(table_schema, &summaries, predicate)
+    prune_summaries(table_schema, &summaries, filters)
 }
 
 /// Given a `Vec` of pruning summaries, return a `Vec<bool>` where `false` indicates that the
@@ -91,9 +90,9 @@ pub fn prune_chunks(
 pub fn prune_summaries(
     table_schema: &Schema,
     summaries: &[(Arc<Statistics>, SchemaRef)],
-    predicate: &Predicate,
+    filters: &[Expr],
 ) -> Result<Vec<bool>, NotPrunedReason> {
-    let filter_expr = match predicate.filter_expr() {
+    let filter_expr = match filters.iter().cloned().reduce(|a, b| a.and(b)) {
         Some(expr) => expr,
         None => {
             debug!("No expression on predicate");
@@ -219,7 +218,6 @@ mod test {
 
     use datafusion::prelude::{col, lit};
     use datafusion_util::lit_dict;
-    use predicate::Predicate;
     use schema::merge::SchemaMerger;
 
     use crate::{test::TestChunk, QueryChunk};
@@ -231,8 +229,7 @@ mod test {
         test_helpers::maybe_start_logging();
         let c1 = Arc::new(TestChunk::new("chunk1"));
 
-        let predicate = Predicate::new();
-        let result = prune_chunks(&c1.schema().clone(), &[c1], &predicate);
+        let result = prune_chunks(&c1.schema().clone(), &[c1], &[]);
 
         assert_eq!(result, Err(NotPrunedReason::NoExpressionOnPredicate));
     }
@@ -248,9 +245,9 @@ mod test {
             Some(10.0),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100.0f64)));
+        let filters = vec![col("column1").gt(lit(100.0f64))];
 
-        let result = prune_chunks(&c1.schema().clone(), &[c1], &predicate);
+        let result = prune_chunks(&c1.schema().clone(), &[c1], &filters);
         assert_eq!(result.expect("pruning succeeds"), vec![false]);
     }
 
@@ -266,9 +263,9 @@ mod test {
             Some(10),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100i64)));
+        let filters = vec![col("column1").gt(lit(100i64))];
 
-        let result = prune_chunks(&c1.schema().clone(), &[c1], &predicate);
+        let result = prune_chunks(&c1.schema().clone(), &[c1], &filters);
 
         assert_eq!(result.expect("pruning succeeds"), vec![false]);
     }
@@ -285,9 +282,9 @@ mod test {
             Some(10),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100u64)));
+        let filters = vec![col("column1").gt(lit(100u64))];
 
-        let result = prune_chunks(&c1.schema().clone(), &[c1], &predicate);
+        let result = prune_chunks(&c1.schema().clone(), &[c1], &filters);
         assert_eq!(result.expect("pruning succeeds"), vec![false]);
     }
 
@@ -302,9 +299,9 @@ mod test {
             Some(false),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1"));
+        let filters = vec![col("column1")];
 
-        let result = prune_chunks(&c1.schema().clone(), &[c1], &predicate);
+        let result = prune_chunks(&c1.schema().clone(), &[c1], &filters);
         assert_eq!(result.expect("pruning succeeds"), vec![false; 1]);
     }
 
@@ -322,9 +319,9 @@ mod test {
             ),
         );
 
-        let predicate = Predicate::new().with_expr(col("column1").gt(lit("z")));
+        let filters = vec![col("column1").gt(lit("z"))];
 
-        let result = prune_chunks(&c1.schema().clone(), &[c1], &predicate);
+        let result = prune_chunks(&c1.schema().clone(), &[c1], &filters);
         assert_eq!(result.expect("pruning succeeds"), vec![false]);
     }
 
@@ -339,9 +336,9 @@ mod test {
             Some(10.0),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1").lt(lit(100.0f64)));
+        let filters = vec![col("column1").lt(lit(100.0f64))];
 
-        let result = prune_chunks(&c1.schema().clone(), &[c1], &predicate);
+        let result = prune_chunks(&c1.schema().clone(), &[c1], &filters);
         assert_eq!(result.expect("pruning succeeds"), vec![true]);
     }
 
@@ -357,9 +354,9 @@ mod test {
             Some(10),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1").lt(lit(100i64)));
+        let filters = vec![col("column1").lt(lit(100i64))];
 
-        let result = prune_chunks(&c1.schema().clone(), &[c1], &predicate);
+        let result = prune_chunks(&c1.schema().clone(), &[c1], &filters);
         assert_eq!(result.expect("pruning succeeds"), vec![true]);
     }
 
@@ -375,9 +372,9 @@ mod test {
             Some(10),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1").lt(lit(100u64)));
+        let filters = vec![col("column1").lt(lit(100u64))];
 
-        let result = prune_chunks(&c1.schema().clone(), &[c1], &predicate);
+        let result = prune_chunks(&c1.schema().clone(), &[c1], &filters);
         assert_eq!(result.expect("pruning succeeds"), vec![true]);
     }
 
@@ -393,9 +390,9 @@ mod test {
             Some(true),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1"));
+        let filters = vec![col("column1")];
 
-        let result = prune_chunks(&c1.schema().clone(), &[c1], &predicate);
+        let result = prune_chunks(&c1.schema().clone(), &[c1], &filters);
         assert_eq!(result.expect("pruning succeeds"), vec![true]);
     }
 
@@ -413,9 +410,9 @@ mod test {
             ),
         );
 
-        let predicate = Predicate::new().with_expr(col("column1").lt(lit("z")));
+        let filters = vec![col("column1").lt(lit("z"))];
 
-        let result = prune_chunks(&c1.schema().clone(), &[c1], &predicate);
+        let result = prune_chunks(&c1.schema().clone(), &[c1], &filters);
         assert_eq!(result.expect("pruning succeeds"), vec![true]);
     }
 
@@ -455,12 +452,12 @@ mod test {
         let c4 = Arc::new(TestChunk::new("chunk4").with_i64_field_column("column1"))
             as Arc<dyn QueryChunk>;
 
-        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100i64)));
+        let filters = vec![col("column1").gt(lit(100i64))];
 
         let chunks = vec![c1, c2, c3, c4];
         let schema = merge_schema(&chunks);
 
-        let result = prune_chunks(&schema, &chunks, &predicate);
+        let result = prune_chunks(&schema, &chunks, &filters);
 
         assert_eq!(
             result.expect("pruning succeeds"),
@@ -513,12 +510,12 @@ mod test {
             Some(20),
         )) as Arc<dyn QueryChunk>;
 
-        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100i64)));
+        let filters = vec![col("column1").gt(lit(100i64))];
 
         let chunks = vec![c1, c2, c3, c4, c5, c6];
         let schema = merge_schema(&chunks);
 
-        let result = prune_chunks(&schema, &chunks, &predicate);
+        let result = prune_chunks(&schema, &chunks, &filters);
 
         assert_eq!(
             result.expect("pruning succeeds"),
@@ -551,12 +548,12 @@ mod test {
             Some(4),
         )) as Arc<dyn QueryChunk>;
 
-        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100i64)));
+        let filters = vec![col("column1").gt(lit(100i64))];
 
         let chunks = vec![c1, c2, c3];
         let schema = merge_schema(&chunks);
 
-        let result = prune_chunks(&schema, &chunks, &predicate);
+        let result = prune_chunks(&schema, &chunks, &filters);
 
         assert_eq!(result.expect("pruning succeeds"), vec![false, true, true]);
     }
@@ -604,17 +601,15 @@ mod test {
             ),
         ) as Arc<dyn QueryChunk>;
 
-        let predicate = Predicate::new().with_expr(
-            col("column1")
-                .is_null()
-                .not()
-                .and(col("column1").eq(lit_dict("bar"))),
-        );
+        let filters = vec![col("column1")
+            .is_null()
+            .not()
+            .and(col("column1").eq(lit_dict("bar")))];
 
         let chunks = vec![c1, c2, c3];
         let schema = merge_schema(&chunks);
 
-        let result = prune_chunks(&schema, &chunks, &predicate);
+        let result = prune_chunks(&schema, &chunks, &filters);
 
         assert_eq!(result.expect("pruning succeeds"), vec![true, false, false]);
     }
@@ -666,16 +661,14 @@ mod test {
                 .with_i64_field_column_with_stats("column2", Some(0), Some(4)),
         ) as Arc<dyn QueryChunk>;
 
-        let predicate = Predicate::new().with_expr(
-            col("column1")
-                .gt(lit(100i64))
-                .and(col("column2").lt(lit(5i64))),
-        );
+        let filters = vec![col("column1")
+            .gt(lit(100i64))
+            .and(col("column2").lt(lit(5i64)))];
 
         let chunks = vec![c1, c2, c3, c4, c5, c6];
         let schema = merge_schema(&chunks);
 
-        let result = prune_chunks(&schema, &chunks, &predicate);
+        let result = prune_chunks(&schema, &chunks, &filters);
 
         assert_eq!(
             result.expect("Pruning succeeds"),

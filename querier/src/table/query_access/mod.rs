@@ -16,7 +16,6 @@ use iox_query::{
     pruning::{prune_chunks, retention_expr, NotPrunedReason, PruningObserver},
     QueryChunk,
 };
-use predicate::Predicate;
 use schema::Schema;
 
 use crate::{ingester::IngesterChunk, parquet::QuerierParquetChunk};
@@ -118,8 +117,7 @@ impl ChunkPruner for QuerierTableChunkPruner {
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ProviderError> {
         let observer = &MetricPruningObserver::new(Arc::clone(&self.metrics));
 
-        let predicate = Predicate::default().with_exprs(filters.iter().cloned());
-        let chunks = match prune_chunks(table_schema, &chunks, &predicate) {
+        let chunks = match prune_chunks(table_schema, &chunks, filters) {
             Ok(keeps) => {
                 assert_eq!(chunks.len(), keeps.len());
                 chunks

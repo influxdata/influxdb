@@ -1800,7 +1800,8 @@ fn prune_chunks(
 ) -> Vec<Arc<dyn QueryChunk>> {
     use iox_query::pruning::prune_chunks;
 
-    let Ok(mask) = prune_chunks(table_schema, &chunks, predicate) else {
+    let filters = predicate.filter_expr().into_iter().collect::<Vec<_>>();
+    let Ok(mask) = prune_chunks(table_schema, &chunks, &filters) else {
         return chunks;
     };
 
