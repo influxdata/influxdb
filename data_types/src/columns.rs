@@ -124,6 +124,12 @@ impl IntoIterator for ColumnsByName {
     }
 }
 
+impl FromIterator<(String, ColumnSchema)> for ColumnsByName {
+    fn from_iter<T: IntoIterator<Item = (String, ColumnSchema)>>(iter: T) -> Self {
+        Self(BTreeMap::from_iter(iter))
+    }
+}
+
 // ColumnsByName is a newtype so that we can implement this `TryFrom` in this crate
 impl TryFrom<ColumnsByName> for Schema {
     type Error = schema::builder::Error;
