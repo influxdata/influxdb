@@ -1681,13 +1681,17 @@ pub trait ErrorLogger {
     fn log_if_error(self, context: &str) -> Self;
 
     /// Provided method to log an error via the `error!` macro
-    fn log_error<E: std::fmt::Debug>(context: &str, e: E) {
-        error!("Error {}: {:?}", context, e);
+    fn log_error<E: std::error::Error>(context: &str, e: E) {
+        error!(
+            %e,
+            context,
+            "error while processing InfluxRPC request",
+        );
     }
 }
 
 /// Implement logging for all results
-impl<T, E: std::fmt::Debug> ErrorLogger for Result<T, E> {
+impl<T, E: std::error::Error> ErrorLogger for Result<T, E> {
     fn log_if_error(self, context: &str) -> Self {
         if let Err(e) = &self {
             Self::log_error(context, e);
