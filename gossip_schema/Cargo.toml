@@ -1,0 +1,29 @@
+[package]
+name = "gossip_schema"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-trait = "0.1"
+bytes = "1.4"
+data_types = { path = "../data_types" }
+generated_types = { path = "../generated_types" }
+gossip = { version = "0.1.0", path = "../gossip" }
+observability_deps = { path = "../observability_deps" }
+thiserror = "1.0"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+
+[dev-dependencies]
+assert_matches = "1.5"
+metric = { path = "../metric" }
+parking_lot = "0.12"
+paste = "1.0.14"
+proptest = { version = "1.2.0", default-features = false }
+test_helpers = { version = "0.1.0", path = "../test_helpers", features = [
+    "future_timeout",
+] }
+tokio = { version = "1", features = ["test-util"] }

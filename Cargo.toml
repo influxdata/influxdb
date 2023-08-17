@@ -18,6 +18,7 @@ members = [
     "garbage_collector",
     "generated_types",
     "gossip",
+    "gossip_schema",
     "grpc-binary-logger-proto",
     "grpc-binary-logger-test-proto",
     "grpc-binary-logger",
