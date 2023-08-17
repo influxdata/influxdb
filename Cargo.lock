@@ -2925,6 +2925,7 @@ name = "iox_query_influxrpc"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow_util",
  "data_types",
  "datafusion",
  "datafusion_util",

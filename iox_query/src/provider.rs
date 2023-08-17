@@ -8,16 +8,17 @@ use arrow::{
     error::ArrowError,
 };
 use datafusion::{
-    datasource::TableProvider,
+    datasource::{provider_as_source, TableProvider},
     error::{DataFusionError, Result as DataFusionResult},
     execution::context::SessionState,
-    logical_expr::{TableProviderFilterPushDown, TableType},
+    logical_expr::{LogicalPlanBuilder, TableProviderFilterPushDown, TableType},
     optimizer::utils::{conjunction, split_conjunction},
     physical_plan::{
         expressions::col as physical_col, filter::FilterExec, projection::ProjectionExec,
         ExecutionPlan,
     },
     prelude::Expr,
+    sql::TableReference,
 };
 use observability_deps::tracing::trace;
 use schema::{sort::SortKey, Schema};
@@ -177,6 +178,22 @@ impl ChunkTableProvider {
     pub fn deduplication(&self) -> bool {
         self.deduplication
     }
+
+    /// Convert into a logical plan builder.
+    pub fn into_logical_plan_builder(
+        self: Arc<Self>,
+    ) -> Result<LogicalPlanBuilder, DataFusionError> {
+        let table_name = self.table_name().to_owned();
+        let source = provider_as_source(self as _);
+
+        // Scan all columns (DataFusion optimizer will prune this
+        // later if possible)
+        let projection = None;
+
+        // Do not parse the tablename as a SQL identifer, but use as is
+        let table_ref = TableReference::bare(table_name);
+        LogicalPlanBuilder::scan(table_ref, source, projection)
+    }
 }
 
 #[async_trait]
@@ -306,10 +323,10 @@ mod test {
     use super::*;
     use crate::{
         exec::IOxSessionContext,
+        pruning::retention_expr,
         test::{format_execution_plan, TestChunk},
     };
     use datafusion::prelude::{col, lit};
-    use predicate::Predicate;
 
     #[tokio::test]
     async fn provider_scan_default() {
@@ -516,10 +533,7 @@ mod test {
     #[tokio::test]
     async fn provider_scan_retention() {
         let table_name = "t";
-        let pred = Predicate::default()
-            .with_retention(100)
-            .filter_expr()
-            .unwrap();
+        let pred = retention_expr(100);
         let chunk1 = Arc::new(
             TestChunk::new(table_name)
                 .with_id(1)
