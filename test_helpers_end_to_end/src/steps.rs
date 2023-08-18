@@ -606,6 +606,12 @@ where
                     namespace_name,
                     expected,
                 } => {
+                    info!("====Persist ingesters to ensure catalog partition records exist");
+                    state
+                        .cluster()
+                        .persist_ingesters_by_namespace(namespace_name.clone())
+                        .await;
+
                     info!("====Begin reading partition keys for table: {}", table_name);
                     let partition_keys = state
                         .cluster()

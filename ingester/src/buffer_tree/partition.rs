@@ -991,6 +991,8 @@ mod tests {
         let catalog: Arc<dyn Catalog> =
             Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
 
+        let partition_key = PartitionKey::from("test");
+
         // Populate the catalog with the namespace / table
         let (_ns_id, table_id) = populate_catalog(&*catalog, "bananas", "platanos").await;
 
@@ -998,7 +1000,7 @@ mod tests {
             .repositories()
             .await
             .partitions()
-            .create_or_get("test".into(), table_id)
+            .create_or_get(partition_key.clone(), table_id)
             .await
             .expect("should create");
 
@@ -1014,7 +1016,8 @@ mod tests {
         let fetcher = Arc::new(DeferredLoad::new(
             Duration::from_nanos(1),
             SortKeyResolver::new(
-                partition.transition_partition_id(),
+                partition_key.clone(),
+                table_id,
                 Arc::clone(&catalog),
                 backoff_config.clone(),
             )

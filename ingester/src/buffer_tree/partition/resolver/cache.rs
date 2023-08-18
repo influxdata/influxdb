@@ -179,7 +179,8 @@ where
             let sort_key_resolver = DeferredLoad::new(
                 self.max_smear,
                 SortKeyResolver::new(
-                    partition_id.clone(),
+                    partition_key.clone(),
+                    table_id,
                     Arc::clone(&__self.catalog),
                     self.backoff_config.clone(),
                 )

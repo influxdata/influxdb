@@ -3,26 +3,29 @@
 use std::sync::Arc;
 
 use backoff::{Backoff, BackoffConfig};
-use data_types::TransitionPartitionId;
-use iox_catalog::{interface::Catalog, partition_lookup};
+use data_types::{PartitionKey, TableId};
+use iox_catalog::interface::Catalog;
 use schema::sort::SortKey;
 
-/// A resolver of [`SortKey`] from the catalog for a given [`TransitionPartitionId`].
+/// A resolver of [`SortKey`] from the catalog for a given [`PartitionKey`]/[`TableId`] pair.
 #[derive(Debug)]
 pub(crate) struct SortKeyResolver {
-    partition_id: TransitionPartitionId,
+    partition_key: PartitionKey,
+    table_id: TableId,
     backoff_config: BackoffConfig,
     catalog: Arc<dyn Catalog>,
 }
 
 impl SortKeyResolver {
     pub(crate) fn new(
-        partition_id: TransitionPartitionId,
+        partition_key: PartitionKey,
+        table_id: TableId,
         catalog: Arc<dyn Catalog>,
         backoff_config: BackoffConfig,
     ) -> Self {
         Self {
-            partition_id,
+            partition_key,
+            table_id,
             backoff_config,
             catalog,
         }
@@ -34,14 +37,10 @@ impl SortKeyResolver {
         Backoff::new(&self.backoff_config)
             .retry_all_errors("fetch partition sort key", || async {
                 let mut repos = self.catalog.repositories().await;
-                let s = partition_lookup(repos.as_mut(), &self.partition_id)
+                let s = repos
+                    .partitions()
+                    .create_or_get(self.partition_key.clone(), self.table_id)
                     .await?
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "resolving sort key for non-existent partition ID {}",
-                            self.partition_id
-                        )
-                    })
                     .sort_key();
 
                 Result::<_, iox_catalog::interface::Error>::Ok(s)
@@ -81,7 +80,8 @@ mod tests {
             .expect("should create");
 
         let fetcher = SortKeyResolver::new(
-            partition.transition_partition_id(),
+            PARTITION_KEY.into(),
+            table_id,
             Arc::clone(&catalog),
             backoff_config.clone(),
         );

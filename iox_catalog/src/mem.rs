@@ -789,6 +789,19 @@ impl PartitionRepo for MemTxn {
 
         Ok(partitions)
     }
+
+    async fn list_old_style(&mut self) -> Result<Vec<Partition>> {
+        let stage = self.stage();
+
+        let old_style: Vec<_> = stage
+            .partitions
+            .iter()
+            .filter(|p| p.hash_id().is_none())
+            .cloned()
+            .collect();
+
+        Ok(old_style)
+    }
 }
 
 #[async_trait]

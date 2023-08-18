@@ -1499,6 +1499,27 @@ LIMIT $1;"#,
             .await
             .map_err(|e| Error::SqlxError { source: e })
     }
+
+    async fn list_old_style(&mut self) -> Result<Vec<Partition>> {
+        // Correctness: the main caller of this function, the partition bloom
+        // filter, relies on all partitions being made available to it.
+        //
+        // This function MUST return the full set of old partitions to the
+        // caller - do NOT apply a LIMIT to this query.
+        //
+        // The load this query saves vastly outsizes the load this query causes.
+        sqlx::query_as(
+            r#"
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, persisted_sequence_number,
+       new_file_at
+FROM partition
+WHERE hash_id IS NULL
+ORDER BY id DESC;"#,
+        )
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
 }
 
 #[async_trait]
@@ -2237,6 +2258,18 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
             parquet_file.partition_id,
             TransitionPartitionId::Deprecated(_)
         );
+
+        // Add a partition record WITH a hash ID
+        repos
+            .partitions()
+            .create_or_get(PartitionKey::from("Something else"), table_id)
+            .await
+            .unwrap();
+
+        // Ensure we can list only the old-style partitions
+        let old_style_partitions = repos.partitions().list_old_style().await.unwrap();
+        assert_eq!(old_style_partitions.len(), 1);
+        assert_eq!(old_style_partitions[0].id, partition.id);
     }
 
     #[test]

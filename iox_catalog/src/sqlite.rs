@@ -1203,6 +1203,23 @@ LIMIT $1;
             .await
             .map_err(|e| Error::SqlxError { source: e })
     }
+
+    async fn list_old_style(&mut self) -> Result<Vec<Partition>> {
+        Ok(sqlx::query_as::<_, PartitionPod>(
+            r#"
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
+FROM partition
+WHERE hash_id IS NULL
+ORDER BY id DESC;
+        "#,
+        )
+        .fetch_all(self.inner.get_mut())
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+    }
 }
 
 fn from_column_set(v: &ColumnSet) -> Json<Vec<i64>> {
@@ -1796,7 +1813,7 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
         let partition = &table_partitions[0];
 
         // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent
-        // and that the hash_id will still be set by `Partition::new`
+        // and that the hash_id still doesn't get set.
         let inserted_again = repos
             .partitions()
             .create_or_get(key, table_id)
@@ -1817,6 +1834,18 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
             parquet_file.partition_id,
             TransitionPartitionId::Deprecated(_)
         );
+
+        // Add a partition record WITH a hash ID
+        repos
+            .partitions()
+            .create_or_get(PartitionKey::from("Something else"), table_id)
+            .await
+            .unwrap();
+
+        // Ensure we can list only the old-style partitions
+        let old_style_partitions = repos.partitions().list_old_style().await.unwrap();
+        assert_eq!(old_style_partitions.len(), 1);
+        assert_eq!(old_style_partitions[0].id, partition.id);
     }
 
     macro_rules! test_column_create_or_get_many_unchecked {
