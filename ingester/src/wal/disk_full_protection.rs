@@ -114,6 +114,7 @@ pub(crate) async fn guard_disk_capacity<P>(
         // meaningful and is likely a signal that shutdown has been invoked
         // - abort the task..
         if disk_snapshot_rx.changed().await.is_err() {
+            info!("stopping disk full protection task");
             return;
         }
 
