@@ -563,16 +563,20 @@ impl MiniCluster {
         Ok(IngesterResponse { partitions })
     }
 
-    /// Ask all of the ingesters to persist their data.
+    /// Ask all of the ingesters to persist their data for the cluster namespace.
     pub async fn persist_ingesters(&self) {
+        self.persist_ingesters_by_namespace(None).await;
+    }
+
+    /// Ask all of the ingesters to persist their data for a specified namespace, or the cluster
+    /// namespace if none specified.
+    pub async fn persist_ingesters_by_namespace(&self, namespace: Option<String>) {
+        let namespace = namespace.unwrap_or_else(|| self.namespace().into());
         for ingester in &self.ingesters {
             let mut ingester_client =
                 influxdb_iox_client::ingester::Client::new(ingester.ingester_grpc_connection());
 
-            ingester_client
-                .persist(self.namespace().into())
-                .await
-                .unwrap();
+            ingester_client.persist(namespace.clone()).await.unwrap();
         }
     }
 
