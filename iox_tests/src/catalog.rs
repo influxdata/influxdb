@@ -336,6 +336,8 @@ impl TestTable {
             )
             .await
             .unwrap();
+        // Test: sort_key_ids after updating
+        assert!(partition.sort_key_ids.is_none());
 
         Arc::new(TestPartition {
             catalog: Arc::clone(&self.catalog),
@@ -460,6 +462,8 @@ impl TestPartition {
             )
             .await
             .unwrap();
+        // Test: sort_key_ids after updating
+        assert!(partition.sort_key_ids.is_none());
 
         Arc::new(Self {
             catalog: Arc::clone(&self.catalog),
@@ -788,7 +792,7 @@ async fn update_catalog_sort_key_if_needed<R>(
                     catalog_sort_key.to_columns().collect::<Vec<_>>(),
                     &new_columns,
                 );
-                repos
+                let updated_partition = repos
                     .partitions()
                     .cas_sort_key(
                         id,
@@ -802,16 +806,20 @@ async fn update_catalog_sort_key_if_needed<R>(
                     )
                     .await
                     .unwrap();
+                // Test: sort_key_ids after updating
+                assert!(updated_partition.sort_key_ids.is_none());
             }
         }
         None => {
             let new_columns = sort_key.to_columns().collect::<Vec<_>>();
             debug!("Updating sort key from None to {:?}", &new_columns);
-            repos
+            let updated_partition = repos
                 .partitions()
                 .cas_sort_key(id, None, &new_columns)
                 .await
                 .unwrap();
+            // Test: sort_key_ids after updating
+            assert!(updated_partition.sort_key_ids.is_none());
         }
     }
 }

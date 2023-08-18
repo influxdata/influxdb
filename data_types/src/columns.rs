@@ -330,8 +330,9 @@ impl TryFrom<proto::column_schema::ColumnType> for ColumnType {
     }
 }
 
-/// Set of columns.
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::Type)]
+/// Set of columns and used as Set data type.
+/// Its inner is implemneted as a vector because postgres does not have set type
+#[derive(Debug, Clone, PartialEq, Eq, Hash, sqlx::Type)]
 #[sqlx(transparent, no_pg_array)]
 pub struct ColumnSet(Vec<ColumnId>);
 
@@ -379,6 +380,66 @@ impl Deref for ColumnSet {
     }
 }
 
+/// Set of sorted columns in a specific given order at created time
+#[derive(Debug, Clone, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent, no_pg_array)]
+pub struct SortedColumnSet(Vec<ColumnId>);
+
+impl SortedColumnSet {
+    /// Create new sorted column set.
+    ///
+    /// The order of the passed columns will be preserved.
+    ///
+    /// # Panic
+    /// Panics when the set of passed columns contains duplicates.
+    pub fn new<I>(columns: I) -> Self
+    where
+        I: IntoIterator<Item = ColumnId>,
+    {
+        let mut columns: Vec<ColumnId> = columns.into_iter().collect();
+
+        // verify if there are duplicates
+        let mut columns_sorted = columns.clone();
+        columns_sorted.sort();
+        let len_pre_dedup = columns_sorted.len();
+        columns_sorted.dedup();
+        let len_post_dedup = columns_sorted.len();
+        assert_eq!(len_pre_dedup, len_post_dedup, "set contains duplicates");
+
+        // Must continue with columns in original order
+        columns.shrink_to_fit();
+        Self(columns)
+    }
+
+    /// Estimate the memory consumption of this object and its contents
+    pub fn size(&self) -> usize {
+        std::mem::size_of_val(self) + (std::mem::size_of::<ColumnId>() * self.0.capacity())
+    }
+}
+
+impl From<SortedColumnSet> for Vec<ColumnId> {
+    fn from(set: SortedColumnSet) -> Self {
+        set.0
+    }
+}
+
+impl Deref for SortedColumnSet {
+    type Target = [ColumnId];
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+impl<I> From<I> for SortedColumnSet
+where
+    I: IntoIterator<Item = i64>,
+{
+    fn from(ids: I) -> Self {
+        Self::new(ids.into_iter().map(ColumnId::new).collect::<Vec<_>>())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
@@ -389,6 +450,26 @@ mod tests {
     #[should_panic = "set contains duplicates"]
     fn test_column_set_duplicates() {
         ColumnSet::new([ColumnId::new(1), ColumnId::new(2), ColumnId::new(1)]);
+    }
+
+    #[test]
+    #[should_panic = "set contains duplicates"]
+    fn test_sorted_column_set_duplicates() {
+        SortedColumnSet::new([
+            ColumnId::new(2),
+            ColumnId::new(1),
+            ColumnId::new(3),
+            ColumnId::new(1),
+        ]);
+    }
+
+    #[test]
+    fn test_sorted_column_set() {
+        let set = SortedColumnSet::new([ColumnId::new(2), ColumnId::new(1), ColumnId::new(3)]);
+        // verify the order is preserved
+        assert_eq!(set[0], ColumnId::new(2));
+        assert_eq!(set[1], ColumnId::new(1));
+        assert_eq!(set[2], ColumnId::new(3));
     }
 
     #[test]

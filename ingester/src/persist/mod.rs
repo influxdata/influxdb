@@ -338,7 +338,7 @@ mod tests {
 
         // Update the sort key in the catalog, causing the persist job to
         // discover the change during the persist.
-        catalog
+        let updated_partition = catalog
             .repositories()
             .await
             .partitions()
@@ -349,6 +349,8 @@ mod tests {
             )
             .await
             .expect("failed to set catalog sort key");
+        // Test: sort_key_ids after updating
+        assert!(updated_partition.sort_key_ids.is_none());
 
         // Enqueue the persist job
         let notify = handle.enqueue(Arc::clone(&partition), data).await;

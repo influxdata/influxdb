@@ -268,6 +268,8 @@ mod tests {
                 .create_or_get("foo".into(), table.id)
                 .await
                 .unwrap();
+            // Test: sort_key_ids from create_or_get in catalog_service
+            assert!(partition.sort_key_ids.is_none());
             let p1params = ParquetFileParams {
                 namespace_id: namespace.id,
                 table_id: table.id,
@@ -325,6 +327,7 @@ mod tests {
                 .create_or_get("foo".into(), table.id)
                 .await
                 .unwrap();
+
             partition2 = repos
                 .partitions()
                 .create_or_get("bar".into(), table.id)

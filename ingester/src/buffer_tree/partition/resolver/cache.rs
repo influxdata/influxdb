@@ -288,6 +288,7 @@ mod tests {
             ARBITRARY_TABLE_ID,
             stored_partition_key.clone(),
             vec!["dos".to_string(), "bananas".to_string()],
+            None,
             Default::default(),
         );
 
@@ -349,6 +350,7 @@ mod tests {
             ARBITRARY_TABLE_ID,
             ARBITRARY_PARTITION_KEY.clone(),
             Default::default(),
+            None,
             Default::default(),
         );
 
@@ -386,6 +388,7 @@ mod tests {
             ARBITRARY_TABLE_ID,
             ARBITRARY_PARTITION_KEY.clone(),
             Default::default(),
+            None,
             Default::default(),
         );
 

@@ -78,6 +78,8 @@ mod tests {
             .create_or_get(PARTITION_KEY.into(), table_id)
             .await
             .expect("should create");
+        // Test: sort_key_ids from create_or_get
+        assert!(partition.sort_key_ids.is_none());
 
         let fetcher = SortKeyResolver::new(
             PARTITION_KEY.into(),
@@ -101,5 +103,8 @@ mod tests {
 
         let fetched = fetcher.fetch().await;
         assert_eq!(fetched, catalog_state.sort_key());
+
+        // Test: sort_key_ids after updating
+        assert!(catalog_state.sort_key_ids.is_none());
     }
 }

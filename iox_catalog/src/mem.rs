@@ -567,6 +567,7 @@ impl PartitionRepo for MemTxn {
                     key,
                     vec![],
                     None,
+                    None,
                 );
                 stage.partitions.push(p);
                 stage.partitions.last().unwrap()

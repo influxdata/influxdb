@@ -1497,6 +1497,8 @@ pub(crate) mod test_helpers {
             .create_or_get("foo".into(), table.id)
             .await
             .expect("failed to create partition");
+        // Test: sort_key_ids from create_or_get
+        assert!(partition.sort_key_ids.is_none());
         created.insert(partition.id, partition.clone());
         // partition to use
         let partition_bar = repos
@@ -1569,6 +1571,8 @@ pub(crate) mod test_helpers {
             .unwrap();
         batch.sort_by_key(|p| p.id);
         assert_eq!(created_sorted, batch);
+        // Test: sort_key_ids from get_by_id_batch
+        assert!(batch.iter().all(|p| p.sort_key_ids.is_none()));
         let mut batch = repos
             .partitions()
             .get_by_hash_id_batch(
@@ -1581,6 +1585,8 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         batch.sort_by_key(|p| p.id);
+        // Test: sort_key_ids from get_by_hash_id_batch
+        assert!(batch.iter().all(|p| p.sort_key_ids.is_none()));
         assert_eq!(created_sorted, batch);
 
         let listed = repos
@@ -1591,6 +1597,8 @@ pub(crate) mod test_helpers {
             .into_iter()
             .map(|v| (v.id, v))
             .collect::<BTreeMap<_, _>>();
+        // Test: sort_key_ids from list_by_table_id
+        assert!(listed.values().all(|p| p.sort_key_ids.is_none()));
 
         assert_eq!(created, listed);
 
@@ -1617,7 +1625,7 @@ pub(crate) mod test_helpers {
         assert!(to_skip_partition.sort_key.is_empty());
 
         // test update_sort_key from None to Some
-        repos
+        let updated_partition = repos
             .partitions()
             .cas_sort_key(
                 &to_skip_partition.transition_partition_id(),
@@ -1626,6 +1634,8 @@ pub(crate) mod test_helpers {
             )
             .await
             .unwrap();
+        // Test: sort_key_ids after updating from cas_sort_key
+        assert!(updated_partition.sort_key_ids.is_none());
 
         // test sort key CAS with an incorrect value
         let err = repos
@@ -1652,6 +1662,9 @@ pub(crate) mod test_helpers {
             updated_other_partition.sort_key,
             vec!["tag2", "tag1", "time"]
         );
+        // Test: sort_key_ids from get_by_id
+        assert!(updated_other_partition.sort_key_ids.is_none());
+
         let updated_other_partition = repos
             .partitions()
             .get_by_hash_id(to_skip_partition.hash_id().unwrap())
@@ -1662,6 +1675,8 @@ pub(crate) mod test_helpers {
             updated_other_partition.sort_key,
             vec!["tag2", "tag1", "time"]
         );
+        // Test: sort_key_ids from get_by_hash_id
+        assert!(updated_other_partition.sort_key_ids.is_none());
 
         // test sort key CAS with no value
         let err = repos
@@ -1692,7 +1707,7 @@ pub(crate) mod test_helpers {
         });
 
         // test update_sort_key from Some value to Some other value
-        repos
+        let updated_partition = repos
             .partitions()
             .cas_sort_key(
                 &to_skip_partition.transition_partition_id(),
@@ -1706,28 +1721,35 @@ pub(crate) mod test_helpers {
             )
             .await
             .unwrap();
+        // Test: sort_key_ids afer updating from cas_sort_key
+        assert!(updated_partition.sort_key_ids.is_none());
 
         // test getting the new sort key
-        let updated_other_partition = repos
+        let updated_partition = repos
             .partitions()
             .get_by_id(to_skip_partition.id)
             .await
             .unwrap()
             .unwrap();
         assert_eq!(
-            updated_other_partition.sort_key,
+            updated_partition.sort_key,
             vec!["tag2", "tag1", "tag3 , with comma", "time"]
         );
-        let updated_other_partition = repos
+        // Test: sort_key_ids from get_by_id after after updating
+        assert!(updated_partition.sort_key_ids.is_none());
+
+        let updated_partition = repos
             .partitions()
             .get_by_hash_id(to_skip_partition.hash_id().unwrap())
             .await
             .unwrap()
             .unwrap();
         assert_eq!(
-            updated_other_partition.sort_key,
+            updated_partition.sort_key,
             vec!["tag2", "tag1", "tag3 , with comma", "time"]
         );
+        // sort_key_ids gotten back from the udpate is still null
+        assert!(updated_partition.sort_key_ids.is_none());
 
         // The compactor can log why compaction was skipped
         let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
@@ -1909,6 +1931,8 @@ pub(crate) mod test_helpers {
             .await
             .expect("should list most recent");
         assert_eq!(recent.len(), 4);
+        // Test: sort_key_ids from most_recent_n
+        assert!(recent.iter().all(|p| p.sort_key_ids.is_none()));
 
         let recent = repos
             .partitions()
@@ -3068,12 +3092,14 @@ pub(crate) mod test_helpers {
                 .len(),
             1
         );
-        assert!(repos
+
+        // partition's get_by_id should succeed
+        repos
             .partitions()
             .get_by_id(partition_1.id)
             .await
-            .expect("fetching partition by id should succeed")
-            .is_some());
+            .unwrap()
+            .unwrap();
 
         // assert that the namespace, table, column, and parquet files for namespace_2 are still
         // there
@@ -3083,6 +3109,7 @@ pub(crate) mod test_helpers {
             .await
             .expect("get namespace should succeed")
             .is_some());
+
         assert!(repos
             .tables()
             .get_by_id(table_2.id)
@@ -3107,12 +3134,14 @@ pub(crate) mod test_helpers {
                 .len(),
             1
         );
-        assert!(repos
+
+        // partition's get_by_id should succeed
+        repos
             .partitions()
             .get_by_id(partition_2.id)
             .await
-            .expect("fetching partition by id should succeed")
-            .is_some());
+            .unwrap()
+            .unwrap();
     }
 
     /// Upsert a namespace called `namespace_name` and write `lines` to it.

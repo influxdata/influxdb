@@ -162,6 +162,7 @@ impl PartitionBuilder {
                 PartitionKey::from("key"),
                 vec![],
                 None,
+                None,
             ),
         }
     }
