@@ -389,7 +389,9 @@ where
         .expect("failed to resolve WAL directory to disk");
     let disk_metric_task = tokio::task::spawn(disk_metric_task.run());
     // Spawn the disk full protection task, with values fed from the disk space
-    // metric collection task.
+    // metric collection task. This importantly doesn't leak the task, as it will
+    // shut itself down when the disk metric task's snapshot sender is dropped and
+    // the receiver is disconnected.
     tokio::spawn(guard_disk_capacity(
         snapshot_rx,
         Arc::clone(&ingest_state),

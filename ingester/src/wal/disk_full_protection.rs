@@ -70,11 +70,11 @@ where
     async fn persist_and_tidy(&self) {
         let (closed_segment, sequence_number_set) =
             self.wal.rotate().expect("failed to rotate wal");
-        debug!(
+        info!(
             closed_id = %closed_segment.id(),
             segment_bytes = closed_segment.size(),
             n_ops = sequence_number_set.len(),
-            "rotated wal to allow disk clean-up",
+            "rotated wal to allow disk clean-up to occur",
         );
 
         let empty_waker = self.wal_reference_handle.empty_inactive_notifier();
@@ -86,9 +86,10 @@ where
             .await;
 
         persist_partitions(self.buffer.partition_iter(), &self.persist).await;
-        debug!(closed_id = %closed_segment.id(), "partitions persisted to allow disk clean-up");
+        info!(closed_id = %closed_segment.id(), "partitions persisted to allow disk clean-up to occur");
 
         empty_waker.await;
+        info!(closed_id = %closed_segment.id(), "segment file cleaned up from disk");
     }
 }
 
@@ -112,7 +113,7 @@ pub(crate) async fn guard_disk_capacity<P>(
     loop {
         // If the sender has disconnected, this task cannot do anything
         // meaningful and is likely a signal that shutdown has been invoked
-        // - abort the task..
+        // - abort the task.
         if disk_snapshot_rx.changed().await.is_err() {
             info!("stopping disk full protection task");
             return;
@@ -138,6 +139,8 @@ pub(crate) async fn guard_disk_capacity<P>(
             warn!(
                 observed_disk_usage_ratio,
                 DISK_USAGE_RATIO_THRESHOLD,
+                available_disk_space=snapshot.available_disk_space(),
+                total_disk_space=snapshot.total_disk_space(),
                 "safe wal disk usage ratio threshold exceeded, blocking ingest until capacity is freed up"
             );
         }
