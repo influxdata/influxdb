@@ -71,7 +71,7 @@ serde = "1.0.183"
 serde_json = "1.0.105"
 snafu = "0.7"
 tempfile = "3.7.1"
-thiserror = "1.0.46"
+thiserror = "1.0.47"
 tikv-jemalloc-ctl = { version = "0.5.4", optional = true }
 tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "io-std"] }
 tokio-stream = { version = "0.1", features = ["net"] }

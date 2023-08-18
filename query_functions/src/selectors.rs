@@ -989,6 +989,18 @@ mod test {
                 ],
             )
             .await;
+
+            run_case(
+                selector_max().call(vec![col("bool_const"), col("time"), col("bool_value"), col("f64_not_normal_1_value"), col("i64_value")]),
+                vec![
+                    "+-------------------------------------------------------------------------------------------+",
+                    "| selector_max(t.bool_const,t.time,t.bool_value,t.f64_not_normal_1_value,t.i64_value)       |",
+                    "+-------------------------------------------------------------------------------------------+",
+                    "| {value: true, time: 1970-01-01T00:00:00.000001, other_1: true, other_2: NaN, other_3: 20} |",
+                    "+-------------------------------------------------------------------------------------------+",
+                ],
+            )
+            .await;
         }
 
         #[tokio::test]

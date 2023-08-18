@@ -350,7 +350,7 @@ impl RemoteImporter {
                 let retention_period_ns = None;
                 let service_protection_limits = None;
 
-                info!(%namespace_name, "Namespace found, creating new namespace");
+                info!(%namespace_name, "Namespace not found, creating new namespace");
                 repos
                     .namespaces()
                     .create(
@@ -417,7 +417,6 @@ impl RemoteImporter {
         };
 
         // Now copy the parquet files into the object store
-        //let partition_id = TransitionPartitionId::Deprecated(partition.id);
         let transition_partition_id = partition.transition_partition_id();
 
         let parquet_path = ParquetFilePath::new(
@@ -430,7 +429,15 @@ impl RemoteImporter {
         debug!(?object_store_path, "copying data to object store");
         self.object_store.put(&object_store_path, bytes).await?;
 
-        info!(?file_path, %namespace_name, %object_store_path, %transition_partition_id, %table_id, "Successfully imported file");
+        info!(
+            ?file_path,
+            %namespace_name,
+            %object_store_path,
+            %transition_partition_id,
+            %table_id,
+            "Successfully imported file"
+        );
+
         Ok(())
     }
 
