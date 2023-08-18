@@ -1,4 +1,4 @@
-use gossip::{GossipHandle, NopDispatcher};
+use gossip::{GossipHandle, NopDispatcher, TopicInterests};
 
 /// This needs to be pub for the benchmarks but should not be used outside the crate.
 #[cfg(feature = "benches")]
@@ -14,6 +14,7 @@ use backoff::BackoffConfig;
 use futures::{future::Shared, Future, FutureExt};
 use generated_types::influxdata::iox::{
     catalog::v1::catalog_service_server::CatalogService,
+    gossip::Topic,
     ingester::v1::{persist_service_server::PersistService, write_service_server::WriteService},
 };
 use iox_catalog::interface::Catalog;
@@ -459,11 +460,17 @@ where
         }
         GossipConfig::Enabled { bind_addr, peers } => {
             // Start the gossip sub-system, which logs during init.
-            let handle =
-                gossip::Builder::new(peers, NopDispatcher::default(), Arc::clone(&metrics))
-                    .bind(bind_addr)
-                    .await
-                    .map_err(InitError::GossipBind)?;
+            let handle = gossip::Builder::<_, Topic>::new(
+                peers,
+                NopDispatcher::default(),
+                Arc::clone(&metrics),
+            )
+            // Configure the ingester to ignore all user payloads, only acting
+            // as a gossip peer exchange.
+            .with_topic_filter(TopicInterests::default())
+            .bind(bind_addr)
+            .await
+            .map_err(InitError::GossipBind)?;
             Some(handle)
         }
     };

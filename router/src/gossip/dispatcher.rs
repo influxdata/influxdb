@@ -4,7 +4,10 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use generated_types::influxdata::iox::gossip::v1::{gossip_message::Msg, GossipMessage};
+use generated_types::influxdata::iox::gossip::{
+    v1::{gossip_message::Msg, GossipMessage},
+    Topic,
+};
 use generated_types::prost::Message;
 use observability_deps::tracing::{info, warn};
 use tokio::{sync::mpsc, task::JoinHandle};
@@ -53,8 +56,11 @@ impl GossipMessageDispatcher {
 }
 
 #[async_trait]
-impl gossip::Dispatcher for GossipMessageDispatcher {
-    async fn dispatch(&self, payload: Bytes) {
+impl gossip::Dispatcher<Topic> for GossipMessageDispatcher {
+    async fn dispatch(&self, topic: Topic, payload: Bytes) {
+        if topic != Topic::SchemaChanges {
+            return;
+        }
         if let Err(e) = self.tx.try_send(payload) {
             warn!(error=%e, "failed to buffer gossip event");
         }

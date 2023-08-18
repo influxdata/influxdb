@@ -12,6 +12,7 @@
 )]
 #![allow(clippy::default_constructed_unit_structs)]
 
+use gossip::TopicInterests;
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -32,9 +33,9 @@ use ioxd_common::{
     http::error::{HttpApiError, HttpApiErrorSource},
     reexport::{
         generated_types::influxdata::iox::{
-            catalog::v1::catalog_service_server, namespace::v1::namespace_service_server,
-            object_store::v1::object_store_service_server, schema::v1::schema_service_server,
-            table::v1::table_service_server,
+            catalog::v1::catalog_service_server, gossip::Topic,
+            namespace::v1::namespace_service_server, object_store::v1::object_store_service_server,
+            schema::v1::schema_service_server, table::v1::table_service_server,
         },
         tonic::transport::Endpoint,
     },
@@ -319,11 +320,13 @@ pub async fn create_router_server_type(
 
             // Initialise the gossip subsystem, delegating message processing to
             // the above dispatcher.
-            let handle = gossip::Builder::new(
+            let handle = gossip::Builder::<_, Topic>::new(
                 gossip_config.seed_list.clone(),
                 dispatcher,
                 Arc::clone(&metrics),
             )
+            // Configure the router to listen to SchemaChange messages.
+            .with_topic_filter(TopicInterests::default().with_topic(Topic::SchemaChanges))
             .bind(*bind_addr)
             .await
             .map_err(Error::GossipBind)?;

@@ -4,6 +4,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
+use generated_types::influxdata::iox::gossip::Topic;
 use observability_deps::tracing::error;
 
 /// An abstract best-effort broadcast primitive, sending an opaque payload to
@@ -16,9 +17,9 @@ pub trait SchemaBroadcast: Send + Sync + Debug {
 }
 
 #[async_trait]
-impl SchemaBroadcast for Arc<gossip::GossipHandle> {
+impl SchemaBroadcast for Arc<gossip::GossipHandle<Topic>> {
     async fn broadcast(&self, payload: Vec<u8>) {
-        if let Err(e) = gossip::GossipHandle::broadcast(self, payload).await {
+        if let Err(e) = gossip::GossipHandle::broadcast(self, payload, Topic::SchemaChanges).await {
             error!(error=%e, "failed to broadcast payload");
         }
     }
