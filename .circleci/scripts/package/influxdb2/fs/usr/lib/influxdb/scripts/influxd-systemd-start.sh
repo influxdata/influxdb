@@ -22,6 +22,10 @@ url="$PROTOCOL://$HOST:$PORT/ready"
 result=$(curl -k -s -o /dev/null $url -w %{http_code})
 while [ "${result:0:2}" != "20" ] && [ "${result:0:2}" != "40" ]; do
   attempts=$(($attempts+1))
+  if [ ! -f /proc/$PID ]; then
+    echo "InfluxDB exited during startup"
+    exit 1
+  fi
   echo "InfluxDB API at $url unavailable after $attempts attempts..."
   sleep 1
   result=$(curl -k -s -o /dev/null $url -w %{http_code})
