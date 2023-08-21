@@ -62,7 +62,6 @@ http = "0.2.9"
 home = "0.5.5"
 humantime = "2.1.0"
 itertools = "0.11.0"
-lazy_static = "1.4.0"
 libc = { version = "0.2" }
 num_cpus = "1.16.0"
 once_cell = { version = "1.18", features = ["parking_lot"] }
