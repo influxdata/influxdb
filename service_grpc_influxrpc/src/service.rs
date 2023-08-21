@@ -3571,28 +3571,24 @@ mod tests {
             tag_key_meta_names: TagKeyMetaNames::Text as i32,
         };
 
+        let expected_message = "No function matches the given name and argument types 'AVG(Utf8)'";
+
         let tonic_status = storage_client
             .read_window_aggregate(request)
             .await
             .unwrap_err();
-        assert!(tonic_status
-            .message()
-            .contains("Avg does not support inputs of type Utf8"));
+        assert_contains!(tonic_status.message(), expected_message);
         assert_eq!(tonic::Code::InvalidArgument, tonic_status.code());
 
         let mut rpc_status = GrpcStatus::decode(tonic_status.details()).unwrap();
-        assert!(rpc_status
-            .message
-            .contains("Avg does not support inputs of type Utf8"));
+        assert_contains!(rpc_status.message, expected_message);
         assert_eq!(tonic::Code::InvalidArgument as i32, rpc_status.code);
         assert_eq!(1, rpc_status.details.len());
 
         let detail = rpc_status.details.pop().unwrap();
         let influx_err = InfluxDbError::decode(detail.value).unwrap();
         assert_eq!("invalid", influx_err.code);
-        assert!(influx_err
-            .message
-            .contains("Avg does not support inputs of type Utf8"));
+        assert_contains!(influx_err.message, expected_message);
         assert_eq!("iox/influxrpc", influx_err.op);
         assert_eq!(None, influx_err.error);
     }

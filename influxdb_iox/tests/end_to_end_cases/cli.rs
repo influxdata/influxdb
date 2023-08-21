@@ -349,11 +349,7 @@ async fn query_error_handling() {
                         .arg("drop table this_table_doesnt_exist")
                         .assert()
                         .failure()
-                        .stderr(predicate::str::contains(
-                            "Error while planning query: \
-                             This feature is not implemented: \
-                             Unsupported logical plan: DropTable",
-                        ));
+                        .stderr(predicate::str::contains("DDL not supported: DropTable"));
                 }
                 .boxed()
             })),
