@@ -99,6 +99,7 @@ pub enum SplitReason {
     HighL0OverlapSingleFile,
     HighL0OverlapTotalBacklog,
     StartLevelOverlapsTooBig,
+    VerticalSplit,
 }
 
 /// Reasons why there are files to compact

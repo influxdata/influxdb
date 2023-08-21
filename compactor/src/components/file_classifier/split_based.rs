@@ -8,7 +8,8 @@ use crate::{
         split_or_compact::SplitOrCompact,
     },
     file_classification::{
-        CompactReason, FileClassification, FilesForProgress, FilesToSplitOrCompact,
+        CompactReason, FileClassification, FileToSplit, FilesForProgress, FilesToSplitOrCompact,
+        SplitReason,
     },
     partition_info::PartitionInfo,
     RoundInfo,
@@ -114,6 +115,12 @@ where
     }
 }
 
+// TODO(joe): maintain this comment through the next few PRs; see how true the comment is/remains.
+// classify is the third of three file list manipulation layers.  It is given a list of files
+// for a single branch and decides which files should be upgraded, split (with split times) or compacted.
+// classification can decide to ignore some files for this round (putting them in files_to_keep), but
+// that's generally the result of split|compact decisions.  Files not needing considered for action in
+// this round were already filtered out before we get to classification.
 impl<FT, FO, FU, FSC> FileClassifier for SplitBasedFileClassifier<FT, FO, FU, FSC>
 where
     FT: FilesSplit,
@@ -128,73 +135,78 @@ where
         files: Vec<ParquetFile>,
     ) -> FileClassification {
         let files_to_compact = files;
-        let target_level = round_info.target_level();
 
-        if round_info.is_many_small_files() {
-            return file_classification_for_many_files(
-                round_info.max_total_file_size_to_group().unwrap(),
-                round_info.max_num_files_to_group().unwrap(),
+        match round_info {
+            RoundInfo::ManySmallFiles {
+                start_level,
+                max_num_files_to_group,
+                max_total_file_size_to_group,
+            } => file_classification_for_many_files(
+                *max_total_file_size_to_group,
+                *max_num_files_to_group,
                 files_to_compact,
-                target_level,
-            );
-        }
+                *start_level,
+            ),
 
-        if round_info.is_simulated_leading_edge() {
-            match round_info {
-                RoundInfo::SimulatedLeadingEdge { .. } => {
-                    // file division already done in round_info_source
-                    return FileClassification {
-                        target_level: round_info.target_level(),
-                        files_to_make_progress_on: FilesForProgress {
-                            upgrade: vec![],
-                            split_or_compact: FilesToSplitOrCompact::Compact(
-                                files_to_compact,
-                                CompactReason::TotalSizeLessThanMaxCompactSize,
-                            ),
-                        },
-                        files_to_keep: vec![],
-                    };
+            RoundInfo::SimulatedLeadingEdge { .. } => {
+                // file division already done in round_info_source
+                FileClassification {
+                    target_level: round_info.target_level(),
+                    files_to_make_progress_on: FilesForProgress {
+                        upgrade: vec![],
+                        split_or_compact: FilesToSplitOrCompact::Compact(
+                            files_to_compact,
+                            CompactReason::TotalSizeLessThanMaxCompactSize,
+                        ),
+                    },
+                    files_to_keep: vec![],
                 }
-                _ => unreachable!(),
             }
-        }
 
-        // Split files into files_to_compact, files_to_upgrade, and files_to_keep
-        //
-        // Since output of one compaction is used as input of next compaction, all files that are not
-        // compacted or upgraded are still kept to consider in next round of compaction
+            RoundInfo::VerticalSplit { split_times } => {
+                file_classification_for_vertical_split(split_times, files_to_compact)
+            }
 
-        // Split actual files to compact from its higher-target-level files
-        // The higher-target-level files are kept for next round of compaction
-        let (files_to_compact, mut files_to_keep) = self
-            .target_level_split
-            .apply(files_to_compact, target_level);
+            RoundInfo::TargetLevel { target_level, .. } => {
+                // Split files into files_to_compact, files_to_upgrade, and files_to_keep
+                //
+                // Since output of one compaction is used as input of next compaction, all files that are not
+                // compacted or upgraded are still kept to consider in next round of compaction
 
-        // To have efficient compaction performance, we do not need to compact eligible non-overlapped files
-        // Find eligible non-overlapped files and keep for next round of compaction
-        let (files_to_compact, non_overlapping_files) =
-            self.non_overlap_split.apply(files_to_compact, target_level);
-        files_to_keep.extend(non_overlapping_files);
+                // Split actual files to compact from its higher-target-level files
+                // The higher-target-level files are kept for next round of compaction
+                let target_level = *target_level;
+                let (files_to_compact, mut files_to_keep) = self
+                    .target_level_split
+                    .apply(files_to_compact, target_level);
 
-        // To have efficient compaction performance, we only need to upgrade (catalog update only) eligible files
-        let (files_to_compact, files_to_upgrade) =
-            self.upgrade_split.apply(files_to_compact, target_level);
+                // To have efficient compaction performance, we do not need to compact eligible non-overlapped files
+                // Find eligible non-overlapped files and keep for next round of compaction
+                let (files_to_compact, non_overlapping_files) =
+                    self.non_overlap_split.apply(files_to_compact, target_level);
+                files_to_keep.extend(non_overlapping_files);
 
-        // See if we need to split start-level files due to over compaction size limit
-        let (files_to_split_or_compact, other_files) =
-            self.split_or_compact
-                .apply(partition_info, files_to_compact, target_level);
-        files_to_keep.extend(other_files);
+                // To have efficient compaction performance, we only need to upgrade (catalog update only) eligible files
+                let (files_to_compact, files_to_upgrade) =
+                    self.upgrade_split.apply(files_to_compact, target_level);
 
-        let files_to_make_progress_on = FilesForProgress {
-            upgrade: files_to_upgrade,
-            split_or_compact: files_to_split_or_compact,
-        };
+                // See if we need to split start-level files due to over compaction size limit
+                let (files_to_split_or_compact, other_files) =
+                    self.split_or_compact
+                        .apply(partition_info, files_to_compact, target_level);
+                files_to_keep.extend(other_files);
 
-        FileClassification {
-            target_level,
-            files_to_make_progress_on,
-            files_to_keep,
+                let files_to_make_progress_on = FilesForProgress {
+                    upgrade: files_to_upgrade,
+                    split_or_compact: files_to_split_or_compact,
+                };
+
+                FileClassification {
+                    target_level,
+                    files_to_make_progress_on,
+                    files_to_keep,
+                }
+            }
         }
     }
 }
@@ -250,6 +262,50 @@ fn file_classification_for_many_files(
             files_to_compact,
             CompactReason::ManySmallFiles,
         ),
+    };
+
+    FileClassification {
+        target_level,
+        files_to_make_progress_on,
+        files_to_keep,
+    }
+}
+
+// VerticalSplit splits the given files at the given split_times.
+// All files given here must be L0 files overlapping at least one of the split_times.
+fn file_classification_for_vertical_split(
+    split_times: &[i64],
+    files: Vec<ParquetFile>,
+) -> FileClassification {
+    let target_level = CompactionLevel::Initial;
+    let files_to_keep: Vec<ParquetFile> = vec![];
+    let mut files_to_split: Vec<FileToSplit> = Vec::with_capacity(files.len());
+
+    // Determine the necessary splits for each file.
+    // split time is the last ns included in the 'left' file in the split.  So if the the split time matches max time
+    // of a file, that file does not need split.
+    for f in files {
+        let this_file_splits: Vec<i64> = split_times
+            .iter()
+            .filter(|split| split >= &&f.min_time.get() && split < &&f.max_time.get())
+            .cloned()
+            .collect();
+
+        assert!(
+            !this_file_splits.is_empty(),
+            "files not needing split should be filtered out"
+        );
+
+        let file_to_split = FileToSplit {
+            file: f,
+            split_times: this_file_splits,
+        };
+        files_to_split.push(file_to_split);
+    }
+
+    let files_to_make_progress_on = FilesForProgress {
+        upgrade: vec![],
+        split_or_compact: FilesToSplitOrCompact::Split(files_to_split, SplitReason::VerticalSplit),
     };
 
     FileClassification {

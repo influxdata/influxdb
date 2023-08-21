@@ -21,7 +21,7 @@ mod commit_wrapper;
 mod display;
 mod simulator;
 
-pub use display::{display_format, display_size, format_files, format_files_split};
+pub use display::{display_format, display_size, format_files, format_files_split, format_ranges};
 
 use std::{
     collections::{HashMap, HashSet},

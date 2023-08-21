@@ -268,6 +268,7 @@ async fn try_compact_partition(
                 let scratchpad = Arc::clone(&scratchpad_ctx);
                 let job = job.clone();
                 let branch_span = round_span.child("branch");
+                let round_info = round_info.clone();
 
                 async move {
                     execute_branch(
