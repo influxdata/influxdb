@@ -467,6 +467,11 @@ impl Partition {
 
         Some(SortKey::from_columns(self.sort_key.iter().map(|s| &**s)))
     }
+
+    /// The sort_key_ids if present
+    pub fn sort_key_ids(&self) -> Option<&SortedColumnSet> {
+        self.sort_key_ids.as_ref()
+    }
 }
 
 #[cfg(test)]

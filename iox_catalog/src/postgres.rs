@@ -1,6 +1,6 @@
 //! A Postgres backed implementation of the Catalog
 
-use crate::interface::MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE;
+use crate::interface::{verify_sort_key_length, MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE};
 use crate::{
     interface::{
         self, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
@@ -16,6 +16,7 @@ use crate::{
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
+use data_types::SortedColumnSet;
 use data_types::{
     partition_template::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
@@ -1159,9 +1160,9 @@ impl PartitionRepo for PostgresTxn {
         let v = sqlx::query_as::<_, Partition>(
             r#"
 INSERT INTO partition
-    (partition_key, shard_id, table_id, hash_id, sort_key)
+    (partition_key, shard_id, table_id, hash_id, sort_key, sort_key_ids)
 VALUES
-    ( $1, $2, $3, $4, '{}')
+    ( $1, $2, $3, $4, '{}', '{}')
 ON CONFLICT ON CONSTRAINT partition_key_unique
 DO UPDATE SET partition_key = partition.partition_key
 RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
@@ -1301,32 +1302,37 @@ WHERE table_id = $1;
         partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
         new_sort_key: &[&str],
+        new_sort_key_ids: &SortedColumnSet,
     ) -> Result<Partition, CasFailure<Vec<String>>> {
+        verify_sort_key_length(new_sort_key, new_sort_key_ids);
+
         let old_sort_key = old_sort_key.unwrap_or_default();
         // This `match` will go away when all partitions have hash IDs in the database.
         let query = match partition_id {
             TransitionPartitionId::Deterministic(hash_id) => sqlx::query_as::<_, Partition>(
                 r#"
 UPDATE partition
-SET sort_key = $1
+SET sort_key = $1, sort_key_ids = $4
 WHERE hash_id = $2 AND sort_key = $3
 RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(new_sort_key) // $1
             .bind(hash_id) // $2
-            .bind(&old_sort_key), // $3
+            .bind(&old_sort_key) // $3
+            .bind(new_sort_key_ids), // $4
             TransitionPartitionId::Deprecated(id) => sqlx::query_as::<_, Partition>(
                 r#"
 UPDATE partition
-SET sort_key = $1
+SET sort_key = $1, sort_key_ids = $4
 WHERE id = $2 AND sort_key = $3
 RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(new_sort_key) // $1
             .bind(id) // $2
-            .bind(&old_sort_key), // $3
+            .bind(&old_sort_key) // $3
+            .bind(new_sort_key_ids), // $4
         };
 
         let res = query.fetch_one(&mut self.inner).await;
@@ -1362,6 +1368,7 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file
             ?partition_id,
             ?old_sort_key,
             ?new_sort_key,
+            ?new_sort_key_ids,
             "partition sort key cas successful"
         );
 
@@ -2173,7 +2180,7 @@ mod tests {
 
         assert_eq!(a.hash_id().unwrap(), &hash_id);
         // Test: sort_key_ids from partition_create_or_get_idempotent
-        assert!(a.sort_key_ids.is_none());
+        assert!(a.sort_key_ids().unwrap().is_empty());
 
         // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent.
         let b = repos
@@ -2194,8 +2201,9 @@ mod tests {
             .unwrap();
         assert_eq!(table_partitions.len(), 1);
         assert_eq!(table_partitions[0].hash_id().unwrap(), &hash_id);
+
         // Test: sort_key_ids from partition_create_or_get_idempotent
-        assert!(table_partitions[0].sort_key_ids.is_none());
+        assert!(table_partitions[0].sort_key_ids().unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -2217,9 +2225,9 @@ mod tests {
         sqlx::query(
             r#"
 INSERT INTO partition
-    (partition_key, shard_id, table_id, sort_key)
+    (partition_key, shard_id, table_id, sort_key, sort_key_ids)
 VALUES
-    ( $1, $2, $3, '{}')
+    ( $1, $2, $3, '{}', '{}')
 ON CONFLICT ON CONSTRAINT partition_key_unique
 DO UPDATE SET partition_key = partition.partition_key
 RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
@@ -2245,6 +2253,9 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file
             .create_or_get(key, table_id)
             .await
             .expect("idempotent write should succeed");
+
+        // Test: sort_key_ids from freshly insert with empty value
+        assert!(inserted_again.sort_key_ids().unwrap().is_empty());
 
         assert_eq!(partition, &inserted_again);
 

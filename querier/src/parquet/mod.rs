@@ -105,7 +105,7 @@ pub mod tests {
     use super::*;
     use arrow::{datatypes::DataType, record_batch::RecordBatch};
     use arrow_util::assert_batches_eq;
-    use data_types::{ColumnType, ParquetFile};
+    use data_types::{ColumnType, ParquetFile, SortedColumnSet};
     use datafusion_util::config::register_iox_object_store;
     use iox_query::{
         exec::{ExecutorType, IOxSessionContext},
@@ -186,17 +186,20 @@ pub mod tests {
             .join("\n");
             let ns = catalog.create_namespace_1hr_retention("ns").await;
             let table = ns.create_table("table").await;
-            table.create_column("tag1", ColumnType::Tag).await;
-            table.create_column("tag2", ColumnType::Tag).await;
+            let tag1 = table.create_column("tag1", ColumnType::Tag).await;
+            let tag2 = table.create_column("tag2", ColumnType::Tag).await;
             table.create_column("tag3", ColumnType::Tag).await;
-            table.create_column("tag4", ColumnType::Tag).await;
+            let tag4 = table.create_column("tag4", ColumnType::Tag).await;
             table.create_column("field_int", ColumnType::I64).await;
             table.create_column("field_float", ColumnType::F64).await;
-            table.create_column("time", ColumnType::Time).await;
+            let col_time = table.create_column("time", ColumnType::Time).await;
             let partition = table
                 .create_partition("part")
                 .await
-                .update_sort_key(SortKey::from_columns(["tag1", "tag2", "tag4", "time"]))
+                .update_sort_key(
+                    SortKey::from_columns(["tag1", "tag2", "tag4", "time"]),
+                    &SortedColumnSet::from([tag1.id(), tag2.id(), tag4.id(), col_time.id()]),
+                )
                 .await;
             let builder = TestParquetFileBuilder::default().with_line_protocol(&lp);
             let parquet_file = Arc::new(partition.create_parquet_file(builder).await.parquet_file);

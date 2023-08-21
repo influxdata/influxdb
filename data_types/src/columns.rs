@@ -90,6 +90,17 @@ impl ColumnsByName {
         self.0.values().map(|c| c.id)
     }
 
+    /// Return column ids of the given column names
+    /// Will panic if any of the names are not found
+    pub fn ids_for_names(&self, names: &[&str]) -> SortedColumnSet {
+        SortedColumnSet::from(names.iter().map(|name| {
+            self.get(name)
+                .unwrap_or_else(|| panic!("column name not found: {}", name))
+                .id
+                .get()
+        }))
+    }
+
     /// Get a column by its name.
     pub fn get(&self, name: &str) -> Option<&ColumnSchema> {
         self.0.get(name)
@@ -364,6 +375,11 @@ impl ColumnSet {
     pub fn size(&self) -> usize {
         std::mem::size_of_val(self) + (std::mem::size_of::<ColumnId>() * self.0.capacity())
     }
+
+    /// The set is empty or not
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 impl From<ColumnSet> for Vec<ColumnId> {
@@ -530,5 +546,62 @@ mod tests {
         };
 
         ColumnSchema::try_from(&proto).expect_err("should succeed");
+    }
+
+    #[test]
+    fn test_columns_by_names_exist() {
+        let columns = build_columns_by_names();
+
+        let ids = columns.ids_for_names(&["foo", "bar"]);
+        assert_eq!(ids, SortedColumnSet::from([1, 2]));
+    }
+
+    #[test]
+    fn test_columns_by_names_exist_different_order() {
+        let columns = build_columns_by_names();
+
+        let ids = columns.ids_for_names(&["bar", "foo"]);
+        assert_eq!(ids, SortedColumnSet::from([2, 1]));
+    }
+
+    #[test]
+    #[should_panic = "column name not found: baz"]
+    fn test_columns_by_names_not_exist() {
+        let columns = build_columns_by_names();
+        columns.ids_for_names(&["foo", "baz"]);
+    }
+
+    fn build_columns_by_names() -> ColumnsByName {
+        let mut columns: BTreeMap<String, ColumnSchema> = BTreeMap::new();
+        columns.insert(
+            "foo".to_string(),
+            ColumnSchema {
+                id: ColumnId::new(1),
+                column_type: ColumnType::I64,
+            },
+        );
+        columns.insert(
+            "bar".to_string(),
+            ColumnSchema {
+                id: ColumnId::new(2),
+                column_type: ColumnType::I64,
+            },
+        );
+        columns.insert(
+            "time".to_string(),
+            ColumnSchema {
+                id: ColumnId::new(3),
+                column_type: ColumnType::Time,
+            },
+        );
+        columns.insert(
+            "tag1".to_string(),
+            ColumnSchema {
+                id: ColumnId::new(4),
+                column_type: ColumnType::Tag,
+            },
+        );
+
+        ColumnsByName(columns)
     }
 }

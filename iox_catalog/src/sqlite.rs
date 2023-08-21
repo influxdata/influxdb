@@ -2,9 +2,9 @@
 
 use crate::{
     interface::{
-        self, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
-        ParquetFileRepo, PartitionRepo, RepoCollection, Result, SoftDeletedRows, TableRepo,
-        MAX_PARQUET_FILES_SELECTED_ONCE_FOR_RETENTION,
+        self, verify_sort_key_length, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
+        Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, RepoCollection, Result,
+        SoftDeletedRows, TableRepo, MAX_PARQUET_FILES_SELECTED_ONCE_FOR_RETENTION,
     },
     kafkaless_transition::{
         SHARED_QUERY_POOL, SHARED_QUERY_POOL_ID, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
@@ -852,9 +852,9 @@ impl PartitionRepo for SqliteTxn {
         let v = sqlx::query_as::<_, PartitionPod>(
             r#"
 INSERT INTO partition
-    (partition_key, shard_id, table_id, hash_id, sort_key)
+    (partition_key, shard_id, table_id, hash_id, sort_key, sort_key_ids)
 VALUES
-    ($1, $2, $3, $4, '[]')
+    ($1, $2, $3, $4, '[]', '[]')
 ON CONFLICT (table_id, partition_key)
 DO UPDATE SET partition_key = partition.partition_key
 RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
@@ -1012,33 +1012,39 @@ WHERE table_id = $1;
         partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
         new_sort_key: &[&str],
+        new_sort_key_ids: &SortedColumnSet,
     ) -> Result<Partition, CasFailure<Vec<String>>> {
+        verify_sort_key_length(new_sort_key, new_sort_key_ids);
+
         let old_sort_key = old_sort_key.unwrap_or_default();
+        let raw_new_sort_key_ids: Vec<_> = new_sort_key_ids.iter().map(|cid| cid.get()).collect();
 
         // This `match` will go away when all partitions have hash IDs in the database.
         let query = match partition_id {
             TransitionPartitionId::Deterministic(hash_id) => sqlx::query_as::<_, PartitionPod>(
                 r#"
 UPDATE partition
-SET sort_key = $1
+SET sort_key = $1, sort_key_ids = $4
 WHERE hash_id = $2 AND sort_key = $3
 RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(Json(new_sort_key)) // $1
             .bind(hash_id) // $2
-            .bind(Json(&old_sort_key)), // $3
+            .bind(Json(&old_sort_key)) // $3
+            .bind(Json(&raw_new_sort_key_ids)), // $4
             TransitionPartitionId::Deprecated(id) => sqlx::query_as::<_, PartitionPod>(
                 r#"
 UPDATE partition
-SET sort_key = $1
+SET sort_key = $1, sort_key_ids = $4
 WHERE id = $2 AND sort_key = $3
 RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(Json(new_sort_key)) // $1
             .bind(id) // $2
-            .bind(Json(&old_sort_key)), // $3
+            .bind(Json(&old_sort_key)) // $3
+            .bind(Json(&raw_new_sort_key_ids)), // $4
         };
 
         let res = query.fetch_one(self.inner.get_mut()).await;
@@ -1779,13 +1785,14 @@ mod tests {
             .unwrap();
         assert_eq!(table_partitions.len(), 1);
         assert_eq!(table_partitions[0].hash_id().unwrap(), &hash_id);
+
         // Test: sort_key_ids from partition_create_or_get_idempotent
-        assert!(table_partitions[0].sort_key_ids.is_none());
+        assert!(table_partitions[0].sort_key_ids().unwrap().is_empty());
     }
 
     #[tokio::test]
     async fn existing_partitions_without_hash_id() {
-        let sqlite = setup_db().await;
+        let sqlite: SqliteCatalog = setup_db().await;
         let pool = sqlite.pool.clone();
         let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
         let mut repos = sqlite.repositories().await;
@@ -1800,9 +1807,9 @@ mod tests {
         sqlx::query(
             r#"
 INSERT INTO partition
-    (partition_key, shard_id, table_id, sort_key)
+    (partition_key, shard_id, table_id, sort_key, sort_key_ids)
 VALUES
-    ($1, $2, $3, '[]')
+    ($1, $2, $3, '[]', '[]')
 ON CONFLICT (table_id, partition_key)
 DO UPDATE SET partition_key = partition.partition_key
 RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
@@ -1827,6 +1834,9 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file
             .create_or_get(key, table_id)
             .await
             .expect("idempotent write should succeed");
+
+        // Test: sort_key_ids from freshly insert with empty value
+        assert!(inserted_again.sort_key_ids().unwrap().is_empty());
 
         assert_eq!(partition, &inserted_again);
 

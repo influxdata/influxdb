@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use backoff::{Backoff, BackoffConfig};
-use data_types::{PartitionKey, TableId};
+use data_types::{PartitionKey, SortedColumnSet, TableId};
 use iox_catalog::interface::Catalog;
 use schema::sort::SortKey;
 
@@ -31,19 +31,20 @@ impl SortKeyResolver {
         }
     }
 
-    /// Fetch the [`SortKey`] from the [`Catalog`] for `partition_id`, retrying
-    /// endlessly when errors occur.
-    pub(crate) async fn fetch(self) -> Option<SortKey> {
+    /// Fetch the [`SortKey`] and its corresponding sort key ids from the from the [`Catalog`]
+    /// for `partition_id`, retrying endlessly when errors occur.
+    pub(crate) async fn fetch(self) -> (Option<SortKey>, Option<SortedColumnSet>) {
         Backoff::new(&self.backoff_config)
             .retry_all_errors("fetch partition sort key", || async {
                 let mut repos = self.catalog.repositories().await;
-                let s = repos
+                let partition = repos
                     .partitions()
                     .create_or_get(self.partition_key.clone(), self.table_id)
-                    .await?
-                    .sort_key();
+                    .await?;
 
-                Result::<_, iox_catalog::interface::Error>::Ok(s)
+                let (sort_key, sort_key_ids) = (partition.sort_key(), partition.sort_key_ids);
+
+                Result::<_, iox_catalog::interface::Error>::Ok((sort_key, sort_key_ids))
             })
             .await
             .expect("retry forever")
@@ -53,6 +54,8 @@ impl SortKeyResolver {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+
+    use data_types::SortedColumnSet;
 
     use super::*;
     use crate::test_util::populate_catalog;
@@ -78,8 +81,9 @@ mod tests {
             .create_or_get(PARTITION_KEY.into(), table_id)
             .await
             .expect("should create");
-        // Test: sort_key_ids from create_or_get
-        assert!(partition.sort_key_ids.is_none());
+
+        // Test: sort_key_ids from create_or_get which is empty
+        assert!(partition.sort_key_ids().unwrap().is_empty());
 
         let fetcher = SortKeyResolver::new(
             PARTITION_KEY.into(),
@@ -97,14 +101,15 @@ mod tests {
                 &partition.transition_partition_id(),
                 None,
                 &["uno", "dos", "bananas"],
+                &SortedColumnSet::from([1, 2, 3]),
             )
             .await
             .expect("should update existing partition key");
 
-        let fetched = fetcher.fetch().await;
-        assert_eq!(fetched, catalog_state.sort_key());
-
-        // Test: sort_key_ids after updating
-        assert!(catalog_state.sort_key_ids.is_none());
+        // Test: sort_key_ids from cas_sort_key
+        // fetch sort key for the partition from the catalog
+        let (fetched_sort_key, fetched_sort_key_ids) = fetcher.fetch().await;
+        assert_eq!(fetched_sort_key, catalog_state.sort_key());
+        assert_eq!(fetched_sort_key_ids, catalog_state.sort_key_ids);
     }
 }

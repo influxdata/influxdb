@@ -42,7 +42,7 @@ use compactor::{
     PartitionInfo,
 };
 use compactor_scheduler::SchedulerConfig;
-use data_types::{ColumnType, CompactionLevel, ParquetFile, TableId};
+use data_types::{ColumnType, CompactionLevel, ParquetFile, SortedColumnSet, TableId};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion_util::config::register_iox_object_store;
 use futures::TryStreamExt;
@@ -98,17 +98,21 @@ impl TestSetupBuilder<false> {
         let ns = catalog.create_namespace_1hr_retention("ns").await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
-        table.create_column("tag1", ColumnType::Tag).await;
-        table.create_column("tag2", ColumnType::Tag).await;
-        table.create_column("tag3", ColumnType::Tag).await;
-        table.create_column("time", ColumnType::Time).await;
+        let tag1 = table.create_column("tag1", ColumnType::Tag).await;
+        let tag2 = table.create_column("tag2", ColumnType::Tag).await;
+        let tag3 = table.create_column("tag3", ColumnType::Tag).await;
+        let col_time = table.create_column("time", ColumnType::Time).await;
 
         let partition = table.create_partition("2022-07-13").await;
 
         // The sort key comes from the catalog and should be the union of all tags the
         // ingester has seen
         let sort_key = SortKey::from_columns(["tag1", "tag2", "tag3", "time"]);
-        let partition = partition.update_sort_key(sort_key.clone()).await;
+        let sort_key_col_ids =
+            SortedColumnSet::from([tag1.id(), tag2.id(), tag3.id(), col_time.id()]);
+        let partition = partition
+            .update_sort_key(sort_key.clone(), &sort_key_col_ids)
+            .await;
 
         // Ensure the input scenario conforms to the expected invariants.
         let invariant_check = Arc::new(CatalogInvariants {

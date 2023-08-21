@@ -1,7 +1,7 @@
 //! This module implements an in-memory implementation of the iox_catalog interface. It can be
 //! used for testing or for an IOx designed to run without catalog persistence.
 
-use crate::interface::MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE;
+use crate::interface::{verify_sort_key_length, MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE};
 use crate::{
     interface::{
         CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
@@ -12,6 +12,7 @@ use crate::{
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
+use data_types::SortedColumnSet;
 use data_types::{
     partition_template::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
@@ -566,7 +567,7 @@ impl PartitionRepo for MemTxn {
                     table_id,
                     key,
                     vec![],
-                    None,
+                    Some(SortedColumnSet::new(vec![])),
                     None,
                 );
                 stage.partitions.push(p);
@@ -662,7 +663,10 @@ impl PartitionRepo for MemTxn {
         partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
         new_sort_key: &[&str],
+        new_sort_key_ids: &SortedColumnSet,
     ) -> Result<Partition, CasFailure<Vec<String>>> {
+        verify_sort_key_length(new_sort_key, new_sort_key_ids);
+
         let stage = self.stage();
         let old_sort_key = old_sort_key.unwrap_or_default();
 
@@ -674,6 +678,7 @@ impl PartitionRepo for MemTxn {
         }) {
             Some(p) if p.sort_key == old_sort_key => {
                 p.sort_key = new_sort_key.iter().map(|s| s.to_string()).collect();
+                p.sort_key_ids = Some(new_sort_key_ids.clone());
                 Ok(p.clone())
             }
             Some(p) => return Err(CasFailure::ValueMismatch(p.sort_key.clone())),
