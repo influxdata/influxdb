@@ -6,10 +6,13 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies] # In alphabetical order
+arrow = { workspace = true, features = ["prettyprint", "dyn_cmp_dict"] }
+bytes = "1.4"
 base64 = "0.21"
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion-proto = { workspace = true }
+flatbuffers = "23.5.26"
 pbjson = "0.5"
 predicate = { path = "../predicate" }
 prost = "0.11"
@@ -23,4 +26,3 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 tonic-build = { workspace = true }
 prost-build = "0.11"
 pbjson-build = "0.5"
-
