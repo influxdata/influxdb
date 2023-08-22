@@ -2073,11 +2073,8 @@ dependencies = [
  "gossip",
  "metric",
  "observability_deps",
- "parking_lot",
- "paste",
  "proptest",
  "test_helpers",
- "thiserror",
  "tokio",
  "workspace-hack",
 ]
