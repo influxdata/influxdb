@@ -1,3 +1,6 @@
+//! A serialiser and broadcaster of [`gossip`] messages for the
+//! [`Topic::SchemaChanges`] topic.
+
 use generated_types::{
     influxdata::iox::gossip::{
         v1::{schema_message::Event, SchemaMessage, TableCreated, TableUpdated},
@@ -19,7 +22,7 @@ use tokio::{
 /// transport limitations) and broadcasts the result to all listening peers.
 ///
 /// Serialisation and processing of the [`Event`] given to the
-/// [`SchemaTx::broadcast()`] method happen in a background actor task,
+/// [`SchemaTx::broadcast()`] method happens in a background actor task,
 /// decoupling the caller from the latency of processing each frame. Dropping
 /// the [`SchemaTx`] stops this background actor task.
 #[derive(Debug)]
@@ -36,7 +39,7 @@ impl Drop for SchemaTx {
 
 impl SchemaTx {
     /// Construct a new [`SchemaTx`] that publishes gossip messages over
-    /// `gossip`, and delegates cache operations to `inner`.
+    /// `gossip`.
     pub fn new(gossip: gossip::GossipHandle<Topic>) -> Self {
         let (tx, rx) = mpsc::channel(100);
 
@@ -47,8 +50,8 @@ impl SchemaTx {
 
     /// Asynchronously broadcast `event` to all interested peers.
     ///
-    /// This method enqueues `event` into the serialisation queue, and
-    /// processed & transmitted asynchronously.
+    /// This method enqueues `event` into the serialisation queue, and processed
+    /// & transmitted asynchronously.
     pub fn broadcast(&self, event: Event) {
         debug!(?event, "sending schema message");
         match self.tx.try_send(event) {

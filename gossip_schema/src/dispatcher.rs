@@ -1,4 +1,5 @@
-//! A deserialiser and dispatcher of [`gossip`] messages.
+//! A deserialiser and dispatcher of [`gossip`] messages for the
+//! [`Topic::SchemaChanges`] topic.
 
 use std::{fmt::Debug, sync::Arc};
 
