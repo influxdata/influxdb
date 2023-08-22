@@ -16,6 +16,7 @@ gossip = { version = "0.1.0", path = "../gossip" }
 observability_deps = { path = "../observability_deps" }
 thiserror = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 assert_matches = "1.5"

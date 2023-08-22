@@ -2079,6 +2079,7 @@ dependencies = [
  "test_helpers",
  "thiserror",
  "tokio",
+ "workspace-hack",
 ]
 
 [[package]]
