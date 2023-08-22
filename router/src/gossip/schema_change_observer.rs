@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use data_types::{ColumnsByName, NamespaceName, NamespaceSchema};
 use generated_types::{
     influxdata::iox::gossip::v1::{
-        gossip_message::Msg, Column, GossipMessage, NamespaceCreated, TableCreated, TableUpdated,
+        schema_message::Event, Column, NamespaceCreated, SchemaMessage, TableCreated, TableUpdated,
     },
     prost::Message,
 };
@@ -35,7 +35,7 @@ use super::traits::SchemaBroadcast;
 /// Instead of gossiping the entire schema, the new schema elements described by
 /// the [`ChangeStats`] are transmitted on a best-effort basis.
 ///
-/// Gossip [`Msg`] are populated within the call to
+/// Gossip [`Event`] are populated within the call to
 /// [`NamespaceCache::put_schema()`] but packed & serialised into [`gossip`]
 /// frames off-path in a background task to minimise the latency overhead.
 ///
@@ -44,7 +44,7 @@ use super::traits::SchemaBroadcast;
 /// request path, but framing, serialisation and dispatch happen asynchronously.
 #[derive(Debug)]
 pub struct SchemaChangeObserver<T> {
-    tx: mpsc::Sender<Msg>,
+    tx: mpsc::Sender<Event>,
     task: JoinHandle<()>,
     inner: T,
 }
@@ -144,7 +144,7 @@ impl<T> SchemaChangeObserver<T> {
             retention_period_ns: schema.retention_period_ns,
         };
 
-        self.enqueue(Msg::NamespaceCreated(msg));
+        self.enqueue(Event::NamespaceCreated(msg));
     }
 
     /// Gossip that the provided set of `new_tables` have been added to the
@@ -173,7 +173,7 @@ impl<T> SchemaChangeObserver<T> {
                 partition_template: schema.partition_template.as_proto().cloned(),
             };
 
-            self.enqueue(Msg::TableCreated(msg));
+            self.enqueue(Event::TableCreated(msg));
         }
     }
 
@@ -211,12 +211,12 @@ impl<T> SchemaChangeObserver<T> {
                     .collect(),
             };
 
-            self.enqueue(Msg::TableUpdated(msg));
+            self.enqueue(Event::TableUpdated(msg));
         }
     }
 
     /// Serialise, pack & gossip `msg` asynchronously.
-    fn enqueue(&self, msg: Msg) {
+    fn enqueue(&self, msg: Event) {
         debug!(?msg, "sending schema message");
         match self.tx.try_send(msg) {
             Ok(_) => {}
@@ -228,17 +228,17 @@ impl<T> SchemaChangeObserver<T> {
     }
 }
 
-/// A background task loop that pulls [`Msg`] from `rx`, serialises / packs them
+/// A background task loop that pulls [`Event`] from `rx`, serialises / packs them
 /// into a single gossip frame, and broadcasts the result over `gossip`.
-async fn actor_loop<T>(mut rx: mpsc::Receiver<Msg>, gossip: T)
+async fn actor_loop<T>(mut rx: mpsc::Receiver<Event>, gossip: T)
 where
     T: SchemaBroadcast,
 {
-    while let Some(msg) = rx.recv().await {
-        let frames = match msg {
-            v @ Msg::NamespaceCreated(_) => vec![v],
-            Msg::TableCreated(v) => serialise_table_create_frames(v),
-            Msg::TableUpdated(v) => {
+    while let Some(event) = rx.recv().await {
+        let frames = match event {
+            v @ Event::NamespaceCreated(_) => vec![v],
+            Event::TableCreated(v) => serialise_table_create_frames(v),
+            Event::TableUpdated(v) => {
                 // Split the frame up into N frames, sized as big as the gossip
                 // transport will allow.
                 let mut frames = Vec::with_capacity(1);
@@ -255,12 +255,12 @@ where
                     continue;
                 }
 
-                frames.into_iter().map(Msg::TableUpdated).collect()
+                frames.into_iter().map(Event::TableUpdated).collect()
             }
         };
 
         for frame in frames {
-            let msg = GossipMessage { msg: Some(frame) };
+            let msg = SchemaMessage { event: Some(frame) };
             gossip.broadcast(msg.encode_to_vec()).await
         }
     }
@@ -329,10 +329,10 @@ fn serialise_table_update_frames(
 
 /// Split `msg` into a [`TableCreated`] and a series of [`TableUpdated`] frames,
 /// each sized less than [`MAX_USER_PAYLOAD_BYTES`].
-fn serialise_table_create_frames(mut msg: TableCreated) -> Vec<Msg> {
+fn serialise_table_create_frames(mut msg: TableCreated) -> Vec<Event> {
     // If it fits, do nothing.
     if msg.encoded_len() <= MAX_USER_PAYLOAD_BYTES {
-        return vec![Msg::TableCreated(msg)];
+        return vec![Event::TableCreated(msg)];
     }
 
     // If not, split the message into a single create, followed by N table
@@ -357,8 +357,8 @@ fn serialise_table_create_frames(mut msg: TableCreated) -> Vec<Msg> {
     }
 
     // Return the table creation, followed by the updates containing columns.
-    std::iter::once(Msg::TableCreated(msg))
-        .chain(updates.into_iter().map(Msg::TableUpdated))
+    std::iter::once(Event::TableCreated(msg))
+        .chain(updates.into_iter().map(Event::TableUpdated))
         .collect()
 }
 
@@ -553,7 +553,7 @@ mod tests {
             // well as the create message.
 
             let mut iter = frames.into_iter();
-            let mut columns = assert_matches!(iter.next(), Some(Msg::TableCreated(v)) => {
+            let mut columns = assert_matches!(iter.next(), Some(Event::TableCreated(v)) => {
                 // Invariant: table metadata must be correct
                 assert_eq!(v.partition_template, msg.partition_template);
 
@@ -569,7 +569,7 @@ mod tests {
             // Combine the columns from above, with any subsequent update
             // messages
             columns.extend(iter.flat_map(|v| {
-                assert_matches!(v, Msg::TableUpdated(v) => {
+                assert_matches!(v, Event::TableUpdated(v) => {
                     // Invariant: metadata in follow-on updates must also match
                     assert_eq!(v.table_name, TABLE_NAME);
                     assert_eq!(v.namespace_name, NAMESPACE_NAME);
@@ -643,7 +643,7 @@ mod tests {
         },
         schema = DEFAULT_NAMESPACE,
         want_count = 1,
-        want = [Msg::NamespaceCreated(NamespaceCreated {
+        want = [Event::NamespaceCreated(NamespaceCreated {
             namespace_name,
             namespace_id,
             partition_template,
@@ -687,7 +687,7 @@ mod tests {
         },
         schema = DEFAULT_NAMESPACE,
         want_count = 1,
-        want = [Msg::NamespaceCreated(NamespaceCreated {
+        want = [Event::NamespaceCreated(NamespaceCreated {
             namespace_name,
             namespace_id,
             partition_template,
@@ -695,7 +695,7 @@ mod tests {
             max_tables,
             retention_period_ns
         }),
-        Msg::TableCreated(TableCreated { table, partition_template: table_template })] => {
+        Event::TableCreated(TableCreated { table, partition_template: table_template })] => {
             // Validate the namespace create message
 
             assert_eq!(namespace_name, NAMESPACE_NAME);
@@ -751,7 +751,7 @@ mod tests {
         },
         schema = DEFAULT_NAMESPACE,
         want_count = 1,
-        want = [Msg::TableCreated(TableCreated { table, partition_template: table_template })] => {
+        want = [Event::TableCreated(TableCreated { table, partition_template: table_template })] => {
             let meta = table.as_ref().expect("must have metadata");
 
             assert_eq!(meta.table_name, TABLE_NAME);
@@ -823,8 +823,8 @@ mod tests {
         },
         want_count = 1,
         want = [
-                Msg::TableCreated(created),
-                Msg::TableUpdated(updated),
+                Event::TableCreated(created),
+                Event::TableUpdated(updated),
             ] => {
             // Table create validation
             let meta = created.table.as_ref().expect("must have metadata");

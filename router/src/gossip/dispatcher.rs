@@ -5,18 +5,18 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use bytes::Bytes;
 use generated_types::influxdata::iox::gossip::{
-    v1::{gossip_message::Msg, GossipMessage},
+    v1::{schema_message::Event, SchemaMessage},
     Topic,
 };
 use generated_types::prost::Message;
 use observability_deps::tracing::{info, warn};
 use tokio::{sync::mpsc, task::JoinHandle};
 
-/// A handler of [`Msg`] received via gossip.
+/// A handler of [`Event`] received via gossip.
 #[async_trait]
 pub trait GossipMessageHandler: Send + Sync + Debug {
     /// Process `message`.
-    async fn handle(&self, message: Msg);
+    async fn handle(&self, message: Event);
 }
 
 /// An async gossip message dispatcher.
@@ -79,7 +79,7 @@ where
 {
     while let Some(payload) = rx.recv().await {
         // Deserialise the payload into the appropriate proto type.
-        let msg = match GossipMessage::decode(payload).map(|v| v.msg) {
+        let event = match SchemaMessage::decode(payload).map(|v| v.event) {
             Ok(Some(v)) => v,
             Ok(None) => {
                 warn!("valid frame contains no message");
@@ -92,7 +92,7 @@ where
         };
 
         // Pass this message off to the handler to process.
-        handler.handle(msg).await;
+        handler.handle(event).await;
     }
 
     info!("stopping gossip dispatcher");
