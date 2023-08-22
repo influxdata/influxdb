@@ -1,11 +1,2 @@
--- Remove helper index for the migration from name-based partition sort keys to ID-based sort keys
-
--- By default we often only have 5min to finish our statements.
--- IOX_NO_TRANSACTION
-SET statement_timeout TO '60min';
-
--- IOX_STEP_BOUNDARY
-
--- remove potentially invalid index
--- IOX_NO_TRANSACTION
-DROP INDEX CONCURRENTLY IF EXISTS partition_sort_key_name_to_id_helper;
+-- removed
+-- IOX_OTHER_CHECKSUM: 6facfe1bd496bb1ab192cbf50143b9bf802a2749f1abaa29e4fc1df28156421c8196e0c72d42c2d8f4776b75515f3cd7
