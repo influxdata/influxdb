@@ -19,7 +19,7 @@ use tokio::{
 /// transport limitations) and broadcasts the result to all listening peers.
 ///
 /// Serialisation and processing of the [`Event`] given to the
-/// [`SchemaTx::Broadcast()`] method happen in a background actor task,
+/// [`SchemaTx::broadcast()`] method happen in a background actor task,
 /// decoupling the caller from the latency of processing each frame. Dropping
 /// the [`SchemaTx`] stops this background actor task.
 #[derive(Debug)]
@@ -35,8 +35,8 @@ impl Drop for SchemaTx {
 }
 
 impl SchemaTx {
-    /// Construct a new [`SchemaChangeObserver`] that publishes gossip messages
-    /// over `gossip`, and delegates cache operations to `inner`.
+    /// Construct a new [`SchemaTx`] that publishes gossip messages over
+    /// `gossip`, and delegates cache operations to `inner`.
     pub fn new(gossip: gossip::GossipHandle<Topic>) -> Self {
         let (tx, rx) = mpsc::channel(100);
 
@@ -114,6 +114,8 @@ async fn actor_loop(mut rx: mpsc::Receiver<Event>, gossip: gossip::GossipHandle<
 /// If any [`Column`] within the message is too large to fit into an update
 /// containing only itself, then this method returns `false` indicating
 /// oversized columns were dropped from the output.
+///
+/// [`Column`]: generated_types::influxdata::iox::gossip::v1::Column
 fn serialise_table_update_frames(
     mut msg: TableUpdated,
     max_frame_bytes: usize,
