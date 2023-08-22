@@ -5,10 +5,11 @@ use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
 use assert_cmd::Command;
 use futures::FutureExt;
+use influxdb_iox_client::flight::Error as FlightError;
 use predicates::prelude::*;
 use tempfile::TempDir;
 use test_helpers_end_to_end::{
-    maybe_skip_integration, run_sql, MiniCluster, ServerFixture, Step, StepTest, StepTestState,
+    maybe_skip_integration, try_run_sql, MiniCluster, ServerFixture, Step, StepTest, StepTestState,
     TestConfig,
 };
 
@@ -129,12 +130,13 @@ async fn rebuild_and_query(table_dir: &Path, namespace: &str, sql: &str, expecte
     while retries > 0 {
         println!("** Retries remaining:  {retries}");
         let restarted = RestartedServer::build_catalog_and_start(table_dir).await;
-        let batches = restarted.run_sql(sql, namespace).await;
-
-        // if we got results, great, otherwise try again
-        if !batches.is_empty() {
-            assert_batches_sorted_eq!(expected, &batches);
-            return;
+        match restarted.try_run_sql(sql, namespace).await {
+            // if we got results, great, otherwise try again
+            Ok(batches) if !batches.is_empty() => {
+                assert_batches_sorted_eq!(expected, &batches);
+                return;
+            }
+            _ => {}
         }
 
         retries -= 1;
@@ -151,21 +153,21 @@ struct RestartedServer {
 }
 
 impl RestartedServer {
-    async fn run_sql(
+    async fn try_run_sql(
         &self,
         sql: impl Into<String>,
         namespace: impl Into<String>,
-    ) -> Vec<RecordBatch> {
-        let (batches, _schema) = run_sql(
+    ) -> Result<Vec<RecordBatch>, FlightError> {
+        let (batches, _schema) = try_run_sql(
             sql,
             namespace,
             self.all_in_one.querier_grpc_connection(),
             None,
             false,
         )
-        .await;
+        .await?;
 
-        batches
+        Ok(batches)
     }
 
     /// builds a catalog from an export directory and starts a all in
