@@ -2713,10 +2713,13 @@ dependencies = [
 name = "ingester_query_grpc"
 version = "0.1.0"
 dependencies = [
+ "arrow",
  "base64 0.21.2",
+ "bytes",
  "data_types",
  "datafusion",
  "datafusion-proto",
+ "flatbuffers",
  "pbjson",
  "pbjson-build",
  "predicate",

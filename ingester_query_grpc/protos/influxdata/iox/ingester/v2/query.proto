@@ -36,6 +36,24 @@ message Filters {
   repeated bytes exprs = 1;
 }
 
+// Arrow encoded data.
+message EncodedData {
+  // Data that describes the arrow payload.
+  bytes ipc_message = 1;
+
+  // The actual arrow payload itself.
+  bytes arrow_data = 2;
+}
+
+// An encoded Arrow RecordBatch w/o schema information.
+message RecordBatch {
+  // Dictionary data.
+  repeated EncodedData dictionaries = 1;
+
+  // Record batch itself.
+  EncodedData batch = 2;
+}
+
 message QueryRequest {
   // Namespace to search
   int64 namespace_id = 1;
@@ -50,7 +68,7 @@ message QueryRequest {
   Filters filters = 4;
 }
 
-message IngesterQueryReponseMetadata {
+message IngesterQueryResponseMetadata {
   message Partition {
     // Partition ID.
     PartitionIdentifier id = 1;
@@ -81,7 +99,7 @@ message IngesterQueryReponseMetadata {
   repeated Partition partitions = 4;
 }
 
-message IngesterQueryReponsePayload {
+message IngesterQueryResponsePayload {
   // Partition ID.
   PartitionIdentifier partition_id = 1;
 
@@ -94,16 +112,16 @@ message IngesterQueryReponsePayload {
   repeated int64 projection = 2;
 
   // Serialized RecordBatch (w/o schema)
-  bytes record_batch = 3;
+  RecordBatch record_batch = 3;
 }
 
 message QueryResponse {
   oneof msg {
     // Metadata, this is ALWAYS the first message (even when there are no further messages) and MUST NOT be repeated.
-    IngesterQueryReponseMetadata metadata = 1;
+    IngesterQueryResponseMetadata metadata = 1;
 
     // Payload, following the first message.
-    IngesterQueryReponsePayload payload = 2;
+    IngesterQueryResponsePayload payload = 2;
   }
 }
 

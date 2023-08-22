@@ -21,7 +21,9 @@ use workspace_hack as _;
 use crate::influxdata::iox::ingester::v1 as proto;
 use crate::influxdata::iox::ingester::v2 as proto2;
 use base64::{prelude::BASE64_STANDARD, Engine};
-use data_types::{NamespaceId, TableId, TimestampRange};
+use data_types::{
+    NamespaceId, PartitionHashId, PartitionId, TableId, TimestampRange, TransitionPartitionId,
+};
 use datafusion::{common::DataFusionError, prelude::Expr};
 use datafusion_proto::bytes::Serializeable;
 use predicate::{Predicate, ValueExpr};
@@ -56,6 +58,8 @@ pub mod influxdata {
         }
     }
 }
+
+pub mod arrow_serde;
 
 /// Error returned if a request field has an invalid value. Includes
 /// machinery to add parent field names for context -- thus it will
@@ -373,7 +377,6 @@ impl TryFrom<Vec<Expr>> for proto2::Filters {
             .iter()
             .map(|expr| {
                 expr.to_bytes()
-                    .map(|bytes| bytes.to_vec())
                     .map_err(|e| expr_to_bytes_violation("exprs", e))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -447,6 +450,50 @@ pub fn decode_proto2_filters_from_base64(
 ) -> Result<proto2::Filters, DecodeProtoPredicateFromBase64Error> {
     let predicate_binary = BASE64_STANDARD.decode(s).context(Base64DecodeSnafu)?;
     proto2::Filters::decode(predicate_binary.as_slice()).context(ProtobufDecodeSnafu)
+}
+
+impl TryFrom<proto2::PartitionIdentifier> for TransitionPartitionId {
+    type Error = FieldViolation;
+
+    fn try_from(value: proto2::PartitionIdentifier) -> Result<Self, Self::Error> {
+        let proto2::PartitionIdentifier {
+            partition_identifier,
+        } = value;
+        let id =
+            partition_identifier.ok_or_else(|| FieldViolation::required("partition_identifier"))?;
+        let id = match id {
+            proto2::partition_identifier::PartitionIdentifier::CatalogId(id) => {
+                Self::Deprecated(PartitionId::new(id))
+            }
+            proto2::partition_identifier::PartitionIdentifier::HashId(id) => {
+                Self::Deterministic(PartitionHashId::try_from(id.as_ref()).map_err(|e| {
+                    FieldViolation {
+                        field: "partition_identifier".to_owned(),
+                        description: e.to_string(),
+                    }
+                })?)
+            }
+        };
+        Ok(id)
+    }
+}
+
+impl From<TransitionPartitionId> for proto2::PartitionIdentifier {
+    fn from(id: TransitionPartitionId) -> Self {
+        let id = match id {
+            TransitionPartitionId::Deprecated(id) => {
+                proto2::partition_identifier::PartitionIdentifier::CatalogId(id.get())
+            }
+            TransitionPartitionId::Deterministic(id) => {
+                proto2::partition_identifier::PartitionIdentifier::HashId(
+                    id.as_bytes().to_vec().into(),
+                )
+            }
+        };
+        Self {
+            partition_identifier: Some(id),
+        }
+    }
 }
 
 #[cfg(test)]
