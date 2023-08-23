@@ -6,8 +6,6 @@ use data_types::{
     TransitionPartitionId,
 };
 
-use crate::wal::reference_tracker::WalReferenceHandle;
-
 /// An abstract observer of persistence completion events.
 ///
 /// This call is made synchronously by the persist worker, after
@@ -126,13 +124,6 @@ where
 {
     async fn persist_complete(&self, note: Arc<CompletedPersist>) {
         (**self).persist_complete(note).await
-    }
-}
-
-#[async_trait]
-impl PersistCompletionObserver for WalReferenceHandle {
-    async fn persist_complete(&self, note: Arc<CompletedPersist>) {
-        self.enqueue_persist_notification(note).await
     }
 }
 
