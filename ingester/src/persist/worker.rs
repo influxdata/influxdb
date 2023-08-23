@@ -2,7 +2,7 @@ use std::{ops::ControlFlow, sync::Arc};
 
 use async_channel::RecvError;
 use backoff::Backoff;
-use data_types::{ColumnsByName, CompactionLevel, ParquetFileParams};
+use data_types::{ColumnsByName, CompactionLevel, ParquetFile, ParquetFileParams};
 use iox_catalog::interface::{get_table_columns_by_id, CasFailure, Catalog};
 use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
@@ -135,17 +135,12 @@ pub(super) async fn run_task<O>(
         };
 
         // Make the newly uploaded parquet file visible to other nodes.
-        let object_store_id =
-            update_catalog_parquet(&ctx, &worker_state, &parquet_table_data).await;
+        let parquet_file = update_catalog_parquet(&ctx, &worker_state, &parquet_table_data).await;
 
         // And finally mark the persist job as complete and notify any
         // observers.
-        ctx.mark_complete(
-            object_store_id,
-            parquet_table_data,
-            &worker_state.completion_observer,
-        )
-        .await;
+        ctx.mark_complete(parquet_file, &worker_state.completion_observer)
+            .await;
 
         // Capture the time spent actively persisting.
         let now = Instant::now();
@@ -515,7 +510,7 @@ async fn update_catalog_parquet<O>(
     ctx: &Context,
     worker_state: &SharedWorkerState<O>,
     parquet_table_data: &ParquetFileParams,
-) -> Uuid
+) -> ParquetFile
 where
     O: Send + Sync,
 {
@@ -540,7 +535,7 @@ where
     //
     // This has the effect of allowing the queriers to "discover" the
     // parquet file by polling / querying the catalog.
-    Backoff::new(&Default::default())
+    let file = Backoff::new(&Default::default())
         .retry_all_errors("add parquet file to catalog", || async {
             let mut repos = worker_state.catalog.repositories().await;
             let parquet_file = repos
@@ -562,10 +557,13 @@ where
             );
 
             // compiler insisted on getting told the type of the error :shrug:
-            Ok(()) as Result<(), iox_catalog::interface::Error>
+            Ok(parquet_file) as Result<ParquetFile, iox_catalog::interface::Error>
         })
         .await
         .expect("retry forever");
 
-    object_store_id
+    // A newly created file should never be marked for deletion.
+    assert!(file.to_delete.is_none());
+
+    file
 }

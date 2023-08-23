@@ -55,8 +55,8 @@ pub(crate) mod mock {
     use std::{sync::Arc, time::Duration};
 
     use data_types::{
-        ColumnId, ColumnSet, NamespaceId, ParquetFileParams, PartitionHashId, PartitionKey,
-        TableId, Timestamp, TransitionPartitionId,
+        ColumnId, ColumnSet, NamespaceId, ParquetFile, ParquetFileId, PartitionHashId,
+        PartitionKey, TableId, Timestamp, TransitionPartitionId,
     };
     use test_helpers::timeout::FutureTimeout;
     use tokio::task::JoinHandle;
@@ -162,7 +162,9 @@ pub(crate) mod mock {
                 let partition_id = TransitionPartitionId::Deterministic(partition_hash_id);
                 completion_observer
                     .persist_complete(Arc::new(CompletedPersist::new(
-                        ParquetFileParams {
+                        ParquetFile {
+                            id: ParquetFileId::new(42),
+                            to_delete: None,
                             namespace_id: NamespaceId::new(1),
                             table_id,
                             partition_id,
