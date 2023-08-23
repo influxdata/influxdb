@@ -500,10 +500,8 @@ mod tests {
         #[test]
         fn partition_hash_id_representations(
             table_id in 0..i64::MAX,
-            partition_key in any::<String>(),
+            partition_key in ".+",
         ) {
-            prop_assume!(!partition_key.is_empty());
-
             let table_id = TableId::new(table_id);
             let partition_key = PartitionKey::from(partition_key);
 
