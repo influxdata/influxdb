@@ -1,5 +1,6 @@
 use std::{fmt::Debug, sync::Arc};
 
+use async_trait::async_trait;
 use data_types::sequence_number_set::SequenceNumberSet;
 use futures::Future;
 use observability_deps::tracing::warn;
@@ -10,7 +11,8 @@ use tokio::sync::{
 use wal::SegmentId;
 
 use crate::{
-    persist::completion_observer::CompletedPersist, wal::reference_tracker::WalFileDeleter,
+    persist::completion_observer::{CompletedPersist, PersistCompletionObserver},
+    wal::reference_tracker::WalFileDeleter,
 };
 
 use super::WalReferenceActor;
@@ -199,6 +201,13 @@ impl WalReferenceHandle {
             }
             Err(TrySendError::Closed(_)) => panic!("wal reference actor stopped"),
         }
+    }
+}
+
+#[async_trait]
+impl PersistCompletionObserver for WalReferenceHandle {
+    async fn persist_complete(&self, note: Arc<CompletedPersist>) {
+        self.enqueue_persist_notification(note).await
     }
 }
 
