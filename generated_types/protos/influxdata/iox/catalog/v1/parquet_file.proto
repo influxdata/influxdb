@@ -32,7 +32,7 @@ message ParquetFile {
     // the max timestamp of data in this file
     int64 max_time = 10;
     // the optional timestamp of when this file was marked for deletion
-    int64 to_delete = 11;
+    optional int64 to_delete = 11;
     // the file size in bytes
     int64 file_size_bytes = 12;
     // the number of rows in this file

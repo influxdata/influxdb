@@ -199,7 +199,7 @@ mod tests {
             object_store_id: "bananas".to_string(),
             min_time: 1,
             max_time: 100,
-            to_delete: 0,
+            to_delete: Some(0),
             file_size_bytes: 424242,
             row_count: 4242111,
             compaction_level: 4200,

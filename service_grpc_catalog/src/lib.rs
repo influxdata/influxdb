@@ -218,7 +218,7 @@ fn to_parquet_file(p: data_types::ParquetFile) -> ParquetFile {
         object_store_id: p.object_store_id.to_string(),
         min_time: p.min_time.get(),
         max_time: p.max_time.get(),
-        to_delete: p.to_delete.map(|t| t.get()).unwrap_or(0),
+        to_delete: p.to_delete.map(|t| t.get()),
         file_size_bytes: p.file_size_bytes,
         row_count: p.row_count,
         compaction_level: p.compaction_level as i32,
