@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-sqlparser = "0.36.1"
+sqlparser = "0.37.0"
 snafu = "0.7.5"
 
 generated_types = { path = "../generated_types" }
