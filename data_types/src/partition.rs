@@ -98,6 +98,61 @@ impl TransitionPartitionId {
     }
 }
 
+/// Errors deserialising protobuf representations of [`TransitionPartitionId`].
+#[derive(Debug, Error)]
+pub enum PartitionIdProtoError {
+    /// The proto type does not contain an ID.
+    #[error("no id specified for partition id")]
+    NoId,
+
+    /// The specified hash ID is invalid.
+    #[error(transparent)]
+    InvalidHashId(#[from] PartitionHashIdError),
+}
+
+/// Serialise a [`TransitionPartitionId`] to a protobuf representation.
+impl From<TransitionPartitionId>
+    for generated_types::influxdata::iox::catalog::v1::PartitionIdentifier
+{
+    fn from(value: TransitionPartitionId) -> Self {
+        use generated_types::influxdata::iox::catalog::v1 as proto;
+        match value {
+            TransitionPartitionId::Deprecated(id) => proto::PartitionIdentifier {
+                id: Some(proto::partition_identifier::Id::CatalogId(id.get())),
+            },
+            TransitionPartitionId::Deterministic(hash) => proto::PartitionIdentifier {
+                id: Some(proto::partition_identifier::Id::HashId(
+                    hash.as_bytes().to_owned(),
+                )),
+            },
+        }
+    }
+}
+
+/// Deserialise a [`TransitionPartitionId`] from a protobuf representation.
+impl TryFrom<generated_types::influxdata::iox::catalog::v1::PartitionIdentifier>
+    for TransitionPartitionId
+{
+    type Error = PartitionIdProtoError;
+
+    fn try_from(
+        value: generated_types::influxdata::iox::catalog::v1::PartitionIdentifier,
+    ) -> Result<Self, Self::Error> {
+        use generated_types::influxdata::iox::catalog::v1 as proto;
+
+        let id = value.id.ok_or(PartitionIdProtoError::NoId)?;
+
+        Ok(match id {
+            proto::partition_identifier::Id::CatalogId(v) => {
+                TransitionPartitionId::Deprecated(PartitionId::new(v))
+            }
+            proto::partition_identifier::Id::HashId(hash) => {
+                TransitionPartitionId::Deterministic(PartitionHashId::try_from(hash.as_slice())?)
+            }
+        })
+    }
+}
+
 /// Unique ID for a `Partition`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type, sqlx::FromRow)]
 #[sqlx(transparent)]
@@ -496,6 +551,21 @@ mod tests {
         );
     }
 
+    prop_compose! {
+        /// Return an arbitrary [`TransitionPartitionId`] with a randomised ID
+        /// value.
+        fn arbitrary_partition_id()(
+            use_hash in any::<bool>(),
+            row_id in any::<i64>(),
+            hash_id in any::<[u8; PARTITION_HASH_ID_SIZE_BYTES]>()
+        ) -> TransitionPartitionId {
+            match use_hash {
+                true => TransitionPartitionId::Deterministic(PartitionHashId(hash_id.into())),
+                false => TransitionPartitionId::Deprecated(PartitionId::new(row_id)),
+            }
+        }
+    }
+
     proptest! {
         #[test]
         fn partition_hash_id_representations(
@@ -533,6 +603,22 @@ mod tests {
             let bytes_from_string = hex::decode(string_representation).unwrap();
             let from_string = PartitionHashId::try_from(&bytes_from_string[..]).unwrap();
             assert_eq!(from_string, partition_hash_id);
+        }
+
+        /// Assert a [`TransitionPartitionId`] is round-trippable through proto
+        /// serialisation.
+        #[test]
+        fn prop_partition_id_proto_round_trip(id in arbitrary_partition_id()) {
+            use generated_types::influxdata::iox::catalog::v1 as proto;
+
+            // Encoding is infallible
+            let encoded = proto::PartitionIdentifier::from(id.clone());
+
+            // Decoding a valid ID is infallible.
+            let decoded = TransitionPartitionId::try_from(encoded).unwrap();
+
+            // The deserialised value must match the input (round trippable)
+            assert_eq!(decoded, id);
         }
     }
 }
