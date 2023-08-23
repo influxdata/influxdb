@@ -25,7 +25,7 @@ pub trait PersistCompletionObserver: Send + Sync + Debug {
 }
 
 /// A set of details describing the persisted data.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct CompletedPersist {
     /// The catalog metadata for the persist operation.
     meta: ParquetFile,
