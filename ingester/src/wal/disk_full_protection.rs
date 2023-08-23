@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use observability_deps::tracing::*;
-use tokio::{sync::watch::Receiver, task::JoinHandle};
+use tokio::{
+    sync::mpsc,
+    sync::{mpsc::error::TrySendError, watch::Receiver},
+};
 use tracker::DiskSpaceSnapshot;
 
 use super::reference_tracker::WalReferenceHandle;
@@ -21,7 +24,7 @@ const DISK_USAGE_RATIO_THRESHOLD: f64 = 0.9;
 /// data taking up disk space.
 #[async_trait]
 pub(crate) trait PersistingCleaner {
-    async fn persist_and_tidy(&self);
+    async fn persist_and_clean(&self);
 }
 
 /// A [`wal::Wal`] and [`PartitionIter`] based implementation of a
@@ -67,7 +70,7 @@ where
     /// Rotate the WAL, notifying the reference tracker and persisting the buffer-tree.
     ///
     /// This function waits for the set of inactive WAL files to be empty before returning.
-    async fn persist_and_tidy(&self) {
+    async fn persist_and_clean(&self) {
         let (closed_segment, sequence_number_set) =
             self.wal.rotate().expect("failed to rotate wal");
         info!(
@@ -93,6 +96,22 @@ where
     }
 }
 
+/// A simple actor loop which invokes the provided [`PersistingCleaner`] for
+/// each enqueued notification, exiting when the paired [`mpsc::Sender`] is
+/// dropped. At most one persist and clean job will be in progress at once,
+/// subsequent notifications queue up on `notify_rx`.
+async fn persisting_cleaner_actor_loop<P>(mut notify_rx: mpsc::Receiver<()>, persisting_cleaner: P)
+where
+    P: PersistingCleaner + Send + Sync,
+{
+    while notify_rx.recv().await.is_some() {
+        info!("received request to persist buffered writes and clean up persisted files from the disk");
+        persisting_cleaner.persist_and_clean().await;
+    }
+
+    info!("stopping disk protection persisting cleaner actor loop");
+}
+
 /// Protect the ingester from the disk watched by `disk_snapshot_rx` filling up,
 /// marking the provided `ingest_state` with an error while persisting
 /// outstanding partitions until enough space is free to clear the [`IngestStateError`].
@@ -105,20 +124,12 @@ pub(crate) async fn guard_disk_capacity<P>(
 ) where
     P: PersistingCleaner + Send + Sync + 'static,
 {
-    let mut cleanup_handle: Option<JoinHandle<()>> = Default::default();
-    let persisting_cleaner = Arc::new(persisting_cleaner);
+    let (tx, rx) = mpsc::channel(1);
+    tokio::spawn(persisting_cleaner_actor_loop(rx, persisting_cleaner));
 
-    // Listen for new disk space snapshots in a loop, assessing the usage ratio
-    // and taking protective action if needed.
-    loop {
-        // If the sender has disconnected, this task cannot do anything
-        // meaningful and is likely a signal that shutdown has been invoked
-        // - abort the task.
-        if disk_snapshot_rx.changed().await.is_err() {
-            info!("stopping disk full protection task");
-            return;
-        }
-
+    // Listen for new disk space snapshots in a loop, assessing the usage ratio,
+    // setting ingest state and enqueuing clean-up action if needed.
+    while disk_snapshot_rx.changed().await.is_ok() {
         let snapshot = *disk_snapshot_rx.borrow();
         let observed_disk_usage_ratio = snapshot.disk_usage_ratio();
 
@@ -145,25 +156,24 @@ pub(crate) async fn guard_disk_capacity<P>(
             );
         }
 
-        if let Some(existing_cleanup) = &cleanup_handle {
-            // An existing cleanup task may still be in progress, wait for it
-            // to finish before starting another one.
-            if !existing_cleanup.is_finished() {
-                continue;
+        // Enqueue a cleanup task to persist outstanding data and clean up the
+        // disk. It is fine if the queue is full, as another clean up will happen
+        // despite the message being dropped.
+        match tx.try_send(()) {
+            Ok(_) => {}
+            Err(TrySendError::Closed(_)) => {
+                panic!("disk protection persisting cleaner actor not running")
+            }
+            Err(TrySendError::Full(_)) => {
+                warn!("persist and clean notification queue is full")
             }
         }
-
-        // Start a cleanup task to persist outstanding data and tidy up the
-        // disk, keeping a handle to ensure only one is running at any given
-        // time.
-        cleanup_handle = Some(tokio::spawn({
-            info!("persisting outstanding writes and tidying up old files");
-            let persisting_cleaner = Arc::clone(&persisting_cleaner);
-            async move {
-                persisting_cleaner.persist_and_tidy().await;
-            }
-        }));
     }
+
+    // If the sender has disconnected, this task cannot do anything
+    // meaningful and is likely a signal that shutdown has been invoked
+    // - abort the task.
+    info!("stopping disk full protection task");
 }
 
 #[cfg(test)]
@@ -179,7 +189,7 @@ mod tests {
     use parking_lot::Mutex;
     use tempfile::tempdir;
     use test_helpers::timeout::FutureTimeout;
-    use tokio::sync::watch;
+    use tokio::sync::{oneshot, watch};
     use tracker::DiskSpaceSnapshot;
 
     use crate::dml_payload::IngestOp;
@@ -247,7 +257,7 @@ mod tests {
         // that the waker notifies.
         let empty_waker = wal_reference_handle.empty_inactive_notifier();
         wal_persister
-            .persist_and_tidy()
+            .persist_and_clean()
             .with_timeout_panic(Duration::from_secs(5))
             .await;
         empty_waker.with_timeout_panic(Duration::from_secs(1)).await;
@@ -278,7 +288,7 @@ mod tests {
 
     #[async_trait]
     impl PersistingCleaner for Arc<MockPersistingCleaner> {
-        async fn persist_and_tidy(&self) {
+        async fn persist_and_clean(&self) {
             self.calls
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let f: Pin<Box<dyn Future<Output = ()> + Send>> = self
@@ -309,6 +319,54 @@ mod tests {
                 return;
             }
         }
+    }
+
+    // This test just makes an assertion that the actor loop performs a notified
+    // persist and clean if it carrying out one at the time it is notified and
+    // that dropping the parent notifier causes the actor to exit.
+    #[tokio::test]
+    async fn test_actor_queues_request() {
+        // Set up the mock cleaner to only unblock when notified for two calls.
+        let (tx_unblock, rx_unblock) = oneshot::channel();
+        let persisting_cleaner = Arc::new(MockPersistingCleaner::default().with_process_futures([
+            Box::pin(async move {
+                rx_unblock.await.expect("should receive unblock ok");
+            }) as Pin<Box<dyn Future<Output = _> + Send>>,
+        ]));
+
+        // Set up the actor loop to process notifications
+        let (tx_notify, rx_notify) = mpsc::channel(1);
+        let actor_loop_handle = tokio::spawn(persisting_cleaner_actor_loop(
+            rx_notify,
+            Arc::clone(&persisting_cleaner),
+        ));
+
+        // Enqueue two persist & cleans, then make sure the third is not enqueued.
+        tx_notify
+            .try_send(())
+            .expect("first trigger must be picked up");
+        tx_notify
+            .send_timeout((), Duration::from_millis(500))
+            .await
+            .expect("second trigger must be queued");
+        tx_notify
+            .send_timeout((), Duration::from_millis(500))
+            .await
+            .expect_err("third trigger must be dropped");
+
+        // Check that the first call was made, then unblock it and check the
+        // second is made after the loop quit
+        assert_eq!(persisting_cleaner.calls.load(Ordering::Relaxed), 1);
+        tx_unblock.send(()).expect("send should be received");
+
+        drop(tx_notify);
+        actor_loop_handle
+            .await
+            .expect("actor should exit without error during shutdown");
+
+        // Wait for the loop to exit and ensure the second, queued call
+        // was processed
+        assert_eq!(persisting_cleaner.calls.load(Ordering::Relaxed), 2);
     }
 
     // This test just ensures that disk snapshots showing a healthy amount of
