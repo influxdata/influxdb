@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use data_types::{NamespaceId, ParquetFileParams, PartitionKey, TableId, TransitionPartitionId};
+use data_types::{NamespaceId, ParquetFile, PartitionKey, TableId, TransitionPartitionId};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use schema::sort::SortKey;
@@ -9,7 +9,6 @@ use tokio::{
     sync::{oneshot, OwnedSemaphorePermit},
     time::Instant,
 };
-use uuid::Uuid;
 
 use crate::{
     buffer_tree::{
@@ -217,14 +216,12 @@ impl Context {
     // Call [`PartitionData::mark_complete`] to finalise the persistence job,
     // emit a log for the user, and notify the observer of this persistence
     // task, if any.
-    pub(super) async fn mark_complete<O>(
-        self,
-        object_store_id: Uuid,
-        metadata: ParquetFileParams,
-        completion_observer: &O,
-    ) where
+    pub(super) async fn mark_complete<O>(self, metadata: ParquetFile, completion_observer: &O)
+    where
         O: PersistCompletionObserver,
     {
+        let object_store_id = metadata.object_store_id;
+
         // Mark the partition as having completed persistence, causing it to
         // release the reference to the in-flight persistence data it is
         // holding.
