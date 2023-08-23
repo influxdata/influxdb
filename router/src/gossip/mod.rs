@@ -1,21 +1,17 @@
-//! Gossip event dispatcher & handler implementations for routers.
+//! Gossip schema event dispatcher & handler implementations for routers.
 //!
 //! This sub-system is composed of the following primary components:
 //!
-//! * [`gossip`] crate: provides the gossip transport, the [`GossipHandle`], and
-//!   the [`Dispatcher`]. This crate operates on raw bytes.
+//! * [`gossip_schema`] crate: provides the schema-specific encoding and
+//!   transmission over gossip transport.
 //!
-//! * The outgoing [`SchemaChangeObserver`]: a router-specific wrapper over the
-//!   underlying [`GossipHandle`]. This type translates the application calls
-//!   into protobuf [`Event`], and serialises them into bytes, sending them over
-//!   the underlying [`gossip`] impl.
+//! * The outgoing [`SchemaChangeObserver`]: a [`NamespaceCache`] decorator,
+//!   calculating diff events for cache changes observed and passing them to the
+//!   the [`SchemaTx`] for serialisation and dispatch.
 //!
-//! * The incoming [`GossipMessageDispatcher`]: deserialises the incoming bytes
-//!   from the gossip [`Dispatcher`] into [`Event`] and passes them off to the
-//!   [`NamespaceSchemaGossip`] implementation for processing.
-//!
-//! * The incoming [`NamespaceSchemaGossip`]: processes [`Event`] received from
-//!   peers, applying them to the local cache state if necessary.
+//! * The incoming [`NamespaceSchemaGossip`]: processes gossip [`Event`]
+//!   received from peers, idempotently applying them to the local cache state
+//!   if necessary.
 //!
 //! ```text
 //!         ┌────────────────────────────────────────────────────┐
@@ -23,42 +19,34 @@
 //!         └────────────────────────────────────────────────────┘
 //!                     │                           ▲
 //!                     │                           │
-//!                   diff                        diff
 //!                     │                           │
-//!                     │              ┌─────────────────────────┐
-//!                     │              │  NamespaceSchemaGossip  │
-//!                     │              └─────────────────────────┘
-//!                     │                           ▲
-//!                     │                           │
-//!                     │     Application types     │
+//!                    diff                        diff
 //!                     │                           │
 //!                     ▼                           │
 //!         ┌──────────────────────┐   ┌─────────────────────────┐
-//!         │ SchemaChangeObserver │   │ GossipMessageDispatcher │
+//!         │ SchemaChangeObserver │   │  NamespaceSchemaGossip  │
 //!         └──────────────────────┘   └─────────────────────────┘
 //!                     │                           ▲
 //!                     │                           │
-//!                     │   Encoded Protobuf bytes  │
+//!                     │       Schema Event        │
 //!                     │                           │
 //!                     │                           │
-//!        ┌ Gossip  ─ ─│─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│─ ─ ─ ─ ─ ─ ─
+//!        ┌ gossip_schema ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│─ ─ ─ ─ ─ ─ ─
 //!                     ▼                           │             │
-//!        │    ┌──────────────┐          ┌──────────────────┐
-//!             │ GossipHandle │          │    Dispatcher    │    │
-//!        │    └──────────────┘          └──────────────────┘
+//!        │    ┌──────────────┐            ┌──────────────┐
+//!             │   SchemaTx   │            │   SchemaRx   │      │
+//!        │    └──────────────┘            └──────────────┘
 //!                                                               │
 //!        └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 //! ```
 //!
-//! [`GossipHandle`]: gossip::GossipHandle
-//! [`Dispatcher`]: gossip::Dispatcher
 //! [`SchemaChangeObserver`]: schema_change_observer::SchemaChangeObserver
 //! [`Event`]:
 //!     generated_types::influxdata::iox::gossip::v1::schema_message::Event
-//! [`GossipMessageDispatcher`]: dispatcher::GossipMessageDispatcher
 //! [`NamespaceSchemaGossip`]: namespace_cache::NamespaceSchemaGossip
+//! [`NamespaceCache`]: crate::namespace_cache::NamespaceCache
+//! [`SchemaTx`]: gossip_schema::handle::SchemaTx
 
-pub mod dispatcher;
 pub mod namespace_cache;
 pub mod schema_change_observer;
 pub mod traits;
@@ -70,7 +58,6 @@ mod mock_schema_broadcast;
 mod tests {
     use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-    use async_trait::async_trait;
     use data_types::{
         partition_template::{
             test_table_partition_override, NamespacePartitionTemplateOverride,
@@ -79,35 +66,35 @@ mod tests {
         Column, ColumnId, ColumnsByName, NamespaceId, NamespaceName, NamespaceSchema, TableId,
         TableSchema,
     };
-    use generated_types::influxdata::iox::gossip::Topic;
-    use gossip::Dispatcher;
+    use generated_types::influxdata::iox::gossip::v1::schema_message::Event;
+    use gossip_schema::dispatcher::SchemaEventHandler;
     use test_helpers::timeout::FutureTimeout;
 
-    use crate::namespace_cache::{MemoryNamespaceCache, NamespaceCache};
+    use crate::namespace_cache::{CacheMissErr, MemoryNamespaceCache, NamespaceCache};
 
     use super::{
-        dispatcher::GossipMessageDispatcher, namespace_cache::NamespaceSchemaGossip,
-        schema_change_observer::SchemaChangeObserver, traits::SchemaBroadcast,
+        namespace_cache::NamespaceSchemaGossip, schema_change_observer::SchemaChangeObserver,
+        traits::SchemaBroadcast,
     };
 
     #[derive(Debug)]
-    struct GossipPipe {
-        dispatcher: GossipMessageDispatcher,
+    struct GossipPipe<C> {
+        rx: Arc<NamespaceSchemaGossip<C>>,
     }
 
-    impl GossipPipe {
-        fn new(dispatcher: GossipMessageDispatcher) -> Self {
-            Self { dispatcher }
+    impl<C> GossipPipe<C> {
+        fn new(rx: Arc<NamespaceSchemaGossip<C>>) -> Self {
+            Self { rx }
         }
     }
 
-    #[async_trait]
-    impl SchemaBroadcast for Arc<GossipPipe> {
-        async fn broadcast(&self, payload: Vec<u8>) {
-            self.dispatcher
-                .dispatch(Topic::SchemaChanges, payload.into())
-                .with_timeout_panic(Duration::from_secs(5))
-                .await;
+    impl<C> SchemaBroadcast for Arc<GossipPipe<C>>
+    where
+        C: NamespaceCache<ReadError = CacheMissErr> + 'static,
+    {
+        fn broadcast(&self, payload: Event) {
+            let this = Arc::clone(self);
+            tokio::spawn(async move { this.rx.handle(payload).await });
         }
     }
 
@@ -117,13 +104,11 @@ mod tests {
         // Setup a cache for node A and wrap it in the gossip layer.
         let node_a_cache = Arc::new(MemoryNamespaceCache::default());
         let dispatcher_a = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&node_a_cache)));
-        let dispatcher_a = GossipMessageDispatcher::new(dispatcher_a, 100);
         let gossip_a = Arc::new(GossipPipe::new(dispatcher_a));
 
         // Setup a cache for node B.
         let node_b_cache = Arc::new(MemoryNamespaceCache::default());
         let dispatcher_b = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&node_b_cache)));
-        let dispatcher_b = GossipMessageDispatcher::new(dispatcher_b, 100);
         let gossip_b = Arc::new(GossipPipe::new(dispatcher_b));
 
         // Connect the two nodes via adaptors that will plug one "node" into the

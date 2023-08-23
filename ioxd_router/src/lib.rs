@@ -13,6 +13,7 @@
 #![allow(clippy::default_constructed_unit_structs)]
 
 use gossip::TopicInterests;
+use gossip_schema::{dispatcher::SchemaRx, handle::SchemaTx};
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -53,8 +54,7 @@ use router::{
         InstrumentationDecorator, Partitioner, RetentionValidator, RpcWrite, SchemaValidator,
     },
     gossip::{
-        dispatcher::GossipMessageDispatcher, namespace_cache::NamespaceSchemaGossip,
-        schema_change_observer::SchemaChangeObserver,
+        namespace_cache::NamespaceSchemaGossip, schema_change_observer::SchemaChangeObserver,
     },
     namespace_cache::{
         metrics::InstrumentedCache, MaybeLayer, MemoryNamespaceCache, NamespaceCache,
@@ -316,7 +316,7 @@ pub async fn create_router_server_type(
             // incoming gossip schema diffs.
             let gossip_reader = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&ns_cache)));
             // Adapt it to the gossip subsystem via the "Dispatcher" trait
-            let dispatcher = GossipMessageDispatcher::new(Arc::clone(&gossip_reader), 100);
+            let dispatcher = SchemaRx::new(Arc::clone(&gossip_reader), 100);
 
             // Initialise the gossip subsystem, delegating message processing to
             // the above dispatcher.
@@ -335,7 +335,7 @@ pub async fn create_router_server_type(
             // local changes made to the cache content.
             //
             // This sits above / wraps the NamespaceSchemaGossip layer.
-            let ns_cache = SchemaChangeObserver::new(ns_cache, Arc::new(handle));
+            let ns_cache = SchemaChangeObserver::new(ns_cache, SchemaTx::new(handle));
 
             MaybeLayer::With(ns_cache)
         }

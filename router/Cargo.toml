@@ -15,7 +15,7 @@ dml = { path = "../dml" }
 flate2 = "1.0"
 futures = "0.3.28"
 generated_types = { path = "../generated_types" }
-gossip = { version = "0.1.0", path = "../gossip" }
+gossip_schema = { version = "0.1.0", path = "../gossip_schema" }
 hashbrown = { workspace = true }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
@@ -29,8 +29,8 @@ observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 serde = "1.0"
 serde_urlencoded = "0.7"
-service_grpc_catalog = { path = "../service_grpc_catalog"}
-service_grpc_namespace = { path = "../service_grpc_namespace"}
+service_grpc_catalog = { path = "../service_grpc_catalog" }
+service_grpc_namespace = { path = "../service_grpc_namespace" }
 service_grpc_object_store = { path = "../service_grpc_object_store" }
 service_grpc_schema = { path = "../service_grpc_schema" }
 service_grpc_table = { path = "../service_grpc_table" }
@@ -47,8 +47,11 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 [dev-dependencies]
 assert_matches = "1.5"
 base64 = "0.21.2"
-chrono = {version = "0.4.26", default-features = false }
-criterion = { version = "0.5", default-features = false, features = ["async_tokio", "rayon"]}
+chrono = { version = "0.4.26", default-features = false }
+criterion = { version = "0.5", default-features = false, features = [
+    "async_tokio",
+    "rayon",
+] }
 influxdb-line-protocol = { path = "../influxdb_line_protocol" }
 iox_tests = { path = "../iox_tests" }
 once_cell = "1"
@@ -57,7 +60,9 @@ pretty_assertions = "1.4.0"
 proptest = { version = "1.2.0", default-features = false }
 rand = "0.8.3"
 schema = { version = "0.1.0", path = "../schema" }
-test_helpers = { version = "0.1.0", path = "../test_helpers", features = ["future_timeout"] }
+test_helpers = { version = "0.1.0", path = "../test_helpers", features = [
+    "future_timeout",
+] }
 tokio = { version = "1", features = ["test-util"] }
 tokio-stream = { version = "0.1.13", default_features = false, features = [] }
 

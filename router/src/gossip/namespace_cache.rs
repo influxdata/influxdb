@@ -1,6 +1,6 @@
 //! [`NamespaceCache`] decorator to gossip schema changes.
 
-use std::{borrow::Cow, collections::BTreeMap, fmt::Debug, sync::Arc};
+use std::{borrow::Cow, collections::BTreeMap, fmt::Debug};
 
 use async_trait::async_trait;
 use data_types::{
@@ -11,12 +11,11 @@ use data_types::{
 use generated_types::influxdata::iox::gossip::v1::{
     schema_message::Event, NamespaceCreated, TableCreated, TableUpdated,
 };
+use gossip_schema::dispatcher::SchemaEventHandler;
 use observability_deps::tracing::{debug, error, trace, warn};
 use thiserror::Error;
 
 use crate::namespace_cache::{CacheMissErr, NamespaceCache};
-
-use super::dispatcher::GossipMessageHandler;
 
 /// Errors caused by incoming schema gossip messages from cluster peers.
 #[derive(Debug, Error)]
@@ -46,7 +45,7 @@ enum Error {
 }
 
 /// A [`NamespaceCache`] decorator applying incoming schema change notifications
-/// via the [`gossip`] subsystem.
+/// via the gossip subsystem.
 ///
 /// Any schema additions received from peers are applied to the decorated
 /// [`NamespaceCache`], helping to keep the peers approximately in-sync on a
@@ -60,8 +59,8 @@ enum Error {
 /// that would cause a cache miss resulting in a catalog query, and the
 /// associated latency penalty and catalog load that comes with it.
 ///
-/// This type implements the [`GossipMessageHandler`] which is invoked with the
-/// [`Event`] received from an opaque peer by the [`gossip`] subsystem (off of the
+/// This type implements the [`SchemaEventHandler`] which is invoked with the
+/// [`Event`] received from an opaque peer by the gossip subsystem (off of the
 /// hot path), which when processed causes the cache contents to be updated if
 /// appropriate through the usual [`NamespaceCache::get_schema()`] and
 /// [`NamespaceCache::put_schema()`] abstraction.
@@ -90,7 +89,7 @@ pub struct NamespaceSchemaGossip<C> {
 /// Merges the content of each event with the existing [`NamespaceCache`]
 /// contents, if any.
 #[async_trait]
-impl<C> GossipMessageHandler for Arc<NamespaceSchemaGossip<C>>
+impl<C> SchemaEventHandler for NamespaceSchemaGossip<C>
 where
     C: NamespaceCache<ReadError = CacheMissErr>,
 {
