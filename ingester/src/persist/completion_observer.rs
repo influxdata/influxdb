@@ -104,6 +104,11 @@ impl CompletedPersist {
         max.checked_duration_since(min)
             .expect("parquet min/max file timestamp difference is negative")
     }
+
+    /// Return the [`ParquetFile`] record inserted into the catalog.
+    pub fn file_record(&self) -> &ParquetFile {
+        &self.meta
+    }
 }
 
 /// A no-op implementation of the [`PersistCompletionObserver`] trait.
