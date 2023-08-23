@@ -2,7 +2,7 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use data_types::{
-    sequence_number_set::SequenceNumberSet, NamespaceId, ParquetFileParams, TableId,
+    sequence_number_set::SequenceNumberSet, NamespaceId, ParquetFile, TableId,
     TransitionPartitionId,
 };
 
@@ -30,7 +30,7 @@ pub trait PersistCompletionObserver: Send + Sync + Debug {
 #[derive(Debug)]
 pub struct CompletedPersist {
     /// The catalog metadata for the persist operation.
-    meta: ParquetFileParams,
+    meta: ParquetFile,
 
     /// The [`SequenceNumberSet`] of the persisted data.
     sequence_numbers: SequenceNumberSet,
@@ -38,7 +38,7 @@ pub struct CompletedPersist {
 
 impl CompletedPersist {
     /// Construct a new completion notification.
-    pub(crate) fn new(meta: ParquetFileParams, sequence_numbers: SequenceNumberSet) -> Self {
+    pub(crate) fn new(meta: ParquetFile, sequence_numbers: SequenceNumberSet) -> Self {
         Self {
             meta,
             sequence_numbers,
@@ -170,10 +170,12 @@ mod tests {
     use crate::test_util::{
         ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, ARBITRARY_TRANSITION_PARTITION_ID,
     };
-    use data_types::{ColumnId, ColumnSet, SequenceNumber, Timestamp};
+    use data_types::{ColumnId, ColumnSet, ParquetFileId, SequenceNumber, Timestamp};
 
-    fn arbitrary_file_meta() -> ParquetFileParams {
-        ParquetFileParams {
+    fn arbitrary_file_meta() -> ParquetFile {
+        ParquetFile {
+            id: ParquetFileId::new(42),
+            to_delete: None,
             namespace_id: ARBITRARY_NAMESPACE_ID,
             table_id: ARBITRARY_TABLE_ID,
             partition_id: ARBITRARY_TRANSITION_PARTITION_ID.clone(),
