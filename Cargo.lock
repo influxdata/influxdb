@@ -2062,6 +2062,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "gossip_schema"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "async-trait",
+ "bytes",
+ "data_types",
+ "generated_types",
+ "gossip",
+ "metric",
+ "observability_deps",
+ "proptest",
+ "test_helpers",
+ "tokio",
+ "workspace-hack",
+]
+
+[[package]]
 name = "grpc-binary-logger"
 version = "0.1.0"
 dependencies = [
