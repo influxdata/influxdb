@@ -21,6 +21,7 @@ snafu = "0.7"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
+arrow_util = { path = "../arrow_util" }
 test_helpers = { path = "../test_helpers" }
 insta = { version = "1", features = ["yaml"] }
-tokio = { version = "1.31", features = ["macros", "parking_lot"] }
+tokio = { version = "1.32", features = ["macros", "parking_lot"] }

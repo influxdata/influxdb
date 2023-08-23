@@ -18,7 +18,7 @@ iox_query = { path = "../iox_query" }
 query_functions = { path = "../query_functions"}
 service_common = { path = "../service_common" }
 service_grpc_testing = { path = "../service_grpc_testing", optional = true }
-tokio = { version = "1.31", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"], optional = true }
+tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"], optional = true }
 trace = { path = "../trace"}
 trace_http = { path = "../trace_http"}
 tracker = { path = "../tracker" }
@@ -30,7 +30,7 @@ pin-project = "1.1"
 prost = "0.11"
 regex = "1.9.3"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.104"
+serde_json = "1.0.105"
 snafu = "0.7"
 tokio-stream = { version = "0.1", features = ["net"] }
 tonic = { workspace = true }
@@ -49,7 +49,7 @@ trace_http = { path = "../trace_http" }
 
 # Crates.io dependencies, in alphabetical order
 parking_lot = "0.12"
-tokio = { version = "1.31", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 
 [features]
 test-util = ["influxdb_storage_client", "service_grpc_testing", "tokio"]

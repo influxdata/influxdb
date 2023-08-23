@@ -1,6 +1,6 @@
 //! A Postgres backed implementation of the Catalog
 
-use crate::interface::MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE;
+use crate::interface::{verify_sort_key_length, MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE};
 use crate::{
     interface::{
         self, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
@@ -16,6 +16,7 @@ use crate::{
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
+use data_types::SortedColumnSet;
 use data_types::{
     partition_template::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
@@ -1154,21 +1155,17 @@ RETURNING *;
 #[async_trait]
 impl PartitionRepo for PostgresTxn {
     async fn create_or_get(&mut self, key: PartitionKey, table_id: TableId) -> Result<Partition> {
-        // Note: since sort_key is now an array, we must explicitly insert '{}' which is an empty
-        // array rather than NULL which sqlx will throw `UnexpectedNullError` while is is doing
-        // `ColumnDecode`
-
         let hash_id = PartitionHashId::new(table_id, &key);
 
         let v = sqlx::query_as::<_, Partition>(
             r#"
 INSERT INTO partition
-    (partition_key, shard_id, table_id, hash_id, sort_key)
+    (partition_key, shard_id, table_id, hash_id, sort_key, sort_key_ids)
 VALUES
-    ( $1, $2, $3, $4, '{}')
+    ( $1, $2, $3, $4, '{}', '{}')
 ON CONFLICT ON CONSTRAINT partition_key_unique
 DO UPDATE SET partition_key = partition.partition_key
-RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
         )
         .bind(key) // $1
@@ -1191,7 +1188,7 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>> {
         let rec = sqlx::query_as::<_, Partition>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE id = $1;
         "#,
@@ -1214,7 +1211,7 @@ WHERE id = $1;
 
         sqlx::query_as::<_, Partition>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE id = ANY($1);
         "#,
@@ -1231,7 +1228,7 @@ WHERE id = ANY($1);
     ) -> Result<Option<Partition>> {
         let rec = sqlx::query_as::<_, Partition>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE hash_id = $1;
         "#,
@@ -1257,7 +1254,7 @@ WHERE hash_id = $1;
 
         sqlx::query_as::<_, Partition>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE hash_id = ANY($1);
         "#,
@@ -1271,7 +1268,7 @@ WHERE hash_id = ANY($1);
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
         sqlx::query_as::<_, Partition>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE table_id = $1;
             "#,
@@ -1305,32 +1302,37 @@ WHERE table_id = $1;
         partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
         new_sort_key: &[&str],
+        new_sort_key_ids: &SortedColumnSet,
     ) -> Result<Partition, CasFailure<Vec<String>>> {
+        verify_sort_key_length(new_sort_key, new_sort_key_ids);
+
         let old_sort_key = old_sort_key.unwrap_or_default();
         // This `match` will go away when all partitions have hash IDs in the database.
         let query = match partition_id {
             TransitionPartitionId::Deterministic(hash_id) => sqlx::query_as::<_, Partition>(
                 r#"
 UPDATE partition
-SET sort_key = $1
+SET sort_key = $1, sort_key_ids = $4
 WHERE hash_id = $2 AND sort_key = $3
-RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(new_sort_key) // $1
             .bind(hash_id) // $2
-            .bind(&old_sort_key), // $3
+            .bind(&old_sort_key) // $3
+            .bind(new_sort_key_ids), // $4
             TransitionPartitionId::Deprecated(id) => sqlx::query_as::<_, Partition>(
                 r#"
 UPDATE partition
-SET sort_key = $1
+SET sort_key = $1, sort_key_ids = $4
 WHERE id = $2 AND sort_key = $3
-RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(new_sort_key) // $1
             .bind(id) // $2
-            .bind(&old_sort_key), // $3
+            .bind(&old_sort_key) // $3
+            .bind(new_sort_key_ids), // $4
         };
 
         let res = query.fetch_one(&mut self.inner).await;
@@ -1366,6 +1368,7 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
             ?partition_id,
             ?old_sort_key,
             ?new_sort_key,
+            ?new_sort_key_ids,
             "partition sort key cas successful"
         );
 
@@ -1463,8 +1466,10 @@ RETURNING *
 
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
         sqlx::query_as(
+    // TODO: Carol has confirmed the persisted_sequence_number is not needed anywhere so let us remove it
+    // but in a seperate PR to ensure we don't break anything
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, persisted_sequence_number, new_file_at
 FROM partition
 ORDER BY id DESC
 LIMIT $1;"#,
@@ -1498,6 +1503,27 @@ LIMIT $1;"#,
             .fetch_all(&mut self.inner)
             .await
             .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn list_old_style(&mut self) -> Result<Vec<Partition>> {
+        // Correctness: the main caller of this function, the partition bloom
+        // filter, relies on all partitions being made available to it.
+        //
+        // This function MUST return the full set of old partitions to the
+        // caller - do NOT apply a LIMIT to this query.
+        //
+        // The load this query saves vastly outsizes the load this query causes.
+        sqlx::query_as(
+            r#"
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, persisted_sequence_number,
+       new_file_at
+FROM partition
+WHERE hash_id IS NULL
+ORDER BY id DESC;"#,
+        )
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
     }
 }
 
@@ -2153,6 +2179,8 @@ mod tests {
             .expect("should create OK");
 
         assert_eq!(a.hash_id().unwrap(), &hash_id);
+        // Test: sort_key_ids from partition_create_or_get_idempotent
+        assert!(a.sort_key_ids().unwrap().is_empty());
 
         // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent.
         let b = repos
@@ -2173,6 +2201,9 @@ mod tests {
             .unwrap();
         assert_eq!(table_partitions.len(), 1);
         assert_eq!(table_partitions[0].hash_id().unwrap(), &hash_id);
+
+        // Test: sort_key_ids from partition_create_or_get_idempotent
+        assert!(table_partitions[0].sort_key_ids().unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -2194,12 +2225,12 @@ mod tests {
         sqlx::query(
             r#"
 INSERT INTO partition
-    (partition_key, shard_id, table_id, sort_key)
+    (partition_key, shard_id, table_id, sort_key, sort_key_ids)
 VALUES
-    ( $1, $2, $3, '{}')
+    ( $1, $2, $3, '{}', '{}')
 ON CONFLICT ON CONSTRAINT partition_key_unique
 DO UPDATE SET partition_key = partition.partition_key
-RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
         )
         .bind(&key) // $1
@@ -2223,10 +2254,96 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
             .await
             .expect("idempotent write should succeed");
 
+        // Test: sort_key_ids from freshly insert with empty value
+        assert!(inserted_again.sort_key_ids().unwrap().is_empty());
+
         assert_eq!(partition, &inserted_again);
 
         // Create a Parquet file record in this partition to ensure we don't break new data
         // ingestion for old-style partitions
+        let parquet_file_params = arbitrary_parquet_file_params(&namespace, &table, partition);
+        let parquet_file = repos
+            .parquet_files()
+            .create(parquet_file_params)
+            .await
+            .unwrap();
+        assert_matches!(
+            parquet_file.partition_id,
+            TransitionPartitionId::Deprecated(_)
+        );
+
+        // Add a partition record WITH a hash ID
+        repos
+            .partitions()
+            .create_or_get(PartitionKey::from("Something else"), table_id)
+            .await
+            .unwrap();
+
+        // Ensure we can list only the old-style partitions
+        let old_style_partitions = repos.partitions().list_old_style().await.unwrap();
+        assert_eq!(old_style_partitions.len(), 1);
+        assert_eq!(old_style_partitions[0].id, partition.id);
+    }
+
+    // todo: remove this test once we're sure all partitions have a sort_key_ids
+    #[tokio::test]
+    async fn existing_partitions_without_sort_key_ids() {
+        maybe_skip_integration!();
+
+        let postgres = setup_db().await;
+        let pool = postgres.pool.clone();
+        let postgres: Arc<dyn Catalog> = Arc::new(postgres);
+        let mut repos = postgres.repositories().await;
+
+        let namespace = arbitrary_namespace(&mut *repos, "ns-sort-key-ids").await;
+        let table = arbitrary_table(&mut *repos, "table", &namespace).await;
+        let table_id = table.id;
+        let key = PartitionKey::from("test-sort-key-ids");
+
+        // Create a partition record in the database that has `NULL` for its `sort_key_ids`
+        // value, which is what records existing before the migration adding that column will have.
+        // NOTE: the sort_key_ids should NOT be added in the INSERT INTO statement below but it SHOULD
+        // be returned in the RETURNING statement.
+        sqlx::query(
+            r#"
+INSERT INTO partition
+    (partition_key, shard_id, table_id, sort_key)
+VALUES
+    ( $1, $2, $3, '{}')
+ON CONFLICT ON CONSTRAINT partition_key_unique
+DO UPDATE SET partition_key = partition.partition_key
+RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
+        "#,
+        )
+        .bind(&key) // $1
+        .bind(TRANSITION_SHARD_ID) // $2
+        .bind(table_id) // $3
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        // Check that the sort_key_ids is null in the database doesn't break querying for partitions.
+        let table_partitions = repos.partitions().list_by_table_id(table_id).await.unwrap();
+        assert_eq!(table_partitions.len(), 1);
+        let partition = &table_partitions[0];
+        // Test: sort_key_ids from freshly insert
+        assert!(partition.sort_key_ids.is_none());
+
+        // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent
+        // and that the sort_key_ids still doesn't get set.
+        let inserted_again = repos
+            .partitions()
+            .create_or_get(key, table_id)
+            .await
+            .expect("idempotent write should succeed");
+
+        // Test: sort_key_ids from insert again
+        assert!(inserted_again.sort_key_ids.is_none());
+
+        assert_eq!(partition, &inserted_again);
+
+        // Create a Parquet file record in this partition to ensure we don't break new data
+        // ingestion for old-style partitions that have NULL sort_key_ids
         let parquet_file_params = arbitrary_parquet_file_params(&namespace, &table, partition);
         let parquet_file = repos
             .parquet_files()

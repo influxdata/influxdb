@@ -10,6 +10,7 @@ use clap_blocks::{
     gossip::GossipConfig,
     ingester::IngesterConfig,
     ingester_address::IngesterAddress,
+    memory_size::MemorySize,
     object_store::{make_object_store, ObjectStoreConfig},
     querier::QuerierConfig,
     router::RouterConfig,
@@ -319,22 +320,26 @@ pub struct Config {
     compactor_scheduler_config: CompactorSchedulerConfig,
 
     /// Size of the querier RAM cache used to store catalog metadata information in bytes.
+    ///
+    /// Can be given as absolute value or in percentage of the total available memory (e.g. `10%`).
     #[clap(
         long = "querier-ram-pool-metadata-bytes",
         env = "INFLUXDB_IOX_QUERIER_RAM_POOL_METADATA_BYTES",
         default_value = "134217728",  // 128MB
         action
     )]
-    pub querier_ram_pool_metadata_bytes: usize,
+    pub querier_ram_pool_metadata_bytes: MemorySize,
 
     /// Size of the querier RAM cache used to store data in bytes.
+    ///
+    /// Can be given as absolute value or in percentage of the total available memory (e.g. `10%`).
     #[clap(
         long = "querier-ram-pool-data-bytes",
         env = "INFLUXDB_IOX_QUERIER_RAM_POOL_DATA_BYTES",
         default_value = "1073741824",  // 1GB
         action
     )]
-    pub querier_ram_pool_data_bytes: usize,
+    pub querier_ram_pool_data_bytes: MemorySize,
 
     /// Limit the number of concurrent queries.
     #[clap(
@@ -346,13 +351,15 @@ pub struct Config {
     pub querier_max_concurrent_queries: usize,
 
     /// Size of memory pool used during query exec, in bytes.
+    ///
+    /// Can be given as absolute value or in percentage of the total available memory (e.g. `10%`).
     #[clap(
         long = "exec-mem-pool-bytes",
         env = "INFLUXDB_IOX_EXEC_MEM_POOL_BYTES",
         default_value = "8589934592",  // 8GB
         action
     )]
-    pub exec_mem_pool_bytes: usize,
+    pub exec_mem_pool_bytes: MemorySize,
 }
 
 impl Config {
@@ -490,7 +497,6 @@ impl Config {
             rpc_write_timeout_seconds: Duration::new(3, 0),
             rpc_write_replicas: 1.try_into().unwrap(),
             rpc_write_max_outgoing_bytes: ingester_config.rpc_write_max_incoming_bytes,
-            rpc_write_health_error_window_seconds: Duration::from_secs(5),
             rpc_write_health_num_probes: 10,
             gossip_config: GossipConfig::disabled(),
         };
@@ -630,7 +636,7 @@ pub async fn command(config: Config) -> Result<()> {
             .map(|store| (store.id(), Arc::clone(store.object_store())))
             .collect(),
         metric_registry: Arc::clone(&metrics),
-        mem_pool_size: querier_config.exec_mem_pool_bytes,
+        mem_pool_size: querier_config.exec_mem_pool_bytes.bytes(),
     }));
 
     info!("starting router");

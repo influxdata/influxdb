@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{marker::PhantomData, net::SocketAddr, sync::Arc};
 
 use prost::{bytes::BytesMut, Message};
 use tokio::{
@@ -11,8 +11,9 @@ use tracing::{debug, error, info, trace, warn};
 use crate::{
     metric::*,
     peers::{Identity, PeerList},
-    proto::{self, frame_message::Payload, FrameMessage},
+    proto::{self, frame_message::Payload, FrameMessage, Ping},
     seed::{seed_ping_task, Seed},
+    topic_set::{Topic, TopicSet},
     Dispatcher, Request, MAX_FRAME_BYTES, PEER_PING_INTERVAL,
 };
 
@@ -60,8 +61,9 @@ impl Drop for AbortOnDrop {
 ///
 /// [`GossipHandle`]: crate::GossipHandle
 #[derive(Debug)]
-pub(crate) struct Reactor<T> {
+pub(crate) struct Reactor<T, S> {
     dispatch: T,
+    interests: TopicSet,
 
     /// The random identity of this gossip instance.
     identity: Identity,
@@ -97,17 +99,22 @@ pub(crate) struct Reactor<T> {
     /// The sum of bytes sent and received.
     metric_bytes_sent: SentBytes,
     metric_bytes_received: ReceivedBytes,
+
+    _topic_type: PhantomData<S>,
 }
 
-impl<T> Reactor<T>
+impl<T, S, E> Reactor<T, S>
 where
-    T: Dispatcher,
+    T: Dispatcher<S>,
+    S: TryFrom<u64, Error = E> + Send + Sync,
+    E: std::fmt::Debug + Send + Sync,
 {
     pub(crate) fn new(
         seed_list: Vec<String>,
         socket: UdpSocket,
         dispatch: T,
         metrics: &metric::Registry,
+        topics: TopicSet,
     ) -> Self {
         // Generate a unique UUID for this Reactor instance, and cache the wire
         // representation.
@@ -128,7 +135,9 @@ where
         let cached_ping_frame = {
             populate_frame(
                 &mut cached_frame,
-                vec![new_payload(Payload::Ping(proto::Ping {}))],
+                vec![new_payload(Payload::Ping(proto::Ping {
+                    interests: u64::from(topics),
+                }))],
                 &mut serialisation_buf,
             )
             .unwrap();
@@ -155,6 +164,7 @@ where
 
         Self {
             dispatch,
+            interests: topics,
             identity,
             cached_frame,
             cached_ping_frame,
@@ -167,6 +177,7 @@ where
             metric_frames_received,
             metric_bytes_sent,
             metric_bytes_received,
+            _topic_type: PhantomData,
         }
     }
 
@@ -224,13 +235,17 @@ where
                         Some(Request::GetPeers(tx)) => {
                             let _ = tx.send(self.peer_list.peer_uuids());
                         },
-                        Some(Request::Broadcast(payload)) => {
+                        Some(Request::Broadcast(payload, topic)) => {
                             // The user is guaranteed MAX_USER_PAYLOAD_BYTES to
                             // be send-able, so send this frame without packing
                             // others with it for simplicity.
+
                             populate_frame(
                                 &mut self.cached_frame,
-                                vec![new_payload(Payload::UserData(proto::UserPayload{payload}))],
+                                vec![new_payload(Payload::UserData(proto::UserPayload{
+                                    payload,
+                                    topic: topic.into(),
+                                }))],
                                 &mut self.serialisation_buf
                             ).expect("size validated in handle at enqueue time");
 
@@ -238,7 +253,8 @@ where
                                 &self.serialisation_buf,
                                 &self.socket,
                                 &self.metric_frames_sent,
-                                &self.metric_bytes_sent
+                                &self.metric_bytes_sent,
+                                Some(topic),
                             ).await;
                         }
                     }
@@ -285,6 +301,14 @@ where
             return Ok(());
         }
 
+        // Define the default topic interests for a new peer.
+        //
+        // If the first frame observed is a ping or pong, the interests are
+        // extracted from it. Otherwise the default of "all" is used (the
+        // protocol requires peers perform a ping/pong handshake before user
+        // payloads are exchanged, but not doing so is tolerated).
+        let mut peer_topics = TopicSet::default();
+
         let mut out_messages = Vec::new();
         for msg in frame.messages {
             // Extract the payload from the frame message
@@ -296,13 +320,20 @@ where
             // Handle the frame message from the peer, optionally returning a
             // response frame to be sent back.
             let response = match payload {
-                Payload::Ping(_) => Some(Payload::Pong(proto::Pong {
-                    peers: self.peer_list.peers().map(proto::Peer::from).collect(),
-                })),
+                Payload::Ping(Ping { interests }) => {
+                    peer_topics = TopicSet::from(interests);
+
+                    Some(Payload::Pong(proto::Pong {
+                        peers: self.peer_list.peers().map(proto::Peer::from).collect(),
+                        interests: u64::from(self.interests),
+                    }))
+                }
                 Payload::Pong(pex) => {
+                    peer_topics = TopicSet::from(pex.interests);
                     debug!(
                         %identity,
                         %peer_addr,
+                        ?peer_topics,
                         pex_nodes=pex.peers.len(),
                         "pong"
                     );
@@ -313,9 +344,36 @@ where
                     None
                 }
                 Payload::UserData(data) => {
+                    let topic = Topic::from_encoded(data.topic);
                     let data = data.payload;
-                    debug!(%identity, %peer_addr, n_bytes=data.len(), "dispatch payload");
-                    self.dispatch.dispatch(data).await;
+                    debug!(
+                        %identity,
+                        %peer_addr,
+                        n_bytes=data.len(),
+                        ?topic,
+                        "dispatch payload"
+                    );
+
+                    // Drop the message if it is not for a topic this node is
+                    // interested in.
+                    if self.interests.is_interested(topic) {
+                        match S::try_from(topic.as_id()) {
+                            Ok(v) => {
+                                self.dispatch.dispatch(v, data).await;
+                            }
+                            Err(e) => {
+                                error!(error=?e, "dropping message for invalid topic");
+                            }
+                        }
+                    } else {
+                        warn!(
+                            %identity,
+                            %peer_addr,
+                            ?topic,
+                            "received message for uninterested topic"
+                        );
+                    }
+
                     None
                 }
             };
@@ -326,7 +384,9 @@ where
         }
 
         // Find or create the peer in the peer list.
-        let peer = self.peer_list.upsert(&identity, peer_addr);
+        //
+        // The topic list is immutable - any existing value takes precedence.
+        let peer = self.peer_list.upsert(&identity, peer_addr, peer_topics);
 
         // Track that this peer has been observed as healthy.
         peer.mark_observed();
@@ -494,12 +554,6 @@ pub(crate) async fn ping(
     sent_frames: &SentFrames,
     sent_bytes: &SentBytes,
 ) -> usize {
-    // Check the payload length as a primitive/best-effort way of ensuring only
-    // ping frames are sent via this mechanism.
-    //
-    // Normal messaging should be performed through a Peer's send() method.
-    debug_assert_eq!(ping_frame.len(), 22);
-
     match socket.send_to(ping_frame, &addr).await {
         Ok(n_bytes) => {
             debug!(n_bytes, %addr, "ping");
@@ -535,6 +589,7 @@ mod tests {
             &mut frame,
             vec![new_payload(Payload::UserData(proto::UserPayload {
                 payload: crate::Bytes::new(), // Empty/0-sized
+                topic: 1 << 63,
             }))],
             &mut buf,
         )

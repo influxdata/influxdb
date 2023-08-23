@@ -615,6 +615,18 @@ impl ParquetFile {
     pub fn overlaps_time_range(&self, min_time: Timestamp, max_time: Timestamp) -> bool {
         self.min_time <= max_time && self.max_time >= min_time
     }
+
+    /// Return true if the time range of this file overlaps with any of the given split times.
+    pub fn needs_split(&self, split_times: &Vec<i64>) -> bool {
+        for t in split_times {
+            // split time is the last timestamp on the "left" side of the split, if it equals
+            // the min time, one ns goes left, the rest goes right.
+            if self.min_time.get() <= *t && self.max_time.get() > *t {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 /// Data for a parquet file to be inserted into the catalog.
@@ -1591,6 +1603,17 @@ impl TimestampMinMax {
             || range.contains(self.max)
             || (self.min <= range.start && self.max >= range.end)
     }
+}
+
+/// FileRange describes a range of files by the min/max time and the sum of their capacities.
+#[derive(Clone, Debug, Copy)]
+pub struct FileRange {
+    /// The minimum time of any file in the range
+    pub min: i64,
+    /// The maximum time of any file in the range
+    pub max: i64,
+    /// The sum of the sizes of all files in the range
+    pub cap: usize,
 }
 
 #[cfg(test)]

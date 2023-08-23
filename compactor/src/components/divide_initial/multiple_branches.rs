@@ -26,6 +26,19 @@ impl Display for MultipleBranchesDivideInitial {
     }
 }
 
+// TODO(joe): maintain this comment through the next few PRs; see how true the comment is/remains.
+// divide is the second of three file list manipluation layers.  split has already filtered most of the
+// files not relevant to this round of compaction.  Now divide will group files into branches which can
+// be concurrently operated on.  As of this comment, dividing the files into branches is fairly simple,
+// except for:
+//   - ManySmallFiles, which is cluttered from previous challenges when RoundInfo didn't have as much influence.
+//     this clutter will either be going away, or maybe ManySmallFiles goes away entirely
+//   - SimulatedLeadingEdge which is likley a temporary workaround during the refactoring (i.e. likely go go away)
+//
+// Over time this function should work towards being a simpler grouping into batches for concurrent operations.
+// If that happens (and this layer remains), this should probably be renamed to emphasize its role in branch creation
+// rather than the current abigious 'divide' which sounds potentially overlapping with divisions happening in the
+// other layers.
 impl DivideInitial for MultipleBranchesDivideInitial {
     fn divide(
         &self,
@@ -139,7 +152,30 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                 (branches, more_for_later)
             }
 
-            RoundInfo::TargetLevel { .. } => (vec![files], more_for_later),
+            RoundInfo::TargetLevel {
+                target_level,
+                max_total_file_size_to_group,
+            } => {
+                let total_bytes: usize = files.iter().map(|f| f.file_size_bytes as usize).sum();
+                if total_bytes < max_total_file_size_to_group {
+                    (vec![files], more_for_later)
+                } else {
+                    let (mut for_now, rest): (Vec<ParquetFile>, Vec<ParquetFile>) = files
+                        .into_iter()
+                        .partition(|f| f.compaction_level == target_level.prev());
+
+                    let min_time = for_now.iter().map(|f| f.min_time).min().unwrap();
+                    let max_time = for_now.iter().map(|f| f.max_time).max().unwrap();
+
+                    let (overlaps, for_later): (Vec<ParquetFile>, Vec<ParquetFile>) = rest
+                        .into_iter()
+                        .partition(|f2| f2.overlaps_time_range(min_time, max_time));
+
+                    for_now.extend(overlaps);
+
+                    (vec![for_now], for_later)
+                }
+            }
 
             RoundInfo::SimulatedLeadingEdge {
                 max_num_files_to_group,
@@ -206,6 +242,9 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                 }
                 (vec![current_branch], more_for_later)
             }
+
+            // RoundSplit already eliminated all the files we don't need to work on.
+            RoundInfo::VerticalSplit { .. } => (vec![files], more_for_later),
         }
     }
 }
@@ -259,7 +298,7 @@ mod tests {
 
         // empty input
         assert_eq!(
-            divide.divide(vec![], round_info),
+            divide.divide(vec![], round_info.clone()),
             (Vec::<Vec<_>>::new(), Vec::new())
         );
 
@@ -280,7 +319,7 @@ mod tests {
         // files in random order of max_l0_created_at
         let files = vec![f2.clone(), f3.clone(), f1.clone()];
 
-        let (branches, more_for_later) = divide.divide(files, round_info);
+        let (branches, more_for_later) = divide.divide(files, round_info.clone());
         // output must be split into their max_l0_created_at
         assert_eq!(branches.len(), 1);
         assert_eq!(more_for_later.len(), 1);

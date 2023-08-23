@@ -16,7 +16,7 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
-    use data_types::{CompactionLevel, ParquetFile};
+    use data_types::{CompactionLevel, ParquetFile, SortedColumnSet};
     use futures::TryStreamExt;
     use iox_catalog::{
         interface::{get_schema_by_id, Catalog, SoftDeletedRows},
@@ -338,17 +338,25 @@ mod tests {
 
         // Update the sort key in the catalog, causing the persist job to
         // discover the change during the persist.
-        catalog
+        let updated_partition = catalog
             .repositories()
             .await
             .partitions()
             .cas_sort_key(
                 &partition_id,
                 None,
-                &["bananas", "are", "good", "for", "you"],
+                // must use column names that exist in the partition data
+                &["region"],
+                // column id of region
+                &SortedColumnSet::from([2]),
             )
             .await
             .expect("failed to set catalog sort key");
+        // Test: sort_key_ids after updating
+        assert_eq!(
+            updated_partition.sort_key_ids(),
+            Some(&SortedColumnSet::from([2]))
+        );
 
         // Enqueue the persist job
         let notify = handle.enqueue(Arc::clone(&partition), data).await;
@@ -380,10 +388,11 @@ mod tests {
         // mark_persisted() was called.
         assert_eq!(partition.lock().completed_persistence_count(), 1);
 
-        // Assert the sort key was also updated, adding the new columns to the
+        // Assert the sort key was also updated, adding the new columns (time) to the
         // end of the concurrently updated catalog sort key.
         assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(Some(p)) => {
-            assert_eq!(p.to_columns().collect::<Vec<_>>(), &["bananas", "are", "good", "for", "you", "region", "time"]);
+            // Before there is only ["region"] (manual sort key update above). Now ["region", "time"]
+            assert_eq!(p.to_columns().collect::<Vec<_>>(), &["region", "time"]);
         });
 
         // Ensure a file was made visible in the catalog

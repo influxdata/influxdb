@@ -1,222 +1,28 @@
-use data_types::{CompactionLevel, ParquetFile, Timestamp};
+use data_types::{CompactionLevel, FileRange, ParquetFile, Timestamp};
 use itertools::Itertools;
 use observability_deps::tracing::debug;
 
 use crate::{
     components::files_split::{target_level_split::TargetLevelSplit, FilesSplit},
-    file_classification::{FileToSplit, SplitReason},
+    file_classification::FileToSplit,
 };
-
-/// This function only takes action in scenarios with high backlog of overlapped L0s.
-///
-/// Return (`[files_to_split]`, `[files_not_to_split]`) of given files
-/// such that `files_to_split` are files in potentially both levels, and overlap each other.
-///
-/// The returned `[files_to_split]` includes a set of pairs. A pair is composed of a file
-///  and its corresponding split-times at which the file will be split into multiple files.
-///
-/// Example:
-///  . Input: Many L0s heavily overlapping
-//    - "L0.11[76,932] 1us 10mb         |-----------------------------------L0.11-----------------------------------|       "
-//    - "L0.12[42,986] 1us 10mb      |---------------------------------------L0.12---------------------------------------|  "
-//    - "L0.13[173,950] 1us 10mb                 |-------------------------------L0.13--------------------------------|     "
-//    - "L0.14[50,629] 1us 10mb       |----------------------L0.14-----------------------|                                  "
-//    - "L0.15[76,932] 1us 10mb         |-----------------------------------L0.15-----------------------------------|       "
-//    - "L0.16[42,986] 1us 10mb      |---------------------------------------L0.16---------------------------------------|  "
-//    - "L0.17[173,950] 1.01us 10mb               |-------------------------------L0.17--------------------------------|     "
-//    - "L0.18[50,629] 1.01us 10mb    |----------------------L0.18-----------------------|                                  "
-//  ... <pattern repeats>
-//    - "L0.55[76,932] 1.04us 10mb      |-----------------------------------L0.55-----------------------------------|       "
-//    - "L0.56[42,986] 1.05us 10mb   |---------------------------------------L0.56---------------------------------------|  "
-//    - "L0.57[173,950] 1.05us 10mb               |-------------------------------L0.57--------------------------------|     "
-//    - "L0.58[50,629] 1.05us 10mb    |----------------------L0.58-----------------------|                                  "
-//    - "L0.59[76,932] 1.05us 10mb      |-----------------------------------L0.59-----------------------------------|       "
-//    - "L0.60[42,986] 1.05us 10mb   |---------------------------------------L0.60---------------------------------------|  "
-///
-///  . Output:
-///     split all L0 input files at: split(split_times=[248, 372, 496, 620, 744, 868]
-///
-/// Reason behind the split:
-///  If this input was allowed to compact and split based on the algorithm focused on less
-///  extensively overlapped files, it can produce overlapped L1s so large than they can
-///  only be compacted 2-3 at a time, and then resplit at their prior boundaries.
-///
-///  Instead, this algorithm recognizes the large quantity of highly overlapped data and
-///  performs a 'vertical split', instead of selecting bite sized set of files and splitting
-///  just them, it selects all overlapping data and splits all of the files at the same
-///  time(s).  A single split decision made by this function may split a quantity of files
-///  many times larger than what we can compact in a single compaction.  But the split will
-///  allow a future compaction to fit all the data for a relatively narrow time range.
-///  The usefulness of this function's output relies on the chain identification in the
-///  `ManySmallFiles` case of `divide` in multiple_branches.rs.
-///
-pub fn high_l0_overlap_split(
-    max_compact_size: usize,
-    mut files: Vec<ParquetFile>,
-    target_level: CompactionLevel,
-) -> (Vec<FileToSplit>, Vec<ParquetFile>, SplitReason) {
-    let start_level = target_level.prev();
-    let len = files.len();
-
-    // This function focuses on many overlaps in a single level, which is only possible in L0.
-    if start_level != CompactionLevel::Initial {
-        return (vec![], files, SplitReason::HighL0OverlapSingleFile);
-    }
-
-    // We'll apply vertical splitting when the number of overlapped files is too large
-    // for a single compaction.
-    let total_cap: usize = files.iter().map(|f| f.file_size_bytes as usize).sum();
-
-    if total_cap < max_compact_size {
-        // Take no action, pass all files on to the next rule.
-        return (vec![], files, SplitReason::HighL0OverlapSingleFile);
-    }
-
-    // panic if not all files are either in target level or start level
-    assert!(files
-        .iter()
-        .all(|f| f.compaction_level == target_level || f.compaction_level == start_level));
-
-    // Get files in start level that overlap with any file in target level
-    let mut files_to_split = Vec::with_capacity(len);
-    let mut overlaps: Vec<&ParquetFile> = Vec::with_capacity(len);
-    let mut files_not_to_split = Vec::with_capacity(len);
-
-    // We need to operate on the earliest ("left most") files first.
-    files.sort_by_key(|f| f.max_l0_created_at);
-
-    // This function currently applies a `vertical split` in two scenarios.
-    // The second scenario is not sufficient on its own.  The first scenario may be adequate on its own (perhaps at
-    // a lower threshold than 2xmax_compact_size).  We do get a little better efficiency by keeping both vertical
-    // split methods, so scenario #2 can stay for now but may be removed later as further work is done on efficiency.
-    // Vertical split scenario 1:
-    if total_cap > 2 * max_compact_size {
-        let chains = split_into_chains(files);
-
-        for mut chain in chains {
-            let chain_cap: usize = chain.iter().map(|f| f.file_size_bytes as usize).sum();
-
-            if chain_cap <= max_compact_size {
-                // Its a small chain, we can compact it, no need to split it.
-                files_not_to_split.append(&mut chain);
-            } else {
-                // This chain is too big to compact on its own, so split it into smaller, more manageable chains.
-                let min = chain.iter().map(|f| f.min_time.get()).min().unwrap();
-                let max = chain.iter().map(|f| f.max_time.get()).max().unwrap();
-                let split_times = select_split_times(chain_cap, max_compact_size, min, max);
-
-                for file in &chain {
-                    let this_file_splits: Vec<i64> = split_times
-                        .iter()
-                        .filter(|split| {
-                            split >= &&file.min_time.get() && split < &&file.max_time.get()
-                        })
-                        .cloned()
-                        .collect();
-
-                    if !this_file_splits.is_empty() {
-                        files_to_split.push(FileToSplit {
-                            file: (*file).clone(),
-                            split_times: this_file_splits,
-                        });
-                    } else {
-                        // even though the chain this file is in needs split, this file falls between the splits.
-                        files_not_to_split.push((*file).clone());
-                    }
-                }
-            }
-        }
-        assert_eq!(files_to_split.len() + files_not_to_split.len(), len);
-
-        return (
-            files_to_split,
-            files_not_to_split,
-            SplitReason::HighL0OverlapTotalBacklog,
-        );
-    }
-
-    // Vertical split scenario 2:
-    // The files in `files` all overlap, but they might overlap in a chain (file1 overlaps file2, which overlaps file3...)
-    // This algorithm is not concerned with the chain of overlaps that keeps pulling in more files.  Instead, for each file,
-    // we'll look at what overlaps just it.  If that's over max_compact_size, we'll split them.
-    for file in &files {
-        if file.compaction_level != start_level {
-            continue;
-        }
-
-        // Get the set of overlaping start_level files that includes file
-        overlaps = files.iter().filter(|f| file.overlaps(f)).collect();
-
-        let min = overlaps.iter().map(|f| f.min_time.get()).min().unwrap();
-        let max = overlaps.iter().map(|f| f.max_time.get()).max().unwrap();
-
-        let overlapped_cap: usize = overlaps.iter().map(|f| f.file_size_bytes as usize).sum();
-
-        if overlapped_cap > max_compact_size {
-            // Overlapping start_level files are too big to compact all once.  So we'll split all of them, as if
-            // drawing a vertical line on the `input` in the above example.
-
-            let split_times = select_split_times(overlapped_cap, max_compact_size, min, max);
-            if split_times.is_empty() {
-                overlaps = vec![];
-                continue;
-            }
-
-            // for all the files in the overlapped set, if our chosen split times fall within the file, split it at the chosen time(s).
-            for file in &overlaps {
-                let this_file_splits: Vec<i64> = split_times
-                    .iter()
-                    .filter(|split| split >= &&file.min_time.get() && split < &&file.max_time.get())
-                    .cloned()
-                    .collect();
-
-                if !this_file_splits.is_empty() {
-                    files_to_split.push(FileToSplit {
-                        file: (*file).clone(),
-                        split_times: this_file_splits,
-                    });
-                } else {
-                    files_not_to_split.push((*file).clone());
-                }
-            }
-
-            break;
-        }
-
-        overlaps = vec![];
-    }
-
-    // Files in overlaps are already in files_to_split and files_not_to_split.  Everything else belongs in files_not_to_split.
-    let start_leftovers: Vec<ParquetFile> = files
-        .iter()
-        .filter(|f| !overlaps.contains(f))
-        .cloned()
-        .collect();
-
-    files_not_to_split.extend(start_leftovers);
-
-    assert_eq!(files_to_split.len() + files_not_to_split.len(), len);
-
-    (
-        files_to_split,
-        files_not_to_split,
-        SplitReason::HighL0OverlapSingleFile,
-    )
-}
 
 // selectSplitTimes returns an appropriate sets of split times to divide the given time range into,
 // based on how much over the max_compact_size the capacity is.
 // The assumption is that the caller has `cap` bytes spread across `min_time` to `max_time` and wants
-// to split those bytes into chunks approximating `max_compact_size`.
-// This function returns a vec of split times that assume the data is spread close to linearly across
-// the time range, but padded to allow some deviation from an even distrubution of data.
+// to split those bytes into chunks approximating `max_compact_size`.  We don't know if the data is
+// spread linearly, so we'll split into more pieces than would be necesary if the data is linear.
 // The cost of splitting into smaller pieces is minimal (potentially extra but smaller compactions),
 // while the cost splitting into pieces that are too big is considerable (we may have split again).
+// A vec of split_hints can be provided, which is assumed to be the min/max file times of the target
+// level files.  When hints are specified, this function will try to split at the hint times, if they're
+// +/- 50% the computed split times.
 pub fn select_split_times(
     cap: usize,
     max_compact_size: usize,
     min_time: i64,
     max_time: i64,
+    split_hint: Vec<i64>,
 ) -> Vec<i64> {
     if min_time == max_time {
         // can't split below 1 ns.
@@ -233,19 +39,240 @@ pub fn select_split_times(
     splits *= 2;
 
     // Splitting the time range into `splits` pieces requires an increase between each split time of `delta`.
-    let mut delta = (max_time - min_time) / (splits + 1) as i64;
+    let mut default_delta = (max_time - min_time) / (splits + 1) as i64;
+    let mut min_delta = default_delta / 2; // used to decide how far we'll deviate to align to split_hint
+    let mut max_delta = default_delta * 3 / 2; // used to decide how far we'll deviate to align to split_hint
 
-    if delta == 0 {
+    if default_delta == 0 {
         // The computed count leads to splitting at less than 1ns, which we cannot do.
         splits = (max_time - min_time) as usize; // The maximum number of splits possible for this time range.
-        delta = 1; // The smallest time delta between splits possible for this time range.
+        default_delta = 1; // The smallest time delta between splits possible for this time range.
+    }
+    min_delta = min_delta.max(1);
+    max_delta = max_delta.max(1);
+
+    let mut split_time = min_time;
+    let mut split_times = Vec::with_capacity(splits);
+    let mut hint_idx = 0;
+
+    // Allow max delta at the end so we don't split at the very end of the time range, resulting in tiny final time slice.
+    while split_time + max_delta < max_time {
+        // advance to the next possible hint
+        while hint_idx < split_hint.len() && split_hint[hint_idx] < split_time + min_delta {
+            hint_idx += 1;
+        }
+
+        // if there's multiple hints we could use for the next split time, chose the closest one to our default delta.
+        let default_next = split_time + default_delta;
+        while hint_idx + 1 < split_hint.len()
+            && (split_hint[hint_idx] - default_next).abs()
+                > (split_hint[hint_idx + 1] - default_next).abs()
+        {
+            hint_idx += 1;
+        }
+
+        split_time = if hint_idx < split_hint.len() && split_hint[hint_idx] < split_time + max_delta
+        {
+            // The next hint is close enough to the next split that we'll use it instead of the computed split.
+            split_hint[hint_idx]
+        } else {
+            // There is no next hint, or its too far away, so go with the default.
+            default_next
+        };
+
+        if split_time < max_time {
+            split_times.push(split_time);
+        }
     }
 
-    let split_times: Vec<i64> = (1..splits + 1)
-        .map(|i| min_time + (i as i64 * delta))
-        .collect();
-
     split_times
+}
+
+// linear_dist_ranges detects non-linear distribution of the data, and if found tries to identify time ranges that
+// have approximately linear distribution of data within them.  The intent is to prevent vertical splitting from
+// making bad split time decisions because it assumes data is spread linearly across the time range.
+// Fluctuations in data density (bytes per ns) that are smaller than the max_compact_size are ignored.
+pub fn linear_dist_ranges(
+    chain: &Vec<ParquetFile>, // not just any vec of files, these are overlapping L0 files.
+    cap: usize,
+    max_compact_size: usize,
+) -> Vec<FileRange> {
+    let min_time = chain.iter().map(|f| f.min_time.get()).min().unwrap();
+    let max_time = chain.iter().map(|f| f.max_time.get()).max().unwrap();
+
+    // assume we're splitting to half the max size.
+    let mut split_count = cap / (max_compact_size / 2);
+    let mut region_caps: Vec<usize> = vec![0; split_count];
+    let mut delta_time_interval: i64;
+
+    if split_count < 2 {
+        // there isn't much splitting necessary, so there isn't much opportunity for non-linear distribution
+        return vec![FileRange {
+            min: min_time,
+            max: max_time,
+            cap,
+        }];
+    }
+
+    // Step 1: loop until we've found a distribution that's linear enough.
+    loop {
+        // Pretend we're splitting the files into split_count regions.
+        // Assuming the data is evenly distributed within each file, we can estimate the bytes in each region.
+
+        delta_time_interval = (max_time - min_time) / split_count as i64;
+        if delta_time_interval < 1 {
+            break;
+        }
+
+        // Given our split_count & time delta, compute each file's size contribution to each region.
+        // Each file's contribtuion to the region capacity is added to region_caps.
+        for f in chain {
+            let f_min = f.min_time.get();
+            let f_max = f.max_time.get();
+            let f_cap = f.file_size_bytes;
+
+            assert!(f_min >= min_time, "file min_time is before min_time");
+            assert!(f_max >= min_time, "file min_time is before max_time");
+
+            // because delta is a whole integer, we can lose a few nanoseconds of time.  So we have to check if the
+            // computed regions are greater than the max region (the last region may get a few extra nanoseconds).
+            let first_region_idx =
+                ((f_min - min_time) / delta_time_interval).min(split_count as i64 - 1);
+            let mut last_region_idx =
+                ((f_max - min_time - 1) / delta_time_interval).min(split_count as i64 - 1);
+            if first_region_idx > last_region_idx {
+                // rounding error on single nanosecond region.
+                last_region_idx = first_region_idx;
+            }
+            assert!(first_region_idx >= 0, "valid first region");
+            assert!(last_region_idx >= 0, "valid last region");
+
+            if first_region_idx == last_region_idx {
+                // this file is entirely within one region
+                region_caps[first_region_idx as usize] += f_cap as usize;
+                continue;
+            } else {
+                // This file spans multiple regions.  Sort out how many bytes go each region `f` is in.
+                // The first & last region have a partial share of the capacity, proportional to how many ns
+                // of the region they cover, and the middle regions get an equal share.
+                let first_region_start = min_time + first_region_idx * delta_time_interval;
+                let last_region_start = min_time + last_region_idx * delta_time_interval;
+                assert!(first_region_start <= f_min, "valid first_region_start");
+                assert!(last_region_start <= f_max, "valid last_region_start");
+                let total_time = f_max - f_min + 1;
+                let time_in_first_region = first_region_start + delta_time_interval - f_min;
+                let time_in_last_region = f_max - last_region_start + 1;
+
+                assert!(time_in_first_region > 0, "valid time_in_first_region");
+                assert!(time_in_last_region > 0, "valid time_in_last_region");
+                let first_region_cap =
+                    (f_cap as i128 * time_in_first_region as i128 / total_time as i128) as i64;
+                let last_region_cap =
+                    (f_cap as i128 * time_in_last_region as i128 / total_time as i128) as i64;
+                assert!(first_region_cap >= 0, "valid first_region_cap");
+                assert!(last_region_cap >= 0, "valid last_region_cap");
+
+                region_caps[first_region_idx as usize] += first_region_cap as usize;
+                region_caps[last_region_idx as usize] += last_region_cap as usize;
+
+                if last_region_idx > first_region_idx + 1 {
+                    // this file spans at least 3 regions.  The middle regions all get an equal share of the capacity.
+                    let mid_region_cap = (f_cap - first_region_cap - last_region_cap)
+                        / (last_region_idx - first_region_idx - 1);
+                    for i in first_region_idx + 1..last_region_idx {
+                        region_caps[i as usize] += mid_region_cap as usize;
+                    }
+                }
+            }
+        }
+
+        // The above estimates how many bytes are in each of the hypothetical regions.
+        // Now we need to decide if this is linear enough.
+        let min_region_cap = region_caps.iter().min().unwrap();
+        let max_region_cap = region_caps.iter().max().unwrap();
+        if *min_region_cap * 3 / 2 > *max_region_cap
+            || *max_region_cap < max_compact_size / 2
+            || delta_time_interval == 1
+        {
+            // Either the distribution is sufficiently linear (min & max are close together), or the regions are small enough
+            // we can deal with the non-linearity, or we're as small as we can go.
+            break;
+        }
+
+        // retry with smaller regions.  Eventually we'll get regions small enough we can isolate and deal with the non-linearity.
+        split_count *= 2;
+        region_caps = vec![0; split_count];
+    }
+
+    // Our hypothetical regions are either linearly distributed, or small enough that the capacity spikes are still under max compact size.
+    // Now we can attempt to consoliate regions of similar data density (or consolidate dissimilar regions up to max compact size).
+    let mut ranges = Vec::with_capacity(split_count);
+    let mut consolidated_min_time: i64 = 0;
+    let mut consolidated_max_time: i64 = 0;
+    let mut consolidated_total_cap: usize = 0;
+    let mut consolidated_region_cnt = 0;
+    for (i, this_region_cap) in region_caps.iter().enumerate().take(split_count) {
+        let this_min_time = min_time + i as i64 * delta_time_interval;
+        let this_max_time = min_time + (i as i64 + 1) * delta_time_interval - 1;
+
+        if consolidated_region_cnt > 0 {
+            // Determin if region 'i' is appropriate to consolidate with the prior region(s).
+
+            // To guide us on whether or not to consolidate this region with the prior regions, we'll compute
+            // the data "density" (bytes per ns) for this region and the prior region(s).  If the density is
+            // close enough, we'll consolidate.
+            let this_time_range = this_max_time - this_min_time + 1;
+            let this_density = *this_region_cap as f64 / this_time_range as f64;
+            let prior_time_range = consolidated_max_time - consolidated_min_time + 1;
+            let prior_density = consolidated_total_cap as f64 / prior_time_range as f64;
+            let relative_density = this_density / prior_density;
+
+            let cap_if_merged = consolidated_total_cap + this_region_cap;
+
+            // Combile region 'i' with the prior regions if the density is close, the size is small,
+            // or the density is sorta small and size is sorta small.
+            if (relative_density > 0.5 && relative_density < 1.5)
+                || cap_if_merged < max_compact_size
+                || (cap_if_merged < max_compact_size * 2
+                    && relative_density > 0.3
+                    && relative_density < 2.0)
+                || (this_region_cap * 5 < consolidated_total_cap
+                    && relative_density > 0.3
+                    && relative_density < 2.0)
+            {
+                // its linear enough
+                // This region can be consolidated with the prior region(s).
+                consolidated_max_time = this_max_time;
+                consolidated_total_cap += this_region_cap;
+                consolidated_region_cnt += 1;
+                continue;
+            }
+
+            // region 'i' is not appropriate to consolidate with the prior region(s).
+            // The prior regions will be returned as a file range, and 'i' will start
+            // a new range below.
+            ranges.push(FileRange {
+                min: consolidated_min_time,
+                max: consolidated_max_time,
+                cap: consolidated_total_cap,
+            });
+        }
+
+        // region 'i' is the start of the next region.
+        consolidated_min_time = this_min_time;
+        consolidated_max_time = this_max_time;
+        consolidated_total_cap = *this_region_cap;
+        consolidated_region_cnt = 1;
+    }
+    if consolidated_region_cnt > 0 {
+        ranges.push(FileRange {
+            min: consolidated_min_time,
+            max: consolidated_max_time,
+            cap: consolidated_total_cap,
+        });
+    }
+
+    ranges
 }
 
 // split_into_chains splits files into separate overlapping chains of files.
@@ -438,9 +465,10 @@ pub fn identify_start_level_files_to_split(
 mod tests {
     use compactor_test_utils::{
         create_l1_files, create_overlapped_files, create_overlapped_l0_l1_files_2, format_files,
-        format_files_split,
+        format_files_split, format_ranges,
     };
-    use data_types::CompactionLevel;
+    use data_types::{CompactionLevel, ParquetFile};
+    use iox_tests::ParquetFileBuilder;
 
     #[test]
     fn test_select_split_times() {
@@ -448,40 +476,53 @@ mod tests {
 
         // splitting 150 bytes based on a max of 100, with a time range 0-100, gives 2 splits, into 3 pieces.
         // 1 split into 2 pieces would have also been ok.
-        let mut split_times = super::select_split_times(150, 100, 0, 100);
+        let mut split_times = super::select_split_times(150, 100, 0, 100, vec![]);
+        assert!(split_times == vec![33, 66]);
+        // give it hints (overlapping L1s) that are close to the splits it choses by default, and it will use them.
+        split_times = super::select_split_times(150, 100, 0, 100, vec![30, 65]);
+        assert!(split_times == vec![30, 65]);
+        // give it hints (overlapping L1s) that are far the splits it choses by default, and it sticks with the default.
+        split_times = super::select_split_times(150, 100, 0, 100, vec![10, 95]);
         assert!(split_times == vec![33, 66]);
 
         // splitting 199 bytes based on a max of 100, with a time range 0-100, gives 2 splits, into 3 pieces.
         // 1 split into 2 pieces would be a bad choice - its any deviation from perfectly linear distribution
         // would cause the split range to still exceed the max.
-        split_times = super::select_split_times(199, 100, 0, 100);
+        split_times = super::select_split_times(199, 100, 0, 100, vec![]);
         assert!(split_times == vec![33, 66]);
 
         // splitting 200-299 bytes based on a max of 100, with a time range 0-100, gives 4 splits into 5 pieces.
         // A bit agressive for exactly 2x the max cap, but very reasonable for 1 byte under 3x.
-        split_times = super::select_split_times(200, 100, 0, 100);
+        split_times = super::select_split_times(200, 100, 0, 100, vec![]);
         assert!(split_times == vec![20, 40, 60, 80]);
-        split_times = super::select_split_times(299, 100, 0, 100);
+        split_times = super::select_split_times(299, 100, 0, 100, vec![]);
         assert!(split_times == vec![20, 40, 60, 80]);
+        // once a hint shifts the split times, the rest of the split times are shifted too.
+        split_times = super::select_split_times(299, 100, 0, 100, vec![43]);
+        assert!(split_times == vec![20, 43, 63, 83]);
+        // give it a lot of hints, and see it pick the best (closest) ones.
+        split_times =
+            super::select_split_times(299, 100, 0, 100, vec![15, 19, 23, 35, 41, 55, 61, 82, 83]);
+        assert!(split_times == vec![19, 41, 61, 82]);
 
         // splitting 300-399 bytes based on a max of 100, with a time range 0-100, gives 5 splits, 6 pieces.
         // A bit agressive for exactly 3x the max cap, but very reasonable for 1 byte under 4x.
-        split_times = super::select_split_times(300, 100, 0, 100);
+        split_times = super::select_split_times(300, 100, 0, 100, vec![]);
         assert!(split_times == vec![14, 28, 42, 56, 70, 84]);
-        split_times = super::select_split_times(399, 100, 0, 100);
+        split_times = super::select_split_times(399, 100, 0, 100, vec![]);
         assert!(split_times == vec![14, 28, 42, 56, 70, 84]);
 
         // splitting 400 bytes based on a max of 100, with a time range 0-100, gives 7 splits, 8 pieces.
-        split_times = super::select_split_times(400, 100, 0, 100);
+        split_times = super::select_split_times(400, 100, 0, 100, vec![]);
         assert!(split_times == vec![11, 22, 33, 44, 55, 66, 77, 88]);
 
         // Now some pathelogical cases:
 
-        // splitting 400 bytes based on a max of 100, with a time range 0-3, gives 3 splits, into 4 pieces.
+        // splitting 400 bytes based on a max of 100, with a time range 0-3, gives 2 splits, into 3 pieces.
         // Some (maybe all) of these will still exceed the max, but this is the most splitting possible for
         // the time range.
-        split_times = super::select_split_times(400, 100, 0, 3);
-        assert!(split_times == vec![1, 2, 3]);
+        split_times = super::select_split_times(400, 100, 0, 3, vec![]);
+        assert!(split_times == vec![1, 2]);
     }
 
     #[test]
@@ -603,6 +644,405 @@ mod tests {
         - "L1, all files 1b                                                                                                   "
         - "L1.12[400,500] 60s       |-----L1.12------|                                                                        "
         - "L1.13[600,700] 60s                                           |-----L1.13------|                                    "
+        "###
+        );
+    }
+
+    // test_linear_dist_ranges uses insta to visualize the layout of files and the resulting time ranges that should cover approximately
+    // equal density of data within each range.  Judging correctness here is subjective, but the goal is to improve the decision quality in
+    // vertical splitting.
+    // Note:
+    //     linear_dist_ranges is not necessarily trying to identify all split times necessary to get groups of files at max_compact_size.
+    //     Its preferable to let select_split_times pick most of the split itmes, because it considers the time boundaries of L1 files,
+    //     so the split times it selects are more efficient.  The purpose of linear_dist_ranges is to cope with data that is very unevenly
+    //     distributed across time, to prevent select_split_times's ignorance of data distribution from allowing it to make bad decisions.
+    //     So if the data is close to evenly distributed, one time range - even if its huge - is what we want to see here.  When the data
+    //     is unevenly distributed, separate time ranges should capture each area that has substantially different data density (except that
+    //     a range can grow up to max_compact_size no matter how uneven its internal distribution).
+    //
+    // There is a comment before each insta result showing the regions.  The comment describes what we want to see.  If future code changes
+    // cause the result to change, we likely don't care, so long as the general objective of the comment is still met.  This is a game of
+    // approximation, not precision.
+    #[tokio::test]
+    async fn test_linear_dist_ranges() {
+        test_helpers::maybe_start_logging();
+
+        let sz_100_mb = 100 * 1024 * 1024;
+        let sz_300_mb = 3 * sz_100_mb;
+
+        let mut chain: Vec<ParquetFile> = vec![];
+
+        let f1 = ParquetFileBuilder::new(1)
+            .with_time_range(100, 1000000)
+            .with_compaction_level(CompactionLevel::Initial)
+            .with_file_size_bytes(sz_100_mb)
+            .build();
+
+        chain.push(f1);
+
+        insta::assert_yaml_snapshot!(
+            format_files("case 1 & 2 files", &chain),
+            @r###"
+    ---
+    - case 1 & 2 files
+    - "L0, all files 100mb                                                                                                "
+    - "L0.1[100,1000000] 0ns    |------------------------------------------L0.1------------------------------------------|"
+    "###
+        );
+
+        // // Case 1: 1 file smaller than the max compact size
+        let mut chain_cap: usize = chain.iter().map(|f| f.file_size_bytes as usize).sum();
+        let linear_ranges = super::linear_dist_ranges(&chain, chain_cap, sz_300_mb as usize);
+
+        // expect 1 range for the entire chain
+        assert_eq!(linear_ranges.len(), 1);
+        assert_eq!(linear_ranges[0].min, 100);
+        assert_eq!(linear_ranges[0].max, 1000000);
+
+        // 1 input file always results in 1 output range
+        insta::assert_yaml_snapshot!(
+            format_ranges("case 1 linear data distribution ranges", &linear_ranges),
+            @r###"
+    ---
+    - case 1 linear data distribution ranges
+    - "[100,1000000]            |-----------------------------------------range------------------------------------------|"
+    "###
+        );
+
+        // Case 2: 1 file, even when its 10x the max compact size is still a single region because its consistent density.
+        chain_cap = chain.iter().map(|f| f.file_size_bytes as usize).sum();
+        let linear_ranges = super::linear_dist_ranges(&chain, chain_cap, sz_100_mb as usize / 10);
+
+        assert_eq!(linear_ranges.len(), 1);
+
+        // 1 input file - even one much larger than max_compact_size -results in a 1 output rnage.
+        insta::assert_yaml_snapshot!(
+            format_ranges("case 2 linear data distribution ranges", &linear_ranges),
+            @r###"
+    ---
+    - case 2 linear data distribution ranges
+    - "[100,999999]             |-----------------------------------------range------------------------------------------|"
+    "###
+        );
+
+        // Case 3: many files, stataggered overlap, so the data distribution changes significianly but consistently across the chain.
+        let mut chain: Vec<ParquetFile> = vec![];
+        for i in 0..50 {
+            let f1 = ParquetFileBuilder::new(1)
+                .with_time_range(100, 100 + i * 10000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_file_size_bytes(sz_100_mb)
+                .build();
+            chain.push(f1);
+        }
+        insta::assert_yaml_snapshot!(
+            format_files("case 3 files", &chain),
+            @r###"
+    ---
+    - case 3 files
+    - "L0, all files 100mb                                                                                                "
+    - "L0.1[100,100] 0ns        |L0.1|                                                                                    "
+    - "L0.1[100,10100] 0ns      |L0.1|                                                                                    "
+    - "L0.1[100,20100] 0ns      |L0.1|                                                                                    "
+    - "L0.1[100,30100] 0ns      |L0.1|                                                                                    "
+    - "L0.1[100,40100] 0ns      |L0.1-|                                                                                   "
+    - "L0.1[100,50100] 0ns      |-L0.1--|                                                                                 "
+    - "L0.1[100,60100] 0ns      |--L0.1---|                                                                               "
+    - "L0.1[100,70100] 0ns      |---L0.1---|                                                                              "
+    - "L0.1[100,80100] 0ns      |----L0.1----|                                                                            "
+    - "L0.1[100,90100] 0ns      |-----L0.1-----|                                                                          "
+    - "L0.1[100,100100] 0ns     |------L0.1------|                                                                        "
+    - "L0.1[100,110100] 0ns     |-------L0.1-------|                                                                      "
+    - "L0.1[100,120100] 0ns     |--------L0.1--------|                                                                    "
+    - "L0.1[100,130100] 0ns     |--------L0.1---------|                                                                   "
+    - "L0.1[100,140100] 0ns     |---------L0.1----------|                                                                 "
+    - "L0.1[100,150100] 0ns     |----------L0.1-----------|                                                               "
+    - "L0.1[100,160100] 0ns     |-----------L0.1------------|                                                             "
+    - "L0.1[100,170100] 0ns     |------------L0.1-------------|                                                           "
+    - "L0.1[100,180100] 0ns     |-------------L0.1--------------|                                                         "
+    - "L0.1[100,190100] 0ns     |--------------L0.1--------------|                                                        "
+    - "L0.1[100,200100] 0ns     |---------------L0.1---------------|                                                      "
+    - "L0.1[100,210100] 0ns     |----------------L0.1----------------|                                                    "
+    - "L0.1[100,220100] 0ns     |-----------------L0.1-----------------|                                                  "
+    - "L0.1[100,230100] 0ns     |------------------L0.1------------------|                                                "
+    - "L0.1[100,240100] 0ns     |-------------------L0.1-------------------|                                              "
+    - "L0.1[100,250100] 0ns     |-------------------L0.1--------------------|                                             "
+    - "L0.1[100,260100] 0ns     |--------------------L0.1---------------------|                                           "
+    - "L0.1[100,270100] 0ns     |---------------------L0.1----------------------|                                         "
+    - "L0.1[100,280100] 0ns     |----------------------L0.1-----------------------|                                       "
+    - "L0.1[100,290100] 0ns     |-----------------------L0.1------------------------|                                     "
+    - "L0.1[100,300100] 0ns     |------------------------L0.1-------------------------|                                   "
+    - "L0.1[100,310100] 0ns     |-------------------------L0.1-------------------------|                                  "
+    - "L0.1[100,320100] 0ns     |--------------------------L0.1--------------------------|                                "
+    - "L0.1[100,330100] 0ns     |---------------------------L0.1---------------------------|                              "
+    - "L0.1[100,340100] 0ns     |----------------------------L0.1----------------------------|                            "
+    - "L0.1[100,350100] 0ns     |-----------------------------L0.1-----------------------------|                          "
+    - "L0.1[100,360100] 0ns     |------------------------------L0.1------------------------------|                        "
+    - "L0.1[100,370100] 0ns     |------------------------------L0.1-------------------------------|                       "
+    - "L0.1[100,380100] 0ns     |-------------------------------L0.1--------------------------------|                     "
+    - "L0.1[100,390100] 0ns     |--------------------------------L0.1---------------------------------|                   "
+    - "L0.1[100,400100] 0ns     |---------------------------------L0.1----------------------------------|                 "
+    - "L0.1[100,410100] 0ns     |----------------------------------L0.1-----------------------------------|               "
+    - "L0.1[100,420100] 0ns     |-----------------------------------L0.1------------------------------------|             "
+    - "L0.1[100,430100] 0ns     |------------------------------------L0.1------------------------------------|            "
+    - "L0.1[100,440100] 0ns     |-------------------------------------L0.1-------------------------------------|          "
+    - "L0.1[100,450100] 0ns     |--------------------------------------L0.1--------------------------------------|        "
+    - "L0.1[100,460100] 0ns     |---------------------------------------L0.1---------------------------------------|      "
+    - "L0.1[100,470100] 0ns     |----------------------------------------L0.1----------------------------------------|    "
+    - "L0.1[100,480100] 0ns     |-----------------------------------------L0.1-----------------------------------------|  "
+    - "L0.1[100,490100] 0ns     |------------------------------------------L0.1------------------------------------------|"
+    "###
+        );
+
+        chain_cap = chain.iter().map(|f| f.file_size_bytes as usize).sum();
+        let linear_ranges = super::linear_dist_ranges(&chain, chain_cap, sz_100_mb as usize);
+
+        // The 100MB in a single ns is identified and isolated in its own region.  Other than that, the data density gradually
+        // diminishes across the time range.  But note that the rate of change accelerates across the time range, so regions get
+        // smaller across the range (to prevent excessive data density variation within any single range)
+        insta::assert_yaml_snapshot!(
+            format_ranges("case 3 linear data distribution ranges", &linear_ranges),
+            @r###"
+        ---
+        - case 3 linear data distribution ranges
+        - "[100,100] 100mb          |range|                                                                                   "
+        - "[101,320099] 4.43gb      |-------------------------------range--------------------------------|                    "
+        - "[320100,409698] 275mb                                                                          |------range------| "
+        - "[409699,409699] 78mb                                                                                              |range|"
+        "###
+        );
+
+        // Case 4: A very big time range small file.  Then one big file overlapping the beginning (e.g. highly lopsided leading edge)
+        let mut chain: Vec<ParquetFile> = vec![];
+        let f1 = ParquetFileBuilder::new(1)
+            .with_time_range(10, 10000000)
+            .with_compaction_level(CompactionLevel::Initial)
+            .with_file_size_bytes(sz_100_mb)
+            .build();
+        chain.push(f1);
+        let f1 = ParquetFileBuilder::new(1)
+            .with_time_range(10, 1000)
+            .with_compaction_level(CompactionLevel::Initial)
+            .with_file_size_bytes(sz_100_mb * 10)
+            .build();
+        chain.push(f1);
+
+        insta::assert_yaml_snapshot!(
+            format_files("case 4 files", &chain),
+            @r###"
+    ---
+    - case 4 files
+    - "L0                                                                                                                 "
+    - "L0.1[10,10000000] 0ns 100mb|------------------------------------------L0.1------------------------------------------|"
+    - "L0.1[10,1000] 0ns 1000mb |L0.1|                                                                                    "
+    "###
+        );
+
+        chain_cap = chain.iter().map(|f| f.file_size_bytes as usize).sum();
+        let linear_ranges = super::linear_dist_ranges(&chain, chain_cap, sz_100_mb as usize);
+
+        // Note that the above files have an exteme nonlinearity in the data distribution, but its a very simple scenario.  A human
+        // can recognize an ideal region splitting would be 2 regions divided immediately after the large file, which would produce
+        // two regions with perfectly linear internal data distribution in each region).
+        // The algoritm comes very close to this perfection.
+        insta::assert_yaml_snapshot!(
+            format_ranges("case 4 linear data distribution ranges", &linear_ranges),
+            @r###"
+        ---
+        - case 4 linear data distribution ranges
+        - "[10,1008] 1000mb         |range|                                                                                   "
+        - "[1009,9732105] 100mb     |-----------------------------------------range-----------------------------------------| "
+        "###
+        );
+
+        // Case 5: Minor fluctuations are ignored
+        let mut chain: Vec<ParquetFile> = vec![];
+        let mut start = 0;
+        // very even distribution across 10 million ns
+        while start < 10000000 {
+            let f = ParquetFileBuilder::new(1)
+                .with_time_range(start, start + 250000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_file_size_bytes(sz_100_mb)
+                .build();
+            chain.push(f);
+            start += 250000;
+        }
+        // A few little fluctuaitons, spread across the time range
+        for i in 0..5 {
+            let f1 = ParquetFileBuilder::new(1)
+                .with_time_range(2000000 * i, 2000000 * i + 500000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_file_size_bytes(sz_100_mb / 3)
+                .build();
+            chain.push(f1);
+        }
+        insta::assert_yaml_snapshot!(
+            format_files("case 5 files", &chain),
+            @r###"
+    ---
+    - case 5 files
+    - "L0                                                                                                                 "
+    - "L0.1[0,250000] 0ns 100mb |L0.1|                                                                                    "
+    - "L0.1[250000,500000] 0ns 100mb  |L0.1|                                                                                  "
+    - "L0.1[500000,750000] 0ns 100mb    |L0.1|                                                                                "
+    - "L0.1[750000,1000000] 0ns 100mb      |L0.1|                                                                              "
+    - "L0.1[1000000,1250000] 0ns 100mb         |L0.1|                                                                           "
+    - "L0.1[1250000,1500000] 0ns 100mb           |L0.1|                                                                         "
+    - "L0.1[1500000,1750000] 0ns 100mb             |L0.1|                                                                       "
+    - "L0.1[1750000,2000000] 0ns 100mb               |L0.1|                                                                     "
+    - "L0.1[2000000,2250000] 0ns 100mb                  |L0.1|                                                                  "
+    - "L0.1[2250000,2500000] 0ns 100mb                    |L0.1|                                                                "
+    - "L0.1[2500000,2750000] 0ns 100mb                      |L0.1|                                                              "
+    - "L0.1[2750000,3000000] 0ns 100mb                        |L0.1|                                                            "
+    - "L0.1[3000000,3250000] 0ns 100mb                           |L0.1|                                                         "
+    - "L0.1[3250000,3500000] 0ns 100mb                             |L0.1|                                                       "
+    - "L0.1[3500000,3750000] 0ns 100mb                               |L0.1|                                                     "
+    - "L0.1[3750000,4000000] 0ns 100mb                                 |L0.1|                                                   "
+    - "L0.1[4000000,4250000] 0ns 100mb                                    |L0.1|                                                "
+    - "L0.1[4250000,4500000] 0ns 100mb                                      |L0.1|                                              "
+    - "L0.1[4500000,4750000] 0ns 100mb                                        |L0.1|                                            "
+    - "L0.1[4750000,5000000] 0ns 100mb                                          |L0.1|                                          "
+    - "L0.1[5000000,5250000] 0ns 100mb                                             |L0.1|                                       "
+    - "L0.1[5250000,5500000] 0ns 100mb                                               |L0.1|                                     "
+    - "L0.1[5500000,5750000] 0ns 100mb                                                 |L0.1|                                   "
+    - "L0.1[5750000,6000000] 0ns 100mb                                                   |L0.1|                                 "
+    - "L0.1[6000000,6250000] 0ns 100mb                                                      |L0.1|                              "
+    - "L0.1[6250000,6500000] 0ns 100mb                                                        |L0.1|                            "
+    - "L0.1[6500000,6750000] 0ns 100mb                                                          |L0.1|                          "
+    - "L0.1[6750000,7000000] 0ns 100mb                                                            |L0.1|                        "
+    - "L0.1[7000000,7250000] 0ns 100mb                                                               |L0.1|                     "
+    - "L0.1[7250000,7500000] 0ns 100mb                                                                 |L0.1|                   "
+    - "L0.1[7500000,7750000] 0ns 100mb                                                                   |L0.1|                 "
+    - "L0.1[7750000,8000000] 0ns 100mb                                                                     |L0.1|               "
+    - "L0.1[8000000,8250000] 0ns 100mb                                                                        |L0.1|            "
+    - "L0.1[8250000,8500000] 0ns 100mb                                                                          |L0.1|          "
+    - "L0.1[8500000,8750000] 0ns 100mb                                                                            |L0.1|        "
+    - "L0.1[8750000,9000000] 0ns 100mb                                                                              |L0.1|      "
+    - "L0.1[9000000,9250000] 0ns 100mb                                                                                 |L0.1|   "
+    - "L0.1[9250000,9500000] 0ns 100mb                                                                                   |L0.1| "
+    - "L0.1[9500000,9750000] 0ns 100mb                                                                                     |L0.1|"
+    - "L0.1[9750000,10000000] 0ns 100mb                                                                                       |L0.1|"
+    - "L0.1[0,500000] 0ns 33mb  |L0.1|                                                                                    "
+    - "L0.1[2000000,2500000] 0ns 33mb                  |L0.1|                                                                  "
+    - "L0.1[4000000,4500000] 0ns 33mb                                    |L0.1|                                                "
+    - "L0.1[6000000,6500000] 0ns 33mb                                                      |L0.1|                              "
+    - "L0.1[8000000,8500000] 0ns 33mb                                                                        |L0.1|            "
+    "###
+        );
+
+        chain_cap = chain.iter().map(|f| f.file_size_bytes as usize).sum();
+        let linear_ranges = super::linear_dist_ranges(&chain, chain_cap, sz_100_mb as usize);
+
+        // The fluctuations aren't very dense relative to the consistent data (33MB on 500k ns), so they get ignored.
+        // we get one range for everything, because its linear enough of a distribution.
+        insta::assert_yaml_snapshot!(
+            format_ranges("case 5 linear data distribution ranges", &linear_ranges),
+            @r###"
+    ---
+    - case 5 linear data distribution ranges
+    - "[0,9999922]              |-----------------------------------------range------------------------------------------|"
+    "###
+        );
+
+        // Case 6: similar to the prior case, but these fluctuations are denser
+        let mut chain: Vec<ParquetFile> = vec![];
+        let mut start = 0;
+        // very even distribution across 10 million ns
+        while start < 10000000 {
+            let f = ParquetFileBuilder::new(1)
+                .with_time_range(start, start + 250000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_file_size_bytes(sz_100_mb)
+                .build();
+            chain.push(f);
+            start += 250000;
+        }
+        // A few sizeable fluctuaitons
+        for i in 0..5 {
+            let f1 = ParquetFileBuilder::new(1)
+                .with_time_range(2000000 * i, 2000000 * i + 1000)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_file_size_bytes(sz_100_mb)
+                .build();
+            chain.push(f1);
+        }
+        insta::assert_yaml_snapshot!(
+            format_files("case 6 files", &chain),
+            @r###"
+    ---
+    - case 6 files
+    - "L0, all files 100mb                                                                                                "
+    - "L0.1[0,250000] 0ns       |L0.1|                                                                                    "
+    - "L0.1[250000,500000] 0ns    |L0.1|                                                                                  "
+    - "L0.1[500000,750000] 0ns      |L0.1|                                                                                "
+    - "L0.1[750000,1000000] 0ns       |L0.1|                                                                              "
+    - "L0.1[1000000,1250000] 0ns         |L0.1|                                                                           "
+    - "L0.1[1250000,1500000] 0ns           |L0.1|                                                                         "
+    - "L0.1[1500000,1750000] 0ns             |L0.1|                                                                       "
+    - "L0.1[1750000,2000000] 0ns               |L0.1|                                                                     "
+    - "L0.1[2000000,2250000] 0ns                  |L0.1|                                                                  "
+    - "L0.1[2250000,2500000] 0ns                    |L0.1|                                                                "
+    - "L0.1[2500000,2750000] 0ns                      |L0.1|                                                              "
+    - "L0.1[2750000,3000000] 0ns                        |L0.1|                                                            "
+    - "L0.1[3000000,3250000] 0ns                           |L0.1|                                                         "
+    - "L0.1[3250000,3500000] 0ns                             |L0.1|                                                       "
+    - "L0.1[3500000,3750000] 0ns                               |L0.1|                                                     "
+    - "L0.1[3750000,4000000] 0ns                                 |L0.1|                                                   "
+    - "L0.1[4000000,4250000] 0ns                                    |L0.1|                                                "
+    - "L0.1[4250000,4500000] 0ns                                      |L0.1|                                              "
+    - "L0.1[4500000,4750000] 0ns                                        |L0.1|                                            "
+    - "L0.1[4750000,5000000] 0ns                                          |L0.1|                                          "
+    - "L0.1[5000000,5250000] 0ns                                             |L0.1|                                       "
+    - "L0.1[5250000,5500000] 0ns                                               |L0.1|                                     "
+    - "L0.1[5500000,5750000] 0ns                                                 |L0.1|                                   "
+    - "L0.1[5750000,6000000] 0ns                                                   |L0.1|                                 "
+    - "L0.1[6000000,6250000] 0ns                                                      |L0.1|                              "
+    - "L0.1[6250000,6500000] 0ns                                                        |L0.1|                            "
+    - "L0.1[6500000,6750000] 0ns                                                          |L0.1|                          "
+    - "L0.1[6750000,7000000] 0ns                                                            |L0.1|                        "
+    - "L0.1[7000000,7250000] 0ns                                                               |L0.1|                     "
+    - "L0.1[7250000,7500000] 0ns                                                                 |L0.1|                   "
+    - "L0.1[7500000,7750000] 0ns                                                                   |L0.1|                 "
+    - "L0.1[7750000,8000000] 0ns                                                                     |L0.1|               "
+    - "L0.1[8000000,8250000] 0ns                                                                        |L0.1|            "
+    - "L0.1[8250000,8500000] 0ns                                                                          |L0.1|          "
+    - "L0.1[8500000,8750000] 0ns                                                                            |L0.1|        "
+    - "L0.1[8750000,9000000] 0ns                                                                              |L0.1|      "
+    - "L0.1[9000000,9250000] 0ns                                                                                 |L0.1|   "
+    - "L0.1[9250000,9500000] 0ns                                                                                   |L0.1| "
+    - "L0.1[9500000,9750000] 0ns                                                                                     |L0.1|"
+    - "L0.1[9750000,10000000] 0ns                                                                                       |L0.1|"
+    - "L0.1[0,1000] 0ns         |L0.1|                                                                                    "
+    - "L0.1[2000000,2001000] 0ns                  |L0.1|                                                                  "
+    - "L0.1[4000000,4001000] 0ns                                    |L0.1|                                                "
+    - "L0.1[6000000,6001000] 0ns                                                      |L0.1|                              "
+    - "L0.1[8000000,8001000] 0ns                                                                        |L0.1|            "
+    "###
+        );
+
+        chain_cap = chain.iter().map(|f| f.file_size_bytes as usize).sum();
+        let linear_ranges = super::linear_dist_ranges(&chain, chain_cap, sz_100_mb as usize);
+
+        // These fluctuations are quite dense (100mb on 1000ns), so that triggeres the non-linear data distribution code to
+        // break it up into regions.  The regions are around 100MB, capturing each of the fluctations.  This roughly carves
+        // out the dense areas of data, so vertical splitting can make better decisions within each range.
+        insta::assert_yaml_snapshot!(
+            format_ranges("case 6 linear data distribution ranges", &linear_ranges),
+            @r###"
+        ---
+        - case 6 linear data distribution ranges
+        - "[0,1301] 101mb           |range|                                                                                   "
+        - "[1302,1999871] 799mb     |-----range-----|                                                                         "
+        - "[1999872,2001173] 101mb                    |range|                                                                 "
+        - "[2001174,3999743] 799mb                    |-----range-----|                                                       "
+        - "[3999744,4001045] 101mb                                      |range|                                               "
+        - "[4001046,5999615] 799mb                                      |-----range-----|                                     "
+        - "[5999616,6000917] 92mb                                                         |range|                             "
+        - "[6000918,7999921] 808mb                                                        |-----range-----|                   "
+        - "[7999922,8001223] 101mb                                                                          |range|           "
+        - "[8001224,9998925] 799mb                                                                          |-----range-----| "
+        - "[9998926,9999359] 440kb                                                                                           |range|"
         "###
         );
     }

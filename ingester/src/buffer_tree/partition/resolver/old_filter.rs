@@ -172,7 +172,8 @@ where
             let sort_key_resolver = DeferredLoad::new(
                 self.max_smear,
                 SortKeyResolver::new(
-                    partition_id.clone(),
+                    partition_key.clone(),
+                    table_id,
                     Arc::clone(&self.catalog),
                     self.backoff_config.clone(),
                 )
@@ -305,6 +306,7 @@ mod tests {
                 partition_key,
                 vec![],
                 None,
+                None,
             )
         }
     }
@@ -387,6 +389,7 @@ mod tests {
             ARBITRARY_TABLE_ID,
             ARBITRARY_PARTITION_KEY.clone(),
             vec![],
+            None,
             None,
         );
         let want_id = p.transition_partition_id().clone();

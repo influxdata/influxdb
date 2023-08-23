@@ -232,11 +232,23 @@ fn to_parquet_file(p: data_types::ParquetFile) -> ParquetFile {
 fn to_partition(p: data_types::Partition) -> Partition {
     let identifier = to_partition_identifier(&p.transition_partition_id());
 
+    let array_sort_key_ids = p
+        .sort_key_ids
+        .map(|cols| cols.iter().map(|id| id.get()).collect::<Vec<_>>());
+
+    let array_sort_key_ids = match array_sort_key_ids {
+        None => vec![],
+        Some(array_sort_key_ids) => array_sort_key_ids,
+    };
+
+    let proto_sort_key_id = SortKeyIds { array_sort_key_ids };
+
     Partition {
         identifier: Some(identifier),
         key: p.partition_key.to_string(),
         table_id: p.table_id.get(),
         array_sort_key: p.sort_key,
+        sort_key_ids: Some(proto_sort_key_id),
     }
 }
 
@@ -268,6 +280,8 @@ mod tests {
                 .create_or_get("foo".into(), table.id)
                 .await
                 .unwrap();
+            // Test: sort_key_ids from create_or_get in catalog_service
+            assert!(partition.sort_key_ids().unwrap().is_empty());
             let p1params = ParquetFileParams {
                 namespace_id: namespace.id,
                 table_id: table.id,
@@ -325,6 +339,7 @@ mod tests {
                 .create_or_get("foo".into(), table.id)
                 .await
                 .unwrap();
+
             partition2 = repos
                 .partitions()
                 .create_or_get("bar".into(), table.id)

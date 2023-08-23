@@ -12,6 +12,8 @@
 )]
 #![allow(clippy::default_constructed_unit_structs)]
 
+use gossip::TopicInterests;
+use gossip_schema::{dispatcher::SchemaRx, handle::SchemaTx};
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -32,9 +34,9 @@ use ioxd_common::{
     http::error::{HttpApiError, HttpApiErrorSource},
     reexport::{
         generated_types::influxdata::iox::{
-            catalog::v1::catalog_service_server, namespace::v1::namespace_service_server,
-            object_store::v1::object_store_service_server, schema::v1::schema_service_server,
-            table::v1::table_service_server,
+            catalog::v1::catalog_service_server, gossip::Topic,
+            namespace::v1::namespace_service_server, object_store::v1::object_store_service_server,
+            schema::v1::schema_service_server, table::v1::table_service_server,
         },
         tonic::transport::Endpoint,
     },
@@ -52,8 +54,7 @@ use router::{
         InstrumentationDecorator, Partitioner, RetentionValidator, RpcWrite, SchemaValidator,
     },
     gossip::{
-        dispatcher::GossipMessageDispatcher, namespace_cache::NamespaceSchemaGossip,
-        schema_change_observer::SchemaChangeObserver,
+        namespace_cache::NamespaceSchemaGossip, schema_change_observer::SchemaChangeObserver,
     },
     namespace_cache::{
         metrics::InstrumentedCache, MaybeLayer, MemoryNamespaceCache, NamespaceCache,
@@ -250,7 +251,6 @@ pub async fn create_router_server_type(
         ingester_connections,
         router_config.rpc_write_replicas,
         &metrics,
-        router_config.rpc_write_health_error_window_seconds,
         router_config.rpc_write_health_num_probes,
     );
     let rpc_writer = InstrumentationDecorator::new("rpc_writer", &metrics, rpc_writer);
@@ -316,15 +316,17 @@ pub async fn create_router_server_type(
             // incoming gossip schema diffs.
             let gossip_reader = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&ns_cache)));
             // Adapt it to the gossip subsystem via the "Dispatcher" trait
-            let dispatcher = GossipMessageDispatcher::new(Arc::clone(&gossip_reader), 100);
+            let dispatcher = SchemaRx::new(Arc::clone(&gossip_reader), 100);
 
             // Initialise the gossip subsystem, delegating message processing to
             // the above dispatcher.
-            let handle = gossip::Builder::new(
+            let handle = gossip::Builder::<_, Topic>::new(
                 gossip_config.seed_list.clone(),
                 dispatcher,
                 Arc::clone(&metrics),
             )
+            // Configure the router to listen to SchemaChange messages.
+            .with_topic_filter(TopicInterests::default().with_topic(Topic::SchemaChanges))
             .bind(*bind_addr)
             .await
             .map_err(Error::GossipBind)?;
@@ -333,7 +335,7 @@ pub async fn create_router_server_type(
             // local changes made to the cache content.
             //
             // This sits above / wraps the NamespaceSchemaGossip layer.
-            let ns_cache = SchemaChangeObserver::new(ns_cache, Arc::new(handle));
+            let ns_cache = SchemaChangeObserver::new(ns_cache, SchemaTx::new(handle));
 
             MaybeLayer::With(ns_cache)
         }

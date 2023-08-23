@@ -9,7 +9,7 @@ use data_types::{
     partition_template::{build_column_values, ColumnValue, TablePartitionTemplateOverride},
     NamespaceId, PartitionKey, SequenceNumber, Table, TableId,
 };
-use datafusion::scalar::ScalarValue;
+use datafusion::{prelude::Expr, scalar::ScalarValue};
 use iox_query::{
     chunk_statistics::{create_chunk_statistics, ColumnRange},
     pruning::prune_summaries,
@@ -267,6 +267,9 @@ where
         );
 
         let table_partition_template = self.catalog_table.get().await.partition_template;
+        let filters = predicate
+            .map(|p| p.filter_expr().into_iter().collect::<Vec<_>>())
+            .unwrap_or_default();
 
         // Gather the partition data from all of the partitions in this table.
         let span = SpanRecorder::new(span);
@@ -289,19 +292,13 @@ where
 
                     // Potentially prune out this partition if the partition
                     // template & derived partition key can be used to match
-                    // against the optional predicate.
-                    if predicate
-                        .as_ref()
-                        .map(|p| {
-                            !keep_after_pruning_partition_key(
-                                &table_partition_template,
-                                &partition_key,
-                                p,
-                                &data,
-                            )
-                        })
-                        .unwrap_or_default()
-                    {
+                    // against the filters.
+                    if !keep_after_pruning_partition_key(
+                        &table_partition_template,
+                        &partition_key,
+                        &filters,
+                        &data,
+                    ) {
                         // This partition will never contain any data that would
                         // form part of the query response.
                         //
@@ -345,7 +342,7 @@ where
 fn keep_after_pruning_partition_key(
     table_partition_template: &TablePartitionTemplateOverride,
     partition_key: &PartitionKey,
-    predicate: &Predicate,
+    filters: &[Expr],
     data: &QueryAdaptor,
 ) -> bool {
     // Construct a set of per-column min/max statistics based on the partition
@@ -422,7 +419,7 @@ fn keep_after_pruning_partition_key(
     prune_summaries(
         data.schema(),
         &[(chunk_statistics, data.schema().as_arrow())],
-        predicate,
+        filters,
     )
     // Errors are logged by `iox_query` and sometimes fine, e.g. for not
     // implemented DataFusion features or upstream bugs. The querier uses the

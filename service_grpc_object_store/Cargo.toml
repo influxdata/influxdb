@@ -20,4 +20,4 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 bytes = "1.4"
 data_types = { path = "../data_types" }
 metric = { path = "../metric" }
-tokio = { version = "1.31", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }

@@ -2,6 +2,21 @@ syntax = "proto3";
 package influxdata.iox.gossip.v1;
 option go_package = "github.com/influxdata/iox/gossip/v1";
 
+// Gossip protocol frames.
+//
+// These types define the gossip protocol control frames exchanged between
+// peers, are designed to be application agnostic.
+//
+// # Topics
+//
+// Topics are specified by the application in the range 0 to 63 inclusive, and
+// mapped to a single bit in a u64 by the gossip implementation; for example,
+// topic ID 4 is represented as a bit set using "1 << 4" (5th bit from the LSB
+// is a 1).
+//
+// An interest map is the set of all topics a peer is interested in, represented
+// as a bitmap of 1 bits as described above.
+
 // The payload of a single gossip datagram.
 message Frame {
   // Per-instance UUID as raw BE bytes.
@@ -23,7 +38,11 @@ message FrameMessage {
   }
 }
 
-message Ping {}
+message Ping {
+  // A topic interest bitmap, describing the set of topics the sending node is
+  // interested in receiving.
+  uint64 interests = 1;
+}
 
 // A response to a PING, containg the set of peers known to the sender.
 //
@@ -35,6 +54,10 @@ message Pong {
   // Some of these peers may already be unreachable, and the receiver should not
   // add them to their peer list without validating liveness.
   repeated Peer peers = 1;
+
+  // A topic interest bitmap, describing the set of topics the sending node is
+  // interested in receiving.
+  uint64 interests = 2;
 }
 
 message Peer {
@@ -44,6 +67,10 @@ message Peer {
   // A socket (IP & port) address in the form "ip:port", as discovered by the
   // PONG sender.
   string address = 2;
+
+  // A topic interest bitmap, describing the set of topics the peer is
+  // interested in receiving.
+  uint64 interests = 3;
 }
 
 // An application payload from the caller of the gossip library.
@@ -51,4 +78,10 @@ message UserPayload {
   // An opaque user payload - this is handed back to the gossip library user
   // unmodified.
   bytes payload = 1;
+
+  // The topic this payload is part of.
+  //
+  // The topic ID is encoded as a single set bit as described at the top if this
+  // document.
+  uint64 topic = 2;
 }

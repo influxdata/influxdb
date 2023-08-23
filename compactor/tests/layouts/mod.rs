@@ -148,6 +148,20 @@ pub(crate) async fn run_layout_scenario(setup: &TestSetup) -> Vec<String> {
         &sort_files(output_files),
     ));
 
+    if !setup.suppress_writes_breakdown {
+        output.extend(vec![
+            "**** Breakdown of where bytes were written".to_string()
+        ]);
+
+        let mut breakdown = Vec::new();
+        for (op, written) in setup.bytes_written_per_plan.lock().unwrap().iter() {
+            let written = *written as i64;
+            breakdown.push(format!("{} written by {}", display_size(written), op));
+        }
+        breakdown.sort();
+        output.extend(breakdown);
+    }
+
     // verify that the output of the compactor was valid as well
     setup.verify_invariants().await;
 

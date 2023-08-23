@@ -42,9 +42,9 @@ sharder = { version = "0.1.0", path = "../sharder" }
 test_helpers = { path = "../test_helpers", features = [
     "future_timeout",
 ], optional = true }
-thiserror = "1.0.46"
+thiserror = "1.0.47"
 tracker = { path = "../tracker" }
-tokio = { version = "1.31", features = [
+tokio = { version = "1.32", features = [
     "macros",
     "parking_lot",
     "rt-multi-thread",
@@ -73,9 +73,9 @@ mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store = { workspace = true }
 paste = "1.0.14"
 proptest = { version = "1", default-features = false, features = ["std"] }
-tempfile = "3.7.1"
+tempfile = "3.8.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
-tokio = { version = "1.31", features = ["macros", "time", "test-util"] }
+tokio = { version = "1.32", features = ["macros", "time", "test-util"] }
 
 [features]
 # Export some internal types for benchmark purposes only.

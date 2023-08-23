@@ -37,7 +37,6 @@ use itertools::Itertools;
 use object_store::{path::Path, ObjectMeta};
 use parking_lot::Mutex;
 use parquet_file::storage::ParquetExecInput;
-use predicate::Predicate;
 use schema::{
     builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, Schema, TIME_COLUMN_NAME,
 };
@@ -136,7 +135,6 @@ impl QueryNamespace for TestDatabase {
         // save last predicate
         *self.chunks_predicate.lock() = filters.to_vec();
 
-        let predicate = Predicate::default().with_exprs(filters.iter().cloned());
         let partitions = self.partitions.lock().clone();
         Ok(partitions
             .values()
@@ -148,7 +146,7 @@ impl QueryNamespace for TestDatabase {
                 prune_chunks(
                     c.schema(),
                     &[Arc::clone(*c) as Arc<dyn QueryChunk>],
-                    &predicate,
+                    filters,
                 )
                 .ok()
                 .map(|res| res[0])

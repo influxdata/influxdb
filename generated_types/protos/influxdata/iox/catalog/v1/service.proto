@@ -50,6 +50,14 @@ message Partition {
     repeated string array_sort_key = 6;
 
     PartitionIdentifier identifier = 8;
+
+    // the sort key ids sort_key_ids for data in parquet files of this partition which
+    // is an array of column ids of the sort keys
+    optional SortKeyIds sort_key_ids = 9;
+}
+
+message SortKeyIds {
+    repeated int64 array_sort_key_ids = 1;
 }
 
 message GetPartitionsByTableIdRequest {

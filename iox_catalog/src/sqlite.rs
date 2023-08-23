@@ -2,9 +2,9 @@
 
 use crate::{
     interface::{
-        self, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
-        ParquetFileRepo, PartitionRepo, RepoCollection, Result, SoftDeletedRows, TableRepo,
-        MAX_PARQUET_FILES_SELECTED_ONCE_FOR_RETENTION,
+        self, verify_sort_key_length, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
+        Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, RepoCollection, Result,
+        SoftDeletedRows, TableRepo, MAX_PARQUET_FILES_SELECTED_ONCE_FOR_RETENTION,
     },
     kafkaless_transition::{
         SHARED_QUERY_POOL, SHARED_QUERY_POOL_ID, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
@@ -21,7 +21,7 @@ use data_types::{
     Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
     NamespaceName, NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId,
     ParquetFileParams, Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction,
-    Table, TableId, Timestamp, TransitionPartitionId,
+    SortedColumnSet, Table, TableId, Timestamp, TransitionPartitionId,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Display};
@@ -818,17 +818,23 @@ struct PartitionPod {
     table_id: TableId,
     partition_key: PartitionKey,
     sort_key: Json<Vec<String>>,
+    sort_key_ids: Option<Json<Vec<i64>>>,
     new_file_at: Option<Timestamp>,
 }
 
 impl From<PartitionPod> for Partition {
     fn from(value: PartitionPod) -> Self {
+        let sort_key_ids = value
+            .sort_key_ids
+            .map(|sort_key_ids| SortedColumnSet::from(sort_key_ids.0));
+
         Self::new_with_hash_id_from_sqlite_catalog_only(
             value.id,
             value.hash_id,
             value.table_id,
             value.partition_key,
             value.sort_key.0,
+            sort_key_ids,
             value.new_file_at,
         )
     }
@@ -846,12 +852,12 @@ impl PartitionRepo for SqliteTxn {
         let v = sqlx::query_as::<_, PartitionPod>(
             r#"
 INSERT INTO partition
-    (partition_key, shard_id, table_id, hash_id, sort_key)
+    (partition_key, shard_id, table_id, hash_id, sort_key, sort_key_ids)
 VALUES
-    ($1, $2, $3, $4, '[]')
+    ($1, $2, $3, $4, '[]', '[]')
 ON CONFLICT (table_id, partition_key)
 DO UPDATE SET partition_key = partition.partition_key
-RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
         )
         .bind(key) // $1
@@ -874,7 +880,7 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>> {
         let rec = sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE id = $1;
             "#,
@@ -898,7 +904,7 @@ WHERE id = $1;
 
         sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE id IN (SELECT value FROM json_each($1));
             "#,
@@ -916,7 +922,7 @@ WHERE id IN (SELECT value FROM json_each($1));
     ) -> Result<Option<Partition>> {
         let rec = sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE hash_id = $1;
             "#,
@@ -954,7 +960,7 @@ WHERE hash_id = $1;
 
         sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE hex(hash_id) IN (SELECT value FROM json_each($1));
             "#,
@@ -969,7 +975,7 @@ WHERE hex(hash_id) IN (SELECT value FROM json_each($1));
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 WHERE table_id = $1;
             "#,
@@ -1006,33 +1012,39 @@ WHERE table_id = $1;
         partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
         new_sort_key: &[&str],
+        new_sort_key_ids: &SortedColumnSet,
     ) -> Result<Partition, CasFailure<Vec<String>>> {
+        verify_sort_key_length(new_sort_key, new_sort_key_ids);
+
         let old_sort_key = old_sort_key.unwrap_or_default();
+        let raw_new_sort_key_ids: Vec<_> = new_sort_key_ids.iter().map(|cid| cid.get()).collect();
 
         // This `match` will go away when all partitions have hash IDs in the database.
         let query = match partition_id {
             TransitionPartitionId::Deterministic(hash_id) => sqlx::query_as::<_, PartitionPod>(
                 r#"
 UPDATE partition
-SET sort_key = $1
+SET sort_key = $1, sort_key_ids = $4
 WHERE hash_id = $2 AND sort_key = $3
-RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(Json(new_sort_key)) // $1
             .bind(hash_id) // $2
-            .bind(Json(&old_sort_key)), // $3
+            .bind(Json(&old_sort_key)) // $3
+            .bind(Json(&raw_new_sort_key_ids)), // $4
             TransitionPartitionId::Deprecated(id) => sqlx::query_as::<_, PartitionPod>(
                 r#"
 UPDATE partition
-SET sort_key = $1
+SET sort_key = $1, sort_key_ids = $4
 WHERE id = $2 AND sort_key = $3
-RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(Json(new_sort_key)) // $1
             .bind(id) // $2
-            .bind(Json(&old_sort_key)), // $3
+            .bind(Json(&old_sort_key)) // $3
+            .bind(Json(&raw_new_sort_key_ids)), // $4
         };
 
         let res = query.fetch_one(self.inner.get_mut()).await;
@@ -1164,7 +1176,7 @@ RETURNING *
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
 FROM partition
 ORDER BY id DESC
 LIMIT $1;
@@ -1202,6 +1214,23 @@ LIMIT $1;
             .fetch_all(self.inner.get_mut())
             .await
             .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn list_old_style(&mut self) -> Result<Vec<Partition>> {
+        Ok(sqlx::query_as::<_, PartitionPod>(
+            r#"
+SELECT id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at
+FROM partition
+WHERE hash_id IS NULL
+ORDER BY id DESC;
+        "#,
+        )
+        .fetch_all(self.inner.get_mut())
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?
+        .into_iter()
+        .map(Into::into)
+        .collect())
     }
 }
 
@@ -1756,11 +1785,14 @@ mod tests {
             .unwrap();
         assert_eq!(table_partitions.len(), 1);
         assert_eq!(table_partitions[0].hash_id().unwrap(), &hash_id);
+
+        // Test: sort_key_ids from partition_create_or_get_idempotent
+        assert!(table_partitions[0].sort_key_ids().unwrap().is_empty());
     }
 
     #[tokio::test]
     async fn existing_partitions_without_hash_id() {
-        let sqlite = setup_db().await;
+        let sqlite: SqliteCatalog = setup_db().await;
         let pool = sqlite.pool.clone();
         let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
         let mut repos = sqlite.repositories().await;
@@ -1775,12 +1807,12 @@ mod tests {
         sqlx::query(
             r#"
 INSERT INTO partition
-    (partition_key, shard_id, table_id, sort_key)
+    (partition_key, shard_id, table_id, sort_key, sort_key_ids)
 VALUES
-    ($1, $2, $3, '[]')
+    ($1, $2, $3, '[]', '[]')
 ON CONFLICT (table_id, partition_key)
 DO UPDATE SET partition_key = partition.partition_key
-RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
         )
         .bind(&key) // $1
@@ -1796,12 +1828,15 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
         let partition = &table_partitions[0];
 
         // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent
-        // and that the hash_id will still be set by `Partition::new`
+        // and that the hash_id still doesn't get set.
         let inserted_again = repos
             .partitions()
             .create_or_get(key, table_id)
             .await
             .expect("idempotent write should succeed");
+
+        // Test: sort_key_ids from freshly insert with empty value
+        assert!(inserted_again.sort_key_ids().unwrap().is_empty());
 
         assert_eq!(partition, &inserted_again);
 
@@ -1817,6 +1852,18 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
             parquet_file.partition_id,
             TransitionPartitionId::Deprecated(_)
         );
+
+        // Add a partition record WITH a hash ID
+        repos
+            .partitions()
+            .create_or_get(PartitionKey::from("Something else"), table_id)
+            .await
+            .unwrap();
+
+        // Ensure we can list only the old-style partitions
+        let old_style_partitions = repos.partitions().list_old_style().await.unwrap();
+        assert_eq!(old_style_partitions.len(), 1);
+        assert_eq!(old_style_partitions[0].id, partition.id);
     }
 
     macro_rules! test_column_create_or_get_many_unchecked {

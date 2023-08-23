@@ -13,7 +13,7 @@ once_cell = { version = "1.18", features = ["parking_lot"] }
 parking_lot = "0.12"
 pin-project = "1.1"
 snafu = "0.7"
-tokio = { version = "1.31" }
+tokio = { version = "1.32" }
 tokio-util = { version = "0.7.8" }
 tokio_metrics_bridge = { path = "../tokio_metrics_bridge" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

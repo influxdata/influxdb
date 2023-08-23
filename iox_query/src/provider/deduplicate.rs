@@ -201,8 +201,8 @@ impl ExecutionPlan for DeduplicateExec {
         vec![true]
     }
 
-    fn benefits_from_input_partitioning(&self) -> bool {
-        false
+    fn benefits_from_input_partitioning(&self) -> Vec<bool> {
+        vec![false]
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {

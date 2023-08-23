@@ -179,7 +179,8 @@ where
             let sort_key_resolver = DeferredLoad::new(
                 self.max_smear,
                 SortKeyResolver::new(
-                    partition_id.clone(),
+                    partition_key.clone(),
+                    table_id,
                     Arc::clone(&__self.catalog),
                     self.backoff_config.clone(),
                 )
@@ -215,6 +216,7 @@ mod tests {
     // Harmless in tests - saves a bunch of extra vars.
     #![allow(clippy::await_holding_lock)]
 
+    use data_types::SortedColumnSet;
     use iox_catalog::mem::MemCatalog;
 
     use super::*;
@@ -287,6 +289,7 @@ mod tests {
             ARBITRARY_TABLE_ID,
             stored_partition_key.clone(),
             vec!["dos".to_string(), "bananas".to_string()],
+            Some(SortedColumnSet::from([1, 2])),
             Default::default(),
         );
 
@@ -348,6 +351,7 @@ mod tests {
             ARBITRARY_TABLE_ID,
             ARBITRARY_PARTITION_KEY.clone(),
             Default::default(),
+            None,
             Default::default(),
         );
 
@@ -385,6 +389,7 @@ mod tests {
             ARBITRARY_TABLE_ID,
             ARBITRARY_PARTITION_KEY.clone(),
             Default::default(),
+            None,
             Default::default(),
         );
 

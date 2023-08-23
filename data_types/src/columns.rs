@@ -90,6 +90,17 @@ impl ColumnsByName {
         self.0.values().map(|c| c.id)
     }
 
+    /// Return column ids of the given column names
+    /// Will panic if any of the names are not found
+    pub fn ids_for_names(&self, names: &[&str]) -> SortedColumnSet {
+        SortedColumnSet::from(names.iter().map(|name| {
+            self.get(name)
+                .unwrap_or_else(|| panic!("column name not found: {}", name))
+                .id
+                .get()
+        }))
+    }
+
     /// Get a column by its name.
     pub fn get(&self, name: &str) -> Option<&ColumnSchema> {
         self.0.get(name)
@@ -110,6 +121,12 @@ impl IntoIterator for ColumnsByName {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl FromIterator<(String, ColumnSchema)> for ColumnsByName {
+    fn from_iter<T: IntoIterator<Item = (String, ColumnSchema)>>(iter: T) -> Self {
+        Self(BTreeMap::from_iter(iter))
     }
 }
 
@@ -330,8 +347,9 @@ impl TryFrom<proto::column_schema::ColumnType> for ColumnType {
     }
 }
 
-/// Set of columns.
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::Type)]
+/// Set of columns and used as Set data type.
+/// Its inner is implemneted as a vector because postgres does not have set type
+#[derive(Debug, Clone, PartialEq, Eq, Hash, sqlx::Type)]
 #[sqlx(transparent, no_pg_array)]
 pub struct ColumnSet(Vec<ColumnId>);
 
@@ -363,6 +381,11 @@ impl ColumnSet {
     pub fn size(&self) -> usize {
         std::mem::size_of_val(self) + (std::mem::size_of::<ColumnId>() * self.0.capacity())
     }
+
+    /// The set is empty or not
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 impl From<ColumnSet> for Vec<ColumnId> {
@@ -379,6 +402,66 @@ impl Deref for ColumnSet {
     }
 }
 
+/// Set of sorted columns in a specific given order at created time
+#[derive(Debug, Clone, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent, no_pg_array)]
+pub struct SortedColumnSet(Vec<ColumnId>);
+
+impl SortedColumnSet {
+    /// Create new sorted column set.
+    ///
+    /// The order of the passed columns will be preserved.
+    ///
+    /// # Panic
+    /// Panics when the set of passed columns contains duplicates.
+    pub fn new<I>(columns: I) -> Self
+    where
+        I: IntoIterator<Item = ColumnId>,
+    {
+        let mut columns: Vec<ColumnId> = columns.into_iter().collect();
+
+        // verify if there are duplicates
+        let mut columns_sorted = columns.clone();
+        columns_sorted.sort();
+        let len_pre_dedup = columns_sorted.len();
+        columns_sorted.dedup();
+        let len_post_dedup = columns_sorted.len();
+        assert_eq!(len_pre_dedup, len_post_dedup, "set contains duplicates");
+
+        // Must continue with columns in original order
+        columns.shrink_to_fit();
+        Self(columns)
+    }
+
+    /// Estimate the memory consumption of this object and its contents
+    pub fn size(&self) -> usize {
+        std::mem::size_of_val(self) + (std::mem::size_of::<ColumnId>() * self.0.capacity())
+    }
+}
+
+impl From<SortedColumnSet> for Vec<ColumnId> {
+    fn from(set: SortedColumnSet) -> Self {
+        set.0
+    }
+}
+
+impl Deref for SortedColumnSet {
+    type Target = [ColumnId];
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+impl<I> From<I> for SortedColumnSet
+where
+    I: IntoIterator<Item = i64>,
+{
+    fn from(ids: I) -> Self {
+        Self::new(ids.into_iter().map(ColumnId::new).collect::<Vec<_>>())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
@@ -389,6 +472,26 @@ mod tests {
     #[should_panic = "set contains duplicates"]
     fn test_column_set_duplicates() {
         ColumnSet::new([ColumnId::new(1), ColumnId::new(2), ColumnId::new(1)]);
+    }
+
+    #[test]
+    #[should_panic = "set contains duplicates"]
+    fn test_sorted_column_set_duplicates() {
+        SortedColumnSet::new([
+            ColumnId::new(2),
+            ColumnId::new(1),
+            ColumnId::new(3),
+            ColumnId::new(1),
+        ]);
+    }
+
+    #[test]
+    fn test_sorted_column_set() {
+        let set = SortedColumnSet::new([ColumnId::new(2), ColumnId::new(1), ColumnId::new(3)]);
+        // verify the order is preserved
+        assert_eq!(set[0], ColumnId::new(2));
+        assert_eq!(set[1], ColumnId::new(1));
+        assert_eq!(set[2], ColumnId::new(3));
     }
 
     #[test]
@@ -449,5 +552,62 @@ mod tests {
         };
 
         ColumnSchema::try_from(&proto).expect_err("should succeed");
+    }
+
+    #[test]
+    fn test_columns_by_names_exist() {
+        let columns = build_columns_by_names();
+
+        let ids = columns.ids_for_names(&["foo", "bar"]);
+        assert_eq!(ids, SortedColumnSet::from([1, 2]));
+    }
+
+    #[test]
+    fn test_columns_by_names_exist_different_order() {
+        let columns = build_columns_by_names();
+
+        let ids = columns.ids_for_names(&["bar", "foo"]);
+        assert_eq!(ids, SortedColumnSet::from([2, 1]));
+    }
+
+    #[test]
+    #[should_panic = "column name not found: baz"]
+    fn test_columns_by_names_not_exist() {
+        let columns = build_columns_by_names();
+        columns.ids_for_names(&["foo", "baz"]);
+    }
+
+    fn build_columns_by_names() -> ColumnsByName {
+        let mut columns: BTreeMap<String, ColumnSchema> = BTreeMap::new();
+        columns.insert(
+            "foo".to_string(),
+            ColumnSchema {
+                id: ColumnId::new(1),
+                column_type: ColumnType::I64,
+            },
+        );
+        columns.insert(
+            "bar".to_string(),
+            ColumnSchema {
+                id: ColumnId::new(2),
+                column_type: ColumnType::I64,
+            },
+        );
+        columns.insert(
+            "time".to_string(),
+            ColumnSchema {
+                id: ColumnId::new(3),
+                column_type: ColumnType::Time,
+            },
+        );
+        columns.insert(
+            "tag1".to_string(),
+            ColumnSchema {
+                id: ColumnId::new(4),
+                column_type: ColumnType::Tag,
+            },
+        );
+
+        ColumnsByName(columns)
     }
 }

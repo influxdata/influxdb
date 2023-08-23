@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashMap},
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
@@ -51,6 +51,8 @@ pub struct ParquetFileSimulator {
     run_id_generator: AtomicUsize,
     /// Used to track total bytes written (to help judge efficiency changes)
     bytes_written: Arc<AtomicUsize>,
+    /// map of bytes written per plan type
+    bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>>,
 }
 
 impl std::fmt::Display for ParquetFileSimulator {
@@ -62,11 +64,16 @@ impl std::fmt::Display for ParquetFileSimulator {
 impl ParquetFileSimulator {
     /// Create a new simulator for creating parquet files, which
     /// appends its output to `run_log`
-    pub fn new(run_log: Arc<Mutex<Vec<String>>>, bytes_written: Arc<AtomicUsize>) -> Self {
+    pub fn new(
+        run_log: Arc<Mutex<Vec<String>>>,
+        bytes_written: Arc<AtomicUsize>,
+        bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>>,
+    ) -> Self {
         Self {
             run_log,
             run_id_generator: AtomicUsize::new(0),
             bytes_written,
+            bytes_written_per_plan,
         }
     }
 
@@ -142,6 +149,13 @@ impl ParquetFilesSink for ParquetFileSimulator {
         self.run_log.lock().unwrap().extend(run.into_strings());
         self.bytes_written
             .fetch_add(bytes_written as usize, Ordering::Relaxed);
+
+        self.bytes_written_per_plan
+            .lock()
+            .unwrap()
+            .entry(plan_ir.to_string())
+            .and_modify(|e| *e += bytes_written as usize)
+            .or_insert(bytes_written as usize);
 
         Ok(output_params)
     }

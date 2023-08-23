@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use data_types::{
-    sequence_number_set::SequenceNumberSet, NamespaceId, PartitionKey, SequenceNumber, TableId,
-    TimestampMinMax, TransitionPartitionId,
+    sequence_number_set::SequenceNumberSet, NamespaceId, PartitionKey, SequenceNumber,
+    SortedColumnSet, TableId, TimestampMinMax, TransitionPartitionId,
 };
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
@@ -31,7 +31,7 @@ pub(crate) enum SortKeyState {
     /// The [`SortKey`] has not yet been fetched from the catalog, and will be
     /// lazy loaded (or loaded in the background) by a call to
     /// [`DeferredLoad::get()`].
-    Deferred(Arc<DeferredLoad<Option<SortKey>>>),
+    Deferred(Arc<DeferredLoad<(Option<SortKey>, Option<SortedColumnSet>)>>),
     /// The sort key is known and specified.
     Provided(Option<SortKey>),
 }
@@ -39,7 +39,7 @@ pub(crate) enum SortKeyState {
 impl SortKeyState {
     pub(crate) async fn get(&self) -> Option<SortKey> {
         match self {
-            Self::Deferred(v) => v.get().await,
+            Self::Deferred(v) => v.get().await.0,
             Self::Provided(v) => v.clone(),
         }
     }
@@ -423,6 +423,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use assert_matches::assert_matches;
     use backoff::BackoffConfig;
+    use data_types::SortedColumnSet;
     use datafusion::{
         physical_expr::PhysicalSortExpr,
         physical_plan::{expressions::col, memory::MemoryExec, ExecutionPlan},
@@ -991,6 +992,8 @@ mod tests {
         let catalog: Arc<dyn Catalog> =
             Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
 
+        let partition_key = PartitionKey::from("test");
+
         // Populate the catalog with the namespace / table
         let (_ns_id, table_id) = populate_catalog(&*catalog, "bananas", "platanos").await;
 
@@ -998,23 +1001,36 @@ mod tests {
             .repositories()
             .await
             .partitions()
-            .create_or_get("test".into(), table_id)
+            .create_or_get(partition_key.clone(), table_id)
             .await
             .expect("should create");
+        // Test: sort_key_ids from create_or_get which is empty
+        assert!(partition.sort_key_ids().unwrap().is_empty());
 
-        catalog
+        let updated_partition = catalog
             .repositories()
             .await
             .partitions()
-            .cas_sort_key(&partition.transition_partition_id(), None, &["terrific"])
+            .cas_sort_key(
+                &partition.transition_partition_id(),
+                None,
+                &["terrific"],
+                &SortedColumnSet::from([1]),
+            )
             .await
             .unwrap();
+        // Test: sort_key_ids after updating
+        assert_eq!(
+            updated_partition.sort_key_ids(),
+            Some(&SortedColumnSet::from([1]))
+        );
 
         // Read the just-created sort key (None)
         let fetcher = Arc::new(DeferredLoad::new(
             Duration::from_nanos(1),
             SortKeyResolver::new(
-                partition.transition_partition_id(),
+                partition_key.clone(),
+                table_id,
                 Arc::clone(&catalog),
                 backoff_config.clone(),
             )

@@ -736,7 +736,7 @@ mod test {
         let expr = binary_expr("boolean_field".as_expr(), Operator::BitwiseXor, lit(true));
         assert_eq!(
             rewrite(expr),
-            "CAST(CAST(boolean_field AS Int8) # CAST(Boolean(true) AS Int8) AS Boolean)"
+            "CAST(CAST(boolean_field AS Int8) BIT_XOR CAST(Boolean(true) AS Int8) AS Boolean)"
         );
 
         // Unsupported operations

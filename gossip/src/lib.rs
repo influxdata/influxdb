@@ -10,6 +10,20 @@
 //! An identity is associated with an immutable socket address used for peer
 //! communication.
 //!
+//! # Topics
+//!
+//! The gossip system implements a topic / interest based, send-side filter to
+//! prevent node A sending frames to node B that it doesn't care about - this
+//! helps reduce traffic and CPU / processing on both nodes.
+//!
+//! During peer exchange, a node advertises the set of peers it is (and other
+//! peers are) interested in, and messages for a given topic are dispatched only
+//! to interested nodes.
+//!
+//! Topics are immutable for the lifetime of a gossip instance, and control
+//! frames are exempt from topic filtering and are always exchanged between all
+//! peers.
+//!
 //! # Transport
 //!
 //! Prefer small payloads where possible, and expect loss of some messages -
@@ -127,6 +141,7 @@ mod peers;
 mod proto;
 mod reactor;
 pub(crate) mod seed;
+mod topic_set;
 
 use std::time::Duration;
 
@@ -159,7 +174,7 @@ const PEER_PING_INTERVAL: Duration = Duration::from_secs(30);
 const MAX_FRAME_BYTES: usize = 1024 * 10;
 
 /// The frame header overhead for user payloads.
-const USER_PAYLOAD_OVERHEAD: usize = 22;
+const USER_PAYLOAD_OVERHEAD: usize = 33;
 
 /// The maximum allowed byte size of user payloads.
 ///
@@ -193,7 +208,7 @@ mod tests {
     #[test]
     fn test_max_user_payload_size() {
         assert_eq!(
-            MAX_USER_PAYLOAD_BYTES, 10_218,
+            MAX_USER_PAYLOAD_BYTES, 10_207,
             "applications may depend on this value not changing"
         );
     }

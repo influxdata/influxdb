@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use data_types::{CompactionLevel, ParquetFile, ParquetFileParams};
+use data_types::{CompactionLevel, FileRange, ParquetFile, ParquetFileParams};
 
 /// Trait for ParquetFiles and ParquetFileParams (which are not yet
 /// inserted into the catalog and thus are not assigned an ID)
@@ -77,6 +77,34 @@ pub fn format_files<P: ParquetFileInfo>(title: impl Into<String>, files: &[P]) -
     readable_list_of_files(Some(title.into()), files)
 }
 
+/// Trait for FileRange
+pub trait FileRangeInfo {
+    fn min(&self) -> i64;
+    fn max(&self) -> i64;
+    fn cap(&self) -> i64;
+}
+
+impl FileRangeInfo for FileRange {
+    fn min(&self) -> i64 {
+        self.min
+    }
+
+    fn max(&self) -> i64 {
+        self.max
+    }
+
+    fn cap(&self) -> i64 {
+        self.cap as i64
+    }
+}
+
+/// Formats the list of FileRanges in the manner described on
+/// [`ParquetFileFormatter`] into strings suitable for comparison with
+/// `insta`.
+pub fn format_ranges<F: FileRangeInfo>(title: impl Into<String>, ranges: &[F]) -> Vec<String> {
+    readable_list_of_file_ranges(Some(title.into()), ranges)
+}
+
 /// Formats two lists of files in the manner described on
 /// [`ParquetFileFormatter`] into strings suitable for comparison with
 /// `insta`.
@@ -129,6 +157,33 @@ fn readable_list_of_files<P: ParquetFileInfo>(title: Option<String>, files: &[P]
         for file in files {
             output.push(formatter.format_file(file))
         }
+    }
+
+    output
+}
+
+/// This function returns a visual representation of the list of
+/// FileRange arranged so they are lined up horizontally based on
+/// their relative time range.
+///
+/// See docs on [`ParquetFileFormatter`] for examples.
+fn readable_list_of_file_ranges<F: FileRangeInfo>(
+    title: Option<String>,
+    ranges: &[F],
+) -> Vec<String> {
+    let mut output = vec![];
+    if let Some(title) = title {
+        output.push(title);
+    }
+
+    if ranges.is_empty() {
+        return output;
+    }
+
+    let formatter = ParquetFileFormatter::new_range(ranges);
+
+    for range in ranges {
+        output.push(formatter.format_range(range))
     }
 
     output
@@ -225,6 +280,41 @@ impl ParquetFileFormatter {
         }
     }
 
+    /// calculates display parameters for formatting a set of FileRanges
+    fn new_range<F: FileRangeInfo>(ranges: &[F]) -> Self {
+        let row_heading_chars = DEFAULT_HEADING_WIDTH;
+        let width_chars = DEFAULT_WIDTH;
+
+        let min_time = ranges
+            .iter()
+            .map(|f| f.min())
+            .min()
+            .expect("at least one range");
+        let max_time = ranges
+            .iter()
+            .map(|f| f.max())
+            .max()
+            .expect("at least one range");
+        let file_size_seen = ranges
+            .iter()
+            .fold(FileSizeSeen::None, |file_size_seen, range| {
+                file_size_seen.observe(range.cap())
+            });
+
+        let time_range = max_time - min_time;
+
+        let ns_per_char = (time_range as f64) / (width_chars as f64);
+
+        Self {
+            file_size_seen,
+            width_chars,
+            ns_per_char,
+            min_time,
+            max_time,
+            row_heading_chars,
+        }
+    }
+
     /// return how many characters of `self.width_chars` would be consumed by `range` ns
     fn time_range_to_chars(&self, time_range: i64) -> usize {
         // avoid divide by zero
@@ -290,6 +380,58 @@ impl ParquetFileFormatter {
         // based on the relative start time of the file
         // assume time from 0
         let prefix_time_range = file.min_time().saturating_sub(self.min_time);
+        let prefix_padding = " ".repeat(self.time_range_to_chars(prefix_time_range));
+
+        // pad the rest with whitespace
+        let postfix_padding_len = self
+            .width_chars
+            .saturating_sub(file_string.len())
+            .saturating_sub(prefix_padding.len());
+        let postfix_padding = " ".repeat(postfix_padding_len);
+
+        format!(
+            "{row_heading:width$}{prefix_padding}{file_string}{postfix_padding}",
+            width = self.row_heading_chars
+        )
+    }
+
+    /// Formats a single file range into a string of `width_chars`
+    /// characters, which tries to visually depict the timge range of
+    /// the file using the width. See docs on [`ParquetFileFormatter`]
+    /// for examples.
+    fn format_range<P: FileRangeInfo>(&self, range: &P) -> String {
+        // use try_into to force conversion to usize
+        let time_width = range.max() - range.min();
+
+        // special case "zero" width times
+        let field_width = if self.min_time == self.max_time {
+            self.width_chars
+        } else {
+            self.time_range_to_chars(time_width)
+        }
+        // account for starting and ending '|'
+        .saturating_sub(2);
+
+        // Get compact display of the range, like 'L0.1'
+        // add |--- ---| formatting (based on field width)
+        let file_string = format!("|{:-^width$}|", "range", width = field_width);
+        // show indvidual file sizes if they are different
+        let show_size = matches!(self.file_size_seen, FileSizeSeen::Many);
+        let row_heading = display_range_format(range, show_size);
+
+        // special case "zero" width times
+        if self.min_time == self.max_time {
+            return format!(
+                "{row_heading:width1$}{file_string:^width2$}",
+                width1 = self.row_heading_chars,
+                width2 = self.width_chars,
+            );
+        }
+
+        // otherwise, figure out whitespace padding at start and back
+        // based on the relative start time of the range
+        // assume time from 0
+        let prefix_time_range = range.min().saturating_sub(self.min_time);
         let prefix_padding = " ".repeat(self.time_range_to_chars(prefix_time_range));
 
         // pad the rest with whitespace
@@ -386,6 +528,26 @@ pub fn display_format<P: ParquetFileInfo>(file: &P, show_size: bool) -> String {
         format!("{file_id}[{min_time},{max_time}] {created_at} {sz}")
     } else {
         format!("{file_id}[{min_time},{max_time}] {created_at}")
+    }
+}
+
+/// Compact display of file range
+///
+/// Example
+///
+/// ```text
+/// [100,200]
+/// ```
+pub fn display_range_format<F: FileRangeInfo>(range: &F, show_size: bool) -> String {
+    let min_time = range.min(); // display as i64
+    let max_time = range.max(); // display as i64
+    let sz = range.cap();
+
+    if show_size {
+        let sz = display_size(sz);
+        format!("[{min_time},{max_time}] {sz}")
+    } else {
+        format!("[{min_time},{max_time}]")
     }
 }
 

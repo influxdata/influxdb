@@ -18,5 +18,5 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 itertools = "0.11.0"
-tokio = { version = "1.31", features = ["macros", "parking_lot"] }
+tokio = { version = "1.32", features = ["macros", "parking_lot"] }
 datafusion_util = { path = "../datafusion_util" }

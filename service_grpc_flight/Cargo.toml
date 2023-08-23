@@ -26,9 +26,9 @@ bytes = "1.4"
 futures = "0.3"
 prost = "0.11"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.104"
+serde_json = "1.0.105"
 snafu = "0.7"
-tokio = { version = "1.31", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 

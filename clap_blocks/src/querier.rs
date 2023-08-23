@@ -2,6 +2,7 @@
 
 use crate::{
     ingester_address::IngesterAddress,
+    memory_size::MemorySize,
     single_tenant::{CONFIG_AUTHZ_ENV_NAME, CONFIG_AUTHZ_FLAG},
 };
 use std::{collections::HashMap, num::NonZeroUsize};
@@ -27,13 +28,15 @@ pub struct QuerierConfig {
     ///
     /// If queries attempt to allocate more than this many bytes
     /// during execution, they will error with "ResourcesExhausted".
+    ///
+    /// Can be given as absolute value or in percentage of the total available memory (e.g. `10%`).
     #[clap(
         long = "exec-mem-pool-bytes",
         env = "INFLUXDB_IOX_EXEC_MEM_POOL_BYTES",
         default_value = "8589934592",  // 8GB
         action
     )]
-    pub exec_mem_pool_bytes: usize,
+    pub exec_mem_pool_bytes: MemorySize,
 
     /// gRPC address for the router to talk with the ingesters. For
     /// example:
@@ -55,22 +58,26 @@ pub struct QuerierConfig {
     pub ingester_addresses: Vec<IngesterAddress>,
 
     /// Size of the RAM cache used to store catalog metadata information in bytes.
+    ///
+    /// Can be given as absolute value or in percentage of the total available memory (e.g. `10%`).
     #[clap(
         long = "ram-pool-metadata-bytes",
         env = "INFLUXDB_IOX_RAM_POOL_METADATA_BYTES",
         default_value = "134217728",  // 128MB
         action
     )]
-    pub ram_pool_metadata_bytes: usize,
+    pub ram_pool_metadata_bytes: MemorySize,
 
     /// Size of the RAM cache used to store data in bytes.
+    ///
+    /// Can be given as absolute value or in percentage of the total available memory (e.g. `10%`).
     #[clap(
         long = "ram-pool-data-bytes",
         env = "INFLUXDB_IOX_RAM_POOL_DATA_BYTES",
         default_value = "1073741824",  // 1GB
         action
     )]
-    pub ram_pool_data_bytes: usize,
+    pub ram_pool_data_bytes: MemorySize,
 
     /// Limit the number of concurrent queries.
     #[clap(
@@ -115,29 +122,6 @@ pub struct QuerierConfig {
     pub datafusion_config: HashMap<String, String>,
 }
 
-impl QuerierConfig {
-    /// Get the querier config's num query threads.
-    #[must_use]
-    pub fn num_query_threads(&self) -> Option<NonZeroUsize> {
-        self.num_query_threads
-    }
-
-    /// Size of the RAM cache pool for metadata in bytes.
-    pub fn ram_pool_metadata_bytes(&self) -> usize {
-        self.ram_pool_metadata_bytes
-    }
-
-    /// Size of the RAM cache pool for payload in bytes.
-    pub fn ram_pool_data_bytes(&self) -> usize {
-        self.ram_pool_data_bytes
-    }
-
-    /// Number of queries allowed to run concurrently
-    pub fn max_concurrent_queries(&self) -> usize {
-        self.max_concurrent_queries
-    }
-}
-
 fn parse_datafusion_config(
     s: &str,
 ) -> Result<HashMap<String, String>, Box<dyn std::error::Error + Send + Sync + 'static>> {
@@ -179,7 +163,7 @@ mod tests {
     fn test_default() {
         let actual = QuerierConfig::try_parse_from(["my_binary"]).unwrap();
 
-        assert_eq!(actual.num_query_threads(), None);
+        assert_eq!(actual.num_query_threads, None);
         assert!(actual.ingester_addresses.is_empty());
         assert!(actual.datafusion_config.is_empty());
     }
@@ -190,7 +174,7 @@ mod tests {
             QuerierConfig::try_parse_from(["my_binary", "--num-query-threads", "42"]).unwrap();
 
         assert_eq!(
-            actual.num_query_threads(),
+            actual.num_query_threads,
             Some(NonZeroUsize::new(42).unwrap())
         );
     }

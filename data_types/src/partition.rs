@@ -1,5 +1,7 @@
 //! Types having to do with partitions.
 
+use crate::SortedColumnSet;
+
 use super::{TableId, Timestamp};
 
 use schema::sort::SortKey;
@@ -358,7 +360,13 @@ pub struct Partition {
     pub table_id: TableId,
     /// the string key of the partition
     pub partition_key: PartitionKey,
+
+    // TODO: remove this field once the sort_key_ids is fully imlemented
     /// vector of column names that describes how *every* parquet file
+    /// in this [`Partition`] is sorted.
+    pub sort_key: Vec<String>,
+
+    /// vector of column ids that describes how *every* parquet file
     /// in this [`Partition`] is sorted. The sort_key contains all the
     /// primary key (PK) columns that have been persisted, and nothing
     /// else. The PK columns are all `tag` columns and the `time`
@@ -383,7 +391,7 @@ pub struct Partition {
     /// For example, updating `A,B,C` to either `A,D,B,C` or `A,B,C,D`
     /// is legal. However, updating to `A,C,D,B` is not because the
     /// relative order of B and C have been reversed.
-    pub sort_key: Vec<String>,
+    pub sort_key_ids: Option<SortedColumnSet>,
 
     /// The time at which the newest file of the partition is created
     pub new_file_at: Option<Timestamp>,
@@ -399,6 +407,7 @@ impl Partition {
         table_id: TableId,
         partition_key: PartitionKey,
         sort_key: Vec<String>,
+        sort_key_ids: Option<SortedColumnSet>,
         new_file_at: Option<Timestamp>,
     ) -> Self {
         let hash_id = PartitionHashId::new(table_id, &partition_key);
@@ -408,6 +417,7 @@ impl Partition {
             table_id,
             partition_key,
             sort_key,
+            sort_key_ids,
             new_file_at,
         }
     }
@@ -424,6 +434,7 @@ impl Partition {
         table_id: TableId,
         partition_key: PartitionKey,
         sort_key: Vec<String>,
+        sort_key_ids: Option<SortedColumnSet>,
         new_file_at: Option<Timestamp>,
     ) -> Self {
         Self {
@@ -432,6 +443,7 @@ impl Partition {
             table_id,
             partition_key,
             sort_key,
+            sort_key_ids,
             new_file_at,
         }
     }
@@ -454,6 +466,11 @@ impl Partition {
         }
 
         Some(SortKey::from_columns(self.sort_key.iter().map(|s| &**s)))
+    }
+
+    /// The sort_key_ids if present
+    pub fn sort_key_ids(&self) -> Option<&SortedColumnSet> {
+        self.sort_key_ids.as_ref()
     }
 }
 

@@ -36,7 +36,6 @@ use iox_query::{
         field::FieldColumns, fieldlist::Field, make_non_null_checker, make_schema_pivot,
         stringset::StringSet, IOxSessionContext,
     },
-    frontend::common::ScanPlanBuilder,
     plan::{
         fieldlist::FieldListPlan,
         seriesset::{SeriesSetPlan, SeriesSetPlans},
@@ -61,6 +60,11 @@ use schema::{InfluxColumnType, Projection, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::collections::{BTreeMap, HashSet as StdHashSet};
 use std::{cmp::Reverse, collections::BTreeSet, sync::Arc};
+
+use crate::scan_plan::ScanPlanBuilder;
+
+mod missing_columns;
+mod scan_plan;
 
 const CONCURRENT_TABLE_JOBS: usize = 10;
 
@@ -139,9 +143,7 @@ pub enum Error {
     },
 
     #[snafu(display("Error creating scan:  {}", source))]
-    CreatingScan {
-        source: iox_query::frontend::common::Error,
-    },
+    CreatingScan { source: crate::scan_plan::Error },
 
     #[snafu(display(
         "gRPC planner got error casting aggregate {:?} for {}: {}",
@@ -194,8 +196,8 @@ impl Error {
     }
 }
 
-impl From<iox_query::frontend::common::Error> for Error {
-    fn from(source: iox_query::frontend::common::Error) -> Self {
+impl From<crate::scan_plan::Error> for Error {
+    fn from(source: crate::scan_plan::Error) -> Self {
         Self::CreatingScan { source }
     }
 }
@@ -1800,7 +1802,8 @@ fn prune_chunks(
 ) -> Vec<Arc<dyn QueryChunk>> {
     use iox_query::pruning::prune_chunks;
 
-    let Ok(mask) = prune_chunks(table_schema, &chunks, predicate) else {
+    let filters = predicate.filter_expr().into_iter().collect::<Vec<_>>();
+    let Ok(mask) = prune_chunks(table_schema, &chunks, &filters) else {
         return chunks;
     };
 

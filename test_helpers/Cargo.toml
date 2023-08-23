@@ -8,13 +8,13 @@ license.workspace = true
 [dependencies] # In alphabetical order
 dotenvy = "0.15.7"
 parking_lot = "0.12"
-tempfile = "3.7.1"
+tempfile = "3.8.0"
 tracing-log = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 observability_deps = { path = "../observability_deps" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 async-trait = { version = "0.1.73", optional = true }
-tokio = { version = "1.31.0", optional = true, default_features = false, features = ["time"] }
+tokio = { version = "1.32.0", optional = true, default_features = false, features = ["time"] }
 
 [features]
 default = []

@@ -7,7 +7,10 @@ use std::{
 };
 
 use test_helpers::{maybe_start_logging, timeout::FutureTimeout};
-use tokio::{net::UdpSocket, sync::mpsc};
+use tokio::{
+    net::UdpSocket,
+    sync::mpsc::{self, error::TryRecvError},
+};
 
 use gossip::*;
 
@@ -24,6 +27,33 @@ async fn random_udp() -> (UdpSocket, SocketAddr) {
     let addr = socket.local_addr().expect("failed to read local addr");
 
     (socket, addr)
+}
+
+/// An example gossip topic type.
+#[derive(Debug, PartialEq)]
+enum Topic {
+    Bananas,
+    Donkey,
+    Goose,
+}
+
+impl From<Topic> for u64 {
+    fn from(value: Topic) -> Self {
+        value as u64
+    }
+}
+
+impl TryFrom<u64> for Topic {
+    type Error = ();
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Ok(match value {
+            x if x == Topic::Bananas as u64 => Self::Bananas,
+            x if x == Topic::Donkey as u64 => Self::Donkey,
+            x if x == Topic::Goose as u64 => Self::Goose,
+            _ => return Err(()),
+        })
+    }
 }
 
 /// Assert that starting up a reactor performs the initial peer discovery
@@ -59,36 +89,45 @@ async fn test_payload_exchange() {
 
     // Send the payload through peer A
     let a_payload = Bytes::from_static(b"bananas");
-    a.broadcast(a_payload.clone()).await.unwrap();
+    a.broadcast(a_payload.clone(), Topic::Bananas)
+        .await
+        .unwrap();
 
     // Assert it was received by peer B
-    let got = b_rx
+    let (topic, got) = b_rx
         .recv()
         .with_timeout_panic(TIMEOUT)
         .await
         .expect("reactor stopped");
     assert_eq!(got, a_payload);
+    assert_eq!(topic, Topic::Bananas);
 
     // Do the reverse - send from B to A
     let b_payload = Bytes::from_static(b"platanos");
-    b.broadcast(b_payload.clone()).await.unwrap();
-    let got = a_rx
+    b.broadcast(b_payload.clone(), Topic::Bananas)
+        .await
+        .unwrap();
+    let (topic, got) = a_rx
         .recv()
         .with_timeout_panic(TIMEOUT)
         .await
         .expect("reactor stopped");
     assert_eq!(got, b_payload);
+    assert_eq!(topic, Topic::Bananas);
 
     // Send another payload through peer A (ensuring scratch buffers are
     // correctly wiped, etc)
     let a_payload = Bytes::from_static(b"platanos");
-    a.broadcast(a_payload.clone()).await.unwrap();
-    let got = b_rx
+    a.broadcast(a_payload.clone(), Topic::Bananas)
+        .await
+        .unwrap();
+    let (topic, got) = b_rx
         .recv()
         .with_timeout_panic(TIMEOUT)
         .await
         .expect("reactor stopped");
     assert_eq!(got, a_payload);
+    assert_eq!(topic, Topic::Bananas);
 }
 
 /// Construct a set of peers such that peer exchange has to occur for them to
@@ -117,8 +156,10 @@ async fn test_peer_exchange() {
 
     let (a_tx, mut a_rx) = mpsc::channel(5);
 
-    let a = Builder::new(vec![b_addr.to_string()], a_tx, Arc::clone(&metrics)).build(a_socket);
-    let b = Builder::new(vec![], NopDispatcher::default(), Arc::clone(&metrics)).build(b_socket);
+    let a = Builder::<_, Topic>::new(vec![b_addr.to_string()], a_tx, Arc::clone(&metrics))
+        .build(a_socket);
+    let b = Builder::<_, Topic>::new(vec![], NopDispatcher::default(), Arc::clone(&metrics))
+        .build(b_socket);
     let c = Builder::new(
         vec![b_addr.to_string()],
         NopDispatcher::default(),
@@ -132,7 +173,10 @@ async fn test_peer_exchange() {
     // Wait for peer exchange to occur
     async {
         loop {
-            if a.get_peers().await.len() == 2 {
+            if a.get_peers().await.len() == 2
+                && b.get_peers().await.len() == 2
+                && c.get_peers().await.len() == 2
+            {
                 break;
             }
         }
@@ -158,14 +202,15 @@ async fn test_peer_exchange() {
     // Prove that C has discovered A, which would only be possible through PEX
     // with B.
     let payload = Bytes::from_static(b"bananas");
-    c.broadcast(payload.clone()).await.unwrap();
+    c.broadcast(payload.clone(), Topic::Bananas).await.unwrap();
 
-    let got = a_rx
+    let (topic, got) = a_rx
         .recv()
         .with_timeout_panic(TIMEOUT)
         .await
         .expect("reactor stopped");
     assert_eq!(got, payload);
+    assert_eq!(topic, Topic::Bananas);
 }
 
 /// Construct a set of peers such that a delayed peer exchange has to occur for
@@ -196,13 +241,13 @@ async fn test_delayed_peer_exchange() {
     let (b_socket, b_addr) = random_udp().await;
     let (c_socket, _c_addr) = random_udp().await;
 
-    let a = Builder::new(
+    let a = Builder::<_, Topic>::new(
         vec![b_addr.to_string()],
         NopDispatcher::default(),
         Arc::clone(&metrics),
     )
     .build(a_socket);
-    let b = Builder::new(
+    let b = Builder::<_, Topic>::new(
         vec![a_addr.to_string()],
         NopDispatcher::default(),
         Arc::clone(&metrics),
@@ -231,7 +276,7 @@ async fn test_delayed_peer_exchange() {
 
     // Start C now the initial PEX is complete, seeding it with the address of
     // B.
-    let c = Builder::new(
+    let c = Builder::<_, Topic>::new(
         vec![b_addr.to_string()],
         NopDispatcher::default(),
         Arc::clone(&metrics),
@@ -284,13 +329,14 @@ async fn test_seed_health_check() {
     let (_c_socket, c_addr) = random_udp().await;
 
     let seeds = vec![a_addr.to_string(), b_addr.to_string(), c_addr.to_string()];
-    let a = Builder::new(
+    let a = Builder::<_, Topic>::new(
         seeds.to_vec(),
         NopDispatcher::default(),
         Arc::clone(&metrics),
     )
     .build(a_socket);
-    let b = Builder::new(seeds, NopDispatcher::default(), Arc::clone(&metrics)).build(b_socket);
+    let b = Builder::<_, Topic>::new(seeds, NopDispatcher::default(), Arc::clone(&metrics))
+        .build(b_socket);
 
     // Wait for peer exchange to occur between A and B
     async {
@@ -327,13 +373,13 @@ async fn test_discovery_health_check() {
     let (a_socket, a_addr) = random_udp().await;
     let (b_socket, b_addr) = random_udp().await;
 
-    let a = Builder::new(
+    let a = Builder::<_, Topic>::new(
         vec![b_addr.to_string()],
         NopDispatcher::default(),
         Arc::clone(&metrics),
     )
     .build(a_socket);
-    let b = Builder::new(
+    let b = Builder::<_, Topic>::new(
         vec![a_addr.to_string()],
         NopDispatcher::default(),
         Arc::clone(&metrics),
@@ -358,7 +404,7 @@ async fn test_discovery_health_check() {
     // Introduce C to the cluster, seeding it with A
     let (c_socket, _c_addr) = random_udp().await;
 
-    let c = Builder::new(
+    let c = Builder::<_, Topic>::new(
         vec![a_addr.to_string()],
         NopDispatcher::default(),
         Arc::clone(&metrics),
@@ -397,13 +443,13 @@ async fn test_peer_removal() {
     let (a_socket, a_addr) = random_udp().await;
     let (b_socket, b_addr) = random_udp().await;
 
-    let a = Builder::new(
+    let a = Builder::<_, Topic>::new(
         vec![b_addr.to_string()],
         NopDispatcher::default(),
         Arc::clone(&metrics),
     )
     .build(a_socket);
-    let b = Builder::new(
+    let b = Builder::<_, Topic>::new(
         vec![a_addr.to_string()],
         NopDispatcher::default(),
         Arc::clone(&metrics),
@@ -444,4 +490,152 @@ async fn test_peer_removal() {
             panic!("timeout waiting for peer removal");
         }
     }
+}
+
+/// Topic subscriptions / interests.
+///
+/// Ensure a node that is subscribed to one topic is sent only messages for that
+/// topic by peers.
+///
+/// Covers multiple interested topics (multiple values in the topic set) and a
+/// single non-interested topic.
+#[tokio::test]
+async fn test_topic_send_filter() {
+    maybe_start_logging();
+
+    let metrics = Arc::new(metric::Registry::default());
+
+    let (a_socket, a_addr) = random_udp().await;
+    let (b_socket, b_addr) = random_udp().await;
+
+    let (a_tx, mut a_rx) = mpsc::channel(5);
+
+    // Configure A to be only interested in messages in the "bananas" and
+    // "goose" topics.
+    let a = Builder::<_, Topic>::new(vec![b_addr.to_string()], a_tx, Arc::clone(&metrics))
+        .with_topic_filter(
+            TopicInterests::default()
+                .with_topic(Topic::Bananas)
+                .with_topic(Topic::Goose),
+        )
+        .build(a_socket);
+
+    let b = Builder::<_, Topic>::new(
+        vec![a_addr.to_string()],
+        NopDispatcher::default(),
+        Arc::clone(&metrics),
+    )
+    .build(b_socket);
+
+    // Wait for peer exchange to occur between A and B
+    async {
+        loop {
+            let peers = a.get_peers().await;
+            if peers.len() == 1 {
+                assert!(peers.contains(&b.identity()));
+                break;
+            }
+        }
+    }
+    .with_timeout_panic(TIMEOUT)
+    .await;
+
+    // Have B send a message for a topic A is not interested in.
+    let topic_donkey = Bytes::from_static(b"donkey");
+    b.broadcast(topic_donkey, Topic::Donkey).await.unwrap();
+
+    // Followed by a message for a topic it is interested in.
+    let topic_bananas = Bytes::from_static(b"bananas");
+    b.broadcast(topic_bananas.clone(), Topic::Bananas)
+        .await
+        .unwrap();
+
+    // Which should be received.
+    let got = a_rx.recv().await.unwrap();
+    assert_eq!(got, (Topic::Bananas, topic_bananas));
+
+    // There should be no other messages enqueued for A to process.
+    assert_eq!(a_rx.try_recv(), Err(TryRecvError::Empty));
+
+    // Have B send a message for a different topic A is interested in.
+    let topic_goose = Bytes::from_static(b"goose");
+    b.broadcast(topic_goose.clone(), Topic::Goose)
+        .await
+        .unwrap();
+
+    // Which should be received.
+    let got = a_rx.recv().await.unwrap();
+    assert_eq!(got, (Topic::Goose, topic_goose));
+
+    // There should be no other messages enqueued for A to process.
+    assert_eq!(a_rx.try_recv(), Err(TryRecvError::Empty));
+}
+
+/// Unknown / backwards-compatible / graceful handling of unknown topics.
+///
+/// Ensure a node that receives an unknown topic and returns an error in the
+/// TryFrom<u64> conversion doesn't panic and continues to function.
+#[tokio::test]
+async fn test_unknown_topic() {
+    maybe_start_logging();
+
+    let metrics = Arc::new(metric::Registry::default());
+
+    let (a_socket, a_addr) = random_udp().await;
+    let (b_socket, b_addr) = random_udp().await;
+
+    let (a_tx, mut a_rx) = mpsc::channel(5);
+
+    // Configure A to be only interested in messages in the "bananas" and
+    // "goose" topics.
+    let a = Builder::<_, Topic>::new(vec![b_addr.to_string()], a_tx, Arc::clone(&metrics))
+        .with_topic_filter(
+            TopicInterests::default()
+                .with_topic(Topic::Bananas)
+                .with_topic(Topic::Goose),
+        )
+        .build(a_socket);
+
+    // Have B send topics using raw u64 instead of the enum.
+    let b = Builder::<_, u64>::new(
+        vec![a_addr.to_string()],
+        NopDispatcher::default(),
+        Arc::clone(&metrics),
+    )
+    .build(b_socket);
+
+    // Wait for peer exchange to occur between A and B
+    async {
+        loop {
+            let peers = a.get_peers().await;
+            if peers.len() == 1 {
+                assert!(peers.contains(&b.identity()));
+                break;
+            }
+        }
+    }
+    .with_timeout_panic(TIMEOUT)
+    .await;
+
+    // Have B send a message for a topic A doesn't know about.
+    let topic_wat = Bytes::from_static(b"wat");
+    b.broadcast(topic_wat.clone(), 42).await.unwrap();
+
+    // This message should not be handed to the dispatcher for A.
+    assert_eq!(a_rx.try_recv(), Err(TryRecvError::Empty));
+
+    // But A should continue chugging along.
+
+    // Have B send a message for a topic A is interested in.
+    let topic_goose = Bytes::from_static(b"goose");
+    b.broadcast(topic_goose.clone(), Topic::Goose as u64)
+        .await
+        .unwrap();
+
+    // Which should be received.
+    let got = a_rx.recv().await.unwrap();
+    assert_eq!(got, (Topic::Goose, topic_goose));
+
+    // There should be no other messages enqueued for A to process.
+    assert_eq!(a_rx.try_recv(), Err(TryRecvError::Empty));
 }

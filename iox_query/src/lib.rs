@@ -44,7 +44,6 @@ pub mod pruning;
 pub mod statistics;
 pub mod util;
 
-pub use frontend::common::ScanPlanBuilder;
 pub use query_functions::group_by::{Aggregate, WindowDuration};
 
 /// The name of the virtual column that represents the chunk order.
