@@ -527,6 +527,21 @@ impl Partition {
     pub fn sort_key_ids(&self) -> Option<&SortedColumnSet> {
         self.sort_key_ids.as_ref()
     }
+
+    // todo:  resue the same function in https://github.com/influxdata/influxdb_iox/pull/8556/
+    /// The sort_key_ids if present and not empty
+    pub fn sort_key_ids_none_if_empty(&self) -> Option<SortedColumnSet> {
+        match self.sort_key_ids.as_ref() {
+            None => None,
+            Some(sort_key_ids) => {
+                if sort_key_ids.is_empty() {
+                    None
+                } else {
+                    Some(sort_key_ids.clone())
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
