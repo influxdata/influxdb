@@ -532,6 +532,8 @@ impl Partition {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use assert_matches::assert_matches;
     use proptest::{prelude::*, proptest};
 
     /// A fixture test asserting the deterministic partition ID generation
@@ -620,5 +622,31 @@ mod tests {
             // The deserialised value must match the input (round trippable)
             assert_eq!(decoded, id);
         }
+    }
+
+    #[test]
+    fn test_proto_no_id() {
+        use generated_types::influxdata::iox::catalog::v1 as proto;
+
+        let msg = proto::PartitionIdentifier { id: None };
+
+        assert_matches!(
+            TransitionPartitionId::try_from(msg),
+            Err(PartitionIdProtoError::NoId)
+        );
+    }
+
+    #[test]
+    fn test_proto_bad_hash() {
+        use generated_types::influxdata::iox::catalog::v1 as proto;
+
+        let msg = proto::PartitionIdentifier {
+            id: Some(proto::partition_identifier::Id::HashId(vec![42])),
+        };
+
+        assert_matches!(
+            TransitionPartitionId::try_from(msg),
+            Err(PartitionIdProtoError::InvalidHashId(_))
+        );
     }
 }
