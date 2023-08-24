@@ -19,9 +19,10 @@ use tokio::{
 /// A gossip broadcast primitive specialised for parquet file creation
 /// notifications.
 ///
-/// This type accepts [`ParquetFile`] from the application logic, serialises the
-/// message (applying any necessary transformations due to the underlying
-/// transport limitations) and broadcasts the result to all listening peers.
+/// This type accepts any type that converts into a [`ParquetFile`] from the
+/// application logic, serialises the message (applying any necessary
+/// transformations due to the underlying transport limitations) and broadcasts
+/// the result to all listening peers.
 ///
 /// Serialisation and processing of the [`ParquetFile`] given to the
 /// [`ParquetFileTx::broadcast()`] method happens in a background actor task,
