@@ -14,6 +14,9 @@ compactor_scheduler = { path = "../compactor_scheduler" }
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 futures = "0.3"
+generated_types = { version = "0.1.0", path = "../generated_types" }
+gossip = { version = "0.1.0", path = "../gossip" }
+gossip_compaction = { version = "0.1.0", path = "../gossip_compaction" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 iox_time = { path = "../iox_time" }

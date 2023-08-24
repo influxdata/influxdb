@@ -2,13 +2,17 @@
 
 use std::num::NonZeroUsize;
 
-use crate::memory_size::MemorySize;
+use crate::{gossip::GossipConfig, memory_size::MemorySize};
 
 use super::compactor_scheduler::CompactorSchedulerConfig;
 
 /// CLI config for compactor
 #[derive(Debug, Clone, clap::Parser)]
 pub struct CompactorConfig {
+    /// Gossip config.
+    #[clap(flatten)]
+    pub gossip_config: GossipConfig,
+
     /// Configuration for the compactor scheduler
     #[clap(flatten)]
     pub compactor_scheduler_config: CompactorSchedulerConfig,

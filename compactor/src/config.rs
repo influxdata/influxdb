@@ -1,5 +1,5 @@
 //! Config-related stuff.
-use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{net::SocketAddr, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use backoff::BackoffConfig;
 use compactor_scheduler::SchedulerConfig;
@@ -135,6 +135,14 @@ pub struct Config {
     ///
     /// Queries are smoothed over the full second.
     pub max_partition_fetch_queries_per_second: Option<usize>,
+
+    /// The optional bind address for node to use for gossip communication.
+    pub gossip_bind_address: Option<SocketAddr>,
+
+    /// Gossip seed addresses.
+    ///
+    /// Only used if `gossip_bind_address` is `Some`.
+    pub gossip_seeds: Vec<String>,
 }
 
 impl Config {

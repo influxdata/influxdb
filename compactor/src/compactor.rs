@@ -5,6 +5,8 @@ use futures::{
     future::{BoxFuture, Shared},
     FutureExt, TryFutureExt,
 };
+use generated_types::influxdata::iox::gossip::{v1::CompactionEvent, Topic};
+use gossip::{NopDispatcher, TopicInterests};
 use observability_deps::tracing::{info, warn};
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
@@ -36,7 +38,7 @@ pub struct Compactor {
 
 impl Compactor {
     /// Start compactor.
-    pub fn start(config: Config) -> Self {
+    pub async fn start(config: Config) -> Self {
         info!("compactor starting");
         log_config(&config);
 
@@ -51,6 +53,30 @@ impl Compactor {
             &[("semaphore", "job")],
         ));
         let df_semaphore = Arc::new(semaphore_metrics.new_semaphore(config.df_concurrency.get()));
+
+        // Initialise the gossip subsystem, if configured.
+        let _gossip = match config.gossip_bind_address {
+            Some(bind) => {
+                // Initialise the gossip subsystem.
+                let handle = gossip::Builder::<_, Topic>::new(
+                    config.gossip_seeds,
+                    NopDispatcher::default(),
+                    Arc::clone(&config.metric_registry),
+                )
+                // Configure the compactor to subscribe to no topics - it
+                // currently only sends events.
+                .with_topic_filter(TopicInterests::default())
+                .bind(bind)
+                .await
+                .expect("failed to start gossip reactor");
+
+                let event_tx =
+                    gossip_compaction::tx::CompactionEventTx::<CompactionEvent>::new(handle);
+
+                Some(event_tx)
+            }
+            None => None,
+        };
 
         let worker = tokio::spawn(async move {
             tokio::select! {
