@@ -2834,7 +2834,7 @@ dependencies = [
  "proptest",
  "rand",
  "serde",
- "siphasher",
+ "siphasher 1.0.0",
  "snafu",
  "sqlx",
  "sqlx-hotswap-pool",
@@ -4180,7 +4180,7 @@ version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90fcb95eef784c2ac79119d1dd819e162b5da872ce6f3c3abe1e8ca1c082f72b"
 dependencies = [
- "siphasher",
+ "siphasher 0.3.11",
 ]
 
 [[package]]
@@ -5251,7 +5251,7 @@ dependencies = [
  "mutable_batch_lp",
  "parking_lot",
  "rand",
- "siphasher",
+ "siphasher 1.0.0",
  "workspace-hack",
 ]
 
@@ -5282,9 +5282,15 @@ checksum = "420acb44afdae038210c99e69aae24109f32f15500aa708e81d46c9f29d55fcf"
 
 [[package]]
 name = "siphasher"
-version = "0.3.10"
+version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bd3e3206899af3f8b12af284fafc038cc1dc2b41d1b89dd17297221c5d225de"
+checksum = "38b58827f4464d87d377d175e90bf58eb00fd8716ff0a62f80356b5e61555d0d"
+
+[[package]]
+name = "siphasher"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54ac45299ccbd390721be55b412d41931911f654fa99e2cb8bfb57184b2061fe"
 
 [[package]]
 name = "slab"

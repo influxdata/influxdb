@@ -9,7 +9,7 @@ license.workspace = true
 data_types = { path = "../data_types" }
 mutable_batch = { path = "../mutable_batch" }
 parking_lot = "0.12"
-siphasher = "0.3"
+siphasher = "1.0"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]

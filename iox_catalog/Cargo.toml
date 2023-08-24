@@ -17,7 +17,7 @@ observability_deps = { path = "../observability_deps" }
 once_cell = { version = "1.18", features = ["parking_lot"] }
 parking_lot = { version = "0.12" }
 serde = { version = "1.0", features = ["derive"] }
-siphasher = "0.3"
+siphasher = "1.0"
 snafu = "0.7"
 sqlx = { version = "0.7.1", features = [ "runtime-tokio-rustls" , "postgres", "uuid", "sqlite" ] }
 sqlx-hotswap-pool = { path = "../sqlx-hotswap-pool" }
