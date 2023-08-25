@@ -12,7 +12,6 @@ use self::{
 };
 
 pub mod changed_files_filter;
-pub mod columns_source;
 pub(crate) mod commit;
 pub mod compaction_job_done_sink;
 pub mod compaction_job_stream;
