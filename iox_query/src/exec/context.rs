@@ -34,10 +34,6 @@ use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use datafusion::{
     catalog::CatalogProvider,
-    common::{
-        plan_err,
-        tree_node::{TreeNode, TreeNodeVisitor, VisitRecursion},
-    },
     execution::{
         context::{QueryPlanner, SessionState, TaskContext},
         memory_pool::MemoryPool,
@@ -346,10 +342,13 @@ impl IOxSessionContext {
     pub async fn sql_to_logical_plan(&self, sql: &str) -> Result<LogicalPlan> {
         let ctx = self.child_ctx("sql_to_logical_plan");
         debug!(text=%sql, "planning SQL query");
-        // NOTE can not use ctx.inner.sql() here as it also interprets DDL
         let plan = ctx.inner.state().create_logical_plan(sql).await?;
-        // TODO use better API: https://github.com/apache/arrow-datafusion/issues/7328
-        verify_plan(&plan)?;
+        // ensure the plan does not contain unwanted statements
+        let verifier = SQLOptions::new()
+            .with_allow_ddl(false) // no CREATE ...
+            .with_allow_dml(false) // no INSERT or COPY
+            .with_allow_statements(false); // no SET VARIABLE, etc
+        verifier.verify_plan(&plan)?;
         Ok(plan)
     }
 
@@ -693,32 +692,6 @@ impl IOxSessionContext {
     /// Number of currently active tasks.
     pub fn tasks(&self) -> usize {
         self.exec.tasks()
-    }
-}
-
-/// Returns an error if this plan contains any unsupported statements:
-///
-/// * DDL (`CREATE TABLE`) - creates state in a context that is dropped at the end of the request
-/// * Statements (`SET VARIABLE`) - can cause denial of service by using more memory or cput
-/// * DML (`INSERT`, `COPY`) - can write local files so is a security risk on servers
-fn verify_plan(plan: &LogicalPlan) -> Result<()> {
-    plan.visit(&mut BadPlanVisitor {})?;
-    Ok(())
-}
-
-struct BadPlanVisitor {}
-
-impl TreeNodeVisitor for BadPlanVisitor {
-    type N = LogicalPlan;
-
-    fn pre_visit(&mut self, node: &Self::N) -> Result<VisitRecursion> {
-        match node {
-            LogicalPlan::Ddl(ddl) => plan_err!("DDL not supported: {}", ddl.name()),
-            LogicalPlan::Dml(dml) => plan_err!("DML not supported: {}", dml.op),
-            LogicalPlan::Copy(_) => plan_err!("DML not supported: COPY"),
-            LogicalPlan::Statement(stmt) => plan_err!("Statement not supported: {}", stmt.name()),
-            _ => Ok(VisitRecursion::Continue),
-        }
     }
 }
 

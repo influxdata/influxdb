@@ -73,6 +73,8 @@ async fn compact_partition(
     span.set_metadata("partition_id", partition_id.get().to_string());
     let scratchpad = components.scratchpad_gen.pad();
 
+    info!(partition_id = partition_id.get(), "compaction job starting");
+
     let res = timeout_with_progress_checking(partition_timeout, |transmit_progress_signal| {
         let components = Arc::clone(&components);
         let scratchpad = Arc::clone(&scratchpad);
