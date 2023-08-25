@@ -5,7 +5,7 @@
 //! * [`gossip`] crate: provides the gossip transport, the [`GossipHandle`], and
 //!   the [`Dispatcher`]. This crate operates on raw bytes.
 //!
-//! * The outgoing [`ParquetFileTx`]: a schema-specific wrapper over the
+//! * The outgoing [`ParquetFileTx`]: a parquet file focussed wrapper over the
 //!   underlying [`GossipHandle`]. This type translates the protobuf
 //!   [`ParquetFile`] from the application layer into raw serialised bytes,
 //!   sending them over the underlying [`gossip`] impl.
