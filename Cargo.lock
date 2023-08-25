@@ -6366,7 +6366,6 @@ name = "trogging"
 version = "0.1.0"
 dependencies = [
  "clap",
- "is-terminal",
  "logfmt",
  "observability_deps",
  "regex",
@@ -6961,7 +6960,6 @@ dependencies = [
  "regex-syntax 0.7.4",
  "reqwest",
  "ring",
- "rustix",
  "rustls",
  "scopeguard",
  "serde",

@@ -20,14 +20,14 @@ pub mod config;
 
 pub use config::*;
 
-use is_terminal::IsTerminal;
 // Re-export tracing_subscriber
 pub use tracing_subscriber;
 
 use observability_deps::tracing::{self, Subscriber};
-use std::cmp::min;
-use std::io;
-use std::io::Write;
+use std::{
+    cmp::min,
+    io::{self, IsTerminal, Write},
+};
 use thiserror::Error;
 use tracing_subscriber::{
     fmt::{self, writer::BoxMakeWriter, MakeWriter},

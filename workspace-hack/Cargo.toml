@@ -166,39 +166,33 @@ uuid = { version = "1", features = ["v4"] }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 bitflags = { version = "2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21" }
 
 [target.x86_64-apple-darwin.dependencies]
 bitflags = { version = "2", default-features = false, features = ["std"] }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21" }
 
 [target.x86_64-apple-darwin.build-dependencies]
 bitflags = { version = "2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21" }
 
 [target.aarch64-apple-darwin.dependencies]
 bitflags = { version = "2", default-features = false, features = ["std"] }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21" }
 
 [target.aarch64-apple-darwin.build-dependencies]
 bitflags = { version = "2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21" }
 
 [target.x86_64-pc-windows-msvc.dependencies]
