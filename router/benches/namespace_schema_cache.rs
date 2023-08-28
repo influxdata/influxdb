@@ -10,8 +10,9 @@ use data_types::{
 };
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use once_cell::sync::Lazy;
-use router::namespace_cache::{
-    MemoryNamespaceCache, NamespaceCache, ReadThroughCache, ShardedCache,
+use router::{
+    gossip::anti_entropy::merkle::MerkleTree,
+    namespace_cache::{MemoryNamespaceCache, NamespaceCache, ReadThroughCache, ShardedCache},
 };
 
 static ARBITRARY_NAMESPACE: Lazy<NamespaceName<'static>> =
@@ -23,12 +24,12 @@ fn init_ns_cache(
     let metrics = Arc::new(metric::Registry::default());
 
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-    let cache = Arc::new(ReadThroughCache::new(
+    let cache = MerkleTree::new(Arc::new(ReadThroughCache::new(
         Arc::new(ShardedCache::new(
             iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
         )),
         Arc::clone(&catalog),
-    ));
+    )));
 
     for (name, schema) in initial_schema {
         cache.put_schema(name, schema);
