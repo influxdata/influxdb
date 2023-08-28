@@ -111,3 +111,58 @@ impl<'a> std::hash::Hash for NamespaceContentHash<'a> {
         self.0.tables.hash(state);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::hash_map::DefaultHasher, hash::Hasher};
+
+    use super::*;
+
+    use super::super::tests::arbitrary_namespace_schema;
+
+    use data_types::NamespaceId;
+    use proptest::prelude::*;
+
+    proptest! {
+        /// Assert the [`NamespaceContentHash`] decorator results in hashes that
+        /// are equal iff the tables and namespace ID match.
+        ///
+        /// All other fields may vary without affecting the hash.
+        #[test]
+        fn prop_content_hash_coverage(
+            mut a in arbitrary_namespace_schema(0..1),
+            b in arbitrary_namespace_schema(0..1)
+        ) {
+            assert_eq!(a.id, b.id); // Test invariant
+
+            let wrap_a = NamespaceContentHash(&a);
+            let wrap_b = NamespaceContentHash(&b);
+
+            // Invariant: if the schemas are equal, the content hashes match
+            if a == b {
+                assert_eq!(hash(&wrap_a), hash(&wrap_b));
+            }
+
+            // True if the content hashes of a and b are equal.
+            let is_hash_eq = hash(wrap_a) == hash(wrap_b);
+
+            // Invariant: if the tables and ID match, the content hashes match
+            assert_eq!(
+                ((a.tables == b.tables) && (a.id == b.id)),
+                is_hash_eq
+            );
+
+            // Invariant: the hashes chaange if the ID is modified
+            let new_id = NamespaceId::new(a.id.get().wrapping_add(1));
+            let hash_old_a = hash(&a);
+            a.id = new_id;
+            assert_ne!(hash_old_a, hash(a));
+        }
+    }
+
+    fn hash(v: impl std::hash::Hash) -> u64 {
+        let mut hasher = DefaultHasher::default();
+        v.hash(&mut hasher);
+        hasher.finish()
+    }
+}
