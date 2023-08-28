@@ -258,7 +258,9 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                         f2.overlaps_time_range(Timestamp::new(range.min), Timestamp::new(range.max))
                     });
 
-                    branches.push(this_branch)
+                    if !this_branch.is_empty() {
+                        branches.push(this_branch)
+                    }
                 }
                 assert!(files.is_empty(), "all files should map to a range");
                 (branches, vec![])
