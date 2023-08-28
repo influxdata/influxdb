@@ -161,7 +161,7 @@ where
         // for this (namespace, table) tuple.
         vec![Arc::clone(self.hash(&HashKey {
             table,
-            namespace: namespace.as_ref(),
+            namespace: namespace.as_str(),
         }))]
     }
 }
@@ -173,7 +173,7 @@ where
     type Item = Arc<T>;
 
     fn shard(&self, table: &str, namespace: &NamespaceName<'_>, _payload: &()) -> Self::Item {
-        Arc::clone(self.shard_for_query(table, namespace.as_ref()))
+        Arc::clone(self.shard_for_query(table, namespace.as_str()))
     }
 }
 

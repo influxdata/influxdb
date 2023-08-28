@@ -169,6 +169,12 @@ impl<'a> std::ops::Deref for NamespaceName<'a> {
     }
 }
 
+impl<'a> AsRef<[u8]> for NamespaceName<'a> {
+    fn as_ref(&self) -> &[u8] {
+        self.as_str().as_bytes()
+    }
+}
+
 impl<'a> std::fmt::Display for NamespaceName<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
