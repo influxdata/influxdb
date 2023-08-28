@@ -335,6 +335,7 @@ pub fn merge_small_l0_chains(
         // matching max_lo_created_at times indicates that the files were deliberately split.  We shouldn't merge
         // chains with matching max_lo_created_at times, because that would encourage undoing the previous split,
         // which minimally increases write amplification, and may cause unproductive split/compact loops.
+        // TODO: this may not be necessary long term (with CompactRanges this might be ok)
         let mut matches = 0;
         if prior_chain_bytes > 0 {
             for f in chain.iter() {
@@ -361,6 +362,9 @@ pub fn merge_small_l0_chains(
             prior_chain_idx += 1;
         }
     }
+
+    // Put it back in the standard order.
+    merged_chains.sort_by_key(|a| a[0].min_time);
 
     merged_chains
 }

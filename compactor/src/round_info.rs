@@ -2,7 +2,7 @@
 
 use std::fmt::Display;
 
-use data_types::CompactionLevel;
+use data_types::{CompactionLevel, FileRange};
 
 /// Information about the current compaction round (see driver.rs for
 /// more details about a round)
@@ -52,6 +52,17 @@ pub enum RoundInfo {
         /// need split.
         split_times: Vec<i64>,
     },
+
+    /// CompactRanges are overlapping chains of L0s are less than max_compact_size, with no L0 or L1 overlaps
+    /// between ranges.
+    CompactRanges {
+        /// Ranges describing distinct chains of L0s to be compacted.
+        ranges: Vec<FileRange>,
+        /// max number of files to group in each plan
+        max_num_files_to_group: usize,
+        /// max total size limit of files to group in each plan
+        max_total_file_size_to_group: usize,
+    },
 }
 
 impl Display for RoundInfo {
@@ -68,6 +79,7 @@ impl Display for RoundInfo {
                 max_total_file_size_to_group,
             } => write!(f, "SimulatedLeadingEdge: {max_num_files_to_group}, {max_total_file_size_to_group}",),
             Self::VerticalSplit  { split_times } => write!(f, "VerticalSplit: {split_times:?}"),
+            Self::CompactRanges { ranges, max_num_files_to_group, max_total_file_size_to_group } => write!(f, "{:?}, {max_num_files_to_group}, {max_total_file_size_to_group}", ranges)
         }
     }
 }
@@ -81,6 +93,7 @@ impl RoundInfo {
             Self::ManySmallFiles { start_level, .. } => *start_level,
             Self::SimulatedLeadingEdge { .. } => CompactionLevel::FileNonOverlapped,
             Self::VerticalSplit { .. } => CompactionLevel::Initial,
+            Self::CompactRanges { .. } => CompactionLevel::Initial,
         }
     }
 
@@ -107,6 +120,10 @@ impl RoundInfo {
                 ..
             } => Some(*max_num_files_to_group),
             Self::VerticalSplit { .. } => None,
+            Self::CompactRanges {
+                max_num_files_to_group,
+                ..
+            } => Some(*max_num_files_to_group),
         }
     }
 
@@ -123,6 +140,25 @@ impl RoundInfo {
                 ..
             } => Some(*max_total_file_size_to_group),
             Self::VerticalSplit { .. } => None,
+            Self::CompactRanges {
+                max_total_file_size_to_group,
+                ..
+            } => Some(*max_total_file_size_to_group),
+        }
+    }
+
+    /// return compaction ranges, when available.
+    /// We could generate ranges from VerticalSplit split times, but that asssumes the splits resulted in
+    /// no ranges > max_compact_size, which is not guaranteed.  Instead, we'll detect the ranges the first
+    /// time after VerticalSplit, and may decide to resplit subset of the files again if data was more
+    /// non-linear than expected.
+    pub fn ranges(&self) -> Option<Vec<FileRange>> {
+        match self {
+            Self::TargetLevel { .. } => None,
+            Self::ManySmallFiles { .. } => None,
+            Self::SimulatedLeadingEdge { .. } => None,
+            Self::VerticalSplit { .. } => None,
+            Self::CompactRanges { ranges, .. } => Some(ranges.clone()),
         }
     }
 }

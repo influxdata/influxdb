@@ -627,6 +627,16 @@ impl ParquetFile {
         }
         false
     }
+
+    /// Return true if the time range of this file overlaps with any of the given file ranges
+    pub fn overlaps_ranges(&self, ranges: &Vec<FileRange>) -> bool {
+        for range in ranges {
+            if self.min_time.get() <= range.max && self.max_time.get() >= range.min {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 /// Data for a parquet file to be inserted into the catalog.
@@ -1606,7 +1616,7 @@ impl TimestampMinMax {
 }
 
 /// FileRange describes a range of files by the min/max time and the sum of their capacities.
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub struct FileRange {
     /// The minimum time of any file in the range
     pub min: i64,

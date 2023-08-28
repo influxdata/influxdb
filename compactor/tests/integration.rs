@@ -56,9 +56,9 @@ async fn test_num_files_over_limit() {
 
     setup.run_compact().await;
     //
-    // read files and verify 2 files
+    // read files and verify 3 files
     let files = setup.list_by_table_not_to_delete().await;
-    assert_eq!(files.len(), 2);
+    assert_eq!(files.len(), 3);
 
     //
     // verify ID and compaction level of the files
@@ -68,8 +68,9 @@ async fn test_num_files_over_limit() {
     assert_levels(
         &files,
         vec![
+            (7, CompactionLevel::FileNonOverlapped),
+            (8, CompactionLevel::FileNonOverlapped),
             (9, CompactionLevel::FileNonOverlapped),
-            (10, CompactionLevel::FileNonOverlapped),
         ],
     );
 }
@@ -129,7 +130,7 @@ async fn test_compact_target_level() {
         // This is the result of 2-round compaction fomr L0s -> L1s and then L1s -> L2s
         // The first round will create two L1 files IDs 7 and 8
         // The second round will create tow L2 file IDs 9 and 10
-        vec![(9, CompactionLevel::Final), (10, CompactionLevel::Final)],
+        vec![(10, CompactionLevel::Final), (11, CompactionLevel::Final)],
     );
 
     assert_max_l0_created_at(
@@ -137,8 +138,8 @@ async fn test_compact_target_level() {
         // both files have max_l0_created time_5_minutes_future
         // which is the max of all L0 input's max_l0_created_at
         vec![
-            (9, times.time_5_minutes_future),
             (10, times.time_5_minutes_future),
+            (11, times.time_5_minutes_future),
         ],
     );
 
@@ -229,13 +230,14 @@ async fn test_compact_large_overlapes() {
     ---
     - initial
     - "L2                                                                                                                 "
-    - "L2.6[6000,36000] 300s 3kb|-------L2.6-------|                                                                      "
-    - "L2.7[68000,68000] 300s 2kb                                          |L2.7|                                          "
-    - "L2.8[136000,136000] 300s 3kb                                                                                          |L2.8|"
+    - "L2.5[136000,136000] 300s 2kb                                                                                          |L2.5|"
+    - "L2.6[6000,30000] 240s 3kb|-----L2.6-----|                                                                          "
+    - "L2.7[36000,36000] 240s 3kb                    |L2.7|                                                                "
+    - "L2.8[68000,68000] 240s 2kb                                          |L2.8|                                          "
     "###
     );
 
-    assert_eq!(files.len(), 3);
+    assert_eq!(files.len(), 4);
 
     // order files on their min_time
     files.sort_by_key(|f| f.min_time);
@@ -253,7 +255,6 @@ async fn test_compact_large_overlapes() {
             "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
             "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000028Z |",
             "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
-            "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
             "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
             "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
             "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
@@ -270,7 +271,7 @@ async fn test_compact_large_overlapes() {
             "+-----------+------+------+------+-----------------------------+",
             "| field_int | tag1 | tag2 | tag3 | time                        |",
             "+-----------+------+------+------+-----------------------------+",
-            "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
+            "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
             "+-----------+------+------+------+-----------------------------+",
         ],
         &batches
@@ -284,8 +285,21 @@ async fn test_compact_large_overlapes() {
             "+-----------+------+------+------+-----------------------------+",
             "| field_int | tag1 | tag2 | tag3 | time                        |",
             "+-----------+------+------+------+-----------------------------+",
-            "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
+            "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
             "+-----------+------+------+------+-----------------------------+",
+        ],
+        &batches
+    );
+
+    let file = files[3].clone();
+    let batches = setup.read_parquet_file(file).await;
+    assert_batches_sorted_eq!(
+        &[
+            "+-----------+------+------+-----------------------------+",
+            "| field_int | tag2 | tag3 | time                        |",
+            "+-----------+------+------+-----------------------------+",
+            "| 210       | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
+            "+-----------+------+------+-----------------------------+",
         ],
         &batches
     );

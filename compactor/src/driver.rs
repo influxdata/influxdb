@@ -215,6 +215,7 @@ async fn try_compact_partition(
     let mut files = components.partition_files_source.fetch(partition_id).await;
     let partition_info = components.partition_info_source.fetch(partition_id).await?;
     let transmit_progress_signal = Arc::new(transmit_progress_signal);
+    let mut last_round_info: Option<RoundInfo> = None;
 
     // loop for each "Round", consider each file in the partition
     // for partitions with a lot of compaction work to do, keeping the work divided into multiple rounds,
@@ -246,6 +247,7 @@ async fn try_compact_partition(
             .round_info_source
             .calculate(
                 Arc::<Components>::clone(&components),
+                last_round_info,
                 &partition_info,
                 files,
             )
@@ -292,6 +294,7 @@ async fn try_compact_partition(
             .await?;
 
         files.extend(branches_output.into_iter().flatten());
+        last_round_info = Some(round_info);
     }
 }
 

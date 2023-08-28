@@ -11,7 +11,7 @@ use crate::components::{
     Components,
 };
 use async_trait::async_trait;
-use data_types::{CompactionLevel, ParquetFile, Timestamp};
+use data_types::{CompactionLevel, FileRange, ParquetFile, Timestamp};
 use itertools::Itertools;
 use observability_deps::tracing::debug;
 
@@ -28,6 +28,7 @@ pub trait RoundInfoSource: Debug + Display + Send + Sync {
     async fn calculate(
         &self,
         components: Arc<Components>,
+        last_round_info: Option<RoundInfo>,
         partition_info: &PartitionInfo,
         files: Vec<ParquetFile>,
     ) -> Result<(RoundInfo, Vec<Vec<ParquetFile>>, Vec<ParquetFile>), DynError>;
@@ -55,12 +56,13 @@ impl RoundInfoSource for LoggingRoundInfoWrapper {
     async fn calculate(
         &self,
         components: Arc<Components>,
+        last_round_info: Option<RoundInfo>,
         partition_info: &PartitionInfo,
         files: Vec<ParquetFile>,
     ) -> Result<(RoundInfo, Vec<Vec<ParquetFile>>, Vec<ParquetFile>), DynError> {
         let res = self
             .inner
-            .calculate(components, partition_info, files)
+            .calculate(components, last_round_info, partition_info, files)
             .await;
         if let Ok((round_info, branches, files_later)) = &res {
             debug!(round_info_source=%self.inner, %round_info, branches=branches.len(), files_later=files_later.len(), "running round");
@@ -90,6 +92,10 @@ impl LevelBasedRoundInfo {
     }
 
     /// Returns true if the scenario looks like ManySmallFiles, but we can't group them well into branches.
+    /// TODO: use this or remove it.  For now, keep it in case we need the temporary workaround again.
+    /// This can be used to identify criteria to trigger a SimulatedLeadingEdge as a temporary workaround
+    /// for a situation that isn't well handled, when the desire is to postpone optimal handling to a later PR.
+    #[allow(dead_code)]
     pub fn many_ungroupable_files(
         &self,
         files: &[ParquetFile],
@@ -202,19 +208,24 @@ impl LevelBasedRoundInfo {
         false
     }
 
-    /// vertical_split_times evaluates the files to determine if vertical splitting is necessary.  If so,
-    /// a vec of split times is returned.  The caller will use those split times in a VerticalSplit RoundInfo.
-    /// If no split times are returned, that implies veritcal splitting is not appropriate, and the caller
-    /// will identify another type of RoundInfo for this round of compaction.
-    pub fn vertical_split_times(
+    /// vertical_split_handling determines if vertical splitting is necessary, or has already been done.
+    /// If splitting is necessary, a vec of split times is returned.  If a previous split is detected, a
+    /// vec of CompactionRange is returned to preserve the prior split.
+    /// The need for more splitting takes precedence over acting on prior splitting.  So if a vec of split times
+    /// is returned, the caller will use those split times in a VerticalSplit RoundInfo for vertical splitting.
+    /// If only a vec of CompactRanges are returned, the caller will use those to preserve the prior split until
+    /// all the L0s are compacted to L1.
+    /// If neither is returned, the caller will identify another type of RoundInfo for this round of compaction.
+    pub fn vertical_split_handling(
         &self,
         files: Vec<ParquetFile>,
         max_compact_size: usize,
-    ) -> Vec<i64> {
-        let (start_level_files, target_level_files): (Vec<ParquetFile>, Vec<ParquetFile>) = files
-            .into_iter()
-            .filter(|f| f.compaction_level != CompactionLevel::Final)
-            .partition(|f| f.compaction_level == CompactionLevel::Initial);
+    ) -> (Vec<i64>, Vec<FileRange>) {
+        let (start_level_files, mut target_level_files): (Vec<ParquetFile>, Vec<ParquetFile>) =
+            files
+                .into_iter()
+                .filter(|f| f.compaction_level != CompactionLevel::Final)
+                .partition(|f| f.compaction_level == CompactionLevel::Initial);
 
         let len = start_level_files.len();
         let mut split_times = Vec::with_capacity(len);
@@ -222,8 +233,10 @@ impl LevelBasedRoundInfo {
         // Break up the start level files into chains of files that overlap each other.
         // Then we'll determine if vertical splitting is needed within each chain.
         let chains = split_into_chains(start_level_files);
+        let chains = merge_small_l0_chains(chains, max_compact_size);
+        let mut ranges = Vec::with_capacity(chains.len());
 
-        for chain in chains {
+        for chain in &chains {
             let chain_cap: usize = chain.iter().map(|f| f.file_size_bytes as usize).sum();
 
             // A single file over max size can just get upgraded to L1, then L2, unless it overlaps other L0s.
@@ -233,7 +246,7 @@ impl LevelBasedRoundInfo {
                 // We can't know the data distribution within each file without reading the file (too expensive), but we can
                 // still learn a lot about the data distribution accross the set of files by assuming even distribtuion within each
                 // file and considering the distribution of files within the chain's time range.
-                let linear_ranges = linear_dist_ranges(&chain, chain_cap, max_compact_size);
+                let linear_ranges = linear_dist_ranges(chain, chain_cap, max_compact_size);
 
                 for range in linear_ranges {
                     // split at every time range of linear distribution.
@@ -284,9 +297,64 @@ impl LevelBasedRoundInfo {
             }
         }
 
+        // If we're not doing vertical splitting, while we've got the chains, lets check for a previous vertical split.
+        // We'll preserve prior splitting activity by creating CompactionRange for each of the previous splits.
+        if chains.len() > 1 {
+            let mut prior_overlapping_max = Timestamp::new(0);
+            let mut prior_chain_max: i64 = 0;
+            let mut overlaps: Vec<ParquetFile>;
+
+            for chain in &chains {
+                let mut min = chain.iter().map(|f| f.min_time).min().unwrap();
+
+                let max = chain.iter().map(|f| f.max_time).max().unwrap();
+
+                if min <= prior_overlapping_max && prior_overlapping_max != Timestamp::new(0) {
+                    // Target level files overlap more than one start level file, and there is a target level file overlapping
+                    // the prior chain of L0s and this one.  We'll split the target level file at the pror range/chain max before
+                    // proceeding with compactions.
+                    split_times.push(prior_chain_max)
+                }
+
+                // As we identify overlaps, we'll include some don't quite overlap, but are between the prior chain and this one.
+                // By including them here, we preserve the opportunity to grow small L1s in a "gappy" leading edge pattern.
+                // If they're large, they'll be excluded from the L0->L1 compaction, so there's no harm including them.
+                let search_min =
+                    (prior_overlapping_max + 1).max(Timestamp::new(prior_chain_max + 1));
+                (overlaps, target_level_files) = target_level_files.into_iter().partition(|f2| {
+                    f2.overlaps_time_range(search_min, max)
+                        && f2.compaction_level != CompactionLevel::Final
+                });
+                let cap: usize = chain
+                    .iter()
+                    .map(|f| f.file_size_bytes as usize)
+                    .sum::<usize>()
+                    + overlaps
+                        .iter()
+                        .map(|f| f.file_size_bytes as usize)
+                        .sum::<usize>();
+
+                if !overlaps.is_empty() {
+                    prior_overlapping_max = overlaps.iter().map(|f| f.max_time).max().unwrap();
+                    let prior_smallest_max = overlaps.iter().map(|f| f.max_time).min().unwrap();
+                    if prior_smallest_max < min {
+                        // Expand the region to include this file, so it can be included (if its small and we'd like to grow it).
+                        min = prior_smallest_max;
+                    }
+                }
+                prior_chain_max = max.get();
+
+                ranges.push(FileRange {
+                    min: min.get(),
+                    max: max.get(),
+                    cap,
+                });
+            }
+        }
+
         split_times.sort();
         split_times.dedup();
-        split_times
+        (split_times, ranges)
     }
 }
 
@@ -297,9 +365,30 @@ impl RoundInfoSource for LevelBasedRoundInfo {
     async fn calculate(
         &self,
         components: Arc<Components>,
+        last_round_info: Option<RoundInfo>,
         _partition_info: &PartitionInfo,
         files: Vec<ParquetFile>,
     ) -> Result<(RoundInfo, Vec<Vec<ParquetFile>>, Vec<ParquetFile>), DynError> {
+        let mut ranges: Vec<FileRange> = vec![];
+
+        if let Some(last_round_info) = last_round_info {
+            if let Some(last_ranges) = last_round_info.ranges() {
+                // Last round had L0 CompactRange.  If we have unfinished business from that,
+                // we need to continue with those ranges.
+                for range in last_ranges {
+                    // If this range still has overapping L0 files, we need to keep it.
+                    for f in &files {
+                        if f.compaction_level == CompactionLevel::Initial
+                            && f.overlaps_ranges(&vec![range])
+                        {
+                            ranges.push(range);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         // start_level is usually the lowest level we have files in, but occasionally we decide to
         // compact L1->L2 when L0s still exist.  If this comes back as L1, we'll ignore L0s for this
         // round and force an early L1-L2 compaction.
@@ -309,14 +398,21 @@ impl RoundInfoSource for LevelBasedRoundInfo {
             self.max_total_file_size_per_plan,
         );
 
-        let round_info = if start_level == CompactionLevel::Initial {
-            let split_times = self
-                .vertical_split_times(files.clone().to_vec(), self.max_total_file_size_per_plan);
+        let round_info = if !ranges.is_empty() {
+            RoundInfo::CompactRanges {
+                ranges,
+                max_num_files_to_group: self.max_num_files_per_plan,
+                max_total_file_size_to_group: self.max_total_file_size_per_plan,
+            }
+        } else if start_level == CompactionLevel::Initial {
+            let (split_times, ranges) = self
+                .vertical_split_handling(files.clone().to_vec(), self.max_total_file_size_per_plan);
+
             if !split_times.is_empty() {
                 RoundInfo::VerticalSplit { split_times }
-            } else if self.many_ungroupable_files(&files, start_level, self.max_num_files_per_plan)
-            {
-                RoundInfo::SimulatedLeadingEdge {
+            } else if !ranges.is_empty() {
+                RoundInfo::CompactRanges {
+                    ranges,
                     max_num_files_to_group: self.max_num_files_per_plan,
                     max_total_file_size_to_group: self.max_total_file_size_per_plan,
                 }
