@@ -164,7 +164,6 @@ uuid = { version = "1", features = ["v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 bitflags = { version = "2", default-features = false, features = ["std"] }
-nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustls = { version = "0.21" }
 
@@ -175,7 +174,6 @@ rustls = { version = "0.21" }
 
 [target.x86_64-apple-darwin.dependencies]
 bitflags = { version = "2", default-features = false, features = ["std"] }
-nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustls = { version = "0.21" }
 
@@ -186,7 +184,6 @@ rustls = { version = "0.21" }
 
 [target.aarch64-apple-darwin.dependencies]
 bitflags = { version = "2", default-features = false, features = ["std"] }
-nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustls = { version = "0.21" }
 
