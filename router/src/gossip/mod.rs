@@ -47,6 +47,7 @@
 //! [`NamespaceCache`]: crate::namespace_cache::NamespaceCache
 //! [`SchemaTx`]: gossip_schema::handle::SchemaTx
 
+pub mod anti_entropy;
 pub mod namespace_cache;
 pub mod schema_change_observer;
 pub mod traits;
