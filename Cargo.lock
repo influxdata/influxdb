@@ -283,7 +283,7 @@ dependencies = [
  "arrow-schema",
  "arrow-select",
  "arrow-string",
- "base64 0.21.2",
+ "base64 0.21.3",
  "bytes",
  "futures",
  "once_cell",
@@ -519,7 +519,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "async-trait",
- "base64 0.21.2",
+ "base64 0.21.3",
  "generated_types",
  "http",
  "iox_time",
@@ -619,9 +619,9 @@ checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
 name = "base64"
-version = "0.21.2"
+version = "0.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "604178f6c5c21f02dc555784810edfb88d34ac2c73b2eae109655649ee73ce3d"
+checksum = "414dcefbc63d77c526a76b3afcf6fbb9b5e2791c19c3aa2297733208750c6e53"
 
 [[package]]
 name = "base64ct"
@@ -1508,7 +1508,7 @@ dependencies = [
  "arrow-array",
  "arrow-buffer",
  "arrow-schema",
- "base64 0.21.2",
+ "base64 0.21.3",
  "blake2",
  "blake3",
  "chrono",
@@ -2098,7 +2098,7 @@ name = "grpc-binary-logger"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "base64 0.21.2",
+ "base64 0.21.3",
  "byteorder",
  "bytes",
  "futures",
@@ -2746,7 +2746,7 @@ name = "ingester_query_grpc"
 version = "0.1.0"
 dependencies = [
  "arrow",
- "base64 0.21.2",
+ "base64 0.21.3",
  "bytes",
  "data_types",
  "datafusion",
@@ -3804,7 +3804,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c776db4f332b571958444982ff641d2531417a326ca368995073b639205d58"
 dependencies = [
  "async-trait",
- "base64 0.21.2",
+ "base64 0.21.3",
  "bytes",
  "chrono",
  "futures",
@@ -3961,7 +3961,7 @@ dependencies = [
  "arrow-ipc",
  "arrow-schema",
  "arrow-select",
- "base64 0.21.2",
+ "base64 0.21.3",
  "brotli",
  "bytes",
  "chrono",
@@ -3986,7 +3986,7 @@ name = "parquet_file"
 version = "0.1.0"
 dependencies = [
  "arrow",
- "base64 0.21.2",
+ "base64 0.21.3",
  "bytes",
  "data_types",
  "datafusion",
@@ -4705,7 +4705,7 @@ version = "0.11.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e9ad3fe7488d7e34558a2033d45a0c90b72d97b4f80705666fea71472e2e6a1"
 dependencies = [
- "base64 0.21.2",
+ "base64 0.21.3",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -4771,7 +4771,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "authz",
- "base64 0.21.2",
+ "base64 0.21.3",
  "bytes",
  "chrono",
  "criterion",
@@ -4888,7 +4888,7 @@ version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d3987094b1d07b653b7dfdc3f70ce9a1da9c51ac18c1b06b662e4f9a0e9f4b2"
 dependencies = [
- "base64 0.21.2",
+ "base64 0.21.3",
 ]
 
 [[package]]
@@ -5551,7 +5551,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ca69bf415b93b60b80dc8fda3cb4ef52b2336614d8da2de5456cc942a110482"
 dependencies = [
  "atoi",
- "base64 0.21.2",
+ "base64 0.21.3",
  "bitflags 2.4.0",
  "byteorder",
  "bytes",
@@ -5594,7 +5594,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0db2df1b8731c3651e204629dd55e52adbae0462fa1bdcbed56a2302c18181e"
 dependencies = [
  "atoi",
- "base64 0.21.2",
+ "base64 0.21.3",
  "bitflags 2.4.0",
  "byteorder",
  "crc",
@@ -6118,7 +6118,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "axum",
- "base64 0.21.2",
+ "base64 0.21.3",
  "bytes",
  "futures-core",
  "futures-util",
@@ -6922,7 +6922,7 @@ dependencies = [
  "arrow-flight",
  "arrow-ord",
  "arrow-string",
- "base64 0.21.2",
+ "base64 0.21.3",
  "bitflags 2.4.0",
  "byteorder",
  "bytes",
