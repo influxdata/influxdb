@@ -25,17 +25,15 @@ fn init_ns_cache(
     let metrics = Arc::new(metric::Registry::default());
 
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-    let cache = Arc::new(ReadThroughCache::new(
-        Arc::new(ShardedCache::new(
-            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
-        )),
-        Arc::clone(&catalog),
+    let cache = Arc::new(ShardedCache::new(
+        iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
     ));
 
-    let (actor, handle) = AntiEntropyActor::new(Arc::new(MemoryNamespaceCache::default()));
+    let (actor, handle) = AntiEntropyActor::new(Arc::clone(&cache));
     rt.spawn(actor.run());
 
     let cache = MerkleTree::new(cache, handle);
+    let cache = Arc::new(ReadThroughCache::new(cache, Arc::clone(&catalog)));
 
     for (name, schema) in initial_schema {
         cache.put_schema(name, schema);
@@ -73,7 +71,10 @@ fn bench_add_new_tables_with_columns(
     let initial_schema = generate_namespace_schema(INITIAL_TABLE_COUNT, columns_per_table);
     let schema_update = generate_namespace_schema(INITIAL_TABLE_COUNT + tables, columns_per_table);
 
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .build()
+        .unwrap();
 
     group.throughput(Throughput::Elements((tables * columns_per_table) as _));
     group.bench_function(format!("{tables}x{columns_per_table}"), |b| {
