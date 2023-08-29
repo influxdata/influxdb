@@ -774,6 +774,7 @@ impl TestSetup {
             config.partition_timeout,
             df_semaphore,
             &components,
+            None,
         )
         .await;
 

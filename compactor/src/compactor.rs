@@ -55,12 +55,12 @@ impl Compactor {
         let df_semaphore = Arc::new(semaphore_metrics.new_semaphore(config.df_concurrency.get()));
 
         // Initialise the gossip subsystem, if configured.
-        let _gossip = match config.gossip_bind_address {
+        let gossip = match config.gossip_bind_address {
             Some(bind) => {
                 // Initialise the gossip subsystem.
                 let handle = gossip::Builder::<_, Topic>::new(
                     config.gossip_seeds,
-                    NopDispatcher::default(),
+                    NopDispatcher,
                     Arc::clone(&config.metric_registry),
                 )
                 // Configure the compactor to subscribe to no topics - it
@@ -73,7 +73,7 @@ impl Compactor {
                 let event_tx =
                     gossip_compaction::tx::CompactionEventTx::<CompactionEvent>::new(handle);
 
-                Some(event_tx)
+                Some(Arc::new(event_tx))
             }
             None => None,
         };
@@ -87,7 +87,8 @@ impl Compactor {
                         config.partition_concurrency,
                         config.partition_timeout,
                         Arc::clone(&df_semaphore),
-                        &components
+                        &components,
+                        gossip,
                     ).await;
 
                     info!("compactor done");
