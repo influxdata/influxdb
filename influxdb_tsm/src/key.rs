@@ -582,8 +582,8 @@ mod tests {
         do_test_parse_tsm_field_key_value_good("foo#!~#", "foo");
 
         // escaped values
-        do_test_parse_tsm_field_key_value_good(r#"foo\ bar#!~#foo bar"#, "foo bar");
-        do_test_parse_tsm_field_key_value_good(r#"foo\,bar#!~#foo,bar"#, "foo,bar");
+        do_test_parse_tsm_field_key_value_good(r"foo\ bar#!~#foo bar", "foo bar");
+        do_test_parse_tsm_field_key_value_good(r"foo\,bar#!~#foo,bar", "foo,bar");
 
         // unescaped values
         do_test_parse_tsm_field_key_value_bad("foo bar#!~#foo bar", "invalid unescaped ' '");
@@ -595,17 +595,17 @@ mod tests {
         // partial delimiters
         do_test_parse_tsm_field_key_value_good("foo#!#!~#foo", "foo#!");
         do_test_parse_tsm_field_key_value_good("fo#!o#!~#foo", "fo#!o");
-        do_test_parse_tsm_field_key_value_good(r#"fo#!\ o#!~#foo"#, "fo#! o");
-        do_test_parse_tsm_field_key_value_good(r#"fo#!\,o#!~#foo"#, "fo#!,o");
-        do_test_parse_tsm_field_key_value_good(r#"fo#!\=o#!~#foo"#, "fo#!=o");
+        do_test_parse_tsm_field_key_value_good(r"fo#!\ o#!~#foo", "fo#! o");
+        do_test_parse_tsm_field_key_value_good(r"fo#!\,o#!~#foo", "fo#!,o");
+        do_test_parse_tsm_field_key_value_good(r"fo#!\=o#!~#foo", "fo#!=o");
 
         do_test_parse_tsm_field_key_value_good("foo#!~o#!~#foo", "foo#!~o");
         do_test_parse_tsm_field_key_value_good("fo#!~o#!~#foo", "fo#!~o");
-        do_test_parse_tsm_field_key_value_good(r#"fo#!~\ #!~#foo"#, "fo#!~ ");
+        do_test_parse_tsm_field_key_value_good(r"fo#!~\ #!~#foo", "fo#!~ ");
 
         do_test_parse_tsm_field_key_value_good("foo#!~#!~#foo", "foo"); // matches!
         do_test_parse_tsm_field_key_value_good("fo#!~o#!~#foo", "fo#!~o");
-        do_test_parse_tsm_field_key_value_good(r#"fo#!~\ #!~#foo"#, "fo#!~ ");
+        do_test_parse_tsm_field_key_value_good(r"fo#!~\ #!~#foo", "fo#!~ ");
 
         // test partial delimiters
         do_test_parse_tsm_field_key_value_bad(
@@ -630,9 +630,9 @@ mod tests {
         do_test_parse_tsm_field_key_value_bad("foo,bar#!~#foo,bar", "invalid unescaped ','");
         do_test_parse_tsm_field_key_value_bad("foo=bar#!~#foo=bar", "invalid unescaped '='");
         // but escaped before the delimiter is fine
-        do_test_parse_tsm_field_key_value_good(r#"foo\ bar#!~#foo bar"#, "foo bar");
-        do_test_parse_tsm_field_key_value_good(r#"foo\,bar#!~#foo,bar"#, "foo,bar");
-        do_test_parse_tsm_field_key_value_good(r#"foo\=bar#!~#foo=bar"#, "foo=bar");
+        do_test_parse_tsm_field_key_value_good(r"foo\ bar#!~#foo bar", "foo bar");
+        do_test_parse_tsm_field_key_value_good(r"foo\,bar#!~#foo,bar", "foo,bar");
+        do_test_parse_tsm_field_key_value_good(r"foo\=bar#!~#foo=bar", "foo=bar");
     }
 
     #[test]

@@ -94,7 +94,7 @@ impl MutableBatch {
         let mut schema_builder = SchemaBuilder::new();
         let schema = match selection {
             Projection::All => {
-                for (column_name, column_idx) in self.column_names.iter() {
+                for (column_name, column_idx) in &self.column_names {
                     let column = &self.columns[*column_idx];
                     schema_builder.influx_column(column_name, column.influx_type());
                 }

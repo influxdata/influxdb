@@ -63,7 +63,9 @@ impl Options {
 pub fn write_columnar(mut w: impl Write, batches: &[RecordBatch], options: Options) -> Result<()> {
     let arrow_opts = arrow::util::display::FormatOptions::default().with_display_error(true);
 
-    let Some(schema) = batches.first().map(|b|b.schema()) else { return Ok(()) };
+    let Some(schema) = batches.first().map(|b| b.schema()) else {
+        return Ok(());
+    };
     let md = schema
         .metadata()
         .get(schema::INFLUXQL_METADATA_KEY)

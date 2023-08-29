@@ -237,7 +237,7 @@ impl GapFiller {
         let mut final_cursor = cursor;
 
         // build the other group columns
-        for (idx, ga) in group_arr.iter() {
+        for (idx, ga) in group_arr {
             let mut cursor = self.cursor.clone_for_aggr_col(None)?;
             let take_vec =
                 cursor.build_group_take_vec(&self.params, series_ends, input_time_array)?;
@@ -253,7 +253,7 @@ impl GapFiller {
         }
 
         // Build the aggregate columns
-        for (idx, aa) in aggr_arr.iter() {
+        for (idx, aa) in aggr_arr {
             let mut cursor = self.cursor.clone_for_aggr_col(Some(*idx))?;
             let output_array =
                 cursor.build_aggr_col(&self.params, series_ends, input_time_array, aa)?;
@@ -420,7 +420,7 @@ impl Cursor {
     /// Update this cursor to reflect that `offset` older rows are being sliced off from the
     /// buffered input.
     fn slice(&mut self, offset: usize, batch: &RecordBatch) -> Result<()> {
-        for (idx, aggr_col_state) in self.aggr_col_states.iter_mut() {
+        for (idx, aggr_col_state) in &mut self.aggr_col_states {
             aggr_col_state.slice(offset, batch.column(*idx))?;
         }
         self.next_input_offset -= offset;
@@ -716,7 +716,7 @@ impl Cursor {
         series_ends: &[usize],
         vec_builder: &mut impl VecBuilder,
     ) -> Result<()> {
-        for series in series_ends.iter() {
+        for series in series_ends {
             if self
                 .next_ts
                 .map_or(false, |next_ts| next_ts > params.last_ts)

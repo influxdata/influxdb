@@ -1333,7 +1333,12 @@ mod tests {
         ),
 
         (
-            NonUtf8Body(std::str::from_utf8(&[0, 159]).unwrap_err()),
+            NonUtf8Body(
+                // The lint warns that this call will always error, which is what we want here in
+                // this test for errors
+                #[allow(invalid_from_utf8)]
+                std::str::from_utf8(&[0, 159]).unwrap_err()
+            ),
             "body content is not valid utf8: invalid utf-8 sequence of 1 bytes from index 1",
         ),
 

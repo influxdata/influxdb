@@ -178,7 +178,7 @@ pub mod tests {
         async fn new() -> Self {
             let catalog = TestCatalog::new();
 
-            let lp = vec![
+            let lp = [
                 "table,tag1=WA field_int=1000i 8000",
                 "table,tag1=VT field_int=10i 10000",
                 "table,tag1=UT field_int=70i 20000",

@@ -78,7 +78,7 @@ impl ExtractChunksVisitor {
 
     fn add_sort_key(&mut self, sort_key: Option<&SortKey>) -> Result<(), DataFusionError> {
         let Some(sort_key) = sort_key else {
-            return Ok(())
+            return Ok(());
         };
 
         if let Some(existing) = &self.sort_key {

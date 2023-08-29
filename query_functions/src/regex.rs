@@ -357,22 +357,22 @@ mod test {
     fn test_clean_non_meta_escapes() {
         let cases = vec![
             ("", ""),
-            (r#"\"#, r#"\"#),
-            (r#"\\"#, r#"\\"#),
+            (r"\", r"\"),
+            (r"\\", r"\\"),
             // : is not a special meta character
-            (r#"\:"#, r#":"#),
+            (r"\:", r#":"#),
             // . is a special meta character
-            (r#"\."#, r#"\."#),
-            (r#"foo\"#, r#"foo\"#),
-            (r#"foo\\"#, r#"foo\\"#),
-            (r#"foo\:"#, r#"foo:"#),
-            (r#"foo\xff"#, r#"foo\xff"#),
-            (r#"fo\\o"#, r#"fo\\o"#),
-            (r#"fo\:o"#, r#"fo:o"#),
-            (r#"fo\:o\x123"#, r#"fo:o\x123"#),
-            (r#"fo\:o\x123\:"#, r#"fo:o\x123:"#),
-            (r#"foo\\\:bar"#, r#"foo\\:bar"#),
-            (r#"foo\\\:bar\\\:"#, r#"foo\\:bar\\:"#),
+            (r"\.", r"\."),
+            (r"foo\", r"foo\"),
+            (r"foo\\", r"foo\\"),
+            (r"foo\:", r#"foo:"#),
+            (r"foo\xff", r"foo\xff"),
+            (r"fo\\o", r"fo\\o"),
+            (r"fo\:o", r#"fo:o"#),
+            (r"fo\:o\x123", r"fo:o\x123"),
+            (r"fo\:o\x123\:", r"fo:o\x123:"),
+            (r"foo\\\:bar", r"foo\\:bar"),
+            (r"foo\\\:bar\\\:", r"foo\\:bar\\:"),
             ("foo", "foo"),
         ];
 

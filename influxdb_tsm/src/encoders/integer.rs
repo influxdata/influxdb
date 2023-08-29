@@ -216,8 +216,8 @@ mod tests {
 
     #[test]
     fn zig_zag_encoding() {
-        let input = vec![-2147483648, -2, -1, 0, 1, 2147483647];
-        let exp = vec![4294967295, 3, 1, 0, 2, 4294967294];
+        let input = [-2147483648, -2, -1, 0, 1, 2147483647];
+        let exp = [4294967295, 3, 1, 0, 2, 4294967294];
         for (i, v) in input.iter().enumerate() {
             let encoded = zig_zag_encode(*v);
             assert_eq!(encoded, exp[i]);

@@ -236,6 +236,7 @@ mod tests {
             .match_header("Content-Type", "application/json")
             .match_query(Matcher::UrlEncoded("org".into(), org.into()))
             .match_body(
+                #[allow(clippy::unnecessary_literal_unwrap)]
                 serde_json::to_string(&query.unwrap_or_default())
                     .unwrap()
                     .as_str(),

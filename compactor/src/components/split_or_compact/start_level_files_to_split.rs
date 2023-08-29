@@ -338,7 +338,7 @@ pub fn merge_small_l0_chains(
         // TODO: this may not be necessary long term (with CompactRanges this might be ok)
         let mut matches = 0;
         if prior_chain_bytes > 0 {
-            for f in chain.iter() {
+            for f in chain {
                 for f2 in &merged_chains[prior_chain_idx as usize] {
                     if f.max_l0_created_at == f2.max_l0_created_at {
                         matches += 1;

@@ -104,7 +104,7 @@ impl StringSetPlanBuilder {
                     self.strings.append(&mut ss);
                 }
                 Err(ssref) => {
-                    for s in ssref.iter() {
+                    for s in &*ssref {
                         if !self.strings.contains(s) {
                             self.strings.insert(s.clone());
                         }

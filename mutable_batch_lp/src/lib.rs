@@ -208,7 +208,7 @@ pub fn write_line(
     // Only allocate the seen tags hashset if there are tags.
     if let Some(tags) = &line.series.tag_set {
         let mut seen = HashSet::with_capacity(tags.len());
-        for (tag_key, tag_value) in tags.iter() {
+        for (tag_key, tag_value) in tags {
             // Check if a field with this name has been observed previously.
             if !seen.insert(tag_key) {
                 // This tag_key appears more than once, with differing values.

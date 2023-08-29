@@ -58,7 +58,7 @@ impl PhysicalOptimizerRule for CombineChunks {
                     let Some(union_of_chunks) = union_of_chunks.as_any().downcast_ref::<UnionExec>() else {
                         return Err(DataFusionError::External(format!("Expected chunks_to_physical_nodes to produce UnionExec but got {union_of_chunks:?}").into()));
                     };
-                    let final_union = UnionExec::new(union_of_chunks.inputs().iter().cloned().chain(inputs_other.into_iter()).collect());
+                    let final_union = UnionExec::new(union_of_chunks.inputs().iter().cloned().chain(inputs_other).collect());
                     return Ok(Transformed::Yes(Arc::new(final_union)));
                 }
             }

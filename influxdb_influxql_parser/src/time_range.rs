@@ -242,7 +242,7 @@ pub fn split_cond(
                     };
 
                     let Some(expr) = expr.expr() else {
-                        return ControlFlow::Break(error::map::internal("expected Expr"))
+                        return ControlFlow::Break(error::map::internal("expected Expr"));
                     };
 
                     // simplify binary expressions to a constant, including resolve `now()`
@@ -296,13 +296,11 @@ pub fn split_cond(
                     op: op @ (And | Or),
                     ..
                 }) => {
-                    let Some(right) = stack
-                        .pop() else {
-                        return ControlFlow::Break(error::map::internal("invalid expr stack"))
+                    let Some(right) = stack.pop() else {
+                        return ControlFlow::Break(error::map::internal("invalid expr stack"));
                     };
-                    let Some(left) = stack
-                        .pop() else {
-                        return ControlFlow::Break(error::map::internal("invalid expr stack"))
+                    let Some(left) = stack.pop() else {
+                        return ControlFlow::Break(error::map::internal("invalid expr stack"));
                     };
                     stack.push(match (left, right) {
                         (Some(left), Some(right)) => Some(CE::Binary(ConditionalBinary {

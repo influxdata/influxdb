@@ -87,7 +87,7 @@ pub const INTERPOLATE_UDF_NAME: &str = "interpolate";
 /// `HandleGapFill`.
 pub(crate) static INTERPOLATE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
     let return_type_fn: ReturnTypeFunction = Arc::new(|args| Ok(Arc::new(args[0].clone())));
-    let signatures = vec![
+    let signatures = [
         InfluxFieldType::Float,
         InfluxFieldType::Integer,
         InfluxFieldType::UInteger,

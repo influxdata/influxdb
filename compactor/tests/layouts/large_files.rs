@@ -723,7 +723,7 @@ async fn target_too_large_1() {
     //   . one very large overlapped L2
 
     // size of l1s & l2
-    let l1_sizes = vec![53 * ONE_MB, 45 * ONE_MB, 5 * ONE_MB];
+    let l1_sizes = [53 * ONE_MB, 45 * ONE_MB, 5 * ONE_MB];
     let l2_size = 253 * ONE_MB;
 
     // L2 overlapped with the first L1
@@ -836,7 +836,7 @@ async fn target_too_large_2() {
     //   . one very large overlapped L2
 
     // size of l1s & l2
-    let l1_sizes = vec![69 * ONE_MB, 50 * ONE_MB];
+    let l1_sizes = [69 * ONE_MB, 50 * ONE_MB];
     let l2_size = 232 * ONE_MB;
 
     // L2 overlapped with both L1s
@@ -943,7 +943,7 @@ async fn start_too_large_similar_time_range() {
     //   . total size = L1 & L2 > max_compact_size
 
     // size of l1 & l2 respectively
-    let sizes = vec![250 * ONE_MB, 52 * ONE_MB];
+    let sizes = [250 * ONE_MB, 52 * ONE_MB];
 
     for i in 1..=2 {
         setup
@@ -1057,7 +1057,7 @@ async fn start_too_large_small_time_range() {
     //   . total size = L1 & L2 > max_compact_size
 
     // size of l1 & l2 respectively
-    let sizes = vec![250 * ONE_MB, 52 * ONE_MB];
+    let sizes = [250 * ONE_MB, 52 * ONE_MB];
 
     for i in 1..=2 {
         setup
@@ -1139,7 +1139,7 @@ async fn start_too_large_small_time_range_2() {
     //   . total size = L1 & L2 > max_compact_size
 
     // size of l1 & l2 respectively
-    let sizes = vec![250 * ONE_MB, 52 * ONE_MB];
+    let sizes = [250 * ONE_MB, 52 * ONE_MB];
 
     for i in 1..=2 {
         setup
@@ -1220,7 +1220,7 @@ async fn start_too_large_small_time_range_3() {
     //   . total size = L1 & L2 > max_compact_size
 
     // size of l1 & l2 respectively
-    let sizes = vec![250 * ONE_MB, 52 * ONE_MB];
+    let sizes = [250 * ONE_MB, 52 * ONE_MB];
 
     for i in 1..=2 {
         setup

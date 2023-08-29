@@ -266,7 +266,7 @@ impl<'a> Selector<'a> {
     }
 
     fn bottom(call: &'a Call) -> Result<Self> {
-        let [field_key, tag_keys @ .., narg] =  call.args.as_slice() else {
+        let [field_key, tag_keys @ .., narg] = call.args.as_slice() else {
             return error::internal(format!(
                 "invalid number of arguments for bottom: expected 2 or more, got {}",
                 call.args.len()
@@ -355,7 +355,7 @@ impl<'a> Selector<'a> {
     }
 
     fn top(call: &'a Call) -> Result<Self> {
-        let [field_key, tag_keys @ .., narg] =  call.args.as_slice() else {
+        let [field_key, tag_keys @ .., narg] = call.args.as_slice() else {
             return error::internal(format!(
                 "invalid number of arguments for top: expected 2 or more, got {}",
                 call.args.len()

@@ -780,7 +780,7 @@ async fn tag_regex_escaped_predicates() {
             // FROM db0.rp0.status_code
             // WHERE url =~ /https\:\/\/influxdb\.com/
             // ```
-            .regex_match_predicate("url", r#"https\://influxdb\.com"#),
+            .regex_match_predicate("url", r"https\://influxdb\.com"),
         expected_results: vec![
             // expect one series with influxdb.com
             "SeriesFrame, tags: _field=value,_measurement=status_code,url=https://influxdb.com, \
@@ -804,7 +804,7 @@ async fn tag_not_match_regex_escaped_predicates() {
             // FROM db0.rp0.status_code
             // WHERE url !~ /https\:\/\/influxdb\.com/
             // ```
-            .not_regex_match_predicate("url", r#"https\://influxdb\.com"#),
+            .not_regex_match_predicate("url", r"https\://influxdb\.com"),
         expected_results: vec![
             // expect one series with example.com
             "SeriesFrame, tags: _field=value,_measurement=status_code,url=http://www.example.com, \

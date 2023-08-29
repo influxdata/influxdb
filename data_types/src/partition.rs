@@ -280,7 +280,7 @@ pub struct PartitionHashId(Arc<[u8; PARTITION_HASH_ID_SIZE_BYTES]>);
 
 impl std::fmt::Display for PartitionHashId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        for byte in self.0.iter() {
+        for byte in &*self.0 {
             write!(f, "{:02x}", byte)?;
         }
         Ok(())

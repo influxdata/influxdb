@@ -97,8 +97,9 @@ impl<'a> DFStatsAggregator<'a> {
                 let mut used_cols = vec![false; self.col_idx_map.len()];
 
                 for (update_field, update_col) in update_schema.fields().iter().zip(update_cols) {
-                    let Some(idx) = self.col_idx_map
-                        .get(update_field.name().as_str()) else {continue;};
+                    let Some(idx) = self.col_idx_map.get(update_field.name().as_str()) else {
+                        continue;
+                    };
                     let base_col = &mut base_cols[*idx];
                     used_cols[*idx] = true;
 
@@ -209,7 +210,9 @@ impl TriStateScalar {
             (this @ Self::Valid(_), Some(update)) => {
                 let mut base = Self::Invalid;
                 std::mem::swap(this, &mut base);
-                let Self::Valid(base) = base else {unreachable!()};
+                let Self::Valid(base) = base else {
+                    unreachable!()
+                };
                 *this = match f(base, update) {
                     Some(val) => Self::Valid(val),
                     None => Self::Invalid,

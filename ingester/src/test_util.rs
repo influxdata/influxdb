@@ -434,7 +434,7 @@ pub(crate) fn assert_write_ops_eq(a: WriteOperation, b: WriteOperation) {
     let a = a.into_tables().collect::<BTreeMap<_, _>>();
     let b = b.into_tables().collect::<BTreeMap<_, _>>();
 
-    a.into_iter().zip(b.into_iter()).for_each(|(a, b)| {
+    a.into_iter().zip(b).for_each(|(a, b)| {
         assert_eq!(a.0, b.0, "table IDs differ - a table is missing!");
         assert_eq!(
             a.1.partitioned_data()

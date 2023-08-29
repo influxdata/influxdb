@@ -27,9 +27,9 @@ macro_rules! assert_logs {
 
         assert_eq!(
             normalized_expected, normalized_actual,
-            "\n\nexpected:\n\n{:#?}\nactual:\n\n{:#?}\n\nnormalized_expected:\n\n{:#?}\nnormalized_actual:\n\n{:#?}\n\n",
-            expected_lines, actual_lines,
-            normalized_expected, normalized_actual
+            "\n\nexpected:\n\n{:#?}\nactual:\n\n{:#?}\
+                \n\nnormalized_expected:\n\n{:#?}\nnormalized_actual:\n\n{:#?}\n\n",
+            expected_lines, actual_lines, normalized_expected, normalized_actual
         )
     };
 }
@@ -44,12 +44,17 @@ fn level() {
     warn!("This is a warn message");
     error!("This is a error message");
 
-    let expected = vec![
-        "level=info msg=\"This is an info message\" target=\"logging\" location=\"logfmt/tests/logging.rs:36\" time=1612181556329599000",
-        "level=debug msg=\"This is a debug message\" target=\"logging\" location=\"logfmt/tests/logging.rs:37\" time=1612181556329618000",
-        "level=trace msg=\"This is a trace message\" target=\"logging\" location=\"logfmt/tests/logging.rs:38\" time=1612181556329634000",
-        "level=warn msg=\"This is a warn message\" target=\"logging\" location=\"logfmt/tests/logging.rs:39\" time=1612181556329646000",
-        "level=error msg=\"This is a error message\" target=\"logging\" location=\"logfmt/tests/logging.rs:40\" time=1612181556329661000",
+    let expected = [
+        "level=info msg=\"This is an info message\" target=\"logging\" \
+            location=\"logfmt/tests/logging.rs:36\" time=1612181556329599000",
+        "level=debug msg=\"This is a debug message\" target=\"logging\" \
+            location=\"logfmt/tests/logging.rs:37\" time=1612181556329618000",
+        "level=trace msg=\"This is a trace message\" target=\"logging\" \
+            location=\"logfmt/tests/logging.rs:38\" time=1612181556329634000",
+        "level=warn msg=\"This is a warn message\" target=\"logging\" \
+            location=\"logfmt/tests/logging.rs:39\" time=1612181556329646000",
+        "level=error msg=\"This is a error message\" target=\"logging\" \
+            location=\"logfmt/tests/logging.rs:40\" time=1612181556329661000",
     ];
 
     assert_logs!(capture, expected);
@@ -64,8 +69,9 @@ fn event_fields_strings() {
         "This is an info message"
     );
 
-    let expected = vec![
-            "level=info msg=\"This is an info message\" event_name=\"foo bar\" other_event=baz target=\"logging\" location=\"logfmt/tests/logging.rs:59\" time=1612187170712973000",
+    let expected = [
+        "level=info msg=\"This is an info message\" event_name=\"foo bar\" other_event=baz \
+            target=\"logging\" location=\"logfmt/tests/logging.rs:59\" time=1612187170712973000",
     ];
 
     assert_logs!(capture, expected);
@@ -76,9 +82,12 @@ fn event_fields_strings_quoting() {
     let capture = CapturedWriter::new();
     info!(foo = r#"body: Body(Full(b"{\"error\": \"Internal error\"}"))"#,);
 
-    let expected = vec![
-        r#"level=info foo="body: Body(Full(b\"{\\\"error\\\": \\\"Internal error\\\"}\"))" target="logging" location="logfmt/tests/logging.rs:59" time=1612187170712973000"#,
-    ];
+    let escaped_foo_value = r#"body: Body(Full(b\"{\\\"error\\\": \\\"Internal error\\\"}\"))"#;
+
+    let expected = [&format!(
+        "level=info foo=\"{escaped_foo_value}\" target=\"logging\" \
+            location=\"logfmt/tests/logging.rs:59\" time=1612187170712973000"
+    )];
 
     assert_logs!(capture, expected);
 }
@@ -107,8 +116,9 @@ fn event_fields_numeric() {
     let capture = CapturedWriter::new();
     info!(bar = 1, frr = false, "This is an info message");
 
-    let expected = vec![
-        "level=info msg=\"This is an info message\" bar=1 frr=false target=\"logging\" location=\"logfmt/tests/logging.rs:72\" time=1612187170712947000",
+    let expected = [
+        "level=info msg=\"This is an info message\" bar=1 frr=false target=\"logging\" \
+            location=\"logfmt/tests/logging.rs:72\" time=1612187170712947000",
     ];
 
     assert_logs!(capture, expected);
@@ -119,8 +129,9 @@ fn event_fields_repeated() {
     let capture = CapturedWriter::new();
     info!(bar = 1, bar = 2, "This is an info message");
 
-    let expected = vec![
-        "level=info msg=\"This is an info message\" bar=1 bar=2 target=\"logging\" location=\"logfmt/tests/logging.rs:84\" time=1612187170712948000",
+    let expected = [
+        "level=info msg=\"This is an info message\" bar=1 bar=2 target=\"logging\" \
+            location=\"logfmt/tests/logging.rs:84\" time=1612187170712948000",
     ];
 
     assert_logs!(capture, expected);
@@ -132,11 +143,15 @@ fn event_fields_errors() {
 
     let err: Box<dyn Error + 'static> =
         io::Error::new(io::ErrorKind::Other, "shaving yak failed!").into();
-
     error!(the_error = err.as_ref(), "This is an error message");
-    let expected = vec![
-        "level=error msg=\"This is an error message\" the_error=\"\\\"Custom { kind: Other, error: \\\\\\\"shaving yak failed!\\\\\\\" }\\\"\" the_error.display=\"shaving yak failed!\" target=\"logging\" location=\"logfmt/tests/logging.rs:99\" time=1612187170712947000",
+
+    let expected = [
+        "level=error msg=\"This is an error message\" the_error=\"\\\"Custom { kind: Other, \
+            error: \\\\\\\"shaving yak failed!\\\\\\\" }\\\"\" \
+            the_error.display=\"shaving yak failed!\" target=\"logging\" \
+            location=\"logfmt/tests/logging.rs:99\" time=1612187170712947000",
     ];
+
     assert_logs!(capture, expected);
 }
 
@@ -147,8 +162,10 @@ fn event_fields_structs() {
 
     info!(s = ?my_struct, "This is an info message");
 
-    let expected = vec![
-        "level=info msg=\"This is an info message\" s=\"TestDebugStruct { b: true, s: \\\"The String\\\" }\" target=\"logging\" location=\"logfmt/tests/logging.rs:111\" time=1612187170712937000",
+    let expected = [
+        "level=info msg=\"This is an info message\" s=\"TestDebugStruct { b: true, \
+            s: \\\"The String\\\" }\" target=\"logging\" \
+            location=\"logfmt/tests/logging.rs:111\" time=1612187170712937000",
     ];
 
     assert_logs!(capture, expected);
@@ -163,9 +180,10 @@ fn event_spans() {
     info!(shave = "mo yak!", "info message in span");
     std::mem::drop(enter);
 
-    let expected = vec![
+    let expected = [
         "level=info span_name=\"my_span\" foo=bar span=1 time=1612209178717290000",
-        "level=info msg=\"info message in span\" shave=\"mo yak!\" span=1 target=\"logging\" location=\"logfmt/tests/logging.rs:132\" time=1612209178717329000",
+        "level=info msg=\"info message in span\" shave=\"mo yak!\" span=1 target=\"logging\" \
+            location=\"logfmt/tests/logging.rs:132\" time=1612209178717329000",
     ];
 
     assert_logs!(capture, expected);
@@ -190,12 +208,14 @@ fn event_multi_span() {
         info!(shave = "mo yak!", "info message in span 3");
     }
 
-    let expected = vec![
+    let expected = [
         "level=info span_name=\"my_span\" foo=bar span=1 time=1612209327939714000",
         "level=info span_name=\"my_second_span\" foo=baz span=2 time=1612209327939743000",
-        "level=info msg=\"info message in span 2\" shave=yak! target=\"logging\" location=\"logfmt/tests/logging.rs:154\" time=1612209327939774000",
+        "level=info msg=\"info message in span 2\" shave=yak! target=\"logging\" \
+            location=\"logfmt/tests/logging.rs:154\" time=1612209327939774000",
         "level=info span_name=\"my_second_span\" foo=brmp span=3 time=1612209327939795000",
-        "level=info msg=\"info message in span 3\" shave=\"mo yak!\" target=\"logging\" location=\"logfmt/tests/logging.rs:160\" time=1612209327939828000",
+        "level=info msg=\"info message in span 3\" shave=\"mo yak!\" target=\"logging\" \
+            location=\"logfmt/tests/logging.rs:160\" time=1612209327939828000",
     ];
 
     assert_logs!(capture, expected);
@@ -240,7 +260,7 @@ fn normalize<'a>(lines: impl Iterator<Item = &'a String>) -> Vec<String> {
 
 /// s/time=1612187170712947000/time=NORMALIZED/g
 fn normalize_timestamp(v: &str) -> String {
-    let re = Regex::new(r#"time=\d+"#).unwrap();
+    let re = Regex::new(r"time=\d+").unwrap();
     re.replace_all(v, "time=NORMALIZED").to_string()
 }
 
@@ -257,7 +277,7 @@ fn normalize_spans(lines: Vec<String>) -> Vec<String> {
     //
     // Note: we include leading and trailing spaces so that span=2
     // doesn't also match span=21423
-    let re = Regex::new(r#" span=(\d+) "#).unwrap();
+    let re = Regex::new(r" span=(\d+) ").unwrap();
 
     // This collect isn't needless: the `fold` below moves `lines`, so this
     // iterator can't borrow `lines`, we need to collect into a `Vec` to

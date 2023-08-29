@@ -276,7 +276,7 @@ where
 
         // And then walk the WAL file sets.
         let mut remove_ids = Vec::with_capacity(0);
-        for (id, file_set) in self.wal_files.iter_mut() {
+        for (id, file_set) in &mut self.wal_files {
             // Invariant: files in the file set always have at least 1 reference
             assert!(!file_set.is_empty());
 

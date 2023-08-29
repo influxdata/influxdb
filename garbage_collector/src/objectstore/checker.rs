@@ -129,7 +129,7 @@ async fn should_delete(
         }
 
         let file_name = candidate.location.parts().last();
-        if matches!(file_name, None) {
+        if file_name.is_none() {
             warn!(
                 location = %candidate.location,
                 deleting = true,

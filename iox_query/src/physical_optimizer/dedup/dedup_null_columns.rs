@@ -40,7 +40,8 @@ impl PhysicalOptimizerRule for DedupNullColumns {
                 let mut children = dedup_exec.children();
                 assert_eq!(children.len(), 1);
                 let child = children.remove(0);
-                let Some((schema, chunks, _output_sort_key)) = extract_chunks(child.as_ref()) else {
+                let Some((schema, chunks, _output_sort_key)) = extract_chunks(child.as_ref())
+                else {
                     return Ok(Transformed::No(plan));
                 };
 

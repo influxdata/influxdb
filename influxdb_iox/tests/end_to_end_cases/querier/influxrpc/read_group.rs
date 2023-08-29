@@ -1146,7 +1146,7 @@ impl InfluxRpcTest for ReadGroupTest {
             .clone()
             .source(cluster)
             .aggregate_type(self.aggregate_type)
-            .group_keys(self.group_keys.clone().into_iter())
+            .group_keys(self.group_keys.clone())
             .group(Group::By)
             .build_read_group();
 
