@@ -303,6 +303,7 @@ impl LevelBasedRoundInfo {
             let mut prior_overlapping_max = Timestamp::new(0);
             let mut prior_chain_max: i64 = 0;
             let mut overlaps: Vec<ParquetFile>;
+            let mut adding_ranges = true;
 
             for chain in &chains {
                 let mut min = chain.iter().map(|f| f.min_time).min().unwrap();
@@ -313,7 +314,8 @@ impl LevelBasedRoundInfo {
                     // Target level files overlap more than one start level file, and there is a target level file overlapping
                     // the prior chain of L0s and this one.  We'll split the target level file at the pror range/chain max before
                     // proceeding with compactions.
-                    split_times.push(prior_chain_max)
+                    split_times.push(prior_chain_max);
+                    adding_ranges = false;
                 }
 
                 // As we identify overlaps, we'll include some don't quite overlap, but are between the prior chain and this one.
@@ -325,10 +327,11 @@ impl LevelBasedRoundInfo {
                     f2.overlaps_time_range(search_min, max)
                         && f2.compaction_level != CompactionLevel::Final
                 });
-                let cap: usize = chain
+                let l0cap: usize = chain
                     .iter()
                     .map(|f| f.file_size_bytes as usize)
-                    .sum::<usize>()
+                    .sum::<usize>();
+                let cap = l0cap
                     + overlaps
                         .iter()
                         .map(|f| f.file_size_bytes as usize)
@@ -338,17 +341,33 @@ impl LevelBasedRoundInfo {
                     prior_overlapping_max = overlaps.iter().map(|f| f.max_time).max().unwrap();
                     let prior_smallest_max = overlaps.iter().map(|f| f.max_time).min().unwrap();
                     if prior_smallest_max < min {
-                        // Expand the region to include this file, so it can be included (if its small and we'd like to grow it).
+                        // Expand the range to include this file, so it can be included (if its small and we'd like to grow it).
                         min = prior_smallest_max;
                     }
                 }
-                prior_chain_max = max.get();
 
-                ranges.push(FileRange {
-                    min: min.get(),
-                    max: max.get(),
-                    cap,
-                });
+                // To avoid illegal max_l0_created_at ordering issues, we can only compact ranges from the left.
+                // The first ineligible (too big) range will make us quit.
+                if adding_ranges && l0cap <= max_compact_size {
+                    ranges.push(FileRange {
+                        min: min.get(),
+                        max: max.get(),
+                        cap,
+                    });
+                } else {
+                    adding_ranges = false;
+                }
+
+                prior_chain_max = max.get();
+            }
+
+            // If this function returns both split times and ranges, the split times take precedence.  But if we're highly backlogged,
+            // it is preferable to compact some ranges down to L1 as they become available, rather that splitting a potentially huge backlog
+            // before we compact anything.  So if we've got a few ranges eligible for compaction, we'll start them with them, and may
+            // do more vertical splitting later.
+            if ranges.len() >= 10 {
+                // There's enough ranges to work on, discard the split times so we compact the ranges.
+                split_times = vec![];
             }
         }
 
