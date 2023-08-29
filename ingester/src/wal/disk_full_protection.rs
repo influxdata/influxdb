@@ -80,8 +80,6 @@ where
             "rotated wal to allow disk clean-up to occur",
         );
 
-        let empty_waker = self.wal_reference_handle.empty_inactive_notifier();
-
         _ = self
             .wal_reference_handle
             .enqueue_rotated_file(closed_segment.id(), sequence_number_set)
@@ -90,9 +88,6 @@ where
 
         persist_partitions(self.buffer.partition_iter(), &self.persist).await;
         info!(closed_id = %closed_segment.id(), "partitions persisted to allow disk clean-up to occur");
-
-        empty_waker.await;
-        info!(closed_id = %closed_segment.id(), "segment file cleaned up from disk");
     }
 }
 
