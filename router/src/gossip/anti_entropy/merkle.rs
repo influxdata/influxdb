@@ -130,8 +130,8 @@ mod tests {
         /// All other fields may vary without affecting the hash.
         #[test]
         fn prop_content_hash_coverage(
-            mut a in arbitrary_namespace_schema(0..1),
-            b in arbitrary_namespace_schema(0..1)
+            mut a in arbitrary_namespace_schema(Just(1)),
+            b in arbitrary_namespace_schema(Just(1))
         ) {
             assert_eq!(a.id, b.id); // Test invariant
 

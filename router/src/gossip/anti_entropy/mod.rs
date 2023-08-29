@@ -4,7 +4,7 @@ pub mod merkle;
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, ops::Range, sync::Arc};
+    use std::{collections::BTreeMap, sync::Arc};
 
     use crate::{
         gossip::anti_entropy::merkle::MerkleTree,
@@ -71,9 +71,9 @@ mod tests {
         /// [`TEST_TABLE_NAME_SET`], containing up to 255 columns with stable
         /// `name -> (id, data type)` mappings.
         ///
-        /// Namespace IDs are allocated from the specified range.
-        pub fn arbitrary_namespace_schema(id_range: Range<i64>)(
-            namespace_id in id_range,
+        /// Namespace IDs are allocated from the specified strategy.
+        pub fn arbitrary_namespace_schema(namespace_ids: impl Strategy<Value = i64>)(
+            namespace_id in namespace_ids,
             tables in proptest::collection::btree_map(
                 proptest::sample::select(TEST_TABLE_NAME_SET),
                 arbitrary_table_schema(),
@@ -105,9 +105,12 @@ mod tests {
         #[test]
         fn prop_content_hash_diverge_converge(
             // A variable number of cache entry updates for 2 namespace IDs
-            updates in prop::collection::vec(arbitrary_namespace_schema(0..2), 0..10),
+            updates in prop::collection::vec(arbitrary_namespace_schema(
+                prop_oneof![Just(1), Just(2)]), // IDs assigned
+                0..10 // Number of updates
+            ),
             // An arbitrary namespace with an ID that lies outside of `updates`.
-            last_update in arbitrary_namespace_schema(42..100),
+            last_update in arbitrary_namespace_schema(42_i64..100),
         ) {
             let ns_a = MerkleTree::new(Arc::new(MemoryNamespaceCache::default()));
             let ns_b = MerkleTree::new(Arc::new(MemoryNamespaceCache::default()));
