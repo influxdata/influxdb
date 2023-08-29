@@ -51,7 +51,10 @@ use crate::{
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
     wal::{
-        reference_tracker::WalReferenceHandle, rotate_task::periodic_rotation, wal_sink::WalSink,
+        disk_full_protection::{self, guard_disk_capacity},
+        reference_tracker::WalReferenceHandle,
+        rotate_task::periodic_rotation,
+        wal_sink::WalSink,
     },
 };
 
@@ -406,9 +409,23 @@ where
 
     // Initialize disk metrics to emit disk capacity / free statistics for the
     // WAL directory.
-    let (disk_metric_task, _snapshot_rx) = DiskSpaceMetrics::new(wal_directory, &metrics)
+    let (disk_metric_task, snapshot_rx) = DiskSpaceMetrics::new(wal_directory, &metrics)
         .expect("failed to resolve WAL directory to disk");
     let disk_metric_task = tokio::task::spawn(disk_metric_task.run());
+    // Spawn the disk full protection task, with values fed from the disk space
+    // metric collection task. This importantly doesn't leak the task, as it will
+    // shut itself down when the disk metric task's snapshot sender is dropped and
+    // the receiver is disconnected.
+    tokio::spawn(guard_disk_capacity(
+        snapshot_rx,
+        Arc::clone(&ingest_state),
+        disk_full_protection::WalPersister::new(
+            Arc::clone(&wal),
+            wal_reference_handle.clone(),
+            Arc::clone(&buffer),
+            Arc::clone(&persist_handle),
+        ),
+    ));
 
     // Replay the WAL log files, if any.
     let max_sequence_number =
