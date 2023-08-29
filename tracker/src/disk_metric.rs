@@ -20,6 +20,14 @@ pub struct DiskSpaceSnapshot {
 }
 
 impl DiskSpaceSnapshot {
+    /// Create a new disk space snapshot.
+    pub fn new(available_disk_space: u64, total_disk_space: u64) -> Self {
+        Self {
+            available_disk_space,
+            total_disk_space,
+        }
+    }
+
     /// The available space in bytes on the disk.
     pub fn available_disk_space(&self) -> u64 {
         self.available_disk_space
