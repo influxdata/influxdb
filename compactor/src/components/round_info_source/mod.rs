@@ -385,7 +385,7 @@ impl RoundInfoSource for LevelBasedRoundInfo {
         &self,
         components: Arc<Components>,
         last_round_info: Option<RoundInfo>,
-        _partition_info: &PartitionInfo,
+        partition_info: &PartitionInfo,
         files: Vec<ParquetFile>,
     ) -> Result<(RoundInfo, Vec<Vec<ParquetFile>>, Vec<ParquetFile>), DynError> {
         let mut ranges: Vec<FileRange> = vec![];
@@ -457,9 +457,11 @@ impl RoundInfoSource for LevelBasedRoundInfo {
 
         let (files_now, mut files_later) = components.round_split.split(files, round_info.clone());
 
-        let (branches, more_for_later) = components
-            .divide_initial
-            .divide(files_now, round_info.clone());
+        let (branches, more_for_later) = components.divide_initial.divide(
+            files_now,
+            round_info.clone(),
+            partition_info.partition_id(),
+        );
         files_later.extend(more_for_later);
 
         Ok((round_info, branches, files_later))

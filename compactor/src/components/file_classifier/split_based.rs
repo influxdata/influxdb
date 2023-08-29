@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use data_types::{CompactionLevel, ParquetFile};
+use data_types::{CompactionLevel, ParquetFile, TransitionPartitionId};
 
 use crate::{
     components::{
@@ -142,6 +142,7 @@ where
                 max_num_files_to_group,
                 max_total_file_size_to_group,
             } => file_classification_for_many_files(
+                partition_info.partition_id(),
                 *max_total_file_size_to_group,
                 *max_num_files_to_group,
                 files_to_compact,
@@ -163,9 +164,11 @@ where
                 }
             }
 
-            RoundInfo::VerticalSplit { split_times } => {
-                file_classification_for_vertical_split(split_times, files_to_compact)
-            }
+            RoundInfo::VerticalSplit { split_times } => file_classification_for_vertical_split(
+                split_times,
+                files_to_compact,
+                partition_info.partition_id(),
+            ),
 
             RoundInfo::TargetLevel { target_level, .. } => {
                 // Split files into files_to_compact, files_to_upgrade, and files_to_keep
@@ -225,6 +228,7 @@ where
                         .partition(|f| f.compaction_level == CompactionLevel::Initial);
 
                     let l0_classification = file_classification_for_many_files(
+                        partition_info.partition_id(),
                         *max_total_file_size_to_group,
                         *max_num_files_to_group,
                         files_to_compact,
@@ -233,7 +237,11 @@ where
 
                     files_to_keep.extend(l0_classification.files_to_keep);
 
-                    assert!(!l0_classification.files_to_make_progress_on.is_empty());
+                    assert!(
+                        !l0_classification.files_to_make_progress_on.is_empty(),
+                        "L0 files_to_make_progress_on should not be empty, for partition {}",
+                        partition_info.partition_id()
+                    );
                     FileClassification {
                         target_level: l0_classification.target_level,
                         files_to_make_progress_on: l0_classification.files_to_make_progress_on,
@@ -267,7 +275,11 @@ where
                         split_or_compact: files_to_split_or_compact,
                     };
 
-                    assert!(!files_to_make_progress_on.is_empty());
+                    assert!(
+                        !files_to_make_progress_on.is_empty(),
+                        "files_to_make_progress_on should not be empty, for partition {}",
+                        partition_info.partition_id()
+                    );
                     FileClassification {
                         target_level,
                         files_to_make_progress_on,
@@ -284,6 +296,7 @@ where
 // many files, we know there's not many bytes (in total).  Because of this, We can skip anything that's a sizeable portion
 // of the max_compact_size, knowing that we can still get the L0 quantity down to max_num_files_to_group.
 fn file_classification_for_many_files(
+    partition: TransitionPartitionId,
     max_total_file_size_to_group: usize,
     max_num_files_to_group: usize,
     files: Vec<ParquetFile>,
@@ -296,7 +309,8 @@ fn file_classification_for_many_files(
 
     assert!(
         files.iter().all(|f| f.compaction_level == target_level),
-        "{err_msg}"
+        "{err_msg}, in partition {}",
+        partition,
     );
 
     let mut files_to_compact = vec![];
@@ -348,7 +362,11 @@ fn file_classification_for_many_files(
             }
         }
 
-        assert!(chunk.is_empty() || chunk.len() > 1);
+        assert!(
+            chunk.is_empty() || chunk.len() > 1,
+            "should not have only 1 chunk, for partition {}",
+            partition
+        );
     } else {
         files_to_compact = files;
     }
@@ -373,6 +391,7 @@ fn file_classification_for_many_files(
 fn file_classification_for_vertical_split(
     split_times: &[i64],
     files: Vec<ParquetFile>,
+    partition: TransitionPartitionId,
 ) -> FileClassification {
     let target_level = CompactionLevel::Initial;
     let files_to_keep: Vec<ParquetFile> = vec![];
@@ -390,7 +409,7 @@ fn file_classification_for_vertical_split(
 
         assert!(
             !this_file_splits.is_empty(),
-            "files not needing split should be filtered out"
+            "files not needing split should be filtered out, instead found to-compact file (not to-split) in partition {}", partition
         );
 
         let file_to_split = FileToSplit {
