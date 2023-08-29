@@ -153,7 +153,7 @@ impl SchemaAdapterStream {
             .collect::<Vec<_>>();
 
         // sanity logic checks
-        for input_field in input_schema.fields().iter() {
+        for input_field in input_schema.fields() {
             // that there are no fields in the input schema that are
             // not present in the desired output schema (otherwise we
             // are dropping fields -- theys should have been selected

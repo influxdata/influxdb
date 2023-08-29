@@ -245,7 +245,7 @@ mod tests {
         assert_eq!(w2_data, final_data);
         let same_arcs = w2_data
             .into_iter()
-            .zip(final_data.into_iter())
+            .zip(final_data)
             .all(|(a, b)| Arc::ptr_eq(a.column(0), b.column(0)));
         assert!(same_arcs);
 
@@ -351,7 +351,7 @@ mod tests {
         assert_eq!(w2_data, final_data);
         let same_arcs = w2_data
             .into_iter()
-            .zip(final_data.into_iter())
+            .zip(final_data)
             .all(|(a, b)| Arc::ptr_eq(a.column(0), b.column(0)));
         assert!(same_arcs);
 

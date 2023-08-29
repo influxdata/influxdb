@@ -245,6 +245,26 @@ impl DivideInitial for MultipleBranchesDivideInitial {
 
             // RoundSplit already eliminated all the files we don't need to work on.
             RoundInfo::VerticalSplit { .. } => (vec![files], more_for_later),
+
+            RoundInfo::CompactRanges { ranges, .. } => {
+                // Each range describes what can be a distinct branch, concurrently compacted.
+
+                let mut branches = Vec::with_capacity(ranges.len());
+                let mut this_branch: Vec<ParquetFile>;
+                let mut files = files;
+
+                for range in &ranges {
+                    (this_branch, files) = files.into_iter().partition(|f2| {
+                        f2.overlaps_time_range(Timestamp::new(range.min), Timestamp::new(range.max))
+                    });
+
+                    if !this_branch.is_empty() {
+                        branches.push(this_branch)
+                    }
+                }
+                assert!(files.is_empty(), "all files should map to a range");
+                (branches, vec![])
+            }
         }
     }
 }

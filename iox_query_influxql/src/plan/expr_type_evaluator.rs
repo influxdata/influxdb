@@ -124,7 +124,7 @@ impl<'a> TypeEvaluator<'a> {
             }
             _ => {
                 let mut data_type: Option<VarRefDataType> = None;
-                for tr in self.from.iter() {
+                for tr in self.from {
                     match tr {
                         DataSource::Table(name) => match (
                             data_type,
@@ -324,9 +324,8 @@ impl<'a> TypeEvaluator<'a> {
 
             // These functions require two numeric arguments and return a float
             name @ ("atan2" | "pow") => {
-                let (Some(arg0), Some(arg1)) = (arg_types
-                                                    .get(0), arg_types.get(1)) else {
-                    return error::query(format!("{name} expects 2 arguments"))
+                let (Some(arg0), Some(arg1)) = (arg_types.get(0), arg_types.get(1)) else {
+                    return error::query(format!("{name} expects 2 arguments"));
                 };
 
                 match (arg0, arg1) {

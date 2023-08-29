@@ -67,11 +67,25 @@ impl RoundSplit for ManyFilesRoundSplit {
                 // We're splitting L0 files at split_times.  So any L0 that overlaps a split_time needs processed, and all other files are ignored until later.
                 let (split_files, rest): (Vec<ParquetFile>, Vec<ParquetFile>) =
                     files.into_iter().partition(|f| {
-                        f.compaction_level == CompactionLevel::Initial
-                            && f.needs_split(&split_times)
+                        f.compaction_level != CompactionLevel::Final && f.needs_split(&split_times)
                     });
 
+                assert!(
+                    !split_files.is_empty(),
+                    "if we decided to split, there should be something to split"
+                );
                 (split_files, rest)
+            }
+
+            RoundInfo::CompactRanges { ranges, .. } => {
+                // We're compacting L0 & L1s in the specified ranges.  Files outside these ranges are
+                // ignored until a later round.
+                let (compact_files, rest): (Vec<ParquetFile>, Vec<ParquetFile>) =
+                    files.into_iter().partition(|f| {
+                        f.compaction_level != CompactionLevel::Final && f.overlaps_ranges(&ranges)
+                    });
+
+                (compact_files, rest)
             }
         }
     }

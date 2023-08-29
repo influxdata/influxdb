@@ -198,6 +198,10 @@ pub fn linear_dist_ranges(
             // we can deal with the non-linearity, or we're as small as we can go.
             break;
         }
+        if split_count > 10000 {
+            // this is getting expenisve to compute.  We can use these regions and split again if required.
+            break;
+        }
 
         // retry with smaller regions.  Eventually we'll get regions small enough we can isolate and deal with the non-linearity.
         split_count *= 2;
@@ -331,9 +335,10 @@ pub fn merge_small_l0_chains(
         // matching max_lo_created_at times indicates that the files were deliberately split.  We shouldn't merge
         // chains with matching max_lo_created_at times, because that would encourage undoing the previous split,
         // which minimally increases write amplification, and may cause unproductive split/compact loops.
+        // TODO: this may not be necessary long term (with CompactRanges this might be ok)
         let mut matches = 0;
         if prior_chain_bytes > 0 {
-            for f in chain.iter() {
+            for f in chain {
                 for f2 in &merged_chains[prior_chain_idx as usize] {
                     if f.max_l0_created_at == f2.max_l0_created_at {
                         matches += 1;
@@ -357,6 +362,9 @@ pub fn merge_small_l0_chains(
             prior_chain_idx += 1;
         }
     }
+
+    // Put it back in the standard order.
+    merged_chains.sort_by_key(|a| a[0].min_time);
 
     merged_chains
 }
@@ -805,10 +813,10 @@ mod tests {
             @r###"
         ---
         - case 3 linear data distribution ranges
-        - "[100,100] 100mb          |range|                                                                                   "
-        - "[101,320099] 4.43gb      |-------------------------------range--------------------------------|                    "
-        - "[320100,409698] 275mb                                                                          |------range------| "
-        - "[409699,409699] 78mb                                                                                              |range|"
+        - "[100,137] 102mb          |range|                                                                                   "
+        - "[138,320097] 4.44gb      |--------------------------range--------------------------|                               "
+        - "[320098,460089] 341mb                                                               |---------range---------|      "
+        - "[460090,486499] 12mb                                                                                          |range|"
         "###
         );
 
@@ -850,8 +858,9 @@ mod tests {
             @r###"
         ---
         - case 4 linear data distribution ranges
-        - "[10,1008] 1000mb         |range|                                                                                   "
-        - "[1009,9732105] 100mb     |-----------------------------------------range-----------------------------------------| "
+        - "[10,896] 895mb           |range|                                                                                   "
+        - "[897,1783] 105mb         |range|                                                                                   "
+        - "[1784,9991177] 100mb     |-----------------------------------------range-----------------------------------------| "
         "###
         );
 
@@ -1032,17 +1041,16 @@ mod tests {
             @r###"
         ---
         - case 6 linear data distribution ranges
-        - "[0,1301] 101mb           |range|                                                                                   "
-        - "[1302,1999871] 799mb     |-----range-----|                                                                         "
-        - "[1999872,2001173] 101mb                    |range|                                                                 "
-        - "[2001174,3999743] 799mb                    |-----range-----|                                                       "
-        - "[3999744,4001045] 101mb                                      |range|                                               "
-        - "[4001046,5999615] 799mb                                      |-----range-----|                                     "
-        - "[5999616,6000917] 92mb                                                         |range|                             "
-        - "[6000918,7999921] 808mb                                                        |-----range-----|                   "
-        - "[7999922,8001223] 101mb                                                                          |range|           "
-        - "[8001224,9998925] 799mb                                                                          |-----range-----| "
-        - "[9998926,9999359] 440kb                                                                                           |range|"
+        - "[0,867] 87mb             |range|                                                                                   "
+        - "[868,1999871] 813mb      |-----range-----|                                                                         "
+        - "[1999872,2001607] 101mb                    |range|                                                                 "
+        - "[2001608,3999743] 799mb                    |-----range-----|                                                       "
+        - "[3999744,4001479] 101mb                                      |range|                                               "
+        - "[4001480,5999615] 799mb                                      |-----range-----|                                     "
+        - "[5999616,6001351] 101mb                                                        |range|                             "
+        - "[6001352,7999487] 799mb                                                        |-----range-----|                   "
+        - "[7999488,8001223] 101mb                                                                          |range|           "
+        - "[8001224,9999359] 800mb                                                                          |-----range-----| "
         "###
         );
     }

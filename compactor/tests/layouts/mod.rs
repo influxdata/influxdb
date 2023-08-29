@@ -154,7 +154,7 @@ pub(crate) async fn run_layout_scenario(setup: &TestSetup) -> Vec<String> {
         ]);
 
         let mut breakdown = Vec::new();
-        for (op, written) in setup.bytes_written_per_plan.lock().unwrap().iter() {
+        for (op, written) in &*setup.bytes_written_per_plan.lock().unwrap() {
             let written = *written as i64;
             breakdown.push(format!("{} written by {}", display_size(written), op));
         }

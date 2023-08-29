@@ -289,16 +289,13 @@ impl SeriesSet {
             .tags
             .iter()
             .cloned()
-            .chain(
-                [
-                    (Arc::from(FIELD_COLUMN_NAME), Arc::from(field_name)),
-                    (
-                        Arc::from(MEASUREMENT_COLUMN_NAME),
-                        Arc::clone(&self.table_name),
-                    ),
-                ]
-                .into_iter(),
-            )
+            .chain([
+                (Arc::from(FIELD_COLUMN_NAME), Arc::from(field_name)),
+                (
+                    Arc::from(MEASUREMENT_COLUMN_NAME),
+                    Arc::clone(&self.table_name),
+                ),
+            ])
             .collect::<Vec<_>>();
 
         // sort by name
@@ -315,7 +312,7 @@ impl SeriesSet {
 fn build_batches<T>(timestamps: Vec<Vec<i64>>, values: Vec<Vec<T>>) -> Vec<Batch<T>> {
     timestamps
         .into_iter()
-        .zip(values.into_iter())
+        .zip(values)
         .map(|(timestamps, values)| Batch { timestamps, values })
         .collect()
 }

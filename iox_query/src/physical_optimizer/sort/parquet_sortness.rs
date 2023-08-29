@@ -32,19 +32,21 @@ impl PhysicalOptimizerRule for ParquetSortness {
         config: &ConfigOptions,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         plan.transform_down(&|plan| {
-            let Some(children_with_sort) = detect_children_with_desired_ordering(plan.as_ref()) else {
+            let Some(children_with_sort) = detect_children_with_desired_ordering(plan.as_ref())
+            else {
                 return Ok(Transformed::No(plan));
             };
             let mut children_new = Vec::with_capacity(children_with_sort.len());
             for (child, desired_ordering) in children_with_sort {
-                let mut rewriter = ParquetSortnessRewriter{config, desired_ordering: &desired_ordering};
+                let mut rewriter = ParquetSortnessRewriter {
+                    config,
+                    desired_ordering: &desired_ordering,
+                };
                 let child = Arc::clone(&child).rewrite(&mut rewriter)?;
                 children_new.push(child);
             }
 
-            Ok(Transformed::Yes(
-                plan.with_new_children(children_new)?
-            ))
+            Ok(Transformed::Yes(plan.with_new_children(children_new)?))
         })
     }
 

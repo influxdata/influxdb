@@ -318,9 +318,9 @@ impl RemoteImporter {
         let bytes = Bytes::from(file_bytes);
         let file_size_bytes = bytes.len();
 
-        let Some(iox_parquet_metadata) = IoxParquetMetaData::from_file_bytes(bytes.clone())?  else {
+        let Some(iox_parquet_metadata) = IoxParquetMetaData::from_file_bytes(bytes.clone())? else {
             return Err(Error::ParquetMetadataNotFound {
-                path: PathBuf::from(file_path)
+                path: PathBuf::from(file_path),
             });
         };
 
@@ -699,21 +699,21 @@ fn get_min_max_times(
     let schema = decoded_iox_parquet_metadata.read_schema()?;
     let stats = decoded_iox_parquet_metadata.read_statistics(&schema)?;
 
-    let Some(summary) = stats
-        .iter()
-        .find(|s| s.name == schema::TIME_COLUMN_NAME) else {
-            return Err(Error::BadStats { stats: None });
-        };
+    let Some(summary) = stats.iter().find(|s| s.name == schema::TIME_COLUMN_NAME) else {
+        return Err(Error::BadStats { stats: None });
+    };
 
     let Statistics::I64(stats) = &summary.stats else {
-        return Err(Error::BadStats { stats: Some(summary.stats.clone()) });
+        return Err(Error::BadStats {
+            stats: Some(summary.stats.clone()),
+        });
     };
 
     let (Some(min), Some(max)) = (stats.min, stats.max) else {
-        return Err(Error::NoMinMax  {
+        return Err(Error::NoMinMax {
             min: stats.min,
             max: stats.max,
-        })
+        });
     };
 
     Ok((Timestamp::new(min), Timestamp::new(max)))

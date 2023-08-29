@@ -2,8 +2,8 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use data_types::{
     partition_template::TablePartitionTemplateOverride, ColumnId, ColumnSet, NamespaceId,
-    ParquetFileParams, PartitionHashId, PartitionId, PartitionKey, SequenceNumber, TableId,
-    Timestamp, TransitionPartitionId,
+    ParquetFile, ParquetFileId, PartitionHashId, PartitionId, PartitionKey, SequenceNumber,
+    TableId, Timestamp, TransitionPartitionId,
 };
 use hashbrown::HashSet;
 use iox_catalog::{interface::Catalog, test_helpers::arbitrary_namespace};
@@ -373,7 +373,9 @@ where
     T: IntoIterator<Item = u64>,
 {
     Arc::new(CompletedPersist::new(
-        ParquetFileParams {
+        ParquetFile {
+            id: ParquetFileId::new(42),
+            to_delete: None,
             namespace_id: NamespaceId::new(1),
             table_id: TableId::new(2),
             partition_id: ARBITRARY_TRANSITION_PARTITION_ID.clone(),
@@ -432,7 +434,7 @@ pub(crate) fn assert_write_ops_eq(a: WriteOperation, b: WriteOperation) {
     let a = a.into_tables().collect::<BTreeMap<_, _>>();
     let b = b.into_tables().collect::<BTreeMap<_, _>>();
 
-    a.into_iter().zip(b.into_iter()).for_each(|(a, b)| {
+    a.into_iter().zip(b).for_each(|(a, b)| {
         assert_eq!(a.0, b.0, "table IDs differ - a table is missing!");
         assert_eq!(
             a.1.partitioned_data()

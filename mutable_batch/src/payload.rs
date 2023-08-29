@@ -44,6 +44,9 @@ impl<'a> PartitionWrite<'a> {
         let time = get_time_column(batch);
         let (min_timestamp, max_timestamp) = min_max_time(time);
 
+        // This `allow` can be removed when this issue is fixed and released:
+        // <https://github.com/rust-lang/rust-clippy/issues/11086>
+        #[allow(clippy::single_range_in_vec_init)]
         Self {
             batch,
             ranges: vec![0..batch.row_count],

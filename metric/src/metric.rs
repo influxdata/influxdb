@@ -96,7 +96,7 @@ impl<T: MetricObserver> Instrument for Metric<T> {
         reporter.start_metric(self.name, self.description, T::kind());
 
         let values = self.shared.values.lock();
-        for (attributes, metric_value) in values.iter() {
+        for (attributes, metric_value) in &*values {
             reporter.report_observation(attributes, metric_value.observe())
         }
 

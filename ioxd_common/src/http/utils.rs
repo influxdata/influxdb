@@ -210,6 +210,6 @@ mod tests {
             .unwrap();
 
         let got = parse_body(request, MAX_BYTES).await;
-        assert!(matches!(got, Ok(_)));
+        assert!(got.is_ok());
     }
 }

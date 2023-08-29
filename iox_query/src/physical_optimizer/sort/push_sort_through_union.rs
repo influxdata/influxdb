@@ -118,7 +118,7 @@ fn sort_should_be_pushed_down(sort_exec: &SortExec) -> bool {
     }
 
     let Some(union_exec) = input.as_any().downcast_ref::<UnionExec>() else {
-        return false
+        return false;
     };
 
     let required_ordering = sort_exec.output_ordering().map(sort_exprs_to_requirement);

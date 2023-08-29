@@ -327,7 +327,9 @@ impl RewriteSelect {
         // resolve possible tag references in group_by
         if let Some(group_by) = group_by.as_mut() {
             for dim in group_by.iter_mut() {
-                let Dimension::VarRef(var_ref) = dim else { continue };
+                let Dimension::VarRef(var_ref) = dim else {
+                    continue;
+                };
                 if from_tag_set.contains(var_ref.name.as_str()) {
                     var_ref.data_type = Some(VarRefDataType::Tag);
                 }
@@ -344,7 +346,7 @@ impl RewriteSelect {
         stmt: &SelectStatement,
     ) -> Result<Vec<DataSource>> {
         let mut new_from = Vec::new();
-        for ms in stmt.from.iter() {
+        for ms in &*stmt.from {
             match ms {
                 MeasurementSelection::Name(qmn) => match qmn {
                     QualifiedMeasurementName {
@@ -381,7 +383,9 @@ impl RewriteSelect {
         stmt: &SelectStatement,
         from: &[DataSource],
     ) -> Result<Option<WhereClause>> {
-        let Some(mut where_clause) = stmt.condition.clone() else { return Ok(None) };
+        let Some(mut where_clause) = stmt.condition.clone() else {
+            return Ok(None);
+        };
 
         let tv = TypeEvaluator::new(s, from);
 
@@ -522,7 +526,7 @@ fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut Select) {
 
                 stmt.fields.iter().any(|f| {
                     walk_expr(&f.expr, &mut |e| {
-                        if matches!(e, Expr::VarRef(VarRef{ name, ..}) if matches!(field_by_name(&q.fields, name.as_str()), Some(_))) {
+                        if matches!(e, Expr::VarRef(VarRef{ name, ..}) if field_by_name(&q.fields, name.as_str()).is_some()) {
                             ControlFlow::Break(())
                         } else {
                             ControlFlow::Continue(())
@@ -563,7 +567,9 @@ fn from_field_and_dimensions(
     for tr in from {
         match tr {
             DataSource::Table(name) => {
-                let Some((field_set, tag_set)) = field_and_dimensions(s, name.as_str()) else { continue };
+                let Some((field_set, tag_set)) = field_and_dimensions(s, name.as_str()) else {
+                    continue;
+                };
 
                 // Merge field_set with existing
                 for (name, ft) in &field_set {
@@ -586,7 +592,9 @@ fn from_field_and_dimensions(
                     let Field {
                         name, data_type, ..
                     } = f;
-                    let Some(dt) = influx_type_to_var_ref_data_type(*data_type) else { continue };
+                    let Some(dt) = influx_type_to_var_ref_data_type(*data_type) else {
+                        continue;
+                    };
 
                     match fs.get(name.as_str()) {
                         Some(existing_type) => {
@@ -810,7 +818,7 @@ fn fields_resolve_aliases_and_types(
 
     names
         .iter()
-        .zip(fields.into_iter())
+        .zip(fields)
         .map(|(name, field)| {
             let expr = field.expr;
             let data_type = tv.eval_type(&expr)?;

@@ -1,0 +1,24 @@
+[package]
+name = "gossip_parquet_file"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-trait = "0.1"
+bytes = "1.4"
+generated_types = { path = "../generated_types" }
+gossip = { version = "0.1.0", path = "../gossip" }
+observability_deps = { path = "../observability_deps" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+metric = { path = "../metric" }
+test_helpers = { version = "0.1.0", path = "../test_helpers", features = [
+    "future_timeout",
+] }
+tokio = { version = "1", features = ["test-util"] }

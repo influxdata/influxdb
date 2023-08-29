@@ -199,6 +199,7 @@ pub fn chunks_to_physical_nodes(
         // ensure that chunks are actually ordered by chunk order
         chunks.sort_by_key(|(_meta, c)| c.order());
 
+        #[allow(clippy::manual_try_fold)]
         let num_rows = chunks.iter().map(|(_meta, c)| c.stats().num_rows).fold(
             Some(0usize),
             |accu, x| match (accu, x) {

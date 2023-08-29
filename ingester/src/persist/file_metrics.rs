@@ -156,7 +156,8 @@ mod tests {
         },
     };
     use data_types::{
-        sequence_number_set::SequenceNumberSet, ColumnId, ColumnSet, ParquetFileParams, Timestamp,
+        sequence_number_set::SequenceNumberSet, ColumnId, ColumnSet, ParquetFile, ParquetFileId,
+        Timestamp,
     };
     use metric::assert_histogram;
     use std::sync::Arc;
@@ -168,7 +169,9 @@ mod tests {
         let metrics = metric::Registry::default();
         let decorator = ParquetFileInstrumentation::new(Arc::clone(&inner), &metrics);
 
-        let meta = ParquetFileParams {
+        let meta = ParquetFile {
+            id: ParquetFileId::new(42),
+            to_delete: None,
             namespace_id: ARBITRARY_NAMESPACE_ID,
             table_id: ARBITRARY_TABLE_ID,
             partition_id: ARBITRARY_TRANSITION_PARTITION_ID.clone(),

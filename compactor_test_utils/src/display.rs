@@ -117,7 +117,7 @@ pub fn format_files_split<P: ParquetFileInfo>(
     let strings1 = readable_list_of_files(Some(title1.into()), files1);
     let strings2 = readable_list_of_files(Some(title2.into()), files2);
 
-    strings1.into_iter().chain(strings2.into_iter()).collect()
+    strings1.into_iter().chain(strings2).collect()
 }
 
 /// default width for printing

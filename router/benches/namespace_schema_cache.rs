@@ -71,9 +71,7 @@ fn bench_add_new_tables_with_columns(
         b.iter_batched(
             || {
                 (
-                    init_ns_cache(
-                        [(ARBITRARY_NAMESPACE.clone(), initial_schema.clone())].into_iter(),
-                    ),
+                    init_ns_cache([(ARBITRARY_NAMESPACE.clone(), initial_schema.clone())]),
                     ARBITRARY_NAMESPACE.clone(),
                     schema_update.clone(),
                 )
@@ -99,9 +97,7 @@ fn bench_add_columns_to_existing_table(
         b.iter_batched(
             || {
                 (
-                    init_ns_cache(
-                        [(ARBITRARY_NAMESPACE.clone(), initial_schema.clone())].into_iter(),
-                    ),
+                    init_ns_cache([(ARBITRARY_NAMESPACE.clone(), initial_schema.clone())]),
                     ARBITRARY_NAMESPACE.clone(),
                     schema_update.clone(),
                 )

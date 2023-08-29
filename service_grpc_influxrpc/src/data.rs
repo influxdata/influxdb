@@ -165,7 +165,7 @@ fn series_to_frames(
                 data_type: data_type.into(),
             })),
         })
-        .chain(data_frames.into_iter()),
+        .chain(data_frames),
     )
 }
 

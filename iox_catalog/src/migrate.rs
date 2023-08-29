@@ -192,7 +192,7 @@ impl Checksum {
 
 impl std::fmt::Debug for Checksum {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for b in self.0.iter() {
+        for b in &*self.0 {
             write!(f, "{:02x}", b)?;
         }
         Ok(())

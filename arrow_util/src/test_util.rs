@@ -221,15 +221,15 @@ static REGEX_LINESEP: Lazy<Regex> = Lazy::new(|| Regex::new(r#"[+-]{6,}"#).expec
 ///
 ///   `        |`  -> `    |`
 ///   `         |` -> `    |`
-static REGEX_COL: Lazy<Regex> = Lazy::new(|| Regex::new(r#"\s+\|"#).expect("col regex"));
+static REGEX_COL: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s+\|").expect("col regex"));
 
 /// Matches line like `metrics=[foo=1, bar=2]`
 static REGEX_METRICS: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"metrics=\[([^\]]*)\]"#).expect("metrics regex"));
+    Lazy::new(|| Regex::new(r"metrics=\[([^\]]*)\]").expect("metrics regex"));
 
 /// Matches things like  `1s`, `1.2ms` and `10.2μs`
 static REGEX_TIMING: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"[0-9]+(\.[0-9]+)?.s"#).expect("timing regex"));
+    Lazy::new(|| Regex::new(r"[0-9]+(\.[0-9]+)?.s").expect("timing regex"));
 
 /// Matches things like `FilterExec: .*` and `ParquetExec: .*`
 ///

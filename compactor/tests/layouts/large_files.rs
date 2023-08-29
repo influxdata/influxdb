@@ -645,7 +645,7 @@ async fn two_large_files_total_over_max_compact_size_start_l0() {
     - "Committing partition 1:"
     - "  Soft Deleting 2 files: L0.1, L1.2"
     - "  Creating 4 files"
-    - "**** Simulation run 2, type=split(CompactAndSplitOutput(FoundSubsetLessThanMaxCompactSize))(split_times=[334]). 2 Input Files, 200mb total:"
+    - "**** Simulation run 2, type=split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))(split_times=[334]). 2 Input Files, 200mb total:"
     - "L0                                                                                                                 "
     - "L0.3[0,667] 10ns 100mb   |------------------------------------------L0.3------------------------------------------|"
     - "L1                                                                                                                 "
@@ -669,24 +669,24 @@ async fn two_large_files_total_over_max_compact_size_start_l0() {
     - "Committing partition 1:"
     - "  Soft Deleting 2 files: L0.4, L1.6"
     - "  Creating 2 files"
-    - "**** Simulation run 4, type=split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))(split_times=[669]). 3 Input Files, 200mb total:"
-    - "L1                                                                                                                 "
-    - "L1.10[934,1000] 10ns 20mb                                                                                 |L1.10-| "
-    - "L1.9[668,933] 10ns 80mb                                               |--------------L1.9---------------|          "
-    - "L1.8[335,667] 10ns 100mb |-------------------L1.8-------------------|                                              "
-    - "**** 2 Output Files (parquet_file_id not yet assigned), 200mb total:"
+    - "**** Simulation run 4, type=split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))(split_times=[986]). 1 Input Files, 20mb total:"
+    - "L1, all files 20mb                                                                                                 "
+    - "L1.10[934,1000] 10ns     |-----------------------------------------L1.10------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 20mb total:"
     - "L2                                                                                                                 "
-    - "L2.?[335,669] 10ns 100mb |-------------------L2.?--------------------|                                             "
-    - "L2.?[670,1000] 10ns 99mb                                              |-------------------L2.?-------------------| "
+    - "L2.?[934,986] 10ns 16mb  |--------------------------------L2.?--------------------------------|                    "
+    - "L2.?[987,1000] 10ns 4mb                                                                          |-----L2.?------| "
     - "Committing partition 1:"
-    - "  Soft Deleting 3 files: L1.8, L1.9, L1.10"
-    - "  Upgrading 1 files level to CompactionLevel::L2: L1.7"
+    - "  Soft Deleting 1 files: L1.10"
+    - "  Upgrading 3 files level to CompactionLevel::L2: L1.7, L1.8, L1.9"
     - "  Creating 2 files"
-    - "**** Final Output Files (800mb written)"
+    - "**** Final Output Files (620mb written)"
     - "L2                                                                                                                 "
     - "L2.7[0,334] 10ns 100mb   |------------L2.7------------|                                                            "
-    - "L2.11[335,669] 10ns 100mb                              |-----------L2.11------------|                              "
-    - "L2.12[670,1000] 10ns 99mb                                                            |-----------L2.12-----------| "
+    - "L2.8[335,667] 10ns 100mb                               |-----------L2.8------------|                               "
+    - "L2.9[668,933] 10ns 80mb                                                              |--------L2.9---------|       "
+    - "L2.11[934,986] 10ns 16mb                                                                                     |L2.11|"
+    - "L2.12[987,1000] 10ns 4mb                                                                                         |L2.12|"
     "###
     );
 
@@ -723,7 +723,7 @@ async fn target_too_large_1() {
     //   . one very large overlapped L2
 
     // size of l1s & l2
-    let l1_sizes = vec![53 * ONE_MB, 45 * ONE_MB, 5 * ONE_MB];
+    let l1_sizes = [53 * ONE_MB, 45 * ONE_MB, 5 * ONE_MB];
     let l2_size = 253 * ONE_MB;
 
     // L2 overlapped with the first L1
@@ -836,7 +836,7 @@ async fn target_too_large_2() {
     //   . one very large overlapped L2
 
     // size of l1s & l2
-    let l1_sizes = vec![69 * ONE_MB, 50 * ONE_MB];
+    let l1_sizes = [69 * ONE_MB, 50 * ONE_MB];
     let l2_size = 232 * ONE_MB;
 
     // L2 overlapped with both L1s
@@ -943,7 +943,7 @@ async fn start_too_large_similar_time_range() {
     //   . total size = L1 & L2 > max_compact_size
 
     // size of l1 & l2 respectively
-    let sizes = vec![250 * ONE_MB, 52 * ONE_MB];
+    let sizes = [250 * ONE_MB, 52 * ONE_MB];
 
     for i in 1..=2 {
         setup
@@ -1057,7 +1057,7 @@ async fn start_too_large_small_time_range() {
     //   . total size = L1 & L2 > max_compact_size
 
     // size of l1 & l2 respectively
-    let sizes = vec![250 * ONE_MB, 52 * ONE_MB];
+    let sizes = [250 * ONE_MB, 52 * ONE_MB];
 
     for i in 1..=2 {
         setup
@@ -1139,7 +1139,7 @@ async fn start_too_large_small_time_range_2() {
     //   . total size = L1 & L2 > max_compact_size
 
     // size of l1 & l2 respectively
-    let sizes = vec![250 * ONE_MB, 52 * ONE_MB];
+    let sizes = [250 * ONE_MB, 52 * ONE_MB];
 
     for i in 1..=2 {
         setup
@@ -1220,7 +1220,7 @@ async fn start_too_large_small_time_range_3() {
     //   . total size = L1 & L2 > max_compact_size
 
     // size of l1 & l2 respectively
-    let sizes = vec![250 * ONE_MB, 52 * ONE_MB];
+    let sizes = [250 * ONE_MB, 52 * ONE_MB];
 
     for i in 1..=2 {
         setup

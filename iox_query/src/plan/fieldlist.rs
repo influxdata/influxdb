@@ -45,8 +45,8 @@ impl FieldListPlan {
 
     /// Append the other plan to ourselves
     pub fn append_other(mut self, other: Self) -> Self {
-        self.extra_plans.extend(other.extra_plans.into_iter());
-        self.known_values.extend(other.known_values.into_iter());
+        self.extra_plans.extend(other.extra_plans);
+        self.known_values.extend(other.known_values);
         self
     }
 

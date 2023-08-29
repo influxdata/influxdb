@@ -850,7 +850,7 @@ fn read_statistics_from_parquet_row_group(
 }
 
 fn combine_column_summaries(total: &mut Vec<ColumnSummary>, other: Vec<ColumnSummary>) {
-    for col in total.iter_mut() {
+    for col in &mut *total {
         if let Some(other_col) = other.iter().find(|c| c.name == col.name) {
             col.update_from(other_col);
         }

@@ -340,7 +340,7 @@ mod tests {
             r#""foo""#
         );
         assert_eq!(
-            format!("\"{}\"", escape(r#"foo \ bar"#, DOUBLE_QUOTE)),
+            format!("\"{}\"", escape(r"foo \ bar", DOUBLE_QUOTE)),
             r#""foo \\ bar""#
         );
         assert_eq!(
@@ -361,7 +361,7 @@ mod tests {
         const WITH_EQ: &str = "with=eq";
         const WITH_DOUBLE_QUOTE: &str = r#"with"doublequote"#;
         const WITH_SINGLE_QUOTE: &str = "with'singlequote";
-        const WITH_BACKSLASH: &str = r#"with\ backslash"#;
+        const WITH_BACKSLASH: &str = r"with\ backslash";
 
         let builder = LineProtocolBuilder::new()
             // line 0

@@ -354,7 +354,7 @@ impl Predicate {
 
     /// Adds all expressions to the list of general purpose predicates
     pub fn with_exprs(mut self, filters: impl IntoIterator<Item = Expr>) -> Self {
-        self.exprs.extend(filters.into_iter());
+        self.exprs.extend(filters);
         self
     }
 }

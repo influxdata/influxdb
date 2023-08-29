@@ -414,6 +414,7 @@ impl InListBuilder {
         }
         // lhs OR rhs
         else if Some(RPCValue::Logical(RPCLogical::Or as i32)) == node.value {
+            #[allow(clippy::manual_try_fold)]
             node.children
                 .iter()
                 .fold(Ok(self), |res, node| res.and_then(|this| this.append(node)))

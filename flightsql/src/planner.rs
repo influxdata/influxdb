@@ -350,7 +350,7 @@ async fn plan_get_db_schemas(
         // we just got the catalog name from the catalog_list, so it
         // should always be Some, but avoid unwrap to be safe
         let Some(catalog) = catalog_list.catalog(&catalog_name) else {
-            continue
+            continue;
         };
 
         builder.append(&catalog_name, "information_schema");
@@ -402,7 +402,7 @@ async fn plan_get_tables(ctx: &IOxSessionContext, cmd: CommandGetTables) -> Resu
         // we just got the catalog name from the catalog_list, so it
         // should always be Some, but avoid unwrap to be safe
         let Some(catalog) = catalog_list.catalog(&catalog_name) else {
-            continue
+            continue;
         };
 
         // special case the "public"."information_schema" as it is a
@@ -425,12 +425,12 @@ async fn plan_get_tables(ctx: &IOxSessionContext, cmd: CommandGetTables) -> Resu
 
         for schema_name in catalog.schema_names() {
             let Some(schema) = catalog.schema(&schema_name) else {
-                continue
+                continue;
             };
 
             for table_name in schema.table_names() {
                 let Some(table) = schema.table(&table_name).await else {
-                    continue
+                    continue;
                 };
 
                 let table_type = table_type_name(table.table_type());

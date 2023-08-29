@@ -797,8 +797,8 @@ fn field_string_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
     // quotes.
     let string_data = alt((
         map(tag(r#"\""#), |_| r#"""#), // escaped double quote -> double quote
-        map(tag(r#"\\"#), |_| r#"\"#), // escaped backslash --> single backslash
-        tag(r#"\"#),                   // unescaped single backslash
+        map(tag(r"\\"), |_| r"\"),     // escaped backslash --> single backslash
+        tag(r"\"),                     // unescaped single backslash
         take_while1(|c| c != '\\' && c != '"'), // anything else w/ no special handling
     ));
 
@@ -1317,11 +1317,11 @@ mod test {
     fn parse_measurement_with_eq() {
         let input = "tag1=1 field=1 1234";
         let vals = parse(input);
-        assert!(matches!(vals, Ok(_)));
+        assert!(vals.is_ok());
 
         let input = "tag1=1,tag2=2 value=1 123";
         let vals = parse(input);
-        assert!(matches!(vals, Ok(_)));
+        assert!(vals.is_ok());
     }
 
     #[test]
@@ -1447,11 +1447,11 @@ mod test {
             // Examples from
             // https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#special-characters
             (r#"foo asdf="too hot/cold""#, r#"too hot/cold"#),
-            (r#"foo asdf="too hot\cold""#, r#"too hot\cold"#),
-            (r#"foo asdf="too hot\\cold""#, r#"too hot\cold"#),
-            (r#"foo asdf="too hot\\\cold""#, r#"too hot\\cold"#),
-            (r#"foo asdf="too hot\\\\cold""#, r#"too hot\\cold"#),
-            (r#"foo asdf="too hot\\\\\cold""#, r#"too hot\\\cold"#),
+            (r#"foo asdf="too hot\cold""#, r"too hot\cold"),
+            (r#"foo asdf="too hot\\cold""#, r"too hot\cold"),
+            (r#"foo asdf="too hot\\\cold""#, r"too hot\\cold"),
+            (r#"foo asdf="too hot\\\\cold""#, r"too hot\\cold"),
+            (r#"foo asdf="too hot\\\\\cold""#, r"too hot\\\cold"),
         ];
 
         for (input, expected_parsed_string_value) in test_data {
@@ -1900,30 +1900,30 @@ bar value2=2i 123"#;
 
     #[test]
     fn measurement_allows_escaping_comma() {
-        assert_fully_parsed!(measurement(r#"wea\,ther"#), r#"wea,ther"#);
+        assert_fully_parsed!(measurement(r"wea\,ther"), r#"wea,ther"#);
     }
 
     #[test]
     fn measurement_allows_escaping_space() {
-        assert_fully_parsed!(measurement(r#"wea\ ther"#), r#"wea ther"#);
+        assert_fully_parsed!(measurement(r"wea\ ther"), r#"wea ther"#);
     }
 
     #[test]
     fn measurement_allows_escaping_backslash() {
-        assert_fully_parsed!(measurement(r#"\\wea\\ther"#), r#"\wea\ther"#);
+        assert_fully_parsed!(measurement(r"\\wea\\ther"), r"\wea\ther");
     }
 
     #[test]
     fn measurement_allows_backslash_with_unknown_escape() {
-        assert_fully_parsed!(measurement(r#"\wea\ther"#), r#"\wea\ther"#);
+        assert_fully_parsed!(measurement(r"\wea\ther"), r"\wea\ther");
     }
 
     #[test]
     fn measurement_allows_literal_newline_as_unknown_escape() {
         assert_fully_parsed!(
             measurement(
-                r#"weat\
-her"#
+                r"weat\
+her"
             ),
             "weat\\\nher",
         );
@@ -1942,7 +1942,7 @@ her"#,
 
     #[test]
     fn measurement_disallows_ending_in_backslash() {
-        let parsed = measurement(r#"weather\"#);
+        let parsed = measurement(r"weather\");
         assert!(matches!(
             parsed,
             Err(nom::Err::Failure(super::Error::EndsWithBackslash))
@@ -1951,35 +1951,35 @@ her"#,
 
     #[test]
     fn tag_key_allows_escaping_comma() {
-        assert_fully_parsed!(tag_key(r#"wea\,ther"#), r#"wea,ther"#);
+        assert_fully_parsed!(tag_key(r"wea\,ther"), r#"wea,ther"#);
     }
 
     #[test]
     fn tag_key_allows_escaping_equal() {
-        assert_fully_parsed!(tag_key(r#"wea\=ther"#), r#"wea=ther"#);
+        assert_fully_parsed!(tag_key(r"wea\=ther"), r#"wea=ther"#);
     }
 
     #[test]
     fn tag_key_allows_escaping_space() {
-        assert_fully_parsed!(tag_key(r#"wea\ ther"#), r#"wea ther"#);
+        assert_fully_parsed!(tag_key(r"wea\ ther"), r#"wea ther"#);
     }
 
     #[test]
     fn tag_key_allows_escaping_backslash() {
-        assert_fully_parsed!(tag_key(r#"\\wea\\ther"#), r#"\wea\ther"#);
+        assert_fully_parsed!(tag_key(r"\\wea\\ther"), r"\wea\ther");
     }
 
     #[test]
     fn tag_key_allows_backslash_with_unknown_escape() {
-        assert_fully_parsed!(tag_key(r#"\wea\ther"#), r#"\wea\ther"#);
+        assert_fully_parsed!(tag_key(r"\wea\ther"), r"\wea\ther");
     }
 
     #[test]
     fn tag_key_allows_literal_newline_as_unknown_escape() {
         assert_fully_parsed!(
             tag_key(
-                r#"weat\
-her"#
+                r"weat\
+her"
             ),
             "weat\\\nher",
         );
@@ -1998,7 +1998,7 @@ her"#,
 
     #[test]
     fn tag_key_disallows_ending_in_backslash() {
-        let parsed = tag_key(r#"weather\"#);
+        let parsed = tag_key(r"weather\");
         assert!(matches!(
             parsed,
             Err(nom::Err::Failure(super::Error::EndsWithBackslash))
@@ -2007,35 +2007,35 @@ her"#,
 
     #[test]
     fn tag_value_allows_escaping_comma() {
-        assert_fully_parsed!(tag_value(r#"wea\,ther"#), r#"wea,ther"#);
+        assert_fully_parsed!(tag_value(r"wea\,ther"), r#"wea,ther"#);
     }
 
     #[test]
     fn tag_value_allows_escaping_equal() {
-        assert_fully_parsed!(tag_value(r#"wea\=ther"#), r#"wea=ther"#);
+        assert_fully_parsed!(tag_value(r"wea\=ther"), r#"wea=ther"#);
     }
 
     #[test]
     fn tag_value_allows_escaping_space() {
-        assert_fully_parsed!(tag_value(r#"wea\ ther"#), r#"wea ther"#);
+        assert_fully_parsed!(tag_value(r"wea\ ther"), r#"wea ther"#);
     }
 
     #[test]
     fn tag_value_allows_escaping_backslash() {
-        assert_fully_parsed!(tag_value(r#"\\wea\\ther"#), r#"\wea\ther"#);
+        assert_fully_parsed!(tag_value(r"\\wea\\ther"), r"\wea\ther");
     }
 
     #[test]
     fn tag_value_allows_backslash_with_unknown_escape() {
-        assert_fully_parsed!(tag_value(r#"\wea\ther"#), r#"\wea\ther"#);
+        assert_fully_parsed!(tag_value(r"\wea\ther"), r"\wea\ther");
     }
 
     #[test]
     fn tag_value_allows_literal_newline_as_unknown_escape() {
         assert_fully_parsed!(
             tag_value(
-                r#"weat\
-her"#
+                r"weat\
+her"
             ),
             "weat\\\nher",
         );
@@ -2054,7 +2054,7 @@ her"#,
 
     #[test]
     fn tag_value_disallows_ending_in_backslash() {
-        let parsed = tag_value(r#"weather\"#);
+        let parsed = tag_value(r"weather\");
         assert!(matches!(
             parsed,
             Err(nom::Err::Failure(super::Error::EndsWithBackslash))
@@ -2063,35 +2063,35 @@ her"#,
 
     #[test]
     fn field_key_allows_escaping_comma() {
-        assert_fully_parsed!(field_key(r#"wea\,ther"#), r#"wea,ther"#);
+        assert_fully_parsed!(field_key(r"wea\,ther"), r#"wea,ther"#);
     }
 
     #[test]
     fn field_key_allows_escaping_equal() {
-        assert_fully_parsed!(field_key(r#"wea\=ther"#), r#"wea=ther"#);
+        assert_fully_parsed!(field_key(r"wea\=ther"), r#"wea=ther"#);
     }
 
     #[test]
     fn field_key_allows_escaping_space() {
-        assert_fully_parsed!(field_key(r#"wea\ ther"#), r#"wea ther"#);
+        assert_fully_parsed!(field_key(r"wea\ ther"), r#"wea ther"#);
     }
 
     #[test]
     fn field_key_allows_escaping_backslash() {
-        assert_fully_parsed!(field_key(r#"\\wea\\ther"#), r#"\wea\ther"#);
+        assert_fully_parsed!(field_key(r"\\wea\\ther"), r"\wea\ther");
     }
 
     #[test]
     fn field_key_allows_backslash_with_unknown_escape() {
-        assert_fully_parsed!(field_key(r#"\wea\ther"#), r#"\wea\ther"#);
+        assert_fully_parsed!(field_key(r"\wea\ther"), r"\wea\ther");
     }
 
     #[test]
     fn field_key_allows_literal_newline_as_unknown_escape() {
         assert_fully_parsed!(
             field_key(
-                r#"weat\
-her"#
+                r"weat\
+her"
             ),
             "weat\\\nher",
         );
@@ -2110,7 +2110,7 @@ her"#,
 
     #[test]
     fn field_key_disallows_ending_in_backslash() {
-        let parsed = field_key(r#"weather\"#);
+        let parsed = field_key(r"weather\");
         assert!(matches!(
             parsed,
             Err(nom::Err::Failure(super::Error::EndsWithBackslash))

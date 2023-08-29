@@ -87,6 +87,7 @@ pub static COALESCE_STRUCT_UDF: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
     });
 
     let fun: ScalarFunctionImplementation = Arc::new(move |args: &[ColumnarValue]| {
+        #[allow(clippy::manual_try_fold)]
         args.iter().enumerate().fold(Ok(None), |accu, (pos, arg)| {
             let Some(accu) = accu? else {return Ok(Some(arg.clone()))};
 

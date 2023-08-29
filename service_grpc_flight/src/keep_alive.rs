@@ -248,9 +248,7 @@ fn check_schema(schema: &Schema) -> bool {
 /// This must only be sent AFTER a [`Schema`] was transmitted.
 fn build_empty_batch_msg(schema: Option<&SchemaRef>) -> Option<FlightData> {
     let Some(schema) = schema else {
-        warn!(
-            "cannot send keep-alive because no schema was transmitted yet",
-        );
+        warn!("cannot send keep-alive because no schema was transmitted yet",);
         return None;
     };
 
@@ -324,7 +322,7 @@ mod tests {
         let s = FlightRecordBatchStream::new_from_flight_data(s);
         let batches: Vec<_> = s.try_collect().await.unwrap();
         assert_batches_eq!(
-            vec!["+---+", "| f |", "+---+", "| 1 |", "| 2 |", "| 3 |", "| 4 |", "| 5 |", "+---+",],
+            ["+---+", "| f |", "+---+", "| 1 |", "| 2 |", "| 3 |", "| 4 |", "| 5 |", "+---+"],
             &batches
         );
     }

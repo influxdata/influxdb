@@ -251,7 +251,7 @@ impl MeasurementTable {
                 .entry(other_tagset.clone())
                 .or_default();
 
-            for (other_field_key, other_blocks) in other_field_key_blocks.iter_mut() {
+            for (other_field_key, other_blocks) in &mut *other_field_key_blocks {
                 match field_key_blocks.get_mut(other_field_key) {
                     Some(blocks) => {
                         assert!(
@@ -583,7 +583,7 @@ fn refill_block_buffer(
 ) -> Result<(), TsmError> {
     // Determine for each input block if the destination container needs
     // refilling.
-    for (field, blocks) in field_blocks.iter_mut() {
+    for (field, blocks) in &mut *field_blocks {
         if blocks.is_empty() {
             continue; // drained all blocks for this field
         }

@@ -268,7 +268,7 @@ impl SimulatedRun {
         // hook up inputs and outputs
         format_files(input_title, &input_parquet_files)
             .into_iter()
-            .chain(format_files(output_title, &output_params).into_iter())
+            .chain(format_files(output_title, &output_params))
     }
 }
 

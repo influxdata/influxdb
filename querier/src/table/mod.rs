@@ -251,9 +251,10 @@ impl QuerierTable {
             .await;
         let Some(cached_table) = cached_namespace
             .as_ref()
-            .and_then(|ns| ns.tables.get(self.table_name.as_ref())) else {
-                return Ok(vec![]);
-            };
+            .and_then(|ns| ns.tables.get(self.table_name.as_ref()))
+        else {
+            return Ok(vec![]);
+        };
         let cached_partitions = self
             .fetch_cached_partitions(
                 cached_table,
@@ -432,18 +433,19 @@ impl QuerierTable {
         let columns = self.schema.select_given_and_pk_columns(projection);
 
         // get cached table w/o any must-coverage information
-        let Some(cached_table) = self.chunk_adapter
+        let Some(cached_table) = self
+            .chunk_adapter
             .catalog_cache()
             .namespace()
             .get(
                 Arc::clone(&self.namespace_name),
                 &[],
-                span_recorder.child_span("get namespace")
+                span_recorder.child_span("get namespace"),
             )
             .await
             .and_then(|ns| ns.tables.get(&self.table_name).cloned())
         else {
-            return Ok(vec![])
+            return Ok(vec![]);
         };
 
         // get any chunks from the ingester(s)

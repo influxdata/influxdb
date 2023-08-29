@@ -103,7 +103,7 @@ impl<'a> ScanPlanBuilder<'a> {
 
     /// Adds `chunks` to the list of Chunks to scan
     pub fn with_chunks(mut self, chunks: impl IntoIterator<Item = Arc<dyn QueryChunk>>) -> Self {
-        self.chunks.extend(chunks.into_iter());
+        self.chunks.extend(chunks);
         self
     }
 

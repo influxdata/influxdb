@@ -627,6 +627,16 @@ impl ParquetFile {
         }
         false
     }
+
+    /// Return true if the time range of this file overlaps with any of the given file ranges
+    pub fn overlaps_ranges(&self, ranges: &Vec<FileRange>) -> bool {
+        for range in ranges {
+            if self.min_time.get() <= range.max && self.max_time.get() >= range.min {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 /// Data for a parquet file to be inserted into the catalog.
@@ -860,7 +870,7 @@ impl std::fmt::Display for DeleteExpr {
         write!(
             f,
             r#""{}"{}{}"#,
-            self.column().replace('\\', r#"\\"#).replace('"', r#"\""#),
+            self.column().replace('\\', r"\\").replace('"', r#"\""#),
             self.op(),
             self.scalar(),
         )
@@ -921,11 +931,7 @@ impl std::fmt::Display for Scalar {
                 _ => write!(f, "{:?}", value.as_ref()),
             },
             Scalar::String(value) => {
-                write!(
-                    f,
-                    "'{}'",
-                    value.replace('\\', r#"\\"#).replace('\'', r#"\'"#),
-                )
+                write!(f, "'{}'", value.replace('\\', r"\\").replace('\'', r"\'"))
             }
         }
     }
@@ -1606,7 +1612,7 @@ impl TimestampMinMax {
 }
 
 /// FileRange describes a range of files by the min/max time and the sum of their capacities.
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub struct FileRange {
     /// The minimum time of any file in the range
     pub min: i64,
@@ -1690,7 +1696,7 @@ mod tests {
                     scalar: Scalar::I64(1),
                 },
                 DeleteExpr {
-                    column: String::from(r#"col\2"#),
+                    column: String::from(r"col\2"),
                     op: Op::Eq,
                     scalar: Scalar::I64(2),
                 },
@@ -1826,7 +1832,7 @@ mod tests {
                 DeleteExpr {
                     column: String::from("col3"),
                     op: Op::Eq,
-                    scalar: Scalar::String(String::from(r#"fo\o"#)),
+                    scalar: Scalar::String(String::from(r"fo\o")),
                 },
                 DeleteExpr {
                     column: String::from("col4"),
@@ -2561,15 +2567,12 @@ mod tests {
         let schema2 = TableSchema {
             id: TableId::new(2),
             partition_template: Default::default(),
-            columns: ColumnsByName::new(
-                [Column {
-                    id: ColumnId::new(1),
-                    table_id: TableId::new(2),
-                    name: String::from("foo"),
-                    column_type: ColumnType::Bool,
-                }]
-                .into_iter(),
-            ),
+            columns: ColumnsByName::new([Column {
+                id: ColumnId::new(1),
+                table_id: TableId::new(2),
+                name: String::from("foo"),
+                column_type: ColumnType::Bool,
+            }]),
         };
         assert!(schema1.size() < schema2.size());
     }

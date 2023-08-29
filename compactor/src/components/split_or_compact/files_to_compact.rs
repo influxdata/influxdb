@@ -264,7 +264,7 @@ pub fn limit_files_to_compact(
     // All files in start_level_files_to_compact and target_level_files_to_compact will be compacted
     let files_to_compact = start_level_files_to_compact
         .into_iter()
-        .chain(target_level_files_to_compact.into_iter())
+        .chain(target_level_files_to_compact)
         .collect::<Vec<_>>();
 
     // Sanity check

@@ -661,7 +661,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let ctx = ctx.subquery(select);
 
         let Some(plan) = self.union_from(&ctx, select)? else {
-            return Ok(None)
+            return Ok(None);
         };
 
         let group_by_tags = ctx.group_by_tags();
@@ -823,14 +823,16 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         // In addition, the time column is projected as the Unix epoch.
 
         let Some(time_column_index) = find_time_column_index(fields) else {
-                return error::internal("unable to find time column")
-            };
+            return error::internal("unable to find time column");
+        };
 
         // Take ownership of the alias, so we don't reallocate, and temporarily place a literal
         // `NULL` in its place.
-        let Expr::Alias(Alias{name: alias, ..}) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
-                return error::internal("time column is not an alias")
-            };
+        let Expr::Alias(Alias { name: alias, .. }) =
+            std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null))
+        else {
+            return error::internal("time column is not an alias");
+        };
 
         select_exprs[time_column_index] = lit_timestamp_nano(0).alias(alias);
 
@@ -1138,7 +1140,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         // gather some time-related metadata
         let Some(time_column_index) = find_time_column_index(fields) else {
-            return error::internal("unable to find time column")
+            return error::internal("unable to find time column");
         };
 
         // if there's only a single selector, wrap non-aggregated fields into that selector
@@ -1211,8 +1213,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let time_column = {
             // Take ownership of the alias, so we don't reallocate, and temporarily place a literal
             // `NULL` in its place.
-            let Expr::Alias(Alias{name: alias, ..}) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
-                return error::internal("time column is not an alias")
+            let Expr::Alias(Alias { name: alias, .. }) =
+                std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null))
+            else {
+                return error::internal("time column is not an alias");
             };
 
             // Rewrite the `time` column projection based on a series of rules in the following
@@ -1448,7 +1452,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             .map_err(|err| error::map::internal(format!("display_name: {err}")))?;
 
         let Expr::ScalarUDF(expr::ScalarUDF { fun, args }) = e else {
-            return error::internal(format!("udf_to_expr: unexpected expression: {e}"))
+            return error::internal(format!("udf_to_expr: unexpected expression: {e}"));
         };
 
         fn derivative_unit(ctx: &Context<'_>, args: &Vec<Expr>) -> Result<ScalarValue> {
@@ -2272,7 +2276,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             Some(from) => {
                 let all_tables = self.s.table_names().into_iter().collect::<HashSet<_>>();
                 let mut out = HashSet::new();
-                for qualified_name in from.iter() {
+                for qualified_name in &*from {
                     if qualified_name.database.is_some() {
                         return error::not_implemented("database name in from clause");
                     }
@@ -2388,8 +2392,12 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
                 let mut union_plan = None;
                 for table in tables {
-                    let Some(table_schema) = self.s.table_schema(&table) else {continue};
-                    let Some((plan, measurement_expr)) = self.create_table_ref(&table)? else {continue;};
+                    let Some(table_schema) = self.s.table_schema(&table) else {
+                        continue;
+                    };
+                    let Some((plan, measurement_expr)) = self.create_table_ref(&table)? else {
+                        continue;
+                    };
 
                     let ds = DataSource::Table(table.clone());
                     let schema = IQLSchema::new_from_ds_schema(plan.schema(), ds.schema(self.s)?)?;
@@ -2474,7 +2482,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 let mut measurement_names_builder = StringDictionaryBuilder::<Int32Type>::new();
                 let mut tag_key_builder = StringDictionaryBuilder::<Int32Type>::new();
                 for table in tables {
-                    let Some(table_schema) = self.s.table_schema(&table) else {continue};
+                    let Some(table_schema) = self.s.table_schema(&table) else {
+                        continue;
+                    };
                     for (t, f) in table_schema.iter() {
                         match t {
                             InfluxColumnType::Tag => {}
@@ -2547,7 +2557,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let mut field_key_builder = StringBuilder::new();
         let mut field_type_builder = StringBuilder::new();
         for table in tables {
-            let Some(table_schema) = self.s.table_schema(&table) else {continue};
+            let Some(table_schema) = self.s.table_schema(&table) else {
+                continue;
+            };
             for (t, f) in table_schema.iter() {
                 let t = match t {
                     InfluxColumnType::Field(t) => t,
@@ -2625,7 +2637,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         let mut union_plan = None;
         for table in tables {
-            let Some(schema) = self.s.table_schema(&table) else {continue;};
+            let Some(schema) = self.s.table_schema(&table) else {
+                continue;
+            };
 
             let keys = eval_with_key_clause(
                 schema.tags_iter().map(|field| field.name().as_str()),
@@ -2636,7 +2650,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 continue;
             }
 
-            let Some((plan, measurement_expr)) = self.create_table_ref(&table)? else {continue;};
+            let Some((plan, measurement_expr)) = self.create_table_ref(&table)? else {
+                continue;
+            };
 
             let ds = DataSource::Table(table.clone());
             let schema = IQLSchema::new_from_ds_schema(plan.schema(), ds.schema(self.s)?)?;
@@ -2736,7 +2752,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
                 let mut union_plan = None;
                 for table in tables {
-                    let Some((plan, _measurement_expr)) = self.create_table_ref(&table)? else {continue;};
+                    let Some((plan, _measurement_expr)) = self.create_table_ref(&table)? else {
+                        continue;
+                    };
 
                     let ds = DataSource::Table(table.clone());
                     let schema = IQLSchema::new_from_ds_schema(plan.schema(), ds.schema(self.s)?)?;
@@ -2989,7 +3007,10 @@ fn build_gap_fill_node(
     };
 
     let LogicalPlan::Aggregate(aggr) = &input else {
-        return Err(DataFusionError::Internal(format!("Expected Aggregate plan, got {}", input.display())));
+        return Err(DataFusionError::Internal(format!(
+            "Expected Aggregate plan, got {}",
+            input.display()
+        )));
     };
     let mut new_group_expr: Vec<_> = aggr
         .schema

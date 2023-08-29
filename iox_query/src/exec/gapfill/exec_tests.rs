@@ -1210,7 +1210,7 @@ fn phys_fill_strategies(
     let start = records.group_cols.len() + 1; // 1 is for time col
     let end = start + records.agg_cols.len();
     let mut v = Vec::with_capacity(records.agg_cols.len());
-    for f in records.schema().fields()[start..end].iter() {
+    for f in &records.schema().fields()[start..end] {
         v.push((
             phys_col(f.name(), &records.schema())?,
             fill_strategy.clone(),

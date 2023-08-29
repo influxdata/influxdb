@@ -253,7 +253,9 @@ impl TableProvider for ChunkTableProvider {
                     split_conjunction(&expr)
                         .into_iter()
                         .filter(|expr| {
-                            let Ok(expr_cols) = expr.to_columns() else {return false};
+                            let Ok(expr_cols) = expr.to_columns() else {
+                                return false;
+                            };
                             expr_cols
                                 .into_iter()
                                 .all(|c| dedup_cols.contains(c.name.as_str()))
