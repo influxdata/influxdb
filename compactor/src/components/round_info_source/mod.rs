@@ -465,7 +465,10 @@ impl RoundInfoSource for LevelBasedRoundInfo {
             }
         };
 
-        let (files_now, mut files_later) = components.round_split.split(files, round_info.clone());
+        let (files_now, mut files_later) =
+            components
+                .round_split
+                .split(files, round_info.clone(), partition_info.partition_id());
 
         let (branches, more_for_later) = components.divide_initial.divide(
             files_now,

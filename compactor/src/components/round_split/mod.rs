@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 
-use data_types::ParquetFile;
+use data_types::{ParquetFile, TransitionPartitionId};
 
 use crate::RoundInfo;
 
@@ -17,5 +17,6 @@ pub trait RoundSplit: Debug + Display + Send + Sync {
         &self,
         files: Vec<ParquetFile>,
         round_info: RoundInfo,
+        partition: TransitionPartitionId,
     ) -> (Vec<ParquetFile>, Vec<ParquetFile>);
 }
