@@ -3,6 +3,7 @@ use std::{fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use data_types::ParquetFile;
 use gossip_parquet_file::tx::ParquetFileTx;
+use observability_deps::tracing::info;
 
 use crate::persist::completion_observer::{CompletedPersist, PersistCompletionObserver};
 
@@ -38,6 +39,8 @@ pub struct ParquetFileNotification<T, H = ParquetFileTx<ParquetFile>> {
 
 impl<T, H> ParquetFileNotification<T, H> {
     pub fn new(inner: T, gossip: H) -> Self {
+        info!("gossiping persisted parquet file notifications");
+
         Self { inner, tx: gossip }
     }
 }

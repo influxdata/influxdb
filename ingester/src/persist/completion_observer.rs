@@ -132,6 +132,29 @@ where
     }
 }
 
+/// An optional [`PersistCompletionObserver`] decorator layer.
+#[derive(Debug)]
+pub enum MaybeLayer<T, U> {
+    /// With the optional layer.
+    With(T),
+    /// Without the operational layer.
+    Without(U),
+}
+
+#[async_trait]
+impl<T, U> PersistCompletionObserver for MaybeLayer<T, U>
+where
+    T: PersistCompletionObserver,
+    U: PersistCompletionObserver,
+{
+    async fn persist_complete(&self, note: Arc<CompletedPersist>) {
+        match self {
+            Self::With(v) => T::persist_complete(v, note).await,
+            Self::Without(v) => U::persist_complete(v, note).await,
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod mock {
     use std::sync::Arc;
