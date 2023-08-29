@@ -3461,6 +3461,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "merkle-search-tree"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6f5f8e25bd481489f8e0389fd4ced21ec6cbaf1a30e3204102df45dc6b04ce5"
+dependencies = [
+ "base64 0.21.3",
+ "siphasher 0.3.11",
+ "tracing",
+]
+
+[[package]]
 name = "metric"
 version = "0.1.0"
 dependencies = [
@@ -4787,6 +4798,7 @@ dependencies = [
  "iox_catalog",
  "iox_tests",
  "iox_time",
+ "merkle-search-tree",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",

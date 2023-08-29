@@ -26,7 +26,7 @@ impl ColumnId {
 }
 
 /// Column definitions for a table indexed by their name
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct ColumnsByName(BTreeMap<String, ColumnSchema>);
 
 impl From<BTreeMap<String, ColumnSchema>> for ColumnsByName {
@@ -178,7 +178,7 @@ impl Column {
 }
 
 /// The column id and its type for a column
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct ColumnSchema {
     /// the column id
     pub id: ColumnId,

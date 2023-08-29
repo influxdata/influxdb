@@ -265,7 +265,7 @@ pub static PARTITION_BY_DAY_PROTO: Lazy<Arc<proto::PartitionTemplate>> = Lazy::n
 ///
 /// Internally this type is [`None`] when no namespace-level override is
 /// specified, resulting in the default being used.
-#[derive(Debug, PartialEq, Clone, Default, sqlx::Type)]
+#[derive(Debug, PartialEq, Clone, Default, sqlx::Type, Hash)]
 #[sqlx(transparent, no_pg_array)]
 pub struct NamespacePartitionTemplateOverride(Option<serialization::Wrapper>);
 
@@ -292,7 +292,7 @@ impl TryFrom<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
 }
 
 /// A partition template specified by a table record.
-#[derive(Debug, PartialEq, Eq, Clone, Default, sqlx::Type)]
+#[derive(Debug, PartialEq, Eq, Clone, Default, sqlx::Type, Hash)]
 #[sqlx(transparent, no_pg_array)]
 pub struct TablePartitionTemplateOverride(Option<serialization::Wrapper>);
 
@@ -389,7 +389,7 @@ mod serialization {
     use generated_types::influxdata::iox::partition_template::v1 as proto;
     use std::{fmt::Write, sync::Arc};
 
-    #[derive(Debug, Clone, PartialEq)]
+    #[derive(Debug, Clone, PartialEq, Hash)]
     pub struct Wrapper(Arc<proto::PartitionTemplate>);
 
     impl Wrapper {
