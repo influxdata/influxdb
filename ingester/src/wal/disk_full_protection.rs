@@ -165,7 +165,7 @@ pub(crate) async fn guard_disk_capacity<P>(
                 panic!("disk protection persisting cleaner actor not running")
             }
             Err(TrySendError::Full(_)) => {
-                warn!("persist and clean notification queue is full")
+                debug!("existing ongoing persist and clean job queued")
             }
         }
     }
