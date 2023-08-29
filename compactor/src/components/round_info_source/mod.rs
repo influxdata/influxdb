@@ -11,9 +11,9 @@ use crate::components::{
     Components,
 };
 use async_trait::async_trait;
-use data_types::{CompactionLevel, FileRange, ParquetFile, Timestamp};
+use data_types::{CompactionLevel, FileRange, ParquetFile, Timestamp, TransitionPartitionId};
 use itertools::Itertools;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, info};
 
 use crate::{error::DynError, PartitionInfo, RoundInfo};
 
@@ -218,6 +218,7 @@ impl LevelBasedRoundInfo {
     /// If neither is returned, the caller will identify another type of RoundInfo for this round of compaction.
     pub fn vertical_split_handling(
         &self,
+        partition_id: TransitionPartitionId,
         files: Vec<ParquetFile>,
         max_compact_size: usize,
     ) -> (Vec<i64>, Vec<FileRange>) {
@@ -238,6 +239,12 @@ impl LevelBasedRoundInfo {
 
         for chain in &chains {
             let chain_cap: usize = chain.iter().map(|f| f.file_size_bytes as usize).sum();
+
+            if chain.len() > 300 && chain_cap / chain.len() < max_compact_size / 10 {
+                info!("skipping vertical splitting on partition_id {} for now, due to excessive file count.  chain length: {}, cap: {} MB",
+                    partition_id, chain.len(), chain_cap/1024/1024);
+                continue;
+            }
 
             // A single file over max size can just get upgraded to L1, then L2, unless it overlaps other L0s.
             // So multi file chains over the max compact size may need split
@@ -424,8 +431,11 @@ impl RoundInfoSource for LevelBasedRoundInfo {
                 max_total_file_size_to_group: self.max_total_file_size_per_plan,
             }
         } else if start_level == CompactionLevel::Initial {
-            let (split_times, ranges) = self
-                .vertical_split_handling(files.clone().to_vec(), self.max_total_file_size_per_plan);
+            let (split_times, ranges) = self.vertical_split_handling(
+                partition_info.partition_id(),
+                files.clone().to_vec(),
+                self.max_total_file_size_per_plan,
+            );
 
             if !split_times.is_empty() {
                 RoundInfo::VerticalSplit { split_times }

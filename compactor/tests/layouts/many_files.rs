@@ -5725,21 +5725,21 @@ async fn l0s_needing_vertical_split() {
     - "L0.998[24,100] 1.02us    |-----------------------------------------L0.998-----------------------------------------|"
     - "L0.999[24,100] 1.02us    |-----------------------------------------L0.999-----------------------------------------|"
     - "L0.1000[24,100] 1.02us   |----------------------------------------L0.1000-----------------------------------------|"
-    - "**** Final Output Files (2.63gb written)"
+    - "**** Final Output Files (2.62gb written)"
     - "L2                                                                                                                 "
-    - "L2.6026[24,34] 1.02us 107mb|-L2.6026-|                                                                               "
-    - "L2.6034[81,91] 1.02us 107mb                                                                   |-L2.6034-|            "
-    - "L2.6035[92,100] 1.02us 88mb                                                                                |L2.6035| "
-    - "L2.6036[35,45] 1.02us 107mb             |-L2.6036-|                                                                  "
-    - "L2.6037[46,55] 1.02us 97mb                          |L2.6037-|                                                      "
-    - "L2.6038[56,63] 1.02us 78mb                                     |L2.6038|                                            "
-    - "L2.6039[64,74] 1.02us 107mb                                               |-L2.6039-|                                "
-    - "L2.6040[75,80] 1.02us 58mb                                                            |L2.6040|                     "
+    - "L2.1018[24,34] 1.02us 107mb|-L2.1018-|                                                                               "
+    - "L2.1019[35,44] 1.02us 97mb             |L2.1019-|                                                                   "
+    - "L2.1020[45,50] 1.02us 58mb                        |L2.1020|                                                         "
+    - "L2.1021[51,61] 1.02us 107mb                               |-L2.1021-|                                                "
+    - "L2.1022[62,71] 1.02us 97mb                                             |L2.1022-|                                   "
+    - "L2.1027[72,82] 1.02us 107mb                                                        |-L2.1027-|                       "
+    - "L2.1028[83,92] 1.02us 97mb                                                                     |L2.1028-|           "
+    - "L2.1029[93,100] 1.02us 78mb                                                                                 |L2.1029|"
     - "**** Breakdown of where bytes were written"
-    - 282mb written by split(CompactAndSplitOutput(FoundSubsetLessThanMaxCompactSize))
-    - 750mb written by compact(ManySmallFiles)
-    - 750mb written by split(VerticalSplit)
-    - 916mb written by split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))
+    - 1.01gb written by split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))
+    - 300mb written by split(CompactAndSplitOutput(FoundSubsetLessThanMaxCompactSize))
+    - 450mb written by split(VerticalSplit)
+    - 899mb written by compact(ManySmallFiles)
     "###
     );
 }
