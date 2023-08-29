@@ -120,7 +120,10 @@ mod tests {
 
     use super::super::tests::arbitrary_namespace_schema;
 
-    use data_types::NamespaceId;
+    use data_types::{
+        partition_template::test_table_partition_override, ColumnId, ColumnsByName, NamespaceId,
+        TableId, TableSchema,
+    };
     use proptest::prelude::*;
 
     proptest! {
@@ -157,6 +160,45 @@ mod tests {
             let hash_old_a = hash(&a);
             a.id = new_id;
             assert_ne!(hash_old_a, hash(a));
+        }
+
+        /// A fixture test that asserts the content hash of a given
+        /// [`NamespaceSchema`] does not change.
+        ///
+        /// This uses randomised inputs for fields that do not form part of the
+        /// content hash, proving they're not used, and fixes fields that do
+        /// form the hash to assert a static value given static content hash
+        /// inputs.
+        #[test]
+        fn prop_content_hash_fixture(
+            mut ns in arbitrary_namespace_schema(Just(42))
+        ) {
+            ns.tables = [(
+                "bananas".to_string(),
+                TableSchema {
+                    id: TableId::new(24),
+                    columns: ColumnsByName::new([data_types::Column {
+                        name: "platanos".to_string(),
+                        column_type: data_types::ColumnType::String,
+                        id: ColumnId::new(2442),
+                        table_id: TableId::new(24),
+                    }]),
+                    partition_template: test_table_partition_override(vec![
+                        data_types::partition_template::TemplatePart::TagValue("bananatastic"),
+                    ]),
+                },
+            )]
+            .into_iter()
+            .collect();
+
+            let wrap_ns = NamespaceContentHash(&ns);
+
+            // If this assert fails, the content hash for a given representation
+            // has changed, and this will cause peers to consider each other
+            // completely inconsistent regardless of actual content.
+            //
+            // You need to be careful about doing this!
+            assert_eq!(hash(wrap_ns), 13889074233458619864);
         }
     }
 
