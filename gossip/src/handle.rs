@@ -63,7 +63,7 @@ where
 
     /// Return the randomly generated identity of this gossip instance.
     pub fn identity(&self) -> Uuid {
-        *self.identity
+        self.identity.as_uuid()
     }
 
     /// Broadcast `payload` to all known peers.
