@@ -639,3 +639,75 @@ async fn test_unknown_topic() {
     // There should be no other messages enqueued for A to process.
     assert_eq!(a_rx.try_recv(), Err(TryRecvError::Empty));
 }
+
+/// Assert that subset broadcasts are sent to a portion of the peers.
+#[tokio::test]
+async fn test_broadcast_subset() {
+    maybe_start_logging();
+
+    let metrics = Arc::new(metric::Registry::default());
+
+    let (a_socket, a_addr) = random_udp().await;
+    let (b_socket, b_addr) = random_udp().await;
+    let (c_socket, c_addr) = random_udp().await;
+
+    // Initialise the dispatchers for the reactors
+    let (a_tx, _a_rx) = mpsc::channel(5);
+    let (b_tx, mut b_rx) = mpsc::channel(5);
+    let (c_tx, mut c_rx) = mpsc::channel(5);
+
+    // Initialise all reactors
+    let addrs = vec![a_addr.to_string(), b_addr.to_string(), c_addr.to_string()];
+    let a = Builder::<_, Topic>::new(addrs.clone(), a_tx, Arc::clone(&metrics)).build(a_socket);
+    // B and C are only interested in the "bananas" topic.
+    let b = Builder::<_, Topic>::new(addrs.clone(), b_tx, Arc::clone(&metrics))
+        .with_topic_filter(TopicInterests::default().with_topic(Topic::Bananas))
+        .build(b_socket);
+    let c = Builder::<_, Topic>::new(addrs, c_tx, Arc::clone(&metrics))
+        .with_topic_filter(TopicInterests::default().with_topic(Topic::Bananas))
+        .build(c_socket);
+
+    // Wait for peer discovery to occur
+    async {
+        loop {
+            if a.get_peers().await.len() == 2
+                && b.get_peers().await.len() == 2
+                && c.get_peers().await.len() == 2
+            {
+                break;
+            }
+        }
+    }
+    .with_timeout_panic(TIMEOUT)
+    .await;
+
+    // Send the payload through peer A to a subset of peers.
+    let a_payload = Bytes::from_static(b"bananas");
+    a.broadcast_subset(a_payload.clone(), Topic::Bananas)
+        .await
+        .unwrap();
+
+    // Assert it was received by either peer B OR C.
+    let (other, (topic, payload)) = tokio::select! {
+        Some(got) = b_rx .recv().with_timeout_panic(TIMEOUT) => (&mut c_rx, got),
+        Some(got) = c_rx.recv().with_timeout_panic(TIMEOUT) => (&mut b_rx, got),
+        else => panic!("no channel is alive"),
+    };
+    assert_eq!(payload, a_payload);
+    assert_eq!(topic, Topic::Bananas);
+
+    // The other peer should not receive the message.
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert_eq!(other.try_recv(), Err(TryRecvError::Empty));
+
+    // Now dispatch a message for a topic with no interested peers, ensuring it
+    // doesn't cause a crash/div 0 error/etc.
+    a.broadcast_subset(a_payload.clone(), Topic::Goose)
+        .await
+        .unwrap();
+
+    // Neither peer should receive anything.
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert_eq!(b_rx.try_recv(), Err(TryRecvError::Empty));
+    assert_eq!(c_rx.try_recv(), Err(TryRecvError::Empty));
+}

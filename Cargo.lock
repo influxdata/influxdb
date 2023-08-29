@@ -2052,6 +2052,7 @@ dependencies = [
  "metric",
  "prost",
  "prost-build",
+ "rand",
  "test_helpers",
  "thiserror",
  "tokio",
