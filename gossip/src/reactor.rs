@@ -360,7 +360,7 @@ where
                     if self.interests.is_interested(topic) {
                         match S::try_from(topic.as_id()) {
                             Ok(v) => {
-                                self.dispatch.dispatch(v, data).await;
+                                self.dispatch.dispatch(v, data, identity.clone()).await;
                             }
                             Err(e) => {
                                 error!(error=?e, "dropping message for invalid topic");

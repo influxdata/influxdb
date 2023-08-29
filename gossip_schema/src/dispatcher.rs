@@ -10,6 +10,7 @@ use generated_types::influxdata::iox::gossip::{
     Topic,
 };
 use generated_types::prost::Message;
+use gossip::Identity;
 use observability_deps::tracing::{info, warn};
 use tokio::{sync::mpsc, task::JoinHandle};
 
@@ -71,7 +72,7 @@ impl SchemaRx {
 
 #[async_trait]
 impl gossip::Dispatcher<Topic> for SchemaRx {
-    async fn dispatch(&self, topic: Topic, payload: Bytes) {
+    async fn dispatch(&self, topic: Topic, payload: Bytes, _sender: Identity) {
         if topic != Topic::SchemaChanges {
             return;
         }
