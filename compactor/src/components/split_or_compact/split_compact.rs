@@ -62,7 +62,7 @@ impl SplitOrCompact for SplitCompact {
     ///    files that will lead to more splits in next round, it won't be efficient
     fn apply(
         &self,
-        _partition_info: &PartitionInfo,
+        partition_info: &PartitionInfo,
         files: Vec<ParquetFile>,
         target_level: CompactionLevel,
     ) -> (FilesToSplitOrCompact, Vec<ParquetFile>) {
@@ -95,7 +95,7 @@ impl SplitOrCompact for SplitCompact {
 
         // (1) This function identifies all start-level files that overlap with more than one target-level files
         let (files_to_split, files_not_to_split) =
-            identify_start_level_files_to_split(files, target_level);
+            identify_start_level_files_to_split(files, target_level, partition_info.partition_id());
 
         if !files_to_split.is_empty() {
             // These files must be split before further compaction
@@ -112,6 +112,7 @@ impl SplitOrCompact for SplitCompact {
             self.max_compact_size,
             files_not_to_split,
             target_level,
+            partition_info.partition_id(),
         );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
@@ -146,6 +147,7 @@ impl SplitOrCompact for SplitCompact {
             files_to_further_split,
             self.max_desired_file_size,
             self.max_compact_size,
+            partition_info.partition_id(),
         );
 
         files_to_keep.extend(files_not_to_split);

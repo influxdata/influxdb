@@ -1,4 +1,4 @@
-use data_types::{CompactionLevel, FileRange, ParquetFile, Timestamp};
+use data_types::{CompactionLevel, FileRange, ParquetFile, Timestamp, TransitionPartitionId};
 use itertools::Itertools;
 use observability_deps::tracing::debug;
 
@@ -96,6 +96,7 @@ pub fn linear_dist_ranges(
     chain: &Vec<ParquetFile>, // not just any vec of files, these are overlapping L0 files.
     cap: usize,
     max_compact_size: usize,
+    partition: TransitionPartitionId,
 ) -> Vec<FileRange> {
     let min_time = chain.iter().map(|f| f.min_time.get()).min().unwrap();
     let max_time = chain.iter().map(|f| f.max_time.get()).max().unwrap();
@@ -131,9 +132,6 @@ pub fn linear_dist_ranges(
             let f_max = f.max_time.get();
             let f_cap = f.file_size_bytes;
 
-            assert!(f_min >= min_time, "file min_time is before min_time");
-            assert!(f_max >= min_time, "file min_time is before max_time");
-
             // because delta is a whole integer, we can lose a few nanoseconds of time.  So we have to check if the
             // computed regions are greater than the max region (the last region may get a few extra nanoseconds).
             let first_region_idx =
@@ -144,8 +142,14 @@ pub fn linear_dist_ranges(
                 // rounding error on single nanosecond region.
                 last_region_idx = first_region_idx;
             }
-            assert!(first_region_idx >= 0, "valid first region");
-            assert!(last_region_idx >= 0, "valid last region");
+            assert!(
+                first_region_idx >= 0,
+                "invalid first region, partition_id={partition}"
+            );
+            assert!(
+                last_region_idx >= 0,
+                "invalid last region, partition_id={partition}"
+            );
 
             if first_region_idx == last_region_idx {
                 // this file is entirely within one region
@@ -157,20 +161,38 @@ pub fn linear_dist_ranges(
                 // of the region they cover, and the middle regions get an equal share.
                 let first_region_start = min_time + first_region_idx * delta_time_interval;
                 let last_region_start = min_time + last_region_idx * delta_time_interval;
-                assert!(first_region_start <= f_min, "valid first_region_start");
-                assert!(last_region_start <= f_max, "valid last_region_start");
+                assert!(
+                    first_region_start <= f_min,
+                    "invalid first_region_start, partition_id={partition}"
+                );
+                assert!(
+                    last_region_start <= f_max,
+                    "invalid last_region_start, partition_id={partition}"
+                );
                 let total_time = f_max - f_min + 1;
                 let time_in_first_region = first_region_start + delta_time_interval - f_min;
                 let time_in_last_region = f_max - last_region_start + 1;
 
-                assert!(time_in_first_region > 0, "valid time_in_first_region");
-                assert!(time_in_last_region > 0, "valid time_in_last_region");
+                assert!(
+                    time_in_first_region > 0,
+                    "invalid time_in_first_region, partition_id={partition}"
+                );
+                assert!(
+                    time_in_last_region > 0,
+                    "invalid time_in_last_region, partition_id={partition}"
+                );
                 let first_region_cap =
                     (f_cap as i128 * time_in_first_region as i128 / total_time as i128) as i64;
                 let last_region_cap =
                     (f_cap as i128 * time_in_last_region as i128 / total_time as i128) as i64;
-                assert!(first_region_cap >= 0, "valid first_region_cap");
-                assert!(last_region_cap >= 0, "valid last_region_cap");
+                assert!(
+                    first_region_cap >= 0,
+                    "invalid first_region_cap, partition_id={partition}"
+                );
+                assert!(
+                    last_region_cap >= 0,
+                    "invalid last_region_cap, partition_id={partition}"
+                );
 
                 region_caps[first_region_idx as usize] += first_region_cap as usize;
                 region_caps[last_region_idx as usize] += last_region_cap as usize;
@@ -409,17 +431,20 @@ fn get_max_l0_created_at(files: Vec<ParquetFile>) -> Timestamp {
 pub fn identify_start_level_files_to_split(
     files: Vec<ParquetFile>,
     target_level: CompactionLevel,
+    partition: TransitionPartitionId,
 ) -> (Vec<FileToSplit>, Vec<ParquetFile>) {
-    // panic if not all files are either in target level or start level
     let start_level = target_level.prev();
     assert!(files
         .iter()
-        .all(|f| f.compaction_level == target_level || f.compaction_level == start_level));
+        .all(|f| f.compaction_level == target_level || f.compaction_level == start_level),
+        "all files to compact must be in either {start_level} or {target_level}, but found files in other levels, partition_id={partition}"
+    );
 
     // Get start-level and target-level files
     let len = files.len();
     let split = TargetLevelSplit::new();
-    let (mut start_level_files, mut target_level_files) = split.apply(files, start_level);
+    let (mut start_level_files, mut target_level_files) =
+        split.apply(files, start_level, partition.clone());
 
     // sort start_level files in their max_l0_created_at
     start_level_files.sort_by_key(|f| f.max_l0_created_at);
@@ -464,7 +489,13 @@ pub fn identify_start_level_files_to_split(
     // keep the rest of the files for next round
     files_not_to_split.extend(target_level_files);
 
-    assert_eq!(files_to_split.len() + files_not_to_split.len(), len);
+    assert_eq!(
+        files_to_split.len() + files_not_to_split.len(),
+        len,
+        "all files should be accounted after file divisions, expected {len} files but found {} files, partition_id={}",
+        files_to_split.len() + files_not_to_split.len(),
+        partition
+    );
 
     (files_to_split, files_not_to_split)
 }
@@ -472,8 +503,8 @@ pub fn identify_start_level_files_to_split(
 #[cfg(test)]
 mod tests {
     use compactor_test_utils::{
-        create_l1_files, create_overlapped_files, create_overlapped_l0_l1_files_2, format_files,
-        format_files_split, format_ranges,
+        create_fake_partition_id, create_l1_files, create_overlapped_files,
+        create_overlapped_l0_l1_files_2, format_files, format_files_split, format_ranges,
     };
     use data_types::{CompactionLevel, ParquetFile};
     use iox_tests::ParquetFileBuilder;
@@ -536,8 +567,11 @@ mod tests {
     #[test]
     fn test_split_empty() {
         let files = vec![];
-        let (files_to_split, files_not_to_split) =
-            super::identify_start_level_files_to_split(files, CompactionLevel::Initial);
+        let (files_to_split, files_not_to_split) = super::identify_start_level_files_to_split(
+            files,
+            CompactionLevel::Initial,
+            create_fake_partition_id(),
+        );
         assert!(files_to_split.is_empty());
         assert!(files_not_to_split.is_empty());
     }
@@ -549,8 +583,11 @@ mod tests {
         let files = create_l1_files(1);
 
         // Target is L0 while all files are in L1 --> panic
-        let (_files_to_split, _files_not_to_split) =
-            super::identify_start_level_files_to_split(files, CompactionLevel::Initial);
+        let (_files_to_split, _files_not_to_split) = super::identify_start_level_files_to_split(
+            files,
+            CompactionLevel::Initial,
+            create_fake_partition_id(),
+        );
     }
 
     #[test]
@@ -578,8 +615,11 @@ mod tests {
         );
 
         // panic because it only handle at most 2 levels next to each other
-        let (_files_to_split, _files_not_to_split) =
-            super::identify_start_level_files_to_split(files, CompactionLevel::FileNonOverlapped);
+        let (_files_to_split, _files_not_to_split) = super::identify_start_level_files_to_split(
+            files,
+            CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
+        );
     }
 
     #[test]
@@ -597,8 +637,11 @@ mod tests {
         "###
         );
 
-        let (files_to_split, files_not_to_split) =
-            super::identify_start_level_files_to_split(files, CompactionLevel::FileNonOverlapped);
+        let (files_to_split, files_not_to_split) = super::identify_start_level_files_to_split(
+            files,
+            CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
+        );
         assert!(files_to_split.is_empty());
         assert_eq!(files_not_to_split.len(), 3);
     }
@@ -621,8 +664,11 @@ mod tests {
         "###
         );
 
-        let (files_to_split, files_not_to_split) =
-            super::identify_start_level_files_to_split(files, CompactionLevel::FileNonOverlapped);
+        let (files_to_split, files_not_to_split) = super::identify_start_level_files_to_split(
+            files,
+            CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
+        );
 
         // L0.1 that overlaps with 2 level-1 files will be split
         assert_eq!(files_to_split.len(), 1);
@@ -677,6 +723,7 @@ mod tests {
 
         let sz_100_mb = 100 * 1024 * 1024;
         let sz_300_mb = 3 * sz_100_mb;
+        let fake_partition_id = create_fake_partition_id();
 
         let mut chain: Vec<ParquetFile> = vec![];
 
@@ -700,7 +747,12 @@ mod tests {
 
         // // Case 1: 1 file smaller than the max compact size
         let mut chain_cap: usize = chain.iter().map(|f| f.file_size_bytes as usize).sum();
-        let linear_ranges = super::linear_dist_ranges(&chain, chain_cap, sz_300_mb as usize);
+        let linear_ranges = super::linear_dist_ranges(
+            &chain,
+            chain_cap,
+            sz_300_mb as usize,
+            fake_partition_id.clone(),
+        );
 
         // expect 1 range for the entire chain
         assert_eq!(linear_ranges.len(), 1);
@@ -719,7 +771,12 @@ mod tests {
 
         // Case 2: 1 file, even when its 10x the max compact size is still a single region because its consistent density.
         chain_cap = chain.iter().map(|f| f.file_size_bytes as usize).sum();
-        let linear_ranges = super::linear_dist_ranges(&chain, chain_cap, sz_100_mb as usize / 10);
+        let linear_ranges = super::linear_dist_ranges(
+            &chain,
+            chain_cap,
+            sz_100_mb as usize / 10,
+            fake_partition_id.clone(),
+        );
 
         assert_eq!(linear_ranges.len(), 1);
 
@@ -803,7 +860,12 @@ mod tests {
         );
 
         chain_cap = chain.iter().map(|f| f.file_size_bytes as usize).sum();
-        let linear_ranges = super::linear_dist_ranges(&chain, chain_cap, sz_100_mb as usize);
+        let linear_ranges = super::linear_dist_ranges(
+            &chain,
+            chain_cap,
+            sz_100_mb as usize,
+            fake_partition_id.clone(),
+        );
 
         // The 100MB in a single ns is identified and isolated in its own region.  Other than that, the data density gradually
         // diminishes across the time range.  But note that the rate of change accelerates across the time range, so regions get
@@ -847,7 +909,12 @@ mod tests {
         );
 
         chain_cap = chain.iter().map(|f| f.file_size_bytes as usize).sum();
-        let linear_ranges = super::linear_dist_ranges(&chain, chain_cap, sz_100_mb as usize);
+        let linear_ranges = super::linear_dist_ranges(
+            &chain,
+            chain_cap,
+            sz_100_mb as usize,
+            fake_partition_id.clone(),
+        );
 
         // Note that the above files have an exteme nonlinearity in the data distribution, but its a very simple scenario.  A human
         // can recognize an ideal region splitting would be 2 regions divided immediately after the large file, which would produce
@@ -941,7 +1008,12 @@ mod tests {
         );
 
         chain_cap = chain.iter().map(|f| f.file_size_bytes as usize).sum();
-        let linear_ranges = super::linear_dist_ranges(&chain, chain_cap, sz_100_mb as usize);
+        let linear_ranges = super::linear_dist_ranges(
+            &chain,
+            chain_cap,
+            sz_100_mb as usize,
+            fake_partition_id.clone(),
+        );
 
         // The fluctuations aren't very dense relative to the consistent data (33MB on 500k ns), so they get ignored.
         // we get one range for everything, because its linear enough of a distribution.
@@ -1031,7 +1103,8 @@ mod tests {
         );
 
         chain_cap = chain.iter().map(|f| f.file_size_bytes as usize).sum();
-        let linear_ranges = super::linear_dist_ranges(&chain, chain_cap, sz_100_mb as usize);
+        let linear_ranges =
+            super::linear_dist_ranges(&chain, chain_cap, sz_100_mb as usize, fake_partition_id);
 
         // These fluctuations are quite dense (100mb on 1000ns), so that triggeres the non-linear data distribution code to
         // break it up into regions.  The regions are around 100MB, capturing each of the fluctations.  This roughly carves

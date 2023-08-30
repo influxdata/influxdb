@@ -253,7 +253,8 @@ impl LevelBasedRoundInfo {
                 // We can't know the data distribution within each file without reading the file (too expensive), but we can
                 // still learn a lot about the data distribution accross the set of files by assuming even distribtuion within each
                 // file and considering the distribution of files within the chain's time range.
-                let linear_ranges = linear_dist_ranges(chain, chain_cap, max_compact_size);
+                let linear_ranges =
+                    linear_dist_ranges(chain, chain_cap, max_compact_size, partition_id.clone());
 
                 for range in linear_ranges {
                     // split at every time range of linear distribution.
@@ -422,6 +423,7 @@ impl RoundInfoSource for LevelBasedRoundInfo {
             &files,
             self.max_num_files_per_plan,
             self.max_total_file_size_per_plan,
+            partition_info.partition_id(),
         );
 
         let round_info = if !ranges.is_empty() {
@@ -495,9 +497,18 @@ impl RoundInfoSource for LevelBasedRoundInfo {
 // with the L2s.  The relative ease of moving data from L1 to L2 provides additional motivation to compact the
 // L1s to L2s when a backlog of L0s exist. The easily solvable L1->L2 compaction can give us a clean slate in
 // L1, greatly simplifying the remaining L0->L1 compactions.
-fn get_start_level(files: &[ParquetFile], max_files: usize, max_bytes: usize) -> CompactionLevel {
+fn get_start_level(
+    files: &[ParquetFile],
+    max_files: usize,
+    max_bytes: usize,
+    partition: TransitionPartitionId,
+) -> CompactionLevel {
     // panic if the files are empty
-    assert!(!files.is_empty());
+    assert!(
+        !files.is_empty(),
+        "files should not be empty, partition_id={}",
+        partition
+    );
 
     let mut l0_cnt: usize = 0;
     let mut l0_bytes: usize = 0;

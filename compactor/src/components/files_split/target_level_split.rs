@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use data_types::{CompactionLevel, ParquetFile};
+use data_types::{CompactionLevel, ParquetFile, TransitionPartitionId};
 
 use super::FilesSplit;
 
@@ -25,6 +25,7 @@ impl FilesSplit for TargetLevelSplit {
         &self,
         files: Vec<ParquetFile>,
         target_level: CompactionLevel,
+        _partition: TransitionPartitionId,
     ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
         files
             .into_iter()
@@ -36,8 +37,8 @@ impl FilesSplit for TargetLevelSplit {
 mod tests {
 
     use compactor_test_utils::{
-        create_l0_files, create_l1_files, create_l2_files, create_overlapped_files, format_files,
-        format_files_split,
+        create_fake_partition_id, create_l0_files, create_l1_files, create_l2_files,
+        create_overlapped_files, format_files, format_files_split,
     };
 
     use super::*;
@@ -55,7 +56,11 @@ mod tests {
         let files = vec![];
         let split = TargetLevelSplit::new();
 
-        let (lower, higher) = split.apply(files, CompactionLevel::FileNonOverlapped);
+        let (lower, higher) = split.apply(
+            files,
+            CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
+        );
         assert_eq!(lower.len(), 0);
         assert_eq!(higher.len(), 0);
     }
@@ -63,6 +68,8 @@ mod tests {
     #[test]
     fn test_apply_partial_empty_files_l0() {
         let files = create_l0_files(1);
+        let fake_partition_id = create_fake_partition_id();
+
         insta::assert_yaml_snapshot!(
             format_files("initial", &files),
             @r###"
@@ -76,15 +83,23 @@ mod tests {
         );
 
         let split = TargetLevelSplit::new();
-        let (lower, higher) = split.apply(files.clone(), CompactionLevel::Initial);
+        let (lower, higher) = split.apply(
+            files.clone(),
+            CompactionLevel::Initial,
+            fake_partition_id.clone(),
+        );
         assert_eq!(lower.len(), 3);
         assert_eq!(higher.len(), 0);
 
-        let (lower, higher) = split.apply(files.clone(), CompactionLevel::FileNonOverlapped);
+        let (lower, higher) = split.apply(
+            files.clone(),
+            CompactionLevel::FileNonOverlapped,
+            fake_partition_id.clone(),
+        );
         assert_eq!(lower.len(), 3);
         assert_eq!(higher.len(), 0);
 
-        let (lower, higher) = split.apply(files, CompactionLevel::Final);
+        let (lower, higher) = split.apply(files, CompactionLevel::Final, fake_partition_id);
         assert_eq!(lower.len(), 3);
         assert_eq!(higher.len(), 0);
     }
@@ -92,6 +107,8 @@ mod tests {
     #[test]
     fn test_apply_partial_empty_files_l1() {
         let files = create_l1_files(1);
+        let fake_partition_id = create_fake_partition_id();
+
         insta::assert_yaml_snapshot!(
             format_files("initial", &files),
             @r###"
@@ -105,15 +122,23 @@ mod tests {
         );
 
         let split = TargetLevelSplit::new();
-        let (lower, higher) = split.apply(files.clone(), CompactionLevel::Initial);
+        let (lower, higher) = split.apply(
+            files.clone(),
+            CompactionLevel::Initial,
+            fake_partition_id.clone(),
+        );
         assert_eq!(lower.len(), 0);
         assert_eq!(higher.len(), 3);
 
-        let (lower, higher) = split.apply(files.clone(), CompactionLevel::FileNonOverlapped);
+        let (lower, higher) = split.apply(
+            files.clone(),
+            CompactionLevel::FileNonOverlapped,
+            fake_partition_id.clone(),
+        );
         assert_eq!(lower.len(), 3);
         assert_eq!(higher.len(), 0);
         //
-        let (lower, higher) = split.apply(files, CompactionLevel::Final);
+        let (lower, higher) = split.apply(files, CompactionLevel::Final, fake_partition_id);
         assert_eq!(lower.len(), 3);
         assert_eq!(higher.len(), 0);
     }
@@ -121,6 +146,8 @@ mod tests {
     #[test]
     fn test_apply_partial_empty_files_l2() {
         let files = create_l2_files();
+        let fake_partition_id = create_fake_partition_id();
+
         insta::assert_yaml_snapshot!(
             format_files("initial", &files),
             @r###"
@@ -133,15 +160,23 @@ mod tests {
         );
 
         let split = TargetLevelSplit::new();
-        let (lower, higher) = split.apply(files.clone(), CompactionLevel::Initial);
+        let (lower, higher) = split.apply(
+            files.clone(),
+            CompactionLevel::Initial,
+            fake_partition_id.clone(),
+        );
         assert_eq!(lower.len(), 0);
         assert_eq!(higher.len(), 2);
 
-        let (lower, higher) = split.apply(files.clone(), CompactionLevel::FileNonOverlapped);
+        let (lower, higher) = split.apply(
+            files.clone(),
+            CompactionLevel::FileNonOverlapped,
+            fake_partition_id.clone(),
+        );
         assert_eq!(lower.len(), 0);
         assert_eq!(higher.len(), 2);
 
-        let (lower, higher) = split.apply(files, CompactionLevel::Final);
+        let (lower, higher) = split.apply(files, CompactionLevel::Final, fake_partition_id);
         assert_eq!(lower.len(), 2);
         assert_eq!(higher.len(), 0);
     }
@@ -170,7 +205,8 @@ mod tests {
         );
 
         let split = TargetLevelSplit::new();
-        let (lower, higher) = split.apply(files, CompactionLevel::Initial);
+        let (lower, higher) =
+            split.apply(files, CompactionLevel::Initial, create_fake_partition_id());
 
         insta::assert_yaml_snapshot!(
             format_files_split("lower", &lower, "higher", &higher),
@@ -229,7 +265,11 @@ mod tests {
         );
 
         let split = TargetLevelSplit::new();
-        let (lower, higher) = split.apply(files, CompactionLevel::FileNonOverlapped);
+        let (lower, higher) = split.apply(
+            files,
+            CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
+        );
 
         insta::assert_yaml_snapshot!(
             format_files_split("lower", &lower, "higher", &higher),
@@ -288,7 +328,8 @@ mod tests {
         );
 
         let split = TargetLevelSplit::new();
-        let (lower, higher) = split.apply(files, CompactionLevel::Final);
+        let (lower, higher) =
+            split.apply(files, CompactionLevel::Final, create_fake_partition_id());
 
         // verify number of files (nothing in higher)
         assert_eq!(lower.len(), 8);

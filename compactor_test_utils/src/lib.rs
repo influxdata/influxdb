@@ -42,7 +42,10 @@ use compactor::{
     PartitionInfo,
 };
 use compactor_scheduler::SchedulerConfig;
-use data_types::{ColumnType, CompactionLevel, ParquetFile, SortedColumnSet, TableId};
+use data_types::{
+    ColumnType, CompactionLevel, ParquetFile, PartitionId, SortedColumnSet, TableId,
+    TransitionPartitionId,
+};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion_util::config::register_iox_object_store;
 use futures::TryStreamExt;
@@ -941,6 +944,13 @@ where
             .await
             .expect("timeout")
     }
+}
+
+/// This setup provides the fake partition_id needed for test cases.
+///
+/// the TransitionPartitionId is to be iterated upon, so this is a single location for updates
+pub fn create_fake_partition_id() -> TransitionPartitionId {
+    TransitionPartitionId::Deprecated(PartitionId::new(0))
 }
 
 /// This setup will return files with ranges as follows:
