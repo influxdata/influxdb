@@ -5,6 +5,8 @@ use tracing::{debug, warn};
 // interacting with the same type.
 pub use prost::bytes::Bytes;
 
+use crate::peers::Identity;
+
 /// A delegate abstraction through which the gossip subsystem propagates
 /// application-level messages received from other peers.
 #[async_trait]
@@ -27,7 +29,7 @@ where
     ///
     /// Implementations SHOULD return an error from the [`TryFrom`] conversion
     /// for unknown topics or otherwise gracefully handle the message.
-    async fn dispatch(&self, topic: T, payload: Bytes);
+    async fn dispatch(&self, topic: T, payload: Bytes, sender: Identity);
 }
 
 #[async_trait]
@@ -35,7 +37,7 @@ impl<T> Dispatcher<T> for tokio::sync::mpsc::Sender<(T, Bytes)>
 where
     T: TryFrom<u64> + Send + Sync + 'static,
 {
-    async fn dispatch(&self, topic: T, payload: Bytes) {
+    async fn dispatch(&self, topic: T, payload: Bytes, _sender: Identity) {
         if let Err(e) = self.send((topic, payload)).await {
             warn!(error=%e, "error dispatching payload to application handler");
         }
@@ -51,7 +53,7 @@ impl<T> Dispatcher<T> for NopDispatcher
 where
     T: TryFrom<u64> + Send + Sync + 'static,
 {
-    async fn dispatch(&self, _topic: T, _payload: crate::Bytes) {
+    async fn dispatch(&self, _topic: T, _payload: crate::Bytes, _sender: Identity) {
         debug!("received no-op message payload");
     }
 }

@@ -120,6 +120,7 @@ fn table_to_create_response_proto(table: CatalogTable) -> CreateTableResponse {
             id: table.id.get(),
             name: table.name.clone(),
             namespace_id: table.namespace_id.get(),
+            partition_template: table.partition_template.as_proto().cloned(),
         }),
     }
 }
@@ -255,23 +256,24 @@ mod tests {
 
         let namespace = arbitrary_namespace(&mut *catalog.repositories().await, "grapes").await;
         let table_name = "varietals";
+        let partition_template = PartitionTemplate {
+            parts: vec![
+                TemplatePart {
+                    part: Some(template_part::Part::TagValue("color".into())),
+                },
+                TemplatePart {
+                    part: Some(template_part::Part::TagValue("tannins".into())),
+                },
+                TemplatePart {
+                    part: Some(template_part::Part::TimeFormat("%Y".into())),
+                },
+            ],
+        };
 
         let request = CreateTableRequest {
             name: table_name.into(),
             namespace: namespace.name.clone(),
-            partition_template: Some(PartitionTemplate {
-                parts: vec![
-                    TemplatePart {
-                        part: Some(template_part::Part::TagValue("color".into())),
-                    },
-                    TemplatePart {
-                        part: Some(template_part::Part::TagValue("tannins".into())),
-                    },
-                    TemplatePart {
-                        part: Some(template_part::Part::TimeFormat("%Y".into())),
-                    },
-                ],
-            }),
+            partition_template: Some(partition_template.clone()),
         };
 
         let created_table = handler
@@ -285,6 +287,7 @@ mod tests {
         assert!(created_table.id > 0);
         assert_eq!(created_table.name, table_name);
         assert_eq!(created_table.namespace_id, namespace.id.get());
+        assert_eq!(created_table.partition_template, Some(partition_template));
 
         let table_columns = catalog
             .repositories()
@@ -306,6 +309,20 @@ mod tests {
             Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
         let handler = TableService::new(Arc::clone(&catalog));
 
+        let partition_template = PartitionTemplate {
+            parts: vec![
+                TemplatePart {
+                    part: Some(template_part::Part::TagValue("color".into())),
+                },
+                TemplatePart {
+                    part: Some(template_part::Part::TagValue("tannins".into())),
+                },
+                TemplatePart {
+                    part: Some(template_part::Part::TimeFormat("%Y".into())),
+                },
+            ],
+        };
+
         let namespace_name = NamespaceName::new("grapes").unwrap();
         let namespace = catalog
             .repositories()
@@ -314,20 +331,8 @@ mod tests {
             .create(
                 &namespace_name,
                 Some(
-                    NamespacePartitionTemplateOverride::try_from(PartitionTemplate {
-                        parts: vec![
-                            TemplatePart {
-                                part: Some(template_part::Part::TagValue("color".into())),
-                            },
-                            TemplatePart {
-                                part: Some(template_part::Part::TagValue("tannins".into())),
-                            },
-                            TemplatePart {
-                                part: Some(template_part::Part::TimeFormat("%Y".into())),
-                            },
-                        ],
-                    })
-                    .unwrap(),
+                    NamespacePartitionTemplateOverride::try_from(partition_template.clone())
+                        .unwrap(),
                 ),
                 None,
                 None,
@@ -353,6 +358,7 @@ mod tests {
         assert!(created_table.id > 0);
         assert_eq!(created_table.name, table_name);
         assert_eq!(created_table.namespace_id, namespace.id.get());
+        assert_eq!(created_table.partition_template, Some(partition_template));
 
         let table_columns = catalog
             .repositories()

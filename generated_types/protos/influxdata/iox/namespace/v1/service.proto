@@ -111,4 +111,8 @@ message Namespace {
 
   // The maximum number of columns a table belonging to this namespace may have.
   int32 max_columns_per_table = 5;
+
+  // The default partitioning scheme used for any new tables that are created
+  // in this namespace, if any.
+  optional influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 6;
 }

@@ -59,6 +59,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         delete_path.join("service.proto"),
         gossip_path.join("parquet_file.proto"),
         gossip_path.join("schema.proto"),
+        gossip_path.join("schema_sync.proto"),
         ingester_path.join("parquet_metadata.proto"),
         ingester_path.join("persist.proto"),
         ingester_path.join("write.proto"),

@@ -19,17 +19,9 @@ use crate::{
 /// members a subset broadcast is sent to.
 const SUBSET_FRACTION: f32 = 0.33;
 
-/// A unique generated identity containing 128 bits of randomness (V4 UUID).
-#[derive(Debug, Eq, Clone)]
-pub(crate) struct Identity(Bytes, Uuid);
-
-impl std::ops::Deref for Identity {
-    type Target = Uuid;
-
-    fn deref(&self) -> &Self::Target {
-        &self.1
-    }
-}
+/// A unique peer identity containing 128 bits of randomness (V4 UUID).
+#[derive(Debug, Eq, Clone, PartialEq)]
+pub struct Identity(Bytes);
 
 impl std::hash::Hash for Identity {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -37,16 +29,9 @@ impl std::hash::Hash for Identity {
     }
 }
 
-impl PartialEq for Identity {
-    fn eq(&self, other: &Self) -> bool {
-        debug_assert!((self.1 == other.1) == (self.0 == other.0));
-        self.0 == other.0
-    }
-}
-
 impl std::fmt::Display for Identity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.1.fmt(f)
+        self.as_uuid().fmt(f)
     }
 }
 
@@ -54,8 +39,9 @@ impl TryFrom<Bytes> for Identity {
     type Error = uuid::Error;
 
     fn try_from(value: Bytes) -> Result<Self, Self::Error> {
-        let uuid = Uuid::from_slice(&value)?;
-        Ok(Self(value, uuid))
+        // Validate bytes are a UUID
+        Uuid::from_slice(&value)?;
+        Ok(Self(value))
     }
 }
 
@@ -63,8 +49,9 @@ impl TryFrom<Vec<u8>> for Identity {
     type Error = uuid::Error;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        let uuid = Uuid::from_slice(&value)?;
-        Ok(Self(Bytes::from(value), uuid))
+        // Validate bytes
+        Uuid::from_slice(&value)?;
+        Ok(Self(Bytes::from(value)))
     }
 }
 
@@ -72,11 +59,16 @@ impl Identity {
     /// Generate a new random identity.
     pub(crate) fn new() -> Self {
         let id = Uuid::new_v4();
-        Self(Bytes::from(id.as_bytes().to_vec()), id)
+        Self(Bytes::from(id.as_bytes().to_vec()))
     }
 
     pub(crate) fn as_bytes(&self) -> &Bytes {
         &self.0
+    }
+
+    /// Parse this identity into a UUID.
+    pub fn as_uuid(&self) -> Uuid {
+        Uuid::from_slice(&self.0).unwrap()
     }
 }
 
@@ -141,6 +133,10 @@ impl Peer {
     pub(crate) fn mark_observed(&mut self) {
         self.unacked_ping_count = 0;
     }
+
+    pub(crate) fn addr(&self) -> SocketAddr {
+        self.addr
+    }
 }
 
 impl From<&Peer> for crate::proto::Peer {
@@ -192,8 +188,8 @@ impl PeerList {
     }
 
     /// Return the UUIDs of all known peers.
-    pub(crate) fn peer_uuids(&self) -> Vec<Uuid> {
-        self.list.keys().map(|v| **v).collect()
+    pub(crate) fn peer_identities(&self) -> Vec<Identity> {
+        self.list.keys().cloned().collect()
     }
 
     /// Returns an iterator of all known peers in the peer list.
@@ -204,6 +200,11 @@ impl PeerList {
     /// Returns true if `identity` is already in the peer list.
     pub(crate) fn contains(&self, identity: &Identity) -> bool {
         self.list.contains_key(identity)
+    }
+
+    /// Returns the [`Peer`] for the provided [`Identity`], if any.
+    pub(crate) fn get(&self, identity: &Identity) -> Option<&Peer> {
+        self.list.get(identity)
     }
 
     /// Upsert a peer identified by `identity` to the peer list, associating it
@@ -401,7 +402,7 @@ mod tests {
         let text = v.to_string();
 
         let uuid = Uuid::try_parse(&text).expect("display impl should output valid uuids");
-        assert_eq!(*v, uuid);
+        assert_eq!(v.as_uuid(), uuid);
     }
 
     fn hash_identity(v: &Identity) -> u64 {

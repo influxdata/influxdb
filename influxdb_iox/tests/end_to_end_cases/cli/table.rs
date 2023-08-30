@@ -231,7 +231,10 @@ async fn create_positive() {
                         .arg("t1")
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains("t1"));
+                        .stdout(
+                            predicate::str::contains("t1")
+                                .and(predicate::str::contains(r#""partitionTemplate":"#).not()),
+                        );
 
                     // Partition template with time format
                     Command::cargo_bin("influxdb_iox")
@@ -246,7 +249,10 @@ async fn create_positive() {
                         .arg("{\"parts\":[{\"timeFormat\":\"%Y-%m\"}]}")
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains("t2"));
+                        .stdout(
+                            predicate::str::contains("t2")
+                                .and(predicate::str::contains(r#""partitionTemplate":"#)),
+                        );
 
                     // Partition template with tag
                     Command::cargo_bin("influxdb_iox")
@@ -261,7 +267,10 @@ async fn create_positive() {
                         .arg("{\"parts\":[{\"tagValue\":\"col1\"}]}")
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains("t3"));
+                        .stdout(
+                            predicate::str::contains("t3")
+                                .and(predicate::str::contains(r#""partitionTemplate":"#)),
+                        );
 
                     // Partition template with time format, tag value, and tag of unsual column name
                     Command::cargo_bin("influxdb_iox")
@@ -282,7 +291,10 @@ async fn create_positive() {
                         )
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains("t4"));
+                        .stdout(
+                            predicate::str::contains("t4")
+                                .and(predicate::str::contains(r#""partitionTemplate":"#)),
+                        );
                 }
                 .boxed()
             })),
