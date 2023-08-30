@@ -10,25 +10,30 @@ use data_types::{
 };
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use once_cell::sync::Lazy;
-use router::namespace_cache::{
-    MemoryNamespaceCache, NamespaceCache, ReadThroughCache, ShardedCache,
+use router::{
+    gossip::anti_entropy::{actor::AntiEntropyActor, merkle::MerkleTree},
+    namespace_cache::{MemoryNamespaceCache, NamespaceCache, ReadThroughCache, ShardedCache},
 };
 
 static ARBITRARY_NAMESPACE: Lazy<NamespaceName<'static>> =
     Lazy::new(|| "bananas".try_into().unwrap());
 
 fn init_ns_cache(
+    rt: &tokio::runtime::Runtime,
     initial_schema: impl IntoIterator<Item = (NamespaceName<'static>, NamespaceSchema)>,
 ) -> impl NamespaceCache {
     let metrics = Arc::new(metric::Registry::default());
 
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-    let cache = Arc::new(ReadThroughCache::new(
-        Arc::new(ShardedCache::new(
-            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
-        )),
-        Arc::clone(&catalog),
+    let cache = Arc::new(ShardedCache::new(
+        iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
     ));
+
+    let (actor, handle) = AntiEntropyActor::new(Arc::clone(&cache));
+    rt.spawn(actor.run());
+
+    let cache = MerkleTree::new(cache, handle);
+    let cache = Arc::new(ReadThroughCache::new(cache, Arc::clone(&catalog)));
 
     for (name, schema) in initial_schema {
         cache.put_schema(name, schema);
@@ -66,12 +71,17 @@ fn bench_add_new_tables_with_columns(
     let initial_schema = generate_namespace_schema(INITIAL_TABLE_COUNT, columns_per_table);
     let schema_update = generate_namespace_schema(INITIAL_TABLE_COUNT + tables, columns_per_table);
 
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .build()
+        .unwrap();
+
     group.throughput(Throughput::Elements((tables * columns_per_table) as _));
     group.bench_function(format!("{tables}x{columns_per_table}"), |b| {
         b.iter_batched(
             || {
                 (
-                    init_ns_cache([(ARBITRARY_NAMESPACE.clone(), initial_schema.clone())]),
+                    init_ns_cache(&rt, [(ARBITRARY_NAMESPACE.clone(), initial_schema.clone())]),
                     ARBITRARY_NAMESPACE.clone(),
                     schema_update.clone(),
                 )
@@ -92,12 +102,14 @@ fn bench_add_columns_to_existing_table(
     let initial_schema = generate_namespace_schema(1, initial_column_count);
     let schema_update = generate_namespace_schema(1, initial_column_count + add_new_columns);
 
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
     group.throughput(Throughput::Elements(add_new_columns as _));
     group.bench_function(format!("{initial_column_count}+{add_new_columns}"), |b| {
         b.iter_batched(
             || {
                 (
-                    init_ns_cache([(ARBITRARY_NAMESPACE.clone(), initial_schema.clone())]),
+                    init_ns_cache(&rt, [(ARBITRARY_NAMESPACE.clone(), initial_schema.clone())]),
                     ARBITRARY_NAMESPACE.clone(),
                     schema_update.clone(),
                 )

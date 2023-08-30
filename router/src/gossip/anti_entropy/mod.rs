@@ -1,5 +1,7 @@
 //! Anti-entropy primitives providing eventual consistency over gossip.
 
+pub mod actor;
+pub mod handle;
 pub mod merkle;
 
 #[cfg(test)]
@@ -7,7 +9,7 @@ mod tests {
     use std::{collections::BTreeMap, sync::Arc};
 
     use crate::{
-        gossip::anti_entropy::merkle::MerkleTree,
+        gossip::anti_entropy::{actor::AntiEntropyActor, merkle::MerkleTree},
         namespace_cache::{MemoryNamespaceCache, NamespaceCache},
     };
 
@@ -112,40 +114,52 @@ mod tests {
             // An arbitrary namespace with an ID that lies outside of `updates`.
             last_update in arbitrary_namespace_schema(42_i64..100),
         ) {
-            let ns_a = MerkleTree::new(Arc::new(MemoryNamespaceCache::default()));
-            let ns_b = MerkleTree::new(Arc::new(MemoryNamespaceCache::default()));
+            tokio::runtime::Runtime::new().unwrap().block_on(async move {
+                let cache_a = Arc::new(MemoryNamespaceCache::default());
+                let cache_b = Arc::new(MemoryNamespaceCache::default());
 
-            // Invariant: two empty namespace caches have the same content hash.
-            assert_eq!(ns_a.content_hash(), ns_b.content_hash());
+                let (actor_a, handle_a) = AntiEntropyActor::new(Arc::clone(&cache_a));
+                let (actor_b, handle_b) = AntiEntropyActor::new(Arc::clone(&cache_b));
 
-            for update in updates {
-                // Generate a unique, deterministic name for this namespace.
-                let name = name_for_schema(&update);
+                // Start the MST actors
+                tokio::spawn(actor_a.run());
+                tokio::spawn(actor_b.run());
 
-                // Apply the update (which may be a no-op) to both.
-                ns_a.put_schema(name.clone(), update.clone());
-                ns_b.put_schema(name, update);
+                let ns_a = MerkleTree::new(cache_a, handle_a.clone());
+                let ns_b = MerkleTree::new(cache_b, handle_b.clone());
 
-                // Invariant: after applying the same update, the content hashes
-                // MUST match (even if this update was a no-op / not an update)
-                assert_eq!(ns_a.content_hash(), ns_b.content_hash());
-            }
+                // Invariant: two empty namespace caches have the same content hash.
+                assert_eq!(handle_a.content_hash().await, handle_b.content_hash().await);
 
-            // At this point all updates have been applied to both caches.
-            //
-            // Add a new cache entry that doesn't yet exist, and assert this
-            // causes the caches to diverge, and then once again reconverge.
-            let name = name_for_schema(&last_update);
-            ns_a.put_schema(name.clone(), last_update.clone());
+                for update in updates {
+                    // Generate a unique, deterministic name for this namespace.
+                    let name = name_for_schema(&update);
 
-            // Invariant: last_update definitely added new cache content,
-            // therefore the cache content hashes MUST diverge.
-            assert_ne!(ns_a.content_hash(), ns_b.content_hash());
+                    // Apply the update (which may be a no-op) to both.
+                    ns_a.put_schema(name.clone(), update.clone());
+                    ns_b.put_schema(name, update);
 
-            // Invariant: applying the update to the other cache converges their
-            // content hashes.
-            ns_b.put_schema(name, last_update);
-            assert_eq!(ns_a.content_hash(), ns_b.content_hash());
+                    // Invariant: after applying the same update, the content hashes
+                    // MUST match (even if this update was a no-op / not an update)
+                    assert_eq!(handle_a.content_hash().await, handle_b.content_hash().await);
+                }
+
+                // At this point all updates have been applied to both caches.
+                //
+                // Add a new cache entry that doesn't yet exist, and assert this
+                // causes the caches to diverge, and then once again reconverge.
+                let name = name_for_schema(&last_update);
+                ns_a.put_schema(name.clone(), last_update.clone());
+
+                // Invariant: last_update definitely added new cache content,
+                // therefore the cache content hashes MUST diverge.
+                assert_ne!(handle_a.content_hash().await, handle_b.content_hash().await);
+
+                // Invariant: applying the update to the other cache converges their
+                // content hashes.
+                ns_b.put_schema(name, last_update);
+                assert_eq!(handle_a.content_hash().await, handle_b.content_hash().await);
+            });
         }
     }
 }

@@ -530,7 +530,7 @@ impl Partition {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     use assert_matches::assert_matches;
@@ -556,7 +556,7 @@ mod tests {
     prop_compose! {
         /// Return an arbitrary [`TransitionPartitionId`] with a randomised ID
         /// value.
-        fn arbitrary_partition_id()(
+        pub fn arbitrary_partition_id()(
             use_hash in any::<bool>(),
             row_id in any::<i64>(),
             hash_id in any::<[u8; PARTITION_HASH_ID_SIZE_BYTES]>()
