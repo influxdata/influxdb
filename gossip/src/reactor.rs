@@ -233,7 +233,10 @@ where
                             return;
                         }
                         Some(Request::GetPeers(tx)) => {
-                            let _ = tx.send(self.peer_list.peer_uuids());
+                            let _ = tx.send(self.peer_list.peer_identities());
+                        },
+                        Some(Request::GetPeerAddr(identity, tx)) => {
+                            let _ = tx.send(self.peer_list.get(&identity).map(|v| v.addr()));
                         },
                         Some(Request::Broadcast(payload, topic, subset)) => {
                             // The user is guaranteed MAX_USER_PAYLOAD_BYTES to
@@ -360,7 +363,7 @@ where
                     if self.interests.is_interested(topic) {
                         match S::try_from(topic.as_id()) {
                             Ok(v) => {
-                                self.dispatch.dispatch(v, data).await;
+                                self.dispatch.dispatch(v, data, identity.clone()).await;
                             }
                             Err(e) => {
                                 error!(error=?e, "dropping message for invalid topic");

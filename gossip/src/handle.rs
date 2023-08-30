@@ -1,9 +1,8 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, net::SocketAddr};
 
 use crate::{topic_set::Topic, Bytes, MAX_USER_PAYLOAD_BYTES};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
-use uuid::Uuid;
 
 use crate::peers::Identity;
 
@@ -33,7 +32,10 @@ pub(crate) enum Request {
     Broadcast(Bytes, Topic, BroadcastType),
 
     /// Get a snapshot of the peer identities.
-    GetPeers(oneshot::Sender<Vec<Uuid>>),
+    GetPeers(oneshot::Sender<Vec<Identity>>),
+
+    /// Get the [`SocketAddr`] associated with a given peer [`Identity`].
+    GetPeerAddr(Identity, oneshot::Sender<Option<SocketAddr>>),
 }
 
 /// A handle to the gossip subsystem.
@@ -62,8 +64,8 @@ where
     }
 
     /// Return the randomly generated identity of this gossip instance.
-    pub fn identity(&self) -> Uuid {
-        *self.identity
+    pub fn identity(&self) -> Identity {
+        self.identity.clone()
     }
 
     /// Broadcast `payload` to all known peers.
@@ -132,9 +134,19 @@ where
     }
 
     /// Retrieve a snapshot of the connected peer list.
-    pub async fn get_peers(&self) -> Vec<Uuid> {
+    pub async fn get_peers(&self) -> Vec<Identity> {
         let (tx, rx) = oneshot::channel();
         self.tx.send(Request::GetPeers(tx)).await.unwrap();
+        rx.await.unwrap()
+    }
+
+    /// Return the [`SocketAddr`] being used by the specified `peer`.
+    ///
+    /// This method returns [`None`] if the `peer` is no longer in the local
+    /// peer list.
+    pub async fn get_peer_addr(&self, peer: Identity) -> Option<SocketAddr> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.send(Request::GetPeerAddr(peer, tx)).await.unwrap();
         rx.await.unwrap()
     }
 }

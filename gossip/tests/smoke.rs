@@ -711,3 +711,65 @@ async fn test_broadcast_subset() {
     assert_eq!(b_rx.try_recv(), Err(TryRecvError::Empty));
     assert_eq!(c_rx.try_recv(), Err(TryRecvError::Empty));
 }
+
+/// Assert that subset broadcasts are sent to a portion of the peers.
+#[tokio::test]
+async fn test_sender_ident() {
+    maybe_start_logging();
+
+    struct Dispatch(mpsc::Sender<Identity>);
+    #[async_trait::async_trait]
+    impl<T: TryFrom<u64> + Send + Sync + 'static> Dispatcher<T> for Dispatch {
+        async fn dispatch(&self, _topic: T, _payload: Bytes, sender: Identity) {
+            self.0.send(sender).await.unwrap();
+        }
+    }
+
+    let metrics = Arc::new(metric::Registry::default());
+
+    let (a_socket, a_addr) = random_udp().await;
+    let (b_socket, b_addr) = random_udp().await;
+
+    // Initialise the dispatchers for the reactors
+    let (a_tx, _a_rx) = mpsc::channel(5);
+    let (b_tx, mut b_rx) = mpsc::channel(5);
+
+    // Initialise all reactors
+    let addrs = vec![a_addr.to_string(), b_addr.to_string()];
+    let a = Builder::<_, Topic>::new(addrs.clone(), a_tx, Arc::clone(&metrics)).build(a_socket);
+    let b = Builder::<_, Topic>::new(addrs.clone(), Dispatch(b_tx), Arc::clone(&metrics))
+        .build(b_socket);
+
+    // Wait for peer discovery to occur
+    async {
+        loop {
+            if a.get_peers().await.len() == 1 && b.get_peers().await.len() == 1 {
+                break;
+            }
+        }
+    }
+    .with_timeout_panic(TIMEOUT)
+    .await;
+
+    // Send the payload through peer A to a subset of peers.
+    let a_payload = Bytes::from_static(b"bananas");
+    a.broadcast_subset(a_payload.clone(), Topic::Bananas)
+        .await
+        .unwrap();
+
+    let got_ident = b_rx
+        .recv()
+        .with_timeout_panic(TIMEOUT)
+        .await
+        .expect("reactor should be running");
+
+    assert_eq!(a.identity(), got_ident);
+
+    // Validate the "get socket address" API using the identity
+    let expect_addr = b
+        .get_peer_addr(got_ident)
+        .await
+        .expect("a must exist in peer list");
+
+    assert_eq!(expect_addr, a_addr);
+}
