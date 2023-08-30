@@ -764,4 +764,12 @@ async fn test_sender_ident() {
         .expect("reactor should be running");
 
     assert_eq!(a.identity(), got_ident);
+
+    // Validate the "get socket address" API using the identity
+    let expect_addr = b
+        .get_peer_addr(got_ident)
+        .await
+        .expect("a must exist in peer list");
+
+    assert_eq!(expect_addr, a_addr);
 }

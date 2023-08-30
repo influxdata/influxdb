@@ -133,6 +133,10 @@ impl Peer {
     pub(crate) fn mark_observed(&mut self) {
         self.unacked_ping_count = 0;
     }
+
+    pub(crate) fn addr(&self) -> SocketAddr {
+        self.addr
+    }
 }
 
 impl From<&Peer> for crate::proto::Peer {
@@ -196,6 +200,11 @@ impl PeerList {
     /// Returns true if `identity` is already in the peer list.
     pub(crate) fn contains(&self, identity: &Identity) -> bool {
         self.list.contains_key(identity)
+    }
+
+    /// Returns the [`Peer`] for the provided [`Identity`], if any.
+    pub(crate) fn get(&self, identity: &Identity) -> Option<&Peer> {
+        self.list.get(identity)
     }
 
     /// Upsert a peer identified by `identity` to the peer list, associating it

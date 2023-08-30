@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, net::SocketAddr};
 
 use crate::{topic_set::Topic, Bytes, MAX_USER_PAYLOAD_BYTES};
 use thiserror::Error;
@@ -33,6 +33,9 @@ pub(crate) enum Request {
 
     /// Get a snapshot of the peer identities.
     GetPeers(oneshot::Sender<Vec<Identity>>),
+
+    /// Get the [`SocketAddr`] associated with a given peer [`Identity`].
+    GetPeerAddr(Identity, oneshot::Sender<Option<SocketAddr>>),
 }
 
 /// A handle to the gossip subsystem.
@@ -134,6 +137,16 @@ where
     pub async fn get_peers(&self) -> Vec<Identity> {
         let (tx, rx) = oneshot::channel();
         self.tx.send(Request::GetPeers(tx)).await.unwrap();
+        rx.await.unwrap()
+    }
+
+    /// Return the [`SocketAddr`] being used by the specified `peer`.
+    ///
+    /// This method returns [`None`] if the `peer` is no longer in the local
+    /// peer list.
+    pub async fn get_peer_addr(&self, peer: Identity) -> Option<SocketAddr> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.send(Request::GetPeerAddr(peer, tx)).await.unwrap();
         rx.await.unwrap()
     }
 }
