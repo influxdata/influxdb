@@ -233,7 +233,7 @@ where
                             return;
                         }
                         Some(Request::GetPeers(tx)) => {
-                            let _ = tx.send(self.peer_list.peer_uuids());
+                            let _ = tx.send(self.peer_list.peer_identities());
                         },
                         Some(Request::Broadcast(payload, topic, subset)) => {
                             // The user is guaranteed MAX_USER_PAYLOAD_BYTES to

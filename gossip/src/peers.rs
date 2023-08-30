@@ -66,8 +66,8 @@ impl Identity {
         &self.0
     }
 
-    // Parse this identity into a UUID.
-    pub(crate) fn as_uuid(&self) -> Uuid {
+    /// Parse this identity into a UUID.
+    pub fn as_uuid(&self) -> Uuid {
         Uuid::from_slice(&self.0).unwrap()
     }
 }
@@ -184,8 +184,8 @@ impl PeerList {
     }
 
     /// Return the UUIDs of all known peers.
-    pub(crate) fn peer_uuids(&self) -> Vec<Uuid> {
-        self.list.keys().map(|v| v.as_uuid()).collect()
+    pub(crate) fn peer_identities(&self) -> Vec<Identity> {
+        self.list.keys().cloned().collect()
     }
 
     /// Returns an iterator of all known peers in the peer list.
