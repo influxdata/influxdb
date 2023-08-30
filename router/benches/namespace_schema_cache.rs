@@ -11,7 +11,7 @@ use data_types::{
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use once_cell::sync::Lazy;
 use router::{
-    gossip::anti_entropy::{actor::AntiEntropyActor, merkle::MerkleTree},
+    gossip::anti_entropy::mst::{actor::AntiEntropyActor, merkle::MerkleTree},
     namespace_cache::{MemoryNamespaceCache, NamespaceCache, ReadThroughCache, ShardedCache},
 };
 
