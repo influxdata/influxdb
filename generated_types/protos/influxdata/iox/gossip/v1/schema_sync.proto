@@ -1,0 +1,14 @@
+syntax = "proto3";
+package influxdata.iox.gossip.v1;
+option go_package = "github.com/influxdata/iox/gossip/v1";
+
+message SyncMessage {
+  // A 16-byte Merkle Search Tree root hash convering the schema cache content.
+  bytes root_hash = 1;
+
+  // The gRPC bind port on the sender.
+  //
+  // Peers will combine this port with the source address of gossip frames to
+  // derive the gRPC address for sync operations.
+  int32 grpc_port = 2;
+}
