@@ -441,7 +441,7 @@ async fn create_partition_template_implicit_table_creation() {
                     NamespaceCmd::new("create", NAMESPACE_NAME)
                         .with_partition_template(
                             "{\"parts\":[\
-                            {\"timeFormat\":\"%Y-%m\"}, \
+                            {\"timeFormat\":\"%Y-%m\"},\
                             {\"tagValue\":\"location\"}\
                         ]}",
                         )
