@@ -265,6 +265,7 @@ fn namespace_to_proto(namespace: CatalogNamespace) -> Namespace {
         retention_period_ns: namespace.retention_period_ns,
         max_tables: namespace.max_tables,
         max_columns_per_table: namespace.max_columns_per_table,
+        partition_template: namespace.partition_template.as_proto().cloned(),
     }
 }
 
@@ -276,6 +277,7 @@ fn namespace_to_create_response_proto(namespace: CatalogNamespace) -> CreateName
             retention_period_ns: namespace.retention_period_ns,
             max_tables: namespace.max_tables,
             max_columns_per_table: namespace.max_columns_per_table,
+            partition_template: namespace.partition_template.as_proto().cloned(),
         }),
     }
 }
@@ -311,6 +313,7 @@ mod tests {
     use std::time::Duration;
 
     use assert_matches::assert_matches;
+    use data_types::partition_template::PARTITION_BY_DAY_PROTO;
     use generated_types::influxdata::iox::{
         namespace::v1::namespace_service_server::NamespaceService as _,
         partition_template::v1::PartitionTemplate,
@@ -396,6 +399,7 @@ mod tests {
             .expect("no namespace in response");
         assert_eq!(created_ns.name, NS_NAME);
         assert_eq!(created_ns.retention_period_ns, Some(RETENTION));
+        assert_eq!(created_ns.partition_template, None);
 
         // There should now be one namespace
         {
@@ -425,6 +429,7 @@ mod tests {
         assert_eq!(updated_ns.id, created_ns.id);
         assert_eq!(created_ns.retention_period_ns, Some(RETENTION));
         assert_eq!(updated_ns.retention_period_ns, None);
+        assert_eq!(created_ns.partition_template, updated_ns.partition_template);
 
         // Listing the namespaces should return the updated namespace
         {
@@ -545,6 +550,45 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(all_namespaces.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn custom_namespace_template_returned_in_responses() {
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
+        let handler = NamespaceService::new(Arc::clone(&catalog));
+
+        // Ensure the create reponse feeds back the partition template
+        let req = CreateNamespaceRequest {
+            name: NS_NAME.to_string(),
+            retention_period_ns: None,
+            partition_template: Some(PARTITION_BY_DAY_PROTO.as_ref().clone()),
+            service_protection_limits: None,
+        };
+        let created_ns = handler
+            .create_namespace(Request::new(req))
+            .await
+            .expect("failed to create namespace")
+            .into_inner()
+            .namespace
+            .expect("no namespace in response");
+        assert_eq!(created_ns.name, NS_NAME);
+        assert_eq!(created_ns.retention_period_ns, None);
+        assert_eq!(
+            created_ns.partition_template,
+            Some(PARTITION_BY_DAY_PROTO.as_ref().clone())
+        );
+
+        // And then make sure that a list call will include the details.
+        let listed_ns = handler
+            .get_namespaces(Request::new(Default::default()))
+            .await
+            .expect("must return namespaces")
+            .into_inner()
+            .namespaces;
+        assert_matches!(listed_ns.as_slice(), [listed_ns] => {
+            assert_eq!(listed_ns.partition_template, Some(PARTITION_BY_DAY_PROTO.as_ref().clone()));
+        })
     }
 
     #[tokio::test]

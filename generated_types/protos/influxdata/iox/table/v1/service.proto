@@ -37,4 +37,7 @@ message Table {
 
   // Namespace ID
   int64 namespace_id = 3;
+  
+  // The partitioning scheme applied to writes for this table
+  influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 4;
 }
