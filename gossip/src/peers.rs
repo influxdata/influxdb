@@ -1,9 +1,10 @@
 use std::{future, io, net::SocketAddr};
 
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{stream::FuturesUnordered, Future, StreamExt};
 use hashbrown::{hash_map::RawEntryMut, HashMap};
 use metric::U64Counter;
 use prost::bytes::Bytes;
+use rand::seq::SliceRandom;
 use tokio::net::UdpSocket;
 use tracing::{info, trace, warn};
 use uuid::Uuid;
@@ -11,8 +12,12 @@ use uuid::Uuid;
 use crate::{
     metric::{SentBytes, SentFrames},
     topic_set::{Topic, TopicSet},
-    MAX_FRAME_BYTES, MAX_PING_UNACKED,
+    BroadcastType, MAX_FRAME_BYTES, MAX_PING_UNACKED,
 };
+
+/// A fractional value between 0 and 1 that specifies the proportion of cluster
+/// members a subset broadcast is sent to.
+const SUBSET_FRACTION: f32 = 0.33;
 
 /// A unique generated identity containing 128 bits of randomness (V4 UUID).
 #[derive(Debug, Eq, Clone)]
@@ -247,27 +252,44 @@ impl PeerList {
         frames_sent: &SentFrames,
         bytes_sent: &SentBytes,
         topic: Option<Topic>,
+        subset: BroadcastType,
     ) {
-        self.list
-            .values()
-            .filter_map(|v| {
-                if let Some(topic) = topic {
-                    if !v.interests.is_interested(topic) {
-                        return None;
-                    }
-                    trace!(
-                        identity = %v.identity,
-                        peer_addr=%v.addr,
-                        ?topic,
-                        "sending to peer interested in broadcast topic"
-                    );
-                }
+        // Depending on the request, this message should either be sent to all
+        // peers, or a random subset.
+        match subset {
+            BroadcastType::AllPeers => {
+                self.list
+                    .values()
+                    .filter_map(|v| filtered_send(topic, v, buf, socket, frames_sent, bytes_sent))
+                    .collect::<FuturesUnordered<_>>()
+                    .for_each(|_| future::ready(()))
+                    .await
+            }
+            BroadcastType::PeerSubset => {
+                // Generate a list of futures that send the payload to candidate
+                // peers that are interested in this topic (if any).
+                let mut candidates = self
+                    .list
+                    .values()
+                    .filter_map(|v| filtered_send(topic, v, buf, socket, frames_sent, bytes_sent))
+                    .collect::<Vec<_>>();
 
-                Some(v.send(buf, socket, frames_sent, bytes_sent))
-            })
-            .collect::<FuturesUnordered<_>>()
-            .for_each(|_| future::ready(()))
-            .await;
+                // Figure out how many interested peers to send this payload to.
+                let n = (candidates.len() as f32 * SUBSET_FRACTION).ceil() as usize;
+
+                // Shuffle the candidate list
+                candidates.shuffle(&mut rand::thread_rng());
+
+                // And execute the first N futures to send the payload to random
+                // peers.
+                candidates
+                    .into_iter()
+                    .take(n)
+                    .collect::<FuturesUnordered<_>>()
+                    .for_each(|_| future::ready(()))
+                    .await
+            }
+        };
     }
 
     /// Send PING frames to all known nodes, and remove any that have not
@@ -283,8 +305,15 @@ impl PeerList {
         //
         // If a peer has exceeded the allowed maximum, it will be removed next,
         // but if it responds to this PING, it will be re-added again.
-        self.broadcast(ping_frame, socket, frames_sent, bytes_sent, None)
-            .await;
+        self.broadcast(
+            ping_frame,
+            socket,
+            frames_sent,
+            bytes_sent,
+            None,
+            BroadcastType::AllPeers,
+        )
+        .await;
 
         // Increment the PING counts and remove all peers that have not
         // responded to more than the allowed number of PINGs.
@@ -299,6 +328,30 @@ impl PeerList {
             self.metric_peer_removed_count.inc(1);
         }
     }
+}
+
+/// Send `buf` to `peer`, optionally applying a topic filter.
+fn filtered_send<'a>(
+    topic: Option<Topic>,
+    peer: &'a Peer,
+    buf: &'a [u8],
+    socket: &'a UdpSocket,
+    frames_sent: &'a SentFrames,
+    bytes_sent: &'a SentBytes,
+) -> Option<impl Future<Output = Result<usize, io::Error>> + 'a> {
+    if let Some(topic) = topic {
+        if !peer.interests.is_interested(topic) {
+            return None;
+        }
+        trace!(
+            identity = %peer.identity,
+            peer_addr=%peer.addr,
+            ?topic,
+            "selected interested peer as candidate for broadcast"
+        );
+    }
+
+    Some(peer.send(buf, socket, frames_sent, bytes_sent))
 }
 
 #[cfg(test)]
@@ -355,5 +408,12 @@ mod tests {
         let mut h = DefaultHasher::default();
         v.hash(&mut h);
         h.finish()
+    }
+
+    #[test]
+    #[allow(clippy::assertions_on_constants)]
+    fn test_subset_fraction() {
+        // This would be silly.
+        assert!(SUBSET_FRACTION < 1.0);
     }
 }
