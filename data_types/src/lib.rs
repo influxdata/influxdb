@@ -319,7 +319,7 @@ impl From<namespace_proto::ServiceProtectionLimits> for NamespaceServiceProtecti
 
 /// Schema collection for a namespace. This is an in-memory object useful for a schema
 /// cache.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub struct NamespaceSchema {
     /// the namespace id
     pub id: NamespaceId,
@@ -387,7 +387,7 @@ pub struct Table {
 }
 
 /// Column definitions for a table
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableSchema {
     /// the table id
     pub id: TableId,

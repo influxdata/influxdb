@@ -113,12 +113,7 @@
 //! [`Partitioner`]: crate::dml_handlers::Partitioner
 //! [`RpcWrite`]: crate::dml_handlers::RpcWrite
 
-#![deny(
-    rustdoc::broken_intra_doc_links,
-    rust_2018_idioms,
-    missing_debug_implementations,
-    unreachable_pub
-)]
+#![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]
 #![warn(
     missing_docs,
     clippy::todo,
@@ -127,7 +122,9 @@
     clippy::clone_on_ref_ptr,
     // See https://github.com/influxdata/influxdb_iox/pull/1671
     clippy::future_not_send,
-    unused_crate_dependencies
+    unused_crate_dependencies,
+    missing_debug_implementations,
+    unreachable_pub,
 )]
 #![allow(clippy::missing_docs_in_private_items)]
 

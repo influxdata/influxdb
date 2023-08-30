@@ -3438,9 +3438,9 @@ dependencies = [
 
 [[package]]
 name = "memchr"
-version = "2.6.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76fc44e2588d5b436dbc3c6cf62aef290f90dab6235744a93dfe1cc18f451e2c"
+checksum = "f478948fd84d9f8e86967bf432640e46adfb5a4bd4f14ef7e864ab38220534ae"
 
 [[package]]
 name = "memmap2"
@@ -3458,6 +3458,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a634b1c61a95585bd15607c6ab0c4e5b226e695ff2800ba0cdccddf208c406c"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "merkle-search-tree"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6f5f8e25bd481489f8e0389fd4ced21ec6cbaf1a30e3204102df45dc6b04ce5"
+dependencies = [
+ "base64 0.21.3",
+ "siphasher 0.3.11",
+ "tracing",
 ]
 
 [[package]]
@@ -4787,6 +4798,7 @@ dependencies = [
  "iox_catalog",
  "iox_tests",
  "iox_time",
+ "merkle-search-tree",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
