@@ -7,17 +7,17 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use data_types::{NamespaceName, NamespaceSchema};
-use merkle_search_tree::MerkleSearchTree;
-use parking_lot::Mutex;
 
 use crate::namespace_cache::{ChangeStats, NamespaceCache};
+
+use super::handle::AntiEntropyHandle;
 
 /// A [`NamespaceCache`] decorator that maintains a content hash / consistency
 /// proof.
 ///
 /// This [`MerkleTree`] tracks the content of the underlying [`NamespaceCache`]
 /// delegate, maintaining a compact, serialisable representation in a
-/// [MerkleSearchTree] that can be used to perform efficient differential
+/// [`MerkleSearchTree`] that can be used to perform efficient differential
 /// convergence (anti-entropy) of peers to provide eventual consistency.
 ///
 /// # Merge Correctness
@@ -35,29 +35,31 @@ use crate::namespace_cache::{ChangeStats, NamespaceCache};
 ///
 /// If two nodes are producing differing hashes for the same underlying content,
 /// they will appear to never converge.
+///
+/// [`MerkleSearchTree`]: merkle_search_tree::MerkleSearchTree
 #[derive(Debug)]
 pub struct MerkleTree<T> {
     inner: T,
 
-    mst: Mutex<MerkleSearchTree<NamespaceName<'static>, NamespaceSchema>>,
+    handle: AntiEntropyHandle,
 }
 
-impl<T> MerkleTree<T> {
+impl<T> MerkleTree<T>
+where
+    T: Send + Sync,
+{
     /// Initialise a new [`MerkleTree`] that generates a content hash covering
     /// `inner`.
-    pub fn new(inner: T) -> Self {
-        Self {
-            inner,
-            mst: Mutex::new(MerkleSearchTree::default()),
-        }
+    pub fn new(inner: T, handle: AntiEntropyHandle) -> Self {
+        Self { inner, handle }
     }
 
     /// Return a 128-bit hash describing the content of the inner `T`.
     ///
     /// This hash only covers a subset of schema fields (see
     /// [`NamespaceContentHash`]).
-    pub fn content_hash(&self) -> merkle_search_tree::digest::RootHash {
-        self.mst.lock().root_hash().clone()
+    pub async fn content_hash(&self) -> merkle_search_tree::digest::RootHash {
+        self.handle.content_hash().await
     }
 }
 
@@ -84,9 +86,8 @@ where
         // return value (the new content of the cache).
         let (schema, diff) = self.inner.put_schema(namespace.clone(), schema);
 
-        // Intercept the the resulting cache entry state and merge it into the
-        // merkle tree.
-        self.mst.lock().upsert(namespace, &schema);
+        // Attempt to asynchronously update the MST.
+        self.handle.observe_update(namespace.clone());
 
         // And pass through the return value to the caller.
         (schema, diff)
