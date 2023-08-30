@@ -109,6 +109,10 @@ pub mod influxdata {
 
                 /// Parquet file creation notifications.
                 NewParquetFiles = 2,
+
+                /// Schema cache consistency check / sync / convergence
+                /// messages.
+                SchemaCacheConsistency = 4,
             }
 
             impl TryFrom<u64> for Topic {
@@ -118,6 +122,9 @@ pub mod influxdata {
                     Ok(match v {
                         v if v == Self::SchemaChanges as u64 => Self::SchemaChanges,
                         v if v == Self::NewParquetFiles as u64 => Self::NewParquetFiles,
+                        v if v == Self::SchemaCacheConsistency as u64 => {
+                            Self::SchemaCacheConsistency
+                        }
                         _ => return Err(format!("unknown topic id {}", v).into()),
                     })
                 }
@@ -328,6 +335,7 @@ mod tests {
         match topics[0] {
             Topic::SchemaChanges => {}
             Topic::NewParquetFiles => {}
+            Topic::SchemaCacheConsistency => {}
         }
     }
 }

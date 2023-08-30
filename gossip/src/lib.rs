@@ -34,6 +34,7 @@ use workspace_hack as _;
 pub use builder::*;
 pub use dispatcher::*;
 pub use handle::*;
+pub use peers::Identity;
 
 /// The maximum duration of time allotted to performing a DNS resolution against
 /// a seed/peer address.
