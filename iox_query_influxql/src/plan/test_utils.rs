@@ -144,7 +144,7 @@ impl Default for MockSchemaProvider {
             .unwrap()
             .and_hms_opt(0, 0, 0)
             .unwrap();
-        let start_time = DateTime::<Utc>::from_utc(start_time, Utc);
+        let start_time = DateTime::<Utc>::from_naive_utc_and_offset(start_time, Utc);
         let mut execution_props = ExecutionProps::new();
         execution_props.query_execution_start_time = start_time;
         let mut res = Self {

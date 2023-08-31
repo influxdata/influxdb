@@ -40,7 +40,7 @@ fn array_value_to_string(column: &ArrayRef, row: usize) -> Result<String> {
                 )
             })?;
             // treat as UTC
-            let ts = DateTime::<Utc>::from_utc(ts, Utc);
+            let ts = DateTime::<Utc>::from_naive_utc_and_offset(ts, Utc);
             // convert to string in preferred influx format
             let use_z = true;
             Ok(ts.to_rfc3339_opts(SecondsFormat::AutoSi, use_z))

@@ -1,5 +1,7 @@
-use gossip::{GossipHandle, NopDispatcher, TopicInterests};
+use data_types::ParquetFile;
+use gossip::{NopDispatcher, TopicInterests};
 
+use gossip_parquet_file::tx::ParquetFileTx;
 /// This needs to be pub for the benchmarks but should not be used outside the crate.
 #[cfg(feature = "benches")]
 pub use wal_replay::*;
@@ -38,11 +40,12 @@ use crate::{
         BufferTree,
     },
     dml_sink::{instrumentation::DmlSinkInstrumentation, tracing::DmlSinkTracing},
+    gossip::persist_parquet::ParquetFileNotification,
     ingest_state::IngestState,
     ingester_id::IngesterId,
     persist::{
-        file_metrics::ParquetFileInstrumentation, handle::PersistHandle,
-        hot_partitions::HotPartitionPersister,
+        completion_observer::MaybeLayer, file_metrics::ParquetFileInstrumentation,
+        handle::PersistHandle, hot_partitions::HotPartitionPersister,
     },
     query::{
         exec_instrumentation::QueryExecInstrumentation,
@@ -116,9 +119,6 @@ pub struct IngesterGuard<T> {
     /// The task handle executing the graceful shutdown once triggered.
     graceful_shutdown_handler: tokio::task::JoinHandle<()>,
     shutdown_complete: Shared<oneshot::Receiver<()>>,
-
-    /// An optional handle to the gossip sub-system, if running.
-    gossip_handle: Option<GossipHandle>,
 }
 
 impl<T> IngesterGuard<T>
@@ -358,9 +358,44 @@ where
         .await
         .map_err(InitError::WalInit)?;
 
+    // Start defining the chain of persist completion observers so it can be
+    // layered in gossip handlers if needed.
+    //
     // Prepare the WAL segment reference tracker
     let (wal_reference_handle, wal_reference_actor) =
         WalReferenceHandle::new(Arc::clone(&wal), &metrics);
+    // Add file metric instrumentation.
+    let persist_observer = ParquetFileInstrumentation::new(wal_reference_handle.clone(), &metrics);
+
+    // Optionally start the gossip subsystem and layer on the parquet file
+    // gossip handler.
+    let persist_observer = match gossip {
+        GossipConfig::Disabled => {
+            info!("gossip disabled");
+            MaybeLayer::Without(persist_observer)
+        }
+        GossipConfig::Enabled { bind_addr, peers } => {
+            // Start the gossip sub-system, which logs during init.
+            let handle = gossip::Builder::<_, Topic>::new(
+                peers,
+                NopDispatcher::default(),
+                Arc::clone(&metrics),
+            )
+            // Configure the ingester to ignore all user payloads, only acting
+            // as a gossip peer exchange seed and sender of messages.
+            .with_topic_filter(TopicInterests::default())
+            .bind(bind_addr)
+            .await
+            .map_err(InitError::GossipBind)?;
+
+            let persist_observer = ParquetFileNotification::new(
+                persist_observer,
+                ParquetFileTx::<ParquetFile>::new(handle),
+            );
+
+            MaybeLayer::With(persist_observer)
+        }
+    };
 
     // Spawn the persist workers to compact partition data, convert it into
     // Parquet files, and upload them to object storage.
@@ -371,10 +406,7 @@ where
         persist_executor,
         object_store,
         Arc::clone(&catalog),
-        // Register a post-persistence observer that emits Parquet file
-        // attributes as metrics, and notifies the WAL segment reference tracker of
-        // completed persist actions.
-        ParquetFileInstrumentation::new(wal_reference_handle.clone(), &metrics),
+        persist_observer,
         &metrics,
     );
     let persist_handle = Arc::new(persist_handle);
@@ -492,29 +524,6 @@ where
         wal_reference_handle,
     ));
 
-    // Optionally start the gossip subsystem
-    let gossip_handle = match gossip {
-        GossipConfig::Disabled => {
-            info!("gossip disabled");
-            None
-        }
-        GossipConfig::Enabled { bind_addr, peers } => {
-            // Start the gossip sub-system, which logs during init.
-            let handle = gossip::Builder::<_, Topic>::new(
-                peers,
-                NopDispatcher::default(),
-                Arc::clone(&metrics),
-            )
-            // Configure the ingester to ignore all user payloads, only acting
-            // as a gossip peer exchange.
-            .with_topic_filter(TopicInterests::default())
-            .bind(bind_addr)
-            .await
-            .map_err(InitError::GossipBind)?;
-            Some(handle)
-        }
-    };
-
     Ok(IngesterGuard {
         rpc: GrpcDelegate::new(
             Arc::new(write_path),
@@ -531,6 +540,5 @@ where
         disk_metric_task,
         graceful_shutdown_handler: shutdown_task,
         shutdown_complete: shutdown_rx.shared(),
-        gossip_handle,
     })
 }
