@@ -5,6 +5,7 @@ use observability_deps::tracing::info;
 use thiserror::Error;
 
 mod create;
+mod list;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
@@ -28,12 +29,15 @@ pub struct Config {
 /// All possible subcommands for table
 #[derive(Debug, clap::Parser)]
 enum Command {
+    /// List tables in a given database
+    List(list::Config),
     /// Create a new table
     Create(create::Config),
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
     match config.command {
+        Command::List(config) => list::command(connection, config).await?,
         Command::Create(config) => {
             info!("Creating table with config: {:?}", config);
             create::command(connection, config).await?;
