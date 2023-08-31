@@ -22,7 +22,7 @@ fn parse_timestamp_utc(s: &str) -> Option<Timestamp> {
                 NaiveDate::parse_from_str(s, "%Y-%m-%d")
                     .map(|nd| nd.and_time(NaiveTime::default())),
         )
-        .map(|ts| DateTime::from_utc(ts, chrono::Utc.fix()))
+        .map(|ts| DateTime::from_naive_utc_and_offset(ts, chrono::Utc.fix()))
         .ok()
 }
 

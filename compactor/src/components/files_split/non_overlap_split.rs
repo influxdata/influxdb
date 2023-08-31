@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, fmt::Display};
 
-use data_types::{CompactionLevel, ParquetFile};
+use data_types::{CompactionLevel, ParquetFile, TransitionPartitionId};
 
 use crate::file_group::{split_by_level, FilesTimeRange};
 
@@ -74,15 +74,20 @@ impl FilesSplit for NonOverlapSplit {
         &self,
         files: Vec<ParquetFile>,
         target_level: CompactionLevel,
+        partition: TransitionPartitionId,
     ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
-        // Panic if given wrong target level, L0
-        assert_ne!(target_level, CompactionLevel::Initial);
+        assert_ne!(
+            target_level,
+            CompactionLevel::Initial,
+            "unexpected compaction target_level, should not be L0, partition_id={}",
+            partition
+        );
         let num_files = files.len();
 
         // Split files into levels
         let prev_level = target_level.prev();
         let (mut target_level_files, prev_level_files) =
-            split_by_level(files, target_level, prev_level);
+            split_by_level(files, target_level, prev_level, partition);
 
         // compute time range of prev_level_files
         let prev_level_range = if let Some(r) = FilesTimeRange::try_new(&prev_level_files) {
@@ -172,9 +177,10 @@ pub fn three_range_split(
 mod tests {
 
     use compactor_test_utils::{
-        create_l1_files, create_overlapped_files, create_overlapped_files_2,
-        create_overlapped_files_mix_sizes_1, create_overlapped_l0_l1_files,
-        create_overlapped_l1_l2_files, format_files, format_files_split,
+        create_fake_partition_id, create_l1_files, create_overlapped_files,
+        create_overlapped_files_2, create_overlapped_files_mix_sizes_1,
+        create_overlapped_l0_l1_files, create_overlapped_l1_l2_files, format_files,
+        format_files_split,
     };
 
     use super::*;
@@ -192,29 +198,33 @@ mod tests {
     fn test_wrong_target_level() {
         let files = create_overlapped_files();
         let split = NonOverlapSplit::new(1024 * 1024);
-        split.apply(files, CompactionLevel::Initial);
+        split.apply(files, CompactionLevel::Initial, create_fake_partition_id());
     }
 
     #[test]
     #[should_panic(
-        expected = "Unexpected compaction level. Expected CompactionLevel::L1 or CompactionLevel::L0 but got CompactionLevel::L2."
+        expected = "unexpected compaction level for partition 0, expected CompactionLevel::L1 or CompactionLevel::L0 but got CompactionLevel::L2"
     )]
     fn test_unexpected_compaction_level_2() {
         let files = create_overlapped_files();
         let split = NonOverlapSplit::new(1024 * 1024);
         // There are L2 files and will panic
-        split.apply(files, CompactionLevel::FileNonOverlapped);
+        split.apply(
+            files,
+            CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
+        );
     }
 
     #[test]
     #[should_panic(
-        expected = "Unexpected compaction level. Expected CompactionLevel::L2 or CompactionLevel::L1 but got CompactionLevel::L0."
+        expected = "unexpected compaction level for partition 0, expected CompactionLevel::L2 or CompactionLevel::L1 but got CompactionLevel::L0"
     )]
     fn test_unexpected_compaction_level_0() {
         let files = create_overlapped_files();
         let split = NonOverlapSplit::new(1024 * 1024);
         // There are L0 files and will panic
-        split.apply(files, CompactionLevel::Final);
+        split.apply(files, CompactionLevel::Final, create_fake_partition_id());
     }
 
     #[test]
@@ -222,7 +232,11 @@ mod tests {
         let files = vec![];
         let split = NonOverlapSplit::new(1024 * 1024);
 
-        let (overlap, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
+        let (overlap, non_overlap) = split.apply(
+            files,
+            CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
+        );
         assert_eq!(overlap.len(), 0);
         assert_eq!(non_overlap.len(), 0);
     }
@@ -230,6 +244,8 @@ mod tests {
     #[test]
     fn test_apply_one_level_empty() {
         let files = create_l1_files(1);
+        let fake_partition_id = create_fake_partition_id();
+
         insta::assert_yaml_snapshot!(
             format_files("initial", &files),
             @r###"
@@ -245,12 +261,16 @@ mod tests {
         let split = NonOverlapSplit::new(0);
 
         // Lower level is empty  -> all files will be in non_overlapping_files
-        let (overlap, non_overlap) = split.apply(files.clone(), CompactionLevel::FileNonOverlapped);
+        let (overlap, non_overlap) = split.apply(
+            files.clone(),
+            CompactionLevel::FileNonOverlapped,
+            fake_partition_id.clone(),
+        );
         assert_eq!(overlap.len(), 0);
         assert_eq!(non_overlap.len(), 3);
 
         // target level is empty -> all files will be in compact_files
-        let (overlap, non_overlap) = split.apply(files, CompactionLevel::Final);
+        let (overlap, non_overlap) = split.apply(files, CompactionLevel::Final, fake_partition_id);
         assert_eq!(overlap.len(), 3);
         assert_eq!(non_overlap.len(), 0);
     }
@@ -275,7 +295,11 @@ mod tests {
         );
 
         let split = NonOverlapSplit::new(0);
-        let (overlap, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
+        let (overlap, non_overlap) = split.apply(
+            files,
+            CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
+        );
         insta::assert_yaml_snapshot!(
             format_files_split("overlap", &overlap, "non_overlap", &non_overlap),
             @r###"
@@ -318,7 +342,8 @@ mod tests {
         );
 
         let split = NonOverlapSplit::new(0);
-        let (overlap, non_overlap) = split.apply(files, CompactionLevel::Final);
+        let (overlap, non_overlap) =
+            split.apply(files, CompactionLevel::Final, create_fake_partition_id());
         insta::assert_yaml_snapshot!(
             format_files_split("overlap", &overlap, "non_overlap", &non_overlap),
             @r###"
@@ -363,7 +388,11 @@ mod tests {
         );
 
         let split = NonOverlapSplit::new(0);
-        let (overlap, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
+        let (overlap, non_overlap) = split.apply(
+            files,
+            CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
+        );
         insta::assert_yaml_snapshot!(
             format_files_split("overlap", &overlap, "non_overlap", &non_overlap),
             @r###"
@@ -411,7 +440,11 @@ mod tests {
         );
 
         let split = NonOverlapSplit::new(11);
-        let (compact_files, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
+        let (compact_files, non_overlap) = split.apply(
+            files,
+            CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
+        );
         insta::assert_yaml_snapshot!(
             format_files_split("compact_files", &compact_files, "non_overlap", &non_overlap),
             @r###"
@@ -464,7 +497,11 @@ mod tests {
         );
 
         let split = NonOverlapSplit::new(11);
-        let (compact_files, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
+        let (compact_files, non_overlap) = split.apply(
+            files,
+            CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
+        );
         insta::assert_yaml_snapshot!(
             format_files_split("compact_files", &compact_files, "non_overlap", &non_overlap),
             @r###"
@@ -525,7 +562,11 @@ mod tests {
         );
 
         let split = NonOverlapSplit::new(21);
-        let (compact_files, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
+        let (compact_files, non_overlap) = split.apply(
+            files,
+            CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
+        );
         insta::assert_yaml_snapshot!(
             format_files_split("compact_files", &compact_files, "non_overlap", &non_overlap),
             @r###"

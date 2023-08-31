@@ -358,7 +358,7 @@ pub(crate) fn literal_regex(i: &str) -> ParseResult<&str, Literal> {
 pub fn nanos_to_timestamp(nanos: i64) -> Timestamp {
     let (secs, nsec) = num_integer::div_mod_floor(nanos, NANOS_PER_SEC);
 
-    Timestamp::from_utc(
+    Timestamp::from_naive_utc_and_offset(
         NaiveDateTime::from_timestamp_opt(secs, nsec as u32)
             .expect("unable to convert duration to timestamp"),
         chrono::Utc.fix(),

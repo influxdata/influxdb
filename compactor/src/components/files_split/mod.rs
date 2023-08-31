@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 
-use data_types::{CompactionLevel, ParquetFile};
+use data_types::{CompactionLevel, ParquetFile, TransitionPartitionId};
 
 pub mod non_overlap_split;
 pub mod target_level_split;
@@ -24,5 +24,6 @@ pub trait FilesSplit: Debug + Display + Send + Sync {
         &self,
         files: Vec<ParquetFile>,
         target_level: CompactionLevel,
+        partition: TransitionPartitionId,
     ) -> (Vec<ParquetFile>, Vec<ParquetFile>);
 }

@@ -1,4 +1,4 @@
-use data_types::{CompactionLevel, ParquetFile, Timestamp};
+use data_types::{CompactionLevel, ParquetFile, Timestamp, TransitionPartitionId};
 
 use crate::components::{
     divide_initial::multiple_branches::order_files,
@@ -97,24 +97,28 @@ pub fn limit_files_to_compact(
     max_compact_size: usize,
     files: Vec<ParquetFile>,
     target_level: CompactionLevel,
+    partition: TransitionPartitionId,
 ) -> KeepAndCompactSplit {
-    // panic if not all files are either in target level or start level
     let start_level = target_level.prev();
     assert!(files
         .iter()
-        .all(|f| f.compaction_level == target_level || f.compaction_level == start_level));
+        .all(|f| f.compaction_level == target_level || f.compaction_level == start_level),
+        "all files to compact must be in either {start_level} or {target_level}, but found files in other levels, partition_id={partition}"
+    );
 
     // Get start-level and target-level files
     let len = files.len();
     let split = TargetLevelSplit::new();
-    let (start_level_files, mut target_level_files) = split.apply(files, start_level);
+    let (start_level_files, mut target_level_files) =
+        split.apply(files, start_level, partition.clone());
 
-    // panic if there is any file in start level that overlaps with more than one file in target level
     assert!(start_level_files.iter().all(|s| target_level_files
         .iter()
         .filter(|t| t.overlaps(s))
         .count()
-        <= 1));
+        <= 1),
+        "no file in start level should overlap with more than one file in target level, found files which violated this constraint, partition_id={partition}"
+    );
 
     // Order start-level files to group the files to compact them correctly
     let start_level_files = order_files(start_level_files, start_level);
@@ -223,12 +227,19 @@ pub fn limit_files_to_compact(
                 }
                 // If the above found some specific splits, we'll go with that.  Otherwise, make a general split decision.
                 if specific_splits.is_empty() {
+                    let file_id = file.id;
                     // nothing to compact & no specific split opportunities identified.
                     // return this minimum compacting set for further spliting
                     files_to_further_split.push(file);
                     // since there is only one start_level file,
                     // the number of overlapped target_level must be <= 1
-                    assert!(overlapped_files.len() <= 1);
+                    assert!(
+                        overlapped_files.len() <= 1,
+                        "should have no more than 1 overlapped target_level file, instead found {} overlapped files for file {}, partition_id={}",
+                        overlapped_files.len(),
+                        file_id,
+                        partition,
+                    );
                     files_to_further_split
                         .extend(overlapped_files.into_iter().cloned().collect::<Vec<_>>());
                 } else {
@@ -269,19 +280,27 @@ pub fn limit_files_to_compact(
 
     // Sanity check
     // All files are returned
+    let accounted_files_len = files_to_compact.len()
+        + files_to_further_split.len()
+        + specific_splits.len()
+        + files_to_keep.len();
     assert_eq!(
-        files_to_compact.len()
-            + files_to_further_split.len()
-            + specific_splits.len()
-            + files_to_keep.len(),
-        len
+        accounted_files_len,
+        len,
+        "all files should be accounted after file divisions, expected {len} files but found {accounted_files_len} files, partition_id={partition}",
     );
 
     assert!(
         files_to_compact.is_empty() as u8
             + files_to_further_split.is_empty() as u8
             + specific_splits.is_empty() as u8
-            >= 2
+            >= 2,
+        "should have at least 2 sets of files, but instead found only {} set is non-empty, partition_id={}",
+        if !files_to_compact.is_empty() { "files_to_compact" }
+        else if !files_to_further_split.is_empty() { "files_to_further_split" }
+        else if !specific_splits.is_empty() { "specific_splits" }
+        else { "none" },
+        partition,
     );
 
     let files_to_compact_or_further_split = if !files_to_compact.is_empty() {
@@ -377,9 +396,9 @@ pub enum CompactOrFurtherSplit {
 #[cfg(test)]
 mod tests {
     use compactor_test_utils::{
-        create_l1_files, create_overlapped_files, create_overlapped_l0_l1_files_2,
-        create_overlapped_l0_l1_files_3, create_overlapped_start_target_files, format_files,
-        format_files_split,
+        create_fake_partition_id, create_l1_files, create_overlapped_files,
+        create_overlapped_l0_l1_files_2, create_overlapped_l0_l1_files_3,
+        create_overlapped_start_target_files, format_files, format_files_split,
     };
     use data_types::CompactionLevel;
 
@@ -391,8 +410,13 @@ mod tests {
     #[test]
     fn test_compact_empty() {
         let files = vec![];
-        let keep_and_split_or_compact =
-            limit_files_to_compact(MAX_COUNT, MAX_SIZE, files, CompactionLevel::Initial);
+        let keep_and_split_or_compact = limit_files_to_compact(
+            MAX_COUNT,
+            MAX_SIZE,
+            files,
+            CompactionLevel::Initial,
+            create_fake_partition_id(),
+        );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
         let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
@@ -410,8 +434,13 @@ mod tests {
         let files = create_l1_files(1);
 
         // Target is L0 while all files are in L1 --> panic
-        let _keep_and_split_or_compact =
-            limit_files_to_compact(MAX_COUNT, MAX_SIZE, files, CompactionLevel::Initial);
+        let _keep_and_split_or_compact = limit_files_to_compact(
+            MAX_COUNT,
+            MAX_SIZE,
+            files,
+            CompactionLevel::Initial,
+            create_fake_partition_id(),
+        );
     }
 
     #[test]
@@ -444,6 +473,7 @@ mod tests {
             MAX_SIZE,
             files,
             CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
         );
     }
 
@@ -473,6 +503,7 @@ mod tests {
             MAX_SIZE * 5 + 1,
             files,
             CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
         );
     }
 
@@ -500,6 +531,7 @@ mod tests {
             MAX_SIZE * 5 + 1,
             files,
             CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
         );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
@@ -552,6 +584,7 @@ mod tests {
             MAX_SIZE,
             files,
             CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
         );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
@@ -606,6 +639,7 @@ mod tests {
             MAX_SIZE * 3,
             files,
             CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
         );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
@@ -660,6 +694,7 @@ mod tests {
             MAX_SIZE * 4,
             files,
             CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
         );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
@@ -721,6 +756,7 @@ mod tests {
             MAX_SIZE,
             files.clone(),
             CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
         );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
@@ -758,6 +794,7 @@ mod tests {
             MAX_SIZE * 3,
             files.clone(),
             CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
         );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
@@ -796,6 +833,7 @@ mod tests {
             MAX_SIZE * 4,
             files.clone(),
             CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
         );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
@@ -833,6 +871,7 @@ mod tests {
             MAX_SIZE * 5,
             files.clone(),
             CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
         );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
@@ -869,6 +908,7 @@ mod tests {
             MAX_SIZE * 6,
             files,
             CompactionLevel::FileNonOverlapped,
+            create_fake_partition_id(),
         );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
@@ -928,8 +968,13 @@ mod tests {
 
         // --------------------
         // size limit = MAX_SIZE to force the first choice: splitting L1.1 & L2.11
-        let keep_and_split_or_compact =
-            limit_files_to_compact(MAX_COUNT, MAX_SIZE, files.clone(), CompactionLevel::Final);
+        let keep_and_split_or_compact = limit_files_to_compact(
+            MAX_COUNT,
+            MAX_SIZE,
+            files.clone(),
+            CompactionLevel::Final,
+            create_fake_partition_id(),
+        );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
         let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
@@ -966,6 +1011,7 @@ mod tests {
             MAX_SIZE * 3,
             files.clone(),
             CompactionLevel::Final,
+            create_fake_partition_id(),
         );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
@@ -1003,6 +1049,7 @@ mod tests {
             MAX_SIZE * 3,
             files.clone(),
             CompactionLevel::Final,
+            create_fake_partition_id(),
         );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
@@ -1040,6 +1087,7 @@ mod tests {
             MAX_SIZE * 5,
             files.clone(),
             CompactionLevel::Final,
+            create_fake_partition_id(),
         );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
@@ -1072,8 +1120,13 @@ mod tests {
 
         // --------------------
         // size limit >= total size to force the forth choice compacting everything:  L1.1, L1.2, L1.3 with L2.11, L2.12, L2.13
-        let keep_and_split_or_compact =
-            limit_files_to_compact(MAX_COUNT, MAX_SIZE * 6, files, CompactionLevel::Final);
+        let keep_and_split_or_compact = limit_files_to_compact(
+            MAX_COUNT,
+            MAX_SIZE * 6,
+            files,
+            CompactionLevel::Final,
+            create_fake_partition_id(),
+        );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
         let files_to_further_split = keep_and_split_or_compact.files_to_further_split();

@@ -171,6 +171,8 @@ where
             ),
 
             RoundInfo::TargetLevel { target_level, .. } => {
+                let partition_id = partition_info.partition_id();
+
                 // Split files into files_to_compact, files_to_upgrade, and files_to_keep
                 //
                 // Since output of one compaction is used as input of next compaction, all files that are not
@@ -179,19 +181,25 @@ where
                 // Split actual files to compact from its higher-target-level files
                 // The higher-target-level files are kept for next round of compaction
                 let target_level = *target_level;
-                let (files_to_compact, mut files_to_keep) = self
-                    .target_level_split
-                    .apply(files_to_compact, target_level);
+                let (files_to_compact, mut files_to_keep) = self.target_level_split.apply(
+                    files_to_compact,
+                    target_level,
+                    partition_id.clone(),
+                );
 
                 // To have efficient compaction performance, we do not need to compact eligible non-overlapped files
                 // Find eligible non-overlapped files and keep for next round of compaction
-                let (files_to_compact, non_overlapping_files) =
-                    self.non_overlap_split.apply(files_to_compact, target_level);
+                let (files_to_compact, non_overlapping_files) = self.non_overlap_split.apply(
+                    files_to_compact,
+                    target_level,
+                    partition_id.clone(),
+                );
                 files_to_keep.extend(non_overlapping_files);
 
                 // To have efficient compaction performance, we only need to upgrade (catalog update only) eligible files
                 let (files_to_compact, files_to_upgrade) =
-                    self.upgrade_split.apply(files_to_compact, target_level);
+                    self.upgrade_split
+                        .apply(files_to_compact, target_level, partition_id);
 
                 // See if we need to split start-level files due to over compaction size limit
                 let (files_to_split_or_compact, other_files) =
@@ -216,6 +224,8 @@ where
                 max_total_file_size_to_group,
                 ..
             } => {
+                let partition_id = partition_info.partition_id();
+
                 let l0_count = files_to_compact
                     .iter()
                     .filter(|f| f.compaction_level == CompactionLevel::Initial)
@@ -228,7 +238,7 @@ where
                         .partition(|f| f.compaction_level == CompactionLevel::Initial);
 
                     let l0_classification = file_classification_for_many_files(
-                        partition_info.partition_id(),
+                        partition_id.clone(),
                         *max_total_file_size_to_group,
                         *max_num_files_to_group,
                         files_to_compact,
@@ -240,7 +250,7 @@ where
                     assert!(
                         !l0_classification.files_to_make_progress_on.is_empty(),
                         "L0 files_to_make_progress_on should not be empty, for partition {}",
-                        partition_info.partition_id()
+                        partition_id
                     );
                     FileClassification {
                         target_level: l0_classification.target_level,
@@ -250,19 +260,25 @@ where
                 } else {
                     // There's not too many L0s, so upgrade/split/compact as required to get L0s->L1.
                     let target_level = CompactionLevel::FileNonOverlapped;
-                    let (files_to_compact, mut files_to_keep) = self
-                        .target_level_split
-                        .apply(files_to_compact, target_level);
+                    let (files_to_compact, mut files_to_keep) = self.target_level_split.apply(
+                        files_to_compact,
+                        target_level,
+                        partition_id.clone(),
+                    );
 
                     // To have efficient compaction performance, we do not need to compact eligible non-overlapped files
                     // Find eligible non-overlapped files and keep for next round of compaction
-                    let (files_to_compact, non_overlapping_files) =
-                        self.non_overlap_split.apply(files_to_compact, target_level);
+                    let (files_to_compact, non_overlapping_files) = self.non_overlap_split.apply(
+                        files_to_compact,
+                        target_level,
+                        partition_id.clone(),
+                    );
                     files_to_keep.extend(non_overlapping_files);
 
                     // To have efficient compaction performance, we only need to upgrade (catalog update only) eligible files
                     let (files_to_compact, files_to_upgrade) =
-                        self.upgrade_split.apply(files_to_compact, target_level);
+                        self.upgrade_split
+                            .apply(files_to_compact, target_level, partition_id);
 
                     // See if we need to split start-level files due to over compaction size limit
                     let (files_to_split_or_compact, other_files) =
@@ -304,12 +320,12 @@ fn file_classification_for_many_files(
 ) -> FileClassification {
     // Verify all input files are in the target_level
     let err_msg = format!(
-        "All files to compact must be in {target_level} level, but found files in other levels",
+        "all files to compact must be in {target_level} level, but found files in other levels",
     );
 
     assert!(
         files.iter().all(|f| f.compaction_level == target_level),
-        "{err_msg}, in partition {}",
+        "{err_msg}, partition_id {}",
         partition,
     );
 
@@ -353,7 +369,7 @@ fn file_classification_for_many_files(
             }
         }
         if !chunk.is_empty() {
-            assert!(files_to_compact.is_empty());
+            assert!(files_to_compact.is_empty(), "we shouldn't accumulate multiple non-contiguous chunks to compact, but we found non-contiguous chunks in compaction job for partition_id={}", partition);
             if chunk.len() > 1 {
                 // We need to compact what comes before f
                 files_to_compact = chunk.to_vec();

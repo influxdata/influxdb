@@ -1,4 +1,4 @@
-use data_types::{ParquetFile, TimestampMinMax};
+use data_types::{ParquetFile, TimestampMinMax, TransitionPartitionId};
 
 use crate::{components::ir_planner::planner_v1::V1IRPlanner, file_classification::FileToSplit};
 
@@ -14,23 +14,26 @@ pub fn compute_split_times_for_large_files(
     files: Vec<ParquetFile>,
     max_desired_file_size: u64,
     max_compact_size: usize,
+    partition: TransitionPartitionId,
 ) -> (Vec<FileToSplit>, Vec<ParquetFile>) {
     // Sanity checks
     // There must be at most 2 files
     assert!(
         files.len() <= MAX_FILE_NUM && !files.is_empty(),
-        "There must be at least one file and at most {MAX_FILE_NUM} files",
+        "there must be at least one file and at most {MAX_FILE_NUM} files, instead found {} files, partition_id={}",
+        files.len(),
+        partition,
     );
     // max compact size must at least MAX_FILE_NUM  times larger then max desired file size to ensure the split works
     assert!(
         max_compact_size >= MAX_FILE_NUM * max_desired_file_size as usize,
-        "max_compact_size {max_compact_size} must be at least {MAX_FILE_NUM} times larger than max_desired_file_size {max_desired_file_size}",
+        "max_compact_size {max_compact_size} must be at least {MAX_FILE_NUM} times larger than max_desired_file_size {max_desired_file_size}, partition_id={partition}",
     );
     // Total size of files must be larger than max_compact_size
     let total_size: i64 = files.iter().map(|f| f.file_size_bytes).sum();
     assert!(
         total_size as usize > max_compact_size,
-        "Total size of files {total_size} must be larger than max_compact_size {max_compact_size}",
+        "total size of files {total_size} must be larger than max_compact_size {max_compact_size}, partition_id={partition}",
     );
 
     // Split files over max_desired_file_size into multiple files each is softly around max_desired_file_size
@@ -82,8 +85,8 @@ mod tests {
     use std::sync::Arc;
 
     use compactor_test_utils::{
-        create_overlapped_l0_l1_files_3, create_overlapped_two_overlapped_files, format_files,
-        format_files_split, TestTimes,
+        create_fake_partition_id, create_overlapped_l0_l1_files_3,
+        create_overlapped_two_overlapped_files, format_files, format_files_split, TestTimes,
     };
     use data_types::CompactionLevel;
     use iox_tests::ParquetFileBuilder;
@@ -95,18 +98,23 @@ mod tests {
 
     // empty input
     #[test]
-    #[should_panic(expected = "There must be at least one file and at most 2 files")]
+    #[should_panic(
+        expected = "there must be at least one file and at most 2 files, instead found 0 files, partition_id=0"
+    )]
     fn test_empty_input() {
         let (_files_to_split, _files_not_to_split) = compute_split_times_for_large_files(
             vec![],
             (FILE_SIZE + 1) as u64,
             ((FILE_SIZE + 1) * 3) as usize,
+            create_fake_partition_id(),
         );
     }
 
     // more than 2 files
     #[test]
-    #[should_panic(expected = "There must be at least one file and at most 2 files")]
+    #[should_panic(
+        expected = "there must be at least one file and at most 2 files, instead found 5 files, partition_id=0"
+    )]
     fn test_too_many_files() {
         let files = create_overlapped_l0_l1_files_3(FILE_SIZE);
         insta::assert_yaml_snapshot!(
@@ -128,6 +136,7 @@ mod tests {
             files,
             (FILE_SIZE + 1) as u64,
             ((FILE_SIZE + 1) * 3) as usize,
+            create_fake_partition_id(),
         );
     }
 
@@ -154,13 +163,16 @@ mod tests {
             files,
             (FILE_SIZE + 1) as u64,
             ((FILE_SIZE + 1) + 10) as usize,
+            create_fake_partition_id(),
         );
     }
 
     // invalid total size
     #[test]
-    #[should_panic(expected = "Total size of files 200 must be larger than max_compact_size 300")]
-    fn test_inavlid_total_size() {
+    #[should_panic(
+        expected = "total size of files 200 must be larger than max_compact_size 300, partition_id=0"
+    )]
+    fn test_invalid_total_size() {
         let files = create_overlapped_two_overlapped_files(FILE_SIZE);
         insta::assert_yaml_snapshot!(
             format_files("initial", &files),
@@ -174,8 +186,12 @@ mod tests {
         "###
         );
 
-        let (_files_to_split, _files_not_to_split) =
-            compute_split_times_for_large_files(files, FILE_SIZE as u64, (FILE_SIZE * 3) as usize);
+        let (_files_to_split, _files_not_to_split) = compute_split_times_for_large_files(
+            files,
+            FILE_SIZE as u64,
+            (FILE_SIZE * 3) as usize,
+            create_fake_partition_id(),
+        );
     }
 
     // split both large files
@@ -198,8 +214,12 @@ mod tests {
         "###
         );
 
-        let (files_to_split, files_not_to_split) =
-            compute_split_times_for_large_files(files, max_desired_file_size, max_compact_size);
+        let (files_to_split, files_not_to_split) = compute_split_times_for_large_files(
+            files,
+            max_desired_file_size,
+            max_compact_size,
+            create_fake_partition_id(),
+        );
 
         // See layout of 2 set of files
         let files_to_split = files_to_split
@@ -260,8 +280,12 @@ mod tests {
         "###
         );
 
-        let (files_to_split, files_not_to_split) =
-            compute_split_times_for_large_files(files, max_desired_file_size, max_compact_size);
+        let (files_to_split, files_not_to_split) = compute_split_times_for_large_files(
+            files,
+            max_desired_file_size,
+            max_compact_size,
+            create_fake_partition_id(),
+        );
         // The split files should be L0_1 with 2 split times to split the file into 3 smaller files
         assert_eq!(files_to_split.len(), 1);
         assert_eq!(files_to_split[0].split_times.len(), 2);
@@ -325,8 +349,12 @@ mod tests {
         "###
         );
 
-        let (files_to_split, files_not_to_split) =
-            compute_split_times_for_large_files(files, max_desired_file_size, max_compact_size);
+        let (files_to_split, files_not_to_split) = compute_split_times_for_large_files(
+            files,
+            max_desired_file_size,
+            max_compact_size,
+            create_fake_partition_id(),
+        );
         // The split files should be L1_1 with 2 split times to split the file into 3 smaller files
         assert_eq!(files_to_split.len(), 1);
         assert_eq!(files_to_split[0].split_times.len(), 2);
@@ -389,8 +417,12 @@ mod tests {
         "###
         );
 
-        let (files_to_split, files_not_to_split) =
-            compute_split_times_for_large_files(files, max_desired_file_size, max_compact_size);
+        let (files_to_split, files_not_to_split) = compute_split_times_for_large_files(
+            files,
+            max_desired_file_size,
+            max_compact_size,
+            create_fake_partition_id(),
+        );
         // The split files should be L1_1 with 2 split times to split the file into 3 smaller files, and the L1 split at the only
         // time possible (since its a 2ns file, there is only one choice)
         assert_eq!(files_to_split.len(), 2);
@@ -455,8 +487,12 @@ mod tests {
         "###
         );
 
-        let (files_to_split, files_not_to_split) =
-            compute_split_times_for_large_files(files, max_desired_file_size, max_compact_size);
+        let (files_to_split, files_not_to_split) = compute_split_times_for_large_files(
+            files,
+            max_desired_file_size,
+            max_compact_size,
+            create_fake_partition_id(),
+        );
         // The split files should be L1_11, split at the only time possible (since its a 2ns file, there is only one choice)
         assert_eq!(files_to_split.len(), 1);
         assert_eq!(files_to_split[0].split_times.len(), 1);

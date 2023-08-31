@@ -1,6 +1,6 @@
 //! Utilities for working with groups of [`ParquetFile`]
 
-use data_types::{CompactionLevel, ParquetFile, Timestamp};
+use data_types::{CompactionLevel, ParquetFile, Timestamp, TransitionPartitionId};
 use std::cmp::{max, min};
 
 /// Represent the min/max time range for a group of [`ParquetFile`]s
@@ -55,6 +55,7 @@ pub fn split_by_level(
     files: impl IntoIterator<Item = ParquetFile>,
     first_level: CompactionLevel,
     second_level: CompactionLevel,
+    partition: TransitionPartitionId,
 ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
     // Split files into levels
     files
@@ -67,7 +68,7 @@ pub fn split_by_level(
                 false
             } else {
                 panic!(
-                    "Unexpected compaction level. Expected {first_level} or {second_level} but got {file_level}."
+                    "unexpected compaction level for partition {partition}, expected {first_level} or {second_level} but got {file_level}"
                 );
             }
         })
