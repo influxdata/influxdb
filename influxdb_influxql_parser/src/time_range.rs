@@ -732,7 +732,7 @@ mod test {
     /// and not timezone.
     fn reduce_context() -> ReduceContext {
         ReduceContext {
-            now: Some(Timestamp::from_utc(
+            now: Some(Timestamp::from_naive_utc_and_offset(
                 NaiveDateTime::new(
                     NaiveDate::from_ymd_opt(2023, 1, 1).unwrap(),
                     NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
@@ -892,7 +892,7 @@ mod test {
             let cond: ConditionalExpression =
                 s.parse().expect("unexpected error parsing expression");
             let ctx = ReduceContext {
-                now: Some(Timestamp::from_utc(
+                now: Some(Timestamp::from_naive_utc_and_offset(
                     NaiveDateTime::new(
                         NaiveDate::from_ymd_opt(2004, 4, 9).unwrap(),
                         NaiveTime::from_hms_opt(12, 13, 14).unwrap(),
