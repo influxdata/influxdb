@@ -386,6 +386,18 @@ pub struct Table {
     pub partition_template: TablePartitionTemplateOverride,
 }
 
+/// Serialise a [`Table`] object into its protobuf representation.
+impl From<Table> for generated_types::influxdata::iox::table::v1::Table {
+    fn from(value: Table) -> Self {
+        generated_types::influxdata::iox::table::v1::Table {
+            id: value.id.get(),
+            name: value.name,
+            namespace_id: value.namespace_id.get(),
+            partition_template: value.partition_template.as_proto().cloned(),
+        }
+    }
+}
+
 /// Column definitions for a table
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableSchema {
