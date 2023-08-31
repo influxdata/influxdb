@@ -10,5 +10,5 @@ message SyncMessage {
   //
   // Peers will combine this port with the source address of gossip frames to
   // derive the gRPC address for sync operations.
-  int32 grpc_port = 2;
+  uint32 grpc_port = 2;
 }
