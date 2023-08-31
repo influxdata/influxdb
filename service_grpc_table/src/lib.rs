@@ -27,7 +27,7 @@ use std::sync::Arc;
 use data_types::{partition_template::TablePartitionTemplateOverride, NamespaceName};
 use generated_types::influxdata::iox::table::v1::*;
 use iox_catalog::interface::{Catalog, SoftDeletedRows};
-use observability_deps::tracing::{debug, info, warn};
+use observability_deps::tracing::{debug, error, info, warn};
 use tonic::{Request, Response, Status};
 
 /// Implementation of the table gRPC service
@@ -49,9 +49,32 @@ impl table_service_server::TableService for TableService {
     // List tables for a namespace
     async fn get_tables(
         &self,
-        _request: Request<GetTablesRequest>,
+        request: Request<GetTablesRequest>,
     ) -> Result<Response<GetTablesResponse>, Status> {
-        Err(tonic::Status::unimplemented("not yet implemented"))
+        let mut repos = self.catalog.repositories().await;
+
+        let namespace_name = NamespaceName::try_from(request.into_inner().namespace_name)
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
+
+        debug!(%namespace_name, "listing tables for namespace");
+
+        let namespace = repos
+            .namespaces()
+            .get_by_name(&namespace_name, SoftDeletedRows::ExcludeDeleted)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .ok_or_else(|| {
+                Status::not_found(format!(
+                    "Could not find a namespace with name {namespace_name}"
+                ))
+            })?;
+
+        let tables = repos.tables().list_by_namespace_id(namespace.id).await.map_err(|e| {
+            error!(error=%e, namespace_id=%namespace.id, %namespace_name, "failed to list tables for namespace");
+            Status::internal(e.to_string())
+        })?.into_iter().map(Table::from).collect::<Vec<_>>();
+
+        Ok(Response::new(GetTablesResponse { tables }))
     }
 
     // create a table
@@ -133,6 +156,47 @@ mod tests {
     use tonic::Code;
 
     use super::*;
+
+    #[tokio::test]
+    async fn test_get_tables() {
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
+
+        let handler = TableService::new(Arc::clone(&catalog));
+
+        // Set up the tables to check
+        let namespace = arbitrary_namespace(&mut *catalog.repositories().await, "hops").await;
+        let table_names = ["simcoe", "mosaic", "east kent golding"];
+        let mut expect_tables = Vec::default();
+        for table_name in table_names {
+            expect_tables.push(
+                handler
+                    .create_table(Request::new(CreateTableRequest {
+                        name: table_name.to_string(),
+                        namespace: namespace.name.clone(),
+                        partition_template: None,
+                    }))
+                    .await
+                    .expect("failed to create table")
+                    .into_inner()
+                    .table
+                    .unwrap(),
+            );
+        }
+        expect_tables.sort_by_key(|t| t.id);
+
+        let mut got_tables = handler
+            .get_tables(Request::new(GetTablesRequest {
+                namespace_name: namespace.name,
+            }))
+            .await
+            .expect("list request failed unexpectedly")
+            .into_inner()
+            .tables;
+        got_tables.sort_by_key(|t| t.id);
+
+        assert_eq!(got_tables, expect_tables);
+    }
 
     #[tokio::test]
     async fn test_basic_happy_path() {
