@@ -392,19 +392,34 @@ impl Instrument for PoolMetrics {
             MetricKind::U64Gauge,
         );
         for (id, p) in pools.iter() {
+            let active = p.size() as u64;
+            let idle = p.num_idle() as u64;
+
+            // We get both values independently (from underlying atomic counters) so they might be out of sync (with a
+            // low likelyhood). Calculating this value and emitting it is useful though since it allows easier use in
+            // dashboards since you can `max_over_time` w/o any recording rules.
+            let used = active.saturating_sub(idle);
+
             reporter.report_observation(
                 &Attributes::from([
                     ("pool_id", Cow::Owned(id.as_ref().to_owned())),
                     ("state", Cow::Borrowed("active")),
                 ]),
-                metric::Observation::U64Gauge(p.size() as u64),
+                metric::Observation::U64Gauge(active),
             );
             reporter.report_observation(
                 &Attributes::from([
                     ("pool_id", Cow::Owned(id.as_ref().to_owned())),
                     ("state", Cow::Borrowed("idle")),
                 ]),
-                metric::Observation::U64Gauge(p.num_idle() as u64),
+                metric::Observation::U64Gauge(idle),
+            );
+            reporter.report_observation(
+                &Attributes::from([
+                    ("pool_id", Cow::Owned(id.as_ref().to_owned())),
+                    ("state", Cow::Borrowed("used")),
+                ]),
+                metric::Observation::U64Gauge(used),
             );
             reporter.report_observation(
                 &Attributes::from([
