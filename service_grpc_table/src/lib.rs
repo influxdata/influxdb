@@ -160,6 +160,7 @@ mod tests {
         assert!(created_table.id > 0);
         assert_eq!(created_table.name, table_name);
         assert_eq!(created_table.namespace_id, namespace.id.get());
+        assert_eq!(created_table.partition_template, None);
 
         // The default template doesn't use any tag values, so no columns need to be created.
         let table_columns = catalog
@@ -199,6 +200,7 @@ mod tests {
         assert!(created_table.id > 0);
         assert_eq!(created_table.name, table_name);
         assert_eq!(created_table.namespace_id, namespace.id.get());
+        assert_eq!(created_table.partition_template, None);
 
         // Trying to create a table in the same namespace with the same name fails with an "already
         // exists" error
