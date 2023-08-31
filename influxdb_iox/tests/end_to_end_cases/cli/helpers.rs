@@ -263,14 +263,13 @@ impl NamespaceCmd {
 
                 match self.partition_template.clone() {
                     Some(_) => {
-                        expected_output = BoxPredicate::new(
-                            expected_output
-                                .and(predicate::str::contains(format!(r#""partitionTemplate":"#))),
-                        );
+                        expected_output = BoxPredicate::new(expected_output.and(
+                            predicate::str::contains(r#""partitionTemplate":"#.to_string()),
+                        ));
                     }
                     None => {
                         expected_output = BoxPredicate::new(expected_output.and(
-                            predicate::str::contains(format!(r#""partitionTemplate":"#)).not(),
+                            predicate::str::contains(r#""partitionTemplate":"#.to_string()).not(),
                         ));
                     }
                 };
