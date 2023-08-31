@@ -25,7 +25,7 @@ pub trait PersistCompletionObserver: Send + Sync + Debug {
 }
 
 /// A set of details describing the persisted data.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct CompletedPersist {
     /// The catalog metadata for the persist operation.
     meta: ParquetFile,
@@ -104,6 +104,11 @@ impl CompletedPersist {
         max.checked_duration_since(min)
             .expect("parquet min/max file timestamp difference is negative")
     }
+
+    /// Return the [`ParquetFile`] record inserted into the catalog.
+    pub fn file_record(&self) -> &ParquetFile {
+        &self.meta
+    }
 }
 
 /// A no-op implementation of the [`PersistCompletionObserver`] trait.
@@ -124,6 +129,29 @@ where
 {
     async fn persist_complete(&self, note: Arc<CompletedPersist>) {
         (**self).persist_complete(note).await
+    }
+}
+
+/// An optional [`PersistCompletionObserver`] decorator layer.
+#[derive(Debug)]
+pub enum MaybeLayer<T, U> {
+    /// With the optional layer.
+    With(T),
+    /// Without the operational layer.
+    Without(U),
+}
+
+#[async_trait]
+impl<T, U> PersistCompletionObserver for MaybeLayer<T, U>
+where
+    T: PersistCompletionObserver,
+    U: PersistCompletionObserver,
+{
+    async fn persist_complete(&self, note: Arc<CompletedPersist>) {
+        match self {
+            Self::With(v) => T::persist_complete(v, note).await,
+            Self::Without(v) => U::persist_complete(v, note).await,
+        }
     }
 }
 

@@ -247,6 +247,7 @@ mod cancellation_safe;
 mod deferred_load;
 mod dml_payload;
 mod dml_sink;
+mod gossip;
 mod ingest_state;
 mod ingester_id;
 mod partition_iter;

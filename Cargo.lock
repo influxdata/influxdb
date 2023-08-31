@@ -2702,6 +2702,7 @@ dependencies = [
  "futures",
  "generated_types",
  "gossip",
+ "gossip_parquet_file",
  "hashbrown 0.14.0",
  "influxdb_iox_client",
  "ingester_query_grpc",
