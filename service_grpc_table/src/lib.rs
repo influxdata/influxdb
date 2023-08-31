@@ -24,9 +24,7 @@ use workspace_hack as _;
 
 use std::sync::Arc;
 
-use data_types::{
-    partition_template::TablePartitionTemplateOverride, NamespaceName, Table as CatalogTable,
-};
+use data_types::{partition_template::TablePartitionTemplateOverride, NamespaceName};
 use generated_types::influxdata::iox::table::v1::*;
 use iox_catalog::interface::{Catalog, SoftDeletedRows};
 use observability_deps::tracing::{debug, info, warn};
@@ -118,18 +116,9 @@ impl table_service_server::TableService for TableService {
             "created table"
         );
 
-        Ok(Response::new(table_to_create_response_proto(table)))
-    }
-}
-
-fn table_to_create_response_proto(table: CatalogTable) -> CreateTableResponse {
-    CreateTableResponse {
-        table: Some(Table {
-            id: table.id.get(),
-            name: table.name.clone(),
-            namespace_id: table.namespace_id.get(),
-            partition_template: table.partition_template.as_proto().cloned(),
-        }),
+        Ok(Response::new(CreateTableResponse {
+            table: Some(table.into()),
+        }))
     }
 }
 
