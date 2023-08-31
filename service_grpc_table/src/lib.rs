@@ -48,6 +48,14 @@ impl TableService {
 
 #[tonic::async_trait]
 impl table_service_server::TableService for TableService {
+    // List tables for a namespace
+    async fn get_tables(
+        &self,
+        _request: Request<GetTablesRequest>,
+    ) -> Result<Response<GetTablesResponse>, Status> {
+        Err(tonic::Status::unimplemented("not yet implemented"))
+    }
+
     // create a table
     async fn create_table(
         &self,

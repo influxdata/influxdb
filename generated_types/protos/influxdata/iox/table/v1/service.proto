@@ -5,6 +5,9 @@ option go_package = "github.com/influxdata/iox/table/v1";
 import "influxdata/iox/partition_template/v1/template.proto";
 
 service TableService {
+  // Get tables within a namespace
+  rpc GetTables(GetTablesRequest) returns (GetTablesResponse);
+
   // Create a table in a namespace
   rpc CreateTable(CreateTableRequest) returns (CreateTableResponse);
 }
@@ -40,4 +43,14 @@ message Table {
   
   // The partitioning scheme applied to writes for this table
   influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 4;
+}
+
+message GetTablesRequest {
+  // Name of the namespace to list tables for.
+  string namespace_name = 1;
+}
+
+message GetTablesResponse {
+  // Tables contained within the namespace.
+  repeated Table tables = 1;
 }
