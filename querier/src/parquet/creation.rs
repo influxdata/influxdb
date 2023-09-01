@@ -142,7 +142,7 @@ impl ChunkAdapter {
     ) -> QuerierParquetChunk {
         // NOTE: Because we've looked up the sort key AFTER the namespace schema, it may contain columns for which we
         //       don't have any schema information yet. This is OK because we've ensured that all file columns are known
-        //       withing the schema and if a column is NOT part of the file, it will also not be part of the chunk sort
+        //       within the schema and if a column is NOT part of the file, it will also not be part of the chunk sort
         //       key, so we have consistency here.
 
         // NOTE: The schema that we've projected here may have a different column order than the actual parquet file. This
