@@ -17,7 +17,7 @@ use cache_system::{
 };
 use data_types::{
     partition_template::{build_column_values, ColumnValue},
-    ColumnId, Partition, TransitionPartitionId,
+    ColumnId, Partition, SortedColumnSet, TransitionPartitionId,
 };
 use datafusion::scalar::ScalarValue;
 use iox_catalog::{interface::Catalog, partition_lookup_batch};
@@ -251,9 +251,18 @@ pub struct CachedPartition {
 
 impl CachedPartition {
     fn new(partition: Partition, table: &CachedTable) -> Self {
-        let sort_key = partition
-            .sort_key()
-            .map(|sort_key| Arc::new(PartitionSortKey::new(sort_key, &table.column_id_map_rev)));
+        // build sort_key from the partition's sort_key_ids and table columns
+        let sort_key = partition.sort_key_ids_none_if_empty().map(|sort_key_ids| {
+            Arc::new(PartitionSortKey::new(sort_key_ids, &table.column_id_map))
+        });
+
+        // This is here to catch bugs if any while mapping sort_key_ids to column names
+        // This wil be removed once sort_key is removed from partition
+        let p_sort_key = partition.sort_key();
+        assert_eq!(
+            sort_key.as_ref().map(|sk| sk.sort_key.as_ref()),
+            p_sort_key.as_ref()
+        );
 
         let mut column_ranges =
             build_column_values(&table.partition_template, partition.partition_key.inner())
@@ -351,23 +360,25 @@ pub struct PartitionSortKey {
 }
 
 impl PartitionSortKey {
-    fn new(sort_key: SortKey, column_id_map_rev: &HashMap<Arc<str>, ColumnId>) -> Self {
-        let sort_key = Arc::new(sort_key);
+    fn new(sort_key_ids: SortedColumnSet, column_id_map: &HashMap<ColumnId, Arc<str>>) -> Self {
+        let column_order: Box<[ColumnId]> = sort_key_ids.iter().copied().collect();
 
-        let column_order: Box<[ColumnId]> = sort_key
-            .iter()
-            .map(|(name, _opts)| {
-                *column_id_map_rev
-                    .get(name.as_ref())
-                    .unwrap_or_else(|| panic!("column_id_map_rev misses data: {name}"))
-            })
-            .collect();
+        // build sort_key from the column order
+        let sort_key = SortKey::from_columns(
+            column_order
+                .iter()
+                .map(|c_id| {
+                    column_id_map.get(c_id).unwrap_or_else(|| {
+                        panic!("column_id_map misses data for column id: {}", c_id.get())
+                    })
+                })
+                .cloned(),
+        );
 
-        let mut column_set: HashSet<ColumnId> = column_order.iter().copied().collect();
-        column_set.shrink_to_fit();
+        let column_set: HashSet<ColumnId> = column_order.iter().copied().collect();
 
         Self {
-            sort_key,
+            sort_key: Arc::new(sort_key),
             column_set,
             column_order,
         }
@@ -1028,6 +1039,84 @@ mod tests {
         for _ in 0..10 {
             test_multi_table_concurrent_get_inner().await;
         }
+    }
+
+    #[test]
+    fn test_partition_sort_key() {
+        // map column id -> name
+        let column_id_map = HashMap::from([
+            (ColumnId::new(1), Arc::from("tag1")),
+            (ColumnId::new(2), Arc::from("tag2")),
+            (ColumnId::new(3), Arc::from("tag3")),
+            (ColumnId::new(4), Arc::from("time")),
+            (ColumnId::new(5), Arc::from("field1")),
+            (ColumnId::new(6), Arc::from("field2")),
+        ]);
+
+        // same order of the columns
+        let sort_key_ids = SortedColumnSet::from(vec![1, 2, 3, 4]);
+        let p_sort_key = PartitionSortKey::new(sort_key_ids, &column_id_map);
+        assert_eq!(
+            p_sort_key,
+            PartitionSortKey {
+                sort_key: Arc::new(SortKey::from_columns(vec!["tag1", "tag2", "tag3", "time"])),
+                column_set: HashSet::from([
+                    ColumnId::new(1),
+                    ColumnId::new(2),
+                    ColumnId::new(3),
+                    ColumnId::new(4)
+                ]),
+                column_order: [
+                    ColumnId::new(1),
+                    ColumnId::new(2),
+                    ColumnId::new(3),
+                    ColumnId::new(4)
+                ]
+                .into(),
+            }
+        );
+
+        // different order
+        let sort_key_ids = SortedColumnSet::from(vec![3, 1, 4]);
+        let p_sort_key = PartitionSortKey::new(sort_key_ids, &column_id_map);
+        assert_eq!(
+            p_sort_key,
+            PartitionSortKey {
+                sort_key: Arc::new(SortKey::from_columns(vec!["tag3", "tag1", "time"])),
+                column_set: HashSet::from([ColumnId::new(3), ColumnId::new(1), ColumnId::new(4)]),
+                column_order: [ColumnId::new(3), ColumnId::new(1), ColumnId::new(4)].into(),
+            }
+        );
+
+        // only time
+        let sort_key_ids = SortedColumnSet::from(vec![4]);
+        let p_sort_key = PartitionSortKey::new(sort_key_ids, &column_id_map);
+        assert_eq!(
+            p_sort_key,
+            PartitionSortKey {
+                sort_key: Arc::new(SortKey::from_columns(vec!["time"])),
+                column_set: HashSet::from([ColumnId::new(4)]),
+                column_order: [ColumnId::new(4)].into(),
+            }
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "column_id_map misses data for column id: 9")]
+    fn test_partition_sort_key_panic() {
+        // map column id -> name
+        let column_id_map = HashMap::from([
+            (ColumnId::new(1), Arc::from("tag1")),
+            (ColumnId::new(2), Arc::from("tag2")),
+            (ColumnId::new(3), Arc::from("tag3")),
+            (ColumnId::new(4), Arc::from("time")),
+            (ColumnId::new(5), Arc::from("field1")),
+            (ColumnId::new(6), Arc::from("field2")),
+        ]);
+
+        // same order of the columns
+        let sort_key_ids = SortedColumnSet::from(vec![1, 9]);
+        let _sort_key = PartitionSortKey::new(sort_key_ids, &column_id_map);
     }
 
     /// Actually implementation of [`test_multi_table_concurrent_get`] that is tried multiple times.
