@@ -514,6 +514,8 @@ impl Partition {
         self.hash_id.as_ref()
     }
 
+    // TODO: remove this function after all PRs that teach compactor, ingester,
+    // and querier to use sort_key_ids are merged.
     /// The sort key for the partition, if present, structured as a `SortKey`
     pub fn sort_key(&self) -> Option<SortKey> {
         if self.sort_key.is_empty() {
@@ -526,6 +528,20 @@ impl Partition {
     /// The sort_key_ids if present
     pub fn sort_key_ids(&self) -> Option<&SortedColumnSet> {
         self.sort_key_ids.as_ref()
+    }
+
+    /// The sort_key_ids if present and not empty
+    pub fn sort_key_ids_none_if_empty(&self) -> Option<SortedColumnSet> {
+        match self.sort_key_ids.as_ref() {
+            None => None,
+            Some(sort_key_ids) => {
+                if sort_key_ids.is_empty() {
+                    None
+                } else {
+                    Some(sort_key_ids.clone())
+                }
+            }
+        }
     }
 }
 
