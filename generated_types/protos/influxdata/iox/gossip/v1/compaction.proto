@@ -9,13 +9,13 @@ import "influxdata/iox/catalog/v1/parquet_file.proto";
 // This message defines the output of the compaction round - the files deleted,
 // upgraded, and created. Deleted and upgraded files are addressed by their
 // catalog row IDs ("parquet file ID"), while newly created files are provided
-// with their enitre metadata.
+// with their entire metadata.
 //
 // # Atomicity
 //
 // This message is atomic - it describes the output of a single compaction job
 // in its entirety. It is never split into multiple messages.
-message CompactionEvent { 
+message CompactionEvent {
   // Files that were deleted by this compaction event, addressed by their
   // parquet row ID in the catalog.
   repeated int64 deleted_file_ids = 1;
