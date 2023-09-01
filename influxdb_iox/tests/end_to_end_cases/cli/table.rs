@@ -186,11 +186,13 @@ async fn create_negative() {
 }
 
 #[tokio::test]
-async fn create_positive() {
+async fn create_positive_and_list() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
     let mut cluster = MiniCluster::create_shared(database_url).await;
+    const TEST_NAMESPACE: &str = "ns_tablepositive";
+    const TEST_TABLES: &[&str] = &["t1", "t2", "t3", "t4"];
 
     StepTest::new(
         &mut cluster,
@@ -199,7 +201,6 @@ async fn create_positive() {
                 async {
                     // Need router grpc based addres to create namespace
                     let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_tablepositive";
 
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
@@ -207,18 +208,17 @@ async fn create_positive() {
                         .arg(&router_grpc_addr)
                         .arg("namespace")
                         .arg("create")
-                        .arg(namespace)
+                        .arg(&TEST_NAMESPACE)
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains(namespace));
+                        .stdout(predicate::str::contains(TEST_NAMESPACE));
                 }
                 .boxed()
             })),
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    // Need router grpc based addres to create tables
+                    // Need router grpc based address to create tables
                     let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = "ns_tablepositive";
 
                     // no partition template specified
                     Command::cargo_bin("influxdb_iox")
@@ -227,12 +227,12 @@ async fn create_positive() {
                         .arg(&router_grpc_addr)
                         .arg("table")
                         .arg("create")
-                        .arg(namespace)
-                        .arg("t1")
+                        .arg(&TEST_NAMESPACE)
+                        .arg(TEST_TABLES[0])
                         .assert()
                         .success()
                         .stdout(
-                            predicate::str::contains("t1")
+                            predicate::str::contains(TEST_TABLES[0])
                                 .and(predicate::str::contains(r#""partitionTemplate":"#).not()),
                         );
 
@@ -243,14 +243,14 @@ async fn create_positive() {
                         .arg(&router_grpc_addr)
                         .arg("table")
                         .arg("create")
-                        .arg(namespace)
-                        .arg("t2")
+                        .arg(&TEST_NAMESPACE)
+                        .arg(TEST_TABLES[1])
                         .arg("--partition-template")
                         .arg("{\"parts\":[{\"timeFormat\":\"%Y-%m\"}]}")
                         .assert()
                         .success()
                         .stdout(
-                            predicate::str::contains("t2")
+                            predicate::str::contains(TEST_TABLES[1])
                                 .and(predicate::str::contains(r#""partitionTemplate":"#)),
                         );
 
@@ -261,14 +261,14 @@ async fn create_positive() {
                         .arg(&router_grpc_addr)
                         .arg("table")
                         .arg("create")
-                        .arg(namespace)
-                        .arg("t3")
+                        .arg(&TEST_NAMESPACE)
+                        .arg(TEST_TABLES[2])
                         .arg("--partition-template")
                         .arg("{\"parts\":[{\"tagValue\":\"col1\"}]}")
                         .assert()
                         .success()
                         .stdout(
-                            predicate::str::contains("t3")
+                            predicate::str::contains(TEST_TABLES[2])
                                 .and(predicate::str::contains(r#""partitionTemplate":"#)),
                         );
 
@@ -279,8 +279,8 @@ async fn create_positive() {
                         .arg(&router_grpc_addr)
                         .arg("table")
                         .arg("create")
-                        .arg(namespace)
-                        .arg("t4")
+                        .arg(&TEST_NAMESPACE)
+                        .arg(TEST_TABLES[3])
                         .arg("--partition-template")
                         .arg(
                             "{\"parts\":[\
@@ -292,7 +292,39 @@ async fn create_positive() {
                         .assert()
                         .success()
                         .stdout(
-                            predicate::str::contains("t4")
+                            predicate::str::contains(TEST_TABLES[3])
+                                .and(predicate::str::contains(r#""partitionTemplate":"#)),
+                        );
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let router_grpc_addr = state.cluster().router().router_grpc_base().to_string();
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_grpc_addr)
+                        .arg("table")
+                        .arg("list")
+                        .arg(&TEST_NAMESPACE)
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains(format!(r#""name": "{}""#, TEST_TABLES[0]))
+                                .and(predicate::str::contains(format!(
+                                    r#""name": "{}""#,
+                                    TEST_TABLES[1]
+                                )))
+                                .and(predicate::str::contains(format!(
+                                    r#""name": "{}""#,
+                                    TEST_TABLES[2]
+                                )))
+                                .and(predicate::str::contains(format!(
+                                    r#""name": "{}""#,
+                                    TEST_TABLES[3]
+                                )))
                                 .and(predicate::str::contains(r#""partitionTemplate":"#)),
                         );
                 }

@@ -3,6 +3,7 @@ version: v1beta1
 build:
   roots:
     - generated_types/protos/
+    - ingester_query_grpc/protos/
 
 lint:
   allow_comment_ignores: true

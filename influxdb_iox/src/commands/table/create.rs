@@ -4,7 +4,7 @@ use influxdb_iox_client::connection::Connection;
 /// Write data into the specified database
 #[derive(Debug, clap::Parser, Default, Clone)]
 pub struct Config {
-    /// The namespace of the table
+    /// The database to create the table within
     #[clap(action)]
     database: String,
 
