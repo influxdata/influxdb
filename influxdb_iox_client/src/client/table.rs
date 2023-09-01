@@ -27,6 +27,18 @@ impl Client {
         }
     }
 
+    /// Fetch the list of tables in the given namespace
+    pub async fn get_tables(&mut self, namespace_name: &str) -> Result<Vec<Table>, Error> {
+        Ok(self
+            .inner
+            .get_tables(GetTablesRequest {
+                namespace_name: namespace_name.to_string(),
+            })
+            .await?
+            .into_inner()
+            .tables)
+    }
+
     /// Create a table
     pub async fn create_table(
         &mut self,
