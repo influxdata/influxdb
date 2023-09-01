@@ -84,6 +84,9 @@ pub struct TestSetupBuilder<const WITH_FILES: bool> {
     run_log: Arc<Mutex<Vec<String>>>,
     /// Checker that catalog invariant are not violated
     invariant_check: Arc<dyn InvariantCheck>,
+    /// Split times required to occur during the simulation
+    /// This starts as the full list of what we need to see, and they're removed as they occur.
+    required_split_times: Arc<Mutex<Vec<i64>>>,
     /// A shared count of total bytes written during test
     bytes_written: Arc<AtomicUsize>,
     /// A shared count of the breakdown of where bytes were written
@@ -171,6 +174,7 @@ impl TestSetupBuilder<false> {
         let bytes_written = Arc::new(AtomicUsize::new(0));
         let bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>> =
             Arc::new(Mutex::new(HashMap::new()));
+        let required_split_times: Arc<Mutex<Vec<i64>>> = Arc::new(Mutex::new(vec![]));
 
         Self {
             config,
@@ -181,6 +185,7 @@ impl TestSetupBuilder<false> {
             files: vec![],
             run_log,
             invariant_check,
+            required_split_times,
             bytes_written,
             bytes_written_per_plan,
             suppress_writes_breakdown,
@@ -311,6 +316,7 @@ impl TestSetupBuilder<false> {
         let bytes_written = Arc::new(AtomicUsize::new(0));
         let bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>> =
             Arc::new(Mutex::new(HashMap::new()));
+        let required_split_times: Arc<Mutex<Vec<i64>>> = Arc::new(Mutex::new(vec![]));
 
         TestSetupBuilder::<true> {
             config: self.config,
@@ -321,6 +327,7 @@ impl TestSetupBuilder<false> {
             files,
             run_log: Arc::new(Mutex::new(vec![])),
             invariant_check,
+            required_split_times,
             bytes_written,
             bytes_written_per_plan,
             suppress_writes_breakdown: true,
@@ -348,6 +355,7 @@ impl TestSetupBuilder<false> {
         let bytes_written = Arc::new(AtomicUsize::new(0));
         let bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>> =
             Arc::new(Mutex::new(HashMap::new()));
+        let required_split_times: Arc<Mutex<Vec<i64>>> = Arc::new(Mutex::new(vec![]));
 
         TestSetupBuilder::<true> {
             config: self.config.clone(),
@@ -358,6 +366,7 @@ impl TestSetupBuilder<false> {
             files,
             run_log: Arc::new(Mutex::new(vec![])),
             invariant_check,
+            required_split_times,
             bytes_written,
             bytes_written_per_plan,
             suppress_writes_breakdown: true,
@@ -386,6 +395,7 @@ impl TestSetupBuilder<false> {
         let bytes_written = Arc::new(AtomicUsize::new(0));
         let bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>> =
             Arc::new(Mutex::new(HashMap::new()));
+        let required_split_times: Arc<Mutex<Vec<i64>>> = Arc::new(Mutex::new(vec![]));
 
         TestSetupBuilder::<true> {
             config: self.config.clone(),
@@ -396,6 +406,7 @@ impl TestSetupBuilder<false> {
             files,
             run_log: Arc::new(Mutex::new(vec![])),
             invariant_check,
+            required_split_times,
             bytes_written,
             bytes_written_per_plan,
             suppress_writes_breakdown: true,
@@ -570,12 +581,14 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
         let run_log = Arc::clone(&self.run_log);
         let bytes_written = Arc::clone(&self.bytes_written);
         let bytes_written_per_plan = Arc::clone(&self.bytes_written_per_plan);
+        let required_split_times = Arc::clone(&self.required_split_times);
 
         self.config.simulate_without_object_store = true;
         self.config.parquet_files_sink_override = Some(Arc::new(ParquetFileSimulator::new(
             run_log,
             bytes_written,
             bytes_written_per_plan,
+            required_split_times,
         )));
         self
     }
@@ -583,6 +596,15 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
     /// Set max_desired_file_size_bytes
     pub fn with_max_desired_file_size_bytes(mut self, max_desired_file_size_bytes: u64) -> Self {
         self.config.max_desired_file_size_bytes = max_desired_file_size_bytes;
+        self
+    }
+
+    /// Set split times required to be used
+    pub fn with_required_split_times(self, required_split_times: Vec<i64>) -> Self {
+        self.required_split_times
+            .lock()
+            .unwrap()
+            .extend(required_split_times);
         self
     }
 
@@ -630,6 +652,7 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
             invariant_check: self.invariant_check,
             suppress_writes_breakdown: self.suppress_writes_breakdown,
             suppress_run_output: self.suppress_run_output,
+            required_split_times: self.required_split_times,
         }
     }
 }
@@ -661,6 +684,8 @@ pub struct TestSetup {
     pub bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>>,
     /// Checker that catalog invariant are not violated
     invariant_check: Arc<dyn InvariantCheck>,
+    /// Split times required to be used during simulation.
+    pub required_split_times: Arc<Mutex<Vec<i64>>>,
 }
 
 impl TestSetup {
