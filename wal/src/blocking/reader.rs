@@ -64,7 +64,7 @@ where
             .read_to_end(&mut data)
             .context(UnableToReadDataSnafu)?;
 
-        let (actual_compressed_len, actual_checksum) = decompressing_read.get_mut().checksum();
+        let (actual_compressed_len, actual_checksum) = decompressing_read.into_inner().checksum();
 
         ensure!(
             expected_len == actual_compressed_len,
@@ -118,13 +118,8 @@ impl<R> CrcReader<R> {
         }
     }
 
-    fn checksum(&mut self) -> (u64, u32) {
-        // FIXME: If rust-snappy added an `into_inner`, we should
-        // take `self` by value
-        (
-            std::mem::take(&mut self.bytes_seen),
-            std::mem::take(&mut self.hasher).finalize(),
-        )
+    fn checksum(self) -> (u64, u32) {
+        (self.bytes_seen, self.hasher.finalize())
     }
 }
 
