@@ -236,7 +236,6 @@ where
         ctx.data().query_adaptor(),
     )
     .await
-    .expect("unable to compact persisting batch")
 }
 
 /// Upload the compacted data in `compacted`, returning the new sort key value

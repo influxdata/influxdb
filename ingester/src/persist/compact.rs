@@ -51,7 +51,7 @@ pub(super) async fn compact_persisting_batch(
     sort_key: Option<&SortKey>,
     table_name: TableName,
     batch: QueryAdaptor,
-) -> Result<CompactedStream, ()> {
+) -> CompactedStream {
     assert!(!batch.record_batches().is_empty());
 
     // Get sort key from the catalog or compute it from
@@ -93,11 +93,11 @@ pub(super) async fn compact_persisting_batch(
     // Execute the plan and return the compacted stream
     let output_stream = ctx.execute_stream(physical_plan).await.unwrap();
 
-    Ok(CompactedStream {
+    CompactedStream {
         stream: output_stream,
         catalog_sort_key_update,
         data_sort_key,
-    })
+    }
 }
 
 #[cfg(test)]
@@ -136,8 +136,7 @@ mod tests {
         let exc = Executor::new_testing();
         let CompactedStream { stream, .. } =
             compact_persisting_batch(&exc, Some(&SortKey::empty()), "test_table".into(), batch)
-                .await
-                .unwrap();
+                .await;
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -176,8 +175,7 @@ mod tests {
             data_sort_key,
             catalog_sort_key_update,
         } = compact_persisting_batch(&exc, Some(&SortKey::empty()), "test_table".into(), batch)
-            .await
-            .unwrap();
+            .await;
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -226,8 +224,7 @@ mod tests {
             data_sort_key,
             catalog_sort_key_update,
         } = compact_persisting_batch(&exc, Some(&SortKey::empty()), "test_table".into(), batch)
-            .await
-            .unwrap();
+            .await;
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -286,8 +283,7 @@ mod tests {
             "test_table".into(),
             batch,
         )
-        .await
-        .unwrap();
+        .await;
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -346,8 +342,7 @@ mod tests {
             "test_table".into(),
             batch,
         )
-        .await
-        .unwrap();
+        .await;
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -409,8 +404,7 @@ mod tests {
             "test_table".into(),
             batch,
         )
-        .await
-        .unwrap();
+        .await;
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -461,9 +455,8 @@ mod tests {
 
         // compact
         let exc = Executor::new_testing();
-        let stream = compact_persisting_batch(&exc, Some(&sort_key), "test_table".into(), batch)
-            .await
-            .unwrap();
+        let stream =
+            compact_persisting_batch(&exc, Some(&sort_key), "test_table".into(), batch).await;
         let output_batches = datafusion::physical_plan::common::collect(stream.stream)
             .await
             .unwrap();
@@ -501,9 +494,8 @@ mod tests {
 
         // compact
         let exc = Executor::new_testing();
-        let stream = compact_persisting_batch(&exc, Some(&sort_key), "test_table".into(), batch)
-            .await
-            .unwrap();
+        let stream =
+            compact_persisting_batch(&exc, Some(&sort_key), "test_table".into(), batch).await;
         let output_batches = datafusion::physical_plan::common::collect(stream.stream)
             .await
             .unwrap();
@@ -551,7 +543,6 @@ mod tests {
         let exc = Executor::new_testing();
         let stream = compact_persisting_batch(&exc, Some(&sort_key), "test_table".into(), batch)
             .await
-            .unwrap()
             .stream;
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -597,7 +588,6 @@ mod tests {
         let exc = Executor::new_testing();
         let stream = compact_persisting_batch(&exc, Some(&sort_key), "test_table".into(), batch)
             .await
-            .unwrap()
             .stream;
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -647,7 +637,6 @@ mod tests {
         let exc = Executor::new_testing();
         let stream = compact_persisting_batch(&exc, Some(&sort_key), "test_table".into(), batch)
             .await
-            .unwrap()
             .stream;
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
