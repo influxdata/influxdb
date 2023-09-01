@@ -205,7 +205,7 @@ where
                 Op::Persist(_) => unreachable!(),
             };
 
-            let mut op_min_sequence_number = None;
+            let mut op_min_sequence_number: Option<SequenceNumber> = None;
             let mut op_max_sequence_number = None;
 
             // Reconstruct the ingest operation
@@ -232,8 +232,10 @@ where
                         );
 
                         max_sequence = max_sequence.max(Some(sequence_number));
-                        op_min_sequence_number = op_min_sequence_number.min(Some(sequence_number));
-                        op_max_sequence_number = op_min_sequence_number.max(Some(sequence_number));
+                        op_min_sequence_number = op_min_sequence_number
+                            .map(|prev_sequence_number| prev_sequence_number.min(sequence_number))
+                            .or(Some(sequence_number));
+                        op_max_sequence_number = op_max_sequence_number.max(Some(sequence_number));
 
                         (
                             table_id,
@@ -248,12 +250,8 @@ where
 
             debug!(
                 ?op,
-                op_min_sequence_number = op_min_sequence_number
-                    .expect("attempt to apply unsequenced wal op")
-                    .get(),
-                op_max_sequence_number = op_max_sequence_number
-                    .expect("attempt to apply unsequenced wal op")
-                    .get(),
+                ?op_min_sequence_number,
+                ?op_max_sequence_number,
                 "apply wal op"
             );
 
