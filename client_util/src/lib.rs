@@ -25,7 +25,8 @@ use workspace_hack as _;
 /// Builder for constructing connections for use with the various gRPC clients
 pub mod connection;
 
-mod tower;
+/// Helper to set client headers.
+pub mod tower;
 
 /// Namespace <--> org/bucket utilities
 pub mod namespace_translation;

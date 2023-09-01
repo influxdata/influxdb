@@ -375,9 +375,10 @@ impl TryFrom<Vec<Expr>> for proto2::Filters {
     fn try_from(filters: Vec<Expr>) -> Result<Self, Self::Error> {
         let exprs = filters
             .iter()
-            .map(|expr| {
+            .enumerate()
+            .map(|(i, expr)| {
                 expr.to_bytes()
-                    .map_err(|e| expr_to_bytes_violation("exprs", e))
+                    .map_err(|e| expr_to_bytes_violation(i.to_string(), e).scope("expr"))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -498,10 +499,10 @@ impl From<TransitionPartitionId> for proto2::PartitionIdentifier {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
+    use std::{collections::BTreeSet, sync::Arc};
 
     use super::*;
-    use datafusion::prelude::*;
+    use datafusion::{logical_expr::LogicalPlanBuilder, prelude::*};
 
     #[test]
     fn query_round_trip() {
@@ -565,5 +566,18 @@ mod tests {
 
         assert_eq!(filters_1, filters_2);
         assert_eq!(base64_1, base64_2);
+    }
+
+    #[test]
+    fn filters_not_serializable_error() {
+        let subquery = Arc::new(LogicalPlanBuilder::empty(true).build().unwrap());
+        let filters = vec![
+            col("col").eq(lit(1i64)),
+            exists(subquery),
+            col("col").eq(lit(1i64)),
+        ];
+
+        let err = proto2::Filters::try_from(filters).unwrap_err();
+        assert_eq!(err.field, "expr.1",)
     }
 }

@@ -1,0 +1,19 @@
+[package]
+name = "ingester_query_client"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies] # In alphabetical order
+arrow = { workspace = true, features = ["prettyprint", "dyn_cmp_dict"] }
+async-trait = "0.1"
+data_types = { path = "../data_types" }
+datafusion = { workspace = true }
+futures = "0.3"
+trace = { path = "../trace" }
+uuid = "1"
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+tokio = { version = "1.32", features = ["macros", "rt-multi-thread"] }

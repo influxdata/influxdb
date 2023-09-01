@@ -39,6 +39,7 @@ pub struct SetRequestHeadersService<S> {
 }
 
 impl<S> SetRequestHeadersService<S> {
+    /// Create sevice from inner service and headers.
     pub fn new(service: S, headers: Vec<(HeaderName, HeaderValue)>) -> Self {
         Self {
             service,
@@ -46,6 +47,9 @@ impl<S> SetRequestHeadersService<S> {
         }
     }
 
+    /// De-construct service into parts.
+    ///
+    /// The can be used to call [`new`](Self::new) again.
     pub fn into_parts(self) -> (S, Arc<Vec<(HeaderName, HeaderValue)>>) {
         let SetRequestHeadersService { service, headers } = self;
 

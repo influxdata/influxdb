@@ -199,7 +199,8 @@ impl BatchEncoder {
             )?;
 
             read_dictionary(
-                &Buffer::from_vec(arrow_data.to_vec()),
+                // copy & align
+                &Buffer::from(&arrow_data),
                 dictionary_batch,
                 &self.dict_schema,
                 &mut dictionaries_by_field,
@@ -221,7 +222,8 @@ impl BatchEncoder {
         )?;
 
         let batch = read_record_batch(
-            &Buffer::from_vec(arrow_data.to_vec()),
+            // copy & align
+            &Buffer::from(&arrow_data),
             record_batch,
             Arc::clone(&self.dict_schema),
             &dictionaries_by_field,
@@ -329,6 +331,7 @@ mod tests {
         arrow::datatypes::{DataType, Field},
         common::assert_contains,
     };
+    use prost::Message;
 
     use super::*;
 
@@ -339,14 +342,10 @@ mod tests {
 
         // ensure that the deserialization is NOT sensitive to alignment
         const MAX_OFFSET: usize = 8;
-        let mut buffer = Vec::with_capacity(bytes.len() + MAX_OFFSET);
 
         for offset in 0..MAX_OFFSET {
-            buffer.clear();
-            buffer.resize(offset, 0u8);
-            buffer.extend_from_slice(&bytes);
-
-            let schema2 = bytes_to_schema(&buffer[offset..]).unwrap();
+            let buffer = unalign_buffer(&bytes, MAX_OFFSET, offset);
+            let schema2 = bytes_to_schema(&buffer).unwrap();
 
             assert_eq!(schema, schema2);
         }
@@ -367,8 +366,18 @@ mod tests {
         // check that we actually use dictionaries and don't hydrate them
         assert_eq!(encoded.dictionaries.len(), 3);
 
-        let batch2 = encoder.read(encoded).unwrap();
-        assert_eq!(batch, batch2);
+        let encoded = encoded.encode_to_vec();
+
+        // ensure that the deserialization is NOT sensitive to alignment
+        const MAX_OFFSET: usize = 128;
+
+        for offset in 0..MAX_OFFSET {
+            let view = unalign_buffer(&encoded, MAX_OFFSET, offset);
+            let encoded = proto2::RecordBatch::decode(view).unwrap();
+
+            let batch2 = encoder.read(encoded).unwrap();
+            assert_eq!(batch, batch2);
+        }
     }
 
     #[test]
@@ -446,5 +455,37 @@ mod tests {
         builder.append("fo").unwrap();
         builder.append("ba").unwrap();
         Arc::new(builder.finish())
+    }
+
+    fn unalign_buffer(data: &[u8], alignment: usize, offset: usize) -> Bytes {
+        assert!(alignment > 0);
+        assert!(alignment.is_power_of_two());
+        assert!(offset < alignment);
+
+        let memsize = data.len() + alignment;
+        let mut mem = Vec::<u8>::with_capacity(memsize);
+
+        let actual_offset = get_offset(mem.as_ptr(), alignment);
+        let padding = if actual_offset <= offset {
+            offset - actual_offset
+        } else {
+            alignment - actual_offset + offset
+        };
+        assert!(padding < alignment);
+
+        mem.resize(padding, 0);
+        mem.extend_from_slice(data);
+        assert_eq!(get_offset(mem[padding..].as_ptr(), alignment), offset);
+
+        let b = Bytes::from(mem);
+        let b = b.slice(padding..);
+        assert_eq!(get_offset(b.as_ptr(), alignment), offset);
+        assert_eq!(b.as_ref(), data);
+
+        b
+    }
+
+    fn get_offset(ptr: *const u8, alignment: usize) -> usize {
+        (alignment - ptr.align_offset(alignment)) % alignment
     }
 }
