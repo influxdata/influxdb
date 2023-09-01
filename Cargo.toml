@@ -33,6 +33,7 @@ members = [
     "influxdb2_client",
     "influxrpc_parser",
     "ingester_query_grpc",
+    "ingester_query_client",
     "ingester_test_ctx",
     "ingester",
     "iox_catalog",

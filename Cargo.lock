@@ -2742,6 +2742,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "ingester_query_client"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "async-trait",
+ "data_types",
+ "datafusion",
+ "futures",
+ "tokio",
+ "trace",
+ "uuid",
+ "workspace-hack",
+]
+
+[[package]]
 name = "ingester_query_grpc"
 version = "0.1.0"
 dependencies = [
