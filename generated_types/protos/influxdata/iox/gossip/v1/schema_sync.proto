@@ -2,7 +2,8 @@ syntax = "proto3";
 package influxdata.iox.gossip.v1;
 option go_package = "github.com/influxdata/iox/gossip/v1";
 
-message SyncMessage {
+// A gossip frame sent to peers to begin a sync round / consistency check.
+message ConsistencyProbe {
   // A 16-byte Merkle Search Tree root hash convering the schema cache content.
   bytes root_hash = 1;
 
