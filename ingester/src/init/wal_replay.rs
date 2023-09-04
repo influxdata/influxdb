@@ -112,7 +112,9 @@ where
         );
 
         // Replay this segment file
-        match replay_file(reader, sink, &ok_op_count_metric, &empty_op_count_metric).await? {
+        match replay_sequenced_op_batches(reader, sink, &ok_op_count_metric, &empty_op_count_metric)
+            .await?
+        {
             v @ Some(_) => max_sequence = max_sequence.max(v),
             None => {
                 // This file was empty and should be deleted.
@@ -174,21 +176,23 @@ where
     Ok(max_sequence)
 }
 
-/// Replay the entries in `file`, applying them to `buffer`. Returns the highest
-/// sequence number observed in the file, or [`None`] if the file was empty.
-async fn replay_file<T>(
-    file: wal::ClosedSegmentFileReader,
+/// Replay the entries in `batches`, applying them to `buffer`. Returns the
+/// highest sequence number observed across the batches, or [`None`] if there
+/// were no entries read.
+async fn replay_sequenced_op_batches<T, W>(
+    batches: W,
     sink: &T,
     ok_op_count_metric: &U64Counter,
     empty_op_count_metric: &U64Counter,
 ) -> Result<Option<SequenceNumber>, WalReplayError>
 where
     T: DmlSink,
+    W: Iterator<Item = Result<Vec<SequencedWalOp>, wal::Error>> + Send,
 {
     let mut max_sequence = None;
     let start = Instant::now();
 
-    for batch in file {
+    for batch in batches {
         let ops = batch.map_err(WalReplayError::ReadEntry)?;
 
         for op in ops {
