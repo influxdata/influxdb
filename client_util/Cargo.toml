@@ -9,7 +9,7 @@ license.workspace = true
 [dependencies]
 http = "0.2.9"
 reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls"] }
-thiserror = "1.0.47"
+thiserror = "1.0.48"
 tonic = { workspace = true }
 tower = "0.4"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

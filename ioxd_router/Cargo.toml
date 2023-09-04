@@ -20,7 +20,7 @@ metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
 object_store = { workspace = true }
 router = { path = "../router" }
-thiserror = "1.0.47"
+thiserror = "1.0.48"
 tokio-util = { version = "0.7.8" }
 trace = { path = "../trace" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

@@ -18,7 +18,7 @@ ordered-float = "3"
 schema = { path = "../schema" }
 sha2 = "0.10"
 sqlx = { version = "0.7.1", features = ["runtime-tokio-rustls", "postgres", "uuid"] }
-thiserror = "1.0.47"
+thiserror = "1.0.48"
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 percent-encoding = "2.2.0"
