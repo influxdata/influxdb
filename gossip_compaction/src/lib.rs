@@ -203,9 +203,9 @@ mod tests {
     /// Ensure a CompactionEvent can be round-tripped through the gossip layer.
     ///
     /// This acts as an integration test, covering the serialisation of parquet
-    /// file messages within a CompactionEvent message, passing into the gossip 
-    /// layer, topic assignment & decoding, deserialisation of the compaction 
-    /// event message, and handling by the new compaction event delegate 
+    /// file messages within a CompactionEvent message, passing into the gossip
+    /// layer, topic assignment & decoding, deserialisation of the compaction
+    /// event message, and handling by the new compaction event delegate
     /// abstraction defined by this crate.
     #[tokio::test]
     async fn test_round_trip() {
