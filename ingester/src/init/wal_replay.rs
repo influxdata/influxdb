@@ -176,6 +176,20 @@ where
     Ok(max_sequence)
 }
 
+// A trait to associate a [`wal::SegmentId`] with a WAL op batch reader
+trait SegmentedWalOpBatchReader:
+    Iterator<Item = Result<Vec<SequencedWalOp>, wal::Error>> + Send
+{
+    fn id(&self) -> wal::SegmentId;
+}
+
+// Implement the trait for the [`wal::ClosedSegmentFileReader`]
+impl SegmentedWalOpBatchReader for wal::ClosedSegmentFileReader {
+    fn id(&self) -> wal::SegmentId {
+        self.id()
+    }
+}
+
 /// Replay the entries in `batches`, applying them to `buffer`. Returns the
 /// highest sequence number observed across the batches, or [`None`] if there
 /// were no entries read.
@@ -187,10 +201,11 @@ async fn replay_sequenced_op_batches<T, W>(
 ) -> Result<Option<SequenceNumber>, WalReplayError>
 where
     T: DmlSink,
-    W: Iterator<Item = Result<Vec<SequencedWalOp>, wal::Error>> + Send,
+    W: SegmentedWalOpBatchReader,
 {
     let mut max_sequence = None;
     let start = Instant::now();
+    let segment_id = batches.id();
 
     for batch in batches {
         let ops = batch.map_err(WalReplayError::ReadEntry)?;
@@ -216,7 +231,7 @@ where
             let partition_key = PartitionKey::from(op.partition_key);
 
             if batches.is_empty() {
-                warn!(%namespace_id, "encountered wal op containing no table data, skipping replay");
+                warn!(?segment_id, %namespace_id, "encountered wal op batch containing no table data, skipping replay");
                 empty_op_count_metric.inc(1);
                 continue;
             }
@@ -268,7 +283,7 @@ where
 
     // This file is complete, return the last observed sequence
     // number.
-    debug!("wal file replayed in {:?}", start.elapsed());
+    debug!(?segment_id, "wal file replayed in {:?}", start.elapsed());
     Ok(max_sequence)
 }
 
