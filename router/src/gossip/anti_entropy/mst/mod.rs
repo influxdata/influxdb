@@ -105,7 +105,8 @@ mod tests {
 
     proptest! {
         /// Assert that two distinct namespace cache instances return identical
-        /// content hashes after applying a given set of cache updates.
+        /// content hashes and snapshots after applying a given set of cache
+        /// updates.
         #[test]
         fn prop_content_hash_diverge_converge(
             // A variable number of cache entry updates for 2 namespace IDs
@@ -132,6 +133,8 @@ mod tests {
 
                 // Invariant: two empty namespace caches have the same content hash.
                 assert_eq!(handle_a.content_hash().await, handle_b.content_hash().await);
+                // Invariant: and the same serialised snapshot content
+                assert_eq!(handle_a.snapshot().await, handle_b.snapshot().await);
 
                 for update in updates {
                     // Generate a unique, deterministic name for this namespace.
@@ -144,6 +147,8 @@ mod tests {
                     // Invariant: after applying the same update, the content hashes
                     // MUST match (even if this update was a no-op / not an update)
                     assert_eq!(handle_a.content_hash().await, handle_b.content_hash().await);
+                    // Invariant: and the same serialised snapshot content
+                    assert_eq!(handle_a.snapshot().await, handle_b.snapshot().await);
                 }
 
                 // At this point all updates have been applied to both caches.
@@ -156,11 +161,15 @@ mod tests {
                 // Invariant: last_update definitely added new cache content,
                 // therefore the cache content hashes MUST diverge.
                 assert_ne!(handle_a.content_hash().await, handle_b.content_hash().await);
+                // Invariant: the serialised snapshot content must have diverged
+                assert_ne!(handle_a.snapshot().await, handle_b.snapshot().await);
 
                 // Invariant: applying the update to the other cache converges their
                 // content hashes.
                 ns_b.put_schema(name, last_update);
                 assert_eq!(handle_a.content_hash().await, handle_b.content_hash().await);
+                // Invariant: and the serialised snapshot content converges
+                assert_eq!(handle_a.snapshot().await, handle_b.snapshot().await);
             });
         }
     }
