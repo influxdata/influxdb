@@ -31,7 +31,7 @@ where
 /// An async gossip message dispatcher.
 ///
 /// This type is responsible for deserialising incoming gossip
-/// [`Topic::NewParquetFiles`] payloads and passing them off to the provided
+/// [`Topic::CompactionEvents`] payloads and passing them off to the provided
 /// [`CompactionEventHandler`] implementation.
 ///
 /// This decoupling allow the handler to deal strictly in terms of messages,

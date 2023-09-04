@@ -50,7 +50,7 @@
 //! # Best Effort
 //!
 //! This underlying gossip subsystem is designed to provide best effort delivery
-//! of messages, and therefore best-effort delivery of parquet creation events,
+//! of messages, and therefore best-effort delivery of compaction events,
 //! without any ordering or delivery guarantees.
 //!
 //! This crate does NOT provide any eventual consistency guarantees.
@@ -200,12 +200,13 @@ mod tests {
         (a, b)
     }
 
-    /// Ensure a ParquetFile can be round-tripped through the gossip layer.
+    /// Ensure a CompactionEvent can be round-tripped through the gossip layer.
     ///
     /// This acts as an integration test, covering the serialisation of parquet
-    /// file messages, passing into the gossip layer, topic assignment &
-    /// decoding, deserialisation of the parquet file message, and handling by
-    /// the new file event delegate abstraction defined by this crate.
+    /// file messages within a CompactionEvent message, passing into the gossip 
+    /// layer, topic assignment & decoding, deserialisation of the compaction 
+    /// event message, and handling by the new compaction event delegate 
+    /// abstraction defined by this crate.
     #[tokio::test]
     async fn test_round_trip() {
         maybe_start_logging();
