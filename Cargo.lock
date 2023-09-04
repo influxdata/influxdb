@@ -2060,6 +2060,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "gossip_compaction"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "generated_types",
+ "gossip",
+ "metric",
+ "observability_deps",
+ "test_helpers",
+ "tokio",
+ "workspace-hack",
+]
+
+[[package]]
 name = "gossip_parquet_file"
 version = "0.1.0"
 dependencies = [
