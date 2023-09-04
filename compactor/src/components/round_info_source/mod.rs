@@ -292,6 +292,20 @@ impl LevelBasedRoundInfo {
                             }
                         }
 
+                        // We may have started splitting files, and now there's a new L0 added that spans our previous splitting.
+                        // We'll detect multiple L0 files ending at the same time, and add that to the split hints.
+                        let end_times = chain
+                            .iter()
+                            .map(|f| f.max_time.get())
+                            .sorted()
+                            .dedup_with_count();
+                        for (count, time) in end_times {
+                            if count > 1 {
+                                // wether we previously split here or not, with at least 2 L0s ending here, its a good place to split.
+                                split_hints.push(time);
+                            }
+                        }
+
                         let splits = select_split_times(
                             range.cap,
                             max_compact_size,

@@ -165,6 +165,14 @@ pub(crate) async fn run_layout_scenario(setup: &TestSetup) -> Vec<String> {
     // verify that the output of the compactor was valid as well
     setup.verify_invariants().await;
 
+    // verify required splits times were all observed.  They're removed as they occur, so the vec should be empty.
+    let required_split_times = setup.required_split_times.lock().unwrap().clone();
+    assert!(
+        required_split_times.is_empty(),
+        "required split times not observed: {:?}",
+        required_split_times
+    );
+
     // check if output files trip warnings (warnings here deserve scrutiny, but may be justifiable)
     output.extend(setup.generate_warnings().await);
 

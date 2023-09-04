@@ -27,7 +27,7 @@ schema = { path = "../schema" }
 serde_json = "1.0.105"
 tokio = { version = "1.32", features = ["macros", "parking_lot", "rt-multi-thread"] }
 tokio-stream = "0.1.13"
-thiserror = "1.0.47"
+thiserror = "1.0.48"
 tonic = { workspace = true }
 
 [dev-dependencies]

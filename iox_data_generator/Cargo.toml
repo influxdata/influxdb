@@ -12,7 +12,7 @@ chrono = { version = "0.4", default-features = false }
 clap = { version = "4", features = ["derive", "env", "cargo"] }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
-handlebars = "4.3.7"
+handlebars = "4.4.0"
 humantime = "2.1.0"
 influxdb2_client = { path = "../influxdb2_client" }
 itertools = "0.11.0"

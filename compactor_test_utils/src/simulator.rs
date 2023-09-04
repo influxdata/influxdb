@@ -53,6 +53,9 @@ pub struct ParquetFileSimulator {
     bytes_written: Arc<AtomicUsize>,
     /// map of bytes written per plan type
     bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>>,
+    /// split times required to occur during the simulation.
+    /// This starts as the full list of what we need to see, and they're removed as they occur.
+    required_split_times: Arc<Mutex<Vec<i64>>>,
 }
 
 impl std::fmt::Display for ParquetFileSimulator {
@@ -68,12 +71,14 @@ impl ParquetFileSimulator {
         run_log: Arc<Mutex<Vec<String>>>,
         bytes_written: Arc<AtomicUsize>,
         bytes_written_per_plan: Arc<Mutex<HashMap<String, usize>>>,
+        required_split_times: Arc<Mutex<Vec<i64>>>,
     ) -> Self {
         Self {
             run_log,
             run_id_generator: AtomicUsize::new(0),
             bytes_written,
             bytes_written_per_plan,
+            required_split_times,
         }
     }
 
@@ -114,6 +119,16 @@ impl ParquetFilesSink for ParquetFileSimulator {
                 (plan_type, split_times)
             }
         };
+
+        // If specific split itmes are required by this test, remove any we're seeing now.
+        if !split_times.is_empty() {
+            let mut required_split_times = self.required_split_times.lock().unwrap();
+            if !required_split_times.is_empty() {
+                for split_time in split_times {
+                    required_split_times.retain(|t| t != split_time);
+                }
+            }
+        }
 
         let input_files: Vec<_> = plan_ir
             .input_files()

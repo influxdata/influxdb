@@ -10,7 +10,7 @@ license.workspace = true
 clap = { version = "4", features = ["derive", "env"], optional = true }
 logfmt = { path = "../logfmt" }
 observability_deps = { path = "../observability_deps" }
-thiserror = "1.0.47"
+thiserror = "1.0.48"
 tracing-log = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 

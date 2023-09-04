@@ -42,7 +42,7 @@ sharder = { version = "0.1.0", path = "../sharder" }
 test_helpers = { path = "../test_helpers", features = [
     "future_timeout",
 ], optional = true }
-thiserror = "1.0.47"
+thiserror = "1.0.48"
 tracker = { path = "../tracker" }
 tokio = { version = "1.32", features = [
     "macros",
