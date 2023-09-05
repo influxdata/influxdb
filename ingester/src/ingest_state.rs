@@ -202,6 +202,7 @@ fn as_err(state: usize) -> Result<(), IngestStateError> {
 mod tests {
     use assert_matches::assert_matches;
     use proptest::prelude::*;
+    use std::mem::discriminant;
 
     use super::*;
 
@@ -278,7 +279,7 @@ mod tests {
             prop_assert!(error_b.as_bits() < usize::BITS as usize);
             prop_assert_eq!(error_b.as_bits().count_ones(), 1);
 
-            if std::mem::discriminant(&error_a) != std::mem::discriminant(&error_b) {
+            if discriminant(&error_a) != discriminant(&error_b) {
                 prop_assert_ne!(error_a.as_bits(), error_b.as_bits());
             }
         }
@@ -294,7 +295,7 @@ mod tests {
 
             prop_assert!(state.set(error));
             assert_matches!(state.read(), Err(inner) => {
-                prop_assert_eq!(std::mem::discriminant(&inner), std::mem::discriminant(&error));
+                prop_assert_eq!(discriminant(&inner), discriminant(&error));
             });
 
             prop_assert!(state.unset(error));
@@ -323,7 +324,7 @@ mod tests {
             prop_assert!(state.set(error_a));
 
             // Remaining checks only apply if error_b is a different error state.
-            if std::mem::discriminant(&error_a) != std::mem::discriminant(&error_b) {
+            if discriminant(&error_a) != discriminant(&error_b) {
                 // First call for a different state is told it is the first to
                 // set that state.
                 prop_assert!(state.set(error_b));
@@ -340,19 +341,45 @@ mod tests {
         /// matches the error set on the state then it should be filtered and
         /// return `Ok`, while an error state that isn't in the exception list
         /// is returned.
+        ///
+        /// Furthermore, it asserts that setting two disjoint error states
+        /// and then reading with exceptions produces the expected error, regardless
+        /// of whether there is one exception or multiple.
         #[test]
-        fn test_read_with_exceptions(set_error in ingest_state_errors(), except_error in ingest_state_errors()) {
+        fn test_read_with_exceptions(
+            (set_error, second_set_error) in (ingest_state_errors(), ingest_state_errors())
+                .prop_filter("set errors generated should be disjoint", |(a, b)| {
+                    discriminant(a) != discriminant(b)
+                }),
+            except_error in ingest_state_errors(),
+        ) {
             let state = IngestState::default();
 
             assert!(state.set(set_error));
 
             // Assert the exception filter returns results as expected.
-            if std::mem::discriminant(&set_error) == std::mem::discriminant(&except_error) {
+            if discriminant(&set_error) == discriminant(&except_error) {
                 assert_matches!(state.read_with_exceptions([except_error]), Ok(()));
             } else {
                 assert_matches!(state.read_with_exceptions([except_error]), Err(got_err) => {
-                    prop_assert_eq!(std::mem::discriminant(&set_error), std::mem::discriminant(&got_err));
+                    prop_assert_eq!(discriminant(&set_error), discriminant(&got_err));
                 })
+            }
+
+            // Set the second error state and assert that an error is always
+            // thrown for the single `except_error` when two disjoint error
+            // states are set.
+            assert!(state.set(second_set_error));
+            assert_matches!(state.read_with_exceptions([except_error]), Err(_));
+            // Now take both error states as exceptions and ensure `Ok` is returned
+            assert_matches!(state.read_with_exceptions([set_error, second_set_error]), Ok(()));
+
+            // Then make sure that multiple filters not covering all errors
+            // will still return the correct error.
+            if discriminant(&second_set_error) != discriminant(&except_error) {
+                assert_matches!(state.read_with_exceptions([set_error, except_error]), Err(got_err) => {
+                    assert_eq!(discriminant(&second_set_error), discriminant(&got_err));
+                });
             }
         }
     }
