@@ -12,7 +12,6 @@ use crate::{config::Config, error::ErrorKind, object_store::ignore_writes::Ignor
 
 use super::{
     changed_files_filter::logging::LoggingChangedFiles,
-    columns_source::catalog::CatalogColumnsSource,
     commit::CommitToScheduler,
     compaction_job_done_sink::{
         error_kind::ErrorKindCompactionJobDoneSinkWrapper,
@@ -193,7 +192,6 @@ fn make_compaction_job_stream(
 
 fn make_partition_info_source(config: &Config) -> Arc<dyn PartitionInfoSource> {
     Arc::new(SubSourcePartitionInfoSource::new(
-        CatalogColumnsSource::new(config.backoff_config.clone(), Arc::clone(&config.catalog)),
         LoggingPartitionSourceWrapper::new(MetricsPartitionSourceWrapper::new(
             CatalogPartitionSource::new(config.backoff_config.clone(), Arc::clone(&config.catalog)),
             &config.metric_registry,
