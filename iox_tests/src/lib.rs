@@ -25,7 +25,9 @@ pub use catalog::{
 };
 
 mod builders;
-pub use builders::{ParquetFileBuilder, PartitionBuilder, SkippedCompactionBuilder, TableBuilder};
+pub use builders::{
+    ColumnBuilder, ParquetFileBuilder, PartitionBuilder, SkippedCompactionBuilder, TableBuilder,
+};
 
 /// Create a partition identifier from an int (which gets used as the table ID) and a partition key
 /// with the string "arbitrary". Most useful in cases where there isn't any actual catalog
