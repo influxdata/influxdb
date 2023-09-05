@@ -218,32 +218,68 @@ mod tests {
 
         state.set(IngestStateError::PersistSaturated);
         assert_matches!(state.read(), Err(IngestStateError::PersistSaturated));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::PersistSaturated)
+        );
 
         state.set(IngestStateError::DiskFull);
         assert_matches!(state.read(), Err(IngestStateError::DiskFull));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::DiskFull)
+        );
 
         state.set(IngestStateError::GracefulStop);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::GracefulStop)
+        );
 
         // The persist state does not affect the shutdown error.
         state.unset(IngestStateError::PersistSaturated);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::GracefulStop)
+        );
         state.set(IngestStateError::PersistSaturated);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::GracefulStop)
+        );
 
         // And neither does the disk full state.
         state.unset(IngestStateError::DiskFull);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::GracefulStop)
+        );
         state.set(IngestStateError::DiskFull);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::GracefulStop)
+        );
 
         // Un-setting the shutdown state shows the disk full state.
         state.unset(IngestStateError::GracefulStop);
         assert_matches!(state.read(), Err(IngestStateError::DiskFull));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::DiskFull)
+        );
 
         // Un-setting the disk full state then shows the persist saturated state.
         state.unset(IngestStateError::DiskFull);
         assert_matches!(state.read(), Err(IngestStateError::PersistSaturated));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::PersistSaturated)
+        );
     }
 
     /// A hand-rolled strategy to enumerate [`IngestStateError`] variants.
