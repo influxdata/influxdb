@@ -194,7 +194,7 @@ mod tests {
     async fn test_put() {
         let ns = NamespaceName::new("test").expect("namespace name is valid");
         let registry = metric::Registry::default();
-        let cache = Arc::new(MemoryNamespaceCache::default());
+        let cache = MemoryNamespaceCache::default();
         let cache = Arc::new(InstrumentedCache::new(cache, &registry));
 
         // No tables

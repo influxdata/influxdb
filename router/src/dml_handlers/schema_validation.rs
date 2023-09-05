@@ -753,9 +753,9 @@ mod tests {
         (catalog, namespace)
     }
 
-    fn setup_test_cache(catalog: &TestCatalog) -> Arc<ReadThroughCache<Arc<MemoryNamespaceCache>>> {
+    fn setup_test_cache(catalog: &TestCatalog) -> Arc<ReadThroughCache<MemoryNamespaceCache>> {
         Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
+            MemoryNamespaceCache::default(),
             catalog.catalog(),
         ))
     }

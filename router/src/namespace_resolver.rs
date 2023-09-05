@@ -89,7 +89,7 @@ mod tests {
 
         // Prep the cache before the test to cause a hit
         let cache = Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
+            MemoryNamespaceCache::default(),
             Arc::clone(&catalog),
         ));
         cache.put_schema(
@@ -135,7 +135,7 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
         let cache = Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
+            MemoryNamespaceCache::default(),
             Arc::clone(&catalog),
         ));
 
@@ -167,7 +167,7 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
         let cache = Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
+            MemoryNamespaceCache::default(),
             Arc::clone(&catalog),
         ));
 
@@ -208,7 +208,7 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
         let cache = Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
+            MemoryNamespaceCache::default(),
             Arc::clone(&catalog),
         ));
 

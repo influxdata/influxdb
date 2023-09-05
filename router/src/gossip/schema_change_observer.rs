@@ -242,7 +242,7 @@ mod tests {
                 async fn [<test_observe_ $name>]() {
                     let gossip = Arc::new(MockSchemaBroadcast::default());
                     let observer = SchemaChangeObserver::new(
-                        Arc::new(MemoryNamespaceCache::default()),
+                        MemoryNamespaceCache::default(),
                         Arc::clone(&gossip)
                     );
 

@@ -262,7 +262,7 @@ pub async fn create_router_server_type(
     // metrics.
     let ns_cache = Arc::new(InstrumentedCache::new(
         Arc::new(ShardedCache::new(
-            std::iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+            std::iter::repeat_with(MemoryNamespaceCache::default).take(10),
         )),
         &metrics,
     ));
@@ -513,7 +513,7 @@ mod tests {
 
         drop(repos); // Or it'll deadlock.
 
-        let cache = Arc::new(MemoryNamespaceCache::default());
+        let cache = MemoryNamespaceCache::default();
         pre_warm_schema_cache(&cache, &*catalog)
             .await
             .expect("pre-warming failed");

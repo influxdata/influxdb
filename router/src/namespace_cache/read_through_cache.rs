@@ -108,7 +108,7 @@ mod tests {
     async fn test_put_get() {
         let ns = NamespaceName::try_from("arán").expect("namespace name should be valid");
 
-        let inner = Arc::new(MemoryNamespaceCache::default());
+        let inner = MemoryNamespaceCache::default();
         let metrics = Arc::new(metric::Registry::new());
         let catalog = Arc::new(MemCatalog::new(metrics));
 
@@ -144,7 +144,7 @@ mod tests {
     async fn test_get_cache_miss_catalog_fetch_ok() {
         let ns = NamespaceName::try_from("arán").expect("namespace name should be valid");
 
-        let inner = Arc::new(MemoryNamespaceCache::default());
+        let inner = MemoryNamespaceCache::default();
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
 

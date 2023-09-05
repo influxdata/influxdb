@@ -26,7 +26,7 @@ fn init_ns_cache(
 
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
     let cache = Arc::new(ShardedCache::new(
-        iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+        iter::repeat_with(MemoryNamespaceCache::default).take(10),
     ));
 
     let (actor, handle) = AntiEntropyActor::new(Arc::clone(&cache));

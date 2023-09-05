@@ -23,7 +23,7 @@ pub struct MemoryNamespaceCache {
 }
 
 #[async_trait]
-impl NamespaceCache for Arc<MemoryNamespaceCache> {
+impl NamespaceCache for MemoryNamespaceCache {
     type ReadError = CacheMissErr;
 
     async fn get_schema(
@@ -184,7 +184,7 @@ mod tests {
     #[tokio::test]
     async fn test_put_get() {
         let ns = NamespaceName::new("test").expect("namespace name is valid");
-        let cache = Arc::new(MemoryNamespaceCache::default());
+        let cache = MemoryNamespaceCache::default();
 
         assert_matches!(
             cache.get_schema(&ns).await,
@@ -292,7 +292,7 @@ mod tests {
         };
 
         // Set up the cache and ensure there are no entries for the namespace.
-        let cache = Arc::new(MemoryNamespaceCache::default());
+        let cache = MemoryNamespaceCache::default();
         assert_matches!(
             cache.get_schema(&ns).await,
             Err(CacheMissErr { namespace: got_ns })  => {
@@ -396,7 +396,7 @@ mod tests {
         };
 
         // Set up the cache and ensure there are no entries for the namespace.
-        let cache = Arc::new(MemoryNamespaceCache::default());
+        let cache = MemoryNamespaceCache::default();
         assert_matches!(
             cache.get_schema(&ns).await,
             Err(CacheMissErr { namespace: got_ns })  => {
@@ -551,7 +551,7 @@ mod tests {
 
             // Merge the schemas using the cache merge logic.
             let name = NamespaceName::try_from("bananas").unwrap();
-            let cache = Arc::new(MemoryNamespaceCache::default());
+            let cache = MemoryNamespaceCache::default();
             let (got, stats_1) = cache.put_schema(name.clone(), a.clone());
             assert_eq!(*got, a); // The new namespace should be unchanged
             assert_eq!(stats_1.new_tables, a.tables);
