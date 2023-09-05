@@ -408,7 +408,6 @@ pub trait PartitionRepo: Send + Sync {
     /// Implementations are allowed to spuriously return
     /// [`CasFailure::ValueMismatch`] for performance reasons in the presence of
     /// concurrent writers.
-    ///
     // TODO: After the sort_key_ids field is converetd into NOT NULL, the implementation of this function
     // must be changed to compare old_sort_key_ids with the existing sort_key_ids instead of
     // comparing old_sort_key with existing sort_key
@@ -418,7 +417,7 @@ pub trait PartitionRepo: Send + Sync {
         old_sort_key: Option<Vec<String>>,
         new_sort_key: &[&str],
         new_sort_key_ids: &SortedColumnSet,
-    ) -> Result<Partition, CasFailure<(Vec<String>, Option<SortedColumnSet>)>>;
+    ) -> Result<Partition, CasFailure<Vec<String>>>;
 
     /// Record an instance of a partition being selected for compaction but compaction was not
     /// completed for the specified reason.
@@ -1672,9 +1671,8 @@ pub(crate) mod test_helpers {
             )
             .await
             .expect_err("CAS with incorrect value should fail");
-        assert_matches!(err, CasFailure::ValueMismatch((old_sort_key, old_sort_key_ids)) => {
-            assert_eq!(old_sort_key, &["tag2", "tag1", "time"]);
-            assert_eq!(old_sort_key_ids, Some(SortedColumnSet::from([2, 1, 3])));
+        assert_matches!(err, CasFailure::ValueMismatch(old) => {
+            assert_eq!(old, &["tag2", "tag1", "time"]);
         });
 
         // test getting the new sort key
@@ -1721,9 +1719,8 @@ pub(crate) mod test_helpers {
             )
             .await
             .expect_err("CAS with incorrect value should fail");
-        assert_matches!(err, CasFailure::ValueMismatch((old_sort_key, old_sort_key_ids)) => {
-            assert_eq!(old_sort_key, &["tag2", "tag1", "time"]);
-            assert_eq!(old_sort_key_ids, Some(SortedColumnSet::from([2, 1, 3])));
+        assert_matches!(err, CasFailure::ValueMismatch(old) => {
+            assert_eq!(old, ["tag2", "tag1", "time"]);
         });
 
         // test sort key CAS with an incorrect value
@@ -1737,9 +1734,8 @@ pub(crate) mod test_helpers {
             )
             .await
             .expect_err("CAS with incorrect value should fail");
-        assert_matches!(err, CasFailure::ValueMismatch((old_sort_key, old_sort_key_ids)) => {
-            assert_eq!(old_sort_key, &["tag2", "tag1", "time"]);
-            assert_eq!(old_sort_key_ids, Some(SortedColumnSet::from([2, 1, 3])));
+        assert_matches!(err, CasFailure::ValueMismatch(old) => {
+            assert_eq!(old, ["tag2", "tag1", "time"]);
         });
 
         // test update_sort_key from Some value to Some other value
