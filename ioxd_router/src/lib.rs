@@ -261,9 +261,7 @@ pub async fn create_router_server_type(
     // validator, and namespace auto-creator that reports cache hit/miss/update
     // metrics.
     let ns_cache = Arc::new(InstrumentedCache::new(
-        Arc::new(ShardedCache::new(
-            std::iter::repeat_with(MemoryNamespaceCache::default).take(10),
-        )),
+        ShardedCache::new(std::iter::repeat_with(MemoryNamespaceCache::default).take(10)),
         &metrics,
     ));
 
