@@ -71,7 +71,7 @@ impl<T> InstrumentedCache<T> {
 }
 
 #[async_trait]
-impl<T, P> NamespaceCache for Arc<InstrumentedCache<T, P>>
+impl<T, P> NamespaceCache for InstrumentedCache<T, P>
 where
     T: NamespaceCache,
     P: TimeProvider,
@@ -195,7 +195,7 @@ mod tests {
         let ns = NamespaceName::new("test").expect("namespace name is valid");
         let registry = metric::Registry::default();
         let cache = MemoryNamespaceCache::default();
-        let cache = Arc::new(InstrumentedCache::new(cache, &registry));
+        let cache = InstrumentedCache::new(cache, &registry);
 
         // No tables
         let schema = new_schema(&[]);
