@@ -159,10 +159,7 @@ mod tests {
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
 
         // Prep the cache before the test to cause a hit
-        let cache = Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
-            Arc::clone(&catalog),
-        ));
+        let cache = ReadThroughCache::new(MemoryNamespaceCache::default(), Arc::clone(&catalog));
         cache.put_schema(
             ns.clone(),
             NamespaceSchema {
@@ -210,10 +207,7 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
 
-        let cache = Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
-            Arc::clone(&catalog),
-        ));
+        let cache = ReadThroughCache::new(MemoryNamespaceCache::default(), Arc::clone(&catalog));
 
         let creator = NamespaceAutocreation::new(
             MockNamespaceResolver::default().with_mapping(ns.clone(), NamespaceId::new(1)),
@@ -258,10 +252,7 @@ mod tests {
 
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
-        let cache = Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
-            Arc::clone(&catalog),
-        ));
+        let cache = ReadThroughCache::new(MemoryNamespaceCache::default(), Arc::clone(&catalog));
 
         let creator = NamespaceAutocreation::new(
             MockNamespaceResolver::default(),
@@ -296,7 +287,7 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
         let cache = Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
+            MemoryNamespaceCache::default(),
             Arc::clone(&catalog),
         ));
 

@@ -43,6 +43,29 @@ pub trait NamespaceCache: Debug + Send + Sync {
     ) -> (Arc<NamespaceSchema>, ChangeStats);
 }
 
+#[async_trait]
+impl<T> NamespaceCache for Arc<T>
+where
+    T: NamespaceCache,
+{
+    type ReadError = T::ReadError;
+
+    async fn get_schema(
+        &self,
+        namespace: &NamespaceName<'static>,
+    ) -> Result<Arc<NamespaceSchema>, Self::ReadError> {
+        T::get_schema(self, namespace).await
+    }
+
+    fn put_schema(
+        &self,
+        namespace: NamespaceName<'static>,
+        schema: NamespaceSchema,
+    ) -> (Arc<NamespaceSchema>, ChangeStats) {
+        T::put_schema(self, namespace, schema)
+    }
+}
+
 /// Change statistics describing how the cache entry was modified by the
 /// associated [`NamespaceCache::put_schema()`] call.
 #[derive(Debug, PartialEq, Eq)]

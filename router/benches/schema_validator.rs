@@ -43,9 +43,7 @@ fn bench(group: &mut BenchmarkGroup<WallTime>, tables: usize, columns_per_table:
 
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
     let ns_cache = Arc::new(ReadThroughCache::new(
-        Arc::new(ShardedCache::new(
-            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
-        )),
+        ShardedCache::new(iter::repeat_with(MemoryNamespaceCache::default).take(10)),
         Arc::clone(&catalog),
     ));
     let validator = SchemaValidator::new(catalog, Arc::clone(&ns_cache), &metrics);

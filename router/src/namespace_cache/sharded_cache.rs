@@ -23,7 +23,7 @@ impl<T> ShardedCache<T> {
 }
 
 #[async_trait]
-impl<T> NamespaceCache for Arc<ShardedCache<T>>
+impl<T> NamespaceCache for ShardedCache<T>
 where
     T: NamespaceCache,
 {
@@ -86,9 +86,8 @@ mod tests {
         // The number of shards to hash into.
         const SHARDS: usize = 10;
 
-        let cache = Arc::new(ShardedCache::new(
-            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(SHARDS),
-        ));
+        let cache =
+            ShardedCache::new(iter::repeat_with(MemoryNamespaceCache::default).take(SHARDS));
 
         // Build a set of namespace -> unique integer to validate the shard
         // mapping later.

@@ -39,7 +39,7 @@ impl<T> ReadThroughCache<T> {
 }
 
 #[async_trait]
-impl<T> NamespaceCache for Arc<ReadThroughCache<T>>
+impl<T> NamespaceCache for ReadThroughCache<T>
 where
     T: NamespaceCache<ReadError = CacheMissErr>,
 {
@@ -108,11 +108,11 @@ mod tests {
     async fn test_put_get() {
         let ns = NamespaceName::try_from("arán").expect("namespace name should be valid");
 
-        let inner = Arc::new(MemoryNamespaceCache::default());
+        let inner = MemoryNamespaceCache::default();
         let metrics = Arc::new(metric::Registry::new());
         let catalog = Arc::new(MemCatalog::new(metrics));
 
-        let cache = Arc::new(ReadThroughCache::new(inner, catalog));
+        let cache = ReadThroughCache::new(inner, catalog);
 
         // Pre-condition: Namespace not in cache or catalog.
         assert_matches!(cache.get_schema(&ns).await, Err(_));
@@ -144,11 +144,11 @@ mod tests {
     async fn test_get_cache_miss_catalog_fetch_ok() {
         let ns = NamespaceName::try_from("arán").expect("namespace name should be valid");
 
-        let inner = Arc::new(MemoryNamespaceCache::default());
+        let inner = MemoryNamespaceCache::default();
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
 
-        let cache = Arc::new(ReadThroughCache::new(inner, Arc::clone(&catalog)));
+        let cache = ReadThroughCache::new(inner, Arc::clone(&catalog));
 
         // Pre-condition: Namespace not in cache or catalog.
         assert_matches!(cache.get_schema(&ns).await, Err(_));
