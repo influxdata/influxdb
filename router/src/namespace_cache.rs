@@ -36,9 +36,6 @@ pub trait NamespaceCache: Debug + Send + Sync {
     /// All data except the set of tables/columns have "last writer wins"
     /// semantics. The resulting merged schema is returned, along with a set
     /// of change statistics.
-    ///
-    /// Concurrent calls to this method will race and may result in a schema
-    /// change being lost.
     fn put_schema(
         &self,
         namespace: NamespaceName<'static>,
