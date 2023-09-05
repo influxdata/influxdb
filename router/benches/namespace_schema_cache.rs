@@ -33,7 +33,7 @@ fn init_ns_cache(
     rt.spawn(actor.run());
 
     let cache = MerkleTree::new(cache, handle);
-    let cache = Arc::new(ReadThroughCache::new(cache, Arc::clone(&catalog)));
+    let cache = ReadThroughCache::new(cache, Arc::clone(&catalog));
 
     for (name, schema) in initial_schema {
         cache.put_schema(name, schema);
