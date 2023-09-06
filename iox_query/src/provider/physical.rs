@@ -470,7 +470,7 @@ mod tests {
             @r###"
         ---
         - " UnionExec"
-        - "   RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "   RecordBatchesExec: chunks=1"
         "###
         );
     }
@@ -546,7 +546,7 @@ mod tests {
             @r###"
         ---
         - " UnionExec"
-        - "   RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "   RecordBatchesExec: chunks=1"
         - "   ParquetExec: file_groups={1 group: [[0.parquet]]}"
         "###
         );
@@ -575,7 +575,7 @@ mod tests {
             @r###"
         ---
         - " UnionExec"
-        - "   RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "   RecordBatchesExec: chunks=1"
         - "   ParquetExec: file_groups={1 group: [[0.parquet]]}, projection=[tag, __chunk_order], output_ordering=[__chunk_order@1 ASC]"
         "###
         );

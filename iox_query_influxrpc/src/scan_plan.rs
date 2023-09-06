@@ -212,7 +212,7 @@ mod tests {
         - "   DeduplicateExec: [tag1@3 ASC,time@4 ASC]"
         - "     SortPreservingMergeExec: [tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
         - "       SortExec: expr=[tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
-        - "         RecordBatchesExec: batches_groups=2 batches=2 total_rows=9"
+        - "         RecordBatchesExec: chunks=2"
         "###
         );
 
