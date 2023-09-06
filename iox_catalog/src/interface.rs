@@ -79,6 +79,9 @@ pub enum Error {
     #[snafu(display("table {} not found", id))]
     TableNotFound { id: TableId },
 
+    #[snafu(display("table {} not found", name))]
+    TableNotFoundByName { name: String },
+
     #[snafu(display("partition {} not found", id))]
     PartitionNotFound { id: TransitionPartitionId },
 
@@ -595,6 +598,44 @@ where
     for (_, (table_name, schema)) in table_id_to_schema {
         namespace.tables.insert(table_name, schema);
     }
+
+    Ok(namespace)
+}
+
+/// Gets the schema for one particular table in a namespace.
+pub async fn get_schema_by_namespace_and_table<R>(
+    name: &str,
+    table_name: &str,
+    repos: &mut R,
+    deleted: SoftDeletedRows,
+) -> Result<NamespaceSchema>
+where
+    R: RepoCollection + ?Sized,
+{
+    let namespace = repos
+        .namespaces()
+        .get_by_name(name, deleted)
+        .await?
+        .context(NamespaceNotFoundByNameSnafu { name })?;
+
+    let table = repos
+        .tables()
+        .get_by_namespace_and_name(namespace.id, table_name)
+        .await?
+        .context(TableNotFoundByNameSnafu {
+            name: table_name.to_string(),
+        })?;
+    let mut table_schema = TableSchema::new_empty_from(&table);
+
+    let columns = repos.columns().list_by_table_id(table.id).await?;
+    for c in columns {
+        table_schema.add_column(c);
+    }
+
+    let mut namespace = NamespaceSchema::new_empty_from(&namespace);
+    namespace
+        .tables
+        .insert(table_name.to_string(), table_schema);
 
     Ok(namespace)
 }

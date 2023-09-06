@@ -3,13 +3,17 @@ package influxdata.iox.schema.v1;
 option go_package = "github.com/influxdata/iox/schema/v1";
 
 service SchemaService {
-  // Get the schema for a namespace
+  // Get the schema for a namespace and, optionally, a table within that namespace
   rpc GetSchema(GetSchemaRequest) returns (GetSchemaResponse);
 }
 
 message GetSchemaRequest {
   // The namespace for which to fetch the schema
   string namespace = 1;
+
+  // If specified, the table in the namespace for which to fetch the schema. If not specified, the
+  // schemas for all tables in this namespace will be returned.
+  optional string table = 2;
 }
 
 message GetSchemaResponse {
