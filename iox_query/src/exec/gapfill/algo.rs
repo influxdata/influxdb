@@ -922,6 +922,7 @@ trait VecBuilder {
 }
 
 /// The state of an input row relative to gap-filled output.
+#[derive(Debug)]
 enum RowStatus {
     /// This row had a null timestamp in the input.
     NullTimestamp {

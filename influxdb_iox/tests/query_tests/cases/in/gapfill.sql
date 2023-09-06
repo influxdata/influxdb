@@ -160,3 +160,13 @@ select
 from cpu
 WHERE time >= '2020-06-11T16:52:00Z' AND time < '2020-06-11T16:54:00Z'
 group by 1;
+
+-- interpolation of selector functions.
+SELECT
+  date_bin_gapfill(interval '4 minutes', time) as four_minute,
+  interpolate(selector_last(cpu.idle, time))['value'] as last,
+  interpolate(selector_first(cpu.idle, time))['value'] as first,
+  count(*)
+from cpu
+where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:40:00Z'
+group by four_minute;
