@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use data_types::{
-    NamespaceId, ParquetFile, PartitionKey, SortedColumnSet, TableId, TransitionPartitionId,
-};
+use data_types::{NamespaceId, ParquetFile, PartitionKey, TableId, TransitionPartitionId};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use schema::sort::SortKey;
@@ -30,7 +28,7 @@ pub(super) enum PersistError {
     /// A concurrent sort key update was observed and the sort key update was
     /// aborted. The newly observed sort key is returned.
     #[error("detected concurrent sort key update")]
-    ConcurrentSortKeyUpdate(SortKey, Option<SortedColumnSet>),
+    ConcurrentSortKeyUpdate(SortKey),
 }
 
 /// An internal type that contains all necessary information to run a persist
@@ -195,23 +193,13 @@ impl Context {
     /// diverged from the cached sort key in `self`, indicating concurrent
     /// persist jobs that update the sort key for the same [`PartitionData`]
     /// running in this ingester process.
-    ///
-    /// For now, we keep both sort_key and sort_key_ids in the SortKeyState of PartitionData.
-    /// They contain information of the same columns but one for names and the other for ids.
-    /// In near future when the sort_key is removed from Partition, we can optimize to
-    /// remove the sort_key from the SortKeyState and remove it from this method, too
-    pub(super) async fn set_partition_sort_key(
-        &mut self,
-        new_sort_key: SortKey,
-        new_sort_key_ids: SortedColumnSet,
-    ) {
+    pub(super) async fn set_partition_sort_key(&mut self, new_sort_key: SortKey) {
         // Invalidate the sort key in the partition.
         let old_key;
         {
             let mut guard = self.partition.lock();
             old_key = guard.sort_key().clone();
-
-            guard.update_sort_key(new_sort_key.clone(), new_sort_key_ids.clone());
+            guard.update_sort_key(Some(new_sort_key.clone()));
         };
 
         // Assert the internal (to this ingester instance) serialisation of
@@ -219,13 +207,10 @@ impl Context {
         //
         // Both of these get() should not block due to both of the values having
         // been previously resolved / used in the Context constructor.
-        assert_eq!(
-            old_key.get_sort_key().await,
-            self.sort_key.get_sort_key().await
-        );
+        assert_eq!(old_key.get().await, self.sort_key.get().await);
 
         // Update the cached copy of the sort key in this Context.
-        self.sort_key = SortKeyState::Provided(Some(new_sort_key), Some(new_sort_key_ids));
+        self.sort_key = SortKeyState::Provided(Some(new_sort_key));
     }
 
     // Call [`PartitionData::mark_complete`] to finalise the persistence job,

@@ -192,25 +192,13 @@ mod tests {
         let table_id = partition.lock().table_id();
         let partition_id = partition.lock().partition_id().clone();
         let namespace_id = partition.lock().namespace_id();
-        assert_matches!(
-            partition.lock().sort_key(),
-            SortKeyState::Provided(None, None)
-        );
+        assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(None));
 
         // Transition it to "persisting".
         let data = partition
             .lock()
             .mark_persisting()
             .expect("partition with write should transition to persisting");
-
-        // get columns from the catalog
-        let columns = catalog
-            .repositories()
-            .await
-            .columns()
-            .list_by_table_id(table_id)
-            .await
-            .expect("query for columns failed");
 
         // Assert the starting metric values.
         assert_metric_histogram(&metrics, "ingester_persist_active_duration", 0);
@@ -246,21 +234,8 @@ mod tests {
         assert_eq!(partition.lock().completed_persistence_count(), 1);
 
         // Assert the sort key was also updated
-        assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(Some(sort_key), Some(sort_key_ids)) => {
-            let sort_key_columns = sort_key.to_columns().collect::<Vec<_>>();
-            assert_eq!(sort_key_columns, &["region", "time"]);
-            // get column ids of column name "region" and "time"
-            let region_column_id = columns
-                .iter()
-                .find(|c| c.name == "region")
-                .expect("column region not found")
-                .id;
-            let time_column_id = columns
-                .iter()
-                .find(|c| c.name == "time")
-                .expect("column time not found")
-                .id;
-            assert_eq!(sort_key_ids, &SortedColumnSet::from([region_column_id.get(), time_column_id.get()]));
+        assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(Some(p)) => {
+            assert_eq!(p.to_columns().collect::<Vec<_>>(), &["region", "time"]);
         });
 
         // Ensure a file was made visible in the catalog
@@ -353,32 +328,13 @@ mod tests {
         let table_id = partition.lock().table_id();
         let partition_id = partition.lock().partition_id().clone();
         let namespace_id = partition.lock().namespace_id();
-        assert_matches!(
-            partition.lock().sort_key(),
-            SortKeyState::Provided(None, None)
-        );
+        assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(None));
 
         // Transition it to "persisting".
         let data = partition
             .lock()
             .mark_persisting()
             .expect("partition with write should transition to persisting");
-
-        // Read columns from the catalog
-        let columns = catalog
-            .repositories()
-            .await
-            .columns()
-            .list_by_table_id(table_id)
-            .await
-            .expect("query for columns failed");
-
-        // get column id of column name "region"
-        let region_column_id = columns
-            .iter()
-            .find(|c| c.name == "region")
-            .expect("column region not found")
-            .id;
 
         // Update the sort key in the catalog, causing the persist job to
         // discover the change during the persist.
@@ -392,14 +348,14 @@ mod tests {
                 // must use column names that exist in the partition data
                 &["region"],
                 // column id of region
-                &SortedColumnSet::from([region_column_id.get()]),
+                &SortedColumnSet::from([2]),
             )
             .await
             .expect("failed to set catalog sort key");
         // Test: sort_key_ids after updating
         assert_eq!(
             updated_partition.sort_key_ids(),
-            Some(&SortedColumnSet::from([region_column_id.get()]))
+            Some(&SortedColumnSet::from([2]))
         );
 
         // Enqueue the persist job
@@ -434,17 +390,9 @@ mod tests {
 
         // Assert the sort key was also updated, adding the new columns (time) to the
         // end of the concurrently updated catalog sort key.
-        assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(Some(sort_key), Some(sort_key_ids)) => {
+        assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(Some(p)) => {
             // Before there is only ["region"] (manual sort key update above). Now ["region", "time"]
-            let sort_key_columns = sort_key.to_columns().collect::<Vec<_>>();
-            assert_eq!(sort_key_columns, &["region", "time"]);
-            // get column id of column name "time"
-            let time_column_id = columns
-                .iter()
-                .find(|c| c.name == "time")
-                .expect("column time not found")
-                .id;
-            assert_eq!(sort_key_ids, &SortedColumnSet::from([region_column_id.get(), time_column_id.get()]));
+            assert_eq!(p.to_columns().collect::<Vec<_>>(), &["region", "time"]);
         });
 
         // Ensure a file was made visible in the catalog
