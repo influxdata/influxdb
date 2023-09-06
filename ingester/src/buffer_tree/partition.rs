@@ -33,14 +33,21 @@ pub(crate) enum SortKeyState {
     /// [`DeferredLoad::get()`].
     Deferred(Arc<DeferredLoad<(Option<SortKey>, Option<SortedColumnSet>)>>),
     /// The sort key is known and specified.
-    Provided(Option<SortKey>),
+    Provided(Option<SortKey>, Option<SortedColumnSet>),
 }
 
 impl SortKeyState {
-    pub(crate) async fn get(&self) -> Option<SortKey> {
+    pub(crate) async fn get_sort_key(&self) -> Option<SortKey> {
         match self {
             Self::Deferred(v) => v.get().await.0,
-            Self::Provided(v) => v.clone(),
+            Self::Provided(sort_key, _sort_key_ids) => sort_key.clone(),
+        }
+    }
+
+    pub(crate) async fn get_sort_key_ids(&self) -> Option<SortedColumnSet> {
+        match self {
+            Self::Deferred(v) => v.get().await.1,
+            Self::Provided(_sort_key, sort_key_ids) => sort_key_ids.clone(),
         }
     }
 }
@@ -406,12 +413,17 @@ impl PartitionData {
         &self.sort_key
     }
 
-    /// Set the cached [`SortKey`] to the specified value.
+    /// Set the cached [`SortKey`] and its corresponding sort_key_ids to the specified values.
     ///
     /// All subsequent calls to [`Self::sort_key`] will return
     /// [`SortKeyState::Provided`]  with the `new`.
-    pub(crate) fn update_sort_key(&mut self, new: Option<SortKey>) {
-        self.sort_key = SortKeyState::Provided(new);
+    pub(crate) fn update_sort_key(
+        &mut self,
+        new_sort_key: SortKey,
+        new_sort_key_ids: SortedColumnSet,
+    ) {
+        assert_eq!(new_sort_key.len(), new_sort_key_ids.len());
+        self.sort_key = SortKeyState::Provided(Some(new_sort_key), Some(new_sort_key_ids));
     }
 }
 
@@ -970,18 +982,25 @@ mod tests {
     // Ensure an updated sort key is returned.
     #[tokio::test]
     async fn test_update_provided_sort_key() {
-        let starting_state =
-            SortKeyState::Provided(Some(SortKey::from_columns(["banana", "time"])));
+        let starting_state = SortKeyState::Provided(
+            Some(SortKey::from_columns(["banana", "time"])),
+            Some(SortedColumnSet::from([1, 2])),
+        );
 
         let mut p = PartitionDataBuilder::new()
             .with_sort_key_state(starting_state)
             .build();
 
-        let want = Some(SortKey::from_columns(["banana", "platanos", "time"]));
-        p.update_sort_key(want.clone());
+        let want_sort_key = SortKey::from_columns(["banana", "platanos", "time"]);
+        let want_sort_key_ids = SortedColumnSet::from([1, 3, 2]);
+        p.update_sort_key(want_sort_key.clone(), want_sort_key_ids.clone());
 
-        assert_matches!(p.sort_key(), SortKeyState::Provided(_));
-        assert_eq!(p.sort_key().get().await, want);
+        assert_matches!(p.sort_key(), SortKeyState::Provided(_, _));
+        assert_eq!(p.sort_key().get_sort_key().await.unwrap(), want_sort_key);
+        assert_eq!(
+            p.sort_key().get_sort_key_ids().await.unwrap(),
+            want_sort_key_ids
+        );
     }
 
     // Test loading a deferred sort key from the catalog on demand.
@@ -1044,11 +1063,16 @@ mod tests {
             .with_sort_key_state(starting_state)
             .build();
 
-        let want = Some(SortKey::from_columns(["banana", "platanos", "time"]));
-        p.update_sort_key(want.clone());
+        let want_sort_key = SortKey::from_columns(["banana", "platanos", "time"]);
+        let want_sort_key_ids = SortedColumnSet::from([1, 3, 2]);
+        p.update_sort_key(want_sort_key.clone(), want_sort_key_ids.clone());
 
-        assert_matches!(p.sort_key(), SortKeyState::Provided(_));
-        assert_eq!(p.sort_key().get().await, want);
+        assert_matches!(p.sort_key(), SortKeyState::Provided(_, _));
+        assert_eq!(p.sort_key().get_sort_key().await.unwrap(), want_sort_key);
+        assert_eq!(
+            p.sort_key().get_sort_key_ids().await.unwrap(),
+            want_sort_key_ids
+        );
     }
 
     // Perform writes with non-monotonic sequence numbers.
