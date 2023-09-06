@@ -26,7 +26,7 @@ use tokio::{
 /// decoupling the caller from the latency of processing each frame. Dropping
 /// the [`CompactionEventTx`] stops this background actor task.
 #[derive(Debug)]
-pub struct CompactionEventTx<T> {
+pub struct CompactionEventTx<T = CompactionEvent> {
     tx: mpsc::Sender<T>,
     task: JoinHandle<()>,
 }

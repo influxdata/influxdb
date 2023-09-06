@@ -169,6 +169,8 @@ impl TestSetupBuilder<false> {
             max_num_columns_per_table: 200,
             max_num_files_per_plan: 200,
             max_partition_fetch_queries_per_second: None,
+            gossip_bind_address: None,
+            gossip_seeds: vec![],
         };
 
         let bytes_written = Arc::new(AtomicUsize::new(0));
@@ -772,6 +774,7 @@ impl TestSetup {
             config.partition_timeout,
             df_semaphore,
             &components,
+            None,
         )
         .await;
 
