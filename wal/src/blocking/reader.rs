@@ -60,9 +60,12 @@ where
         let mut decompressing_read = FrameDecoder::new(hashing_read);
 
         let mut data = Vec::with_capacity(100);
-        decompressing_read
-            .read_to_end(&mut data)
-            .context(UnableToReadDataSnafu)?;
+        match decompressing_read.read_to_end(&mut data) {
+            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
+                Err(e).context(IncompleteEntrySnafu)
+            }
+            other => other.context(UnableToReadDataSnafu),
+        }?;
 
         let (actual_compressed_len, actual_checksum) = decompressing_read.into_inner().checksum();
 
@@ -161,6 +164,12 @@ pub enum Error {
         source: io::Error,
     },
 
+    /// An [`IncompleteEntry`] error is returned when the reader is unable to
+    /// read an entry because of an unexpected end of file.
+    IncompleteEntry {
+        source: io::Error,
+    },
+
     LengthMismatch {
         expected: u64,
         actual: u64,
@@ -256,7 +265,7 @@ mod tests {
         assert_eq!(uuid, segment_file.id.as_bytes());
 
         let read_fail = reader.one_entry();
-        assert_error!(read_fail, Error::UnableToReadData { .. });
+        assert_error!(read_fail, Error::IncompleteEntry { .. });
         // Trying to continue reading will fail as well, see:
         // <https://github.com/influxdata/influxdb_iox/issues/6222>
         assert_error!(reader.one_entry(), Error::UnableToReadData { .. });
@@ -281,7 +290,7 @@ mod tests {
         assert_eq!(uuid, segment_file.id.as_bytes());
 
         let read_fail = reader.one_entry();
-        assert_error!(read_fail, Error::UnableToReadData { .. });
+        assert_error!(read_fail, Error::IncompleteEntry { .. });
         // Trying to continue reading will fail as well, see:
         // <https://github.com/influxdata/influxdb_iox/issues/6222>
         assert_error!(reader.one_entry(), Error::UnableToReadData { .. });
