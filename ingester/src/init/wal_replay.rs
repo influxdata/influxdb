@@ -608,47 +608,85 @@ mod tests {
         }
     }
 
-    /// This test asserts that an arbitrary WAL error other than
-    /// [`wal::Error::UnableToReadNextOps`] gets thrown upwards.
-    #[tokio::test]
-    async fn test_replay_sequenced_op_batches_return_unknown_error() {
-        let metrics = metric::Registry::default();
-        let metric = metrics.register_metric::<U64Counter>("foo", "bar");
-        let reader = MockSegmentedWalOpBatchReader {
-            id: SegmentId::new(1),
-            entry_results: [
-                Ok([arbitrary_sequenced_wal_op(SequenceNumber::new(1))]
-                    .into_iter()
-                    .collect()),
-                Ok([arbitrary_sequenced_wal_op(SequenceNumber::new(2))]
-                    .into_iter()
-                    .collect()),
-                Err(wal::Error::UnableToReadNextOps {
-                    source: wal::blocking::ReaderError::ChecksumMismatch {
-                        expected: 1,
-                        actual: 2,
-                    },
-                }),
-            ]
-            .into_iter()
-            .collect::<VecDeque<_>>(),
-        };
-        let mock_sink = MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]);
+    // Assert that an error returned within [`wal::Error::UnableToReadNextOps`]
+    // is thrown up.
+    macro_rules! test_replay_sequenced_op_batches_returns_error {
+        (
+            $name:ident,
+            inner_err = $inner_err:expr,
+        ) => {
+            paste::paste! {
+                #[tokio::test]
+                async fn [<test_replay_sequence_op_batches_returns_error_$name>]() {
+                    let metrics = metric::Registry::default();
+                    let metric = metrics.register_metric::<U64Counter>("foo", "bar");
 
-        assert_matches!(
-            replay_sequenced_op_batches(
-                reader,
-                &mock_sink,
-                &metric.recorder(&[]),
-                &metric.recorder(&[]),
-            )
-            .await,
-            Err(WalReplayError::ReadEntry(_))
-        );
+                    let reader = MockSegmentedWalOpBatchReader {
+                        id: SegmentId::new(1),
+                        entry_results: [
+                            Ok([arbitrary_sequenced_wal_op(SequenceNumber::new(1))]
+                                .into_iter()
+                                .collect()),
+                            Ok([arbitrary_sequenced_wal_op(SequenceNumber::new(2))]
+                                .into_iter()
+                                .collect()),
+                            Err(wal::Error::UnableToReadNextOps {
+                                source: $inner_err,
+                            }),
+                        ]
+                        .into_iter()
+                        .collect::<VecDeque<_>>(),
+                    };
+                    let mock_sink = MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]);
+
+                    assert_matches!(
+                        replay_sequenced_op_batches(
+                            reader,
+                            &mock_sink,
+                            &metric.recorder(&[]),
+                            &metric.recorder(&[]),
+                        )
+                        .await,
+                        Err(WalReplayError::ReadEntry(_))
+                    );
+                }
+            }
+        };
     }
 
+    test_replay_sequenced_op_batches_returns_error!(
+        checksum_mismatch,
+        inner_err = wal::blocking::ReaderError::ChecksumMismatch {
+            expected: 1,
+            actual: 2,
+        },
+    );
+
+    test_replay_sequenced_op_batches_returns_error!(
+        unable_to_read_data,
+        inner_err = wal::blocking::ReaderError::UnableToReadData {
+            source: std::io::Error::new(std::io::ErrorKind::OutOfMemory, "boom"),
+        },
+    );
+
+    test_replay_sequenced_op_batches_returns_error!(
+        length_mismatch,
+        inner_err = wal::blocking::ReaderError::LengthMismatch {
+            expected: 1,
+            actual: 2,
+        },
+    );
+
+    test_replay_sequenced_op_batches_returns_error!(
+        unable_to_read_checksum,
+        inner_err = wal::blocking::ReaderError::UnableToReadChecksum {
+            source: std::io::Error::new(std::io::ErrorKind::TimedOut, "boop"),
+        },
+    );
+
     /// This test is meant to ensure that upon being unable to recover the next
-    /// WAL op entry batch for a segment the replay returns OK early.
+    /// WAL op entry batch for a segment the replay returns OK early if the
+    /// error is an incomplete entry.
     #[tokio::test]
     async fn test_replay_sequenced_op_batches_unable_to_read_next_ops() {
         use once_cell::sync::Lazy;
