@@ -2765,6 +2765,8 @@ dependencies = [
  "data_types",
  "datafusion",
  "futures",
+ "observability_deps",
+ "test_helpers",
  "tokio",
  "trace",
  "uuid",

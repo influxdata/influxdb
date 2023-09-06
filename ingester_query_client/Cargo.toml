@@ -11,9 +11,11 @@ async-trait = "0.1"
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 futures = "0.3"
+observability_deps = { path = "../observability_deps" }
 trace = { path = "../trace" }
 uuid = "1"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
+test_helpers = { path = "../test_helpers" }
 tokio = { version = "1.32", features = ["macros", "rt-multi-thread"] }
