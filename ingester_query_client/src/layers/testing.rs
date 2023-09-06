@@ -31,10 +31,25 @@ where
         }
     }
 
-    /// Create OK response w/ payload.
+    /// Create ERR response w/o any payload.
+    pub fn err(e: DynError) -> Self {
+        Self { res: Err(e) }
+    }
+
+    /// Create OK response w/ OK payload.
     pub fn ok_payload<const N: usize>(md: ResponseMetadata, payload: [ResponsePayload; N]) -> Self {
         Self {
             res: Ok((md, payload.into_iter().map(Ok).collect())),
+        }
+    }
+
+    /// Create OK response w/ [`Result`]-typed payload.
+    pub fn ok_payload_res<const N: usize>(
+        md: ResponseMetadata,
+        payload: [Result<ResponsePayload, DynError>; N],
+    ) -> Self {
+        Self {
+            res: Ok((md, payload.into_iter().collect())),
         }
     }
 }

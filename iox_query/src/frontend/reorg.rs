@@ -417,12 +417,12 @@ mod test {
         - " SortPreservingMergeExec: [tag1@2 DESC,time@3 ASC NULLS LAST]"
         - "   UnionExec"
         - "     SortExec: expr=[tag1@2 DESC,time@3 ASC NULLS LAST]"
-        - "       RecordBatchesExec: batches_groups=1 batches=1 total_rows=5"
+        - "       RecordBatchesExec: chunks=1"
         - "     SortExec: expr=[tag1@2 DESC,time@3 ASC NULLS LAST]"
         - "       ProjectionExec: expr=[field_int@1 as field_int, field_int2@2 as field_int2, tag1@3 as tag1, time@4 as time]"
         - "         DeduplicateExec: [tag1@3 ASC,time@4 ASC]"
         - "           SortExec: expr=[tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
-        - "             RecordBatchesExec: batches_groups=1 batches=1 total_rows=4"
+        - "             RecordBatchesExec: chunks=1"
         "###
         );
 
@@ -486,12 +486,12 @@ mod test {
         - "   SortPreservingMergeExec: [time@3 ASC NULLS LAST,tag1@2 ASC]"
         - "     UnionExec"
         - "       SortExec: expr=[time@3 ASC NULLS LAST,tag1@2 ASC]"
-        - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=5"
+        - "         RecordBatchesExec: chunks=1"
         - "       SortExec: expr=[time@3 ASC NULLS LAST,tag1@2 ASC]"
         - "         ProjectionExec: expr=[field_int@1 as field_int, field_int2@2 as field_int2, tag1@3 as tag1, time@4 as time]"
         - "           DeduplicateExec: [tag1@3 ASC,time@4 ASC]"
         - "             SortExec: expr=[tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
-        - "               RecordBatchesExec: batches_groups=1 batches=1 total_rows=4"
+        - "               RecordBatchesExec: chunks=1"
         "###
         );
 
@@ -567,12 +567,12 @@ mod test {
         - "   SortPreservingMergeExec: [time@3 ASC NULLS LAST,tag1@2 ASC]"
         - "     UnionExec"
         - "       SortExec: expr=[time@3 ASC NULLS LAST,tag1@2 ASC]"
-        - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=5"
+        - "         RecordBatchesExec: chunks=1"
         - "       SortExec: expr=[time@3 ASC NULLS LAST,tag1@2 ASC]"
         - "         ProjectionExec: expr=[field_int@1 as field_int, field_int2@2 as field_int2, tag1@3 as tag1, time@4 as time]"
         - "           DeduplicateExec: [tag1@3 ASC,time@4 ASC]"
         - "             SortExec: expr=[tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
-        - "               RecordBatchesExec: batches_groups=1 batches=1 total_rows=4"
+        - "               RecordBatchesExec: chunks=1"
         "###
         );
 

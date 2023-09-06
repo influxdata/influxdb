@@ -370,7 +370,7 @@ mod test {
         - " ProjectionExec: expr=[field@0 as field, tag1@1 as tag1, tag2@2 as tag2, time@3 as time]"
         - "   DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
         - "     UnionExec"
-        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "       RecordBatchesExec: chunks=1"
         - "       ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
         "###
         );
@@ -387,7 +387,7 @@ mod test {
         - " ProjectionExec: expr=[tag1@1 as tag1, time@3 as time]"
         - "   DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
         - "     UnionExec"
-        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "       RecordBatchesExec: chunks=1"
         - "       ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
         "###
         );
@@ -408,7 +408,7 @@ mod test {
         - "   FilterExec: false"
         - "     DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
         - "       UnionExec"
-        - "         RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "         RecordBatchesExec: chunks=1"
         - "         ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
         "###
         );
@@ -422,7 +422,7 @@ mod test {
         - " ProjectionExec: expr=[field@0 as field, tag1@1 as tag1, tag2@2 as tag2, time@3 as time]"
         - "   DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
         - "     UnionExec"
-        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "       RecordBatchesExec: chunks=1"
         - "       ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
         "###
         );
@@ -468,7 +468,7 @@ mod test {
         ---
         - " ProjectionExec: expr=[field@0 as field, tag1@1 as tag1, tag2@2 as tag2, time@3 as time]"
         - "   UnionExec"
-        - "     RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     RecordBatchesExec: chunks=1"
         - "     ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
         "###
         );
@@ -484,7 +484,7 @@ mod test {
         ---
         - " ProjectionExec: expr=[tag1@1 as tag1, time@3 as time]"
         - "   UnionExec"
-        - "     RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     RecordBatchesExec: chunks=1"
         - "     ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
         "###
         );
@@ -513,7 +513,7 @@ mod test {
         - " ProjectionExec: expr=[field@0 as field, tag1@1 as tag1, tag2@2 as tag2, time@3 as time]"
         - "   FilterExec: false AND tag1@1 = CAST(foo AS Dictionary(Int32, Utf8))"
         - "     UnionExec"
-        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "       RecordBatchesExec: chunks=1"
         - "       ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
         "###
         );
@@ -526,7 +526,7 @@ mod test {
         ---
         - " ProjectionExec: expr=[field@0 as field, tag1@1 as tag1, tag2@2 as tag2, time@3 as time]"
         - "   UnionExec"
-        - "     RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     RecordBatchesExec: chunks=1"
         - "     ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
         "###
         );
@@ -577,7 +577,7 @@ mod test {
         - "   FilterExec: time@3 > 100"
         - "     DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
         - "       UnionExec"
-        - "         RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "         RecordBatchesExec: chunks=1"
         - "         ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
         "###
         );
@@ -595,7 +595,7 @@ mod test {
         - "   FilterExec: time@3 > 100"
         - "     DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
         - "       UnionExec"
-        - "         RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "         RecordBatchesExec: chunks=1"
         - "         ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
         "###
         );
@@ -619,7 +619,7 @@ mod test {
         - "   FilterExec: false AND time@3 > 100"
         - "     DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
         - "       UnionExec"
-        - "         RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "         RecordBatchesExec: chunks=1"
         - "         ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
         "###
         );
@@ -634,7 +634,7 @@ mod test {
         - "   FilterExec: time@3 > 100"
         - "     DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
         - "       UnionExec"
-        - "         RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "         RecordBatchesExec: chunks=1"
         - "         ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
         "###
         );

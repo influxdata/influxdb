@@ -541,13 +541,13 @@ mod tests {
         // Table exists and is over the column limit because of the race condition,
         {
             // Make two schema validator instances each with their own cache
-            let cache1 = setup_test_cache(&catalog);
+            let cache1 = Arc::new(setup_test_cache(&catalog));
             let handler1 = SchemaValidator::new(
                 catalog.catalog(),
                 Arc::clone(&cache1),
                 &catalog.metric_registry,
             );
-            let cache2 = setup_test_cache(&catalog);
+            let cache2 = Arc::new(setup_test_cache(&catalog));
             let handler2 = SchemaValidator::new(
                 catalog.catalog(),
                 Arc::clone(&cache2),
@@ -753,11 +753,8 @@ mod tests {
         (catalog, namespace)
     }
 
-    fn setup_test_cache(catalog: &TestCatalog) -> Arc<ReadThroughCache<Arc<MemoryNamespaceCache>>> {
-        Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
-            catalog.catalog(),
-        ))
+    fn setup_test_cache(catalog: &TestCatalog) -> ReadThroughCache<MemoryNamespaceCache> {
+        ReadThroughCache::new(MemoryNamespaceCache::default(), catalog.catalog())
     }
 
     async fn assert_cache<C>(handler: &SchemaValidator<C>, table: &str, col: &str, want: ColumnType)
@@ -789,7 +786,7 @@ mod tests {
         let want_id = namespace.create_table("bananas").await.table.id;
 
         let metrics = Arc::new(metric::Registry::default());
-        let cache = setup_test_cache(&catalog);
+        let cache = Arc::new(setup_test_cache(&catalog));
         let handler = SchemaValidator::new(catalog.catalog(), Arc::clone(&cache), &metrics);
 
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");

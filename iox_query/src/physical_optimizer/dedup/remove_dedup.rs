@@ -101,11 +101,11 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+          - "     RecordBatchesExec: chunks=1"
         output:
           Ok:
             - " UnionExec"
-            - "   RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+            - "   RecordBatchesExec: chunks=1"
         "###
         );
     }
@@ -123,12 +123,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+          - "     RecordBatchesExec: chunks=1"
         output:
           Ok:
             - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
             - "   UnionExec"
-            - "     RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+            - "     RecordBatchesExec: chunks=1"
         "###
         );
     }
@@ -147,12 +147,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+          - "     RecordBatchesExec: chunks=2"
         output:
           Ok:
             - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
             - "   UnionExec"
-            - "     RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+            - "     RecordBatchesExec: chunks=2"
         "###
         );
     }

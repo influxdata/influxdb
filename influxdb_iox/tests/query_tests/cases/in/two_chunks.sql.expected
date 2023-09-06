@@ -19,7 +19,7 @@
 |    |     SortPreservingMergeExec: [city@1 ASC,state@3 ASC,time@5 ASC,__chunk_order@0 ASC]    |
 |    |       UnionExec    |
 |    |         SortExec: expr=[city@1 ASC,state@3 ASC,time@5 ASC,__chunk_order@0 ASC]    |
-|    |           RecordBatchesExec: batches_groups=1 batches=1 total_rows=1    |
+|    |           RecordBatchesExec: chunks=1    |
 |    |         ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[__chunk_order, city, other_temp, state, temp, time], output_ordering=[city@1 ASC, state@3 ASC, time@5 ASC, __chunk_order@0 ASC]    |
 |    |    |
 ----------
@@ -43,7 +43,7 @@
 |    |     SortPreservingMergeExec: [city@1 ASC,state@2 ASC,time@5 ASC,__chunk_order@0 ASC]    |
 |    |       UnionExec    |
 |    |         SortExec: expr=[city@1 ASC,state@2 ASC,time@5 ASC,__chunk_order@0 ASC]    |
-|    |           RecordBatchesExec: batches_groups=1 batches=1 total_rows=1    |
+|    |           RecordBatchesExec: chunks=1    |
 |    |         ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[__chunk_order, city, state, temp, other_temp, time], output_ordering=[city@1 ASC, state@2 ASC, time@5 ASC, __chunk_order@0 ASC]    |
 |    |    |
 ----------

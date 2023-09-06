@@ -227,7 +227,6 @@ async fn check_ids_exists_in_catalog(
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use chrono::TimeZone;
     use data_types::{
         ColumnId, ColumnSet, CompactionLevel, NamespaceId, ParquetFile, ParquetFileId,
         ParquetFileParams, PartitionId, TableId, Timestamp, TransitionPartitionId,
@@ -243,10 +242,18 @@ mod tests {
     use std::{assert_eq, vec};
     use uuid::Uuid;
 
-    static OLDER_TIME: Lazy<DateTime<Utc>> =
-        Lazy::new(|| Utc.datetime_from_str("2022-01-01T00:00:00z", "%+").unwrap());
-    static NEWER_TIME: Lazy<DateTime<Utc>> =
-        Lazy::new(|| Utc.datetime_from_str("2022-02-02T00:00:00z", "%+").unwrap());
+    static OLDER_TIME: Lazy<DateTime<Utc>> = Lazy::new(|| {
+        DateTime::parse_from_str("2022-01-01T00:00:00z", "%+")
+            .unwrap()
+            .naive_utc()
+            .and_utc()
+    });
+    static NEWER_TIME: Lazy<DateTime<Utc>> = Lazy::new(|| {
+        DateTime::parse_from_str("2022-02-02T00:00:00z", "%+")
+            .unwrap()
+            .naive_utc()
+            .and_utc()
+    });
 
     async fn create_catalog_and_file() -> (Arc<dyn Catalog>, ParquetFile) {
         let metric_registry = Arc::new(metric::Registry::new());

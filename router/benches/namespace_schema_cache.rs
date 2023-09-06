@@ -26,14 +26,14 @@ fn init_ns_cache(
 
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
     let cache = Arc::new(ShardedCache::new(
-        iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+        iter::repeat_with(MemoryNamespaceCache::default).take(10),
     ));
 
     let (actor, handle) = AntiEntropyActor::new(Arc::clone(&cache));
     rt.spawn(actor.run());
 
     let cache = MerkleTree::new(cache, handle);
-    let cache = Arc::new(ReadThroughCache::new(cache, Arc::clone(&catalog)));
+    let cache = ReadThroughCache::new(cache, Arc::clone(&catalog));
 
     for (name, schema) in initial_schema {
         cache.put_schema(name, schema);
