@@ -2762,6 +2762,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "async-trait",
+ "client_util",
  "data_types",
  "datafusion",
  "futures",
@@ -2771,6 +2772,7 @@ dependencies = [
  "snafu",
  "test_helpers",
  "tokio",
+ "tonic",
  "trace",
  "trace_http",
  "uuid",

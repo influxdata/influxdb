@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies] # In alphabetical order
 arrow = { workspace = true, features = ["prettyprint", "dyn_cmp_dict"] }
 async-trait = "0.1"
+client_util = { path = "../client_util" }
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 futures = "0.3"
@@ -15,6 +16,7 @@ http = "0.2.9"
 ingester_query_grpc = { path = "../ingester_query_grpc" }
 observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
+tonic = { workspace = true }
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }
 uuid = "1"
