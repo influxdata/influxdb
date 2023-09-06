@@ -214,7 +214,12 @@ where
     let segment_id = batches.id();
 
     for batch in batches {
-        if let Err(err @ wal::Error::UnableToReadNextOps { .. }) = batch {
+        if let Err(
+            err @ wal::Error::UnableToReadNextOps {
+                source: wal::blocking::ReaderError::IncompleteEntry { .. },
+            },
+        ) = batch
+        {
             error!(%err, ?segment_id, "unable to recover further op batches from wal segment");
             break;
         }
@@ -618,7 +623,12 @@ mod tests {
                 Ok([arbitrary_sequenced_wal_op(SequenceNumber::new(2))]
                     .into_iter()
                     .collect()),
-                Err(wal::Error::SegmentFileIdentifierMismatch {}),
+                Err(wal::Error::UnableToReadNextOps {
+                    source: wal::blocking::ReaderError::ChecksumMismatch {
+                        expected: 1,
+                        actual: 2,
+                    },
+                }),
             ]
             .into_iter()
             .collect::<VecDeque<_>>(),
@@ -657,9 +667,11 @@ mod tests {
                     .into_iter()
                     .collect()),
                 Err(wal::Error::UnableToReadNextOps {
-                    source: wal::blocking::ReaderError::LengthMismatch {
-                        expected: 1,
-                        actual: 2,
+                    source: wal::blocking::ReaderError::IncompleteEntry {
+                        source: std::io::Error::new(
+                            std::io::ErrorKind::UnexpectedEof,
+                            "gremlins in the drive",
+                        ),
                     },
                 }),
             ]

@@ -164,7 +164,7 @@ pub enum Error {
         source: io::Error,
     },
 
-    /// An [`IncompleteEntry`] error is returned when the reader is unable to
+    /// An [`Error::IncompleteEntry`] error is returned when the reader is unable to
     /// read an entry because of an unexpected end of file.
     IncompleteEntry {
         source: io::Error,
