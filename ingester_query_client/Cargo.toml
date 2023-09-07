@@ -16,6 +16,7 @@ http = "0.2.9"
 ingester_query_grpc = { path = "../ingester_query_grpc" }
 observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
+tokio = { version = "1.32" }
 tonic = { workspace = true }
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }
