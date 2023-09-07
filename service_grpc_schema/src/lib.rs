@@ -123,33 +123,34 @@ mod tests {
     use tonic::Code;
 
     #[tokio::test]
-    async fn test_schema() {
+    async fn get_schema() {
+        let namespace = "namespace_schema_test";
+        let table = "schema_test_table";
+        let column = "schema_test_column";
+        let another_table = "another_schema_test_table";
+        let another_column = "another_schema_test_column";
+
         // create a catalog and populate it with some test data, then drop the write lock
         let catalog = {
             let metrics = Arc::new(metric::Registry::default());
             let catalog = Arc::new(MemCatalog::new(metrics));
             let mut repos = catalog.repositories().await;
-            let namespace = arbitrary_namespace(&mut *repos, "namespace_schema_test").await;
+            let namespace = arbitrary_namespace(&mut *repos, namespace).await;
 
-            let table = arbitrary_table(&mut *repos, "schema_test_table", &namespace).await;
+            let table = arbitrary_table(&mut *repos, table, &namespace).await;
             repos
                 .columns()
-                .create_or_get("schema_test_column", table.id, ColumnType::Tag)
+                .create_or_get(column, table.id, ColumnType::Tag)
                 .await
                 .unwrap();
 
-            let another_table =
-                arbitrary_table(&mut *repos, "another_schema_test_table", &namespace).await;
+            let another_table = arbitrary_table(&mut *repos, another_table, &namespace).await;
             repos
                 .columns()
-                .create_or_get(
-                    "another_schema_test_column",
-                    another_table.id,
-                    ColumnType::Tag,
-                )
+                .create_or_get(another_column, another_table.id, ColumnType::Tag)
                 .await
                 .unwrap();
-            Arc::clone(&catalog)
+            catalog
         };
 
         // create grpc schema service
@@ -157,60 +158,51 @@ mod tests {
 
         // request all tables for a namespace
         let request = GetSchemaRequest {
-            namespace: "namespace_schema_test".to_string(),
+            namespace: namespace.to_string(),
             table: None,
         };
-        let tonic_response = grpc
-            .get_schema(Request::new(request))
-            .await
-            .expect("rpc request should succeed");
+        let tonic_response = grpc.get_schema(Request::new(request)).await.unwrap();
         let response = tonic_response.into_inner();
-        let schema = response.schema.expect("schema should be Some()");
+        let schema = response.schema.unwrap();
         let mut table_names: Vec<_> = schema.tables.keys().collect();
         table_names.sort();
-        assert_eq!(
-            table_names,
-            ["another_schema_test_table", "schema_test_table"]
-        );
+        assert_eq!(table_names, [another_table, table]);
         assert_eq!(
             schema
                 .tables
-                .get("schema_test_table")
-                .expect("test table should exist")
+                .get(table)
+                .unwrap()
                 .columns
                 .keys()
                 .collect::<Vec<_>>(),
-            ["schema_test_column"]
+            [column]
         );
 
         // request one table for a namespace
         let request = GetSchemaRequest {
-            namespace: "namespace_schema_test".to_string(),
-            table: Some("schema_test_table".to_string()),
+            namespace: namespace.to_string(),
+            table: Some(table.to_string()),
         };
-        let tonic_response = grpc
-            .get_schema(Request::new(request))
-            .await
-            .expect("rpc request should succeed");
+        let tonic_response = grpc.get_schema(Request::new(request)).await.unwrap();
         let response = tonic_response.into_inner();
-        let schema = response.schema.expect("schema should be Some()");
+        let schema = response.schema.unwrap();
         let mut table_names: Vec<_> = schema.tables.keys().collect();
         table_names.sort();
-        assert_eq!(table_names, ["schema_test_table"]);
+        assert_eq!(table_names, [table]);
         assert_eq!(
             schema
                 .tables
                 .get("schema_test_table")
-                .expect("test table should exist")
+                .unwrap()
                 .columns
                 .keys()
                 .collect::<Vec<_>>(),
-            ["schema_test_column"]
+            [column]
         );
 
         // request a nonexistent table for a namespace, which fails
         let request = GetSchemaRequest {
-            namespace: "namespace_schema_test".to_string(),
+            namespace: namespace.to_string(),
             table: Some("does_not_exist".to_string()),
         };
         let tonic_status = grpc.get_schema(Request::new(request)).await.unwrap_err();
