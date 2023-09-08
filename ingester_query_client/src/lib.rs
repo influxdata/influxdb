@@ -14,6 +14,7 @@
 )]
 
 pub mod error;
+pub mod error_classifier;
 pub mod interface;
 pub mod layer;
 pub mod layers;

@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies] # In alphabetical order
 arrow = { workspace = true, features = ["prettyprint", "dyn_cmp_dict"] }
 async-trait = "0.1"
+backoff = { path = "../backoff" }
 client_util = { path = "../client_util" }
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
