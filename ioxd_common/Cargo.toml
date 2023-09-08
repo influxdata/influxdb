@@ -27,7 +27,7 @@ trace_http = { path = "../trace_http" }
 
 # Crates.io dependencies, in alphabetical order
 async-trait = "0.1"
-bytes = "1.4"
+bytes = "1.5"
 clap = { version = "4", features = ["derive", "env"] }
 flate2 = "1.0"
 futures = "0.3"

@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies] # In alphabetical order
 arrow = { workspace = true, features = ["prettyprint"] }
 base64 = "0.21"
-bytes = "1.4"
+bytes = "1.5"
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }

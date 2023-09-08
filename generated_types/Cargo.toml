@@ -15,7 +15,7 @@ tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
-bytes = "1.4"
+bytes = "1.5"
 
 [build-dependencies] # In alphabetical order
 tonic-build = { workspace = true }

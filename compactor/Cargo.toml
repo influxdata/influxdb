@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 async-trait = "0.1.73"
 backoff = { path = "../backoff" }
-bytes = "1.4"
+bytes = "1.5"
 chrono = { version = "0.4", default-features = false }
 compactor_scheduler = { path = "../compactor_scheduler" }
 data_types = { path = "../data_types" }

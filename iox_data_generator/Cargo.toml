@@ -7,7 +7,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-bytes = "1.4"
+bytes = "1.5"
 chrono = { version = "0.4", default-features = false }
 clap = { version = "4", features = ["derive", "env", "cargo"] }
 datafusion_util = { path = "../datafusion_util" }

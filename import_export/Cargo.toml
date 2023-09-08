@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-bytes = "1.4"
+bytes = "1.5"
 data_types = { path = "../data_types" }
 futures-util = { version = "0.3" }
 generated_types = { path = "../generated_types" }

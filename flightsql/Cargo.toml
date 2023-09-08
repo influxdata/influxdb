@@ -16,7 +16,7 @@ observability_deps = { path = "../observability_deps" }
 iox_query = { path = "../iox_query" }
 
 # Crates.io dependencies, in alphabetical order
-bytes = "1.4"
+bytes = "1.5"
 snafu = "0.7"
 once_cell = { version = "1", default-features = false }
 prost = "0.11"
