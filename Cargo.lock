@@ -5326,9 +5326,9 @@ name = "service_grpc_schema"
 version = "0.1.0"
 dependencies = [
  "data_types",
+ "futures",
  "generated_types",
  "iox_catalog",
- "metric",
  "observability_deps",
  "tokio",
  "tonic",

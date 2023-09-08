@@ -114,99 +114,130 @@ fn schema_to_proto(schema: &data_types::NamespaceSchema) -> NamespaceSchema {
 mod tests {
     use super::*;
     use data_types::ColumnType;
+    use futures::{future::BoxFuture, FutureExt};
     use generated_types::influxdata::iox::schema::v1::schema_service_server::SchemaService;
     use iox_catalog::{
+        interface::RepoCollection,
         mem::MemCatalog,
         test_helpers::{arbitrary_namespace, arbitrary_table},
     };
     use std::sync::Arc;
     use tonic::Code;
 
+    // `SchemaService` has to be specified in this way because the `generated_types` trait is
+    // also in scope. Make an alias for convenience and to have one place to explain.
+    type Service = super::SchemaService;
+
+    // Given some `catalog_setup` closure that can use the catalog repos and returns a future,
+    // set up the catalog, await the future, and return the gRPC service.
+    async fn service_setup<S, T>(mut catalog_setup: S) -> Service
+    where
+        S: (FnMut(&mut dyn RepoCollection) -> BoxFuture<'_, T>) + Send,
+    {
+        let catalog = Arc::new(MemCatalog::new(Default::default()));
+        let mut repos = catalog.repositories().await;
+
+        let setup = catalog_setup(repos.as_mut());
+        setup.await;
+
+        Service::new(catalog)
+    }
+
+    async fn get_schema(grpc: &Service, namespace: &str, table: Option<&str>) -> NamespaceSchema {
+        let request = GetSchemaRequest {
+            namespace: namespace.to_string(),
+            table: table.map(Into::into),
+        };
+
+        let response = grpc.get_schema(Request::new(request)).await.unwrap();
+        let response = response.into_inner();
+        response.schema.unwrap()
+    }
+
+    async fn get_schema_expecting_failure(
+        grpc: &Service,
+        namespace: &str,
+        table: Option<&str>,
+        expected_code: Code,
+        expected_message: &str,
+    ) {
+        let request = GetSchemaRequest {
+            namespace: namespace.to_string(),
+            table: table.map(Into::into),
+        };
+
+        let status = grpc.get_schema(Request::new(request)).await.unwrap_err();
+        assert_eq!(status.code(), expected_code);
+        assert_eq!(status.message(), expected_message);
+    }
+
+    fn sorted_table_names(schema: &NamespaceSchema) -> Vec<String> {
+        let mut table_names: Vec<_> = schema.tables.keys().cloned().collect();
+        table_names.sort();
+        table_names
+    }
+
+    fn sorted_column_names(schema: &NamespaceSchema, table: &str) -> Vec<String> {
+        let mut column_names: Vec<_> = schema
+            .tables
+            .get(table)
+            .unwrap()
+            .columns
+            .keys()
+            .cloned()
+            .collect();
+        column_names.sort();
+        column_names
+    }
+
     #[tokio::test]
-    async fn get_schema() {
+    async fn get_schema_works() {
         let namespace = "namespace_schema_test";
         let table = "schema_test_table";
         let column = "schema_test_column";
         let another_table = "another_schema_test_table";
         let another_column = "another_schema_test_column";
 
-        // create a catalog and populate it with some test data, then drop the write lock
-        let catalog = {
-            let metrics = Arc::new(metric::Registry::default());
-            let catalog = Arc::new(MemCatalog::new(metrics));
-            let mut repos = catalog.repositories().await;
-            let namespace = arbitrary_namespace(&mut *repos, namespace).await;
+        let grpc = service_setup(|repos| {
+            async {
+                let namespace = arbitrary_namespace(&mut *repos, namespace).await;
 
-            let table = arbitrary_table(&mut *repos, table, &namespace).await;
-            repos
-                .columns()
-                .create_or_get(column, table.id, ColumnType::Tag)
-                .await
-                .unwrap();
+                let table = arbitrary_table(&mut *repos, table, &namespace).await;
+                repos
+                    .columns()
+                    .create_or_get(column, table.id, ColumnType::Tag)
+                    .await
+                    .unwrap();
 
-            let another_table = arbitrary_table(&mut *repos, another_table, &namespace).await;
-            repos
-                .columns()
-                .create_or_get(another_column, another_table.id, ColumnType::Tag)
-                .await
-                .unwrap();
-            catalog
-        };
-
-        // create grpc schema service
-        let grpc = super::SchemaService::new(catalog);
+                let another_table = arbitrary_table(&mut *repos, another_table, &namespace).await;
+                repos
+                    .columns()
+                    .create_or_get(another_column, another_table.id, ColumnType::Tag)
+                    .await
+                    .unwrap();
+            }
+            .boxed()
+        })
+        .await;
 
         // request all tables for a namespace
-        let request = GetSchemaRequest {
-            namespace: namespace.to_string(),
-            table: None,
-        };
-        let tonic_response = grpc.get_schema(Request::new(request)).await.unwrap();
-        let response = tonic_response.into_inner();
-        let schema = response.schema.unwrap();
-        let mut table_names: Vec<_> = schema.tables.keys().collect();
-        table_names.sort();
-        assert_eq!(table_names, [another_table, table]);
-        assert_eq!(
-            schema
-                .tables
-                .get(table)
-                .unwrap()
-                .columns
-                .keys()
-                .collect::<Vec<_>>(),
-            [column]
-        );
+        let schema = get_schema(&grpc, namespace, None).await;
+        assert_eq!(sorted_table_names(&schema), [another_table, table]);
+        assert_eq!(sorted_column_names(&schema, table), [column]);
 
         // request one table for a namespace
-        let request = GetSchemaRequest {
-            namespace: namespace.to_string(),
-            table: Some(table.to_string()),
-        };
-        let tonic_response = grpc.get_schema(Request::new(request)).await.unwrap();
-        let response = tonic_response.into_inner();
-        let schema = response.schema.unwrap();
-        let mut table_names: Vec<_> = schema.tables.keys().collect();
-        table_names.sort();
-        assert_eq!(table_names, [table]);
-        assert_eq!(
-            schema
-                .tables
-                .get("schema_test_table")
-                .unwrap()
-                .columns
-                .keys()
-                .collect::<Vec<_>>(),
-            [column]
-        );
+        let schema = get_schema(&grpc, namespace, Some(table)).await;
+        assert_eq!(sorted_table_names(&schema), [table]);
+        assert_eq!(sorted_column_names(&schema, table), [column]);
 
         // request a nonexistent table for a namespace, which fails
-        let request = GetSchemaRequest {
-            namespace: namespace.to_string(),
-            table: Some("does_not_exist".to_string()),
-        };
-        let tonic_status = grpc.get_schema(Request::new(request)).await.unwrap_err();
-        assert_eq!(tonic_status.code(), Code::NotFound);
-        assert_eq!(tonic_status.message(), "table does_not_exist not found");
+        get_schema_expecting_failure(
+            &grpc,
+            namespace,
+            Some("does_not_exist"),
+            Code::NotFound,
+            "table does_not_exist not found",
+        )
+        .await;
     }
 }
