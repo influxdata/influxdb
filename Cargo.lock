@@ -2771,6 +2771,8 @@ dependencies = [
  "futures",
  "http",
  "ingester_query_grpc",
+ "iox_time",
+ "metric",
  "observability_deps",
  "snafu",
  "test_helpers",

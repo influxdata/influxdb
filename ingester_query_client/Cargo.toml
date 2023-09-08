@@ -14,6 +14,8 @@ datafusion = { workspace = true }
 futures = "0.3"
 http = "0.2.9"
 ingester_query_grpc = { path = "../ingester_query_grpc" }
+iox_time = { path = "../iox_time" }
+metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
 tokio = { version = "1.32" }
