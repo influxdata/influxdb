@@ -17,25 +17,23 @@ license.workspace = true
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash = { version = "0.8" }
-arrow = { version = "45", features = ["dyn_cmp_dict", "prettyprint"] }
-arrow-array = { version = "45", default-features = false, features = ["chrono-tz"] }
-arrow-flight = { version = "45", features = ["flight-sql-experimental"] }
-arrow-ord = { version = "45", default-features = false, features = ["dyn_cmp_dict"] }
-arrow-string = { version = "45", default-features = false, features = ["dyn_cmp_dict"] }
+arrow = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4", features = ["dyn_cmp_dict", "prettyprint"] }
+arrow-array = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4", default-features = false, features = ["chrono-tz"] }
+arrow-flight = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4", features = ["flight-sql-experimental"] }
+arrow-string = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4", default-features = false, features = ["dyn_cmp_dict"] }
 base64 = { version = "0.21" }
 byteorder = { version = "1" }
 bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f3722c0af8418bcb19cf9dc5f7e458a3aa5f0f32" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f3722c0af8418bcb19cf9dc5f7e458a3aa5f0f32", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f3722c0af8418bcb19cf9dc5f7e458a3aa5f0f32", default-features = false, features = ["crypto_expressions", "encoding_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "3ea870cf0995a86b5297a92be5d5432577aefabe" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "3ea870cf0995a86b5297a92be5d5432577aefabe", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "3ea870cf0995a86b5297a92be5d5432577aefabe", default-features = false, features = ["crypto_expressions", "encoding_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1", features = ["serde"] }
 fixedbitset = { version = "0.4" }
 flatbuffers = { version = "23" }
-flate2 = { version = "1" }
 futures-channel = { version = "0.3", features = ["sink"] }
 futures-core = { version = "0.3" }
 futures-executor = { version = "0.3" }
@@ -54,10 +52,10 @@ md-5 = { version = "0.10" }
 memchr = { version = "2" }
 nom = { version = "7" }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
-object_store = { version = "0.6", default-features = false, features = ["aws", "azure", "gcp"] }
+object_store = { version = "0.7", default-features = false, features = ["aws", "azure", "gcp"] }
 once_cell = { version = "1", features = ["parking_lot"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
-parquet = { version = "45", features = ["experimental", "object_store"] }
+parquet = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4", features = ["experimental", "object_store"] }
 petgraph = { version = "0.6" }
 phf_shared = { version = "0.11" }
 predicates = { version = "3" }
@@ -76,7 +74,7 @@ serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }
 sha2 = { version = "0.10" }
 similar = { version = "2", features = ["inline"] }
-smallvec = { version = "1", default-features = false, features = ["union"] }
+sqlparser = { version = "0.37", features = ["visitor"] }
 sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-rustls", "sqlite", "uuid"] }
 sqlx-core = { version = "0.7", features = ["_rt-tokio", "_tls-rustls", "any", "json", "migrate", "offline", "uuid"] }
 sqlx-postgres = { version = "0.7", default-features = false, features = ["any", "json", "migrate", "offline", "uuid"] }
@@ -95,9 +93,6 @@ unicode-bidi = { version = "0.3" }
 unicode-normalization = { version = "0.1" }
 url = { version = "2" }
 uuid = { version = "1", features = ["v4"] }
-zstd = { version = "0.12" }
-zstd-safe = { version = "6", default-features = false, features = ["arrays", "legacy", "std", "zdict_builder"] }
-zstd-sys = { version = "2", default-features = false, features = ["legacy", "std", "zdict_builder"] }
 
 [build-dependencies]
 ahash = { version = "0.8" }
@@ -145,7 +140,6 @@ rustls = { version = "0.21", default-features = false, features = ["dangerous_co
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }
 sha2 = { version = "0.10" }
-smallvec = { version = "1", default-features = false, features = ["union"] }
 sqlx-core = { version = "0.7", features = ["_rt-tokio", "_tls-rustls", "any", "json", "migrate", "offline", "uuid"] }
 sqlx-macros = { version = "0.7", features = ["_rt-tokio", "_tls-rustls", "json", "migrate", "postgres", "sqlite", "uuid"] }
 sqlx-macros-core = { version = "0.7", features = ["_rt-tokio", "_tls-rustls", "json", "migrate", "postgres", "sqlite", "uuid"] }

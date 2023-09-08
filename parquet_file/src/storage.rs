@@ -137,7 +137,7 @@ impl ParquetExecInput {
             limit: None,
             table_partition_cols: vec![],
             // Parquet files ARE actually sorted but we don't care here since we just construct a `collect` plan.
-            output_ordering: vec![vec![]],
+            output_ordering: vec![],
             infinite_source: false,
         };
         let exec = ParquetExec::new(base_config, None, None);

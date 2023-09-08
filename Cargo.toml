@@ -123,14 +123,14 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-arrow = { version = "45.0.0" }
-arrow-flight = { version = "45.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f3722c0af8418bcb19cf9dc5f7e458a3aa5f0f32", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f3722c0af8418bcb19cf9dc5f7e458a3aa5f0f32" }
+arrow = { version = "46.0.0" }
+arrow-flight = { version = "46.0.0" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "3ea870cf0995a86b5297a92be5d5432577aefabe", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev = "3ea870cf0995a86b5297a92be5d5432577aefabe" }
 
 hashbrown = { version = "0.14.0" }
-object_store = { version = "0.6.0" }
-parquet = { version = "45.0.0" }
+object_store = { version = "0.7.0" }
+parquet = { version = "46.0.0" }
 tonic = { version = "0.9.2", features = ["tls", "tls-webpki-roots"] }
 tonic-build = { version = "0.9.2" }
 tonic-health = { version = "0.9.2" }
@@ -160,3 +160,17 @@ opt-level = 3
 
 [profile.dev.package.similar]
 opt-level = 3
+
+[patch.crates-io]
+# Can remove after arrow 47 is released
+# Pin to https://github.com/apache/arrow-rs/pull/4790
+# To get fix for https://github.com/apache/arrow-rs/issues/4788
+arrow = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4" }
+arrow-array = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4" }
+arrow-buffer = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4" }
+arrow-schema = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4" }
+arrow-select = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4" }
+arrow-string = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4" }
+arrow-ord = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4" }
+arrow-flight = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4" }
+parquet = { git = "https://github.com/alamb/arrow-rs.git", rev = "1d0093c172ea1501c9fc9f38be1791f47ac372e4" }

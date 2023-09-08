@@ -21,6 +21,7 @@ snafu = "0.7"
 uuid = "1"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
+
 [dev-dependencies]
 datafusion = { workspace = true }
 rand = "0.8.3"

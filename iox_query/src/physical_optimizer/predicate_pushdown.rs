@@ -314,7 +314,7 @@ mod tests {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: vec![vec![]],
+            output_ordering: vec![],
             infinite_source: false,
         };
         let plan = Arc::new(
