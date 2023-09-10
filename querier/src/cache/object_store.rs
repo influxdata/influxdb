@@ -38,8 +38,9 @@ impl CachedRead {
     /// including the size of `*self`)
     fn size(&self) -> usize {
         self.bytes.len() +
-        // todo: add better estimation for metadata size / add to the object_store API
-            //  length of path (in chars should be bytes...)
+        // TODO: add better estimation for metadata size / add to the object_store API
+        // See https://github.com/apache/arrow-rs/issues/4798
+        //  length of path (in chars should be bytes...)
             self.meta.location.as_ref().len() +
             // length of etag
             self.meta.e_tag.as_ref().map(|v| v.capacity()).unwrap_or(0)
