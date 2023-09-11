@@ -114,7 +114,9 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             "created namespace"
         );
 
-        Ok(Response::new(namespace_to_create_response_proto(namespace)))
+        Ok(Response::new(CreateNamespaceResponse {
+            namespace: Some(namespace_to_proto(&namespace)),
+        }))
     }
 
     async fn delete_namespace(
@@ -267,19 +269,6 @@ pub fn namespace_to_proto(namespace: &CatalogNamespace) -> Namespace {
         max_tables: namespace.max_tables,
         max_columns_per_table: namespace.max_columns_per_table,
         partition_template: namespace.partition_template.as_proto().cloned(),
-    }
-}
-
-fn namespace_to_create_response_proto(namespace: CatalogNamespace) -> CreateNamespaceResponse {
-    CreateNamespaceResponse {
-        namespace: Some(Namespace {
-            id: namespace.id.get(),
-            name: namespace.name.clone(),
-            retention_period_ns: namespace.retention_period_ns,
-            max_tables: namespace.max_tables,
-            max_columns_per_table: namespace.max_columns_per_table,
-            partition_template: namespace.partition_template.as_proto().cloned(),
-        }),
     }
 }
 
