@@ -181,6 +181,30 @@ mod tests {
 
     const TEST_NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
 
+    // One arbitrary `NamespaceSchema` value
+    fn schema1() -> NamespaceSchema {
+        NamespaceSchema {
+            id: TEST_NAMESPACE_ID,
+            tables: Default::default(),
+            max_columns_per_table: 50,
+            max_tables: 24,
+            retention_period_ns: Some(876),
+            partition_template: Default::default(),
+        }
+    }
+
+    // Another, slightly different, arbitrary `NamespaceSchema` value
+    fn schema2() -> NamespaceSchema {
+        NamespaceSchema {
+            id: TEST_NAMESPACE_ID,
+            tables: Default::default(),
+            max_columns_per_table: 10,
+            max_tables: 42,
+            retention_period_ns: Some(876),
+            partition_template: Default::default(),
+        }
+    }
+
     #[tokio::test]
     async fn test_put_get() {
         let ns = NamespaceName::new("test").expect("namespace name is valid");
@@ -193,14 +217,7 @@ mod tests {
             }
         );
 
-        let schema1 = NamespaceSchema {
-            id: TEST_NAMESPACE_ID,
-            tables: Default::default(),
-            max_columns_per_table: 50,
-            max_tables: 24,
-            retention_period_ns: Some(876),
-            partition_template: Default::default(),
-        };
+        let schema1 = schema1();
         assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), (new, s) => {
             assert_eq!(*new, schema1);
             assert!(s.new_tables.is_empty());
@@ -210,15 +227,7 @@ mod tests {
             schema1
         );
 
-        let schema2 = NamespaceSchema {
-            id: TEST_NAMESPACE_ID,
-            tables: Default::default(),
-            max_columns_per_table: 10,
-            max_tables: 42,
-            retention_period_ns: Some(876),
-            partition_template: Default::default(),
-        };
-
+        let schema2 = schema2();
         assert_matches!(cache.put_schema(ns.clone(), schema2.clone()), (new, s) => {
             assert_eq!(*new, schema2);
             assert!(s.new_tables.is_empty());
@@ -269,12 +278,9 @@ mod tests {
         assert_ne!(first_write_table_schema, second_write_table_schema);
 
         let schema_update_1 = NamespaceSchema {
-            id: NamespaceId::new(42),
             tables: BTreeMap::from([(String::from(table_name), first_write_table_schema.clone())]),
-            max_columns_per_table: 50,
-            max_tables: 24,
             retention_period_ns: None,
-            partition_template: Default::default(),
+            ..schema1()
         };
         let schema_update_2 = NamespaceSchema {
             tables: BTreeMap::from([(String::from(table_name), second_write_table_schema.clone())]),
@@ -368,16 +374,14 @@ mod tests {
         table_3.add_column(column_3);
 
         let schema_update_1 = NamespaceSchema {
-            id: NamespaceId::new(42),
             tables: BTreeMap::from([
                 (String::from("table_1"), table_1.to_owned()),
                 (String::from("table_2"), table_2.to_owned()),
             ]),
-            max_columns_per_table: 50,
-            max_tables: 24,
             retention_period_ns: None,
-            partition_template: Default::default(),
+            ..schema1()
         };
+
         let schema_update_2 = NamespaceSchema {
             tables: BTreeMap::from([
                 (String::from("table_1"), table_1.to_owned()),
