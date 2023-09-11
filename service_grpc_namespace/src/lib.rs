@@ -59,7 +59,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
                 Status::not_found(e.to_string())
             })?;
         Ok(Response::new(GetNamespacesResponse {
-            namespaces: namespaces.into_iter().map(namespace_to_proto).collect(),
+            namespaces: namespaces.iter().map(namespace_to_proto).collect(),
         }))
     }
 
@@ -175,7 +175,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
         );
 
         Ok(Response::new(UpdateNamespaceRetentionResponse {
-            namespace: Some(namespace_to_proto(namespace)),
+            namespace: Some(namespace_to_proto(&namespace)),
         }))
     }
 
@@ -252,13 +252,14 @@ impl namespace_service_server::NamespaceService for NamespaceService {
 
         Ok(Response::new(
             UpdateNamespaceServiceProtectionLimitResponse {
-                namespace: Some(namespace_to_proto(namespace)),
+                namespace: Some(namespace_to_proto(&namespace)),
             },
         ))
     }
 }
 
-fn namespace_to_proto(namespace: CatalogNamespace) -> Namespace {
+/// Convert the namespace record from the catalog into its protobuf representation.
+pub fn namespace_to_proto(namespace: &CatalogNamespace) -> Namespace {
     Namespace {
         id: namespace.id.get(),
         name: namespace.name.clone(),

@@ -19,6 +19,7 @@ use router::{
     namespace_resolver::{self, NamespaceCreationError},
     server::http::Error,
 };
+use service_grpc_namespace::namespace_to_proto;
 use test_helpers::assert_error;
 use tonic::{Code, Request};
 
@@ -651,12 +652,7 @@ async fn test_update_namespace_limit_max_tables() {
             .await
             .expect("query failure");
         assert_matches!(db_list.as_slice(), [ns] => {
-            assert_eq!(ns.id.get(), got.id);
-            assert_eq!(ns.name, got.name);
-            assert_eq!(ns.retention_period_ns, got.retention_period_ns);
-            assert_eq!(ns.max_tables, got.max_tables);
-            assert_eq!(ns.max_columns_per_table, got.max_columns_per_table);
-            assert!(ns.deleted_at.is_none());
+            assert_eq!(got, namespace_to_proto(ns));
         });
     }
 
@@ -738,12 +734,7 @@ async fn test_update_namespace_limit_max_columns_per_table() {
             .await
             .expect("query failure");
         assert_matches!(db_list.as_slice(), [ns] => {
-            assert_eq!(ns.id.get(), got.id);
-            assert_eq!(ns.name, got.name);
-            assert_eq!(ns.retention_period_ns, got.retention_period_ns);
-            assert_eq!(ns.max_tables, got.max_tables);
-            assert_eq!(ns.max_columns_per_table, got.max_columns_per_table);
-            assert!(ns.deleted_at.is_none());
+            assert_eq!(got, namespace_to_proto(ns));
         });
     }
 
@@ -853,12 +844,7 @@ async fn test_update_namespace_limit_0_max_tables_max_columns() {
             .await
             .expect("query failure");
         assert_matches!(db_list.as_slice(), [ns] => {
-            assert_eq!(ns.id.get(), create.id);
-            assert_eq!(ns.name, create.name);
-            assert_eq!(ns.retention_period_ns, create.retention_period_ns);
-            assert_eq!(ns.max_tables, create.max_tables);
-            assert_eq!(ns.max_columns_per_table, create.max_columns_per_table);
-            assert!(ns.deleted_at.is_none());
+            assert_eq!(create, namespace_to_proto(ns));
         });
     }
 }
