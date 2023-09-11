@@ -138,3 +138,31 @@ pub mod gossip;
 pub mod namespace_cache;
 pub mod namespace_resolver;
 pub mod server;
+
+#[cfg(test)]
+pub(crate) mod test_helpers {
+    use data_types::{
+        partition_template::NamespacePartitionTemplateOverride, NamespaceId, NamespaceSchema,
+    };
+    use std::collections::BTreeMap;
+
+    pub(crate) const DEFAULT_NAMESPACE: NamespaceSchema = new_empty_namespace_schema(4242);
+    pub(crate) const TABLE_NAME: &str = "bananas";
+    pub(crate) const NAMESPACE_NAME: &str = "platanos";
+    pub(crate) const TABLE_ID: i64 = 42;
+
+    pub(crate) const DEFAULT_NAMESPACE_PARTITION_TEMPLATE: NamespacePartitionTemplateOverride =
+        NamespacePartitionTemplateOverride::const_default();
+
+    /// Start a new `NamespaceSchema` with only the given ID; the rest of the fields are arbitrary.
+    pub(crate) const fn new_empty_namespace_schema(id: i64) -> NamespaceSchema {
+        NamespaceSchema {
+            id: NamespaceId::new(id),
+            tables: BTreeMap::new(),
+            max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE as usize,
+            max_tables: iox_catalog::DEFAULT_MAX_TABLES as usize,
+            retention_period_ns: None,
+            partition_template: DEFAULT_NAMESPACE_PARTITION_TEMPLATE,
+        }
+    }
+}

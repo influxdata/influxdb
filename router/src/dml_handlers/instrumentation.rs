@@ -92,26 +92,16 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
-    use data_types::NamespaceId;
     use metric::Attributes;
     use trace::{span::SpanStatus, RingBufferTraceCollector, TraceCollector};
 
     use super::*;
-    use crate::dml_handlers::{mock::MockDmlHandler, DmlError};
+    use crate::{
+        dml_handlers::{mock::MockDmlHandler, DmlError},
+        test_helpers::new_empty_namespace_schema,
+    };
 
     const HANDLER_NAME: &str = "bananas";
-
-    // Start a new `NamespaceSchema` with only the given ID; the rest of the fields are arbitrary.
-    fn new_empty_namespace_schema(id: i64) -> Arc<NamespaceSchema> {
-        Arc::new(NamespaceSchema {
-            id: NamespaceId::new(id),
-            tables: Default::default(),
-            max_columns_per_table: 500,
-            max_tables: 200,
-            retention_period_ns: None,
-            partition_template: Default::default(),
-        })
-    }
 
     fn assert_metric_hit(
         metrics: &metric::Registry,
@@ -162,7 +152,12 @@ mod tests {
         let decorator = InstrumentationDecorator::new(HANDLER_NAME, &metrics, handler);
 
         decorator
-            .write(&ns, new_empty_namespace_schema(42), (), Some(span))
+            .write(
+                &ns,
+                Arc::new(new_empty_namespace_schema(42)),
+                (),
+                Some(span),
+            )
             .await
             .expect("inner handler configured to succeed");
 
@@ -185,7 +180,12 @@ mod tests {
         let decorator = InstrumentationDecorator::new(HANDLER_NAME, &metrics, handler);
 
         let err = decorator
-            .write(&ns, new_empty_namespace_schema(42), (), Some(span))
+            .write(
+                &ns,
+                Arc::new(new_empty_namespace_schema(42)),
+                (),
+                Some(span),
+            )
             .await
             .expect_err("inner handler configured to fail");
 

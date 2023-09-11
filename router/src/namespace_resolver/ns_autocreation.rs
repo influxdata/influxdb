@@ -137,13 +137,14 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
-    use data_types::{Namespace, NamespaceId, NamespaceSchema};
+    use data_types::{Namespace, NamespaceId};
     use iox_catalog::{interface::SoftDeletedRows, mem::MemCatalog};
 
     use super::*;
     use crate::{
         namespace_cache::{MemoryNamespaceCache, ReadThroughCache},
         namespace_resolver::{mock::MockNamespaceResolver, NamespaceSchemaResolver},
+        test_helpers::new_empty_namespace_schema,
     };
 
     /// Common retention period value we'll use in tests
@@ -160,17 +161,7 @@ mod tests {
 
         // Prep the cache before the test to cause a hit
         let cache = ReadThroughCache::new(MemoryNamespaceCache::default(), Arc::clone(&catalog));
-        cache.put_schema(
-            ns.clone(),
-            NamespaceSchema {
-                id: NAMESPACE_ID,
-                tables: Default::default(),
-                max_columns_per_table: 4,
-                max_tables: 42,
-                retention_period_ns: None,
-                partition_template: Default::default(),
-            },
-        );
+        cache.put_schema(ns.clone(), new_empty_namespace_schema(NAMESPACE_ID.get()));
 
         let creator = NamespaceAutocreation::new(
             MockNamespaceResolver::default().with_mapping(ns.clone(), NAMESPACE_ID),

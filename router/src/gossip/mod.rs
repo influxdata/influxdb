@@ -82,33 +82,20 @@ mod tests {
             test_table_partition_override, NamespacePartitionTemplateOverride,
             TablePartitionTemplateOverride,
         },
-        Column, ColumnId, ColumnsByName, NamespaceId, NamespaceName, NamespaceSchema, TableId,
-        TableSchema,
+        Column, ColumnId, ColumnsByName, NamespaceName, TableId, TableSchema,
     };
     use generated_types::influxdata::iox::gossip::v1::schema_message::Event;
     use gossip_schema::dispatcher::SchemaEventHandler;
     use test_helpers::timeout::FutureTimeout;
 
-    use crate::namespace_cache::{CacheMissErr, MemoryNamespaceCache, NamespaceCache};
+    use crate::{
+        namespace_cache::{CacheMissErr, MemoryNamespaceCache, NamespaceCache},
+        test_helpers::DEFAULT_NAMESPACE,
+    };
 
     use super::{
         namespace_cache::NamespaceSchemaGossip, schema_change_observer::SchemaChangeObserver,
         traits::SchemaBroadcast,
-    };
-
-    pub(crate) const TABLE_NAME: &str = "bananas";
-    pub(crate) const NAMESPACE_NAME: &str = "platanos";
-    pub(crate) const TABLE_ID: i64 = 42;
-
-    pub(crate) const DEFAULT_NAMESPACE_PARTITION_TEMPLATE: NamespacePartitionTemplateOverride =
-        NamespacePartitionTemplateOverride::const_default();
-    pub(crate) const DEFAULT_NAMESPACE: NamespaceSchema = NamespaceSchema {
-        id: NamespaceId::new(4242),
-        tables: BTreeMap::new(),
-        max_columns_per_table: 1,
-        max_tables: 2,
-        retention_period_ns: None,
-        partition_template: DEFAULT_NAMESPACE_PARTITION_TEMPLATE,
     };
 
     #[derive(Debug)]

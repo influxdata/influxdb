@@ -396,11 +396,12 @@ mod tests {
     };
 
     use crate::{
-        gossip::{
-            namespace_created,
-            tests::{DEFAULT_NAMESPACE, DEFAULT_NAMESPACE_PARTITION_TEMPLATE, NAMESPACE_NAME},
-        },
+        gossip::namespace_created,
         namespace_cache::{CacheMissErr, MemoryNamespaceCache},
+        test_helpers::{
+            new_empty_namespace_schema, DEFAULT_NAMESPACE, DEFAULT_NAMESPACE_PARTITION_TEMPLATE,
+            NAMESPACE_NAME,
+        },
     };
 
     use super::*;
@@ -476,7 +477,7 @@ mod tests {
     // This test focuses on the table metadata.
     test_handle_gossip_message_!(
         table_created_no_columns,
-        existing = Some(DEFAULT_NAMESPACE.clone()),
+        existing = Some(new_empty_namespace_schema(4242)),
         message = Event::TableCreated(TableCreated {
             table: Some(TableUpdated {
                 table_name: "bananas".to_string(),
@@ -487,7 +488,7 @@ mod tests {
             partition_template: Some((**PARTITION_BY_DAY_PROTO).clone()),
         }),
         want = Ok(ns) => {
-            assert_namespace_attributes_eq(&ns, &DEFAULT_NAMESPACE);
+            assert_namespace_attributes_eq(&ns, &new_empty_namespace_schema(4242));
             assert_eq!(ns.tables.len(), 1);
 
             assert_matches!(ns.tables.get("bananas"), Some(TableSchema { id, partition_template, columns }) => {
@@ -505,7 +506,7 @@ mod tests {
     // TableCreated message.
     test_handle_gossip_message_!(
         table_created,
-        existing = Some(DEFAULT_NAMESPACE.clone()),
+        existing = Some(new_empty_namespace_schema(4242)),
         message = Event::TableCreated(TableCreated {
             table: Some(TableUpdated {
                 table_name: "bananas".to_string(),

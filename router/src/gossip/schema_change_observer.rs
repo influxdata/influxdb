@@ -195,11 +195,11 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{
-        gossip::{
-            mock_schema_broadcast::MockSchemaBroadcast,
-            tests::{DEFAULT_NAMESPACE, NAMESPACE_NAME, TABLE_ID, TABLE_NAME},
-        },
+        gossip::mock_schema_broadcast::MockSchemaBroadcast,
         namespace_cache::MemoryNamespaceCache,
+        test_helpers::{
+            new_empty_namespace_schema, DEFAULT_NAMESPACE, NAMESPACE_NAME, TABLE_ID, TABLE_NAME,
+        },
     };
 
     use super::*;
@@ -253,7 +253,7 @@ mod tests {
             num_new_columns: Default::default(),
             did_update: false,
         },
-        schema = DEFAULT_NAMESPACE,
+        schema = new_empty_namespace_schema(4242),
         want_count = 1,
         want = [Event::NamespaceCreated(created)] => {
             assert_eq!(created, &namespace_created(NAMESPACE_NAME, &DEFAULT_NAMESPACE));

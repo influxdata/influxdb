@@ -51,11 +51,10 @@ mod tests {
     use std::{collections::HashMap, iter};
 
     use assert_matches::assert_matches;
-    use data_types::NamespaceId;
     use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
     use super::*;
-    use crate::namespace_cache::MemoryNamespaceCache;
+    use crate::{namespace_cache::MemoryNamespaceCache, test_helpers::new_empty_namespace_schema};
 
     fn rand_namespace() -> NamespaceName<'static> {
         thread_rng()
@@ -65,17 +64,6 @@ mod tests {
             .collect::<String>()
             .try_into()
             .expect("generated invalid random namespace name")
-    }
-
-    fn schema_with_id(id: i64) -> NamespaceSchema {
-        NamespaceSchema {
-            id: NamespaceId::new(id),
-            tables: Default::default(),
-            max_columns_per_table: 7,
-            max_tables: 42,
-            retention_period_ns: None,
-            partition_template: Default::default(),
-        }
     }
 
     #[tokio::test]
@@ -104,13 +92,13 @@ mod tests {
 
         // Populate the cache
         for (name, id) in &names {
-            let schema = schema_with_id(*id as _);
+            let schema = new_empty_namespace_schema(*id as _);
             assert_matches!(cache.put_schema(name.clone(), schema), (_, _));
         }
 
         // The mapping should be stable
         for (name, id) in names {
-            let want = schema_with_id(id as _);
+            let want = new_empty_namespace_schema(id as _);
             assert_matches!(cache.get_schema(&name).await, Ok(got) => {
                 assert_eq!(got, Arc::new(want));
             });
