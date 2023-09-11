@@ -392,24 +392,15 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::{
         partition_template::{NamespacePartitionTemplateOverride, PARTITION_BY_DAY_PROTO},
-        ColumnId, ColumnType, NamespaceId,
+        ColumnId, ColumnType,
     };
 
-    use crate::namespace_cache::{CacheMissErr, MemoryNamespaceCache};
+    use crate::{
+        gossip::tests::{DEFAULT_NAMESPACE, DEFAULT_NAMESPACE_PARTITION_TEMPLATE, NAMESPACE_NAME},
+        namespace_cache::{CacheMissErr, MemoryNamespaceCache},
+    };
 
     use super::*;
-
-    const NAMESPACE_NAME: &str = "ns_bananas";
-    const DEFAULT_NAMESPACE_PARTITION_TEMPLATE: NamespacePartitionTemplateOverride =
-        NamespacePartitionTemplateOverride::const_default();
-    const DEFAULT_NAMESPACE: NamespaceSchema = NamespaceSchema {
-        id: NamespaceId::new(4242),
-        tables: BTreeMap::new(),
-        max_columns_per_table: 1,
-        max_tables: 2,
-        retention_period_ns: None,
-        partition_template: DEFAULT_NAMESPACE_PARTITION_TEMPLATE,
-    };
 
     /// Generate a test that processes the provided gossip message, and asserts
     /// the state of the namespace named [`NAMESPACE_NAME`] in the cache after.

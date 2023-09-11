@@ -202,32 +202,20 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{
-        gossip::mock_schema_broadcast::MockSchemaBroadcast, namespace_cache::MemoryNamespaceCache,
+        gossip::{
+            mock_schema_broadcast::MockSchemaBroadcast,
+            tests::{DEFAULT_NAMESPACE, NAMESPACE_NAME, TABLE_ID, TABLE_NAME},
+        },
+        namespace_cache::MemoryNamespaceCache,
     };
 
     use super::*;
 
     use assert_matches::assert_matches;
     use data_types::{
-        partition_template::{test_table_partition_override, NamespacePartitionTemplateOverride},
-        ColumnId, NamespaceId, TableId, TableSchema,
+        partition_template::test_table_partition_override, ColumnId, TableId, TableSchema,
     };
     use generated_types::influxdata::iox::gossip::v1::column::ColumnType;
-
-    const TABLE_NAME: &str = "bananas";
-    const NAMESPACE_NAME: &str = "platanos";
-    const TABLE_ID: i64 = 42;
-
-    const DEFAULT_NAMESPACE_PARTITION_TEMPLATE: NamespacePartitionTemplateOverride =
-        NamespacePartitionTemplateOverride::const_default();
-    const DEFAULT_NAMESPACE: NamespaceSchema = NamespaceSchema {
-        id: NamespaceId::new(4242),
-        tables: BTreeMap::new(),
-        max_columns_per_table: 1,
-        max_tables: 2,
-        retention_period_ns: None,
-        partition_template: DEFAULT_NAMESPACE_PARTITION_TEMPLATE,
-    };
 
     macro_rules! test_observe {
         (

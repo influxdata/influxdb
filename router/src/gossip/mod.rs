@@ -78,6 +78,21 @@ mod tests {
         traits::SchemaBroadcast,
     };
 
+    pub(crate) const TABLE_NAME: &str = "bananas";
+    pub(crate) const NAMESPACE_NAME: &str = "platanos";
+    pub(crate) const TABLE_ID: i64 = 42;
+
+    pub(crate) const DEFAULT_NAMESPACE_PARTITION_TEMPLATE: NamespacePartitionTemplateOverride =
+        NamespacePartitionTemplateOverride::const_default();
+    pub(crate) const DEFAULT_NAMESPACE: NamespaceSchema = NamespaceSchema {
+        id: NamespaceId::new(4242),
+        tables: BTreeMap::new(),
+        max_columns_per_table: 1,
+        max_tables: 2,
+        retention_period_ns: None,
+        partition_template: DEFAULT_NAMESPACE_PARTITION_TEMPLATE,
+    };
+
     #[derive(Debug)]
     struct GossipPipe<C> {
         rx: Arc<NamespaceSchemaGossip<C>>,
