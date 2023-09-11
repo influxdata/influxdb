@@ -62,7 +62,7 @@ mod tests {
     use data_types::{
         partition_template::{
             test_table_partition_override, NamespacePartitionTemplateOverride,
-            TablePartitionTemplateOverride, PARTITION_BY_DAY_PROTO,
+            TablePartitionTemplateOverride,
         },
         Column, ColumnId, ColumnsByName, NamespaceId, NamespaceName, NamespaceSchema, TableId,
         TableSchema,
@@ -163,17 +163,7 @@ mod tests {
 
         // Wrap the tables into a schema
         let namespace_name = NamespaceName::try_from("bananas").unwrap();
-        let schema = NamespaceSchema {
-            id: NamespaceId::new(4242),
-            tables,
-            max_columns_per_table: 1,
-            max_tables: 2,
-            retention_period_ns: Some(1234),
-            partition_template: NamespacePartitionTemplateOverride::try_from(
-                (**PARTITION_BY_DAY_PROTO).clone(),
-            )
-            .unwrap(),
-        };
+        let schema = DEFAULT_NAMESPACE;
 
         // Put the new schema into A's cache
         node_a.put_schema(namespace_name.clone(), schema.clone());
@@ -221,14 +211,7 @@ mod tests {
 
         // Wrap the tables into a schema
         let namespace_name = NamespaceName::try_from("bananas").unwrap();
-        let schema = NamespaceSchema {
-            id: NamespaceId::new(4242),
-            tables,
-            max_columns_per_table: 1,
-            max_tables: 2,
-            retention_period_ns: Some(1234),
-            partition_template: NamespacePartitionTemplateOverride::default(),
-        };
+        let schema = DEFAULT_NAMESPACE;
 
         // Put the new schema into A's cache
         node_a.put_schema(namespace_name.clone(), schema.clone());
