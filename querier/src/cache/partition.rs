@@ -39,7 +39,7 @@ const CACHE_ID: &str = "partition";
 type CacheT = Box<
     dyn Cache<
         K = TransitionPartitionId,
-        V = Option<CachedPartition>,
+        V = Option<Arc<CachedPartition>>,
         GetExtra = (Arc<CachedTable>, Option<Span>),
         PeekExtra = ((), Option<Span>),
     >,
@@ -49,7 +49,7 @@ type CacheT = Box<
 #[derive(Debug)]
 pub struct PartitionCache {
     cache: CacheT,
-    remove_if_handle: RemoveIfHandle<TransitionPartitionId, Option<CachedPartition>>,
+    remove_if_handle: RemoveIfHandle<TransitionPartitionId, Option<Arc<CachedPartition>>>,
     flusher: Arc<dyn BatchLoaderFlusher>,
 }
 
@@ -104,7 +104,7 @@ impl PartitionCache {
                     for p in partitions {
                         let idx = out_map[&p.transition_partition_id()];
                         let cached_table = &cached_tables[idx];
-                        let p = CachedPartition::new(p, cached_table);
+                        let p = Arc::new(CachedPartition::new(p, cached_table));
                         out[idx] = Some(p);
                     }
 
@@ -129,13 +129,15 @@ impl PartitionCache {
         backend.add_policy(LruPolicy::new(
             ram_pool,
             CACHE_ID,
-            Arc::new(FunctionEstimator::new(|k, v: &Option<CachedPartition>| {
-                RamSize(
-                    size_of_val(k)
-                        + size_of_val(v)
-                        + v.as_ref().map(|v| v.size()).unwrap_or_default(),
-                )
-            })),
+            Arc::new(FunctionEstimator::new(
+                |k, v: &Option<Arc<CachedPartition>>| {
+                    RamSize(
+                        size_of_val(k)
+                            + size_of_val(v)
+                            + v.as_ref().map(|v| v.size()).unwrap_or_default(),
+                    )
+                },
+            )),
         ));
 
         let cache = CacheDriver::new(loader, backend);
@@ -163,7 +165,7 @@ impl PartitionCache {
         cached_table: Arc<CachedTable>,
         partitions: Vec<PartitionRequest>,
         span: Option<Span>,
-    ) -> Vec<CachedPartition> {
+    ) -> Vec<Arc<CachedPartition>> {
         let mut span_recorder = SpanRecorder::new(span);
 
         let futures = partitions
@@ -184,7 +186,7 @@ impl PartitionCache {
                         partition_id.clone(),
                         move |cached_partition| {
                             let invalidates = if let Some(sort_key) =
-                                &cached_partition.and_then(|p| p.sort_key)
+                                &cached_partition.and_then(|p| p.sort_key.clone())
                             {
                                 sort_key_should_cover
                                     .iter()
@@ -242,7 +244,7 @@ pub struct PartitionRequest {
     pub sort_key_should_cover: Vec<ColumnId>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CachedPartition {
     pub id: TransitionPartitionId,
     pub sort_key: Option<Arc<PartitionSortKey>>,
@@ -335,20 +337,27 @@ impl CachedPartition {
         }
     }
 
-    /// RAM-bytes EXCLUDING `self`.
+    /// RAM-bytes INCLUDING `self`.
     fn size(&self) -> usize {
+        let id = self.id.size() - std::mem::size_of_val(&self.id);
+
         // Arc content
-        self.sort_key
+        let sort_key = self
+            .sort_key
             .as_ref()
             .map(|sk| sk.size())
-            .unwrap_or_default()
-            + std::mem::size_of::<HashMap<Arc<str>, ColumnRange>>()
+            .unwrap_or_default();
+
+        // Arc content
+        let column_ranges = std::mem::size_of::<HashMap<Arc<str>, ColumnRange>>()
             + (self.column_ranges.capacity() * std::mem::size_of::<(Arc<str>, ColumnRange)>())
             + self
                 .column_ranges
                 .iter()
                 .map(|(col, range)| col.len() + range.min_value.size() + range.max_value.size())
-                .sum::<usize>()
+                .sum::<usize>();
+
+        std::mem::size_of_val(self) + id + sort_key + column_ranges
     }
 }
 
@@ -461,7 +470,8 @@ mod tests {
             .get_one(Arc::clone(&cached_table), &p1_id, &Vec::new(), None)
             .await
             .unwrap()
-            .sort_key;
+            .sort_key
+            .clone();
         assert_eq!(
             sort_key1a.as_ref().unwrap().as_ref(),
             &PartitionSortKey {
@@ -480,7 +490,8 @@ mod tests {
             .get_one(Arc::clone(&cached_table), &p2_id, &Vec::new(), None)
             .await
             .unwrap()
-            .sort_key;
+            .sort_key
+            .clone();
         assert_eq!(sort_key2, None);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
@@ -492,7 +503,8 @@ mod tests {
             .get_one(Arc::clone(&cached_table), &p1_id, &Vec::new(), None)
             .await
             .unwrap()
-            .sort_key;
+            .sort_key
+            .clone();
         assert!(Arc::ptr_eq(
             sort_key1a.as_ref().unwrap(),
             sort_key1b.as_ref().unwrap()
@@ -613,7 +625,7 @@ mod tests {
         let p4_id = p4.transition_partition_id();
         let p5_id = p5.transition_partition_id();
 
-        let ranges1a = cache
+        let ranges1a = &cache
             .get_one(Arc::clone(&cached_table), &p1_id, &[], None)
             .await
             .unwrap()
@@ -647,7 +659,7 @@ mod tests {
             1,
         );
 
-        let ranges2 = cache
+        let ranges2 = &cache
             .get_one(Arc::clone(&cached_table), &p2_id, &[], None)
             .await
             .unwrap()
@@ -668,7 +680,7 @@ mod tests {
             2,
         );
 
-        let ranges3 = cache
+        let ranges3 = &cache
             .get_one(Arc::clone(&cached_table), &p3_id, &[], None)
             .await
             .unwrap()
@@ -698,7 +710,7 @@ mod tests {
             3,
         );
 
-        let ranges4 = cache
+        let ranges4 = &cache
             .get_one(Arc::clone(&cached_table), &p4_id, &[], None)
             .await
             .unwrap()
@@ -728,7 +740,7 @@ mod tests {
             4,
         );
 
-        let ranges5 = cache
+        let ranges5 = &cache
             .get_one(Arc::clone(&cached_table), &p5_id, &[], None)
             .await
             .unwrap()
@@ -749,12 +761,12 @@ mod tests {
             5,
         );
 
-        let ranges1b = cache
+        let ranges1b = &cache
             .get_one(Arc::clone(&cached_table), &p1_id, &[], None)
             .await
             .unwrap()
             .column_ranges;
-        assert!(Arc::ptr_eq(&ranges1a, &ranges1b));
+        assert!(Arc::ptr_eq(ranges1a, ranges1b));
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
             "partition_get_by_hash_id_batch",
@@ -839,7 +851,8 @@ mod tests {
             .get_one(Arc::clone(&cached_table), &p_id, &[], None)
             .await
             .unwrap()
-            .sort_key;
+            .sort_key
+            .clone();
         assert_eq!(sort_key, None,);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
@@ -853,7 +866,8 @@ mod tests {
             .get_one(Arc::clone(&cached_table), &p_id, &[], None)
             .await
             .unwrap()
-            .sort_key;
+            .sort_key
+            .clone();
         assert_eq!(sort_key, None,);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
@@ -866,7 +880,8 @@ mod tests {
             .get_one(Arc::clone(&cached_table), &p_id, &[c1.column.id], None)
             .await
             .unwrap()
-            .sort_key;
+            .sort_key
+            .clone();
         assert_eq!(sort_key, None,);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
@@ -889,7 +904,8 @@ mod tests {
             .get_one(Arc::clone(&cached_table), &p_id, &[c1.column.id], None)
             .await
             .unwrap()
-            .sort_key;
+            .sort_key
+            .clone();
         assert_eq!(
             sort_key.as_ref().unwrap().as_ref(),
             &PartitionSortKey {
@@ -915,7 +931,8 @@ mod tests {
                 .get_one(Arc::clone(&cached_table), &p_id, &should_cover, None)
                 .await
                 .unwrap()
-                .sort_key;
+                .sort_key
+                .clone();
             assert!(Arc::ptr_eq(
                 sort_key.as_ref().unwrap(),
                 sort_key_2.as_ref().unwrap()
@@ -938,7 +955,8 @@ mod tests {
             )
             .await
             .unwrap()
-            .sort_key;
+            .sort_key
+            .clone();
         assert!(!Arc::ptr_eq(
             sort_key.as_ref().unwrap(),
             sort_key_2.as_ref().unwrap()
@@ -1014,7 +1032,7 @@ mod tests {
             )
             .await;
         res.sort_by(|a, b| a.id.cmp(&b.id));
-        let ids = res.into_iter().map(|p| p.id).collect::<Vec<_>>();
+        let ids = res.into_iter().map(|p| p.id.clone()).collect::<Vec<_>>();
         assert_eq!(ids, vec![p1_id.clone(), p1_id, p2_id]);
         assert_catalog_access_metric_count(
             &catalog.metric_registry,
@@ -1265,7 +1283,7 @@ mod tests {
             partition_id: &TransitionPartitionId,
             sort_key_should_cover: &[ColumnId],
             span: Option<Span>,
-        ) -> Option<CachedPartition>;
+        ) -> Option<Arc<CachedPartition>>;
     }
 
     #[async_trait]
@@ -1276,7 +1294,7 @@ mod tests {
             partition_id: &TransitionPartitionId,
             sort_key_should_cover: &[ColumnId],
             span: Option<Span>,
-        ) -> Option<CachedPartition> {
+        ) -> Option<Arc<CachedPartition>> {
             self.get(
                 cached_table,
                 vec![PartitionRequest {

@@ -331,7 +331,7 @@ impl QuerierTable {
         ingester_partitions: &[IngesterPartition],
         parquet_files: &[Arc<ParquetFile>],
         span: Option<Span>,
-    ) -> HashMap<TransitionPartitionId, CachedPartition> {
+    ) -> HashMap<TransitionPartitionId, Arc<CachedPartition>> {
         let span_recorder = SpanRecorder::new(span);
 
         let mut should_cover: HashMap<TransitionPartitionId, HashSet<ColumnId>> =

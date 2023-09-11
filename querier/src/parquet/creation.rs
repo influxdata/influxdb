@@ -56,7 +56,7 @@ impl ChunkAdapter {
         &self,
         cached_table: Arc<CachedTable>,
         files: Arc<[Arc<ParquetFile>]>,
-        cached_partitions: &HashMap<TransitionPartitionId, CachedPartition>,
+        cached_partitions: &HashMap<TransitionPartitionId, Arc<CachedPartition>>,
         span: Option<Span>,
     ) -> Vec<QuerierParquetChunk> {
         let span_recorder = SpanRecorder::new(span);
