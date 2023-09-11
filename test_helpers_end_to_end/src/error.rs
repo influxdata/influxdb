@@ -26,8 +26,8 @@ pub fn check_tonic_status(
     );
     if let Some(expected_message) = expected_message {
         let status_message = status.message();
-        assert!(
-            status_message.contains(expected_message),
+        assert_eq!(
+            status_message, expected_message,
             "\nActual status message:\n{status_message}\nExpected message:\n{expected_message}"
         );
     }

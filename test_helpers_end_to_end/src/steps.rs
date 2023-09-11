@@ -226,7 +226,7 @@ pub enum Step {
     },
 
     /// Run a SQL query that's expected to fail using the FlightSQL interface and verify that the
-    /// request returns the expected error code and contains the expected message
+    /// request returns the expected error code and message
     QueryExpectingError {
         sql: String,
         expected_error_code: tonic::Code,

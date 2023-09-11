@@ -27,9 +27,9 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "fda561e803d309018368696608afced4e771d17e" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "fda561e803d309018368696608afced4e771d17e", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "fda561e803d309018368696608afced4e771d17e", default-features = false, features = ["crypto_expressions", "encoding_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "3ea870cf0995a86b5297a92be5d5432577aefabe" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "3ea870cf0995a86b5297a92be5d5432577aefabe", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "3ea870cf0995a86b5297a92be5d5432577aefabe", default-features = false, features = ["crypto_expressions", "encoding_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1", features = ["serde"] }
 fixedbitset = { version = "0.4" }
