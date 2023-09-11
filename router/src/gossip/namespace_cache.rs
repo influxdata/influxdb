@@ -5,8 +5,8 @@ use std::{borrow::Cow, collections::BTreeMap, fmt::Debug};
 use async_trait::async_trait;
 use data_types::{
     partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
-    ColumnSchema, ColumnsByName, NamespaceId, NamespaceName, NamespaceNameError, NamespaceSchema,
-    TableId, TableSchema,
+    ColumnSchema, ColumnsByName, MaxColumnsPerTable, MaxTables, NamespaceId, NamespaceName,
+    NamespaceNameError, NamespaceSchema, TableId, TableSchema,
 };
 use generated_types::influxdata::iox::gossip::v1::{
     schema_message::Event, NamespaceCreated, TableCreated, TableUpdated,
@@ -180,8 +180,10 @@ where
                     NamespaceSchema {
                         id: NamespaceId::new(note.namespace_id),
                         tables: Default::default(),
-                        max_columns_per_table: note.max_columns_per_table as _,
-                        max_tables: note.max_tables as _,
+                        max_columns_per_table: MaxColumnsPerTable::new(
+                            note.max_columns_per_table as i32,
+                        ),
+                        max_tables: MaxTables::new(note.max_tables as i32),
                         retention_period_ns: note.retention_period_ns,
                         partition_template,
                     },

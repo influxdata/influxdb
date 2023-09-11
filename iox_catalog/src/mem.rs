@@ -17,10 +17,10 @@ use data_types::{
     partition_template::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
     },
-    Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId, ParquetFileParams,
-    Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
-    Timestamp, TransitionPartitionId,
+    Column, ColumnId, ColumnType, CompactionLevel, MaxColumnsPerTable, MaxTables, Namespace,
+    NamespaceId, NamespaceName, NamespaceServiceProtectionLimitsOverride, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionHashId, PartitionId, PartitionKey,
+    SkippedCompaction, Table, TableId, Timestamp, TransitionPartitionId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use snafu::ensure;
@@ -166,8 +166,10 @@ impl NamespaceRepo for MemTxn {
         let namespace = Namespace {
             id: NamespaceId::new(stage.namespaces.len() as i64 + 1),
             name: name.to_string(),
-            max_tables: max_tables.unwrap_or(DEFAULT_MAX_TABLES),
-            max_columns_per_table: max_columns_per_table.unwrap_or(DEFAULT_MAX_COLUMNS_PER_TABLE),
+            max_tables: MaxTables::new(max_tables.unwrap_or(DEFAULT_MAX_TABLES)),
+            max_columns_per_table: MaxColumnsPerTable::new(
+                max_columns_per_table.unwrap_or(DEFAULT_MAX_COLUMNS_PER_TABLE),
+            ),
             retention_period_ns,
             deleted_at: None,
             partition_template: partition_template.unwrap_or_default(),
@@ -229,7 +231,7 @@ impl NamespaceRepo for MemTxn {
         let stage = self.stage();
         match stage.namespaces.iter_mut().find(|n| n.name == name) {
             Some(n) => {
-                n.max_tables = new_max;
+                n.max_tables = MaxTables::new(new_max);
                 Ok(n.clone())
             }
             None => Err(Error::NamespaceNotFoundByName {
@@ -242,7 +244,7 @@ impl NamespaceRepo for MemTxn {
         let stage = self.stage();
         match stage.namespaces.iter_mut().find(|n| n.name == name) {
             Some(n) => {
-                n.max_columns_per_table = new_max;
+                n.max_columns_per_table = MaxColumnsPerTable::new(new_max);
                 Ok(n.clone())
             }
             None => Err(Error::NamespaceNotFoundByName {
@@ -299,7 +301,7 @@ impl TableRepo for MemTxn {
                         .iter()
                         .filter(|t| t.namespace_id == namespace_id)
                         .count();
-                    if tables_count >= max_tables.try_into().unwrap() {
+                    if tables_count >= max_tables.get().try_into().unwrap() {
                         return Err(Error::TableCreateLimitError {
                             table_name: name.to_string(),
                             namespace_id,
@@ -423,7 +425,7 @@ impl ColumnRepo for MemTxn {
                             .iter()
                             .filter(|t| t.table_id == table_id)
                             .count();
-                        if columns_count >= max_columns_per_table.try_into().unwrap() {
+                        if columns_count >= max_columns_per_table.get().try_into().unwrap() {
                             return Err(Error::ColumnCreateLimitError {
                                 column_name: name.to_string(),
                                 table_id,

@@ -142,7 +142,8 @@ pub mod server;
 #[cfg(test)]
 pub(crate) mod test_helpers {
     use data_types::{
-        partition_template::NamespacePartitionTemplateOverride, NamespaceId, NamespaceSchema,
+        partition_template::NamespacePartitionTemplateOverride, MaxColumnsPerTable, MaxTables,
+        NamespaceId, NamespaceSchema,
     };
     use std::collections::BTreeMap;
 
@@ -159,8 +160,10 @@ pub(crate) mod test_helpers {
         NamespaceSchema {
             id: NamespaceId::new(id),
             tables: BTreeMap::new(),
-            max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE as usize,
-            max_tables: iox_catalog::DEFAULT_MAX_TABLES as usize,
+            max_columns_per_table: MaxColumnsPerTable::new(
+                iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
+            ),
+            max_tables: MaxTables::new(iox_catalog::DEFAULT_MAX_TABLES),
             retention_period_ns: None,
             partition_template: DEFAULT_NAMESPACE_PARTITION_TEMPLATE,
         }

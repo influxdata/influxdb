@@ -137,7 +137,7 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
-    use data_types::{Namespace, NamespaceId};
+    use data_types::{MaxColumnsPerTable, MaxTables, Namespace, NamespaceId};
     use iox_catalog::{interface::SoftDeletedRows, mem::MemCatalog};
 
     use super::*;
@@ -228,8 +228,10 @@ mod tests {
             Namespace {
                 id: NamespaceId::new(1),
                 name: ns.to_string(),
-                max_tables: iox_catalog::DEFAULT_MAX_TABLES,
-                max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
+                max_tables: MaxTables::new(iox_catalog::DEFAULT_MAX_TABLES),
+                max_columns_per_table: MaxColumnsPerTable::new(
+                    iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE
+                ),
                 retention_period_ns: TEST_RETENTION_PERIOD_NS,
                 deleted_at: None,
                 partition_template: Default::default(),

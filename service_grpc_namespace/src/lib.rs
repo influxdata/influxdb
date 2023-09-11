@@ -266,8 +266,8 @@ pub fn namespace_to_proto(namespace: &CatalogNamespace) -> Namespace {
         id: namespace.id.get(),
         name: namespace.name.clone(),
         retention_period_ns: namespace.retention_period_ns,
-        max_tables: namespace.max_tables,
-        max_columns_per_table: namespace.max_columns_per_table,
+        max_tables: namespace.max_tables.get(),
+        max_columns_per_table: namespace.max_columns_per_table.get(),
         partition_template: namespace.partition_template.as_proto().cloned(),
     }
 }

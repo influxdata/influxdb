@@ -16,8 +16,8 @@ mod tests {
     };
 
     use data_types::{
-        ColumnId, ColumnSchema, ColumnType, ColumnsByName, NamespaceId, NamespaceName,
-        NamespaceSchema, TableId, TableSchema,
+        ColumnId, ColumnSchema, ColumnType, ColumnsByName, MaxColumnsPerTable, MaxTables,
+        NamespaceId, NamespaceName, NamespaceSchema, TableId, TableSchema,
     };
     use proptest::prelude::*;
 
@@ -91,8 +91,8 @@ mod tests {
             NamespaceSchema {
                 id: NamespaceId::new(namespace_id),
                 tables,
-                max_columns_per_table,
-                max_tables,
+                max_columns_per_table: MaxColumnsPerTable::new(max_columns_per_table as i32),
+                max_tables: MaxTables::new(max_tables as i32),
                 retention_period_ns,
                 partition_template: Default::default(),
             }

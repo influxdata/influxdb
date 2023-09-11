@@ -273,6 +273,50 @@ impl std::fmt::Display for ParquetFileId {
     }
 }
 
+/// Max tables allowed in a namespace.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct MaxTables(i32);
+
+#[allow(missing_docs)]
+impl MaxTables {
+    pub const fn new(v: i32) -> Self {
+        Self(v)
+    }
+
+    pub fn get(&self) -> i32 {
+        self.0
+    }
+}
+
+impl std::fmt::Display for MaxTables {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Max columns per table allowed in a namespace.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct MaxColumnsPerTable(i32);
+
+#[allow(missing_docs)]
+impl MaxColumnsPerTable {
+    pub const fn new(v: i32) -> Self {
+        Self(v)
+    }
+
+    pub fn get(&self) -> i32 {
+        self.0
+    }
+}
+
+impl std::fmt::Display for MaxColumnsPerTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Data object for a namespace
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct Namespace {
@@ -283,9 +327,9 @@ pub struct Namespace {
     /// The retention period in ns. None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
     /// The maximum number of tables that can exist in this namespace
-    pub max_tables: i32,
+    pub max_tables: MaxTables,
     /// The maximum number of columns per table in this namespace
-    pub max_columns_per_table: i32,
+    pub max_columns_per_table: MaxColumnsPerTable,
     /// When this file was marked for deletion.
     pub deleted_at: Option<Timestamp>,
     /// The partition template to use for new tables in this namespace either created implicitly or
@@ -326,9 +370,9 @@ pub struct NamespaceSchema {
     /// the tables in the namespace by name
     pub tables: BTreeMap<String, TableSchema>,
     /// the number of columns per table this namespace allows
-    pub max_columns_per_table: usize,
+    pub max_columns_per_table: MaxColumnsPerTable,
     /// The maximum number of tables permitted in this namespace.
-    pub max_tables: usize,
+    pub max_tables: MaxTables,
     /// The retention period in ns.
     /// None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
@@ -353,8 +397,8 @@ impl NamespaceSchema {
         Self {
             id,
             tables: BTreeMap::new(),
-            max_columns_per_table: max_columns_per_table as usize,
-            max_tables: max_tables as usize,
+            max_columns_per_table,
+            max_tables,
             retention_period_ns,
             partition_template: partition_template.clone(),
         }
@@ -2670,8 +2714,8 @@ mod tests {
         let schema1 = NamespaceSchema {
             id: NamespaceId::new(1),
             tables: BTreeMap::from([]),
-            max_columns_per_table: 4,
-            max_tables: 42,
+            max_columns_per_table: MaxColumnsPerTable::new(4),
+            max_tables: MaxTables::new(42),
             retention_period_ns: None,
             partition_template: Default::default(),
         };
@@ -2685,8 +2729,8 @@ mod tests {
                     partition_template: Default::default(),
                 },
             )]),
-            max_columns_per_table: 4,
-            max_tables: 42,
+            max_columns_per_table: MaxColumnsPerTable::new(4),
+            max_tables: MaxTables::new(42),
             retention_period_ns: None,
             partition_template: Default::default(),
         };

@@ -23,7 +23,8 @@ use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
 use data_types::{
     partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
-    Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, SequenceNumber, TableId,
+    MaxColumnsPerTable, MaxTables, Namespace, NamespaceId, NamespaceSchema, ParquetFile,
+    PartitionKey, SequenceNumber, TableId,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
@@ -236,8 +237,10 @@ where
                     NamespaceSchema {
                         id: ns.id,
                         tables: Default::default(),
-                        max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE as usize,
-                        max_tables: iox_catalog::DEFAULT_MAX_TABLES as usize,
+                        max_columns_per_table: MaxColumnsPerTable::new(
+                            iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE
+                        ),
+                        max_tables: MaxTables::new(iox_catalog::DEFAULT_MAX_TABLES),
                         retention_period_ns,
                         partition_template: partition_template.unwrap_or_default(),
                     },

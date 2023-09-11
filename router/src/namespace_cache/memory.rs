@@ -172,8 +172,8 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{
-        Column, ColumnId, ColumnSchema, ColumnType, ColumnsByName, NamespaceId, TableId,
-        TableSchema,
+        Column, ColumnId, ColumnSchema, ColumnType, ColumnsByName, MaxColumnsPerTable, MaxTables,
+        NamespaceId, TableId, TableSchema,
     };
     use proptest::{prelude::*, prop_compose, proptest};
 
@@ -186,8 +186,8 @@ mod tests {
         NamespaceSchema {
             id: TEST_NAMESPACE_ID,
             tables: Default::default(),
-            max_columns_per_table: 50,
-            max_tables: 24,
+            max_columns_per_table: MaxColumnsPerTable::new(50),
+            max_tables: MaxTables::new(24),
             retention_period_ns: Some(876),
             partition_template: Default::default(),
         }
@@ -198,8 +198,8 @@ mod tests {
         NamespaceSchema {
             id: TEST_NAMESPACE_ID,
             tables: Default::default(),
-            max_columns_per_table: 10,
-            max_tables: 42,
+            max_columns_per_table: MaxColumnsPerTable::new(10),
+            max_tables: MaxTables::new(42),
             retention_period_ns: Some(876),
             partition_template: Default::default(),
         }
@@ -492,8 +492,8 @@ mod tests {
             NamespaceSchema {
                 id: TEST_NAMESPACE_ID,
                 tables,
-                max_columns_per_table,
-                max_tables,
+                max_columns_per_table: MaxColumnsPerTable::new(max_columns_per_table as i32),
+                max_tables: MaxTables::new(max_tables as i32),
                 retention_period_ns,
                 partition_template: Default::default(),
             }

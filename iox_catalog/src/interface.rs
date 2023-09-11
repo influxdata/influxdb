@@ -843,9 +843,9 @@ pub(crate) mod test_helpers {
         assert_eq!(namespace, lookup_namespace);
 
         // Assert default values for service protection limits.
-        assert_eq!(namespace.max_tables, DEFAULT_MAX_TABLES);
+        assert_eq!(namespace.max_tables.get(), DEFAULT_MAX_TABLES);
         assert_eq!(
-            namespace.max_columns_per_table,
+            namespace.max_columns_per_table.get(),
             DEFAULT_MAX_COLUMNS_PER_TABLE
         );
 
@@ -903,7 +903,7 @@ pub(crate) mod test_helpers {
             .update_table_limit(namespace_name.as_str(), NEW_TABLE_LIMIT)
             .await
             .expect("namespace should be updateable");
-        assert_eq!(NEW_TABLE_LIMIT, modified.max_tables);
+        assert_eq!(NEW_TABLE_LIMIT, modified.max_tables.get());
 
         const NEW_COLUMN_LIMIT: i32 = 1500;
         let modified = repos
@@ -911,7 +911,7 @@ pub(crate) mod test_helpers {
             .update_column_limit(namespace_name.as_str(), NEW_COLUMN_LIMIT)
             .await
             .expect("namespace should be updateable");
-        assert_eq!(NEW_COLUMN_LIMIT, modified.max_columns_per_table);
+        assert_eq!(NEW_COLUMN_LIMIT, modified.max_columns_per_table.get());
 
         const NEW_RETENTION_PERIOD_NS: i64 = 5 * 60 * 60 * 1000 * 1000 * 1000;
         let modified = repos

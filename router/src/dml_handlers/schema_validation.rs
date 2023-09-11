@@ -362,7 +362,7 @@ fn validate_schema_limits(
         // Get the column set for this table from the schema.
         let mut existing_columns = match schema.tables.get(table_name) {
             Some(v) => v.column_names(),
-            None if batch.columns().len() > schema.max_columns_per_table => {
+            None if batch.columns().len() > schema.max_columns_per_table.get() as usize => {
                 // The table does not exist, therefore all the columns in this
                 // write must be created - there's no need to perform a set
                 // union to discover the distinct column count.
@@ -370,7 +370,7 @@ fn validate_schema_limits(
                     table_name: table_name.into(),
                     merged_column_count: batch.columns().len(),
                     existing_column_count: 0,
-                    max_columns_per_table: schema.max_columns_per_table,
+                    max_columns_per_table: schema.max_columns_per_table.get() as usize,
                 });
             }
             None => {
@@ -387,11 +387,11 @@ fn validate_schema_limits(
                 // submitted to multiple router instances, exceeding the schema
                 // limit by some degree (eventual enforcement).
                 let merged_table_count = schema.tables.len() + new_tables;
-                if merged_table_count > schema.max_tables {
+                if merged_table_count > schema.max_tables.get() as usize {
                     return Err(CachedServiceProtectionLimit::Table {
                         existing_table_count: schema.tables.len(),
                         merged_table_count,
-                        table_count_limit: schema.max_tables,
+                        table_count_limit: schema.max_tables.get() as usize,
                     });
                 }
 
@@ -415,14 +415,15 @@ fn validate_schema_limits(
         // includes existing columns and doesn't exceed the limit more, this is
         // allowed.
         let columns_were_added_in_this_batch = merged_column_count > existing_column_count;
-        let column_limit_exceeded = merged_column_count > schema.max_columns_per_table;
+        let column_limit_exceeded =
+            merged_column_count > schema.max_columns_per_table.get() as usize;
 
         if columns_were_added_in_this_batch && column_limit_exceeded {
             return Err(CachedServiceProtectionLimit::Column {
                 table_name: table_name.into(),
                 merged_column_count,
                 existing_column_count,
-                max_columns_per_table: schema.max_columns_per_table,
+                max_columns_per_table: schema.max_columns_per_table.get() as usize,
             });
         }
     }
@@ -692,7 +693,7 @@ mod tests {
         {
             let schema = namespace.schema().await;
             assert_eq!(schema.tables.len(), 2);
-            assert_eq!(schema.max_tables, 1);
+            assert_eq!(schema.max_tables.get(), 1);
 
             let batches = lp_to_writes("bananas val=2 42\nplatanos val=2 42");
             assert_matches!(validate_schema_limits(&batches, &schema), Ok(()));
