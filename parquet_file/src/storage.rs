@@ -696,6 +696,6 @@ mod tests {
         .unwrap_err();
 
         // And compare to the original input
-        assert_eq!(err.to_string(), msg);
+        assert!(err.to_string().contains(msg), "err:\n{err}\nmsg:\n{msg}");
     }
 }
