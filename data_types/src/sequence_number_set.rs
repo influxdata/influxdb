@@ -2,8 +2,6 @@
 
 use std::collections::BTreeMap;
 
-use croaring::treemap::NativeSerializer;
-
 use crate::SequenceNumber;
 
 /// A space-efficient encoded set of [`SequenceNumber`].
@@ -41,17 +39,6 @@ impl SequenceNumberSet {
         self.0.run_optimize();
     }
 
-    /// Serialise `self` into an array of bytes.
-    ///
-    /// [This document][spec] describes the serialised format.
-    ///
-    /// [spec]: https://github.com/RoaringBitmap/RoaringFormatSpec/
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.0
-            .serialize()
-            .expect("failed to serialise sequence number set")
-    }
-
     /// Return true if the specified [`SequenceNumber`] has been added to
     /// `self`.
     pub fn contains(&self, n: SequenceNumber) -> bool {
@@ -77,19 +64,8 @@ impl SequenceNumberSet {
     /// to `n` elements without reallocating.
     pub fn with_capacity(n: u32) -> Self {
         let mut map = BTreeMap::new();
-        map.insert(0, croaring::Bitmap::create_with_capacity(n));
+        map.insert(0, croaring::Bitmap::with_container_capacity(n));
         Self(croaring::Treemap { map })
-    }
-}
-
-/// Deserialisation method.
-impl TryFrom<&[u8]> for SequenceNumberSet {
-    type Error = String;
-
-    fn try_from(buffer: &[u8]) -> Result<Self, Self::Error> {
-        croaring::Treemap::deserialize(buffer)
-            .map(SequenceNumberSet)
-            .map_err(|e| format!("failed to deserialise sequence number set: {e}"))
     }
 }
 
@@ -344,20 +320,6 @@ mod tests {
 
             // The sets should be equal.
             assert_eq!(set_a, known_a);
-        }
-
-        /// Assert that a SequenceNumberSet deserialised from its serialised
-        /// representation is equal (round-trippable).
-        #[test]
-        fn prop_serialise_deserialise(
-            a in sequence_number_vec()
-        ) {
-            let orig = a.iter().cloned().collect::<SequenceNumberSet>();
-
-            let serialised = orig.to_bytes();
-            let got = SequenceNumberSet::try_from(&*serialised).expect("failed to deserialise valid set");
-
-            assert_eq!(got, orig);
         }
     }
 }
