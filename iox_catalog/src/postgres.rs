@@ -1318,7 +1318,7 @@ WHERE table_id = $1;
         old_sort_key: Option<Vec<String>>,
         new_sort_key: &[&str],
         new_sort_key_ids: &SortedColumnSet,
-    ) -> Result<Partition, CasFailure<Vec<String>>> {
+    ) -> Result<Partition, CasFailure<(Vec<String>, Option<SortedColumnSet>)>> {
         verify_sort_key_length(new_sort_key, new_sort_key_ids);
 
         let old_sort_key = old_sort_key.unwrap_or_default();
@@ -1366,15 +1366,16 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file
                 //
                 // NOTE: this is racy, but documented - this might return "Sort
                 // key differs! Old key: <old sort key you provided>"
-                return Err(CasFailure::ValueMismatch(
-                    crate::partition_lookup(self, partition_id)
-                        .await
-                        .map_err(CasFailure::QueryError)?
-                        .ok_or(CasFailure::QueryError(Error::PartitionNotFound {
-                            id: partition_id.clone(),
-                        }))?
-                        .sort_key,
-                ));
+                let partition = crate::partition_lookup(self, partition_id)
+                    .await
+                    .map_err(CasFailure::QueryError)?
+                    .ok_or(CasFailure::QueryError(Error::PartitionNotFound {
+                        id: partition_id.clone(),
+                    }))?;
+                return Err(CasFailure::ValueMismatch((
+                    partition.sort_key,
+                    partition.sort_key_ids,
+                )));
             }
             Err(e) => return Err(CasFailure::QueryError(Error::SqlxError { source: e })),
         };

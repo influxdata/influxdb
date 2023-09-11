@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies] # In alphabetical order
 async-trait = "0.1.73"
-bytes = "1.4"
+bytes = "1.5"
 futures = "0.3"
 iox_time = { version = "0.1.0", path = "../iox_time" }
 metric = { version = "0.1.0", path = "../metric" }

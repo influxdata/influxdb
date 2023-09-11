@@ -210,7 +210,10 @@ impl Selector {
             // Note: We MUST also mask-out NULLs in `value_arr`, otherwise we may easily select that!
             let time_arr = arrow::compute::nullif(
                 time_arr,
-                &arrow::compute::neq_dyn(&self.value.to_array_of_size(time_arr.len()), &value_arr)?,
+                &arrow::compute::kernels::cmp::neq(
+                    &self.value.to_array_of_size(time_arr.len()),
+                    &value_arr,
+                )?,
             )?;
             let time_arr =
                 arrow::compute::nullif(&time_arr, &arrow::compute::is_null(&value_arr)?)?;

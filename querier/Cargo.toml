@@ -10,7 +10,7 @@ arrow = { workspace = true }
 arrow-flight = { workspace = true }
 async-trait = "0.1.73"
 backoff = { path = "../backoff" }
-bytes = "1.4"
+bytes = "1.5"
 cache_system = { path = "../cache_system" }
 client_util = { path = "../client_util" }
 data_types = { path = "../data_types" }

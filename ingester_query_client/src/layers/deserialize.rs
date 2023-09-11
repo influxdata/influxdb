@@ -729,7 +729,13 @@ mod tests {
         payload: [proto::QueryResponse; N],
     ) -> Result<QueryResponse<ResponseMetadata, ResponsePayload>, DynError> {
         let l = TestLayer::<(), (), proto::QueryResponse>::default();
-        l.mock_response(TestResponse::ok_payload((), payload));
+
+        let mut resp = TestResponse::ok(());
+        for p in payload {
+            resp = resp.with_ok_payload(p);
+        }
+        l.mock_response(resp);
+
         let l = DeserializeLayer::new(l);
         l.query(()).await
     }

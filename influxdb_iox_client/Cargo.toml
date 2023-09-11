@@ -14,7 +14,7 @@ format = ["arrow", "arrow_util"]
 arrow = { workspace = true, optional = true }
 arrow-flight = { workspace = true, optional = true, features=["flight-sql-experimental"] }
 arrow_util = { path = "../arrow_util", optional = true }
-bytes = "1.4"
+bytes = "1.5"
 client_util = { path = "../client_util" }
 comfy-table = { version = "7.0", default-features = false}
 futures-util = { version = "0.3" }
@@ -24,7 +24,7 @@ prost = "0.11"
 rand = "0.8.3"
 reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls"] }
 schema = { path = "../schema" }
-serde_json = "1.0.105"
+serde_json = "1.0.106"
 tokio = { version = "1.32", features = ["macros", "parking_lot", "rt-multi-thread"] }
 tokio-stream = "0.1.13"
 thiserror = "1.0.48"

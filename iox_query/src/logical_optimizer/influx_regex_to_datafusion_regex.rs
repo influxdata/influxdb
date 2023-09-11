@@ -2,8 +2,7 @@ use datafusion::{
     common::{tree_node::TreeNodeRewriter, DFSchema},
     error::DataFusionError,
     logical_expr::{
-        expr::ScalarUDF, expr_rewriter::rewrite_preserving_name, utils::from_plan, LogicalPlan,
-        Operator,
+        expr::ScalarUDF, expr_rewriter::rewrite_preserving_name, LogicalPlan, Operator,
     },
     optimizer::{OptimizerConfig, OptimizerRule},
     prelude::{binary_expr, lit, Expr},
@@ -67,7 +66,7 @@ fn optimize(plan: &LogicalPlan) -> Result<LogicalPlan, DataFusionError> {
         .map(|expr| rewrite_preserving_name(expr, &mut expr_rewriter))
         .collect::<Result<Vec<_>, DataFusionError>>()?;
 
-    from_plan(plan, new_exprs.as_slice(), new_inputs.as_slice())
+    plan.with_new_exprs(new_exprs, &new_inputs)
 }
 
 impl TreeNodeRewriter for InfluxRegexToDataFusionRegex {

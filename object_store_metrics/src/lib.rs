@@ -14,7 +14,7 @@
     unused_crate_dependencies
 )]
 
-use object_store::GetOptions;
+use object_store::{GetOptions, GetResultPayload};
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -228,29 +228,36 @@ impl ObjectStore for ObjectStoreMetrics {
         let res = self.inner.get_opts(location, options).await;
 
         match res {
-            Ok(GetResult::File(file, path)) => {
-                // Record the file size in bytes and time the inner call took.
-                if let Ok(m) = file.metadata() {
-                    self.get_bytes.inc(m.len());
-                    if let Some(d) = self.time_provider.now().checked_duration_since(started_at) {
-                        self.get_success_duration.record(d)
+            Ok(mut res) => {
+                res.payload = match res.payload {
+                    GetResultPayload::File(file, path) => {
+                        // Record the file size in bytes and time the inner call took.
+                        if let Ok(m) = file.metadata() {
+                            self.get_bytes.inc(m.len());
+                            if let Some(d) =
+                                self.time_provider.now().checked_duration_since(started_at)
+                            {
+                                self.get_success_duration.record(d)
+                            }
+                        }
+                        GetResultPayload::File(file, path)
                     }
-                }
-                Ok(GetResult::File(file, path))
-            }
-            Ok(GetResult::Stream(s)) => {
-                // Wrap the object store data stream in a decorator to track the
-                // yielded data / wall clock, inclusive of the inner call above.
-                Ok(GetResult::Stream(Box::pin(Box::new(
-                    StreamMetricRecorder::new(
-                        s,
-                        started_at,
-                        self.get_success_duration.clone(),
-                        self.get_error_duration.clone(),
-                        BytesStreamDelegate(self.get_bytes.clone()),
-                    )
-                    .fuse(),
-                ))))
+                    GetResultPayload::Stream(s) => {
+                        // Wrap the object store data stream in a decorator to track the
+                        // yielded data / wall clock, inclusive of the inner call above.
+                        GetResultPayload::Stream(Box::pin(Box::new(
+                            StreamMetricRecorder::new(
+                                s,
+                                started_at,
+                                self.get_success_duration.clone(),
+                                self.get_error_duration.clone(),
+                                BytesStreamDelegate(self.get_bytes.clone()),
+                            )
+                            .fuse(),
+                        )))
+                    }
+                };
+                Ok(res)
             }
             Err(e) => {
                 // Record the call duration in the error histogram.
@@ -827,8 +834,8 @@ mod tests {
             .expect("put should succeed");
 
         let got = store.get(&path).await.expect("should read file");
-        match got {
-            GetResult::File(mut file, _) => {
+        match got.payload {
+            GetResultPayload::File(mut file, _) => {
                 let mut contents = vec![];
                 file.read_to_end(&mut contents)
                     .expect("failed to read file data");
@@ -893,8 +900,8 @@ mod tests {
             .expect("put should succeed");
 
         let got = store.get(&path).await.expect("should read stream");
-        match got {
-            GetResult::Stream(mut stream) => while (stream.next().await).is_some() {},
+        match got.payload {
+            GetResultPayload::Stream(mut stream) => while (stream.next().await).is_some() {},
             v => panic!("not a stream: {v:?}"),
         }
 

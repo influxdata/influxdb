@@ -67,8 +67,11 @@ where
                     // update rate limiter so we can complete the batch in 5m, which is plenty fast.
                     // allow a burst of 25, so after a period of inactivity, up to 25 can go quickly.
                     let mut rate = buffer.len() / (5 * 60);
-                    if rate < 1 {
-                        rate = 1;
+
+                    if rate < 10 {
+                        // The purpose of this rate limiter is to keep us from hitting the catalog too hard.  There is no need to
+                        // slow it down to less than 10/s
+                        rate = 10;
                     }
                     self.limiter.update_rps(rate, 25);
                 }

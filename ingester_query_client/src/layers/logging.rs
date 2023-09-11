@@ -113,11 +113,12 @@ mod tests {
     async fn test() {
         let l = TestLayer::<(), (), ()>::default();
         l.mock_response(TestResponse::err(DynError::from("error 1")));
-        l.mock_response(TestResponse::ok_payload_res(
-            (),
-            [Ok(()), Err(DynError::from("error 2"))],
-        ));
-        l.mock_response(TestResponse::ok_payload((), [(), ()]));
+        l.mock_response(
+            TestResponse::ok(())
+                .with_ok_payload(())
+                .with_err_payload(DynError::from("error 2")),
+        );
+        l.mock_response(TestResponse::ok(()).with_ok_payload(()).with_ok_payload(()));
         let l = LoggingLayer::new(l, "foo.bar".into());
 
         let capture = TracingCapture::new();

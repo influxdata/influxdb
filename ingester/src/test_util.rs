@@ -159,7 +159,7 @@ impl PartitionDataBuilder {
                 .unwrap_or_else(defer_namespace_name_1_sec),
             table_id,
             self.table_loader.unwrap_or_else(defer_table_metadata_1_sec),
-            self.sort_key.unwrap_or(SortKeyState::Provided(None)),
+            self.sort_key.unwrap_or(SortKeyState::Provided(None, None)),
         )
     }
 }
