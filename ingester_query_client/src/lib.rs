@@ -13,6 +13,7 @@
     unused_crate_dependencies
 )]
 
+pub mod composition;
 pub mod error;
 pub mod error_classifier;
 pub mod interface;
