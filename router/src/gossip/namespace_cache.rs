@@ -405,6 +405,16 @@ mod tests {
 
     use super::*;
 
+    // Compare the simply-typed attributes to ensure they're the same (`tables` being a complex
+    // attribute checked separately)
+    fn assert_namespace_attributes_eq(left: &NamespaceSchema, right: &NamespaceSchema) {
+        assert_eq!(left.id, right.id);
+        assert_eq!(left.max_columns_per_table, right.max_columns_per_table);
+        assert_eq!(left.max_tables, right.max_tables);
+        assert_eq!(left.retention_period_ns, right.retention_period_ns);
+        assert_eq!(left.partition_template, right.partition_template);
+    }
+
     /// Generate a test that processes the provided gossip message, and asserts
     /// the state of the namespace named [`NAMESPACE_NAME`] in the cache after.
     macro_rules! test_handle_gossip_message_ {
@@ -477,12 +487,8 @@ mod tests {
             partition_template: Some((**PARTITION_BY_DAY_PROTO).clone()),
         }),
         want = Ok(ns) => {
-            assert_eq!(ns.id, DEFAULT_NAMESPACE.id);
+            assert_namespace_attributes_eq(&ns, &DEFAULT_NAMESPACE);
             assert_eq!(ns.tables.len(), 1);
-            assert_eq!(ns.max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table);
-            assert_eq!(ns.max_tables, DEFAULT_NAMESPACE.max_tables);
-            assert_eq!(ns.retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
-            assert_eq!(ns.partition_template, DEFAULT_NAMESPACE.partition_template);
 
             assert_matches!(ns.tables.get("bananas"), Some(TableSchema { id, partition_template, columns }) => {
                 assert_eq!(id.get(), 42);
@@ -516,12 +522,8 @@ mod tests {
             partition_template: Some((**PARTITION_BY_DAY_PROTO).clone()),
         }),
         want = Ok(ns) => {
-            assert_eq!(ns.id, DEFAULT_NAMESPACE.id);
+            assert_namespace_attributes_eq(&ns, &DEFAULT_NAMESPACE);
             assert_eq!(ns.tables.len(), 1);
-            assert_eq!(ns.max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table);
-            assert_eq!(ns.max_tables, DEFAULT_NAMESPACE.max_tables);
-            assert_eq!(ns.retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
-            assert_eq!(ns.partition_template, DEFAULT_NAMESPACE.partition_template);
 
             assert_matches!(ns.tables.get("bananas"), Some(TableSchema { id, partition_template, columns }) => {
                 assert_eq!(id.get(), 42);
@@ -553,12 +555,8 @@ mod tests {
             partition_template: None,
         }),
         want = Ok(ns) => {
-            assert_eq!(ns.id, DEFAULT_NAMESPACE.id);
+            assert_namespace_attributes_eq(&ns, &DEFAULT_NAMESPACE);
             assert_eq!(ns.tables.len(), 1);
-            assert_eq!(ns.max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table);
-            assert_eq!(ns.max_tables, DEFAULT_NAMESPACE.max_tables);
-            assert_eq!(ns.retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
-            assert_eq!(ns.partition_template, DEFAULT_NAMESPACE.partition_template);
 
             assert_matches!(ns.tables.get("bananas"), Some(TableSchema { id, partition_template, columns }) => {
                 assert_eq!(id.get(), 42);
@@ -606,12 +604,8 @@ mod tests {
             partition_template: None,
         }),
         want = Ok(ns) => {
-            assert_eq!(ns.id, DEFAULT_NAMESPACE.id);
+            assert_namespace_attributes_eq(&ns, &DEFAULT_NAMESPACE);
             assert_eq!(ns.tables.len(), 2);
-            assert_eq!(ns.max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table);
-            assert_eq!(ns.max_tables, DEFAULT_NAMESPACE.max_tables);
-            assert_eq!(ns.retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
-            assert_eq!(ns.partition_template, DEFAULT_NAMESPACE.partition_template);
 
             // The original table still exists
             assert_matches!(ns.tables.get("platanos"), Some(TableSchema { id, .. }) => {
@@ -672,12 +666,8 @@ mod tests {
             partition_template: None,
         }),
         want = Ok(ns) => {
-            assert_eq!(ns.id, DEFAULT_NAMESPACE.id);
+            assert_namespace_attributes_eq(&ns, &DEFAULT_NAMESPACE);
             assert_eq!(ns.tables.len(), 1);
-            assert_eq!(ns.max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table);
-            assert_eq!(ns.max_tables, DEFAULT_NAMESPACE.max_tables);
-            assert_eq!(ns.retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
-            assert_eq!(ns.partition_template, DEFAULT_NAMESPACE.partition_template);
 
             assert_matches!(ns.tables.get("bananas"), Some(TableSchema { id, partition_template, columns }) => {
                 assert_eq!(id.get(), 42);
@@ -817,12 +807,8 @@ mod tests {
             ],
         }),
         want = Ok(ns) => {
-            assert_eq!(ns.id, DEFAULT_NAMESPACE.id);
+            assert_namespace_attributes_eq(&ns, &DEFAULT_NAMESPACE);
             assert_eq!(ns.tables.len(), 1);
-            assert_eq!(ns.max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table);
-            assert_eq!(ns.max_tables, DEFAULT_NAMESPACE.max_tables);
-            assert_eq!(ns.retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
-            assert_eq!(ns.partition_template, DEFAULT_NAMESPACE.partition_template);
 
             assert_matches!(ns.tables.get("bananas"), Some(TableSchema { id, partition_template, columns }) => {
                 assert_eq!(id.get(), 42);
