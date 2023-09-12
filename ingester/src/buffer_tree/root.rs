@@ -1,15 +1,16 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, num::NonZeroUsize, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
 use metric::U64Counter;
 use parking_lot::Mutex;
 use predicate::Predicate;
+use thiserror::Error;
 use trace::span::Span;
 
 use super::{
     namespace::{name_resolver::NamespaceNameProvider, NamespaceData},
-    partition::{resolver::PartitionProvider, PartitionData},
+    partition::{counter::PartitionCounter, resolver::PartitionProvider, PartitionData},
     post_write::PostWriteObserver,
     table::metadata_resolver::TableProvider,
 };
@@ -23,6 +24,16 @@ use crate::{
         QueryError, QueryExec,
     },
 };
+
+/// An error buffering a write into the [`BufferTree`].
+#[derive(Debug, Error)]
+pub enum BufferWriteError {
+    #[error("namespace reached buffered partition limit ({count} partitions at once)")]
+    PartitionLimit { count: usize },
+
+    #[error(transparent)]
+    Write(#[from] mutable_batch::Error),
+}
 
 /// A [`BufferTree`] is the root of an in-memory tree of many [`NamespaceData`]
 /// containing one or more child [`TableData`] nodes, which in turn contain one
@@ -84,6 +95,9 @@ pub(crate) struct BufferTree<O> {
     ///
     /// [`PartitionData`]: super::partition::PartitionData
     partition_provider: Arc<dyn PartitionProvider>,
+    /// The maximum number of partitions that may be buffered for a single
+    /// namespace at any time.
+    max_partitions_per_namespace: NonZeroUsize,
 
     /// A set of namespaces this [`BufferTree`] instance has processed
     /// [`IngestOp`]'s for.
@@ -118,6 +132,7 @@ where
         namespace_name_resolver: Arc<dyn NamespaceNameProvider>,
         table_resolver: Arc<dyn TableProvider>,
         partition_provider: Arc<dyn PartitionProvider>,
+        max_partitions_per_namespace: NonZeroUsize,
         post_write_observer: Arc<O>,
         metrics: Arc<metric::Registry>,
     ) -> Self {
@@ -134,6 +149,7 @@ where
             table_resolver,
             metrics,
             partition_provider,
+            max_partitions_per_namespace,
             post_write_observer,
             namespace_count,
         }
@@ -170,7 +186,7 @@ impl<O> DmlSink for BufferTree<O>
 where
     O: PostWriteObserver,
 {
-    type Error = mutable_batch::Error;
+    type Error = BufferWriteError;
 
     async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
         let namespace_id = op.namespace();
@@ -184,6 +200,7 @@ where
                 Arc::new(self.namespace_name_resolver.for_namespace(namespace_id)),
                 Arc::clone(&self.table_resolver),
                 Arc::clone(&self.partition_provider),
+                PartitionCounter::new(self.max_partitions_per_namespace),
                 Arc::clone(&self.post_write_observer),
                 &self.metrics,
             ))
@@ -302,6 +319,7 @@ mod tests {
             defer_namespace_name_1_ms(),
             Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
+            PartitionCounter::new(NonZeroUsize::new(42).unwrap()),
             Arc::new(MockPostWriteObserver::default()),
             &metrics,
         );
@@ -361,6 +379,7 @@ mod tests {
             $name:ident,
             $(table_provider = $table_provider:expr,)? // An optional table provider
             $(projection = $projection:expr,)?    // An optional OwnedProjection
+            $(partition_limit = $partition_limit:literal,)? // An optional partition count to limit namespaces to
             partitions = [$($partition:expr), +], // The set of PartitionData for the mock
                                                   // partition provider
             writes = [$($write:expr), *],         // The set of WriteOperation to apply()
@@ -387,11 +406,18 @@ mod tests {
                         let table_provider: Arc<dyn TableProvider> = $table_provider;
                     )?
 
+                    #[allow(unused_variables)]
+                    let partition_count_limit = usize::MAX;
+                    $(
+                        let partition_count_limit = $partition_limit;
+                    )?
+
                     // Init the buffer tree
                     let buf = BufferTree::new(
                         Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
                         table_provider,
                         partition_provider,
+                        NonZeroUsize::new(partition_count_limit).unwrap(),
                         Arc::new(MockPostWriteObserver::default()),
                         Arc::new(metric::Registry::default()),
                     );
@@ -805,6 +831,78 @@ mod tests {
         ]
     );
 
+    // Apply a partition limit and write N+1 partitions across multiple tables
+    // to the same partition, ensuring the limit is enforced.
+    //
+    // This validates partition counts are tracked across tables for a given
+    // namespace, and effectively enforced.
+    #[tokio::test]
+    async fn test_write_query_partition_limit_enforced() {
+        maybe_start_logging();
+
+        let partition_provider = Arc::new(
+            MockPartitionProvider::default()
+                .with_partition(
+                    PartitionDataBuilder::new()
+                        .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
+                        .build(),
+                )
+                .with_partition(
+                    PartitionDataBuilder::new()
+                        .with_partition_key(PARTITION2_KEY.clone())
+                        .build(),
+                ),
+        );
+
+        let table_provider = Arc::clone(&*ARBITRARY_TABLE_PROVIDER);
+        let partition_count_limit = 1;
+
+        let buf = BufferTree::new(
+            Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
+            table_provider,
+            partition_provider,
+            NonZeroUsize::new(partition_count_limit).unwrap(),
+            Arc::new(MockPostWriteObserver::default()),
+            Arc::new(metric::Registry::default()),
+        );
+
+        // Write to the first partition should succeed
+        buf.apply(IngestOp::Write(make_write_op(
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            format!(
+                r#"{},region=Asturias temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            )
+            .as_str(),
+            None,
+        )))
+        .await
+        .expect("failed to perform first write");
+
+        // Second write to a second table should hit the limit and be rejected
+        let err = buf
+            .apply(IngestOp::Write(make_write_op(
+                &PARTITION2_KEY,
+                ARBITRARY_NAMESPACE_ID,
+                "BANANASareDIFFERENT",
+                TableId::new(ARBITRARY_TABLE_ID.get() + 1),
+                0,
+                "BANANASareDIFFERENT,region=Asturias temp=35 4242424242",
+                None,
+            )))
+            .await
+            .expect_err("limit should be enforced");
+
+        assert_matches!(err, BufferWriteError::PartitionLimit { count: 1 });
+
+        // Only one partition should exist (second was rejected)
+        assert_eq!(buf.partitions().count(), 1);
+    }
+
     /// Ensure partition pruning during query execution also prunes metadata
     /// frames.
     ///
@@ -840,6 +938,7 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
             table_provider,
             partition_provider,
+            NonZeroUsize::new(usize::MAX).unwrap(),
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
         );
@@ -930,6 +1029,7 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
             Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
+            NonZeroUsize::new(usize::MAX).unwrap(),
             Arc::new(MockPostWriteObserver::default()),
             Arc::clone(&metrics),
         );
@@ -1024,6 +1124,7 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
             Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
+            NonZeroUsize::new(usize::MAX).unwrap(),
             Arc::new(MockPostWriteObserver::default()),
             Arc::clone(&Arc::new(metric::Registry::default())),
         );
@@ -1114,6 +1215,7 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
             Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
+            NonZeroUsize::new(usize::MAX).unwrap(),
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
         );
@@ -1215,6 +1317,7 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
             Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
+            NonZeroUsize::new(usize::MAX).unwrap(),
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
         );
@@ -1330,6 +1433,7 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
             Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
+            NonZeroUsize::new(usize::MAX).unwrap(),
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
         );

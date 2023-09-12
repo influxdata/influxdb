@@ -17,7 +17,7 @@
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
@@ -169,6 +169,7 @@ impl TestContextBuilder {
             persist_hot_partition_cost,
             storage.clone(),
             GossipConfig::default(),
+            NonZeroUsize::new(usize::MAX).unwrap(),
             shutdown_rx.map(|v| v.expect("shutdown sender dropped without calling shutdown")),
         )
         .await

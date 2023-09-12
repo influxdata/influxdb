@@ -13,7 +13,7 @@ mod worker;
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
     use data_types::{CompactionLevel, ParquetFile, SortedColumnSet};
@@ -69,6 +69,7 @@ mod tests {
             Arc::clone(&*ARBITRARY_NAMESPACE_NAME_PROVIDER),
             Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
+            NonZeroUsize::new(usize::MAX).unwrap(),
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
         );

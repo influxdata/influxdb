@@ -485,6 +485,7 @@ impl Config {
             persist_hot_partition_cost,
             rpc_write_max_incoming_bytes: 1024 * 1024 * 1024, // 1GiB
             gossip_config: GossipConfig::disabled(),
+            max_partitions_per_namespace: None,
         };
 
         let router_config = RouterConfig {
