@@ -7,13 +7,13 @@ use crate::{
 };
 use async_trait::async_trait;
 use futures::{
+    channel::oneshot::{channel, Canceled, Sender},
     future::{BoxFuture, Shared},
     FutureExt, TryFutureExt,
 };
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use std::{collections::HashMap, fmt::Debug, future::Future, sync::Arc};
-use tokio::sync::oneshot::{error::RecvError, Sender};
 
 use super::{Cache, CacheGetStatus, CachePeekStatus};
 
@@ -55,13 +55,13 @@ where
         CancellationSafeFuture<impl Future<Output = ()>>,
         SharedReceiver<B::V>,
     ) {
-        let (tx_main, rx_main) = tokio::sync::oneshot::channel();
+        let (tx_main, rx_main) = channel();
         let receiver = rx_main
             .map_ok(|v| Arc::new(Mutex::new(v)))
             .map_err(Arc::new)
             .boxed()
             .shared();
-        let (tx_set, rx_set) = tokio::sync::oneshot::channel();
+        let (tx_set, rx_set) = channel();
 
         // generate unique tag
         let tag = state.tag_counter;
@@ -352,7 +352,7 @@ where
 /// - `BoxFuture`: The transformation from `Result<V, RecvError>` to `Result<Arc<Mutex<V>>,
 ///   Arc<RecvError>>` results in a kinda messy type and we wanna erase that.
 /// - `Shared`: Allow the receiver to be cloned and be awaited from multiple places.
-type SharedReceiver<V> = Shared<BoxFuture<'static, Result<Arc<Mutex<V>>, Arc<RecvError>>>>;
+type SharedReceiver<V> = Shared<BoxFuture<'static, Result<Arc<Mutex<V>>, Arc<Canceled>>>>;
 
 /// Retrieve data from shared receiver.
 async fn retrieve_from_shared<V>(receiver: SharedReceiver<V>) -> V
