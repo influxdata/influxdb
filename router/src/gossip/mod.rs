@@ -52,6 +52,24 @@ pub mod namespace_cache;
 pub mod schema_change_observer;
 pub mod traits;
 
+use data_types::NamespaceSchema;
+use generated_types::influxdata::iox::gossip::v1::NamespaceCreated;
+
+/// Make a `NamespaceCreated` protobuf instance from the specified name and schema.
+pub(crate) fn namespace_created(
+    namespace_name: impl Into<String>,
+    schema: &NamespaceSchema,
+) -> NamespaceCreated {
+    NamespaceCreated {
+        namespace_name: namespace_name.into(),
+        namespace_id: schema.id.get(),
+        partition_template: schema.partition_template.as_proto().cloned(),
+        max_columns_per_table: schema.max_columns_per_table as u64,
+        max_tables: schema.max_tables as u64,
+        retention_period_ns: schema.retention_period_ns,
+    }
+}
+
 #[cfg(test)]
 mod mock_schema_broadcast;
 
