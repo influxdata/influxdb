@@ -576,6 +576,7 @@ impl RemoteImporter {
                 .cas_sort_key(
                     &partition.transition_partition_id(),
                     Some(partition.sort_key.clone()),
+                    partition.sort_key_ids.clone(),
                     &new_sort_key,
                     &new_sort_key_ids,
                 )

@@ -1,6 +1,6 @@
 //! A Postgres backed implementation of the Catalog
 
-use crate::interface::{verify_sort_key_length, MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE};
+use crate::interface::MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE;
 use crate::{
     interface::{
         self, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
@@ -1316,38 +1316,49 @@ WHERE table_id = $1;
         &mut self,
         partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
+        old_sort_key_ids: Option<SortedColumnSet>,
         new_sort_key: &[&str],
         new_sort_key_ids: &SortedColumnSet,
     ) -> Result<Partition, CasFailure<(Vec<String>, Option<SortedColumnSet>)>> {
-        verify_sort_key_length(new_sort_key, new_sort_key_ids);
+        // These asserts are here to cacth bugs. They will be removed when we remove the sort_key
+        // field from the Partition
+        assert_eq!(
+            old_sort_key.as_ref().map(|v| v.len()),
+            old_sort_key_ids.as_ref().map(|v| v.len())
+        );
+        assert_eq!(new_sort_key.len(), new_sort_key_ids.len());
 
         let old_sort_key = old_sort_key.unwrap_or_default();
+        let old_sort_key_ids = old_sort_key_ids.unwrap_or_default();
+
         // This `match` will go away when all partitions have hash IDs in the database.
         let query = match partition_id {
             TransitionPartitionId::Deterministic(hash_id) => sqlx::query_as::<_, Partition>(
                 r#"
 UPDATE partition
 SET sort_key = $1, sort_key_ids = $4
-WHERE hash_id = $2 AND sort_key = $3
+WHERE hash_id = $2 AND sort_key = $3 AND sort_key_ids = $5
 RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(new_sort_key) // $1
             .bind(hash_id) // $2
             .bind(&old_sort_key) // $3
-            .bind(new_sort_key_ids), // $4
+            .bind(new_sort_key_ids) // $4
+            .bind(old_sort_key_ids), // $5
             TransitionPartitionId::Deprecated(id) => sqlx::query_as::<_, Partition>(
                 r#"
 UPDATE partition
 SET sort_key = $1, sort_key_ids = $4
-WHERE id = $2 AND sort_key = $3
+WHERE id = $2 AND sort_key = $3 AND sort_key_ids = $5
 RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(new_sort_key) // $1
             .bind(id) // $2
             .bind(&old_sort_key) // $3
-            .bind(new_sort_key_ids), // $4
+            .bind(new_sort_key_ids) // $4
+            .bind(old_sort_key_ids), // $5
         };
 
         let res = query.fetch_one(&mut self.inner).await;

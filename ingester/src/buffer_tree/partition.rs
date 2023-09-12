@@ -50,6 +50,14 @@ impl SortKeyState {
             Self::Provided(_sort_key, sort_key_ids) => sort_key_ids.clone(),
         }
     }
+
+    // get both sort key and sort key ids
+    pub(crate) async fn get(&self) -> (Option<SortKey>, Option<SortedColumnSet>) {
+        match self {
+            Self::Deferred(v) => v.get().await,
+            Self::Provided(sort_key, sort_key_ids) => (sort_key.clone(), sort_key_ids.clone()),
+        }
+    }
 }
 
 /// Data of an IOx Partition of a given Table of a Namespace
@@ -1032,6 +1040,7 @@ mod tests {
             .partitions()
             .cas_sort_key(
                 &partition.transition_partition_id(),
+                None,
                 None,
                 &["terrific"],
                 &SortedColumnSet::from([1]),
