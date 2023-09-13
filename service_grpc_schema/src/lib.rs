@@ -74,12 +74,12 @@ impl schema_service_server::SchemaService for SchemaService {
         .map(Arc::new)?;
 
         Ok(Response::new(GetSchemaResponse {
-            schema: Some(schema_to_proto(schema)),
+            schema: Some(schema_to_proto(&schema)),
         }))
     }
 }
 
-fn schema_to_proto(schema: Arc<data_types::NamespaceSchema>) -> NamespaceSchema {
+fn schema_to_proto(schema: &data_types::NamespaceSchema) -> NamespaceSchema {
     NamespaceSchema {
         id: schema.id.get(),
         tables: schema
