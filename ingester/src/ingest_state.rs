@@ -293,6 +293,17 @@ mod tests {
         ]
     }
 
+    fn disjoint_set(not: IngestStateError) -> Vec<IngestStateError> {
+        [
+            IngestStateError::PersistSaturated,
+            IngestStateError::GracefulStop,
+            IngestStateError::DiskFull,
+        ]
+        .into_iter()
+        .filter(|v| discriminant(v) != discriminant(&not))
+        .collect()
+    }
+
     proptest! {
         // This test throws a compiler error if a new state is added and not
         // covered by the test strategy generation for [`IngestStateError`].
@@ -372,52 +383,35 @@ mod tests {
             }
         }
 
-        /// For every [`IngestStateError`] pair, this test checks that setting
-        /// the LHS on an [`IngestState`], then reading from it with an ignore
-        /// exception of the RHS produces the correct result. If the exception
-        /// matches the error set on the state then it should be filtered and
-        /// return `Ok`, while an error state that isn't in the exception list
-        /// is returned.
+        /// For every [`IngestStateError`], check that reading an [`IngestState`]
+        /// while specifying it as an exception returns `Ok()` when both:
         ///
-        /// Furthermore, it asserts that setting two disjoint error states
-        /// and then reading with exceptions produces the expected error, regardless
-        /// of whether there is one exception or multiple.
+        ///  * No error is set
+        ///  * The error marked as an exception is set
+        ///
+        /// It also ensures that an error variant other than the exception is
+        /// returned as expected.
         #[test]
-        fn test_read_with_exceptions(
-            (set_error, second_set_error) in (ingest_state_errors(), ingest_state_errors())
-                .prop_filter("set errors generated should be disjoint", |(a, b)| {
-                    discriminant(a) != discriminant(b)
-                }),
-            except_error in ingest_state_errors(),
-        ) {
+        fn test_read_with_exceptions(set_error in ingest_state_errors()) {
             let state = IngestState::default();
 
+            // Assert reading a state with no error will always succeed.
+            assert_matches!(state.read_with_exceptions([set_error]), Ok(()));
+            for v in disjoint_set(set_error) {
+                assert_matches!(state.read_with_exceptions([v]), Ok(()));
+            }
+
+            // Set the error, then ensure that it is correctly excepted, but
+            // still returned for other reads.
             assert!(state.set(set_error));
 
-            // Assert the exception filter returns results as expected.
-            if discriminant(&set_error) == discriminant(&except_error) {
-                assert_matches!(state.read_with_exceptions([except_error]), Ok(()));
-            } else {
-                assert_matches!(state.read_with_exceptions([except_error]), Err(got_err) => {
-                    prop_assert_eq!(discriminant(&set_error), discriminant(&got_err));
-                })
-            }
-
-            // Set the second error state and assert that an error is always
-            // thrown for the single `except_error` when two disjoint error
-            // states are set.
-            assert!(state.set(second_set_error));
-            assert_matches!(state.read_with_exceptions([except_error]), Err(_));
-            // Now take both error states as exceptions and ensure `Ok` is returned
-            assert_matches!(state.read_with_exceptions([set_error, second_set_error]), Ok(()));
-
-            // Then make sure that multiple filters not covering all errors
-            // will still return the correct error.
-            if discriminant(&second_set_error) != discriminant(&except_error) {
-                assert_matches!(state.read_with_exceptions([set_error, except_error]), Err(got_err) => {
-                    assert_eq!(discriminant(&second_set_error), discriminant(&got_err));
+            assert_matches!(state.read_with_exceptions([]), Err(_));
+            for v in disjoint_set(set_error) {
+                assert_matches!(state.read_with_exceptions([v]), Err(got_error) => {
+                    assert_eq!(discriminant(&set_error), discriminant(&got_error));
                 });
             }
+            assert_matches!(state.read_with_exceptions([set_error]), Ok(()));
         }
     }
 }
