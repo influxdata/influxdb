@@ -168,8 +168,9 @@ impl IngestState {
             .fold(0, std::ops::BitOr::bitor);
         let current = self.state.load(Ordering::Relaxed);
 
-        if current & !exception_mask != 0 {
-            return as_err(current & !exception_mask);
+        let masked = current & !exception_mask;
+        if masked != 0 {
+            return as_err(masked);
         }
 
         Ok(())
