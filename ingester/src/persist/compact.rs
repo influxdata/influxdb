@@ -8,7 +8,7 @@ use iox_query::{
 };
 use schema::sort::{adjust_sort_key_columns, compute_sort_key, SortKey};
 
-use crate::{buffer_tree::table::TableName, query_adaptor::QueryAdaptor};
+use crate::{buffer_tree::table::metadata::TableName, query_adaptor::QueryAdaptor};
 
 /// Result of calling [`compact_persisting_batch`]
 pub(super) struct CompactedStream {

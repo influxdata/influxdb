@@ -4,8 +4,9 @@ use backoff::{Backoff, BackoffConfig};
 use data_types::TableId;
 use iox_catalog::interface::Catalog;
 
-use super::TableMetadata;
 use crate::deferred_load::DeferredLoad;
+
+use super::metadata::TableMetadata;
 
 /// An abstract provider of a [`DeferredLoad`] configured to fetch the
 /// catalog [`TableMetadata`] of the specified [`TableId`].

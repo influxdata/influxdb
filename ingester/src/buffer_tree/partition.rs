@@ -15,7 +15,7 @@ use self::{
     persisting::{BatchIdent, PersistingData},
     persisting_list::PersistingList,
 };
-use super::{namespace::NamespaceName, table::TableMetadata};
+use super::{namespace::NamespaceName, table::metadata::TableMetadata};
 use crate::{
     deferred_load::DeferredLoad, query::projection::OwnedProjection, query_adaptor::QueryAdaptor,
 };

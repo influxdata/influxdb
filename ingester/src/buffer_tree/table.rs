@@ -1,5 +1,6 @@
 //! Table level data buffer structures.
 
+pub(crate) mod metadata;
 pub(crate) mod metadata_resolver;
 
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
@@ -7,7 +8,7 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use data_types::{
     partition_template::{build_column_values, ColumnValue, TablePartitionTemplateOverride},
-    NamespaceId, PartitionKey, SequenceNumber, Table, TableId,
+    NamespaceId, PartitionKey, SequenceNumber, TableId,
 };
 use datafusion::{prelude::Expr, scalar::ScalarValue};
 use iox_query::{
@@ -19,6 +20,8 @@ use mutable_batch::MutableBatch;
 use parking_lot::Mutex;
 use predicate::Predicate;
 use trace::span::{Span, SpanRecorder};
+
+use self::metadata::TableMetadata;
 
 use super::{
     namespace::NamespaceName,
@@ -34,90 +37,6 @@ use crate::{
     },
     query_adaptor::QueryAdaptor,
 };
-
-/// Metadata from the catalog for a table
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TableMetadata {
-    name: TableName,
-    partition_template: TablePartitionTemplateOverride,
-}
-
-impl TableMetadata {
-    #[cfg(test)]
-    pub fn new_for_testing(
-        name: TableName,
-        partition_template: TablePartitionTemplateOverride,
-    ) -> Self {
-        Self {
-            name,
-            partition_template,
-        }
-    }
-
-    pub(crate) fn name(&self) -> &TableName {
-        &self.name
-    }
-
-    pub(crate) fn partition_template(&self) -> &TablePartitionTemplateOverride {
-        &self.partition_template
-    }
-}
-
-impl From<Table> for TableMetadata {
-    fn from(t: Table) -> Self {
-        Self {
-            name: t.name.into(),
-            partition_template: t.partition_template,
-        }
-    }
-}
-
-impl std::fmt::Display for TableMetadata {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.name, f)
-    }
-}
-
-/// The string name / identifier of a Table.
-///
-/// A reference-counted, cheap clone-able string.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct TableName(Arc<str>);
-
-impl<T> From<T> for TableName
-where
-    T: AsRef<str>,
-{
-    fn from(v: T) -> Self {
-        Self(Arc::from(v.as_ref()))
-    }
-}
-
-impl From<TableName> for Arc<str> {
-    fn from(v: TableName) -> Self {
-        v.0
-    }
-}
-
-impl std::fmt::Display for TableName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.0, f)
-    }
-}
-
-impl std::ops::Deref for TableName {
-    type Target = Arc<str>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl PartialEq<str> for TableName {
-    fn eq(&self, other: &str) -> bool {
-        &*self.0 == other
-    }
-}
 
 /// Data of a Table in a given Namesapce
 #[derive(Debug)]
@@ -266,7 +185,7 @@ where
             "buffer tree index inconsistency"
         );
 
-        let table_partition_template = self.catalog_table.get().await.partition_template;
+        let table_partition_template = self.catalog_table.get().await.partition_template().clone();
         let filters = predicate
             .map(|p| p.filter_expr().into_iter().collect::<Vec<_>>())
             .unwrap_or_default();

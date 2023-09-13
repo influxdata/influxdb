@@ -99,7 +99,7 @@ pub(crate) struct BufferTree<O> {
     /// The [`TableMetadata`] provider used by [`NamespaceData`] to initialise a
     /// [`TableData`].
     ///
-    /// [`TableMetadata`]: crate::buffer_tree::table::TableMetadata
+    /// [`TableMetadata`]: crate::buffer_tree::table::metadata::TableMetadata
     /// [`TableData`]: crate::buffer_tree::table::TableData
     table_resolver: Arc<dyn TableProvider>,
 
@@ -257,7 +257,7 @@ mod tests {
             namespace::{name_resolver::mock::MockNamespaceNameProvider, NamespaceData},
             partition::resolver::mock::MockPartitionProvider,
             post_write::mock::MockPostWriteObserver,
-            table::{metadata_resolver::mock::MockTableProvider, TableMetadata},
+            table::{metadata::TableMetadata, metadata_resolver::mock::MockTableProvider},
         },
         deferred_load::{self, DeferredLoad},
         query::partition_response::PartitionResponse,
