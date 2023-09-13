@@ -15,7 +15,7 @@ use crate::{
     buffer_tree::{
         namespace::NamespaceName,
         partition::{PartitionData, SortKeyState},
-        table::TableMetadata,
+        table::metadata::TableMetadata,
     },
     deferred_load::DeferredLoad,
 };
@@ -113,7 +113,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::buffer_tree::table::TableName;
+    use crate::buffer_tree::table::metadata::TableName;
 
     const TABLE_NAME: &str = "bananas";
     const NAMESPACE_NAME: &str = "ns-bananas";

@@ -20,8 +20,8 @@ use crate::{
         },
         partition::{PartitionData, SortKeyState},
         table::{
+            metadata::{TableMetadata, TableName},
             metadata_resolver::{mock::MockTableProvider, TableProvider},
-            TableMetadata, TableName,
         },
     },
     deferred_load::DeferredLoad,
