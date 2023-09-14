@@ -255,9 +255,8 @@ mod tests {
 
         // Configure the mock partition provider to return a partition for this
         // table ID.
-        let partition_provider = Arc::new(
-            MockPartitionProvider::default().with_partition(PartitionDataBuilder::new().build()),
-        );
+        let partition_provider =
+            Arc::new(MockPartitionProvider::default().with_partition(PartitionDataBuilder::new()));
 
         let ns = NamespaceData::new(
             ARBITRARY_NAMESPACE_ID,

@@ -286,11 +286,10 @@ mod tests {
     async fn test_coalesce() {
         const MAX_TASKS: usize = 50;
 
-        let data = PartitionDataBuilder::new().build();
-
         // Add a single instance of the partition - if more than one call is
         // made, this will cause a panic.
-        let inner = Arc::new(MockPartitionProvider::default().with_partition(data));
+        let inner =
+            Arc::new(MockPartitionProvider::default().with_partition(PartitionDataBuilder::new()));
         let layer = Arc::new(CoalescePartitionResolver::new(Arc::clone(&inner)));
 
         let results = (0..MAX_TASKS)

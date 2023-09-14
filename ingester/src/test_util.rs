@@ -83,15 +83,29 @@ lazy_static! {
 }
 
 /// Build a [`PartitionData`] with mostly arbitrary-yet-valid values for tests.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub(crate) struct PartitionDataBuilder {
     partition_id: Option<TransitionPartitionId>,
-    partition_key: Option<PartitionKey>,
+    partition_key: PartitionKey,
     namespace_id: Option<NamespaceId>,
-    table_id: Option<TableId>,
+    table_id: TableId,
     table_loader: Option<Arc<DeferredLoad<TableMetadata>>>,
     namespace_loader: Option<Arc<DeferredLoad<NamespaceName>>>,
     sort_key: Option<SortKeyState>,
+}
+
+impl Default for PartitionDataBuilder {
+    fn default() -> Self {
+        Self {
+            table_id: ARBITRARY_TABLE_ID,
+            partition_key: ARBITRARY_PARTITION_KEY.clone(),
+            partition_id: Default::default(),
+            namespace_id: Default::default(),
+            table_loader: Default::default(),
+            namespace_loader: Default::default(),
+            sort_key: Default::default(),
+        }
+    }
 }
 
 impl PartitionDataBuilder {
@@ -105,8 +119,12 @@ impl PartitionDataBuilder {
     }
 
     pub(crate) fn with_partition_key(mut self, partition_key: PartitionKey) -> Self {
-        self.partition_key = Some(partition_key);
+        self.partition_key = partition_key;
         self
+    }
+
+    pub(crate) fn partition_key(&self) -> &PartitionKey {
+        &self.partition_key
     }
 
     pub(crate) fn with_namespace_id(mut self, namespace_id: NamespaceId) -> Self {
@@ -115,8 +133,12 @@ impl PartitionDataBuilder {
     }
 
     pub(crate) fn with_table_id(mut self, table_id: TableId) -> Self {
-        self.table_id = Some(table_id);
+        self.table_id = table_id;
         self
+    }
+
+    pub(crate) fn table_id(&self) -> TableId {
+        self.table_id
     }
 
     pub(crate) fn with_table_loader(
@@ -127,12 +149,20 @@ impl PartitionDataBuilder {
         self
     }
 
+    pub(crate) fn table_loader(&self) -> Option<Arc<DeferredLoad<TableMetadata>>> {
+        self.table_loader.clone()
+    }
+
     pub(crate) fn with_namespace_loader(
         mut self,
         namespace_loader: Arc<DeferredLoad<NamespaceName>>,
     ) -> Self {
         self.namespace_loader = Some(namespace_loader);
         self
+    }
+
+    pub(crate) fn namespace_loader(&self) -> Option<Arc<DeferredLoad<NamespaceName>>> {
+        self.namespace_loader.clone()
     }
 
     pub(crate) fn with_sort_key_state(mut self, sort_key_state: SortKeyState) -> Self {
@@ -143,21 +173,20 @@ impl PartitionDataBuilder {
     /// Generate a valid [`PartitionData`] for use in tests where the exact values (or at least
     /// some of them) don't particularly matter.
     pub(crate) fn build(self) -> PartitionData {
-        let table_id = self.table_id.unwrap_or(ARBITRARY_TABLE_ID);
-        let partition_key = self
-            .partition_key
-            .unwrap_or_else(|| ARBITRARY_PARTITION_KEY.clone());
         let partition_id = self.partition_id.unwrap_or_else(|| {
-            TransitionPartitionId::Deterministic(PartitionHashId::new(table_id, &partition_key))
+            TransitionPartitionId::Deterministic(PartitionHashId::new(
+                self.table_id,
+                &self.partition_key,
+            ))
         });
 
         PartitionData::new(
             partition_id,
-            partition_key,
+            self.partition_key,
             self.namespace_id.unwrap_or(ARBITRARY_NAMESPACE_ID),
             self.namespace_loader
                 .unwrap_or_else(defer_namespace_name_1_sec),
-            table_id,
+            self.table_id,
             self.table_loader.unwrap_or_else(defer_table_metadata_1_sec),
             self.sort_key.unwrap_or(SortKeyState::Provided(None, None)),
         )

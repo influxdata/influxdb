@@ -309,9 +309,8 @@ mod tests {
 
         // Configure the mock partition provider to return a partition for this
         // table ID.
-        let partition_provider = Arc::new(
-            MockPartitionProvider::default().with_partition(PartitionDataBuilder::new().build()),
-        );
+        let partition_provider =
+            Arc::new(MockPartitionProvider::default().with_partition(PartitionDataBuilder::new()));
 
         // Init the namespace
         let ns = NamespaceData::new(
@@ -464,9 +463,8 @@ mod tests {
     // A simple "read your writes" test.
     test_write_query!(
         read_writes,
-        partitions = [PartitionDataBuilder::new()
-            .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
-            .build()],
+        partitions =
+            [PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone())],
         writes = [make_write_op(
             &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
@@ -493,9 +491,8 @@ mod tests {
     test_write_query!(
         projection,
         projection = OwnedProjection::from(vec!["time", "region"]),
-        partitions = [PartitionDataBuilder::new()
-            .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
-            .build()],
+        partitions =
+            [PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone())],
         writes = [make_write_op(
             &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
@@ -522,9 +519,8 @@ mod tests {
     test_write_query!(
         projection_without_time,
         projection = OwnedProjection::from(vec!["region"]),
-        partitions = [PartitionDataBuilder::new()
-            .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
-            .build()],
+        partitions =
+            [PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone())],
         writes = [make_write_op(
             &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
@@ -552,12 +548,8 @@ mod tests {
     test_write_query!(
         multiple_partitions,
         partitions = [
-            PartitionDataBuilder::new()
-                .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
-                .build(),
-            PartitionDataBuilder::new()
-                .with_partition_key(PARTITION2_KEY.clone())
-                .build()
+            PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone()),
+            PartitionDataBuilder::new().with_partition_key(PARTITION2_KEY.clone())
         ],
         writes = [
             make_write_op(
@@ -601,14 +593,11 @@ mod tests {
     test_write_query!(
         filter_multiple_namespaces,
         partitions = [
-            PartitionDataBuilder::new()
-                .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
-                .build(),
+            PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone()),
             PartitionDataBuilder::new()
                 .with_partition_key(PARTITION2_KEY.clone())
                 .with_namespace_id(NAMESPACE2_ID) // A different namespace ID.
                 .with_table_id(TABLE2_ID) // A different table ID.
-                .build()
         ],
         writes = [
             make_write_op(
@@ -651,13 +640,10 @@ mod tests {
     test_write_query!(
         filter_multiple_tables,
         partitions = [
-            PartitionDataBuilder::new()
-                .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
-                .build(),
+            PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone()),
             PartitionDataBuilder::new()
                 .with_partition_key(PARTITION2_KEY.clone())
                 .with_table_id(TABLE2_ID) // A different table ID.
-                .build()
         ],
         writes = [
             make_write_op(
@@ -701,9 +687,8 @@ mod tests {
     // writes).
     test_write_query!(
         duplicate_writes,
-        partitions = [PartitionDataBuilder::new()
-            .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
-            .build()],
+        partitions =
+            [PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone())],
         writes = [
             make_write_op(
                 &ARBITRARY_PARTITION_KEY,
@@ -756,12 +741,8 @@ mod tests {
             test_table_partition_override(vec![TemplatePart::TagValue("region")])
         ))),
         partitions = [
-            PartitionDataBuilder::new()
-                .with_partition_key(ARBITRARY_PARTITION_KEY.clone()) // "platanos"
-                .build(),
-            PartitionDataBuilder::new()
-                .with_partition_key(PARTITION2_KEY.clone()) // "p2"
-                .build()
+            PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone()), // "platanos"
+            PartitionDataBuilder::new().with_partition_key(PARTITION2_KEY.clone())           // "p2"
         ],
         writes = [
             make_write_op(
@@ -843,14 +824,10 @@ mod tests {
         let partition_provider = Arc::new(
             MockPartitionProvider::default()
                 .with_partition(
-                    PartitionDataBuilder::new()
-                        .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
-                        .build(),
+                    PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone()),
                 )
                 .with_partition(
-                    PartitionDataBuilder::new()
-                        .with_partition_key(PARTITION2_KEY.clone())
-                        .build(),
+                    PartitionDataBuilder::new().with_partition_key(PARTITION2_KEY.clone()),
                 ),
         );
 
@@ -914,16 +891,8 @@ mod tests {
     async fn test_partition_metadata_pruning() {
         let partition_provider = Arc::new(
             MockPartitionProvider::default()
-                .with_partition(
-                    PartitionDataBuilder::new()
-                        .with_partition_key("madrid".into())
-                        .build(),
-                )
-                .with_partition(
-                    PartitionDataBuilder::new()
-                        .with_partition_key("asturias".into())
-                        .build(),
-                ),
+                .with_partition(PartitionDataBuilder::new().with_partition_key("madrid".into()))
+                .with_partition(PartitionDataBuilder::new().with_partition_key("asturias".into())),
         );
 
         // Construct a partition template suitable for pruning on the "region"
@@ -1011,14 +980,10 @@ mod tests {
         let partition_provider = Arc::new(
             MockPartitionProvider::default()
                 .with_partition(
-                    PartitionDataBuilder::new()
-                        .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
-                        .build(),
+                    PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone()),
                 )
                 .with_partition(
-                    PartitionDataBuilder::new()
-                        .with_partition_key(PARTITION2_KEY.clone())
-                        .build(),
+                    PartitionDataBuilder::new().with_partition_key(PARTITION2_KEY.clone()),
                 ),
         );
 
@@ -1092,14 +1057,10 @@ mod tests {
         let partition_provider = Arc::new(
             MockPartitionProvider::default()
                 .with_partition(
-                    PartitionDataBuilder::new()
-                        .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
-                        .build(),
+                    PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone()),
                 )
                 .with_partition(
-                    PartitionDataBuilder::new()
-                        .with_partition_key(PARTITION2_KEY.clone())
-                        .build(),
+                    PartitionDataBuilder::new().with_partition_key(PARTITION2_KEY.clone()),
                 )
                 .with_partition(
                     PartitionDataBuilder::new()
@@ -1114,8 +1075,7 @@ mod tests {
                                 )
                             },
                             &metric::Registry::default(),
-                        )))
-                        .build(),
+                        ))),
                 ),
         );
 
@@ -1202,13 +1162,9 @@ mod tests {
     /// returns no data (as opposed to panicking, etc).
     #[tokio::test]
     async fn test_not_found() {
-        let partition_provider = Arc::new(
-            MockPartitionProvider::default().with_partition(
-                PartitionDataBuilder::new()
-                    .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
-                    .build(),
-            ),
-        );
+        let partition_provider = Arc::new(MockPartitionProvider::default().with_partition(
+            PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone()),
+        ));
 
         // Init the BufferTree
         let buf = BufferTree::new(
@@ -1301,14 +1257,10 @@ mod tests {
         let partition_provider = Arc::new(
             MockPartitionProvider::default()
                 .with_partition(
-                    PartitionDataBuilder::new()
-                        .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
-                        .build(),
+                    PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone()),
                 )
                 .with_partition(
-                    PartitionDataBuilder::new()
-                        .with_partition_key(PARTITION2_KEY.clone())
-                        .build(),
+                    PartitionDataBuilder::new().with_partition_key(PARTITION2_KEY.clone()),
                 ),
         );
 
@@ -1424,8 +1376,7 @@ mod tests {
             MockPartitionProvider::default().with_partition(
                 PartitionDataBuilder::new()
                     .with_deprecated_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
-                    .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
-                    .build(),
+                    .with_partition_key(ARBITRARY_PARTITION_KEY.clone()),
             ),
         );
 
