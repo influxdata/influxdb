@@ -194,9 +194,10 @@ impl SegmentedWalOpBatchReader for wal::ClosedSegmentFileReader {
 ///
 /// # Warnings
 ///
-/// This function relies on the [`wal::Error::UnableToReadNextOps`] error
-/// meaning that there are no more valid completed writes which can be read
-/// from the provided `batches` and that it is safe to ignore them.
+/// This function relies on the [`wal::blocking::ReaderError::UnableToReadData`]
+/// error sourced from an unexpected eof error to mean that there are no more
+/// valid completed writes which can be read from the provided `batches` and
+/// that it is safe to ignore them.
 async fn replay_file<T, F>(
     file: F,
     sink: &T,
@@ -214,14 +215,15 @@ where
     for batch in file {
         if let Err(
             err @ wal::Error::UnableToReadNextOps {
-                source: wal::blocking::ReaderError::IncompleteEntry { .. },
+                source: wal::blocking::ReaderError::UnableToReadData { source: io_err },
             },
-        ) = batch
+        ) = &batch
         {
-            warn!(%err, ?segment_id, "detected truncated WAL write, ending replay for file early");
-            break;
+            if io_err.kind() == std::io::ErrorKind::UnexpectedEof {
+                warn!(%err, ?segment_id, "detected truncated WAL write, ending replay for file early");
+                break;
+            }
         }
-
         let ops = batch.map_err(WalReplayError::ReadEntry)?;
 
         for op in ops {
@@ -703,7 +705,7 @@ mod tests {
                     .into_iter()
                     .collect()),
                 Err(wal::Error::UnableToReadNextOps {
-                    source: wal::blocking::ReaderError::IncompleteEntry {
+                    source: wal::blocking::ReaderError::UnableToReadData {
                         source: std::io::Error::new(
                             std::io::ErrorKind::UnexpectedEof,
                             "gremlins in the drive",
