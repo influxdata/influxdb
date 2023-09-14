@@ -184,6 +184,12 @@ impl PartitionData {
         self.persisting.rows() + self.buffer.rows()
     }
 
+    /// Returns true if this partition contains no data (buffered or
+    /// persisting).
+    pub(crate) fn is_empty(&self) -> bool {
+        self.persisting.is_empty() && self.buffer.rows() == 0
+    }
+
     /// Return the timestamp min/max values for the data contained within this
     /// [`PartitionData`].
     ///
@@ -216,7 +222,7 @@ impl PartitionData {
     /// batches currently buffered and as such columns are removed as the
     /// individual batches containing those columns are persisted and dropped.
     pub(crate) fn schema(&self) -> Option<Schema> {
-        if self.persisting.is_empty() && self.buffer.rows() == 0 {
+        if self.is_empty() {
             return None;
         }
 
@@ -607,6 +613,21 @@ mod tests {
             ];
             assert_batches_eq!(expected, data.record_batches());
         }
+
+        assert!(!p.is_empty());
+
+        // Persist the last buffered data, leaving the partition empty.
+        let data = p.mark_persisting().expect("must contain existing data");
+        assert_eq!(p.started_persistence_count.get(), 2);
+        assert_eq!(p.completed_persistence_count, 1);
+
+        let _ = p.mark_persisted(data);
+        assert_eq!(p.started_persistence_count.get(), 2);
+        assert_eq!(p.completed_persistence_count, 2);
+
+        // Querying the buffer should now return no data
+        assert!(p.get_query_data(&OwnedProjection::default()).is_none());
+        assert!(p.is_empty());
     }
 
     // Ensure the ordering of snapshots & persisting data is preserved such that
@@ -852,6 +873,8 @@ mod tests {
     async fn test_out_of_order_persist() {
         let mut p = PartitionDataBuilder::new().build();
 
+        assert!(p.is_empty());
+
         // Perform the initial write.
         //
         // In the next series of writes this test will overwrite the value of x
@@ -860,9 +883,15 @@ mod tests {
         p.buffer_write(mb, SequenceNumber::new(1))
             .expect("write should succeed");
 
+        // Now contains data.
+        assert!(!p.is_empty());
+
         // Begin persisting the data, moving the buffer to the persisting state.
 
         let persisting_data1 = p.mark_persisting().unwrap();
+
+        // Remains non-empty until persisted.
+        assert!(!p.is_empty());
 
         // Buffer another write, and generate a snapshot by querying it.
         let mb = lp_to_mutable_batch(r#"bananas x=2 42"#).1;
@@ -1121,6 +1150,7 @@ mod tests {
         let mut p = PartitionDataBuilder::new().build();
 
         assert!(p.mark_persisting().is_none());
+        assert!(p.is_empty());
     }
 
     #[tokio::test]
@@ -1142,5 +1172,6 @@ mod tests {
         let mut p = PartitionDataBuilder::new().build();
 
         assert!(p.get_query_data(&OwnedProjection::default()).is_none());
+        assert!(p.is_empty());
     }
 }
