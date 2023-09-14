@@ -293,14 +293,14 @@ mod tests {
         ]
     }
 
-    fn disjoint_set(not: IngestStateError) -> Vec<IngestStateError> {
+    fn disjoint_set(not: &[IngestStateError]) -> Vec<IngestStateError> {
         [
             IngestStateError::PersistSaturated,
             IngestStateError::GracefulStop,
             IngestStateError::DiskFull,
         ]
         .into_iter()
-        .filter(|v| discriminant(v) != discriminant(&not))
+        .filter(|v| !not.iter().any(|w| discriminant(v) == discriminant(w)))
         .collect()
     }
 
@@ -384,10 +384,11 @@ mod tests {
         }
 
         /// For every [`IngestStateError`], check that reading an [`IngestState`]
-        /// while specifying it as an exception returns `Ok()` when both:
+        /// while specifying it as an exception returns `Ok()` when:
         ///
         ///  * No error is set
         ///  * The error marked as an exception is set
+        ///  * Multiple errors are set, but are a subset of the exceptions
         ///
         /// It also ensures that an error variant other than the exception is
         /// returned as expected.
@@ -397,7 +398,7 @@ mod tests {
 
             // Assert reading a state with no error will always succeed.
             assert_matches!(state.read_with_exceptions([set_error]), Ok(()));
-            for v in disjoint_set(set_error) {
+            for v in disjoint_set(&[set_error]) {
                 assert_matches!(state.read_with_exceptions([v]), Ok(()));
             }
 
@@ -406,10 +407,25 @@ mod tests {
             assert!(state.set(set_error));
 
             assert_matches!(state.read_with_exceptions([]), Err(_));
-            for v in disjoint_set(set_error) {
+            for v in disjoint_set(&[set_error]) {
                 assert_matches!(state.read_with_exceptions([v]), Err(got_error) => {
-                    assert_eq!(discriminant(&set_error), discriminant(&got_error));
+                    assert_eq!(discriminant(&got_error), discriminant(&set_error));
                 });
+
+                // Temporarily set the additional error, include it in the
+                // exceptions and ensure the other error is still returned
+                assert!(state.set(v));
+                assert_matches!(state.read_with_exceptions([v, set_error]), Ok(()));
+
+                assert_matches!(state.read_with_exceptions([
+                    set_error,
+                    disjoint_set(&[v, set_error])
+                    .pop()
+                    .expect("this check cannot be made for less than 3 possible error states")
+                ]), Err(got_error) => {
+                    assert_eq!(discriminant(&got_error), discriminant(&v));
+                });
+                assert!(state.unset(v));
             }
             assert_matches!(state.read_with_exceptions([set_error]), Ok(()));
         }
