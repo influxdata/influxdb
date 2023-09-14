@@ -25,6 +25,8 @@ base64 = { version = "0.21" }
 byteorder = { version = "1" }
 bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
+clap = { version = "4", features = ["derive", "env", "string"] }
+clap_builder = { version = "4", default-features = false, features = ["color", "env", "help", "std", "string", "suggestions", "usage"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
 datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "3ea870cf0995a86b5297a92be5d5432577aefabe" }
