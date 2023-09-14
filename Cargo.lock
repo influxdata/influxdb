@@ -6965,6 +6965,8 @@ dependencies = [
  "bytes",
  "cc",
  "chrono",
+ "clap",
+ "clap_builder",
  "crossbeam-utils",
  "crypto-common",
  "datafusion",
