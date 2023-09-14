@@ -11,27 +11,26 @@ use crate::{
     buffer_tree::{
         namespace::NamespaceName, partition::PartitionData, table::metadata::TableMetadata,
     },
-    deferred_load::{self, DeferredLoad},
+    deferred_load::DeferredLoad,
+    test_util::PartitionDataBuilder,
 };
 
 /// A mock [`PartitionProvider`] for testing that returns pre-initialised
 /// [`PartitionData`] for configured `(key, table)` tuples.
 #[derive(Debug, Default)]
 pub(crate) struct MockPartitionProvider {
-    partitions: Mutex<HashMap<(PartitionKey, TableId), PartitionData>>,
+    partitions: Mutex<HashMap<(PartitionKey, TableId), PartitionDataBuilder>>,
 }
 
 impl MockPartitionProvider {
-    /// A builder helper for [`Self::insert()`].
+    /// Add a [`PartitionDataBuilder`] that will be used to construct a
+    /// [`PartitionData`] for mock calls.
+    ///
+    /// The provided builder will be used to construct a [`PartitionData`] when
+    /// asked for a partition with the same table ID & partition key as
+    /// configured in the builder.
     #[must_use]
-    pub(crate) fn with_partition(mut self, data: PartitionData) -> Self {
-        self.insert(data);
-        self
-    }
-
-    /// Add `data` to the mock state, returning it when asked for the specified
-    /// `(key, table)` tuple.
-    pub(crate) fn insert(&mut self, data: PartitionData) {
+    pub(crate) fn with_partition(self, data: PartitionDataBuilder) -> Self {
         assert!(
             self.partitions
                 .lock()
@@ -39,6 +38,8 @@ impl MockPartitionProvider {
                 .is_none(),
             "overwriting an existing mock PartitionData"
         );
+
+        self
     }
 
     /// Returns true if all mock values have been consumed.
@@ -65,28 +66,17 @@ impl PartitionProvider for MockPartitionProvider {
                 panic!("no partition data for mock ({partition_key:?}, {table_id:?})")
             });
 
-        assert_eq!(p.namespace_id(), namespace_id);
+        let mut p = p.with_namespace_id(namespace_id);
 
-        let actual_namespace_name = p.namespace_name().to_string();
-        let expected_namespace_name = namespace_name.get().await.to_string();
-        assert!(
-            (actual_namespace_name.as_str() == expected_namespace_name)
-                || (actual_namespace_name == deferred_load::UNRESOLVED_DISPLAY_STRING),
-            "unexpected namespace name: {actual_namespace_name}. \
-            expected {expected_namespace_name} or {}",
-            deferred_load::UNRESOLVED_DISPLAY_STRING,
-        );
+        // If the test provided a namespace/table loader, use it, otherwise default to the
+        // one provided in this call.
+        if p.namespace_loader().is_none() {
+            p = p.with_namespace_loader(namespace_name);
+        }
+        if p.table_loader().is_none() {
+            p = p.with_table_loader(table);
+        }
 
-        let actual_table_name = p.table().to_string();
-        let expected_table_name = table.get().await.name().to_string();
-        assert!(
-            (actual_table_name.as_str() == expected_table_name)
-                || (actual_table_name == deferred_load::UNRESOLVED_DISPLAY_STRING),
-            "unexpected table name: {actual_table_name}. \
-            expected {expected_table_name} or {}",
-            deferred_load::UNRESOLVED_DISPLAY_STRING,
-        );
-
-        Arc::new(Mutex::new(p))
+        Arc::new(Mutex::new(p.build()))
     }
 }

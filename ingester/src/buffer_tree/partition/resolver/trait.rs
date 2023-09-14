@@ -70,8 +70,7 @@ mod tests {
 
         let data = PartitionDataBuilder::new()
             .with_table_loader(Arc::clone(&table_loader))
-            .with_namespace_loader(Arc::clone(&namespace_loader))
-            .build();
+            .with_namespace_loader(Arc::clone(&namespace_loader));
 
         let mock = Arc::new(MockPartitionProvider::default().with_partition(data));
 

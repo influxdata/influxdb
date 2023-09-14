@@ -519,11 +519,8 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
             Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             Arc::new(
-                MockPartitionProvider::default().with_partition(
-                    PartitionDataBuilder::new()
-                        .with_sort_key_state(sort_key)
-                        .build(),
-                ),
+                MockPartitionProvider::default()
+                    .with_partition(PartitionDataBuilder::new().with_sort_key_state(sort_key)),
             ),
             NonZeroUsize::new(usize::MAX).unwrap(),
             Arc::new(MockPostWriteObserver::default()),

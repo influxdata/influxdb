@@ -249,8 +249,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_miss() {
-        let data = PartitionDataBuilder::new().build();
-        let inner = MockPartitionProvider::default().with_partition(data);
+        let inner = MockPartitionProvider::default().with_partition(PartitionDataBuilder::new());
 
         let cache = new_cache(inner, []);
         let got = cache
@@ -340,11 +339,8 @@ mod tests {
     async fn test_miss_partition_key() {
         let other_key = PartitionKey::from("test");
         let other_partition_id = TransitionPartitionId::new(ARBITRARY_TABLE_ID, &other_key);
-        let inner = MockPartitionProvider::default().with_partition(
-            PartitionDataBuilder::new()
-                .with_partition_key(other_key.clone())
-                .build(),
-        );
+        let inner = MockPartitionProvider::default()
+            .with_partition(PartitionDataBuilder::new().with_partition_key(other_key.clone()));
 
         let partition = Partition::new_in_memory_only(
             ARBITRARY_CATALOG_PARTITION_ID,
@@ -378,11 +374,8 @@ mod tests {
     async fn test_miss_table_id() {
         let other_table = TableId::new(1234);
         let other_partition_id = TransitionPartitionId::new(other_table, &ARBITRARY_PARTITION_KEY);
-        let inner = MockPartitionProvider::default().with_partition(
-            PartitionDataBuilder::new()
-                .with_table_id(other_table)
-                .build(),
-        );
+        let inner = MockPartitionProvider::default()
+            .with_partition(PartitionDataBuilder::new().with_table_id(other_table));
 
         let partition = Partition::new_in_memory_only(
             ARBITRARY_CATALOG_PARTITION_ID,

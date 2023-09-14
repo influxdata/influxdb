@@ -406,9 +406,8 @@ mod tests {
     #[tokio::test]
     async fn test_partition_init() {
         // Configure the mock partition provider to return a partition for a table ID.
-        let partition_provider = Arc::new(
-            MockPartitionProvider::default().with_partition(PartitionDataBuilder::new().build()),
-        );
+        let partition_provider =
+            Arc::new(MockPartitionProvider::default().with_partition(PartitionDataBuilder::new()));
 
         let partition_counter = Arc::new(PartitionCounter::new(NonZeroUsize::new(42).unwrap()));
 
@@ -454,9 +453,8 @@ mod tests {
     #[tokio::test]
     async fn test_partition_limit() {
         // Configure the mock partition provider to return a partition for a table ID.
-        let partition_provider = Arc::new(
-            MockPartitionProvider::default().with_partition(PartitionDataBuilder::new().build()),
-        );
+        let partition_provider =
+            Arc::new(MockPartitionProvider::default().with_partition(PartitionDataBuilder::new()));
 
         const N: usize = 42;
 
