@@ -132,11 +132,12 @@ impl IngestState {
     ///
     /// # Precedence
     ///
-    /// If more than one error state it set, a single error is returned based on
+    /// If more than one error state is set, a single error is returned based on
     /// the following precedence (ordered by highest priority to lowest):
     ///
     ///   1. [`IngestStateError::GracefulStop`]
-    ///   2. [`IngestStateError::PersistSaturated`].
+    ///   2. [`IngestStateError::DiskFull`]
+    ///   3. [`IngestStateError::PersistSaturated`].
     ///
     pub(crate) fn read(&self) -> Result<(), IngestStateError> {
         let current = self.state.load(Ordering::Relaxed);
@@ -149,13 +150,38 @@ impl IngestState {
 
         Ok(())
     }
+
+    /// Return the current [`IngestStateError`], if any, filtering out any
+    /// contained within the given list of `exceptions`.
+    ///
+    /// # Precedence
+    ///
+    /// If more than one error state is set, this follows the same precedence
+    /// rules as [`IngestState::read()`].
+    pub(crate) fn read_with_exceptions<const N: usize>(
+        &self,
+        exceptions: [IngestStateError; N],
+    ) -> Result<(), IngestStateError> {
+        let exception_mask = exceptions
+            .into_iter()
+            .map(IngestStateError::as_bits)
+            .fold(0, std::ops::BitOr::bitor);
+        let current = self.state.load(Ordering::Relaxed);
+
+        let masked = current & !exception_mask;
+        if masked != 0 {
+            return as_err(masked);
+        }
+
+        Ok(())
+    }
 }
 
 /// Map `state` to exactly one [`IngestStateError`].
 ///
 /// Shutdown always takes precedence, ensuring that once set, this is the error
 /// the user always sees (instead of potentially flip-flopping between "shutting
-/// down" and "persist saturated").
+/// down", "persist saturated" & "disk full").
 #[cold]
 fn as_err(state: usize) -> Result<(), IngestStateError> {
     if state & IngestStateError::GracefulStop.as_bits() != 0 {
@@ -177,6 +203,7 @@ fn as_err(state: usize) -> Result<(), IngestStateError> {
 mod tests {
     use assert_matches::assert_matches;
     use proptest::prelude::*;
+    use std::mem::discriminant;
 
     use super::*;
 
@@ -192,32 +219,68 @@ mod tests {
 
         state.set(IngestStateError::PersistSaturated);
         assert_matches!(state.read(), Err(IngestStateError::PersistSaturated));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::PersistSaturated)
+        );
 
         state.set(IngestStateError::DiskFull);
         assert_matches!(state.read(), Err(IngestStateError::DiskFull));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::DiskFull)
+        );
 
         state.set(IngestStateError::GracefulStop);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::GracefulStop)
+        );
 
         // The persist state does not affect the shutdown error.
         state.unset(IngestStateError::PersistSaturated);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::GracefulStop)
+        );
         state.set(IngestStateError::PersistSaturated);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::GracefulStop)
+        );
 
         // And neither does the disk full state.
         state.unset(IngestStateError::DiskFull);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::GracefulStop)
+        );
         state.set(IngestStateError::DiskFull);
         assert_matches!(state.read(), Err(IngestStateError::GracefulStop));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::GracefulStop)
+        );
 
         // Un-setting the shutdown state shows the disk full state.
         state.unset(IngestStateError::GracefulStop);
         assert_matches!(state.read(), Err(IngestStateError::DiskFull));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::DiskFull)
+        );
 
         // Un-setting the disk full state then shows the persist saturated state.
         state.unset(IngestStateError::DiskFull);
         assert_matches!(state.read(), Err(IngestStateError::PersistSaturated));
+        assert_matches!(
+            state.read_with_exceptions([]),
+            Err(IngestStateError::PersistSaturated)
+        );
     }
 
     /// A hand-rolled strategy to enumerate [`IngestStateError`] variants.
@@ -228,6 +291,17 @@ mod tests {
             Just(IngestStateError::GracefulStop),
             Just(IngestStateError::DiskFull)
         ]
+    }
+
+    fn disjoint_set(not: &[IngestStateError]) -> Vec<IngestStateError> {
+        [
+            IngestStateError::PersistSaturated,
+            IngestStateError::GracefulStop,
+            IngestStateError::DiskFull,
+        ]
+        .into_iter()
+        .filter(|v| !not.iter().any(|w| discriminant(v) == discriminant(w)))
+        .collect()
     }
 
     proptest! {
@@ -253,7 +327,7 @@ mod tests {
             prop_assert!(error_b.as_bits() < usize::BITS as usize);
             prop_assert_eq!(error_b.as_bits().count_ones(), 1);
 
-            if std::mem::discriminant(&error_a) != std::mem::discriminant(&error_b) {
+            if discriminant(&error_a) != discriminant(&error_b) {
                 prop_assert_ne!(error_a.as_bits(), error_b.as_bits());
             }
         }
@@ -269,7 +343,7 @@ mod tests {
 
             prop_assert!(state.set(error));
             assert_matches!(state.read(), Err(inner) => {
-                prop_assert_eq!(std::mem::discriminant(&inner), std::mem::discriminant(&error));
+                prop_assert_eq!(discriminant(&inner), discriminant(&error));
             });
 
             prop_assert!(state.unset(error));
@@ -298,7 +372,7 @@ mod tests {
             prop_assert!(state.set(error_a));
 
             // Remaining checks only apply if error_b is a different error state.
-            if std::mem::discriminant(&error_a) != std::mem::discriminant(&error_b) {
+            if discriminant(&error_a) != discriminant(&error_b) {
                 // First call for a different state is told it is the first to
                 // set that state.
                 prop_assert!(state.set(error_b));
@@ -307,6 +381,53 @@ mod tests {
                 prop_assert!(state.unset(error_b));
                 prop_assert!(!state.set(error_a));
             }
+        }
+
+        /// For every [`IngestStateError`], check that reading an [`IngestState`]
+        /// while specifying it as an exception returns `Ok()` when:
+        ///
+        ///  * No error is set
+        ///  * The error marked as an exception is set
+        ///  * Multiple errors are set, but are a subset of the exceptions
+        ///
+        /// It also ensures that an error variant other than the exception is
+        /// returned as expected.
+        #[test]
+        fn test_read_with_exceptions(set_error in ingest_state_errors()) {
+            let state = IngestState::default();
+
+            // Assert reading a state with no error will always succeed.
+            assert_matches!(state.read_with_exceptions([set_error]), Ok(()));
+            for v in disjoint_set(&[set_error]) {
+                assert_matches!(state.read_with_exceptions([v]), Ok(()));
+            }
+
+            // Set the error, then ensure that it is correctly excepted, but
+            // still returned for other reads.
+            assert!(state.set(set_error));
+
+            assert_matches!(state.read_with_exceptions([]), Err(_));
+            for v in disjoint_set(&[set_error]) {
+                assert_matches!(state.read_with_exceptions([v]), Err(got_error) => {
+                    assert_eq!(discriminant(&got_error), discriminant(&set_error));
+                });
+
+                // Temporarily set the additional error, include it in the
+                // exceptions and ensure the other error is still returned
+                assert!(state.set(v));
+                assert_matches!(state.read_with_exceptions([v, set_error]), Ok(()));
+
+                assert_matches!(state.read_with_exceptions([
+                    set_error,
+                    disjoint_set(&[v, set_error])
+                    .pop()
+                    .expect("this check cannot be made for less than 3 possible error states")
+                ]), Err(got_error) => {
+                    assert_eq!(discriminant(&got_error), discriminant(&v));
+                });
+                assert!(state.unset(v));
+            }
+            assert_matches!(state.read_with_exceptions([set_error]), Ok(()));
         }
     }
 }
