@@ -399,6 +399,7 @@ impl MiniCluster {
                 let id = SchemaServiceClient::new(c)
                     .get_schema(GetSchemaRequest {
                         namespace: self.namespace().to_string(),
+                        table: None,
                     })
                     .await
                     .expect("failed to query for namespace ID")
@@ -424,6 +425,7 @@ impl MiniCluster {
         let id = SchemaServiceClient::new(c)
             .get_schema(GetSchemaRequest {
                 namespace: self.namespace().to_string(),
+                table: Some(name.to_string()),
             })
             .await
             .expect("failed to query for namespace ID")
@@ -456,6 +458,7 @@ impl MiniCluster {
         let table_id = SchemaServiceClient::new(c.clone())
             .get_schema(GetSchemaRequest {
                 namespace: namespace_name.clone(),
+                table: Some(table_name.to_string()),
             })
             .await
             .expect("failed to query for namespace ID")

@@ -19,7 +19,7 @@ tokio = { version = "1.32", features = ["macros", "parking_lot", "sync", "time"]
 tokio-util = { version = "0.7.8" }
 trace = { path = "../trace"}
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
-sysinfo = "0.29.9"
+sysinfo = "0.29.10"
 
 [dev-dependencies]
 tempfile = "3.8.0"

@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use data_types::{CompactionLevel, ParquetFile, Timestamp, TransitionPartitionId};
+use observability_deps::tracing::warn;
 
 use crate::{
     components::split_or_compact::start_level_files_to_split::{
@@ -121,15 +122,17 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                             || current_branch_size + f.file_size_bytes as usize
                                 > max_total_file_size_to_group
                         {
-                            // panic if current_branch is empty
                             if current_branch.is_empty() {
-                                panic!("Size of a file {} is larger than the max size limit to compact. Please adjust the settings. See ticket https://github.com/influxdata/idpe/issues/17209" , f.file_size_bytes);
+                                warn!(
+                                    "Size of a file {} is larger than the max size limit to compact on partition {}.",
+                                    f.file_size_bytes,
+                                    partition
+                                );
                             }
-
                             if current_branch.len() == 1 {
                                 // Compacting a branch of 1 won't help us reduce the L0 file count.  Put it on the ignore list.
                                 more_for_later.push(current_branch.pop().unwrap());
-                            } else {
+                            } else if !current_branch.is_empty() {
                                 branches.push(current_branch);
                             }
                             current_branch = Vec::with_capacity(capacity);
@@ -357,40 +360,6 @@ mod tests {
         assert_eq!(branches.len(), 1);
         assert_eq!(more_for_later.len(), 1);
         assert_eq!(branches[0], vec![f1, f2]);
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Size of a file 50 is larger than the max size limit to compact. Please adjust the settings"
-    )]
-    fn test_divide_size_limit_too_small() {
-        let round_info = RoundInfo::ManySmallFiles {
-            start_level: CompactionLevel::Initial,
-            max_num_files_to_group: 10,
-            max_total_file_size_to_group: 40,
-        };
-        let divide = MultipleBranchesDivideInitial::new();
-
-        let f1 = ParquetFileBuilder::new(1)
-            .with_compaction_level(CompactionLevel::Initial)
-            .with_max_l0_created_at(1)
-            .with_file_size_bytes(50)
-            .build();
-        let f2 = ParquetFileBuilder::new(2)
-            .with_compaction_level(CompactionLevel::Initial)
-            .with_max_l0_created_at(5)
-            .with_file_size_bytes(5)
-            .build();
-
-        // files in random order of max_l0_created_at
-        let files = vec![f2, f1];
-
-        // panic
-        let (_branches, _more_for_later) = divide.divide(
-            files,
-            round_info,
-            TransitionPartitionId::Deprecated(PartitionId::new(0)),
-        );
     }
 
     #[test]

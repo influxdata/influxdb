@@ -38,6 +38,8 @@ pub fn log_config(config: &Config) {
         max_num_columns_per_table,
         max_num_files_per_plan,
         max_partition_fetch_queries_per_second,
+        gossip_bind_address,
+        gossip_seeds,
     } = &config;
 
     let parquet_files_sink_override = parquet_files_sink_override
@@ -70,6 +72,8 @@ pub fn log_config(config: &Config) {
         max_num_columns_per_table,
         max_num_files_per_plan,
         max_partition_fetch_queries_per_second,
+        ?gossip_bind_address,
+        ?gossip_seeds,
         "config",
     );
 }

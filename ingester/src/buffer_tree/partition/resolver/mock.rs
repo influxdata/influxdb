@@ -8,7 +8,9 @@ use parking_lot::Mutex;
 
 use super::r#trait::PartitionProvider;
 use crate::{
-    buffer_tree::{namespace::NamespaceName, partition::PartitionData, table::TableMetadata},
+    buffer_tree::{
+        namespace::NamespaceName, partition::PartitionData, table::metadata::TableMetadata,
+    },
     deferred_load::{self, DeferredLoad},
 };
 

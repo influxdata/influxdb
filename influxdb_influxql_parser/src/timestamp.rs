@@ -30,31 +30,36 @@ fn parse_timestamp_utc(s: &str) -> Option<Timestamp> {
 fn parse_timestamp_tz(s: &str, tz: chrono_tz::Tz) -> Option<Timestamp> {
     // 1a. Try a date time format string with nanosecond precision
     //    https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L3661
-    tz.datetime_from_str(s, "%Y-%m-%d %H:%M:%S%.f")
+    NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f")
+        .ok()
+        .and_then(|ts| tz.from_local_datetime(&ts).earliest())
         // 1a. Try a date time format string without nanosecond precision
-        .or_else(|_| tz.datetime_from_str(s, "%Y-%m-%d %H:%M:%S"))
+        .or_else(|| {
+            NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
+                .ok()
+                .and_then(|ts| tz.from_local_datetime(&ts).earliest())
+        })
         // 2. Try RFC3339 with nano precision
         //    https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L3664
-        .or_else(|_| {
-            DateTime::parse_from_str(s, "%+").map(|ts| tz.from_utc_datetime(&ts.naive_utc()))
+        .or_else(|| {
+            DateTime::parse_from_str(s, "%+")
+                .map(|ts| tz.from_utc_datetime(&ts.naive_utc()))
+                .ok()
         })
         // 3. Try a date string
         //    https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L3671
-        .or_else(|_| {
+        .or_else(|| {
             // Parse as a naive date, add a midnight time and then interpret the result in
             // timezone "tz"
             NaiveDate::parse_from_str(s, "%Y-%m-%d")
                 .map(|nd| nd.and_time(NaiveTime::default()).and_local_timezone(tz))
-                .map_err(|_| ())?
+                .ok()?
                 // When converted to the target timezone, tz, it is possible the
                 // date is ambiguous due to time shifts. In this case, rather than
                 // fail, choose the earliest valid date.
                 .earliest()
-                // if there is no valid date, return an error
-                .ok_or(())
         })
         .map(|ts| ts.with_timezone(&ts.offset().fix()))
-        .ok()
 }
 
 /// Parse the string and return a `DateTime` using a fixed offset.

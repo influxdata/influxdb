@@ -307,7 +307,7 @@ fn replace_date_bin_gapfill(group_expr: &[Expr]) -> Result<Option<RewriteInfo>> 
                 DATE_BIN_GAPFILL_UDF_NAME,
             ) {
                 return Err(DataFusionError::Plan(
-                    "DATE_BIN_GAPFILL must a top-level expression in the GROUP BY clause when gap filling. It cannot be part of another expression or cast".to_string(),
+                    "DATE_BIN_GAPFILL must be a top-level expression in the GROUP BY clause when gap filling. It cannot be part of another expression or cast".to_string(),
                 ));
             }
         }

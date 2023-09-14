@@ -8,12 +8,24 @@ license.workspace = true
 [dependencies] # In alphabetical order
 arrow = { workspace = true, features = ["prettyprint", "dyn_cmp_dict"] }
 async-trait = "0.1"
+backoff = { path = "../backoff" }
+client_util = { path = "../client_util" }
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 futures = "0.3"
+http = "0.2.9"
+ingester_query_grpc = { path = "../ingester_query_grpc" }
+iox_time = { path = "../iox_time" }
+metric = { path = "../metric" }
+observability_deps = { path = "../observability_deps" }
+snafu = "0.7"
+tokio = { version = "1.32" }
+tonic = { workspace = true }
 trace = { path = "../trace" }
+trace_http = { path = "../trace_http" }
 uuid = "1"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
+test_helpers = { path = "../test_helpers" }
 tokio = { version = "1.32", features = ["macros", "rt-multi-thread"] }

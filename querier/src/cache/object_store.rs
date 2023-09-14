@@ -16,8 +16,8 @@ use cache_system::{
 use futures::{stream::BoxStream, StreamExt};
 use iox_time::TimeProvider;
 use object_store::{
-    path::Path, Error as ObjectStoreError, GetOptions, GetResult, ListResult, MultipartId,
-    ObjectMeta, ObjectStore,
+    path::Path, Error as ObjectStoreError, GetOptions, GetResult, GetResultPayload, ListResult,
+    MultipartId, ObjectMeta, ObjectStore,
 };
 use observability_deps::tracing::warn;
 use tokio::{io::AsyncWrite, runtime::Handle, sync::oneshot::channel, task::JoinSet};
@@ -27,29 +27,61 @@ use super::ram::RamSize;
 
 const CACHE_ID: &str = "object_store";
 
+#[derive(Debug, Clone)]
+struct CachedRead {
+    bytes: Bytes,
+    meta: ObjectMeta,
+}
+
+impl CachedRead {
+    /// How many bytes of RAM are used for nested structures (not
+    /// including the size of `*self`)
+    fn size(&self) -> usize {
+        self.bytes.len() +
+        // TODO: add better estimation for metadata size / add to the object_store API
+        // See https://github.com/apache/arrow-rs/issues/4798
+        //  length of path (in chars should be bytes...)
+            self.meta.location.as_ref().len() +
+            // length of etag
+            self.meta.e_tag.as_ref().map(|v| v.capacity()).unwrap_or(0)
+    }
+
+    /// Convert this CachedRead into a GetResult
+    fn into_result(self) -> GetResult {
+        let Self { bytes, meta } = self;
+        let stream = futures::stream::once(async move { Ok(bytes) }).boxed();
+        let range = 0..meta.size - 1;
+        GetResult {
+            payload: GetResultPayload::Stream(stream),
+            meta,
+            range,
+        }
+    }
+}
 async fn read_from_store(
     store: &dyn ObjectStore,
     path: &Path,
-) -> Result<Option<Bytes>, ObjectStoreError> {
+) -> Result<Option<CachedRead>, ObjectStoreError> {
     let get_result = match store.get(path).await {
         Ok(get_result) => get_result,
         Err(ObjectStoreError::NotFound { .. }) => return Ok(None),
         Err(e) => return Err(e),
     };
 
-    let data = match get_result.bytes().await {
+    let meta = get_result.meta.clone();
+    let bytes = match get_result.bytes().await {
         Ok(data) => data,
         Err(ObjectStoreError::NotFound { .. }) => return Ok(None),
         Err(e) => return Err(e),
     };
 
-    Ok(Some(data))
+    Ok(Some(CachedRead { bytes, meta }))
 }
 
 type CacheT = Arc<
     dyn Cache<
         K = Path,
-        V = Option<Bytes>,
+        V = Option<CachedRead>,
         GetExtra = ((), Option<Span>),
         PeekExtra = ((), Option<Span>),
     >,
@@ -111,14 +143,16 @@ impl ObjectStoreCache {
         backend.add_policy(LruPolicy::new(
             Arc::clone(&ram_pool),
             CACHE_ID,
-            Arc::new(FunctionEstimator::new(|k: &Path, v: &Option<Bytes>| {
-                RamSize(
-                    size_of_val(k)
-                        + k.as_ref().len()
-                        + size_of_val(v)
-                        + v.as_ref().map(|v| v.len()).unwrap_or_default(),
-                )
-            })),
+            Arc::new(FunctionEstimator::new(
+                |k: &Path, v: &Option<CachedRead>| {
+                    RamSize(
+                        size_of_val(k)
+                            + k.as_ref().len()
+                            + size_of_val(v)
+                            + v.as_ref().map(|v| v.size()).unwrap_or_default(),
+                    )
+                },
+            )),
         ));
 
         let cache = CacheDriver::new(loader, backend);
@@ -154,7 +188,7 @@ impl CachedObjectStore {
     ///
     /// Ensures that the caller tokio runtime (usually the CPU-bound DataFusion runtime) is decoupled from the cache
     /// runtime (usually our main runtime for async IO that also needs to keep connections alive).
-    async fn get_data(&self, location: &Path) -> Result<Bytes, ObjectStoreError> {
+    async fn get_data(&self, location: &Path) -> Result<CachedRead, ObjectStoreError> {
         let cache = Arc::clone(&self.cache);
         let location = location.clone();
         let (tx, rx) = channel();
@@ -259,11 +293,9 @@ impl ObjectStore for CachedObjectStore {
             return Err(ObjectStoreError::NotImplemented);
         }
 
-        let data = self.get_data(location).await?;
+        let cached_read = self.get_data(location).await?;
 
-        Ok(GetResult::Stream(
-            futures::stream::once(async move { Ok(data) }).boxed(),
-        ))
+        Ok(cached_read.into_result())
     }
 
     async fn get_range(
@@ -271,7 +303,8 @@ impl ObjectStore for CachedObjectStore {
         location: &Path,
         range: Range<usize>,
     ) -> Result<Bytes, ObjectStoreError> {
-        let data = self.get_data(location).await?;
+        let cached_read = self.get_data(location).await?;
+        let data = cached_read.bytes;
 
         if range.end > data.len() {
             return Err(ObjectStoreError::Generic {
@@ -290,16 +323,8 @@ impl ObjectStore for CachedObjectStore {
     }
 
     async fn head(&self, location: &Path) -> Result<ObjectMeta, ObjectStoreError> {
-        let data = self.get_data(location).await?;
-
-        Ok(ObjectMeta {
-            location: location.clone(),
-            // nobody really cares about the "last modified" field and it is wasteful to issue a HEAD request just to
-            // retrieve it.
-            last_modified: Default::default(),
-            size: data.len(),
-            e_tag: None,
-        })
+        let cached_read = self.get_data(location).await?;
+        Ok(cached_read.meta)
     }
 
     async fn delete(&self, _location: &Path) -> Result<(), ObjectStoreError> {

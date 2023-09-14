@@ -8,12 +8,15 @@ license.workspace = true
 [dependencies]
 async-trait = "0.1.73"
 backoff = { path = "../backoff" }
-bytes = "1.4"
+bytes = "1.5"
 chrono = { version = "0.4", default-features = false }
 compactor_scheduler = { path = "../compactor_scheduler" }
-datafusion = { workspace = true }
 data_types = { path = "../data_types" }
+datafusion = { workspace = true }
 futures = "0.3"
+generated_types = { version = "0.1.0", path = "../generated_types" }
+gossip = { version = "0.1.0", path = "../gossip" }
+gossip_compaction = { version = "0.1.0", path = "../gossip_compaction" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 iox_time = { path = "../iox_time" }
@@ -21,6 +24,7 @@ itertools = "0.11.0"
 metric = { path = "../metric" }
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
+parking_lot = "0.12.1"
 parquet_file = { path = "../parquet_file" }
 rand = "0.8.3"
 schema = { path = "../schema" }
@@ -30,12 +34,11 @@ trace = { version = "0.1.0", path = "../trace" }
 tracker = { path = "../tracker" }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
-parking_lot = "0.12.1"
 
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }
 assert_matches = "1"
 compactor_test_utils = { path = "../compactor_test_utils" }
 iox_tests = { path = "../iox_tests" }
-test_helpers = { path = "../test_helpers"}
+test_helpers = { path = "../test_helpers" }
 insta = { version = "1.31.0", features = ["yaml"] }

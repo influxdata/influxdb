@@ -274,7 +274,7 @@ impl sqlx::Decode<'_, sqlx::Sqlite> for PartitionKey {
 const PARTITION_HASH_ID_SIZE_BYTES: usize = 32;
 
 /// Uniquely identify a partition based on its table ID and partition key.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, sqlx::FromRow)]
 #[sqlx(transparent)]
 pub struct PartitionHashId(Arc<[u8; PARTITION_HASH_ID_SIZE_BYTES]>);
 
@@ -284,6 +284,30 @@ impl std::fmt::Display for PartitionHashId {
             write!(f, "{:02x}", byte)?;
         }
         Ok(())
+    }
+}
+
+impl std::hash::Hash for PartitionHashId {
+    #[inline(always)]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // the slice is already hashed, so we can be a bit more efficient:
+        // A hash of an object is technically only 64bits (this is what `Hasher::finish()` will produce). We assume that
+        // the SHA256 hash sum that was used to create the partition hash is good enough so that every 64-bit slice of
+        // it is a good hash candidate for the entire object. Hence, we only forward the first 64 bits to the hasher and
+        // call it a day.
+
+        // There is currently no nice way to slice fixed-sized arrays, see:
+        // https://github.com/rust-lang/rust/issues/90091
+        //
+        // So we implement this the hard way (to avoid some nasty panic paths that are quite expensive within a hash function).
+        // Conversion borrowed from https://github.com/rust-lang/rfcs/issues/1833#issuecomment-269509262
+        const N_BYTES: usize = u64::BITS as usize / 8;
+        #[allow(clippy::assertions_on_constants)]
+        const _: () = assert!(PARTITION_HASH_ID_SIZE_BYTES >= N_BYTES);
+        let ptr = self.0.as_ptr() as *const [u8; N_BYTES];
+        let sub: &[u8; N_BYTES] = unsafe { &*ptr };
+
+        state.write_u64(u64::from_ne_bytes(*sub));
     }
 }
 
@@ -547,6 +571,8 @@ impl Partition {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::hash::{Hash, Hasher};
+
     use super::*;
 
     use assert_matches::assert_matches;
@@ -664,5 +690,30 @@ pub(crate) mod tests {
             TransitionPartitionId::try_from(msg),
             Err(PartitionIdProtoError::InvalidHashId(_))
         );
+    }
+
+    #[test]
+    fn test_hash_partition_hash_id() {
+        let id = PartitionHashId::arbitrary_for_testing();
+
+        let mut hasher = TestHasher::default();
+        id.hash(&mut hasher);
+
+        assert_eq!(hasher.written, vec![id.as_bytes()[..8].to_vec()],);
+    }
+
+    #[derive(Debug, Default)]
+    struct TestHasher {
+        written: Vec<Vec<u8>>,
+    }
+
+    impl Hasher for TestHasher {
+        fn finish(&self) -> u64 {
+            unimplemented!()
+        }
+
+        fn write(&mut self, bytes: &[u8]) {
+            self.written.push(bytes.to_vec());
+        }
     }
 }

@@ -27,7 +27,7 @@
 |    |   ProjectionExec: expr=[city@1 as city, other_temp@2 as other_temp, state@3 as state, temp@4 as temp, time@5 as time]    |
 |    |     DeduplicateExec: [city@1 ASC,state@3 ASC,time@5 ASC]    |
 |    |       SortExec: expr=[city@1 ASC,state@3 ASC,time@5 ASC,__chunk_order@0 ASC]    |
-|    |         RecordBatchesExec: batches_groups=1 batches=1 total_rows=1    |
+|    |         RecordBatchesExec: chunks=1    |
 |    |    |
 ----------
 -- SQL: select temp, other_temp, time from h2o;
@@ -59,7 +59,7 @@
 |    |   ProjectionExec: expr=[temp@3 as temp, other_temp@4 as other_temp, time@5 as time]    |
 |    |     DeduplicateExec: [city@1 ASC,state@2 ASC,time@5 ASC]    |
 |    |       SortExec: expr=[city@1 ASC,state@2 ASC,time@5 ASC,__chunk_order@0 ASC]    |
-|    |         RecordBatchesExec: batches_groups=1 batches=1 total_rows=1    |
+|    |         RecordBatchesExec: chunks=1    |
 |    |    |
 ----------
 -- SQL: EXPLAIN SELECT * from h2o where time >= to_timestamp('1970-01-01T00:00:00.000000250+00:00');
@@ -83,6 +83,6 @@
 |    |       SortExec: expr=[city@1 ASC,state@3 ASC,time@5 ASC,__chunk_order@0 ASC]    |
 |    |         CoalesceBatchesExec: target_batch_size=8192    |
 |    |           FilterExec: time@5 >= 250    |
-|    |             RecordBatchesExec: batches_groups=1 batches=1 total_rows=1    |
+|    |             RecordBatchesExec: chunks=1    |
 |    |    |
 ----------

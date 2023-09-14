@@ -15,7 +15,7 @@ use crate::{
     buffer_tree::{
         namespace::NamespaceName,
         partition::{resolver::SortKeyResolver, PartitionData, SortKeyState},
-        table::TableMetadata,
+        table::metadata::TableMetadata,
     },
     deferred_load::DeferredLoad,
 };

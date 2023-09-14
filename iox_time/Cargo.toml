@@ -7,7 +7,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-chrono = { version = "0.4.28", default-features = false, features = ["clock", "std"] }
+chrono = { version = "0.4.30", default-features = false, features = ["clock", "std"] }
 parking_lot = "0.12"
 tokio = { version = "1.32", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

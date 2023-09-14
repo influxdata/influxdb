@@ -65,7 +65,7 @@ impl TableIndexFetcher {
         let ns_schema = self
             .schema_client
             .clone()
-            .get_schema(namespace_name)
+            .get_schema(namespace_name, None)
             .await
             .map_err(Box::new)?;
 
@@ -74,7 +74,13 @@ impl TableIndexFetcher {
             .into_iter()
             .map(|(table_name, table_schema)| {
                 let table_id = TableId::new(table_schema.id);
-                debug!(%table_name, %table_id, %namespace_id, %namespace_name, "discovered ID to name mapping for table in namespace");
+                debug!(
+                    %table_name,
+                    %table_id,
+                    %namespace_id,
+                    %namespace_name,
+                    "discovered ID to name mapping for table in namespace"
+                );
                 (table_id, table_name)
             })
             .collect())

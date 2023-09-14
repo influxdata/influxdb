@@ -39,7 +39,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
     match config.command {
         Command::Get(command) => {
             let mut client = schema::Client::new(connection);
-            let schema = client.get_schema(&command.namespace).await?;
+            let schema = client.get_schema(&command.namespace, None).await?;
             println!("{}", serde_json::to_string_pretty(&schema)?);
         } // Deliberately not adding _ => so the compiler will direct people here to impl new
           // commands

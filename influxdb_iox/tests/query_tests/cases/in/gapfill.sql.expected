@@ -251,4 +251,16 @@ Error during planning: gap-filling query is missing lower time bound
 -- SQL: select date_bin_gapfill('60 seconds'::interval, time)::bigint as time, sum(idle) from cpu WHERE time >= '2020-06-11T16:52:00Z' AND time < '2020-06-11T16:54:00Z' group by 1;
 Error while planning query: Optimizer rule 'handle_gap_fill' failed
 caused by
-Error during planning: DATE_BIN_GAPFILL must a top-level expression in the GROUP BY clause when gap filling. It cannot be part of another expression or cast
+Error during planning: DATE_BIN_GAPFILL must be a top-level expression in the GROUP BY clause when gap filling. It cannot be part of another expression or cast
+-- SQL: SELECT date_bin_gapfill(interval '4 minutes', time) as four_minute, interpolate(selector_last(cpu.idle, time))['value'] as last, interpolate(selector_first(cpu.idle, time))['value'] as first, count(*) from cpu where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:40:00Z' group by four_minute;
++----------------------+------+-------+----------+
+| four_minute          | last | first | COUNT(*) |
++----------------------+------+-------+----------+
+| 2000-05-05T12:16:00Z |      |       |          |
+| 2000-05-05T12:20:00Z | 70.0 | 70.0  | 1        |
+| 2000-05-05T12:24:00Z | 67.5 | 67.5  |          |
+| 2000-05-05T12:28:00Z | 65.0 | 65.0  | 1        |
+| 2000-05-05T12:32:00Z | 62.5 | 62.5  |          |
+| 2000-05-05T12:36:00Z | 60.0 | 60.0  | 1        |
+| 2000-05-05T12:40:00Z |      |       | 1        |
++----------------------+------+-------+----------+

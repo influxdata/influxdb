@@ -7,8 +7,8 @@ use std::{
 
 use super::*;
 use arrow::{
-    array::{ArrayRef, DictionaryArray, Int64Array, TimestampNanosecondArray},
-    datatypes::{Field, Int32Type, Schema},
+    array::{ArrayRef, DictionaryArray, Int64Array, StructArray, TimestampNanosecondArray},
+    datatypes::{DataType, Field, Fields, Int32Type, Schema},
     record_batch::RecordBatch,
 };
 use arrow_util::test_util::batches_to_lines;
@@ -35,6 +35,7 @@ fn test_gapfill_simple() {
                 group_cols: vec![vec![Some("a"), Some("a")]],
                 time_col: vec![Some(1_000), Some(1_100)],
                 agg_cols: vec![vec![Some(10), Some(11)]],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms(&batch, 25, Some(975), 1_125);
@@ -79,6 +80,7 @@ fn test_gapfill_simple_no_group_no_aggr() {
                 group_cols: vec![],
                 time_col: vec![None, Some(1_000), Some(1_100)],
                 agg_cols: vec![],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms(&batch, 25, Some(975), 1_125);
@@ -118,6 +120,7 @@ fn test_gapfill_multi_group_simple() {
                 group_cols: vec![vec![Some("a"), Some("a"), Some("b"), Some("b")]],
                 time_col: vec![Some(1_000), Some(1_100), Some(1_025), Some(1_050)],
                 agg_cols: vec![vec![Some(10), Some(11), Some(20), Some(21)]],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms(&records, 25, Some(975), 1_125);
@@ -163,6 +166,7 @@ fn test_gapfill_multi_group_simple_origin() {
                 group_cols: vec![vec![Some("a"), Some("a"), Some("b"), Some("b")]],
                 time_col: vec![Some(1_000), Some(1_100), Some(1_025), Some(1_050)],
                 agg_cols: vec![vec![Some(10), Some(11), Some(20), Some(21)]],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms_with_origin_fill_strategy(&records, 25, Some(975), 1_125, Some(3), FillStrategy::Null);
@@ -233,6 +237,7 @@ fn test_gapfill_multi_group_with_nulls() {
                     Some(20),
                     Some(21),
                 ]],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms(&records, 25, Some(975), 1_125);
@@ -316,6 +321,7 @@ fn test_gapfill_multi_group_cols_with_nulls() {
                     Some(20),
                     Some(21),
                 ]],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms(&records, 25, Some(975), 1_125);
@@ -376,6 +382,7 @@ fn test_gapfill_multi_group_cols_with_more_nulls() {
                     Some(92),
                     Some(93),
                 ]],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms(&records, 25, Some(975), 1_025);
@@ -463,6 +470,7 @@ fn test_gapfill_multi_aggr_cols_with_nulls() {
                         Some(41),
                     ],
                 ],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms(&records, 25, Some(975), 1_125);
@@ -511,6 +519,7 @@ fn test_gapfill_simple_no_lower_bound() {
                 group_cols: vec![vec![Some("a"), Some("a"), Some("b"), Some("b")]],
                 time_col: vec![Some(1_025), Some(1_100), Some(1_050), Some(1_100)],
                 agg_cols: vec![vec![Some(10), Some(11), Some(20), Some(21)]],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms(&batch, 25, None, 1_125);
@@ -579,6 +588,7 @@ fn test_gapfill_fill_prev() {
                     None,
                     Some(21),
                 ]],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms_with_fill_strategy(&records, 25, Some(975), 1_125, FillStrategy::PrevNullAsIntentional);
@@ -657,6 +667,7 @@ fn test_gapfill_fill_prev_null_as_missing() {
                     None,      // b: 1050
                     Some(21),  // b: 1100
                 ]],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms_with_fill_strategy(&records, 25, Some(975), 1_125, FillStrategy::PrevNullAsMissing);
@@ -756,6 +767,7 @@ fn test_gapfill_fill_prev_null_as_missing_many_nulls() {
                     Some(22),  // b: 1100
                                // b: 1125
                 ]],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms_with_fill_strategy(&records, 25, Some(975), 1_125, FillStrategy::PrevNullAsMissing);
@@ -861,6 +873,7 @@ fn test_gapfill_fill_interpolate() {
                     Some(1550), // 1100
                     //             1125
                 ]],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms_with_fill_strategy(
@@ -957,6 +970,7 @@ fn test_gapfill_simple_no_lower_bound_with_nulls() {
                     Some(20),
                     Some(21),
                 ]],
+                struct_cols: vec![],
                 input_batch_size,
             };
             let params = get_params_ms(&batch, 25, None, 1_125);
@@ -1006,6 +1020,7 @@ fn test_gapfill_oom() {
         group_cols: vec![vec![Some("a"), Some("a")]],
         time_col: vec![Some(1_000), Some(1_100)],
         agg_cols: vec![vec![Some(10), Some(11)]],
+        struct_cols: vec![],
         input_batch_size,
     };
     let params = get_params_ms(&batch, 25, Some(975), 1_125);
@@ -1016,6 +1031,218 @@ fn test_gapfill_oom() {
     };
     let result = tc.run_with_memory_limit(1);
     assert_error!(result, DataFusionError::ResourcesExhausted(_));
+}
+
+#[test]
+fn test_gapfill_interpolate_struct() {
+    test_helpers::maybe_start_logging();
+    insta::allow_duplicates! {
+        for output_batch_size in [16, 1] {
+            let input_batch_size = 8;
+            let records = TestRecords {
+                group_cols: vec![vec![
+                    Some("a"),
+                    Some("a"),
+                    Some("a"),
+                    // --- new series
+                    Some("b"),
+                    Some("b"),
+                    Some("b"),
+                    Some("b"),
+                    Some("b"),
+                    Some("b"),
+                ]],
+                time_col: vec![
+                    None,
+                    // 975
+                    Some(1000),
+                    // 1025
+                    // 1050
+                    Some(1075),
+                    // 1100
+                    // 1125
+                    // --- new series
+                    None,
+                    Some(975),
+                    Some(1000),
+                    Some(1025),
+                    // 1050
+                    Some(1075),
+                    // 1100
+                    Some(1125),
+                ],
+                agg_cols: vec![],
+                struct_cols: vec![vec![
+                    Some(vec![-1, 0]),
+                    // null,       975
+                    Some(vec![100, 0]),
+                    // 200        1025
+                    // 300        1050
+                    Some(vec![400, 0]), // 1075
+                    //            1100
+                    //            1125
+                    // --- new series
+                    Some(vec![-10, 0]),
+                    Some(vec![1100, 0]), //  975
+                    None, // 1200  1000 (this null value will be filled)
+                    Some(vec![1300, 0]), // 1025
+                    // 1325        1050
+                    Some(vec![1350, 0]), // 1075
+                    Some(vec![1550, 0]), // 1100
+                    //             1125
+                ]],
+                input_batch_size,
+            };
+            let params = get_params_ms_with_fill_strategy(
+                &records,
+                25,
+                Some(975),
+                1_125,
+                FillStrategy::LinearInterpolate
+            );
+            let tc = TestCase {
+                test_records: records,
+                output_batch_size,
+                params,
+            };
+            let batches = tc.run().unwrap();
+            let actual = batches_to_lines(&batches);
+            insta::with_settings!({
+                description => format!("input_batch_size: {input_batch_size}, output_batch_size: {output_batch_size}"),
+            }, {
+                insta::assert_yaml_snapshot!(actual, @r###"
+                ---
+                - +----+--------------------------+------------------------+
+                - "| g0 | time                     | a0                     |"
+                - +----+--------------------------+------------------------+
+                - "| a  |                          | {value: -1, time: 0}   |"
+                - "| a  | 1970-01-01T00:00:00.975Z | {value: , time: }      |"
+                - "| a  | 1970-01-01T00:00:01Z     | {value: 100, time: 0}  |"
+                - "| a  | 1970-01-01T00:00:01.025Z | {value: 200, time: }   |"
+                - "| a  | 1970-01-01T00:00:01.050Z | {value: 300, time: }   |"
+                - "| a  | 1970-01-01T00:00:01.075Z | {value: 400, time: 0}  |"
+                - "| a  | 1970-01-01T00:00:01.100Z | {value: , time: }      |"
+                - "| a  | 1970-01-01T00:00:01.125Z | {value: , time: }      |"
+                - "| b  |                          | {value: -10, time: 0}  |"
+                - "| b  | 1970-01-01T00:00:00.975Z | {value: 1100, time: 0} |"
+                - "| b  | 1970-01-01T00:00:01Z     | {value: 1200, time: }  |"
+                - "| b  | 1970-01-01T00:00:01.025Z | {value: 1300, time: 0} |"
+                - "| b  | 1970-01-01T00:00:01.050Z | {value: 1325, time: }  |"
+                - "| b  | 1970-01-01T00:00:01.075Z | {value: 1350, time: 0} |"
+                - "| b  | 1970-01-01T00:00:01.100Z | {value: 1450, time: }  |"
+                - "| b  | 1970-01-01T00:00:01.125Z | {value: 1550, time: 0} |"
+                - +----+--------------------------+------------------------+
+                "###)
+            });
+            assert_batch_count(&batches, output_batch_size);
+        }
+    }
+}
+
+#[test]
+fn test_gapfill_interpolate_struct_additional_data() {
+    test_helpers::maybe_start_logging();
+    insta::allow_duplicates! {
+        for output_batch_size in [16, 1] {
+            let input_batch_size = 8;
+            let records = TestRecords {
+                group_cols: vec![vec![
+                    Some("a"),
+                    Some("a"),
+                    Some("a"),
+                    // --- new series
+                    Some("b"),
+                    Some("b"),
+                    Some("b"),
+                    Some("b"),
+                    Some("b"),
+                    Some("b"),
+                ]],
+                time_col: vec![
+                    None,
+                    // 975
+                    Some(1000),
+                    // 1025
+                    // 1050
+                    Some(1075),
+                    // 1100
+                    // 1125
+                    // --- new series
+                    None,
+                    Some(975),
+                    Some(1000),
+                    Some(1025),
+                    // 1050
+                    Some(1075),
+                    // 1100
+                    Some(1125),
+                ],
+                agg_cols: vec![],
+                struct_cols: vec![vec![
+                    Some(vec![-1, 0, 1, 1]),
+                    // null,       975
+                    Some(vec![100, 0, 2, 2]),
+                    // 200        1025
+                    // 300        1050
+                    Some(vec![400, 0, 3, 3]), // 1075
+                    //            1100
+                    //            1125
+                    // --- new series
+                    Some(vec![-10, 0, 10, 10]),
+                    Some(vec![1100, 0, 11, 11]), //  975
+                    None, // 1200  1000 (this null value will be filled)
+                    Some(vec![1300, 0, 12, 12]), // 1025
+                    // 1325        1050
+                    Some(vec![1350, 0, 13, 13]), // 1075
+                    Some(vec![1550, 0, 14, 14]), // 1100
+                    //             1125
+                ]],
+                input_batch_size,
+            };
+            let params = get_params_ms_with_fill_strategy(
+                &records,
+                25,
+                Some(975),
+                1_125,
+                FillStrategy::LinearInterpolate
+            );
+            let tc = TestCase {
+                test_records: records,
+                output_batch_size,
+                params,
+            };
+            let batches = tc.run().unwrap();
+            let actual = batches_to_lines(&batches);
+            insta::with_settings!({
+                description => format!("input_batch_size: {input_batch_size}, output_batch_size: {output_batch_size}"),
+            }, {
+                insta::assert_yaml_snapshot!(actual, @r###"
+                ---
+                - +----+--------------------------+--------------------------------------------------+
+                - "| g0 | time                     | a0                                               |"
+                - +----+--------------------------+--------------------------------------------------+
+                - "| a  |                          | {value: -1, time: 0, other_0: 1, other_1: 1}     |"
+                - "| a  | 1970-01-01T00:00:00.975Z | {value: , time: , other_0: , other_1: }          |"
+                - "| a  | 1970-01-01T00:00:01Z     | {value: 100, time: 0, other_0: 2, other_1: 2}    |"
+                - "| a  | 1970-01-01T00:00:01.025Z | {value: 200, time: , other_0: , other_1: }       |"
+                - "| a  | 1970-01-01T00:00:01.050Z | {value: 300, time: , other_0: , other_1: }       |"
+                - "| a  | 1970-01-01T00:00:01.075Z | {value: 400, time: 0, other_0: 3, other_1: 3}    |"
+                - "| a  | 1970-01-01T00:00:01.100Z | {value: , time: , other_0: , other_1: }          |"
+                - "| a  | 1970-01-01T00:00:01.125Z | {value: , time: , other_0: , other_1: }          |"
+                - "| b  |                          | {value: -10, time: 0, other_0: 10, other_1: 10}  |"
+                - "| b  | 1970-01-01T00:00:00.975Z | {value: 1100, time: 0, other_0: 11, other_1: 11} |"
+                - "| b  | 1970-01-01T00:00:01Z     | {value: 1200, time: , other_0: , other_1: }      |"
+                - "| b  | 1970-01-01T00:00:01.025Z | {value: 1300, time: 0, other_0: 12, other_1: 12} |"
+                - "| b  | 1970-01-01T00:00:01.050Z | {value: 1325, time: , other_0: , other_1: }      |"
+                - "| b  | 1970-01-01T00:00:01.075Z | {value: 1350, time: 0, other_0: 13, other_1: 13} |"
+                - "| b  | 1970-01-01T00:00:01.100Z | {value: 1450, time: , other_0: , other_1: }      |"
+                - "| b  | 1970-01-01T00:00:01.125Z | {value: 1550, time: 0, other_0: 14, other_1: 14} |"
+                - +----+--------------------------+--------------------------------------------------+
+                "###)
+            });
+            assert_batch_count(&batches, output_batch_size);
+        }
+    }
 }
 
 fn assert_batch_count(actual_batches: &[RecordBatch], batch_size: usize) {
@@ -1032,6 +1259,7 @@ pub(super) struct TestRecords {
     // to let test cases be consistent and easier to read.
     pub time_col: Vec<Option<i64>>,
     pub agg_cols: Vec<Vec<Option<i64>>>,
+    pub struct_cols: Vec<Vec<Option<Vec<i64>>>>,
     pub input_batch_size: usize,
 }
 
@@ -1060,7 +1288,44 @@ impl TestRecords {
                 true,
             ));
         }
+        for i in 0..self.struct_cols.len() {
+            fields.push(Field::new(
+                format!("a{}", self.agg_cols.len() + i),
+                DataType::Struct(self.struct_fields(i)),
+                true,
+            ));
+        }
         Schema::new(fields).into()
+    }
+
+    fn struct_fields(&self, col: usize) -> Fields {
+        let mut fields = vec![
+            Field::new(
+                "value",
+                (&InfluxColumnType::Field(InfluxFieldType::Integer)).into(),
+                true,
+            ),
+            Field::new(
+                "time",
+                (&InfluxColumnType::Field(InfluxFieldType::Integer)).into(),
+                true,
+            ),
+        ];
+        let num_other = self.struct_cols[col]
+            .iter()
+            .find(|o| o.is_some())
+            .map_or(0, |v| match v.as_ref().unwrap().len() {
+                0..=2 => 0,
+                n => n - 2,
+            });
+        for i in 0..num_other {
+            fields.push(Field::new(
+                format!("other_{}", i),
+                (&InfluxColumnType::Field(InfluxFieldType::Integer)).into(),
+                true,
+            ));
+        }
+        fields.into()
     }
 
     fn len(&self) -> usize {
@@ -1089,8 +1354,9 @@ impl TryFrom<TestRecords> for Vec<RecordBatch> {
     type Error = DataFusionError;
 
     fn try_from(value: TestRecords) -> Result<Self> {
-        let mut arrs: Vec<ArrayRef> =
-            Vec::with_capacity(value.group_cols.len() + value.agg_cols.len() + 1);
+        let mut arrs: Vec<ArrayRef> = Vec::with_capacity(
+            value.group_cols.len() + value.agg_cols.len() + value.struct_cols.len() + 1,
+        );
         for gc in &value.group_cols {
             let arr = Arc::new(DictionaryArray::<Int32Type>::from_iter(gc.iter().cloned()));
             arrs.push(arr);
@@ -1105,6 +1371,27 @@ impl TryFrom<TestRecords> for Vec<RecordBatch> {
         for ac in &value.agg_cols {
             let arr = Arc::new(Int64Array::from_iter(ac));
             arrs.push(arr);
+        }
+        for i in 0..value.struct_cols.len() {
+            let fields = value.struct_fields(i);
+            let nulls = value.struct_cols[i]
+                .iter()
+                .map(|o| o.is_none())
+                .collect::<Vec<_>>();
+            let mut struct_arrs: Vec<ArrayRef> = vec![];
+            for j in 0..fields.len() {
+                let arr = Arc::new(Int64Array::from_iter(
+                    value.struct_cols[i]
+                        .iter()
+                        .map(|o| o.as_ref().map(|v| v[j])),
+                ));
+                struct_arrs.push(arr);
+            }
+            arrs.push(Arc::new(StructArray::new(
+                fields,
+                struct_arrs,
+                Some(nulls.into()),
+            )));
         }
 
         let one_batch =
@@ -1208,7 +1495,7 @@ fn phys_fill_strategies(
     fill_strategy: FillStrategy,
 ) -> Result<Vec<(Arc<dyn PhysicalExpr>, FillStrategy)>> {
     let start = records.group_cols.len() + 1; // 1 is for time col
-    let end = start + records.agg_cols.len();
+    let end = start + records.agg_cols.len() + records.struct_cols.len();
     let mut v = Vec::with_capacity(records.agg_cols.len());
     for f in &records.schema().fields()[start..end] {
         v.push((

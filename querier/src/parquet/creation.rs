@@ -6,7 +6,7 @@ use hashbrown::HashSet;
 use iox_catalog::interface::Catalog;
 use parquet_file::chunk::ParquetChunk;
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
-use schema::{sort::SortKey, Schema};
+use schema::{sort::SortKeyBuilder, Schema};
 use trace::span::{Span, SpanRecorder};
 use uuid::Uuid;
 
@@ -56,7 +56,7 @@ impl ChunkAdapter {
         &self,
         cached_table: Arc<CachedTable>,
         files: Arc<[Arc<ParquetFile>]>,
-        cached_partitions: &HashMap<TransitionPartitionId, CachedPartition>,
+        cached_partitions: &HashMap<TransitionPartitionId, Arc<CachedPartition>>,
         span: Option<Span>,
     ) -> Vec<QuerierParquetChunk> {
         let span_recorder = SpanRecorder::new(span);
@@ -153,14 +153,20 @@ impl ChunkAdapter {
             .sort_key
             .as_ref()
             .expect("partition sort key should be set when a parquet file exists");
-        let sort_key = SortKey::from_columns(
-            partition_sort_key
-                .column_order
-                .iter()
-                .filter(|c_id| parquet_file.col_set.contains(*c_id))
-                .filter_map(|c_id| cached_table.column_id_map.get(c_id))
-                .cloned(),
-        );
+        // use the partition sort key as size hint, because `SortKey::from_cols` with the filtered iterator would
+        // otherwise resize the internal HashMap too often.
+        let mut builder = SortKeyBuilder::with_capacity(partition_sort_key.column_order.len());
+        let cols = partition_sort_key
+            .column_order
+            .iter()
+            .filter(|c_id| parquet_file.col_set.contains(*c_id))
+            .filter_map(|c_id| cached_table.column_id_map.get(c_id))
+            .cloned();
+        // cannot use `for_each` because the borrow checker doesn't like that
+        for col in cols {
+            builder = builder.with_col(col);
+        }
+        let sort_key = builder.build();
         assert!(
             !sort_key.is_empty(),
             "Sort key can never be empty because there should at least be a time column",
@@ -205,12 +211,15 @@ struct PreparedParquetFile {
 
 impl PreparedParquetFile {
     fn new(file: Arc<ParquetFile>, cached_table: &CachedTable) -> Self {
-        let col_set: HashSet<ColumnId> = file
-            .column_set
-            .iter()
-            .filter(|id| cached_table.column_id_map.contains_key(*id))
-            .copied()
-            .collect();
+        // be optimistic and assume the the cached table already knows about all columns. Otherwise
+        // `.filter(...).collect()` is too pessimistic and resizes the HashSet too often.
+        let mut col_set = HashSet::<ColumnId>::with_capacity(file.column_set.len());
+        col_set.extend(
+            file.column_set
+                .iter()
+                .filter(|id| cached_table.column_id_map.contains_key(*id))
+                .copied(),
+        );
 
         let mut col_list = col_set.iter().copied().collect::<Box<[ColumnId]>>();
         col_list.sort();

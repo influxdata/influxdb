@@ -9,6 +9,7 @@ license.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+backoff = { path = "../backoff" }
 http = {version = "0.2.9", optional = true }
 iox_time = { version = "0.1.0", path = "../iox_time" }
 generated_types = { path = "../generated_types" }
@@ -18,7 +19,7 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 # crates.io dependencies in alphabetical order.
 async-trait = "0.1"
-base64 = "0.21.3"
+base64 = "0.21.4"
 snafu = "0.7"
 tonic = { workspace = true }
 

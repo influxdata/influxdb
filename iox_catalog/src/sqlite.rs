@@ -2,9 +2,9 @@
 
 use crate::{
     interface::{
-        self, verify_sort_key_length, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
-        Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, RepoCollection, Result,
-        SoftDeletedRows, TableRepo, MAX_PARQUET_FILES_SELECTED_ONCE_FOR_RETENTION,
+        self, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
+        ParquetFileRepo, PartitionRepo, RepoCollection, Result, SoftDeletedRows, TableRepo,
+        MAX_PARQUET_FILES_SELECTED_ONCE_FOR_RETENTION,
     },
     kafkaless_transition::{
         SHARED_QUERY_POOL, SHARED_QUERY_POOL_ID, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
@@ -1011,12 +1011,24 @@ WHERE table_id = $1;
         &mut self,
         partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
+        old_sort_key_ids: Option<SortedColumnSet>,
         new_sort_key: &[&str],
         new_sort_key_ids: &SortedColumnSet,
-    ) -> Result<Partition, CasFailure<Vec<String>>> {
-        verify_sort_key_length(new_sort_key, new_sort_key_ids);
+    ) -> Result<Partition, CasFailure<(Vec<String>, Option<SortedColumnSet>)>> {
+        // These asserts are here to cacth bugs. They will be removed when we remove the sort_key
+        // field from the Partition
+        assert_eq!(
+            old_sort_key.as_ref().map(|v| v.len()),
+            old_sort_key_ids.as_ref().map(|v| v.len())
+        );
+        assert_eq!(new_sort_key.len(), new_sort_key_ids.len());
 
         let old_sort_key = old_sort_key.unwrap_or_default();
+        let raw_old_sort_key_ids: Vec<_> = old_sort_key_ids
+            .unwrap_or_default()
+            .iter()
+            .map(|c| c.get())
+            .collect();
         let raw_new_sort_key_ids: Vec<_> = new_sort_key_ids.iter().map(|cid| cid.get()).collect();
 
         // This `match` will go away when all partitions have hash IDs in the database.
@@ -1025,26 +1037,28 @@ WHERE table_id = $1;
                 r#"
 UPDATE partition
 SET sort_key = $1, sort_key_ids = $4
-WHERE hash_id = $2 AND sort_key = $3
+WHERE hash_id = $2 AND sort_key = $3 AND sort_key_ids = $5
 RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(Json(new_sort_key)) // $1
             .bind(hash_id) // $2
             .bind(Json(&old_sort_key)) // $3
-            .bind(Json(&raw_new_sort_key_ids)), // $4
+            .bind(Json(&raw_new_sort_key_ids)) // $4
+            .bind(Json(&raw_old_sort_key_ids)), // $5
             TransitionPartitionId::Deprecated(id) => sqlx::query_as::<_, PartitionPod>(
                 r#"
 UPDATE partition
 SET sort_key = $1, sort_key_ids = $4
-WHERE id = $2 AND sort_key = $3
+WHERE id = $2 AND sort_key = $3 AND sort_key_ids = $5
 RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file_at;
         "#,
             )
             .bind(Json(new_sort_key)) // $1
             .bind(id) // $2
             .bind(Json(&old_sort_key)) // $3
-            .bind(Json(&raw_new_sort_key_ids)), // $4
+            .bind(Json(&raw_new_sort_key_ids)) // $4
+            .bind(Json(&raw_old_sort_key_ids)), // $5
         };
 
         let res = query.fetch_one(self.inner.get_mut()).await;
@@ -1063,15 +1077,16 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file
                 //
                 // NOTE: this is racy, but documented - this might return "Sort
                 // key differs! Old key: <old sort key you provided>"
-                return Err(CasFailure::ValueMismatch(
-                    crate::partition_lookup(self, partition_id)
-                        .await
-                        .map_err(CasFailure::QueryError)?
-                        .ok_or(CasFailure::QueryError(Error::PartitionNotFound {
-                            id: partition_id.clone(),
-                        }))?
-                        .sort_key,
-                ));
+                let partition = crate::partition_lookup(self, partition_id)
+                    .await
+                    .map_err(CasFailure::QueryError)?
+                    .ok_or(CasFailure::QueryError(Error::PartitionNotFound {
+                        id: partition_id.clone(),
+                    }))?;
+                return Err(CasFailure::ValueMismatch((
+                    partition.sort_key,
+                    partition.sort_key_ids,
+                )));
             }
             Err(e) => return Err(CasFailure::QueryError(Error::SqlxError { source: e })),
         };

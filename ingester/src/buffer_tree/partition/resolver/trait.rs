@@ -5,7 +5,9 @@ use data_types::{NamespaceId, PartitionKey, TableId};
 use parking_lot::Mutex;
 
 use crate::{
-    buffer_tree::{namespace::NamespaceName, partition::PartitionData, table::TableMetadata},
+    buffer_tree::{
+        namespace::NamespaceName, partition::PartitionData, table::metadata::TableMetadata,
+    },
     deferred_load::DeferredLoad,
 };
 

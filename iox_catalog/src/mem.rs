@@ -1,7 +1,7 @@
 //! This module implements an in-memory implementation of the iox_catalog interface. It can be
 //! used for testing or for an IOx designed to run without catalog persistence.
 
-use crate::interface::{verify_sort_key_length, MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE};
+use crate::interface::MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE;
 use crate::{
     interface::{
         CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
@@ -662,13 +662,21 @@ impl PartitionRepo for MemTxn {
         &mut self,
         partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
+        old_sort_key_ids: Option<SortedColumnSet>,
         new_sort_key: &[&str],
         new_sort_key_ids: &SortedColumnSet,
-    ) -> Result<Partition, CasFailure<Vec<String>>> {
-        verify_sort_key_length(new_sort_key, new_sort_key_ids);
+    ) -> Result<Partition, CasFailure<(Vec<String>, Option<SortedColumnSet>)>> {
+        // These asserts are here to cacth bugs. They will be removed when we remove the sort_key
+        // field from the Partition
+        assert_eq!(
+            old_sort_key.as_ref().map(|v| v.len()),
+            old_sort_key_ids.as_ref().map(|v| v.len())
+        );
+        assert_eq!(new_sort_key.len(), new_sort_key_ids.len());
 
         let stage = self.stage();
         let old_sort_key = old_sort_key.unwrap_or_default();
+        let old_sort_key_ids = old_sort_key_ids.unwrap_or_default();
 
         match stage.partitions.iter_mut().find(|p| match partition_id {
             TransitionPartitionId::Deterministic(hash_id) => {
@@ -676,12 +684,19 @@ impl PartitionRepo for MemTxn {
             }
             TransitionPartitionId::Deprecated(id) => p.id == *id,
         }) {
-            Some(p) if p.sort_key == old_sort_key => {
+            Some(p) if p.sort_key_ids == Some(old_sort_key_ids) => {
+                // This is here to catch bugs. It will be removed when we remove the sort_key
+                assert_eq!(p.sort_key, old_sort_key);
                 p.sort_key = new_sort_key.iter().map(|s| s.to_string()).collect();
                 p.sort_key_ids = Some(new_sort_key_ids.clone());
                 Ok(p.clone())
             }
-            Some(p) => return Err(CasFailure::ValueMismatch(p.sort_key.clone())),
+            Some(p) => {
+                return Err(CasFailure::ValueMismatch((
+                    p.sort_key.clone(),
+                    p.sort_key_ids.clone(),
+                )));
+            }
             None => Err(CasFailure::QueryError(Error::PartitionNotFound {
                 id: partition_id.clone(),
             })),

@@ -44,7 +44,7 @@
 |    |       ProjectionExec: expr=[time@1 as time, state@2 as state, city@3 as city, min_temp@4 as min_temp, max_temp@5 as max_temp, area@6 as area]    |
 |    |         DeduplicateExec: [city@3 ASC,state@2 ASC,time@1 ASC]    |
 |    |           SortExec: expr=[city@3 ASC,state@2 ASC,time@1 ASC,__chunk_order@0 ASC]    |
-|    |             RecordBatchesExec: batches_groups=1 batches=1 total_rows=6    |
+|    |             RecordBatchesExec: chunks=1    |
 |    |    |
 ----------
 -- SQL: EXPLAIN select time, state, city, min_temp, max_temp, area from h2o;
@@ -63,7 +63,7 @@
 |    |   ProjectionExec: expr=[time@1 as time, state@2 as state, city@3 as city, min_temp@4 as min_temp, max_temp@5 as max_temp, area@6 as area]    |
 |    |     DeduplicateExec: [city@3 ASC,state@2 ASC,time@1 ASC]    |
 |    |       SortExec: expr=[city@3 ASC,state@2 ASC,time@1 ASC,__chunk_order@0 ASC]    |
-|    |         RecordBatchesExec: batches_groups=1 batches=1 total_rows=6    |
+|    |         RecordBatchesExec: chunks=1    |
 |    |    |
 ----------
 -- SQL: EXPLAIN select state as name from h2o UNION ALL select city as name from h2o;
@@ -87,7 +87,7 @@
 |    |       ProjectionExec: expr=[state@2 as state]    |
 |    |         DeduplicateExec: [city@1 ASC,state@2 ASC,time@3 ASC]    |
 |    |           SortExec: expr=[city@1 ASC,state@2 ASC,time@3 ASC,__chunk_order@0 ASC]    |
-|    |             RecordBatchesExec: batches_groups=1 batches=1 total_rows=6    |
+|    |             RecordBatchesExec: chunks=1    |
 |    |   ProjectionExec: expr=[city@0 as name]    |
 |    |     UnionExec    |
 |    |       ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[city]    |
@@ -98,7 +98,7 @@
 |    |       ProjectionExec: expr=[city@1 as city]    |
 |    |         DeduplicateExec: [city@1 ASC,state@2 ASC,time@3 ASC]    |
 |    |           SortExec: expr=[city@1 ASC,state@2 ASC,time@3 ASC,__chunk_order@0 ASC]    |
-|    |             RecordBatchesExec: batches_groups=1 batches=1 total_rows=6    |
+|    |             RecordBatchesExec: chunks=1    |
 |    |    |
 ----------
 -- SQL: select count(*) from h2o;

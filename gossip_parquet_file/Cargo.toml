@@ -9,7 +9,7 @@ license.workspace = true
 
 [dependencies]
 async-trait = "0.1"
-bytes = "1.4"
+bytes = "1.5"
 generated_types = { path = "../generated_types" }
 gossip = { version = "0.1.0", path = "../gossip" }
 observability_deps = { path = "../observability_deps" }

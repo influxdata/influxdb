@@ -4,6 +4,7 @@
 
 use data_types::CompactionLevel;
 use iox_time::Time;
+use std::time::Duration;
 
 use crate::layouts::{layout_setup_builder, parquet_builder, run_layout_scenario, ONE_MB};
 
@@ -1777,6 +1778,188 @@ async fn pre_split_large_l0() {
     - "L2.99[9634,10312] 11us 73mb                                                                |L2.99|                   "
     - "L2.102[10313,12462] 11us 21mb                                                                     |----L2.102----|     "
     - "L2.103[12463,13000] 11us 5mb                                                                                     |L2.103|"
+    "###
+    );
+}
+
+#[tokio::test]
+async fn file_over_max_size() {
+    test_helpers::maybe_start_logging();
+
+    const MAX_DESIRED_FILE_SIZE: u64 = 10 * ONE_MB;
+    let setup = layout_setup_builder()
+        .await
+        .with_max_num_files_per_plan(20)
+        .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
+        .with_partition_timeout(Duration::from_millis(100000))
+        .with_suppress_run_output() // remove this to debug
+        .with_writes_breakdown()
+        .build()
+        .await;
+
+    let file_count = 100;
+    for i in 0..file_count {
+        setup
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_min_time(i * 10)
+                    .with_max_time(i * 10 + 1)
+                    .with_compaction_level(CompactionLevel::Initial)
+                    .with_max_l0_created_at(Time::from_timestamp_nanos(i * 10 + 2))
+                    .with_file_size_bytes(1),
+            )
+            .await;
+    }
+
+    // One oversized file that overlaps the above files.  But there's so many small ones we trigger ManySmallFiles.
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(9)
+                .with_max_time(file_count * 10 + 1)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(2002))
+                .with_file_size_bytes(MAX_DESIRED_FILE_SIZE * 10 / 3),
+        )
+        .await;
+
+    // Also test a separate situation - a single file that's too big to compact.  This one does not trigger ManySmallFiles.
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(file_count * 10 + 100)
+                .with_max_time(file_count * 10 + 200)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(2002))
+                .with_file_size_bytes(MAX_DESIRED_FILE_SIZE * 10 / 3),
+        )
+        .await;
+
+    insta::assert_yaml_snapshot!(
+        run_layout_scenario(&setup).await,
+        @r###"
+    ---
+    - "**** Input Files "
+    - "L0                                                                                                                 "
+    - "L0.1[0,1] 2ns 1b         |L0.1|                                                                                    "
+    - "L0.2[10,11] 12ns 1b      |L0.2|                                                                                    "
+    - "L0.3[20,21] 22ns 1b       |L0.3|                                                                                   "
+    - "L0.4[30,31] 32ns 1b        |L0.4|                                                                                  "
+    - "L0.5[40,41] 42ns 1b         |L0.5|                                                                                 "
+    - "L0.6[50,51] 52ns 1b         |L0.6|                                                                                 "
+    - "L0.7[60,61] 62ns 1b          |L0.7|                                                                                "
+    - "L0.8[70,71] 72ns 1b           |L0.8|                                                                               "
+    - "L0.9[80,81] 82ns 1b            |L0.9|                                                                              "
+    - "L0.10[90,91] 92ns 1b           |L0.10|                                                                             "
+    - "L0.11[100,101] 102ns 1b         |L0.11|                                                                            "
+    - "L0.12[110,111] 112ns 1b          |L0.12|                                                                           "
+    - "L0.13[120,121] 122ns 1b           |L0.13|                                                                          "
+    - "L0.14[130,131] 132ns 1b           |L0.14|                                                                          "
+    - "L0.15[140,141] 142ns 1b            |L0.15|                                                                         "
+    - "L0.16[150,151] 152ns 1b             |L0.16|                                                                        "
+    - "L0.17[160,161] 162ns 1b              |L0.17|                                                                       "
+    - "L0.18[170,171] 172ns 1b              |L0.18|                                                                       "
+    - "L0.19[180,181] 182ns 1b               |L0.19|                                                                      "
+    - "L0.20[190,191] 192ns 1b                |L0.20|                                                                     "
+    - "L0.21[200,201] 202ns 1b                 |L0.21|                                                                    "
+    - "L0.22[210,211] 212ns 1b                 |L0.22|                                                                    "
+    - "L0.23[220,221] 222ns 1b                  |L0.23|                                                                   "
+    - "L0.24[230,231] 232ns 1b                   |L0.24|                                                                  "
+    - "L0.25[240,241] 242ns 1b                    |L0.25|                                                                 "
+    - "L0.26[250,251] 252ns 1b                    |L0.26|                                                                 "
+    - "L0.27[260,261] 262ns 1b                     |L0.27|                                                                "
+    - "L0.28[270,271] 272ns 1b                      |L0.28|                                                               "
+    - "L0.29[280,281] 282ns 1b                       |L0.29|                                                              "
+    - "L0.30[290,291] 292ns 1b                       |L0.30|                                                              "
+    - "L0.31[300,301] 302ns 1b                        |L0.31|                                                             "
+    - "L0.32[310,311] 312ns 1b                         |L0.32|                                                            "
+    - "L0.33[320,321] 322ns 1b                          |L0.33|                                                           "
+    - "L0.34[330,331] 332ns 1b                          |L0.34|                                                           "
+    - "L0.35[340,341] 342ns 1b                           |L0.35|                                                          "
+    - "L0.36[350,351] 352ns 1b                            |L0.36|                                                         "
+    - "L0.37[360,361] 362ns 1b                             |L0.37|                                                        "
+    - "L0.38[370,371] 372ns 1b                             |L0.38|                                                        "
+    - "L0.39[380,381] 382ns 1b                              |L0.39|                                                       "
+    - "L0.40[390,391] 392ns 1b                               |L0.40|                                                      "
+    - "L0.41[400,401] 402ns 1b                                |L0.41|                                                     "
+    - "L0.42[410,411] 412ns 1b                                |L0.42|                                                     "
+    - "L0.43[420,421] 422ns 1b                                 |L0.43|                                                    "
+    - "L0.44[430,431] 432ns 1b                                  |L0.44|                                                   "
+    - "L0.45[440,441] 442ns 1b                                   |L0.45|                                                  "
+    - "L0.46[450,451] 452ns 1b                                   |L0.46|                                                  "
+    - "L0.47[460,461] 462ns 1b                                    |L0.47|                                                 "
+    - "L0.48[470,471] 472ns 1b                                     |L0.48|                                                "
+    - "L0.49[480,481] 482ns 1b                                      |L0.49|                                               "
+    - "L0.50[490,491] 492ns 1b                                      |L0.50|                                               "
+    - "L0.51[500,501] 502ns 1b                                       |L0.51|                                              "
+    - "L0.52[510,511] 512ns 1b                                        |L0.52|                                             "
+    - "L0.53[520,521] 522ns 1b                                         |L0.53|                                            "
+    - "L0.54[530,531] 532ns 1b                                         |L0.54|                                            "
+    - "L0.55[540,541] 542ns 1b                                          |L0.55|                                           "
+    - "L0.56[550,551] 552ns 1b                                           |L0.56|                                          "
+    - "L0.57[560,561] 562ns 1b                                            |L0.57|                                         "
+    - "L0.58[570,571] 572ns 1b                                            |L0.58|                                         "
+    - "L0.59[580,581] 582ns 1b                                             |L0.59|                                        "
+    - "L0.60[590,591] 592ns 1b                                              |L0.60|                                       "
+    - "L0.61[600,601] 602ns 1b                                               |L0.61|                                      "
+    - "L0.62[610,611] 612ns 1b                                               |L0.62|                                      "
+    - "L0.63[620,621] 622ns 1b                                                |L0.63|                                     "
+    - "L0.64[630,631] 632ns 1b                                                 |L0.64|                                    "
+    - "L0.65[640,641] 642ns 1b                                                  |L0.65|                                   "
+    - "L0.66[650,651] 652ns 1b                                                  |L0.66|                                   "
+    - "L0.67[660,661] 662ns 1b                                                   |L0.67|                                  "
+    - "L0.68[670,671] 672ns 1b                                                    |L0.68|                                 "
+    - "L0.69[680,681] 682ns 1b                                                     |L0.69|                                "
+    - "L0.70[690,691] 692ns 1b                                                     |L0.70|                                "
+    - "L0.71[700,701] 702ns 1b                                                      |L0.71|                               "
+    - "L0.72[710,711] 712ns 1b                                                       |L0.72|                              "
+    - "L0.73[720,721] 722ns 1b                                                        |L0.73|                             "
+    - "L0.74[730,731] 732ns 1b                                                        |L0.74|                             "
+    - "L0.75[740,741] 742ns 1b                                                         |L0.75|                            "
+    - "L0.76[750,751] 752ns 1b                                                          |L0.76|                           "
+    - "L0.77[760,761] 762ns 1b                                                           |L0.77|                          "
+    - "L0.78[770,771] 772ns 1b                                                           |L0.78|                          "
+    - "L0.79[780,781] 782ns 1b                                                            |L0.79|                         "
+    - "L0.80[790,791] 792ns 1b                                                             |L0.80|                        "
+    - "L0.81[800,801] 802ns 1b                                                              |L0.81|                       "
+    - "L0.82[810,811] 812ns 1b                                                              |L0.82|                       "
+    - "L0.83[820,821] 822ns 1b                                                               |L0.83|                      "
+    - "L0.84[830,831] 832ns 1b                                                                |L0.84|                     "
+    - "L0.85[840,841] 842ns 1b                                                                 |L0.85|                    "
+    - "L0.86[850,851] 852ns 1b                                                                 |L0.86|                    "
+    - "L0.87[860,861] 862ns 1b                                                                  |L0.87|                   "
+    - "L0.88[870,871] 872ns 1b                                                                   |L0.88|                  "
+    - "L0.89[880,881] 882ns 1b                                                                    |L0.89|                 "
+    - "L0.90[890,891] 892ns 1b                                                                    |L0.90|                 "
+    - "L0.91[900,901] 902ns 1b                                                                     |L0.91|                "
+    - "L0.92[910,911] 912ns 1b                                                                      |L0.92|               "
+    - "L0.93[920,921] 922ns 1b                                                                       |L0.93|              "
+    - "L0.94[930,931] 932ns 1b                                                                       |L0.94|              "
+    - "L0.95[940,941] 942ns 1b                                                                        |L0.95|             "
+    - "L0.96[950,951] 952ns 1b                                                                         |L0.96|            "
+    - "L0.97[960,961] 962ns 1b                                                                          |L0.97|           "
+    - "L0.98[970,971] 972ns 1b                                                                          |L0.98|           "
+    - "L0.99[980,981] 982ns 1b                                                                           |L0.99|          "
+    - "L0.100[990,991] 992ns 1b                                                                           |L0.100|        "
+    - "L0.101[9,1001] 2us 33mb  |---------------------------------L0.101---------------------------------|                "
+    - "L0.102[1100,1200] 2us 33mb                                                                                  |L0.102|"
+    - "WARNING: file L0.101[9,1001] 2us 33mb exceeds soft limit 10mb by more than 50%"
+    - "WARNING: file L0.102[1100,1200] 2us 33mb exceeds soft limit 10mb by more than 50%"
+    - "**** Final Output Files (91mb written)"
+    - "L2                                                                                                                 "
+    - "L2.102[1100,1200] 2us 33mb                                                                                  |L2.102|"
+    - "L2.109[0,271] 2us 9mb    |------L2.109------|                                                                      "
+    - "L2.115[272,571] 2us 10mb                     |-------L2.115-------|                                                "
+    - "L2.116[572,870] 2us 10mb                                           |-------L2.116-------|                          "
+    - "L2.117[871,1001] 2us 4mb                                                                  |L2.117-|                "
+    - "**** Breakdown of where bytes were written"
+    - 33mb written by split(VerticalSplit)
+    - 58mb written by split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))
+    - 60b written by compact(ManySmallFiles)
+    - "WARNING: file L2.102[1100,1200] 2us 33mb exceeds soft limit 10mb by more than 50%"
     "###
     );
 }

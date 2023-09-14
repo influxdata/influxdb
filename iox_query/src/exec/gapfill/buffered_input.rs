@@ -3,7 +3,8 @@
 use std::sync::Arc;
 
 use arrow::{
-    array::ArrayRef,
+    array::{as_struct_array, ArrayRef},
+    datatypes::DataType,
     record_batch::RecordBatch,
     row::{RowConverter, Rows, SortField},
 };
@@ -119,8 +120,26 @@ impl BufferedInput {
                     Arc::clone(array)
                 };
 
-                if array.null_count() < array.len() {
-                    to_remove.push(col_offset);
+                let struct_value_col = if let DataType::Struct(fields) = array.data_type().clone() {
+                    fields.find("value").map(|(n, _)| n)
+                } else {
+                    None
+                };
+
+                match struct_value_col {
+                    Some(n) => {
+                        let value_array = as_struct_array(&array).column(n);
+                        if array.null_count() < array.len()
+                            && value_array.null_count() < value_array.len()
+                        {
+                            to_remove.push(col_offset);
+                        }
+                    }
+                    None => {
+                        if array.null_count() < array.len() {
+                            to_remove.push(col_offset);
+                        }
+                    }
                 }
             }
 
@@ -272,6 +291,57 @@ mod tests {
                 ],
                 (0..12).map(Some).collect(),
             ],
+            struct_cols: vec![],
+            input_batch_size: batch_size,
+        };
+
+        TryInto::<Vec<RecordBatch>>::try_into(records)
+            .unwrap()
+            .into()
+    }
+
+    fn test_struct_records(batch_size: usize) -> VecDeque<RecordBatch> {
+        let records = TestRecords {
+            group_cols: vec![
+                std::iter::repeat(Some("a")).take(12).collect(),
+                std::iter::repeat(Some("b"))
+                    .take(6)
+                    .chain(std::iter::repeat(Some("c")).take(6))
+                    .collect(),
+            ],
+            time_col: (0..12).map(|i| Some(1000 + i * 5)).take(12).collect(),
+            agg_cols: vec![],
+            struct_cols: vec![
+                vec![
+                    Some(vec![1, 0]),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(vec![10, 0]),
+                ],
+                vec![
+                    Some(vec![2, 0]),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(vec![20, 0]),
+                    None,
+                    None,
+                    None,
+                ],
+                (0..12).map(|n| Some(vec![n, 0])).collect(),
+            ],
             input_batch_size: batch_size,
         };
 
@@ -386,6 +456,31 @@ mod tests {
 
         let batch_size = 3;
         let mut batches = test_records(batch_size);
+
+        // no rows
+        assert!(buffered_input.need_more(batch_size - 1).unwrap());
+
+        // 3 rows
+        buffered_input.push(batches.pop_front().unwrap());
+        assert!(buffered_input.need_more(batch_size - 1).unwrap());
+
+        // 6 rows
+        buffered_input.push(batches.pop_front().unwrap());
+        assert!(buffered_input.need_more(batch_size - 1).unwrap());
+
+        // 9 rows (series changes here)
+        buffered_input.push(batches.pop_front().unwrap());
+        assert!(!buffered_input.need_more(batch_size - 1).unwrap());
+    }
+
+    #[test]
+    fn struct_with_group() {
+        let params = test_params();
+        let group_cols = vec![0, 1];
+        let mut buffered_input = BufferedInput::new(&params, group_cols);
+
+        let batch_size = 3;
+        let mut batches = test_struct_records(batch_size);
 
         // no rows
         assert!(buffered_input.need_more(batch_size - 1).unwrap());

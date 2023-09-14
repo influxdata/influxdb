@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use async_trait::async_trait;
 use compactor_scheduler::CompactionJob;
-use observability_deps::tracing::{info, warn};
+use observability_deps::tracing::info;
 
 use super::CompactionJobsSource;
 
@@ -41,7 +41,7 @@ where
         let jobs = self.inner.fetch().await;
         info!(n_jobs = jobs.len(), "Fetch jobs",);
         if jobs.is_empty() {
-            warn!("No compaction job found");
+            info!("No compaction job found");
         }
         jobs
     }
@@ -69,7 +69,7 @@ mod tests {
         assert_eq!(
             capture.to_string(),
             "level = INFO; message = Fetch jobs; n_jobs = 0; \
-            \nlevel = WARN; message = No compaction job found; ",
+            \nlevel = INFO; message = No compaction job found; ",
         );
     }
 

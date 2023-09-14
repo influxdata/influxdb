@@ -338,7 +338,7 @@ mod tests {
     use crate::writer::Writer;
 
     use assert_matches::assert_matches;
-    use chrono::{format::StrftimeItems, TimeZone, Utc};
+    use chrono::{format::StrftimeItems, DateTime, Datelike, Days, TimeZone, Utc};
     use data_types::partition_template::{
         build_column_values, test_table_partition_override, ColumnValue,
     };
@@ -624,6 +624,13 @@ mod tests {
         ColumnValue::Prefix(s.into())
     }
 
+    fn year(y: i32) -> ColumnValue<'static> {
+        ColumnValue::Datetime {
+            begin: Utc.with_ymd_and_hms(y, 1, 1, 0, 0, 0).unwrap(),
+            end: Utc.with_ymd_and_hms(y + 1, 1, 1, 0, 0, 0).unwrap(),
+        }
+    }
+
     // Generate a test that asserts the derived partition key matches
     // "want_key", when using the provided "template" parts and set of "tags".
     //
@@ -692,7 +699,11 @@ mod tests {
         ],
         tags = [("a", "bananas"), ("b", "are_good")],
         want_key = "2023|bananas|are_good",
-        want_reversed_tags = [("a", identity("bananas")), ("b", identity("are_good"))]
+        want_reversed_tags = [
+            (TIME_COLUMN_NAME, year(2023)),
+            ("a", identity("bananas")),
+            ("b", identity("are_good")),
+        ]
     );
 
     test_partition_key!(
@@ -704,7 +715,11 @@ mod tests {
         ],
         tags = [("a", "bananas"), ("b", "plátanos")],
         want_key = "2023|bananas|pl%C3%A1tanos",
-        want_reversed_tags = [("a", identity("bananas")), ("b", identity("plátanos"))]
+        want_reversed_tags = [
+            (TIME_COLUMN_NAME, year(2023)),
+            ("a", identity("bananas")),
+            ("b", identity("plátanos")),
+        ]
     );
 
     test_partition_key!(
@@ -744,6 +759,7 @@ mod tests {
         tags = [("a", "|"), ("b", "!"), ("d", "%7C%21%257C"), ("e", "^")],
         want_key = "2023|%7C|%21|!|%257C%2521%25257C|%5E",
         want_reversed_tags = [
+            (TIME_COLUMN_NAME, year(2023)),
             ("a", identity("|")),
             ("b", identity("!")),
             ("d", identity("%7C%21%257C")),
@@ -1104,6 +1120,27 @@ mod tests {
             .prop_shuffle()
     }
 
+    enum StringOrTSRange {
+        String(String),
+        TSRange(DateTime<Utc>, DateTime<Utc>),
+    }
+
+    impl StringOrTSRange {
+        fn expect_string(&self) -> &String {
+            match self {
+                Self::String(s) => s,
+                Self::TSRange(_, _) => panic!("expected string, got TS range"),
+            }
+        }
+
+        fn expect_ts_range(&self) -> (DateTime<Utc>, DateTime<Utc>) {
+            match self {
+                Self::String(_) => panic!("expected TS range, got string"),
+                Self::TSRange(b, e) => (*b, *e),
+            }
+        }
+    }
+
     proptest! {
         /// A property test that asserts a write comprised of an arbitrary
         /// subset of [`TEST_TAG_NAME_SET`] with randomised values, that is
@@ -1113,7 +1150,8 @@ mod tests {
         #[test]
         fn prop_reversible_mapping(
             template in arbitrary_template_parts(),
-            tag_values in arbitrary_tag_value_map()
+            tag_values in arbitrary_tag_value_map(),
+            ts in 0_i64..i64::MAX,
         ) {
             let mut batch = MutableBatch::new();
             let mut writer = Writer::new(&mut batch, 1);
@@ -1121,9 +1159,8 @@ mod tests {
             let template = template.clone().into_iter().collect::<Vec<_>>();
             let template = test_table_partition_override(template);
 
-            // Timestamp: 2023-05-29T13:03:16Z
             writer
-                .write_time("time", vec![1685365396931384064].into_iter())
+                .write_time("time", vec![ts].into_iter())
                 .unwrap();
 
             for (col, value) in &tag_values {
@@ -1142,38 +1179,58 @@ mod tests {
 
             // Build the expected set of reversed tags by filtering out any
             // NULL tags (preserving empty string values).
-            let want_reversed: Vec<(&str, String)> = template.parts().filter_map(|v| match v {
+            let ts = Utc.timestamp_nanos(ts);
+            let want_reversed: Vec<(&str, StringOrTSRange)> = template.parts().filter_map(|v| match v {
                 TemplatePart::TagValue(col_name) if tag_values.contains_key(col_name) => {
                     // This tag had a (potentially empty) value wrote and should
                     // appear in the reversed output.
-                    Some((col_name, tag_values.get(col_name).unwrap().to_string()))
+                    Some((col_name, StringOrTSRange::String(tag_values.get(col_name).unwrap().to_string())))
+                }
+                TemplatePart::TimeFormat("%Y/%m/%d" | "%Y-%m-%d") => {
+                    let begin = Utc.with_ymd_and_hms(ts.year(), ts.month(), ts.day(), 0, 0, 0).unwrap();
+                    let end = begin + Days::new(1);
+                    Some((TIME_COLUMN_NAME, StringOrTSRange::TSRange(begin, end)))
                 }
                 _ => None,
             }).collect();
 
             assert_eq!(want_reversed.len(), reversed.len());
 
-            for (want, got) in want_reversed.iter().zip(reversed.iter()) {
-                assert_eq!(got.0, want.0, "column names differ");
+            for ((want_col, want_val), (got_col, got_val)) in want_reversed.iter().zip(reversed.iter()) {
+                assert_eq!(got_col, want_col, "column names differ");
 
-                match got.1 {
+                match got_val {
                     ColumnValue::Identity(_) => {
                         // An identity is both equal to, and a prefix of, the
                         // original value.
-                        assert_eq!(got.1, want.1, "identity values differ");
+                        let want_val = want_val.expect_string();
+                        assert_eq!(got_val, &want_val, "identity values differ");
                         assert!(
-                            got.1.is_prefix_match_of(&want.1),
+                            got_val.is_prefix_match_of(want_val),
                             "prefix mismatch; {:?} is not a prefix of {:?}",
-                            got.1,
-                            want.1
+                            got_val,
+                            want_val,
                         );
                     },
-                    ColumnValue::Prefix(_) => assert!(
-                        got.1.is_prefix_match_of(&want.1),
-                        "prefix mismatch; {:?} is not a prefix of {:?}",
-                        got.1,
-                        want.1
-                    ),
+                    ColumnValue::Prefix(_) => {
+                        let want_val = want_val.expect_string();
+                        assert!(
+                            got_val.is_prefix_match_of(want_val),
+                            "prefix mismatch; {:?} is not a prefix of {:?}",
+                            got_val,
+                            want_val,
+                        );
+                    },
+                    ColumnValue::Datetime{..} => {
+                        let (got_begin, got_end) = want_val.expect_ts_range();
+                        match got_val {
+                            ColumnValue::Datetime{begin, end} => {
+                                assert_eq!(got_begin, *begin);
+                                assert_eq!(got_end, *end);
+                            }
+                            _ => panic!("expected datatime column value but got: {:?}", got_val)
+                        }
+                    },
                 };
             }
         }

@@ -19,7 +19,7 @@
 |    |       SortPreservingMergeExec: [tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
 |    |         UnionExec    |
 |    |           SortExec: expr=[tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
-|    |             RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
+|    |             RecordBatchesExec: chunks=1    |
 |    |           ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[__chunk_order, bar, foo, tag, time], output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC]    |
 |    |    |
 ----------
@@ -43,7 +43,7 @@
 |    |           CoalesceBatchesExec: target_batch_size=8192    |
 |    |             FilterExec: tag@3 = A    |
 |    |               RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
-|    |                 RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
+|    |                 RecordBatchesExec: chunks=1    |
 |    |         CoalesceBatchesExec: target_batch_size=8192    |
 |    |           FilterExec: tag@3 = A    |
 |    |             ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[__chunk_order, bar, foo, tag, time], output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], predicate=tag@2 = A, pruning_predicate=tag_min@0 <= A AND A <= tag_max@1    |
@@ -68,7 +68,7 @@
 |    |         SortPreservingMergeExec: [tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
 |    |           UnionExec    |
 |    |             SortExec: expr=[tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
-|    |               RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
+|    |               RecordBatchesExec: chunks=1    |
 |    |             ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[__chunk_order, bar, foo, tag, time], output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC]    |
 |    |    |
 ----------
@@ -95,7 +95,7 @@
 |    |             CoalesceBatchesExec: target_batch_size=8192    |
 |    |               FilterExec: time@4 = 0    |
 |    |                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
-|    |                   RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
+|    |                   RecordBatchesExec: chunks=1    |
 |    |           CoalesceBatchesExec: target_batch_size=8192    |
 |    |             FilterExec: time@4 = 0    |
 |    |               ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[__chunk_order, bar, foo, tag, time], output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], predicate=time@3 = 0, pruning_predicate=time_min@0 <= 0 AND 0 <= time_max@1    |
@@ -123,7 +123,7 @@
 |    |               CoalesceBatchesExec: target_batch_size=8192    |
 |    |                 FilterExec: tag@3 = A AND time@4 = 0    |
 |    |                   RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
-|    |                     RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
+|    |                     RecordBatchesExec: chunks=1    |
 |    |             CoalesceBatchesExec: target_batch_size=8192    |
 |    |               FilterExec: tag@3 = A AND time@4 = 0    |
 |    |                 ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[__chunk_order, bar, foo, tag, time], output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], predicate=tag@2 = A AND time@3 = 0, pruning_predicate=tag_min@0 <= A AND A <= tag_max@1 AND time_min@2 <= 0 AND 0 <= time_max@3    |

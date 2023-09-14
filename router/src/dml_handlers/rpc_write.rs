@@ -210,20 +210,40 @@ where
         };
 
         // Obtain a snapshot of currently-healthy upstreams (and potentially
-        // some that need probing)
+        // some that need probing).
         let snap = self
             .endpoints
             .endpoints()
             .ok_or(RpcWriteError::NoHealthyUpstreams)?;
 
-        // Validate the required number of writes is possible given the current
-        // number of healthy endpoints.
-        if snap.initial_len() < self.n_copies {
+        // It's possible the set of endpoints may contain fewer upstreams than
+        // necessary for the write request to succeed (N < replication factor).
+        //
+        // If this occurs, the write can be aborted early, placing no load on
+        // the upstreams that appear in the snapshot iff the snapshot contains
+        // no probe requests.
+        //
+        // If the snapshot contains upstreams selected for health probe
+        // requests, the probes MUST be sent to drive recovery of the upstream,
+        // even if this write request is doomed to fail due to insufficient
+        // upstreams.
+        if snap.initial_len() < self.n_copies && !snap.contains_probe() {
             return Err(RpcWriteError::NotEnoughReplicas);
         }
 
         // Concurrently write to the required number of replicas to reach the
         // desired replication factor.
+        //
+        // These write attempts are coupled to the client - if the client
+        // disconnects, the writes are aborted (potentially after already
+        // succeeding).
+        //
+        // While probe requests MUST be sent to drive recovery detection, and an
+        // early disconnect aborts the writes and prevents this process from
+        // completing, the probability game saves us from having to optimise
+        // this further - for a meaningful write workload, eventually enough
+        // client will perform probe writes to completion and drive health
+        // discovery.
         let mut result_stream = (0..self.n_copies)
             .map(|_| {
                 // Acquire a request-scoped snapshot that synchronises with
@@ -240,12 +260,13 @@ where
         // Consume the result stream, eagerly returning if an error is observed.
         //
         // Because partial writes have different semantics to outright failures
-        // (principally that you may expect your write to turn up in queries, even though
-        // the overall request failed), return a PartialWrite error if at least
-        // one write success has been observed. This is best-effort! It's always
-        // possible that PartialWrite is not returned, even though a partial
-        // write has occurred (for example, the next result in the stream is an
-        // already-completed write ACK).
+        // (principally that you may expect your write to turn up in queries,
+        // even though the overall request failed), return a PartialWrite error
+        // if at least one write success has been observed.
+        //
+        // This is best-effort! It's always possible that PartialWrite is not
+        // returned, even though a partial write has occurred (for example, the
+        // next result in the stream is an already-completed write ACK).
         while let Some((i, res)) = result_stream.next().await {
             match res {
                 Ok(_) => {}
@@ -308,15 +329,8 @@ where
         // request succeeds or this async call times out.
         let mut delay = Duration::from_millis(50);
         loop {
-            // Because the number of candidate upstreams is validated to be
-            // greater-than-or-equal-to the number of desired data copies before
-            // starting the write loop, and because the parallelism of the write
-            // loop matches the number of desired data copies, it's not possible
-            // for any thread to observe an empty snapshot, because transitively
-            // the number of upstreams matches or exceeds the parallelism.
-            let client = endpoints
-                .next()
-                .expect("not enough replicas in snapshot to satisfy replication factor");
+            // Obtain the next upstream client to try.
+            let client = endpoints.next().ok_or(RpcWriteError::NotEnoughReplicas)?;
 
             match client.write(req.clone(), span_ctx.clone()).await {
                 Ok(()) => {
@@ -962,6 +976,61 @@ mod tests {
             .chain(calls_2.iter())
             .chain(client_3.calls().iter())
             .all(|v| *v == calls_1[0]));
+    }
+
+    /// Assert that the RPC writes are sufficient to drive recovery detection
+    /// for at least one upstream, when all upstreams are offline.
+    #[tokio::test]
+    async fn test_write_replication_all_unhealthy_one_probe() {
+        // Initialise three unhealthy upstreams with one selected for probing.
+        let client_1 = Arc::new(MockWriteClient::default().with_ret([Ok(())]));
+        let circuit_1 = Arc::new(MockCircuitBreaker::default());
+        circuit_1.set_healthy(false);
+        circuit_1.set_should_probe(true);
+
+        // This client sometimes errors (2 times)
+        let client_2 = Arc::new(MockWriteClient::default().with_ret([Ok(())]));
+        let circuit_2 = Arc::new(MockCircuitBreaker::default());
+        circuit_2.set_healthy(false);
+        circuit_2.set_should_probe(false);
+
+        // This client always errors
+        let client_3 = Arc::new(MockWriteClient::default().with_ret([Ok(())]));
+        let circuit_3 = Arc::new(MockCircuitBreaker::default());
+        circuit_3.set_healthy(false);
+        circuit_3.set_should_probe(false);
+
+        // Configure the clients to use the mocked circuit breakers.
+        let mut clients = vec![
+            CircuitBreakingClient::new(Arc::clone(&client_1), "client_1", 1)
+                .with_circuit_breaker(circuit_1),
+            CircuitBreakingClient::new(Arc::clone(&client_2), "client_2", 1)
+                .with_circuit_breaker(circuit_2),
+            CircuitBreakingClient::new(Arc::clone(&client_3), "client_3", 1)
+                .with_circuit_breaker(circuit_3),
+        ];
+
+        // The order should never affect the outcome.
+        clients.shuffle(&mut rand::thread_rng());
+
+        let got = make_request(
+            clients, 2, // 2 copies required
+        )
+        .await;
+
+        assert_matches!(
+            got,
+            Err(RpcWriteError::PartialWrite {
+                want_n_copies: 2,
+                acks: 1, // Probe success
+            })
+        );
+
+        let reqs = [client_1, client_2, client_3]
+            .iter()
+            .filter(|v| v.calls().len() == 1)
+            .count();
+        assert_eq!(reqs, 1);
     }
 
     prop_compose! {

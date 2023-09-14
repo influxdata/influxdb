@@ -15,7 +15,7 @@ use crate::{
     buffer_tree::{
         namespace::NamespaceName,
         partition::{PartitionData, SortKeyState},
-        table::TableMetadata,
+        table::metadata::TableMetadata,
     },
     deferred_load::DeferredLoad,
 };
@@ -76,6 +76,14 @@ impl PartitionProvider for CatalogPartitionResolver {
             .await
             .expect("retry forever");
 
+        let p_sort_key = p.sort_key();
+        let p_sort_key_ids = p.sort_key_ids_none_if_empty();
+
+        assert_eq!(
+            p_sort_key.as_ref().map(|v| v.len()),
+            p_sort_key_ids.as_ref().map(|v| v.len())
+        );
+
         Arc::new(Mutex::new(PartitionData::new(
             p.transition_partition_id(),
             // Use the caller's partition key instance, as it MAY be shared with
@@ -86,7 +94,7 @@ impl PartitionProvider for CatalogPartitionResolver {
             namespace_name,
             table_id,
             table,
-            SortKeyState::Provided(p.sort_key()),
+            SortKeyState::Provided(p_sort_key, p_sort_key_ids),
         )))
     }
 }
@@ -105,7 +113,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::buffer_tree::table::TableName;
+    use crate::buffer_tree::table::metadata::TableName;
 
     const TABLE_NAME: &str = "bananas";
     const NAMESPACE_NAME: &str = "ns-bananas";
@@ -160,7 +168,7 @@ mod tests {
             got.lock().table().get().await.name().to_string(),
             table_name.to_string()
         );
-        assert_matches!(got.lock().sort_key(), SortKeyState::Provided(None));
+        assert_matches!(got.lock().sort_key(), SortKeyState::Provided(None, None));
         assert!(got.lock().partition_key.ptr_eq(&callers_partition_key));
 
         let mut repos = catalog.repositories().await;

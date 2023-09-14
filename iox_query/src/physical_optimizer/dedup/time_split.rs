@@ -145,13 +145,13 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+          - "     RecordBatchesExec: chunks=2"
           - "     ParquetExec: file_groups={1 group: [[3.parquet]]}, projection=[field, tag1, tag2, time]"
         output:
           Ok:
             - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
             - "   UnionExec"
-            - "     RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+            - "     RecordBatchesExec: chunks=2"
             - "     ParquetExec: file_groups={1 group: [[3.parquet]]}, projection=[field, tag1, tag2, time]"
         "###
         );
@@ -186,18 +186,18 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+          - "     RecordBatchesExec: chunks=2"
           - "     ParquetExec: file_groups={2 groups: [[3.parquet, 5.parquet], [4.parquet, 6.parquet]]}, projection=[field, tag1, tag2, time]"
         output:
           Ok:
             - " UnionExec"
             - "   DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
             - "     UnionExec"
-            - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+            - "       RecordBatchesExec: chunks=1"
             - "       ParquetExec: file_groups={2 groups: [[6.parquet, 5.parquet], [3.parquet]]}, projection=[field, tag1, tag2, time]"
             - "   DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
             - "     UnionExec"
-            - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+            - "       RecordBatchesExec: chunks=1"
             - "       ParquetExec: file_groups={1 group: [[4.parquet]]}, projection=[field, tag1, tag2, time]"
         "###
         );
@@ -223,12 +223,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     RecordBatchesExec: batches_groups=3 batches=0 total_rows=0"
+          - "     RecordBatchesExec: chunks=3"
         output:
           Ok:
             - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
             - "   UnionExec"
-            - "     RecordBatchesExec: batches_groups=3 batches=0 total_rows=0"
+            - "     RecordBatchesExec: chunks=3"
         "###
         );
     }

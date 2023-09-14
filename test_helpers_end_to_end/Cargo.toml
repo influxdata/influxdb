@@ -10,7 +10,7 @@ arrow = { workspace = true, features = ["prettyprint"] }
 arrow-flight = { workspace = true }
 arrow_util = { path = "../arrow_util" }
 assert_cmd = "2.0.12"
-bytes = "1.4"
+bytes = "1.5"
 data_types = { path = "../data_types" }
 dml = { path = "../dml" }
 futures = "0.3"

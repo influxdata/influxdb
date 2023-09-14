@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 async-trait = "0.1"
 authz = { path = "../authz", features = ["http"] }
-bytes = "1.4"
+bytes = "1.5"
 crossbeam-utils = "0.8.16"
 data_types = { path = "../data_types" }
 dml = { path = "../dml" }
@@ -47,8 +47,8 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 assert_matches = "1.5"
-base64 = "0.21.3"
-chrono = { version = "0.4.28", default-features = false }
+base64 = "0.21.4"
+chrono = { version = "0.4.30", default-features = false }
 criterion = { version = "0.5", default-features = false, features = [
     "async_tokio",
     "rayon",

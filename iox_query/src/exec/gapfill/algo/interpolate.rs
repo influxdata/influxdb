@@ -2,7 +2,10 @@
 use std::sync::Arc;
 
 use arrow::{
-    array::{as_primitive_array, Array, ArrayRef, PrimitiveArray, TimestampNanosecondArray},
+    array::{
+        as_primitive_array, as_struct_array, Array, ArrayRef, PrimitiveArray, StructArray,
+        TimestampNanosecondArray,
+    },
     datatypes::{ArrowPrimitiveType, DataType, Float64Type, Int64Type, UInt64Type},
 };
 
@@ -53,6 +56,44 @@ impl Cursor {
                     input_time_array,
                     input_aggr_array,
                 )
+            }
+            DataType::Struct(_) => {
+                // The only struct type that is expected is the one produced by the
+                // selector_* functions. These consist of a value, a timestamp and a
+                // number of associated values selected from the same row. When
+                // interpolating it is only the value field that will be interpolated.
+                // All other columns in the structure are filled with nulls.
+
+                let input_aggr_array = as_struct_array(input_aggr_array);
+                let (fields, arrays, _) = input_aggr_array.clone().into_parts();
+                let cursors = fields
+                    .iter()
+                    .map(|f| {
+                        if f.name() == "value" {
+                            // The "value" array uses the parent cursor.
+                            Ok(None)
+                        } else {
+                            Ok(Some(self.clone_for_aggr_col(None)?))
+                        }
+                    })
+                    .collect::<Result<Vec<Option<Self>>>>()?;
+                let new_arrays = cursors
+                    .into_iter()
+                    .zip(arrays.into_iter())
+                    .map(|(cursor, a)| {
+                        if let Some(mut c) = cursor {
+                            c.build_aggr_fill_null(params, series_ends, input_time_array, &a)
+                        } else {
+                            self.build_aggr_fill_interpolate(
+                                params,
+                                series_ends,
+                                input_time_array,
+                                &a,
+                            )
+                        }
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(Arc::new(StructArray::new(fields, new_arrays, None)))
             }
             dt => Err(DataFusionError::Execution(format!(
                 "unsupported data type {dt} for interpolation gap filling"
