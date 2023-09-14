@@ -442,6 +442,35 @@ pub(crate) async fn populate_catalog(
     (ns_id, table_id)
 }
 
+pub(crate) async fn populate_catalog_with_table_columns(
+    catalog: &dyn Catalog,
+    namespace: &str,
+    table: &str,
+    columns: &[&str],
+) -> (NamespaceId, TableId, Vec<ColumnId>) {
+    let mut c = catalog.repositories().await;
+    let ns_id = arbitrary_namespace(&mut *c, namespace).await.id;
+    let table_id = c
+        .tables()
+        .create(table, Default::default(), ns_id)
+        .await
+        .unwrap()
+        .id;
+
+    let mut column_ids = Vec::with_capacity(columns.len());
+    for column in columns {
+        column_ids.push(
+            c.columns()
+                .create_or_get(column, table_id, data_types::ColumnType::Tag)
+                .await
+                .expect("create column failed")
+                .id,
+        );
+    }
+
+    (ns_id, table_id, column_ids)
+}
+
 /// Assert `a` and `b` have identical metadata, and that when converting
 /// them to Arrow batches they produces identical output.
 #[track_caller]
