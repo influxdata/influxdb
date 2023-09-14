@@ -81,13 +81,11 @@ pub(crate) struct NamespaceData<O> {
     /// [`PartitionData`]: super::partition::PartitionData
     partition_provider: Arc<dyn PartitionProvider>,
 
-    /// A counter tracking the approximate number of partitions currently
-    /// buffered.
+    /// A counter tracking the number of non-empty partitions currently
+    /// buffered for this namespace.
     ///
-    /// This counter is NOT atomically incremented w.r.t creation of the
-    /// partitions it tracks, and therefore is susceptible to "overrun",
-    /// breaching the configured partition count limit by a relatively small
-    /// degree.
+    /// This counter is eventually consistent / relaxed when read, but strongly
+    /// consistent when enforced.
     partition_count: Arc<PartitionCounter>,
 
     post_write_observer: Arc<O>,

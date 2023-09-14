@@ -14,7 +14,9 @@ use parking_lot::Mutex;
 
 use crate::{
     buffer_tree::{
-        namespace::NamespaceName, partition::PartitionData, table::metadata::TableMetadata,
+        namespace::NamespaceName,
+        partition::{counter::PartitionCounter, PartitionData},
+        table::metadata::TableMetadata,
     },
     deferred_load::DeferredLoad,
 };
@@ -147,6 +149,7 @@ where
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table: Arc<DeferredLoad<TableMetadata>>,
+        partition_counter: Arc<PartitionCounter>,
     ) -> Arc<Mutex<PartitionData>> {
         let key = Key {
             table_id,
@@ -170,6 +173,7 @@ where
                     namespace_name,
                     table_id,
                     table,
+                    partition_counter,
                 ));
 
                 // Make the future poll-able by many callers, all of which
@@ -233,6 +237,7 @@ async fn do_fetch<T>(
     namespace_name: Arc<DeferredLoad<NamespaceName>>,
     table_id: TableId,
     table: Arc<DeferredLoad<TableMetadata>>,
+    partition_counter: Arc<PartitionCounter>,
 ) -> Arc<Mutex<PartitionData>>
 where
     T: PartitionProvider + 'static,
@@ -247,7 +252,14 @@ where
     // (which would cause the connection to be returned).
     tokio::spawn(async move {
         inner
-            .get_partition(partition_key, namespace_id, namespace_name, table_id, table)
+            .get_partition(
+                partition_key,
+                namespace_id,
+                namespace_name,
+                table_id,
+                table,
+                partition_counter,
+            )
             .await
     })
     .await
@@ -258,6 +270,7 @@ where
 mod tests {
     use std::{
         future,
+        num::NonZeroUsize,
         sync::Arc,
         task::{Context, Poll},
         time::Duration,
@@ -300,6 +313,7 @@ mod tests {
                     defer_namespace_name_1_sec(),
                     ARBITRARY_TABLE_ID,
                     defer_table_metadata_1_sec(),
+                    Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
                 )
             })
             .collect::<FuturesUnordered<_>>()
@@ -334,6 +348,7 @@ mod tests {
             _namespace_name: Arc<DeferredLoad<NamespaceName>>,
             _table_id: TableId,
             _table: Arc<DeferredLoad<TableMetadata>>,
+            _partition_counter: Arc<PartitionCounter>,
         ) -> core::pin::Pin<
             Box<
                 dyn core::future::Future<Output = Arc<Mutex<PartitionData>>>
@@ -376,6 +391,7 @@ mod tests {
             Arc::clone(&namespace_loader),
             ARBITRARY_TABLE_ID,
             Arc::clone(&table_loader),
+            Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
         );
         let pa_2 = layer.get_partition(
             ARBITRARY_PARTITION_KEY.clone(),
@@ -383,6 +399,7 @@ mod tests {
             Arc::clone(&namespace_loader),
             ARBITRARY_TABLE_ID,
             Arc::clone(&table_loader),
+            Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
         );
 
         let waker = futures::task::noop_waker();
@@ -403,6 +420,7 @@ mod tests {
                 namespace_loader,
                 ARBITRARY_TABLE_ID,
                 table_loader,
+                Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
             )
             .with_timeout_panic(Duration::from_secs(5))
             .await;
@@ -433,6 +451,7 @@ mod tests {
             _namespace_name: Arc<DeferredLoad<NamespaceName>>,
             _table_id: TableId,
             _table: Arc<DeferredLoad<TableMetadata>>,
+            _partition_counter: Arc<PartitionCounter>,
         ) -> Arc<Mutex<PartitionData>> {
             let waker = self.wait.notified();
             let permit = self.sem.acquire().await.unwrap();
@@ -473,6 +492,7 @@ mod tests {
             defer_namespace_name_1_sec(),
             ARBITRARY_TABLE_ID,
             defer_table_metadata_1_sec(),
+            Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
         );
 
         let waker = futures::task::noop_waker();

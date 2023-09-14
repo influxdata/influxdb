@@ -6,7 +6,9 @@ use parking_lot::Mutex;
 
 use crate::{
     buffer_tree::{
-        namespace::NamespaceName, partition::PartitionData, table::metadata::TableMetadata,
+        namespace::NamespaceName,
+        partition::{counter::PartitionCounter, PartitionData},
+        table::metadata::TableMetadata,
     },
     deferred_load::DeferredLoad,
 };
@@ -27,6 +29,7 @@ pub(crate) trait PartitionProvider: Send + Sync + Debug {
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table: Arc<DeferredLoad<TableMetadata>>,
+        partition_counter: Arc<PartitionCounter>,
     ) -> Arc<Mutex<PartitionData>>;
 }
 
@@ -42,16 +45,24 @@ where
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table: Arc<DeferredLoad<TableMetadata>>,
+        partition_counter: Arc<PartitionCounter>,
     ) -> Arc<Mutex<PartitionData>> {
         (**self)
-            .get_partition(partition_key, namespace_id, namespace_name, table_id, table)
+            .get_partition(
+                partition_key,
+                namespace_id,
+                namespace_name,
+                table_id,
+                table,
+                partition_counter,
+            )
             .await
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{num::NonZeroUsize, sync::Arc};
 
     use super::*;
     use crate::{
@@ -81,6 +92,7 @@ mod tests {
                 Arc::clone(&namespace_loader),
                 ARBITRARY_TABLE_ID,
                 Arc::clone(&table_loader),
+                Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
             )
             .await;
         assert_eq!(

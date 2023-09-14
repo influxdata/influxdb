@@ -15,7 +15,8 @@ use crate::{
     buffer_tree::{
         namespace::NamespaceName,
         partition::{
-            resolver::build_sort_key_from_sort_key_ids_and_columns, PartitionData, SortKeyState,
+            counter::PartitionCounter, resolver::build_sort_key_from_sort_key_ids_and_columns,
+            PartitionData, SortKeyState,
         },
         table::metadata::TableMetadata,
     },
@@ -76,6 +77,7 @@ impl PartitionProvider for CatalogPartitionResolver {
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table: Arc<DeferredLoad<TableMetadata>>,
+        partition_counter: Arc<PartitionCounter>,
     ) -> Arc<Mutex<PartitionData>> {
         debug!(
             %partition_key,
@@ -119,6 +121,7 @@ impl PartitionProvider for CatalogPartitionResolver {
             table_id,
             table,
             SortKeyState::Provided(sort_key, p_sort_key_ids),
+            partition_counter,
         )))
     }
 }
@@ -128,7 +131,7 @@ mod tests {
     // Harmless in tests - saves a bunch of extra vars.
     #![allow(clippy::await_holding_lock)]
 
-    use std::{sync::Arc, time::Duration};
+    use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
     use iox_catalog::{
@@ -181,6 +184,7 @@ mod tests {
                     },
                     &metrics,
                 )),
+                Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
             )
             .await;
 

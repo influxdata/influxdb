@@ -9,7 +9,9 @@ use parking_lot::Mutex;
 use super::r#trait::PartitionProvider;
 use crate::{
     buffer_tree::{
-        namespace::NamespaceName, partition::PartitionData, table::metadata::TableMetadata,
+        namespace::NamespaceName,
+        partition::{counter::PartitionCounter, PartitionData},
+        table::metadata::TableMetadata,
     },
     deferred_load::DeferredLoad,
     test_util::PartitionDataBuilder,
@@ -57,6 +59,7 @@ impl PartitionProvider for MockPartitionProvider {
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table: Arc<DeferredLoad<TableMetadata>>,
+        partition_counter: Arc<PartitionCounter>,
     ) -> Arc<Mutex<PartitionData>> {
         let p = self
             .partitions
@@ -68,13 +71,16 @@ impl PartitionProvider for MockPartitionProvider {
 
         let mut p = p.with_namespace_id(namespace_id);
 
-        // If the test provided a namespace/table loader, use it, otherwise default to the
-        // one provided in this call.
+        // If the test provided a namespace/table loader, use it, otherwise
+        // default to the one provided in this call.
         if p.namespace_loader().is_none() {
             p = p.with_namespace_loader(namespace_name);
         }
         if p.table_loader().is_none() {
             p = p.with_table_loader(table);
+        }
+        if p.partition_counter().is_none() {
+            p = p.with_partition_counter(partition_counter);
         }
 
         Arc::new(Mutex::new(p.build()))
