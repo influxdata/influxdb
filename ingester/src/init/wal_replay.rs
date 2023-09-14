@@ -112,9 +112,7 @@ where
         );
 
         // Replay this segment file
-        match replay_sequenced_op_batches(reader, sink, &ok_op_count_metric, &empty_op_count_metric)
-            .await?
-        {
+        match replay_file(reader, sink, &ok_op_count_metric, &empty_op_count_metric).await? {
             v @ Some(_) => max_sequence = max_sequence.max(v),
             None => {
                 // This file was empty and should be deleted.
@@ -190,37 +188,37 @@ impl SegmentedWalOpBatchReader for wal::ClosedSegmentFileReader {
     }
 }
 
-/// Replay the entries in `batches`, applying them to `buffer`. Returns the
-/// highest sequence number observed across the batches, or [`None`] if there
-/// were no entries read.
+/// Replay the entries in `file`, applying them to `buffer`. Returns the
+/// highest sequence number observed across the batches read from the file, or
+/// [`None`] if there were no entries read.
 ///
 /// # Warnings
 ///
 /// This function relies on the [`wal::Error::UnableToReadNextOps`] error
 /// meaning that there are no more valid completed writes which can be read
 /// from the provided `batches` and that it is safe to ignore them.
-async fn replay_sequenced_op_batches<T, W>(
-    batches: W,
+async fn replay_file<T, F>(
+    file: F,
     sink: &T,
     ok_op_count_metric: &U64Counter,
     empty_op_count_metric: &U64Counter,
 ) -> Result<Option<SequenceNumber>, WalReplayError>
 where
     T: DmlSink,
-    W: SegmentedWalOpBatchReader,
+    F: SegmentedWalOpBatchReader,
 {
     let mut max_sequence = None;
     let start = Instant::now();
-    let segment_id = batches.id();
+    let segment_id = file.id();
 
-    for batch in batches {
+    for batch in file {
         if let Err(
             err @ wal::Error::UnableToReadNextOps {
                 source: wal::blocking::ReaderError::IncompleteEntry { .. },
             },
         ) = batch
         {
-            error!(%err, ?segment_id, "unable to recover further op batches from wal segment");
+            warn!(%err, ?segment_id, "detected truncated WAL write, ending replay for file early");
             break;
         }
 
@@ -610,7 +608,7 @@ mod tests {
 
     // Assert that an error returned within [`wal::Error::UnableToReadNextOps`]
     // is thrown up.
-    macro_rules! test_replay_sequenced_op_batches_returns_error {
+    macro_rules! test_replay_file_returns_error {
         (
             $name:ident,
             inner_err = $inner_err:expr,
@@ -640,7 +638,7 @@ mod tests {
                     let mock_sink = MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]);
 
                     assert_matches!(
-                        replay_sequenced_op_batches(
+                        replay_file(
                             reader,
                             &mock_sink,
                             &metric.recorder(&[]),
@@ -654,7 +652,7 @@ mod tests {
         };
     }
 
-    test_replay_sequenced_op_batches_returns_error!(
+    test_replay_file_returns_error!(
         checksum_mismatch,
         inner_err = wal::blocking::ReaderError::ChecksumMismatch {
             expected: 1,
@@ -662,14 +660,14 @@ mod tests {
         },
     );
 
-    test_replay_sequenced_op_batches_returns_error!(
+    test_replay_file_returns_error!(
         unable_to_read_data,
         inner_err = wal::blocking::ReaderError::UnableToReadData {
             source: std::io::Error::new(std::io::ErrorKind::OutOfMemory, "boom"),
         },
     );
 
-    test_replay_sequenced_op_batches_returns_error!(
+    test_replay_file_returns_error!(
         length_mismatch,
         inner_err = wal::blocking::ReaderError::LengthMismatch {
             expected: 1,
@@ -677,7 +675,7 @@ mod tests {
         },
     );
 
-    test_replay_sequenced_op_batches_returns_error!(
+    test_replay_file_returns_error!(
         unable_to_read_checksum,
         inner_err = wal::blocking::ReaderError::UnableToReadChecksum {
             source: std::io::Error::new(std::io::ErrorKind::TimedOut, "boop"),
@@ -718,7 +716,7 @@ mod tests {
         };
         let mock_sink = MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]);
 
-        let result = replay_sequenced_op_batches(
+        let result = replay_file(
             reader,
             &mock_sink,
             &metric.recorder(&[]),
