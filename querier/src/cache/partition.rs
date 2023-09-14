@@ -323,6 +323,10 @@ impl CachedPartition {
                                 max_value,
                             }
                         }
+                        ColumnValue::Datetime { .. } => {
+                            // not yet supported
+                            return None;
+                        }
                     };
 
                     Some((col, range))

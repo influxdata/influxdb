@@ -150,9 +150,14 @@
 //!
 //! [percent encoded]: https://url.spec.whatwg.org/#percent-encoded-bytes
 
+use chrono::{
+    format::{Numeric, StrftimeItems},
+    DateTime, Days, Months, Utc,
+};
 use generated_types::influxdata::iox::partition_template::v1 as proto;
 use once_cell::sync::Lazy;
 use percent_encoding::{percent_decode_str, AsciiSet, CONTROLS};
+use schema::TIME_COLUMN_NAME;
 use std::{borrow::Cow, sync::Arc};
 use thiserror::Error;
 
@@ -544,6 +549,15 @@ pub enum ColumnValue<'a> {
     /// be false - use [`ColumnValue::is_prefix_match_of()`] to prefix match
     /// instead.
     Prefix(Cow<'a, str>),
+
+    /// Datetime.
+    Datetime {
+        /// Inclusive begin of the datatime partition range.
+        begin: DateTime<Utc>,
+
+        /// Exclusive end of the datatime partition range.
+        end: DateTime<Utc>,
+    },
 }
 
 impl<'a> ColumnValue<'a> {
@@ -558,6 +572,9 @@ impl<'a> ColumnValue<'a> {
         let this = match self {
             ColumnValue::Identity(v) => v.as_bytes(),
             ColumnValue::Prefix(v) => v.as_bytes(),
+            ColumnValue::Datetime { .. } => {
+                return false;
+            }
         };
 
         other.as_ref().starts_with(this)
@@ -572,6 +589,7 @@ where
         match self {
             ColumnValue::Identity(v) => other.as_ref().eq(v.as_ref()),
             ColumnValue::Prefix(_) => false,
+            ColumnValue::Datetime { .. } => false,
         }
     }
 }
@@ -611,54 +629,160 @@ pub fn build_column_values<'a>(
     // Produce an iterator of (template_part, template_value)
     template_parts
         .zip(key_parts)
-        .filter_map(|(template, mut value)| {
-            // Perform re-mapping of sentinel values.
-            match value {
-                PARTITION_KEY_VALUE_NULL_STR => {
-                    // Skip null or empty partition key parts, indicated by the
-                    // presence of a single "!" character as the part value.
-                    return None;
-                }
-                PARTITION_KEY_VALUE_EMPTY_STR => {
-                    // Re-map the empty string sentinel "^"" to an empty string
-                    // value.
-                    value = "";
-                }
-                _ => {}
-            }
-
-            match template {
-                TemplatePart::TagValue(col_name) => Some((col_name, value)),
-                TemplatePart::TimeFormat(_) => None,
+        .filter_map(|(template, value)| match template {
+            TemplatePart::TagValue(col_name) => Some((col_name, parse_part_tag_value(value)?)),
+            TemplatePart::TimeFormat(format) => {
+                Some((TIME_COLUMN_NAME, parse_part_time_format(value, format)?))
             }
         })
-        // Reverse the urlencoding of all value parts
-        .map(|(name, value)| {
-            let decoded = percent_decode_str(value)
-                .decode_utf8()
-                .expect("invalid partition key part encoding");
+}
 
-            // Inspect the final character in the string, pre-decoding, to
-            // determine if it has been truncated.
-            if value
-                .as_bytes()
-                .last()
-                .map(|v| *v == PARTITION_KEY_PART_TRUNCATED as u8)
-                .unwrap_or_default()
-            {
-                // Remove the truncation marker.
-                let len = decoded.len() - 1;
+fn parse_part_tag_value(value: &str) -> Option<ColumnValue<'_>> {
+    // Perform re-mapping of sentinel values.
+    let value = match value {
+        PARTITION_KEY_VALUE_NULL_STR => {
+            // Skip null or empty partition key parts, indicated by the
+            // presence of a single "!" character as the part value.
+            return None;
+        }
+        PARTITION_KEY_VALUE_EMPTY_STR => {
+            // Re-map the empty string sentinel "^"" to an empty string
+            // value.
+            ""
+        }
+        _ => value,
+    };
 
-                // Only allocate if needed; re-borrow a subslice of `Cow::Borrowed` if not.
-                let column_cow = match decoded {
-                    Cow::Borrowed(s) => Cow::Borrowed(&s[..len]),
-                    Cow::Owned(s) => Cow::Owned(s[..len].to_string()),
-                };
-                return (name, ColumnValue::Prefix(column_cow));
+    // Reverse the urlencoding of all value parts
+    let decoded = percent_decode_str(value)
+        .decode_utf8()
+        .expect("invalid partition key part encoding");
+
+    // Inspect the final character in the string, pre-decoding, to
+    // determine if it has been truncated.
+    if value
+        .as_bytes()
+        .last()
+        .map(|v| *v == PARTITION_KEY_PART_TRUNCATED as u8)
+        .unwrap_or_default()
+    {
+        // Remove the truncation marker.
+        let len = decoded.len() - 1;
+
+        // Only allocate if needed; re-borrow a subslice of `Cow::Borrowed` if not.
+        let column_cow = match decoded {
+            Cow::Borrowed(s) => Cow::Borrowed(&s[..len]),
+            Cow::Owned(s) => Cow::Owned(s[..len].to_string()),
+        };
+        Some(ColumnValue::Prefix(column_cow))
+    } else {
+        Some(ColumnValue::Identity(decoded))
+    }
+}
+
+fn parse_part_time_format(value: &str, format: &str) -> Option<ColumnValue<'static>> {
+    use chrono::format::{parse, Item, Parsed};
+
+    let items = StrftimeItems::new(format);
+
+    let mut parsed = Parsed::new();
+    parse(&mut parsed, value, items.clone()).ok()?;
+
+    // fill in defaults
+    let parsed = parsed_implicit_defaults(parsed)?;
+
+    let begin = parsed.to_datetime_with_timezone(&Utc).ok()?;
+
+    let mut end: Option<DateTime<Utc>> = None;
+    for item in items {
+        let item_end = match item {
+            Item::Literal(_) | Item::OwnedLiteral(_) | Item::Space(_) | Item::OwnedSpace(_) => None,
+            Item::Error => {
+                return None;
             }
+            Item::Numeric(numeric, _pad) => {
+                match numeric {
+                    Numeric::Year => Some(begin + Months::new(12)),
+                    Numeric::Month => Some(begin + Months::new(1)),
+                    Numeric::Day => Some(begin + Days::new(1)),
+                    _ => {
+                        // not supported
+                        return None;
+                    }
+                }
+            }
+            Item::Fixed(_) => {
+                // not implemented
+                return None;
+            }
+        };
 
-            (name, ColumnValue::Identity(decoded))
-        })
+        end = match (end, item_end) {
+            (Some(a), Some(b)) => {
+                let a_d = a - begin;
+                let b_d = b - begin;
+                if a_d < b_d {
+                    Some(a)
+                } else {
+                    Some(b)
+                }
+            }
+            (None, Some(dt)) => Some(dt),
+            (Some(dt), None) => Some(dt),
+            (None, None) => None,
+        };
+    }
+
+    end.map(|end| ColumnValue::Datetime { begin, end })
+}
+
+fn parsed_implicit_defaults(mut parsed: chrono::format::Parsed) -> Option<chrono::format::Parsed> {
+    parsed.year?;
+
+    if parsed.month.is_none() {
+        if parsed.day.is_some() {
+            return None;
+        }
+
+        parsed.set_month(1).ok()?;
+    }
+
+    if parsed.day.is_none() {
+        if parsed.hour_div_12.is_some() || parsed.hour_mod_12.is_some() {
+            return None;
+        }
+
+        parsed.set_day(1).ok()?;
+    }
+
+    if parsed.hour_div_12.is_none() || parsed.hour_mod_12.is_none() {
+        // consistency check
+        if parsed.hour_div_12.is_some() {
+            return None;
+        }
+        if parsed.hour_mod_12.is_some() {
+            return None;
+        }
+
+        if parsed.minute.is_some() {
+            return None;
+        }
+
+        parsed.set_hour(0).ok()?;
+    }
+
+    if parsed.minute.is_none() {
+        if parsed.second.is_some() {
+            return None;
+        }
+        if parsed.nanosecond.is_some() {
+            return None;
+        }
+
+        parsed.set_minute(0).ok()?;
+    }
+
+    Some(parsed)
 }
 
 /// In production code, the template should come from protobuf that is either from the database or
@@ -692,6 +816,7 @@ pub fn test_table_partition_override(
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
+    use chrono::TimeZone;
     use sqlx::Encode;
     use test_helpers::assert_error;
 
@@ -833,6 +958,13 @@ mod tests {
         ColumnValue::Prefix(s.into())
     }
 
+    fn year(y: i32) -> ColumnValue<'static> {
+        ColumnValue::Datetime {
+            begin: Utc.with_ymd_and_hms(y, 1, 1, 0, 0, 0).unwrap(),
+            end: Utc.with_ymd_and_hms(y + 1, 1, 1, 0, 0, 0).unwrap(),
+        }
+    }
+
     /// Generate a test that asserts "partition_key" is reversible, yielding
     /// "want" assuming the partition "template" was used.
     macro_rules! test_build_column_values {
@@ -871,7 +1003,11 @@ mod tests {
             TemplatePart::TagValue("b"),
         ],
         partition_key = "2023|bananas|plátanos",
-        want = [("a", identity("bananas")), ("b", identity("plátanos"))]
+        want = [
+            (TIME_COLUMN_NAME, year(2023)),
+            ("a", identity("bananas")),
+            ("b", identity("plátanos")),
+        ]
     );
 
     test_build_column_values!(
@@ -882,7 +1018,7 @@ mod tests {
             TemplatePart::TagValue("b"),
         ],
         partition_key = "2023|!|plátanos",
-        want = [("b", identity("plátanos"))]
+        want = [(TIME_COLUMN_NAME, year(2023)), ("b", identity("plátanos")),]
     );
 
     test_build_column_values!(
@@ -893,7 +1029,7 @@ mod tests {
             TemplatePart::TagValue("b"),
         ],
         partition_key = "2023|!|!",
-        want = []
+        want = [(TIME_COLUMN_NAME, year(2023)),]
     );
 
     test_build_column_values!(
@@ -904,7 +1040,11 @@ mod tests {
             TemplatePart::TagValue("b"),
         ],
         partition_key = "2023|cat%7Cdog|%21",
-        want = [("a", identity("cat|dog")), ("b", identity("!"))]
+        want = [
+            (TIME_COLUMN_NAME, year(2023)),
+            ("a", identity("cat|dog")),
+            ("b", identity("!")),
+        ]
     );
 
     test_build_column_values!(
@@ -915,7 +1055,7 @@ mod tests {
             TemplatePart::TagValue("b"),
         ],
         partition_key = "2023|%2550|!",
-        want = [("a", identity("%50"))]
+        want = [(TIME_COLUMN_NAME, year(2023)), ("a", identity("%50")),]
     );
 
     test_build_column_values!(
@@ -926,7 +1066,7 @@ mod tests {
             TemplatePart::TagValue("b"),
         ],
         partition_key = "2023|BANANAS#|!",
-        want = [("a", prefix("BANANAS"))]
+        want = [(TIME_COLUMN_NAME, year(2023)), ("a", prefix("BANANAS")),]
     );
 
     test_build_column_values!(
@@ -937,7 +1077,10 @@ mod tests {
             TemplatePart::TagValue("b"),
         ],
         partition_key = "2023|%28%E3%83%8E%E0%B2%A0%E7%9B%8A%E0%B2%A0%29%E3%83%8E%E5%BD%A1%E2%94%BB%E2%94%81%E2%94%BB#|!",
-        want = [("a", prefix("(ノಠ益ಠ)ノ彡┻━┻"))]
+        want = [
+            (TIME_COLUMN_NAME, year(2023)),
+            ("a", prefix("(ノಠ益ಠ)ノ彡┻━┻")),
+        ]
     );
 
     test_build_column_values!(
@@ -948,7 +1091,7 @@ mod tests {
             TemplatePart::TagValue("b"),
         ],
         partition_key = "2023|%E0%AE%A8%E0%AE%BF#|!",
-        want = [("a", prefix("நி"))]
+        want = [(TIME_COLUMN_NAME, year(2023)), ("a", prefix("நி")),]
     );
 
     test_build_column_values!(
@@ -959,7 +1102,150 @@ mod tests {
             TemplatePart::TagValue("b"),
         ],
         partition_key = "2023|is%7Cnot%21ambiguous%2510%23|!",
-        want = [("a", identity("is|not!ambiguous%10#"))]
+        want = [
+            (TIME_COLUMN_NAME, year(2023)),
+            ("a", identity("is|not!ambiguous%10#")),
+        ]
+    );
+
+    test_build_column_values!(
+        datetime_fixed,
+        template = [TemplatePart::TimeFormat("foo"),],
+        partition_key = "foo",
+        want = []
+    );
+
+    test_build_column_values!(
+        datetime_range_y,
+        template = [TemplatePart::TimeFormat("%Y"),],
+        partition_key = "2023",
+        want = [(
+            TIME_COLUMN_NAME,
+            ColumnValue::Datetime {
+                begin: Utc.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap(),
+                end: Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap(),
+            },
+        )]
+    );
+
+    test_build_column_values!(
+        datetime_range_y_m,
+        template = [TemplatePart::TimeFormat("%Y-%m"),],
+        partition_key = "2023-09",
+        want = [(
+            TIME_COLUMN_NAME,
+            ColumnValue::Datetime {
+                begin: Utc.with_ymd_and_hms(2023, 9, 1, 0, 0, 0).unwrap(),
+                end: Utc.with_ymd_and_hms(2023, 10, 1, 0, 0, 0).unwrap(),
+            },
+        )]
+    );
+
+    test_build_column_values!(
+        datetime_range_y_m_overflow_year,
+        template = [TemplatePart::TimeFormat("%Y-%m"),],
+        partition_key = "2023-12",
+        want = [(
+            TIME_COLUMN_NAME,
+            ColumnValue::Datetime {
+                begin: Utc.with_ymd_and_hms(2023, 12, 1, 0, 0, 0).unwrap(),
+                end: Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap(),
+            },
+        )]
+    );
+
+    test_build_column_values!(
+        datetime_range_y_m_d,
+        template = [TemplatePart::TimeFormat("%Y-%m-%d"),],
+        partition_key = "2023-09-01",
+        want = [(
+            TIME_COLUMN_NAME,
+            ColumnValue::Datetime {
+                begin: Utc.with_ymd_and_hms(2023, 9, 1, 0, 0, 0).unwrap(),
+                end: Utc.with_ymd_and_hms(2023, 9, 2, 0, 0, 0).unwrap(),
+            },
+        )]
+    );
+
+    test_build_column_values!(
+        datetime_range_y_m_d_overflow_month,
+        template = [TemplatePart::TimeFormat("%Y-%m-%d"),],
+        partition_key = "2023-09-30",
+        want = [(
+            TIME_COLUMN_NAME,
+            ColumnValue::Datetime {
+                begin: Utc.with_ymd_and_hms(2023, 9, 30, 0, 0, 0).unwrap(),
+                end: Utc.with_ymd_and_hms(2023, 10, 1, 0, 0, 0).unwrap(),
+            },
+        )]
+    );
+
+    test_build_column_values!(
+        datetime_range_y_m_d_overflow_year,
+        template = [TemplatePart::TimeFormat("%Y-%m-%d"),],
+        partition_key = "2023-12-31",
+        want = [(
+            TIME_COLUMN_NAME,
+            ColumnValue::Datetime {
+                begin: Utc.with_ymd_and_hms(2023, 12, 31, 0, 0, 0).unwrap(),
+                end: Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap(),
+            },
+        )]
+    );
+
+    test_build_column_values!(
+        datetime_range_d_m_y,
+        template = [TemplatePart::TimeFormat("%d-%m-%Y"),],
+        partition_key = "01-09-2023",
+        want = [(
+            TIME_COLUMN_NAME,
+            ColumnValue::Datetime {
+                begin: Utc.with_ymd_and_hms(2023, 9, 1, 0, 0, 0).unwrap(),
+                end: Utc.with_ymd_and_hms(2023, 9, 2, 0, 0, 0).unwrap(),
+            },
+        )]
+    );
+
+    test_build_column_values!(
+        datetime_not_compact_y_d,
+        template = [TemplatePart::TimeFormat("%Y-%d"),],
+        partition_key = "2023-01",
+        want = []
+    );
+
+    test_build_column_values!(
+        datetime_not_compact_m,
+        template = [TemplatePart::TimeFormat("%m"),],
+        partition_key = "01",
+        want = []
+    );
+
+    test_build_column_values!(
+        datetime_not_compact_d,
+        template = [TemplatePart::TimeFormat("%d"),],
+        partition_key = "01",
+        want = []
+    );
+
+    test_build_column_values!(
+        datetime_range_unimplemented_y_m_d_h,
+        template = [TemplatePart::TimeFormat("%Y-%m-%dT%H"),],
+        partition_key = "2023-12-31T00",
+        want = []
+    );
+
+    test_build_column_values!(
+        datetime_range_unimplemented_y_m_d_h_m,
+        template = [TemplatePart::TimeFormat("%Y-%m-%dT%H:%M"),],
+        partition_key = "2023-12-31T00:00",
+        want = []
+    );
+
+    test_build_column_values!(
+        datetime_range_unimplemented_y_m_d_h_m_s,
+        template = [TemplatePart::TimeFormat("%Y-%m-%dT%H:%M:%S"),],
+        partition_key = "2023-12-31T00:00:00",
+        want = []
     );
 
     test_build_column_values!(

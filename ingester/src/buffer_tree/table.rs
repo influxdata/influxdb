@@ -347,6 +347,10 @@ fn keep_after_pruning_partition_key(
                             max_value,
                         }
                     }
+                    ColumnValue::Datetime { .. } => {
+                        // not yet supported
+                        return None;
+                    }
                 };
 
                 Some((Arc::from(col), range))

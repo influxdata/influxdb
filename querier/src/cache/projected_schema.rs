@@ -35,10 +35,14 @@ struct CacheKey {
 impl CacheKey {
     /// Create new key.
     ///
-    /// This normalizes `projection`.
-    fn new(table_id: TableId, mut projection: Box<[ColumnId]>) -> Self {
-        // normalize column order
-        projection.sort();
+    /// # Panics
+    /// Panics if projection sort order is not normalized.
+    fn new(table_id: TableId, projection: Box<[ColumnId]>) -> Self {
+        assert!(
+            projection.windows(2).all(|c| c[0] < c[1]),
+            "projection order not normalized: {:?}",
+            projection,
+        );
 
         Self {
             table_id,
@@ -79,7 +83,7 @@ impl ProjectedSchemaCache {
             FunctionLoader::new(move |key: CacheKey, table: Arc<CachedTable>| async move {
                 assert_eq!(key.table_id, table.id);
 
-                let mut projection: Vec<&str> = key
+                let projection: Vec<&str> = key
                     .projection
                     .iter()
                     .map(|id| {
@@ -90,9 +94,6 @@ impl ProjectedSchemaCache {
                             .as_ref()
                     })
                     .collect();
-
-                // order by name since IDs are rather arbitrary
-                projection.sort();
 
                 table
                     .schema
@@ -131,13 +132,13 @@ impl ProjectedSchemaCache {
     /// Get projected schema for given table.
     ///
     /// # Key
-    /// The cache will is `table_id` combined with `projection`. The projection order is normalized.
+    /// The cache will is `table_id` combined with `projection`. The given projection order must be normalized.
     ///
     /// The `table_schema` is NOT part of the cache key. It is OK to update the table schema (i.e. add new columns)
     /// between requests. The caller however MUST ensure that the `table_id` is correct.
     ///
     /// # Panic
-    /// Will panic if any column in `projection` is missing in `table_schema`.
+    /// Will panic if any column in `projection` is missing in `table_schema` or if the given projection is NOT sorted.
     pub async fn get(
         &self,
         table: Arc<CachedTable>,
@@ -162,7 +163,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test() {
+    async fn test_get() {
         let cache = ProjectedSchemaCache::new(
             Arc::new(SystemProvider::new()),
             &metric::Registry::new(),
@@ -275,15 +276,12 @@ mod tests {
             .await;
         assert!(Arc::ptr_eq(projection_1.inner(), projection_3.inner()));
 
-        // different column order
+        // subset
+        let expected = SchemaBuilder::new().tag("t1").build().unwrap();
         let projection_4 = cache
-            .get(
-                Arc::clone(&table_1a),
-                [ColumnId::new(2), ColumnId::new(1)].into(),
-                None,
-            )
+            .get(Arc::clone(&table_1a), [ColumnId::new(1)].into(), None)
             .await;
-        assert!(Arc::ptr_eq(projection_1.inner(), projection_4.inner()));
+        assert_eq!(projection_4, expected);
 
         // different columns set
         let expected = SchemaBuilder::new().tag("t1").tag("t3").build().unwrap();
@@ -316,6 +314,33 @@ mod tests {
             )
             .await;
         assert!(Arc::ptr_eq(projection_1.inner(), projection_7.inner()));
+
+        //
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "projection order not normalized")]
+    async fn test_panic_projection_order_not_normalized() {
+        let cache = ProjectedSchemaCache::new(
+            Arc::new(SystemProvider::new()),
+            &metric::Registry::new(),
+            test_ram_pool(),
+            true,
+        );
+
+        let table = Arc::new(CachedTable {
+            id: TableId::new(1),
+            schema: SchemaBuilder::default().build().unwrap(),
+            column_id_map: HashMap::default(),
+            column_id_map_rev: HashMap::default(),
+            primary_key_column_ids: [].into(),
+            partition_template: TablePartitionTemplateOverride::default(),
+        });
+
+        // different column order
+        cache
+            .get(table, [ColumnId::new(2), ColumnId::new(1)].into(), None)
+            .await;
     }
 
     fn reverse_map<K, V>(map: &HashMap<K, V>) -> HashMap<V, K>

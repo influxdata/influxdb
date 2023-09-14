@@ -34,18 +34,29 @@ pub fn create_chunk_statistics(
 
     for (t, field) in schema.iter() {
         let stats = match t {
-            InfluxColumnType::Timestamp => ColumnStatistics {
-                null_count: Some(0),
-                max_value: Some(ScalarValue::TimestampNanosecond(
-                    ts_min_max.map(|v| v.max),
-                    None,
-                )),
-                min_value: Some(ScalarValue::TimestampNanosecond(
-                    ts_min_max.map(|v| v.min),
-                    None,
-                )),
-                distinct_count: None,
-            },
+            InfluxColumnType::Timestamp => {
+                // prefer explicitely given time range but fall back to column ranges
+                let (min_value, max_value) = match ts_min_max {
+                    Some(ts_min_max) => (
+                        Some(ScalarValue::TimestampNanosecond(Some(ts_min_max.min), None)),
+                        Some(ScalarValue::TimestampNanosecond(Some(ts_min_max.max), None)),
+                    ),
+                    None => {
+                        let range = ranges.get::<str>(field.name().as_ref());
+                        (
+                            range.map(|r| r.min_value.as_ref().clone()),
+                            range.map(|r| r.max_value.as_ref().clone()),
+                        )
+                    }
+                };
+
+                ColumnStatistics {
+                    null_count: Some(0),
+                    max_value,
+                    min_value,
+                    distinct_count: None,
+                }
+            }
             _ => ranges
                 .get::<str>(field.name().as_ref())
                 .map(|range| ColumnStatistics {
@@ -181,6 +192,42 @@ mod tests {
                     null_count: Some(0),
                     min_value: Some(ScalarValue::TimestampNanosecond(Some(10), None)),
                     max_value: Some(ScalarValue::TimestampNanosecond(Some(20), None)),
+                    distinct_count: None,
+                },
+            ]),
+            is_exact: true,
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_chunk_statistics_ts_min_max_none_so_fallback_to_column_range() {
+        let schema = full_schema();
+        let row_count = 42u64;
+        let ranges = Arc::new(HashMap::from([(
+            Arc::from(TIME_COLUMN_NAME),
+            ColumnRange {
+                min_value: Arc::new(ScalarValue::TimestampNanosecond(Some(12), None)),
+                max_value: Arc::new(ScalarValue::TimestampNanosecond(Some(22), None)),
+            },
+        )]));
+
+        let actual = create_chunk_statistics(row_count, &schema, None, &ranges);
+        let expected = Statistics {
+            num_rows: Some(row_count as usize),
+            total_byte_size: None,
+            column_statistics: Some(vec![
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics {
+                    null_count: Some(0),
+                    min_value: Some(ScalarValue::TimestampNanosecond(Some(12), None)),
+                    max_value: Some(ScalarValue::TimestampNanosecond(Some(22), None)),
                     distinct_count: None,
                 },
             ]),
