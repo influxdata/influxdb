@@ -1,6 +1,6 @@
 //! CLI config for the ingester using the RPC write path
 
-use std::path::PathBuf;
+use std::{num::NonZeroUsize, path::PathBuf};
 
 use crate::gossip::GossipConfig;
 
@@ -75,4 +75,14 @@ pub struct IngesterConfig {
         action
     )]
     pub persist_hot_partition_cost: usize,
+
+    /// Limit the number of partitions that may be buffered in a single
+    /// namespace (across all tables) at any one time.
+    ///
+    /// This limit is disabled by default.
+    #[clap(
+        long = "max-partitions-per-namespace",
+        env = "INFLUXDB_IOX_MAX_PARTITIONS_PER_NAMESPACE"
+    )]
+    pub max_partitions_per_namespace: Option<NonZeroUsize>,
 }

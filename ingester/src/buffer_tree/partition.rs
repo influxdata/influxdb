@@ -21,6 +21,7 @@ use crate::{
 };
 
 mod buffer;
+pub(crate) mod counter;
 pub(crate) mod persisting;
 mod persisting_list;
 pub(crate) mod resolver;

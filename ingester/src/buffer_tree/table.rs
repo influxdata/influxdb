@@ -25,8 +25,9 @@ use self::metadata::TableMetadata;
 
 use super::{
     namespace::NamespaceName,
-    partition::{resolver::PartitionProvider, PartitionData},
+    partition::{counter::PartitionCounter, resolver::PartitionProvider, PartitionData},
     post_write::PostWriteObserver,
+    BufferWriteError,
 };
 use crate::{
     arcmap::ArcMap,
@@ -38,7 +39,9 @@ use crate::{
     query_adaptor::QueryAdaptor,
 };
 
-/// Data of a Table in a given Namesapce
+const MAX_NAMESPACE_PARTITION_COUNT: usize = usize::MAX;
+
+/// Data of a Table in a given Namespace
 #[derive(Debug)]
 pub(crate) struct TableData<O> {
     table_id: TableId,
@@ -55,6 +58,15 @@ pub(crate) struct TableData<O> {
     // Map of partition key to its data
     partition_data: ArcMap<PartitionKey, Mutex<PartitionData>>,
 
+    /// A counter tracking the approximate number of partitions currently
+    /// buffered.
+    ///
+    /// This counter is NOT atomically incremented w.r.t creation of the
+    /// partitions it tracks, and therefore is susceptible to "overrun",
+    /// breaching the configured partition count limit by a relatively small
+    /// degree.
+    partition_count: Arc<PartitionCounter>,
+
     post_write_observer: Arc<O>,
 }
 
@@ -70,6 +82,7 @@ impl<O> TableData<O> {
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         partition_provider: Arc<dyn PartitionProvider>,
+        partition_count: Arc<PartitionCounter>,
         post_write_observer: Arc<O>,
     ) -> Self {
         Self {
@@ -79,6 +92,7 @@ impl<O> TableData<O> {
             namespace_name,
             partition_data: Default::default(),
             partition_provider,
+            partition_count,
             post_write_observer,
         }
     }
@@ -127,10 +141,19 @@ where
         sequence_number: SequenceNumber,
         batch: MutableBatch,
         partition_key: PartitionKey,
-    ) -> Result<(), mutable_batch::Error> {
+    ) -> Result<(), BufferWriteError> {
         let p = self.partition_data.get(&partition_key);
         let partition_data = match p {
             Some(p) => p,
+            None if self.partition_count.is_maxed() => {
+                // This namespace has exceeded the upper bound on partitions.
+                //
+                // This counter is approximate, but monotonic - the count may be
+                // over the desired limit.
+                return Err(BufferWriteError::PartitionLimit {
+                    count: self.partition_count.read(),
+                });
+            }
             None => {
                 let p = self
                     .partition_provider
@@ -146,7 +169,10 @@ where
                 //
                 // This MAY return a different instance than `p` if another
                 // thread has already initialised the partition.
-                self.partition_data.get_or_insert_with(&partition_key, || p)
+                self.partition_data.get_or_insert_with(&partition_key, || {
+                    self.partition_count.inc();
+                    p
+                })
             }
         };
 
@@ -359,8 +385,9 @@ fn keep_after_pruning_partition_key(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{num::NonZeroUsize, sync::Arc};
 
+    use assert_matches::assert_matches;
     use mutable_batch_lp::lines_to_batches;
 
     use super::*;
@@ -383,12 +410,15 @@ mod tests {
             MockPartitionProvider::default().with_partition(PartitionDataBuilder::new().build()),
         );
 
+        let partition_counter = Arc::new(PartitionCounter::new(NonZeroUsize::new(42).unwrap()));
+
         let table = TableData::new(
             ARBITRARY_TABLE_ID,
             defer_table_metadata_1_sec(),
             ARBITRARY_NAMESPACE_ID,
             defer_namespace_name_1_sec(),
             partition_provider,
+            Arc::clone(&partition_counter),
             Arc::new(MockPostWriteObserver::default()),
         );
 
@@ -415,5 +445,59 @@ mod tests {
 
         // Referencing the partition should succeed
         assert!(table.partition_data.get(&ARBITRARY_PARTITION_KEY).is_some());
+
+        // The partition should have been recorded in the partition count.
+        assert_eq!(partition_counter.read(), 1);
+    }
+
+    /// Ensure the partition limit is respected.
+    #[tokio::test]
+    async fn test_partition_limit() {
+        // Configure the mock partition provider to return a partition for a table ID.
+        let partition_provider = Arc::new(
+            MockPartitionProvider::default().with_partition(PartitionDataBuilder::new().build()),
+        );
+
+        const N: usize = 42;
+
+        // Configure the counter that has already exceeded the maximum limit.
+        let partition_counter = Arc::new(PartitionCounter::new(NonZeroUsize::new(N).unwrap()));
+        partition_counter.set(N);
+
+        let table = TableData::new(
+            ARBITRARY_TABLE_ID,
+            defer_table_metadata_1_sec(),
+            ARBITRARY_NAMESPACE_ID,
+            defer_namespace_name_1_sec(),
+            partition_provider,
+            Arc::clone(&partition_counter),
+            Arc::new(MockPostWriteObserver::default()),
+        );
+
+        let batch = lines_to_batches(
+            &format!(r#"{},bat=man value=24 42"#, &*ARBITRARY_TABLE_NAME),
+            0,
+        )
+        .unwrap()
+        .remove(&***ARBITRARY_TABLE_NAME)
+        .unwrap();
+
+        // Write some test data
+        let err = table
+            .buffer_table_write(
+                SequenceNumber::new(42),
+                batch,
+                ARBITRARY_PARTITION_KEY.clone(),
+            )
+            .await
+            .expect_err("buffer op should hit partition limit");
+
+        assert_matches!(err, BufferWriteError::PartitionLimit { count: N });
+
+        // The partition should not have been created
+        assert_eq!(table.partition_data.values().len(), 0);
+
+        // The partition counter should be unchanged
+        assert_eq!(partition_counter.read(), N);
     }
 }

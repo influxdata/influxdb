@@ -15,6 +15,7 @@ use trace::{
 };
 
 use crate::{
+    buffer_tree::BufferWriteError,
     dml_payload::write::{PartitionedData, TableData, WriteOperation},
     dml_payload::IngestOp,
     dml_sink::{DmlError, DmlSink},
@@ -66,7 +67,10 @@ impl From<RpcError> for tonic::Status {
 impl From<DmlError> for tonic::Status {
     fn from(e: DmlError) -> Self {
         match e {
-            DmlError::Buffer(e) => map_write_error(e),
+            DmlError::Buffer(BufferWriteError::PartitionLimit { .. }) => {
+                Self::resource_exhausted(e.to_string())
+            }
+            DmlError::Buffer(BufferWriteError::Write(e)) => map_write_error(e),
             DmlError::Wal(_) => Self::internal(e.to_string()),
             DmlError::ApplyTimeout => Self::internal(e.to_string()),
         }

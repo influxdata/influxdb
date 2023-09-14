@@ -62,10 +62,9 @@ where
     /// This call is thread-safe - if two calls race, a value will be
     /// initialised exactly once (one arbitrary caller's `init` closure will be
     /// executed) and both callers will obtain a handle to the same instance of
-    /// `V`. Both threads will eagerly initialise V and race to "win" storing V
-    /// in the map.
+    /// `V`.
     ///
-    /// # Performance
+    /// # Performance
     ///
     /// This method is biased towards read-heavy workloads, with many readers
     /// progressing in parallel. If the value for `key` must be initialised, all

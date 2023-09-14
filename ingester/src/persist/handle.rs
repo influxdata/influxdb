@@ -478,7 +478,7 @@ impl<T> Drop for AbortOnDrop<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, task::Poll, time::Duration};
+    use std::{num::NonZeroUsize, sync::Arc, task::Poll, time::Duration};
 
     use assert_matches::assert_matches;
     use data_types::SortedColumnSet;
@@ -525,6 +525,7 @@ mod tests {
                         .build(),
                 ),
             ),
+            NonZeroUsize::new(usize::MAX).unwrap(),
             Arc::new(MockPostWriteObserver::default()),
             Default::default(),
         );

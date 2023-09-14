@@ -11,9 +11,10 @@ use predicate::Predicate;
 use trace::span::Span;
 
 use super::{
-    partition::resolver::PartitionProvider,
+    partition::{counter::PartitionCounter, resolver::PartitionProvider},
     post_write::PostWriteObserver,
     table::{metadata_resolver::TableProvider, TableData},
+    BufferWriteError,
 };
 use crate::{
     arcmap::ArcMap,
@@ -80,6 +81,15 @@ pub(crate) struct NamespaceData<O> {
     /// [`PartitionData`]: super::partition::PartitionData
     partition_provider: Arc<dyn PartitionProvider>,
 
+    /// A counter tracking the approximate number of partitions currently
+    /// buffered.
+    ///
+    /// This counter is NOT atomically incremented w.r.t creation of the
+    /// partitions it tracks, and therefore is susceptible to "overrun",
+    /// breaching the configured partition count limit by a relatively small
+    /// degree.
+    partition_count: Arc<PartitionCounter>,
+
     post_write_observer: Arc<O>,
 }
 
@@ -90,6 +100,7 @@ impl<O> NamespaceData<O> {
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         catalog_table_resolver: Arc<dyn TableProvider>,
         partition_provider: Arc<dyn PartitionProvider>,
+        partition_counter: PartitionCounter,
         post_write_observer: Arc<O>,
         metrics: &metric::Registry,
     ) -> Self {
@@ -108,6 +119,7 @@ impl<O> NamespaceData<O> {
             table_count,
             partition_provider,
             post_write_observer,
+            partition_count: Arc::new(partition_counter),
         }
     }
 
@@ -141,7 +153,7 @@ impl<O> DmlSink for NamespaceData<O>
 where
     O: PostWriteObserver,
 {
-    type Error = mutable_batch::Error;
+    type Error = BufferWriteError;
 
     async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
         match op {
@@ -160,6 +172,7 @@ where
                             self.namespace_id,
                             Arc::clone(&self.namespace_name),
                             Arc::clone(&self.partition_provider),
+                            Arc::clone(&self.partition_count),
                             Arc::clone(&self.post_write_observer),
                         ))
                     });
@@ -218,7 +231,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{num::NonZeroUsize, sync::Arc};
 
     use metric::{Attributes, Metric};
 
@@ -251,6 +264,7 @@ mod tests {
             defer_namespace_name_1_ms(),
             Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
+            PartitionCounter::new(NonZeroUsize::new(usize::MAX).unwrap()),
             Arc::new(MockPostWriteObserver::default()),
             &metrics,
         );
