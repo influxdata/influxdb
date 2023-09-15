@@ -159,16 +159,18 @@ impl NamespaceRepo for MemTxn {
             });
         }
 
-        let max_tables = service_protection_limits.and_then(|l| l.max_tables);
-        let max_columns_per_table = service_protection_limits.and_then(|l| l.max_columns_per_table);
+        let max_tables = service_protection_limits
+            .and_then(|l| l.max_tables)
+            .unwrap_or_default();
+        let max_columns_per_table = service_protection_limits
+            .and_then(|l| l.max_columns_per_table)
+            .unwrap_or_default();
 
         let namespace = Namespace {
             id: NamespaceId::new(stage.namespaces.len() as i64 + 1),
             name: name.to_string(),
-            max_tables: max_tables.map(MaxTables::new).unwrap_or_default(),
-            max_columns_per_table: max_columns_per_table
-                .map(MaxColumnsPerTable::new)
-                .unwrap_or_default(),
+            max_tables,
+            max_columns_per_table,
             retention_period_ns,
             deleted_at: None,
             partition_template: partition_template.unwrap_or_default(),

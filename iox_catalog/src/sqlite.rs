@@ -270,8 +270,12 @@ impl NamespaceRepo for SqliteTxn {
         retention_period_ns: Option<i64>,
         service_protection_limits: Option<NamespaceServiceProtectionLimitsOverride>,
     ) -> Result<Namespace> {
-        let max_tables = service_protection_limits.and_then(|l| l.max_tables);
-        let max_columns_per_table = service_protection_limits.and_then(|l| l.max_columns_per_table);
+        let max_tables = service_protection_limits
+            .and_then(|l| l.max_tables)
+            .unwrap_or_default();
+        let max_columns_per_table = service_protection_limits
+            .and_then(|l| l.max_columns_per_table)
+            .unwrap_or_default();
 
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
@@ -285,8 +289,8 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
         .bind(SHARED_TOPIC_ID) // $2
         .bind(SHARED_QUERY_POOL_ID) // $3
         .bind(retention_period_ns) // $4
-        .bind(max_tables.unwrap_or_default()) // $5
-        .bind(max_columns_per_table.unwrap_or_default()) // $6
+        .bind(max_tables) // $5
+        .bind(max_columns_per_table) // $6
         .bind(partition_template); // $7
 
         let rec = rec.fetch_one(self.inner.get_mut()).await.map_err(|e| {

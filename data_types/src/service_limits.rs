@@ -72,9 +72,9 @@ impl std::fmt::Display for MaxColumnsPerTable {
 #[derive(Debug, Copy, Clone)]
 pub struct NamespaceServiceProtectionLimitsOverride {
     /// The maximum number of tables that can exist in this namespace
-    pub max_tables: Option<i32>,
+    pub max_tables: Option<MaxTables>,
     /// The maximum number of columns per table in this namespace
-    pub max_columns_per_table: Option<i32>,
+    pub max_columns_per_table: Option<MaxColumnsPerTable>,
 }
 
 impl From<namespace_proto::ServiceProtectionLimits> for NamespaceServiceProtectionLimitsOverride {
@@ -84,8 +84,8 @@ impl From<namespace_proto::ServiceProtectionLimits> for NamespaceServiceProtecti
             max_columns_per_table,
         } = value;
         Self {
-            max_tables,
-            max_columns_per_table,
+            max_tables: max_tables.map(MaxTables::new),
+            max_columns_per_table: max_columns_per_table.map(MaxColumnsPerTable::new),
         }
     }
 }
