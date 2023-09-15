@@ -228,7 +228,13 @@ impl GapFiller {
         let (time_idx, input_time_array) = input_time_array;
         let time_vec = cursor.build_time_vec(&self.params, series_ends, input_time_array)?;
         let output_time_len = time_vec.len();
-        output_arrays.push((time_idx, Arc::new(TimestampNanosecondArray::from(time_vec))));
+        output_arrays.push((
+            time_idx,
+            Arc::new(
+                TimestampNanosecondArray::from(time_vec)
+                    .with_timezone_opt(input_time_array.timezone()),
+            ),
+        ));
         // There may not be any aggregate or group columns, so use this cursor state as the new
         // GapFiller cursor once this output batch is complete.
         let mut final_cursor = cursor;

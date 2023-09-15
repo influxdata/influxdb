@@ -260,6 +260,7 @@ mod tests {
                     .collect(),
             ],
             time_col: (0..12).map(|i| Some(1000 + i * 5)).take(12).collect(),
+            timezone: None,
             agg_cols: vec![
                 vec![
                     Some(1),
@@ -310,6 +311,7 @@ mod tests {
                     .collect(),
             ],
             time_col: (0..12).map(|i| Some(1000 + i * 5)).take(12).collect(),
+            timezone: None,
             agg_cols: vec![],
             struct_cols: vec![
                 vec![

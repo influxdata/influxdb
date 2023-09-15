@@ -1,4 +1,4 @@
-//! Tests that verify output produced by ]GapFillExec].
+//! Tests that verify output produced by [GapFillExec].
 
 use std::{
     cmp::Ordering,
@@ -8,7 +8,7 @@ use std::{
 use super::*;
 use arrow::{
     array::{ArrayRef, DictionaryArray, Int64Array, StructArray, TimestampNanosecondArray},
-    datatypes::{DataType, Field, Fields, Int32Type, Schema},
+    datatypes::{DataType, Field, Fields, Int32Type, Schema, TimeUnit},
     record_batch::RecordBatch,
 };
 use arrow_util::test_util::batches_to_lines;
@@ -34,6 +34,7 @@ fn test_gapfill_simple() {
             let batch = TestRecords {
                 group_cols: vec![vec![Some("a"), Some("a")]],
                 time_col: vec![Some(1_000), Some(1_100)],
+                timezone: None,
                 agg_cols: vec![vec![Some(10), Some(11)]],
                 struct_cols: vec![],
                 input_batch_size,
@@ -69,6 +70,49 @@ fn test_gapfill_simple() {
 }
 
 #[test]
+fn test_gapfill_simple_tz() {
+    test_helpers::maybe_start_logging();
+    insta::allow_duplicates! { for output_batch_size in [1, 2, 4, 8] {
+        for input_batch_size in [1, 2] {
+            let batch = TestRecords {
+                group_cols: vec![vec![Some("a"), Some("a")]],
+                time_col: vec![Some(1_000), Some(1_100)],
+                timezone: Some("Australia/Adelaide".into()),
+                agg_cols: vec![vec![Some(10), Some(11)]],
+                struct_cols: vec![],
+                input_batch_size,
+            };
+            let params = get_params_ms(&batch, 25, Some(975), 1_125);
+            let tc = TestCase {
+                test_records: batch,
+                output_batch_size,
+                params,
+            };
+            // For this simple test case, also test that
+            // memory is tracked correctly, which is done by
+            // TestCase when running with a memory limit.
+            let batches = tc.run_with_memory_limit(16384).unwrap();
+            let actual = batches_to_lines(&batches);
+            insta::assert_yaml_snapshot!(actual, @r###"
+            ---
+            - +----+-------------------------------+----+
+            - "| g0 | time                          | a0 |"
+            - +----+-------------------------------+----+
+            - "| a  | 1970-01-01T09:30:00.975+09:30 |    |"
+            - "| a  | 1970-01-01T09:30:01+09:30     | 10 |"
+            - "| a  | 1970-01-01T09:30:01.025+09:30 |    |"
+            - "| a  | 1970-01-01T09:30:01.050+09:30 |    |"
+            - "| a  | 1970-01-01T09:30:01.075+09:30 |    |"
+            - "| a  | 1970-01-01T09:30:01.100+09:30 | 11 |"
+            - "| a  | 1970-01-01T09:30:01.125+09:30 |    |"
+            - +----+-------------------------------+----+
+            "###);
+            assert_batch_count(&batches, output_batch_size);
+        }
+    }}
+}
+
+#[test]
 fn test_gapfill_simple_no_group_no_aggr() {
     // There may be no group columns in a gap fill query,
     // and there may be no aggregate columns as well.
@@ -79,6 +123,7 @@ fn test_gapfill_simple_no_group_no_aggr() {
             let batch = TestRecords {
                 group_cols: vec![],
                 time_col: vec![None, Some(1_000), Some(1_100)],
+                timezone: None,
                 agg_cols: vec![],
                 struct_cols: vec![],
                 input_batch_size,
@@ -119,6 +164,7 @@ fn test_gapfill_multi_group_simple() {
             let records = TestRecords {
                 group_cols: vec![vec![Some("a"), Some("a"), Some("b"), Some("b")]],
                 time_col: vec![Some(1_000), Some(1_100), Some(1_025), Some(1_050)],
+                timezone: None,
                 agg_cols: vec![vec![Some(10), Some(11), Some(20), Some(21)]],
                 struct_cols: vec![],
                 input_batch_size,
@@ -165,6 +211,7 @@ fn test_gapfill_multi_group_simple_origin() {
             let records = TestRecords {
                 group_cols: vec![vec![Some("a"), Some("a"), Some("b"), Some("b")]],
                 time_col: vec![Some(1_000), Some(1_100), Some(1_025), Some(1_050)],
+                timezone: None,
                 agg_cols: vec![vec![Some(10), Some(11), Some(20), Some(21)]],
                 struct_cols: vec![],
                 input_batch_size,
@@ -228,6 +275,7 @@ fn test_gapfill_multi_group_with_nulls() {
                     Some(1_000),
                     Some(1_100),
                 ],
+                timezone: None,
                 agg_cols: vec![vec![
                     Some(1),
                     None,
@@ -312,6 +360,7 @@ fn test_gapfill_multi_group_cols_with_nulls() {
                     Some(1_000),
                     Some(1_100),
                 ],
+                timezone: None,
                 agg_cols: vec![vec![
                     Some(1),
                     None,
@@ -375,6 +424,7 @@ fn test_gapfill_multi_group_cols_with_more_nulls() {
                     None,
                     None,
                 ],
+                timezone: None,
                 agg_cols: vec![vec![
                     Some(10), // group a
                     Some(90), // group b
@@ -450,6 +500,7 @@ fn test_gapfill_multi_aggr_cols_with_nulls() {
                     Some(1_000),
                     Some(1_100),
                 ],
+                timezone: None,
                 agg_cols: vec![
                     vec![
                         Some(1),
@@ -518,6 +569,7 @@ fn test_gapfill_simple_no_lower_bound() {
             let batch = TestRecords {
                 group_cols: vec![vec![Some("a"), Some("a"), Some("b"), Some("b")]],
                 time_col: vec![Some(1_025), Some(1_100), Some(1_050), Some(1_100)],
+                timezone: None,
                 agg_cols: vec![vec![Some(10), Some(11), Some(20), Some(21)]],
                 struct_cols: vec![],
                 input_batch_size,
@@ -581,6 +633,7 @@ fn test_gapfill_fill_prev() {
                     Some(1100),
                     // 1125
                 ],
+                timezone: None,
                 agg_cols: vec![vec![
                     Some(10),
                     Some(11),
@@ -660,6 +713,7 @@ fn test_gapfill_fill_prev_null_as_missing() {
                     Some(1100),
                     // 1125
                 ],
+                timezone: None,
                 agg_cols: vec![vec![
                     Some(10),  // a: 1000
                     None,      // a: 1075
@@ -748,6 +802,7 @@ fn test_gapfill_fill_prev_null_as_missing_many_nulls() {
                     Some(1100),
                     // 1125
                 ],
+                timezone: None,
                 agg_cols: vec![vec![
                     Some(-1),  // a: null ts
                     Some(10),  // a: 975
@@ -854,6 +909,7 @@ fn test_gapfill_fill_interpolate() {
                     // 1100
                     Some(1125),
                 ],
+                timezone: None,
                 agg_cols: vec![vec![
                     Some(-1),
                     // null,       975
@@ -956,6 +1012,7 @@ fn test_gapfill_simple_no_lower_bound_with_nulls() {
                     Some(1_050),
                     Some(1_100),
                 ],
+                timezone: None,
                 agg_cols: vec![vec![
                     Some(1), // group a
                     Some(10),
@@ -1019,6 +1076,7 @@ fn test_gapfill_oom() {
     let batch = TestRecords {
         group_cols: vec![vec![Some("a"), Some("a")]],
         time_col: vec![Some(1_000), Some(1_100)],
+        timezone: None,
         agg_cols: vec![vec![Some(10), Some(11)]],
         struct_cols: vec![],
         input_batch_size,
@@ -1071,6 +1129,7 @@ fn test_gapfill_interpolate_struct() {
                     // 1100
                     Some(1125),
                 ],
+                timezone: None,
                 agg_cols: vec![],
                 struct_cols: vec![vec![
                     Some(vec![-1, 0]),
@@ -1177,6 +1236,7 @@ fn test_gapfill_interpolate_struct_additional_data() {
                     // 1100
                     Some(1125),
                 ],
+                timezone: None,
                 agg_cols: vec![],
                 struct_cols: vec![vec![
                     Some(vec![-1, 0, 1, 1]),
@@ -1258,6 +1318,7 @@ pub(super) struct TestRecords {
     // Stored as millisecods since intervals use millis,
     // to let test cases be consistent and easier to read.
     pub time_col: Vec<Option<i64>>,
+    pub timezone: Option<Arc<str>>,
     pub agg_cols: Vec<Vec<Option<i64>>>,
     pub struct_cols: Vec<Vec<Option<Vec<i64>>>>,
     pub input_batch_size: usize,
@@ -1278,7 +1339,7 @@ impl TestRecords {
         }
         fields.push(Field::new(
             "time",
-            (&InfluxColumnType::Timestamp).into(),
+            DataType::Timestamp(TimeUnit::Nanosecond, self.timezone.clone()),
             true,
         ));
         for i in 0..self.agg_cols.len() {
@@ -1362,11 +1423,12 @@ impl TryFrom<TestRecords> for Vec<RecordBatch> {
             arrs.push(arr);
         }
         // Scale from milliseconds to the nanoseconds that are actually stored.
-        let scaled_times: TimestampNanosecondArray = value
+        let scaled_times = value
             .time_col
             .iter()
             .map(|o| o.map(|v| v * 1_000_000))
-            .collect();
+            .collect::<TimestampNanosecondArray>()
+            .with_timezone_opt(value.timezone.clone());
         arrs.push(Arc::new(scaled_times));
         for ac in &value.agg_cols {
             let arr = Arc::new(Int64Array::from_iter(ac));
