@@ -1,9 +1,8 @@
-use arrow::datatypes::{DataType, Field, Fields};
+use arrow::datatypes::{DataType, Field, Fields, TimeUnit};
 use datafusion::{
     error::{DataFusionError, Result as DataFusionResult},
     scalar::ScalarValue,
 };
-use schema::TIME_DATA_TYPE;
 
 /// Name of the output struct field that holds the value that was the main input into the selector, i.e. from which we
 /// have selected the first/last/min/max value.
@@ -21,11 +20,12 @@ fn struct_field_other(idx: usize) -> String {
 /// Create [`Fields`] for the output struct.
 fn make_struct_fields<'a>(
     value_type: &'a DataType,
+    time_type: &'a DataType,
     other_types: impl IntoIterator<Item = &'a DataType>,
 ) -> Fields {
     let fields = [
         Field::new(STRUCT_FIELD_VALUE, value_type.clone(), true),
-        Field::new(STRUCT_FIELD_TIME, TIME_DATA_TYPE(), true),
+        Field::new(STRUCT_FIELD_TIME, time_type.clone(), true),
     ]
     .into_iter()
     .chain(
@@ -48,9 +48,10 @@ fn make_struct_fields<'a>(
 /// - `other_{1..}` (depending on the other input to the selector function).
 pub fn make_struct_datatype<'a>(
     value_type: &'a DataType,
+    time_type: &'a DataType,
     other_types: impl IntoIterator<Item = &'a DataType>,
 ) -> DataType {
-    DataType::Struct(make_struct_fields(value_type, other_types))
+    DataType::Struct(make_struct_fields(value_type, time_type, other_types))
 }
 
 /// Create output struct [`ScalarValue`].
@@ -70,21 +71,23 @@ pub fn make_struct_scalar<'a>(
         .chain(other.into_iter().cloned())
         .collect();
     let value_type = value.get_datatype();
+    let time_type = time.get_datatype();
     let other_types: Vec<_> = data_fields[2..].iter().map(|s| s.get_datatype()).collect();
 
     ScalarValue::Struct(
         Some(data_fields),
-        make_struct_fields(&value_type, &other_types),
+        make_struct_fields(&value_type, &time_type, &other_types),
     )
 }
 
 /// Contains types of the aggregator.
-///
-/// The time type is NOT included here and is always assumed (and checked) to be [`TIME_DATA_TYPE`].
 #[derive(Debug)]
 pub struct AggType<'a> {
     /// Type of the value that is fed into the selector and for which we select the row that satisfies first/last/min/max.
     pub value_type: &'a DataType,
+
+    /// Type of the time that is fed into the selector and for which we select the row that satisfies first/last/min/max.
+    pub time_type: &'a DataType,
 
     /// Types of the other values that are picked for the same row for which [value](Self::value_type) was selected. The do
     /// NOT influence the row selection in any way.
@@ -96,12 +99,16 @@ impl<'a> AggType<'a> {
     ///
     /// See [`make_struct_datatype`].
     pub fn return_type(&self) -> DataType {
-        make_struct_datatype(self.value_type, self.other_types.iter().copied())
+        make_struct_datatype(
+            self.value_type,
+            self.time_type,
+            self.other_types.iter().copied(),
+        )
     }
 
     /// Return the state in which the arguments are stored
     pub fn state_datatypes(&self) -> Vec<DataType> {
-        [self.value_type.clone(), TIME_DATA_TYPE()]
+        [self.value_type.clone(), self.time_type.clone()]
             .into_iter()
             .chain(self.other_types.iter().copied().cloned())
             .collect()
@@ -121,16 +128,16 @@ impl<'a> AggType<'a> {
             let time_type = fields[1].data_type();
             let other_types = fields[2..].iter().map(|f| f.data_type()).collect();
 
-            if time_type != &TIME_DATA_TYPE() {
-                return Err(DataFusionError::Plan(format!(
+            match time_type {
+                DataType::Timestamp(TimeUnit::Nanosecond, _) => Ok(Self {
+                    value_type,
+                    time_type,
+                    other_types,
+                }),
+                _ => Err(DataFusionError::Plan(format!(
                     "second argument must be a timestamp, but got {time_type}"
-                )));
+                ))),
             }
-
-            Ok(Self {
-                value_type,
-                other_types,
-            })
         } else {
             Err(DataFusionError::Execution(format!(
                 "Cannot create selector type from non-struct return type: {return_type}"
@@ -153,15 +160,15 @@ impl<'a> AggType<'a> {
         let value_type = &arg_types[0];
         let time_type = &arg_types[1];
         let other_types = arg_types[2..].iter().collect();
-        if time_type != &TIME_DATA_TYPE() {
-            return Err(DataFusionError::Plan(format!(
+        match time_type {
+            DataType::Timestamp(TimeUnit::Nanosecond, _) => Ok(Self {
+                value_type,
+                time_type,
+                other_types,
+            }),
+            _ => Err(DataFusionError::Plan(format!(
                 "{name} second argument must be a timestamp, but got {time_type}"
-            )));
+            ))),
         }
-
-        Ok(Self {
-            value_type,
-            other_types,
-        })
     }
 }
