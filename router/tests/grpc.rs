@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use assert_matches::assert_matches;
-use data_types::NamespaceId;
+use data_types::{MaxColumnsPerTable, MaxTables, NamespaceId};
 use generated_types::influxdata::{
     iox::{
         ingester::v1::WriteRequest,
@@ -624,7 +624,7 @@ async fn test_update_namespace_limit_max_tables() {
     assert_eq!(got.max_tables, 1);
     assert_eq!(
         got.max_columns_per_table,
-        iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE
+        MaxColumnsPerTable::default().get()
     );
 
     // The list namespace RPC should show the updated namespace
@@ -706,7 +706,7 @@ async fn test_update_namespace_limit_max_columns_per_table() {
 
     assert_eq!(got.name, "bananas_test");
     assert_eq!(got.id, 1);
-    assert_eq!(got.max_tables, iox_catalog::DEFAULT_MAX_TABLES);
+    assert_eq!(got.max_tables, MaxTables::default().get());
     assert_eq!(got.max_columns_per_table, 1);
 
     // The list namespace RPC should show the updated namespace

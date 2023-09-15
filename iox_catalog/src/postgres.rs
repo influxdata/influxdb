@@ -13,7 +13,6 @@ use crate::{
     },
     metrics::MetricDecorator,
     migrate::IOxMigrator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
 use data_types::SortedColumnSet;
@@ -714,8 +713,8 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
         .bind(SHARED_TOPIC_ID) // $2
         .bind(SHARED_QUERY_POOL_ID) // $3
         .bind(retention_period_ns) // $4
-        .bind(max_tables.unwrap_or(DEFAULT_MAX_TABLES)) // $5
-        .bind(max_columns_per_table.unwrap_or(DEFAULT_MAX_COLUMNS_PER_TABLE)) // $6
+        .bind(max_tables.unwrap_or_default()) // $5
+        .bind(max_columns_per_table.unwrap_or_default()) // $6
         .bind(partition_template); // $7
 
         let rec = rec.fetch_one(&mut self.inner).await.map_err(|e| {
@@ -2640,9 +2639,9 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file
         let insert_null_partition_template_namespace = sqlx::query(
             r#"
 INSERT INTO namespace (
-    name, topic_id, query_pool_id, retention_period_ns, max_tables, partition_template
+    name, topic_id, query_pool_id, retention_period_ns, partition_template
 )
-VALUES ( $1, $2, $3, $4, $5, NULL )
+VALUES ( $1, $2, $3, $4, NULL )
 RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
           partition_template;
             "#,
@@ -2650,8 +2649,7 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
         .bind(namespace_name) // $1
         .bind(SHARED_TOPIC_ID) // $2
         .bind(SHARED_QUERY_POOL_ID) // $3
-        .bind(None::<Option<i64>>) // $4
-        .bind(DEFAULT_MAX_TABLES); // $5
+        .bind(None::<Option<i64>>); // $4
 
         insert_null_partition_template_namespace
             .fetch_one(&pool)

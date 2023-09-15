@@ -102,15 +102,11 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
+    use data_types::{MaxColumnsPerTable, MaxTables};
     use generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService;
     use iox_tests::TestCatalog;
     use querier::{create_ingester_connection_for_testing, QuerierCatalogCache};
     use tokio::runtime::Handle;
-
-    use iox_catalog::{
-        DEFAULT_MAX_COLUMNS_PER_TABLE as TEST_MAX_COLUMNS_PER_TABLE,
-        DEFAULT_MAX_TABLES as TEST_MAX_TABLES,
-    };
 
     /// Common retention period value we'll use in tests
     const TEST_RETENTION_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
@@ -185,16 +181,16 @@ mod tests {
                         id: 1,
                         name: "namespace2".to_string(),
                         retention_period_ns: TEST_RETENTION_PERIOD_NS,
-                        max_tables: TEST_MAX_TABLES,
-                        max_columns_per_table: TEST_MAX_COLUMNS_PER_TABLE,
+                        max_tables: MaxTables::default().get(),
+                        max_columns_per_table: MaxColumnsPerTable::default().get(),
                         partition_template: None,
                     },
                     proto::Namespace {
                         id: 2,
                         name: "namespace1".to_string(),
                         retention_period_ns: TEST_RETENTION_PERIOD_NS,
-                        max_tables: TEST_MAX_TABLES,
-                        max_columns_per_table: TEST_MAX_COLUMNS_PER_TABLE,
+                        max_tables: MaxTables::default().get(),
+                        max_columns_per_table: MaxColumnsPerTable::default().get(),
                         partition_template: None,
                     },
                 ]

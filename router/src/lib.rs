@@ -160,10 +160,8 @@ pub(crate) mod test_helpers {
         NamespaceSchema {
             id: NamespaceId::new(id),
             tables: BTreeMap::new(),
-            max_columns_per_table: MaxColumnsPerTable::new(
-                iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
-            ),
-            max_tables: MaxTables::new(iox_catalog::DEFAULT_MAX_TABLES),
+            max_columns_per_table: MaxColumnsPerTable::const_default(),
+            max_tables: MaxTables::const_default(),
             retention_period_ns: None,
             partition_template: DEFAULT_NAMESPACE_PARTITION_TEMPLATE,
         }

@@ -16,6 +16,17 @@ impl MaxTables {
     pub fn get(&self) -> i32 {
         self.0
     }
+
+    /// Default per-namespace table count service protection limit.
+    pub const fn const_default() -> Self {
+        Self(500)
+    }
+}
+
+impl Default for MaxTables {
+    fn default() -> Self {
+        Self::const_default()
+    }
 }
 
 impl std::fmt::Display for MaxTables {
@@ -37,6 +48,17 @@ impl MaxColumnsPerTable {
 
     pub fn get(&self) -> i32 {
         self.0
+    }
+
+    /// Default per-table column count service protection limit.
+    pub const fn const_default() -> Self {
+        Self(200)
+    }
+}
+
+impl Default for MaxColumnsPerTable {
+    fn default() -> Self {
+        Self::const_default()
     }
 }
 

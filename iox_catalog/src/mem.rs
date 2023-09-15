@@ -9,7 +9,6 @@ use crate::{
         MAX_PARQUET_FILES_SELECTED_ONCE_FOR_RETENTION,
     },
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
 use data_types::SortedColumnSet;
@@ -166,10 +165,10 @@ impl NamespaceRepo for MemTxn {
         let namespace = Namespace {
             id: NamespaceId::new(stage.namespaces.len() as i64 + 1),
             name: name.to_string(),
-            max_tables: MaxTables::new(max_tables.unwrap_or(DEFAULT_MAX_TABLES)),
-            max_columns_per_table: MaxColumnsPerTable::new(
-                max_columns_per_table.unwrap_or(DEFAULT_MAX_COLUMNS_PER_TABLE),
-            ),
+            max_tables: max_tables.map(MaxTables::new).unwrap_or_default(),
+            max_columns_per_table: max_columns_per_table
+                .map(MaxColumnsPerTable::new)
+                .unwrap_or_default(),
             retention_period_ns,
             deleted_at: None,
             partition_template: partition_template.unwrap_or_default(),

@@ -764,13 +764,13 @@ pub async fn list_schemas(
 pub(crate) mod test_helpers {
     use crate::{
         test_helpers::{arbitrary_namespace, arbitrary_parquet_file_params, arbitrary_table},
-        validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
+        validate_or_insert_schema,
     };
 
     use super::*;
     use ::test_helpers::assert_error;
     use assert_matches::assert_matches;
-    use data_types::{ColumnId, CompactionLevel};
+    use data_types::{ColumnId, CompactionLevel, MaxColumnsPerTable, MaxTables};
     use futures::Future;
     use generated_types::influxdata::iox::partition_template::v1 as proto;
     use metric::{Attributes, DurationHistogram, Metric};
@@ -843,10 +843,10 @@ pub(crate) mod test_helpers {
         assert_eq!(namespace, lookup_namespace);
 
         // Assert default values for service protection limits.
-        assert_eq!(namespace.max_tables.get(), DEFAULT_MAX_TABLES);
+        assert_eq!(namespace.max_tables, MaxTables::default());
         assert_eq!(
-            namespace.max_columns_per_table.get(),
-            DEFAULT_MAX_COLUMNS_PER_TABLE
+            namespace.max_columns_per_table,
+            MaxColumnsPerTable::default()
         );
 
         let conflict = repos
