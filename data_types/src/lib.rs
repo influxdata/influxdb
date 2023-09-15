@@ -19,16 +19,17 @@ use thiserror::Error;
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
-pub mod sequence_number_set;
-
 mod columns;
 pub use columns::*;
 mod namespace_name;
 pub use namespace_name::*;
-pub mod partition;
-pub use partition::*;
 pub mod partition_template;
 use partition_template::*;
+pub mod partition;
+pub use partition::*;
+pub mod sequence_number_set;
+pub mod service_limits;
+pub use service_limits::*;
 
 use observability_deps::tracing::warn;
 use schema::TIME_COLUMN_NAME;
@@ -273,50 +274,6 @@ impl std::fmt::Display for ParquetFileId {
     }
 }
 
-/// Max tables allowed in a namespace.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct MaxTables(i32);
-
-#[allow(missing_docs)]
-impl MaxTables {
-    pub const fn new(v: i32) -> Self {
-        Self(v)
-    }
-
-    pub fn get(&self) -> i32 {
-        self.0
-    }
-}
-
-impl std::fmt::Display for MaxTables {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-/// Max columns per table allowed in a namespace.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct MaxColumnsPerTable(i32);
-
-#[allow(missing_docs)]
-impl MaxColumnsPerTable {
-    pub const fn new(v: i32) -> Self {
-        Self(v)
-    }
-
-    pub fn get(&self) -> i32 {
-        self.0
-    }
-}
-
-impl std::fmt::Display for MaxColumnsPerTable {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
 /// Data object for a namespace
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct Namespace {
@@ -335,30 +292,6 @@ pub struct Namespace {
     /// The partition template to use for new tables in this namespace either created implicitly or
     /// created without specifying a partition template.
     pub partition_template: NamespacePartitionTemplateOverride,
-}
-
-use generated_types::influxdata::iox::namespace::v1 as namespace_proto;
-
-/// Overrides for service protection limits.
-#[derive(Debug, Copy, Clone)]
-pub struct NamespaceServiceProtectionLimitsOverride {
-    /// The maximum number of tables that can exist in this namespace
-    pub max_tables: Option<i32>,
-    /// The maximum number of columns per table in this namespace
-    pub max_columns_per_table: Option<i32>,
-}
-
-impl From<namespace_proto::ServiceProtectionLimits> for NamespaceServiceProtectionLimitsOverride {
-    fn from(value: namespace_proto::ServiceProtectionLimits) -> Self {
-        let namespace_proto::ServiceProtectionLimits {
-            max_tables,
-            max_columns_per_table,
-        } = value;
-        Self {
-            max_tables,
-            max_columns_per_table,
-        }
-    }
 }
 
 /// Schema collection for a namespace. This is an in-memory object useful for a schema
