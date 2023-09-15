@@ -64,8 +64,8 @@ pub(crate) fn namespace_created(
         namespace_name: namespace_name.into(),
         namespace_id: schema.id.get(),
         partition_template: schema.partition_template.as_proto().cloned(),
-        max_columns_per_table: schema.max_columns_per_table.get() as u64,
         max_tables: schema.max_tables.get() as u64,
+        max_columns_per_table: schema.max_columns_per_table.get() as u64,
         retention_period_ns: schema.retention_period_ns,
     }
 }

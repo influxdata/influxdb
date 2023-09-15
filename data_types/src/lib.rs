@@ -302,10 +302,10 @@ pub struct NamespaceSchema {
     pub id: NamespaceId,
     /// the tables in the namespace by name
     pub tables: BTreeMap<String, TableSchema>,
-    /// the number of columns per table this namespace allows
-    pub max_columns_per_table: MaxColumnsPerTable,
     /// The maximum number of tables permitted in this namespace.
     pub max_tables: MaxTables,
+    /// the number of columns per table this namespace allows
+    pub max_columns_per_table: MaxColumnsPerTable,
     /// The retention period in ns.
     /// None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
@@ -330,8 +330,8 @@ impl NamespaceSchema {
         Self {
             id,
             tables: BTreeMap::new(),
-            max_columns_per_table,
             max_tables,
+            max_columns_per_table,
             retention_period_ns,
             partition_template: partition_template.clone(),
         }
@@ -2647,8 +2647,8 @@ mod tests {
         let schema1 = NamespaceSchema {
             id: NamespaceId::new(1),
             tables: BTreeMap::from([]),
-            max_columns_per_table: MaxColumnsPerTable::new(4),
             max_tables: MaxTables::new(42),
+            max_columns_per_table: MaxColumnsPerTable::new(4),
             retention_period_ns: None,
             partition_template: Default::default(),
         };
@@ -2662,8 +2662,8 @@ mod tests {
                     partition_template: Default::default(),
                 },
             )]),
-            max_columns_per_table: MaxColumnsPerTable::new(4),
             max_tables: MaxTables::new(42),
+            max_columns_per_table: MaxColumnsPerTable::new(4),
             retention_period_ns: None,
             partition_template: Default::default(),
         };

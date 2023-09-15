@@ -164,8 +164,8 @@ where
             }) => {
                 debug!(
                     namespace_id = note.namespace_id,
-                    max_columns_per_table = note.max_columns_per_table,
                     max_tables = note.max_tables,
+                    max_columns_per_table = note.max_columns_per_table,
                     retention_period_ns = note.retention_period_ns,
                     ?partition_template,
                     "discovered new namespace via gossip"
@@ -180,10 +180,10 @@ where
                     NamespaceSchema {
                         id: NamespaceId::new(note.namespace_id),
                         tables: Default::default(),
+                        max_tables: MaxTables::new(note.max_tables as i32),
                         max_columns_per_table: MaxColumnsPerTable::new(
                             note.max_columns_per_table as i32,
                         ),
-                        max_tables: MaxTables::new(note.max_tables as i32),
                         retention_period_ns: note.retention_period_ns,
                         partition_template,
                     },
@@ -412,8 +412,8 @@ mod tests {
     // attribute checked separately)
     fn assert_namespace_attributes_eq(left: &NamespaceSchema, right: &NamespaceSchema) {
         assert_eq!(left.id, right.id);
-        assert_eq!(left.max_columns_per_table, right.max_columns_per_table);
         assert_eq!(left.max_tables, right.max_tables);
+        assert_eq!(left.max_columns_per_table, right.max_columns_per_table);
         assert_eq!(left.retention_period_ns, right.retention_period_ns);
         assert_eq!(left.partition_template, right.partition_template);
     }
@@ -888,8 +888,8 @@ mod tests {
             // But these fields can change.
             //
             // They will be ignored, and the local values used instead.
-            max_columns_per_table: 123456,
             max_tables: 123456,
+            max_columns_per_table: 123456,
             retention_period_ns: Some(123456),
             ..namespace_created(NAMESPACE_NAME, &DEFAULT_NAMESPACE)
         }),

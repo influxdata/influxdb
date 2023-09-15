@@ -51,8 +51,8 @@ fn bench(group: &mut BenchmarkGroup<WallTime>, tables: usize, columns_per_table:
     let namespace_schema = NamespaceSchema {
         id: NamespaceId::new(42),
         tables: Default::default(),
-        max_columns_per_table: MaxColumnsPerTable::new(42),
         max_tables: MaxTables::new(42),
+        max_columns_per_table: MaxColumnsPerTable::new(42),
         retention_period_ns: None,
         partition_template: Default::default(),
     };

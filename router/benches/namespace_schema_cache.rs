@@ -156,8 +156,8 @@ fn generate_namespace_schema(tables: usize, columns_per_table: usize) -> Namespa
                 (format!("table{i}"), schema)
             })
             .collect::<BTreeMap<_, _>>(),
-        max_columns_per_table: MaxColumnsPerTable::new(i32::MAX),
         max_tables: MaxTables::new(i32::MAX),
+        max_columns_per_table: MaxColumnsPerTable::new(i32::MAX),
         retention_period_ns: None,
         partition_template,
     }

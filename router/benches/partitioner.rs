@@ -166,8 +166,8 @@ fn bench(
     let schema = Arc::new(NamespaceSchema {
         id: NamespaceId::new(42),
         tables: Default::default(),
-        max_columns_per_table: MaxColumnsPerTable::new(1000),
         max_tables: MaxTables::new(1000),
+        max_columns_per_table: MaxColumnsPerTable::new(1000),
         retention_period_ns: None,
         partition_template: partition_template.clone(),
     });

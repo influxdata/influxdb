@@ -186,8 +186,8 @@ mod tests {
         NamespaceSchema {
             id: TEST_NAMESPACE_ID,
             tables: Default::default(),
-            max_columns_per_table: MaxColumnsPerTable::new(50),
             max_tables: MaxTables::new(24),
+            max_columns_per_table: MaxColumnsPerTable::new(50),
             retention_period_ns: Some(876),
             partition_template: Default::default(),
         }
@@ -198,8 +198,8 @@ mod tests {
         NamespaceSchema {
             id: TEST_NAMESPACE_ID,
             tables: Default::default(),
-            max_columns_per_table: MaxColumnsPerTable::new(10),
             max_tables: MaxTables::new(42),
+            max_columns_per_table: MaxColumnsPerTable::new(10),
             retention_period_ns: Some(876),
             partition_template: Default::default(),
         }
@@ -484,16 +484,16 @@ mod tests {
                 arbitrary_table_schema(),
                 (0, 10) // Set size range
             ),
-            max_columns_per_table in any::<usize>(),
             max_tables in any::<usize>(),
+            max_columns_per_table in any::<usize>(),
             retention_period_ns in any::<Option<i64>>(),
         ) -> NamespaceSchema {
             let tables = tables.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
             NamespaceSchema {
                 id: TEST_NAMESPACE_ID,
                 tables,
-                max_columns_per_table: MaxColumnsPerTable::new(max_columns_per_table as i32),
                 max_tables: MaxTables::new(max_tables as i32),
+                max_columns_per_table: MaxColumnsPerTable::new(max_columns_per_table as i32),
                 retention_period_ns,
                 partition_template: Default::default(),
             }
@@ -577,8 +577,8 @@ mod tests {
 
             // Assert the "last writer wins" in terms of all other namespace
             // values.
-            assert_eq!(got.max_columns_per_table, b.max_columns_per_table);
             assert_eq!(got.max_tables, b.max_tables);
+            assert_eq!(got.max_columns_per_table, b.max_columns_per_table);
             assert_eq!(got.retention_period_ns, b.retention_period_ns);
         }
     }
