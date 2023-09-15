@@ -19,8 +19,8 @@ use workspace_hack as _;
 use std::sync::Arc;
 
 use data_types::{
-    partition_template::NamespacePartitionTemplateOverride, Namespace as CatalogNamespace,
-    NamespaceName, NamespaceServiceProtectionLimitsOverride,
+    partition_template::NamespacePartitionTemplateOverride, MaxColumnsPerTable, MaxTables,
+    Namespace as CatalogNamespace, NamespaceName, NamespaceServiceProtectionLimitsOverride,
 };
 use generated_types::influxdata::iox::namespace::v1::{
     update_namespace_service_protection_limit_request::LimitUpdate, *,
@@ -207,7 +207,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
                 }
                 repos
                     .namespaces()
-                    .update_table_limit(&namespace_name, n)
+                    .update_table_limit(&namespace_name, MaxTables::new(n))
                     .await
                     .map_err(|e| {
                         warn!(
@@ -227,7 +227,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
                 }
                 repos
                     .namespaces()
-                    .update_column_limit(&namespace_name, n)
+                    .update_column_limit(&namespace_name, MaxColumnsPerTable::new(n))
                     .await
                     .map_err(|e| {
                         warn!(

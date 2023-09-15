@@ -228,11 +228,11 @@ impl NamespaceRepo for MemTxn {
         }
     }
 
-    async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {
+    async fn update_table_limit(&mut self, name: &str, new_max: MaxTables) -> Result<Namespace> {
         let stage = self.stage();
         match stage.namespaces.iter_mut().find(|n| n.name == name) {
             Some(n) => {
-                n.max_tables = MaxTables::new(new_max);
+                n.max_tables = new_max;
                 Ok(n.clone())
             }
             None => Err(Error::NamespaceNotFoundByName {
@@ -241,11 +241,15 @@ impl NamespaceRepo for MemTxn {
         }
     }
 
-    async fn update_column_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {
+    async fn update_column_limit(
+        &mut self,
+        name: &str,
+        new_max: MaxColumnsPerTable,
+    ) -> Result<Namespace> {
         let stage = self.stage();
         match stage.namespaces.iter_mut().find(|n| n.name == name) {
             Some(n) => {
-                n.max_columns_per_table = MaxColumnsPerTable::new(new_max);
+                n.max_columns_per_table = new_max;
                 Ok(n.clone())
             }
             None => Err(Error::NamespaceNotFoundByName {

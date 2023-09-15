@@ -436,7 +436,7 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
-    use data_types::ColumnType;
+    use data_types::{ColumnType, MaxColumnsPerTable, MaxTables};
     use iox_tests::{TestCatalog, TestNamespace};
     use once_cell::sync::Lazy;
 
@@ -876,7 +876,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .update_table_limit(NAMESPACE.as_str(), 1)
+            .update_table_limit(NAMESPACE.as_str(), MaxTables::new(1))
             .await
             .expect("failed to set table limit");
 
@@ -937,7 +937,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .update_column_limit(NAMESPACE.as_str(), 3)
+            .update_column_limit(NAMESPACE.as_str(), MaxColumnsPerTable::new(3))
             .await
             .expect("failed to set column limit");
 

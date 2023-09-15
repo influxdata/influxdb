@@ -20,10 +20,10 @@ use data_types::{
     partition_template::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
     },
-    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId, ParquetFileParams,
-    Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
-    Timestamp, TransitionPartitionId,
+    Column, ColumnType, CompactionLevel, MaxColumnsPerTable, MaxTables, Namespace, NamespaceId,
+    NamespaceName, NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId,
+    ParquetFileParams, Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction,
+    Table, TableId, Timestamp, TransitionPartitionId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, Instrument, MetricKind};
@@ -829,7 +829,7 @@ WHERE name=$1 AND {v};
             .map(|_| ())
     }
 
-    async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {
+    async fn update_table_limit(&mut self, name: &str, new_max: MaxTables) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
 UPDATE namespace
@@ -854,7 +854,11 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
         Ok(namespace)
     }
 
-    async fn update_column_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {
+    async fn update_column_limit(
+        &mut self,
+        name: &str,
+        new_max: MaxColumnsPerTable,
+    ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
 UPDATE namespace
