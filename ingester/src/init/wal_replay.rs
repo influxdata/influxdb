@@ -1,11 +1,13 @@
+use std::{fmt::Debug, sync::Arc, time::Instant};
+
+use async_trait::async_trait;
 use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
 use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op;
 use metric::U64Counter;
 use mutable_batch_pb::decode::decode_database_batch;
 use observability_deps::tracing::*;
-use std::time::Instant;
 use thiserror::Error;
-use wal::{SegmentId, SequencedWalOp, Wal};
+use wal::{SegmentId, SequencedWalOp};
 
 use crate::{
     dml_payload::write::{PartitionedData, TableData, WriteOperation},
@@ -38,19 +40,72 @@ pub enum WalReplayError {
     Apply(#[from] DmlError),
 }
 
+/// A type that can list, read & delete closed WAL segment files. This abstracts
+/// away the type of segment reader to allow mocking.
+#[async_trait]
+pub trait WalReader: Debug + Send + Sync + 'static {
+    /// A reader for a closed WAL segment.
+    type SegmentReader: SegmentedWalOpBatchReader;
+
+    /// Returns a reader for the closed wal segment specified.
+    fn reader_for_closed_segment(&self, id: SegmentId) -> Result<Self::SegmentReader, wal::Error>;
+
+    /// Lists the closed segments available for reading from the WAL as (id, size) tuples.
+    fn closed_segments(&self) -> Vec<(SegmentId, u64)>;
+
+    /// Deletes the closed segment specified.
+    async fn delete(&self, id: SegmentId) -> Result<(), wal::Error>;
+}
+
+#[async_trait]
+impl WalReader for Arc<wal::Wal> {
+    type SegmentReader = wal::ClosedSegmentFileReader;
+
+    fn reader_for_closed_segment(&self, id: SegmentId) -> Result<Self::SegmentReader, wal::Error> {
+        wal::Wal::reader_for_segment(self, id)
+    }
+
+    fn closed_segments(&self) -> Vec<(SegmentId, u64)> {
+        wal::Wal::closed_segments(self)
+            .iter()
+            .map(|s| (s.id(), s.size()))
+            .collect()
+    }
+
+    async fn delete(&self, id: SegmentId) -> Result<(), wal::Error> {
+        wal::Wal::delete(self, id).await
+    }
+}
+
+/// A trait to associate a [`SegmentId`] with a WAL op batch reader
+pub trait SegmentedWalOpBatchReader:
+    Iterator<Item = Result<Vec<SequencedWalOp>, wal::Error>> + Send
+{
+    /// The ID of the segment file the entries in the reader are from
+    fn id(&self) -> SegmentId;
+}
+
+/// Implement the trait for the [`wal::ClosedSegmentFileReader`]
+impl SegmentedWalOpBatchReader for wal::ClosedSegmentFileReader {
+    fn id(&self) -> SegmentId {
+        self.id()
+    }
+}
+
 // TODO: tolerate WAL replay errors
 //
 // https://github.com/influxdata/influxdb_iox/issues/6283
 
 /// Replay all the entries in `wal` to `sink`, returning the maximum observed
 /// [`SequenceNumber`].
-pub async fn replay<T, P>(
-    wal: &Wal,
+pub async fn replay<W, T, P>(
+    wal: &W,
     sink: &T,
     persist: P,
     metrics: &metric::Registry,
 ) -> Result<Option<SequenceNumber>, WalReplayError>
 where
+    W: WalReader,
     T: DmlSink + PartitionIter,
     P: PersistQueue + Clone,
 {
@@ -93,12 +148,13 @@ where
     for (index, file) in files.into_iter().enumerate() {
         // Map 0-based iter index to 1 based file count
         let file_number = index + 1;
+        let (file_id, file_size) = (file.0, file.1);
 
         file_count_metric.inc(1);
 
         // Read the segment
         let reader = wal
-            .reader_for_segment(file.id())
+            .reader_for_closed_segment(file_id)
             .map_err(WalReplayError::OpenSegment)?;
 
         // Emit a log entry so progress can be tracked (and a problematic file
@@ -106,32 +162,46 @@ where
         info!(
             file_number,
             n_files,
-            file_id = %file.id(),
-            size = file.size(),
+            %file_id,
+            size = file_size,
             "replaying wal file"
         );
 
         // Replay this segment file
-        match replay_file(reader, sink, &ok_op_count_metric, &empty_op_count_metric).await? {
+        let replay_result = replay_file(reader, sink, &ok_op_count_metric, &empty_op_count_metric)
+            .await
+            .map_err(|e| {
+                if let WalReplayError::ReadEntry(wal::Error::UnableToReadNextOps {
+                    source: wal::blocking::ReaderError::UnableToReadData { source: io_err },
+                }) = &e
+                {
+                    if io_err.kind() == std::io::ErrorKind::UnexpectedEof && file_number == n_files {
+                        warn!(%e, %file_id, "detected truncated WAL write, ending replay for file early");
+                        return Ok(None);
+                    }
+                }
+                Err(e)
+            }).or_else(|result| result);
+        match replay_result? {
             v @ Some(_) => max_sequence = max_sequence.max(v),
             None => {
                 // This file was empty and should be deleted.
                 warn!(
                     file_number,
                     n_files,
-                    file_id = %file.id(),
-                    size = file.size(),
+                    %file_id ,
+                    size = file_size,
                     "dropping empty wal segment",
                 );
 
                 // A failure to delete an empty file MUST not prevent WAL
                 // replay from continuing.
-                if let Err(error) = wal.delete(file.id()).await {
+                if let Err(error) = wal.delete(file_id).await {
                     error!(
                         file_number,
                         n_files,
-                        file_id = %file.id(),
-                        size = file.size(),
+                        %file_id,
+                        size = file_size,
                         %error,
                         "error dropping empty wal segment",
                     );
@@ -144,8 +214,8 @@ where
         info!(
             file_number,
             n_files,
-            file_id = %file.id(),
-            size = file.size(),
+            %file_id,
+            size = file_size,
             "persisting wal segment data"
         );
 
@@ -153,15 +223,15 @@ where
         persist_partitions(sink.partition_iter(), &persist).await;
 
         // Drop the newly persisted data - it should not be replayed.
-        wal.delete(file.id())
+        wal.delete(file_id)
             .await
             .expect("failed to drop wal segment");
 
         info!(
             file_number,
             n_files,
-            file_id = %file.id(),
-            size = file.size(),
+            %file_id,
+            size = file_size,
             "dropped persisted wal segment"
         );
     }
@@ -172,20 +242,6 @@ where
     );
 
     Ok(max_sequence)
-}
-
-// A trait to associate a [`SegmentId`] with a WAL op batch reader
-trait SegmentedWalOpBatchReader:
-    Iterator<Item = Result<Vec<SequencedWalOp>, wal::Error>> + Send
-{
-    fn id(&self) -> SegmentId;
-}
-
-// Implement the trait for the [`wal::ClosedSegmentFileReader`]
-impl SegmentedWalOpBatchReader for wal::ClosedSegmentFileReader {
-    fn id(&self) -> SegmentId {
-        self.id()
-    }
 }
 
 /// Replay the entries in `file`, applying them to `buffer`. Returns the
@@ -213,17 +269,6 @@ where
     let segment_id = file.id();
 
     for batch in file {
-        if let Err(
-            err @ wal::Error::UnableToReadNextOps {
-                source: wal::blocking::ReaderError::UnableToReadData { source: io_err },
-            },
-        ) = &batch
-        {
-            if io_err.kind() == std::io::ErrorKind::UnexpectedEof {
-                warn!(%err, ?segment_id, "detected truncated WAL write, ending replay for file early");
-                break;
-            }
-        }
         let ops = batch.map_err(WalReplayError::ReadEntry)?;
 
         for op in ops {
@@ -305,10 +350,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::VecDeque, sync::Arc};
+    use std::collections::VecDeque;
+    use std::sync::Arc;
 
     use assert_matches::assert_matches;
     use async_trait::async_trait;
+    use hashbrown::HashSet;
+    use itertools::Itertools;
     use metric::{Attributes, Metric};
     use parking_lot::Mutex;
     use wal::Wal;
@@ -567,9 +615,74 @@ mod tests {
         assert_eq!(ops, 1);
     }
 
+    #[derive(Debug)]
+    struct MockWalReader {
+        readers: Mutex<VecDeque<MockSegmentedWalOpBatchReader>>,
+        closed_segment_ids: Mutex<HashSet<SegmentId>>,
+    }
+
+    impl MockWalReader {
+        fn new(
+            readers: impl IntoIterator<Item = MockSegmentedWalOpBatchReader>,
+            closed_segment_ids: impl IntoIterator<Item = u64>,
+        ) -> Self {
+            Self {
+                readers: Mutex::new(readers.into_iter().collect()),
+                closed_segment_ids: Mutex::new(
+                    closed_segment_ids.into_iter().map(SegmentId::new).collect(),
+                ),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl WalReader for MockWalReader {
+        type SegmentReader = MockSegmentedWalOpBatchReader;
+
+        fn reader_for_closed_segment(
+            &self,
+            id: SegmentId,
+        ) -> Result<Self::SegmentReader, wal::Error> {
+            assert!(self.closed_segment_ids.lock().contains(&id));
+            Ok(self.readers.lock().pop_front().expect("no reader"))
+        }
+
+        fn closed_segments(&self) -> Vec<(SegmentId, u64)> {
+            self.closed_segment_ids
+                .lock()
+                .iter()
+                .sorted()
+                .map(|id| (*id, 1))
+                .collect()
+        }
+
+        async fn delete(&self, id: SegmentId) -> Result<(), wal::Error> {
+            assert!(self.closed_segment_ids.lock().remove(&id));
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
     struct MockSegmentedWalOpBatchReader {
         id: SegmentId,
         entry_results: VecDeque<Result<Vec<SequencedWalOp>, wal::Error>>,
+    }
+
+    impl MockSegmentedWalOpBatchReader {
+        fn new(id: SegmentId) -> Self {
+            Self {
+                id,
+                entry_results: Default::default(),
+            }
+        }
+
+        fn with_entry_results(
+            mut self,
+            entry_results: impl IntoIterator<Item = Result<Vec<SequencedWalOp>, wal::Error>>,
+        ) -> Self {
+            self.entry_results = entry_results.into_iter().collect();
+            self
+        }
     }
 
     impl Iterator for MockSegmentedWalOpBatchReader {
@@ -608,127 +721,95 @@ mod tests {
         }
     }
 
-    // Assert that an error returned within [`wal::Error::UnableToReadNextOps`]
-    // is thrown up.
-    macro_rules! test_replay_file_returns_error {
-        (
-            $name:ident,
-            inner_err = $inner_err:expr,
-        ) => {
-            paste::paste! {
-                #[tokio::test]
-                async fn [<test_replay_sequence_op_batches_returns_error_$name>]() {
-                    let metrics = metric::Registry::default();
-                    let metric = metrics.register_metric::<U64Counter>("foo", "bar");
+    #[tokio::test]
+    async fn test_replay_of_truncated_write_in_last_file() {
+        let wal = MockWalReader::new(
+            [
+                MockSegmentedWalOpBatchReader::new(SegmentId::new(1)).with_entry_results([Ok(
+                    vec![arbitrary_sequenced_wal_op(SequenceNumber::new(1))],
+                )]),
+                MockSegmentedWalOpBatchReader::new(SegmentId::new(2)).with_entry_results([Ok(
+                    vec![arbitrary_sequenced_wal_op(SequenceNumber::new(2))],
+                )]),
+                MockSegmentedWalOpBatchReader::new(SegmentId::new(3)).with_entry_results([
+                    Ok(vec![arbitrary_sequenced_wal_op(SequenceNumber::new(3))]),
+                    Err(wal::Error::UnableToReadNextOps {
+                        source: wal::blocking::ReaderError::UnableToReadData {
+                            source: std::io::Error::new(
+                                std::io::ErrorKind::UnexpectedEof,
+                                "gremlins in the drive",
+                            ),
+                        },
+                    }),
+                ]),
+            ],
+            [1, 2, 3],
+        );
 
-                    let reader = MockSegmentedWalOpBatchReader {
-                        id: SegmentId::new(1),
-                        entry_results: [
-                            Ok([arbitrary_sequenced_wal_op(SequenceNumber::new(1))]
-                                .into_iter()
-                                .collect()),
-                            Ok([arbitrary_sequenced_wal_op(SequenceNumber::new(2))]
-                                .into_iter()
-                                .collect()),
-                            Err(wal::Error::UnableToReadNextOps {
-                                source: $inner_err,
-                            }),
-                        ]
-                        .into_iter()
-                        .collect::<VecDeque<_>>(),
-                    };
-                    let mock_sink = MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]);
+        // Initialise the mock persist system
+        let persist = Arc::new(MockPersistQueue::default());
 
-                    assert_matches!(
-                        replay_file(
-                            reader,
-                            &mock_sink,
-                            &metric.recorder(&[]),
-                            &metric.recorder(&[]),
-                        )
-                        .await,
-                        Err(WalReplayError::ReadEntry(_))
-                    );
-                }
-            }
+        // Replay the results into a mock to capture the DmlWrites and returns
+        // some dummy partitions when iterated over.
+        let mock_sink = MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(()), Ok(())]);
+        let mock_iter = MockIter {
+            sink: mock_sink,
+            partitions: vec![],
         };
+        let metrics = metric::Registry::default();
+
+        // TODO(savage): Return correct max sequence number when a truncated write is encountered
+        let _max_sequence_number = replay(&wal, &mock_iter, Arc::clone(&persist), &metrics)
+            .await
+            .expect("failed to replay WAL");
+        assert!(wal.closed_segment_ids.lock().is_empty());
     }
 
-    test_replay_file_returns_error!(
-        checksum_mismatch,
-        inner_err = wal::blocking::ReaderError::ChecksumMismatch {
-            expected: 1,
-            actual: 2,
-        },
-    );
-
-    test_replay_file_returns_error!(
-        unable_to_read_data,
-        inner_err = wal::blocking::ReaderError::UnableToReadData {
-            source: std::io::Error::new(std::io::ErrorKind::OutOfMemory, "boom"),
-        },
-    );
-
-    test_replay_file_returns_error!(
-        length_mismatch,
-        inner_err = wal::blocking::ReaderError::LengthMismatch {
-            expected: 1,
-            actual: 2,
-        },
-    );
-
-    test_replay_file_returns_error!(
-        unable_to_read_checksum,
-        inner_err = wal::blocking::ReaderError::UnableToReadChecksum {
-            source: std::io::Error::new(std::io::ErrorKind::TimedOut, "boop"),
-        },
-    );
-
-    /// This test is meant to ensure that upon being unable to recover the next
-    /// WAL op entry batch for a segment the replay returns OK early if the
-    /// error is an incomplete entry.
     #[tokio::test]
-    async fn test_replay_sequenced_op_batches_unable_to_read_next_ops() {
-        use once_cell::sync::Lazy;
-        static ARBITRARY_MAX_SEQUENCE_NUMBER: Lazy<SequenceNumber> =
-            Lazy::new(|| SequenceNumber::new(42));
+    async fn test_replay_error_for_unknown_corruption() {
+        let wal = MockWalReader::new(
+            [
+                MockSegmentedWalOpBatchReader::new(SegmentId::new(1)).with_entry_results([Ok(
+                    vec![arbitrary_sequenced_wal_op(SequenceNumber::new(1))],
+                )]),
+                MockSegmentedWalOpBatchReader::new(SegmentId::new(2)).with_entry_results([
+                    Ok(vec![arbitrary_sequenced_wal_op(SequenceNumber::new(2))]),
+                    Err(wal::Error::UnableToReadNextOps {
+                        source: wal::blocking::ReaderError::UnableToReadData {
+                            source: std::io::Error::new(
+                                std::io::ErrorKind::UnexpectedEof,
+                                "gremlins in the drive",
+                            ),
+                        },
+                    }),
+                ]),
+                MockSegmentedWalOpBatchReader::new(SegmentId::new(3)).with_entry_results([Ok(
+                    vec![arbitrary_sequenced_wal_op(SequenceNumber::new(4))],
+                )]),
+            ],
+            [1, 2, 3],
+        );
 
-        let metrics = metric::Registry::default();
-        let metric = metrics.register_metric::<U64Counter>("foo", "bar");
-        let reader = MockSegmentedWalOpBatchReader {
-            id: SegmentId::new(1),
-            entry_results: [
-                Ok([arbitrary_sequenced_wal_op(SequenceNumber::new(1))]
-                    .into_iter()
-                    .collect()),
-                Ok([arbitrary_sequenced_wal_op(*ARBITRARY_MAX_SEQUENCE_NUMBER)]
-                    .into_iter()
-                    .collect()),
-                Err(wal::Error::UnableToReadNextOps {
-                    source: wal::blocking::ReaderError::UnableToReadData {
-                        source: std::io::Error::new(
-                            std::io::ErrorKind::UnexpectedEof,
-                            "gremlins in the drive",
-                        ),
-                    },
-                }),
-            ]
-            .into_iter()
-            .collect::<VecDeque<_>>(),
+        // Initialise the mock persist system
+        let persist = Arc::new(MockPersistQueue::default());
+
+        // Replay the results into a mock to capture the DmlWrites and returns
+        // some dummy partitions when iterated over.
+        let mock_sink = MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(()), Ok(())]);
+        let mock_iter = MockIter {
+            sink: mock_sink,
+            partitions: vec![],
         };
-        let mock_sink = MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]);
+        let metrics = metric::Registry::default();
 
-        let result = replay_file(
-            reader,
-            &mock_sink,
-            &metric.recorder(&[]),
-            &metric.recorder(&[]),
-        )
-        .await
-        .expect("should replay without returning error to caller");
-
-        assert_matches!(result, Some(v) => {
-            assert_eq!(v, *ARBITRARY_MAX_SEQUENCE_NUMBER);
-        });
+        let replay_result = replay(&wal, &mock_iter, Arc::clone(&persist), &metrics).await;
+        assert_matches!(replay_result, Err(WalReplayError::ReadEntry(_)));
+        assert_eq!(
+            wal.closed_segments()
+                .into_iter()
+                .map(|s| s.0)
+                .collect::<Vec<_>>(),
+            vec![SegmentId::new(2), SegmentId::new(3)]
+        );
     }
 }
