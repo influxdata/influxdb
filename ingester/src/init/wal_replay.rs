@@ -26,7 +26,7 @@ pub enum WalReplayError {
 
     /// An error when attempting to read an entry from the WAL.
     #[error("failed to read wal entry: {0}")]
-    ReadEntry(wal::Error),
+    ReadEntry(wal::Error, Option<SequenceNumber>),
 
     /// An error converting the WAL entry into a [`IngestOp`].
     #[error("failed converting wal entry to ingest operation: {0}")]
@@ -173,9 +173,10 @@ where
             .map_err(|e| {
                 if let WalReplayError::ReadEntry(wal::Error::UnableToReadNextOps {
                     source: wal::blocking::ReaderError::UnableToReadData { source: io_err },
-                }) = &e
+                }, seq) = &e
                 {
                     if io_err.kind() == std::io::ErrorKind::UnexpectedEof && file_number == n_files {
+                        max_sequence = max_sequence.max(*seq);
                         warn!(%e, %file_id, "detected truncated WAL write, ending replay for file early");
                         return Ok(None);
                     }
@@ -269,7 +270,7 @@ where
     let segment_id = file.id();
 
     for batch in file {
-        let ops = batch.map_err(WalReplayError::ReadEntry)?;
+        let ops = batch.map_err(|e| WalReplayError::ReadEntry(e, max_sequence))?;
 
         for op in ops {
             let SequencedWalOp {
@@ -758,10 +759,11 @@ mod tests {
         };
         let metrics = metric::Registry::default();
 
-        // TODO(savage): Return correct max sequence number when a truncated write is encountered
-        let _max_sequence_number = replay(&wal, &mock_iter, Arc::clone(&persist), &metrics)
+        let max_sequence_number = replay(&wal, &mock_iter, Arc::clone(&persist), &metrics)
             .await
-            .expect("failed to replay WAL");
+            .expect("failed to replay WAL")
+            .expect("should receive max sequence number");
+        assert_eq!(max_sequence_number, SequenceNumber::new(3));
         assert!(wal.closed_segment_ids.lock().is_empty());
     }
 
@@ -803,7 +805,12 @@ mod tests {
         let metrics = metric::Registry::default();
 
         let replay_result = replay(&wal, &mock_iter, Arc::clone(&persist), &metrics).await;
-        assert_matches!(replay_result, Err(WalReplayError::ReadEntry(_)));
+        assert_matches!(
+            replay_result,
+            Err(WalReplayError::ReadEntry(_, Some(id))) => {
+                assert_eq!(id, SequenceNumber::new(2));
+            }
+        );
         assert_eq!(
             wal.closed_segments()
                 .into_iter()
