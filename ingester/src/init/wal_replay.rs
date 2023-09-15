@@ -130,6 +130,17 @@ where
             "Number of WAL files that have started to be replayed",
         )
         .recorder(&[]);
+
+    // This captures files that have been replayed, allowing us to have an
+    // approximate diff for started vs finished
+    let replayed_file_count_metric = metrics.register_metric::<U64Counter>(
+        "ingester_wal_replay_files_finished",
+        "Number of WAL files that have been replayed",
+    );
+    let whole_file_count_metric = replayed_file_count_metric.recorder(&[("outcome", "whole")]);
+    let truncated_file_count_metric =
+        replayed_file_count_metric.recorder(&[("outcome", "truncated")]);
+
     let op_count_metric = metrics.register_metric::<U64Counter>(
         "ingester_wal_replay_ops",
         "Number of operations replayed from the WAL",
@@ -170,6 +181,10 @@ where
         // Replay this segment file
         let replay_result = replay_file(reader, sink, &ok_op_count_metric, &empty_op_count_metric)
             .await
+            .map(|v| {
+                whole_file_count_metric.inc(1);
+                v
+            })
             .map_err(|e| {
                 if let WalReplayError::ReadEntry(wal::Error::UnableToReadNextOps {
                     source: wal::blocking::ReaderError::UnableToReadData { source: io_err },
@@ -177,6 +192,7 @@ where
                 {
                     if io_err.kind() == std::io::ErrorKind::UnexpectedEof && file_number == n_files {
                         max_sequence = max_sequence.max(*seq);
+                        truncated_file_count_metric.inc(1);
                         warn!(%e, %file_id, "detected truncated WAL write, ending replay for file early");
                         return Ok(None);
                     }
@@ -600,6 +616,20 @@ mod tests {
             .expect("attributes not found")
             .fetch();
         assert_eq!(files, 3);
+        let whole_files = metrics
+            .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_files_finished")
+            .expect("file counter not found")
+            .get_observer(&Attributes::from(&[("outcome", "whole")]))
+            .expect("attributes not found")
+            .fetch();
+        assert_eq!(whole_files, 3);
+        let truncated_files = metrics
+            .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_files_finished")
+            .expect("file counter not found")
+            .get_observer(&Attributes::from(&[("outcome", "truncated")]))
+            .expect("attributes not found")
+            .fetch();
+        assert_eq!(truncated_files, 0);
         let ops = metrics
             .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_ops")
             .expect("file counter not found")
@@ -765,6 +795,21 @@ mod tests {
             .expect("should receive max sequence number");
         assert_eq!(max_sequence_number, SequenceNumber::new(3));
         assert!(wal.closed_segment_ids.lock().is_empty());
+
+        let whole_files = metrics
+            .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_files_finished")
+            .expect("file counter not found")
+            .get_observer(&Attributes::from(&[("outcome", "whole")]))
+            .expect("attributes not found")
+            .fetch();
+        assert_eq!(whole_files, 2);
+        let truncated_files = metrics
+            .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_files_finished")
+            .expect("file counter not found")
+            .get_observer(&Attributes::from(&[("outcome", "truncated")]))
+            .expect("attributes not found")
+            .fetch();
+        assert_eq!(truncated_files, 1);
     }
 
     #[tokio::test]
