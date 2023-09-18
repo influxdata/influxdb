@@ -2767,6 +2767,8 @@ dependencies = [
  "iox_time",
  "metric",
  "observability_deps",
+ "pin-project",
+ "rand",
  "snafu",
  "test_helpers",
  "tokio",

@@ -1,6 +1,7 @@
 //! Layers.
 
 pub mod backoff;
+pub mod circuit_breaker;
 pub mod deserialize;
 pub mod logging;
 pub mod metrics;

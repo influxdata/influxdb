@@ -18,6 +18,8 @@ ingester_query_grpc = { path = "../ingester_query_grpc" }
 iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
+pin-project = "1.1"
+rand = "0.8.3"
 snafu = "0.7"
 tokio = { version = "1.32" }
 tonic = { workspace = true }
