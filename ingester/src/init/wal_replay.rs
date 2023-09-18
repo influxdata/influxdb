@@ -24,7 +24,8 @@ pub enum WalReplayError {
     #[error("failed to open wal segment for replay: {0}")]
     OpenSegment(wal::Error),
 
-    /// An error when attempting to read an entry from the WAL.
+    /// An error when attempting to read an entry from the WAL, including the
+    /// highest sequence number observed for successfully replayed entries.
     #[error("failed to read wal entry: {0}")]
     ReadEntry(wal::Error, Option<SequenceNumber>),
 
