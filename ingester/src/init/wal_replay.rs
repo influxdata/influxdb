@@ -13,6 +13,7 @@ use crate::{
     dml_payload::write::{PartitionedData, TableData, WriteOperation},
     dml_payload::IngestOp,
     dml_sink::{DmlError, DmlSink},
+    ingest_state::IngestState,
     partition_iter::PartitionIter,
     persist::{drain_buffer::persist_partitions, queue::PersistQueue},
 };
@@ -103,6 +104,7 @@ pub async fn replay<W, T, P>(
     wal: &W,
     sink: &T,
     persist: P,
+    ingest_state: Arc<IngestState>,
     metrics: &metric::Registry,
 ) -> Result<Option<SequenceNumber>, WalReplayError>
 where
@@ -180,8 +182,14 @@ where
         );
 
         // Replay this segment file, tracking successful replay in the metric
-        let replay_result =
-            replay_file(reader, sink, &ok_op_count_metric, &empty_op_count_metric).await;
+        let replay_result = replay_file(
+            reader,
+            sink,
+            &ok_op_count_metric,
+            &empty_op_count_metric,
+            &ingest_state,
+        )
+        .await;
         if replay_result.is_ok() {
             file_count_success_metric.inc(1);
         }
@@ -282,6 +290,7 @@ async fn replay_file<T, F>(
     sink: &T,
     ok_op_count_metric: &U64Counter,
     empty_op_count_metric: &U64Counter,
+    _ingest_state: &Arc<IngestState>,
 ) -> Result<Option<SequenceNumber>, WalReplayError>
 where
     T: DmlSink,
@@ -572,10 +581,17 @@ mod tests {
             partitions: vec![Arc::new(Mutex::new(partition))],
         };
 
+        let ingest_state = Arc::new(IngestState::default());
         let metrics = metric::Registry::default();
-        let max_sequence_number = replay(&wal, &mock_iter, Arc::clone(&persist), &metrics)
-            .await
-            .expect("failed to replay WAL");
+        let max_sequence_number = replay(
+            &wal,
+            &mock_iter,
+            Arc::clone(&persist),
+            Arc::clone(&ingest_state),
+            &metrics,
+        )
+        .await
+        .expect("failed to replay WAL");
 
         assert_eq!(max_sequence_number, Some(SequenceNumber::new(43)));
 
@@ -794,10 +810,16 @@ mod tests {
         };
         let metrics = metric::Registry::default();
 
-        let max_sequence_number = replay(&wal, &mock_iter, Arc::clone(&persist), &metrics)
-            .await
-            .expect("failed to replay WAL")
-            .expect("should receive max sequence number");
+        let max_sequence_number = replay(
+            &wal,
+            &mock_iter,
+            Arc::clone(&persist),
+            Arc::new(IngestState::default()),
+            &metrics,
+        )
+        .await
+        .expect("failed to replay WAL")
+        .expect("should receive max sequence number");
         assert_eq!(max_sequence_number, SequenceNumber::new(3));
         assert!(wal.closed_segment_ids.lock().is_empty());
 
@@ -854,7 +876,14 @@ mod tests {
         };
         let metrics = metric::Registry::default();
 
-        let replay_result = replay(&wal, &mock_iter, Arc::clone(&persist), &metrics).await;
+        let replay_result = replay(
+            &wal,
+            &mock_iter,
+            Arc::clone(&persist),
+            Arc::new(IngestState::default()),
+            &metrics,
+        )
+        .await;
         assert_matches!(
             replay_result,
             Err(WalReplayError::ReadEntry(_, Some(id))) => {
