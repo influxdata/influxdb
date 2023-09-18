@@ -179,30 +179,16 @@ where
             "replaying wal file"
         );
 
-        // Replay this segment file
-        let replay_result = replay_file(reader, sink, &ok_op_count_metric, &empty_op_count_metric)
-            .await
-            .map(|v| {
-                file_count_success_metric.inc(1);
-                v
-            })
-            .map_err(|e| {
-                if let WalReplayError::ReadEntry(wal::Error::UnableToReadNextOps {
-                    source: wal::blocking::ReaderError::UnableToReadData { source: io_err },
-                }, seq) = &e
-                {
-                    if io_err.kind() == std::io::ErrorKind::UnexpectedEof && file_number == n_files {
-                        max_sequence = max_sequence.max(*seq);
-                        file_count_error_truncated_metric.inc(1);
-                        warn!(%e, %file_id, "detected truncated WAL write, ending replay for file early");
-                        return Ok(None);
-                    }
-                }
-                Err(e)
-            }).or_else(|result| result);
-        match replay_result? {
-            v @ Some(_) => max_sequence = max_sequence.max(v),
-            None => {
+        // Replay this segment file, tracking successful replay in the metric
+        let replay_result =
+            replay_file(reader, sink, &ok_op_count_metric, &empty_op_count_metric).await;
+        if replay_result.is_ok() {
+            file_count_success_metric.inc(1);
+        }
+
+        match replay_result {
+            Ok(seq @ Some(_)) => max_sequence = max_sequence.max(seq),
+            Ok(None) => {
                 // This file was empty and should be deleted.
                 warn!(
                     file_number,
@@ -227,6 +213,25 @@ where
 
                 continue;
             }
+            // If the replay results in an underlying end of file error when
+            // this is the most recent segment file, it indicates there was
+            // a truncated write that never succeeded with an ACK.
+            //
+            // In this case we can log a warning, register it through metrics
+            // and carry on as nothing can be done.
+            Err(
+                ref e @ WalReplayError::ReadEntry(
+                    wal::Error::UnableToReadNextOps {
+                        source: wal::blocking::ReaderError::UnableToReadData { source: ref io_err },
+                    },
+                    seq,
+                ),
+            ) if io_err.kind() == std::io::ErrorKind::UnexpectedEof && file_number == n_files => {
+                max_sequence = max_sequence.max(seq);
+                file_count_error_truncated_metric.inc(1);
+                warn!(%e, %file_id, "detected truncated WAL write, ending replay for file early");
+            }
+            Err(e) => return Err(e),
         };
 
         info!(
