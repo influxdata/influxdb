@@ -98,11 +98,12 @@ where
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use data_types::NamespaceId;
     use iox_catalog::mem::MemCatalog;
 
     use super::*;
-    use crate::namespace_cache::memory::MemoryNamespaceCache;
+    use crate::{
+        namespace_cache::memory::MemoryNamespaceCache, test_helpers::new_empty_namespace_schema,
+    };
 
     #[tokio::test]
     async fn test_put_get() {
@@ -118,14 +119,7 @@ mod tests {
         assert_matches!(cache.get_schema(&ns).await, Err(_));
 
         // Place a schema in the cache for that name
-        let schema1 = NamespaceSchema {
-            id: NamespaceId::new(1),
-            tables: Default::default(),
-            max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE as usize,
-            max_tables: iox_catalog::DEFAULT_MAX_TABLES as usize,
-            retention_period_ns: iox_catalog::DEFAULT_RETENTION_PERIOD,
-            partition_template: Default::default(),
-        };
+        let schema1 = new_empty_namespace_schema(1);
         assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), (result, _) => {
             assert_eq!(*result, schema1);
         });
@@ -154,14 +148,7 @@ mod tests {
         assert_matches!(cache.get_schema(&ns).await, Err(_));
 
         // Place a schema in the catalog for that name
-        let schema1 = NamespaceSchema {
-            id: NamespaceId::new(1),
-            tables: Default::default(),
-            max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE as usize,
-            max_tables: iox_catalog::DEFAULT_MAX_TABLES as usize,
-            retention_period_ns: iox_catalog::DEFAULT_RETENTION_PERIOD,
-            partition_template: Default::default(),
-        };
+        let schema1 = new_empty_namespace_schema(1);
 
         assert_matches!(
             catalog

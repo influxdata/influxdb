@@ -8,6 +8,7 @@ use thiserror::Error;
 
 use crate::namespace_cache::NamespaceCache;
 
+#[cfg(test)]
 pub mod mock;
 pub(crate) mod ns_autocreation;
 pub use ns_autocreation::*;
@@ -71,14 +72,16 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, NamespaceSchema};
     use iox_catalog::{
         interface::{Catalog, SoftDeletedRows},
         mem::MemCatalog,
     };
 
     use super::*;
-    use crate::namespace_cache::{MemoryNamespaceCache, ReadThroughCache};
+    use crate::{
+        namespace_cache::{MemoryNamespaceCache, ReadThroughCache},
+        test_helpers::new_empty_namespace_schema,
+    };
 
     #[tokio::test]
     async fn test_cache_hit() {
@@ -92,17 +95,7 @@ mod tests {
             MemoryNamespaceCache::default(),
             Arc::clone(&catalog),
         ));
-        cache.put_schema(
-            ns.clone(),
-            NamespaceSchema {
-                id: NamespaceId::new(42),
-                tables: Default::default(),
-                max_columns_per_table: 4,
-                max_tables: 42,
-                retention_period_ns: None,
-                partition_template: Default::default(),
-            },
-        );
+        cache.put_schema(ns.clone(), new_empty_namespace_schema(42));
 
         let resolver = NamespaceSchemaResolver::new(Arc::clone(&cache));
 

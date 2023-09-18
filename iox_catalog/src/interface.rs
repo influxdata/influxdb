@@ -3,10 +3,11 @@
 use async_trait::async_trait;
 use data_types::{
     partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
-    Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    NamespaceSchema, NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId,
-    ParquetFileParams, Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction,
-    SortedColumnSet, Table, TableId, TableSchema, Timestamp, TransitionPartitionId,
+    Column, ColumnType, ColumnsByName, CompactionLevel, MaxColumnsPerTable, MaxTables, Namespace,
+    NamespaceId, NamespaceName, NamespaceSchema, NamespaceServiceProtectionLimitsOverride,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionHashId, PartitionId,
+    PartitionKey, SkippedCompaction, SortedColumnSet, Table, TableId, TableSchema, Timestamp,
+    TransitionPartitionId,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -292,10 +293,14 @@ pub trait NamespaceRepo: Send + Sync {
     async fn soft_delete(&mut self, name: &str) -> Result<()>;
 
     /// Update the limit on the number of tables that can exist per namespace.
-    async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace>;
+    async fn update_table_limit(&mut self, name: &str, new_max: MaxTables) -> Result<Namespace>;
 
     /// Update the limit on the number of columns that can exist per table in a given namespace.
-    async fn update_column_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace>;
+    async fn update_column_limit(
+        &mut self,
+        name: &str,
+        new_max: MaxColumnsPerTable,
+    ) -> Result<Namespace>;
 }
 
 /// Functions for working with tables in the catalog
@@ -764,13 +769,13 @@ pub async fn list_schemas(
 pub(crate) mod test_helpers {
     use crate::{
         test_helpers::{arbitrary_namespace, arbitrary_parquet_file_params, arbitrary_table},
-        validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
+        validate_or_insert_schema,
     };
 
     use super::*;
     use ::test_helpers::assert_error;
     use assert_matches::assert_matches;
-    use data_types::{ColumnId, CompactionLevel};
+    use data_types::{ColumnId, CompactionLevel, MaxColumnsPerTable, MaxTables};
     use futures::Future;
     use generated_types::influxdata::iox::partition_template::v1 as proto;
     use metric::{Attributes, DurationHistogram, Metric};
@@ -843,10 +848,10 @@ pub(crate) mod test_helpers {
         assert_eq!(namespace, lookup_namespace);
 
         // Assert default values for service protection limits.
-        assert_eq!(namespace.max_tables, DEFAULT_MAX_TABLES);
+        assert_eq!(namespace.max_tables, MaxTables::default());
         assert_eq!(
             namespace.max_columns_per_table,
-            DEFAULT_MAX_COLUMNS_PER_TABLE
+            MaxColumnsPerTable::default()
         );
 
         let conflict = repos
@@ -897,21 +902,21 @@ pub(crate) mod test_helpers {
         namespaces.sort_by_key(|ns| ns.name.clone());
         assert_eq!(namespaces, vec![namespace, namespace2]);
 
-        const NEW_TABLE_LIMIT: i32 = 15000;
+        let new_table_limit = MaxTables::new(15000);
         let modified = repos
             .namespaces()
-            .update_table_limit(namespace_name.as_str(), NEW_TABLE_LIMIT)
+            .update_table_limit(namespace_name.as_str(), new_table_limit)
             .await
             .expect("namespace should be updateable");
-        assert_eq!(NEW_TABLE_LIMIT, modified.max_tables);
+        assert_eq!(new_table_limit, modified.max_tables);
 
-        const NEW_COLUMN_LIMIT: i32 = 1500;
+        let new_column_limit = MaxColumnsPerTable::new(1500);
         let modified = repos
             .namespaces()
-            .update_column_limit(namespace_name.as_str(), NEW_COLUMN_LIMIT)
+            .update_column_limit(namespace_name.as_str(), new_column_limit)
             .await
             .expect("namespace should be updateable");
-        assert_eq!(NEW_COLUMN_LIMIT, modified.max_columns_per_table);
+        assert_eq!(new_column_limit, modified.max_columns_per_table);
 
         const NEW_RETENTION_PERIOD_NS: i64 = 5 * 60 * 60 * 1000 * 1000 * 1000;
         let modified = repos
@@ -1277,7 +1282,7 @@ pub(crate) mod test_helpers {
         // test per-namespace table limits
         let latest = repos
             .namespaces()
-            .update_table_limit("namespace_table_test", 1)
+            .update_table_limit("namespace_table_test", MaxTables::new(1))
             .await
             .expect("namespace should be updateable");
         let err = repos
@@ -1495,7 +1500,7 @@ pub(crate) mod test_helpers {
         // test per-namespace column limits
         repos
             .namespaces()
-            .update_column_limit("namespace_column_test", 1)
+            .update_column_limit("namespace_column_test", MaxColumnsPerTable::new(1))
             .await
             .expect("namespace should be updateable");
         let err = repos

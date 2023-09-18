@@ -382,7 +382,10 @@ mod tests {
     use rand::seq::SliceRandom;
     use tokio::runtime;
 
-    use crate::dml_handlers::rpc_write::circuit_breaking_client::mock::MockCircuitBreaker;
+    use crate::{
+        dml_handlers::rpc_write::circuit_breaking_client::mock::MockCircuitBreaker,
+        test_helpers::new_empty_namespace_schema,
+    };
 
     use super::{client::mock::MockWriteClient, *};
 
@@ -401,18 +404,6 @@ mod tests {
     const NAMESPACE_NAME: &str = "bananas";
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
     const ARBITRARY_TEST_NUM_PROBES: u64 = 10;
-
-    // Start a new `NamespaceSchema` with only the given ID; the rest of the fields are arbitrary.
-    fn new_empty_namespace_schema() -> Arc<NamespaceSchema> {
-        Arc::new(NamespaceSchema {
-            id: NAMESPACE_ID,
-            tables: Default::default(),
-            max_columns_per_table: 500,
-            max_tables: 200,
-            retention_period_ns: None,
-            partition_template: Default::default(),
-        })
-    }
 
     /// A helper function to perform an arbitrary write against `endpoints`,
     /// with the given number of desired distinct data copies.
@@ -450,7 +441,7 @@ mod tests {
         handler
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                new_empty_namespace_schema(),
+                Arc::new(new_empty_namespace_schema(NAMESPACE_ID.get())),
                 input,
                 None,
             )
@@ -485,7 +476,7 @@ mod tests {
         let got = handler
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                new_empty_namespace_schema(),
+                Arc::new(new_empty_namespace_schema(NAMESPACE_ID.get())),
                 input,
                 None,
             )
@@ -548,7 +539,7 @@ mod tests {
         let got = handler
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                new_empty_namespace_schema(),
+                Arc::new(new_empty_namespace_schema(NAMESPACE_ID.get())),
                 input,
                 None,
             )
@@ -617,7 +608,7 @@ mod tests {
         let got = handler
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                new_empty_namespace_schema(),
+                Arc::new(new_empty_namespace_schema(NAMESPACE_ID.get())),
                 input,
                 None,
             )
