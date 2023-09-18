@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use data_types::{
     partition_template::TablePartitionTemplateOverride, ColumnId, ColumnSet, NamespaceId,
@@ -18,7 +18,7 @@ use crate::{
             name_resolver::{mock::MockNamespaceNameProvider, NamespaceNameProvider},
             NamespaceName,
         },
-        partition::{PartitionData, SortKeyState},
+        partition::{counter::PartitionCounter, PartitionData, SortKeyState},
         table::{
             metadata::{TableMetadata, TableName},
             metadata_resolver::{mock::MockTableProvider, TableProvider},
@@ -92,6 +92,7 @@ pub(crate) struct PartitionDataBuilder {
     table_loader: Option<Arc<DeferredLoad<TableMetadata>>>,
     namespace_loader: Option<Arc<DeferredLoad<NamespaceName>>>,
     sort_key: Option<SortKeyState>,
+    partition_counter: Option<Arc<PartitionCounter>>,
 }
 
 impl Default for PartitionDataBuilder {
@@ -99,11 +100,12 @@ impl Default for PartitionDataBuilder {
         Self {
             table_id: ARBITRARY_TABLE_ID,
             partition_key: ARBITRARY_PARTITION_KEY.clone(),
-            partition_id: Default::default(),
-            namespace_id: Default::default(),
-            table_loader: Default::default(),
-            namespace_loader: Default::default(),
-            sort_key: Default::default(),
+            partition_id: None,
+            namespace_id: None,
+            table_loader: None,
+            namespace_loader: None,
+            sort_key: None,
+            partition_counter: None,
         }
     }
 }
@@ -170,6 +172,18 @@ impl PartitionDataBuilder {
         self
     }
 
+    pub(crate) fn with_partition_counter(
+        mut self,
+        partition_counter: Arc<PartitionCounter>,
+    ) -> Self {
+        self.partition_counter = Some(partition_counter);
+        self
+    }
+
+    pub(crate) fn partition_counter(&self) -> Option<Arc<PartitionCounter>> {
+        self.partition_counter.clone()
+    }
+
     /// Generate a valid [`PartitionData`] for use in tests where the exact values (or at least
     /// some of them) don't particularly matter.
     pub(crate) fn build(self) -> PartitionData {
@@ -189,6 +203,8 @@ impl PartitionDataBuilder {
             self.table_id,
             self.table_loader.unwrap_or_else(defer_table_metadata_1_sec),
             self.sort_key.unwrap_or(SortKeyState::Provided(None, None)),
+            self.partition_counter
+                .unwrap_or_else(|| Arc::new(PartitionCounter::new(NonZeroUsize::MAX))),
         )
     }
 }
