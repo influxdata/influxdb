@@ -252,7 +252,14 @@ pub fn split_cond(
                     };
 
                     let ts = match expr {
-                        Expr::Literal(Literal::Timestamp(ts)) => ts.timestamp_nanos(),
+                        Expr::Literal(Literal::Timestamp(ts)) => match ts.timestamp_nanos_opt() {
+                            Some(ts) => ts,
+                            None => {
+                                return ControlFlow::Break(error::map::internal(
+                                    "timestamp out o range",
+                                ));
+                            }
+                        },
                         expr => {
                             return ControlFlow::Break(error::map::internal(format!(
                                 "expected Timestamp, got: {}",
@@ -390,7 +397,9 @@ impl TimeRange {
 /// Simplifies an InfluxQL duration `expr` to a nanosecond interval represented as an `i64`.
 pub fn duration_expr_to_nanoseconds(ctx: &ReduceContext, expr: &Expr) -> Result<i64, ExprError> {
     match reduce_time_expr(ctx, expr)? {
-        Expr::Literal(Literal::Timestamp(v)) => Ok(v.timestamp_nanos()),
+        Expr::Literal(Literal::Timestamp(v)) => v
+            .timestamp_nanos_opt()
+            .ok_or_else(|| error::map::expr("timestamp out of range")),
         _ => error::expr("invalid duration expression"),
     }
 }
@@ -637,10 +646,15 @@ fn expr_to_duration(ctx: &ReduceContext, expr: Expr) -> ExprResult {
     Ok(lit(match expr {
         Expr::Literal(Literal::Duration(v)) => v,
         Expr::Literal(Literal::Integer(v)) => Duration(v),
-        Expr::Literal(Literal::Timestamp(v)) => Duration(v.timestamp_nanos()),
-        Expr::Literal(Literal::String(v)) => {
-            Duration(parse_timestamp_nanos(&v, ctx.tz)?.timestamp_nanos())
-        }
+        Expr::Literal(Literal::Timestamp(v)) => Duration(
+            v.timestamp_nanos_opt()
+                .ok_or_else(|| error::map::expr("timestamp out of range"))?,
+        ),
+        Expr::Literal(Literal::String(v)) => Duration(
+            parse_timestamp_nanos(&v, ctx.tz)?
+                .timestamp_nanos_opt()
+                .ok_or_else(|| error::map::expr("timestamp out of range"))?,
+        ),
         _ => return error::expr(format!("unable to cast {expr} to duration")),
     }))
 }
