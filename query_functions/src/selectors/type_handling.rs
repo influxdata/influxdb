@@ -70,9 +70,9 @@ pub fn make_struct_scalar<'a>(
         .into_iter()
         .chain(other.into_iter().cloned())
         .collect();
-    let value_type = value.get_datatype();
-    let time_type = time.get_datatype();
-    let other_types: Vec<_> = data_fields[2..].iter().map(|s| s.get_datatype()).collect();
+    let value_type = value.data_type();
+    let time_type = time.data_type();
+    let other_types: Vec<_> = data_fields[2..].iter().map(|s| s.data_type()).collect();
 
     ScalarValue::Struct(
         Some(data_fields),

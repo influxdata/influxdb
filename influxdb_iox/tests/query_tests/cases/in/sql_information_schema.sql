@@ -15,3 +15,6 @@ SHOW TABLES;
 -- validate we have access to SHOW COLUMNs for listing columns names
 -- IOX_COMPARE: sorted
 SHOW COLUMNS FROM h2o;
+
+-- Validate we can run the DESCRIBE command to show the table schema
+DESCRIBE h2o;
