@@ -60,8 +60,9 @@ where
         let mut decompressing_read = FrameDecoder::new(hashing_read);
 
         let mut data = Vec::with_capacity(100);
-        let other = decompressing_read.read_to_end(&mut data);
-        other.context(UnableToReadDataSnafu)?;
+        decompressing_read
+            .read_to_end(&mut data)
+            .context(UnableToReadDataSnafu)?;
 
         let (actual_compressed_len, actual_checksum) = decompressing_read.into_inner().checksum();
 
