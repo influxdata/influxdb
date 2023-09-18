@@ -47,7 +47,7 @@ pub fn is_upstream_error(e: &DynError) -> bool {
 }
 
 /// Simple error for testing purposes that controles [`test_error_classifier`].
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 #[allow(missing_copy_implementations)]
 pub struct TestError {
     retry: bool,
