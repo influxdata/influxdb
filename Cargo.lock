@@ -3560,14 +3560,13 @@ dependencies = [
 
 [[package]]
 name = "mockito"
-version = "1.1.1"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21a5376b01252e18f997f87a2f6767c5a842de43ed92341dc912a1574eab031d"
+checksum = "f8d3038e23466858569c2d30a537f691fa0d53b51626630ae08262943e3bbb8b"
 dependencies = [
  "assert-json-diff",
  "futures",
  "hyper",
- "lazy_static",
  "log",
  "rand",
  "regex",
