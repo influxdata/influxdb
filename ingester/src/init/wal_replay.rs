@@ -375,7 +375,7 @@ mod tests {
     use async_trait::async_trait;
     use hashbrown::HashSet;
     use itertools::Itertools;
-    use metric::{Attributes, Metric};
+    use metric::{assert_counter, Attributes};
     use parking_lot::Mutex;
     use wal::Wal;
 
@@ -610,44 +610,40 @@ mod tests {
         assert_eq!(wal.closed_segments().len(), 1);
 
         // Validate the expected metric values were populated.
-        let files = metrics
-            .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_files_started")
-            .expect("file counter not found")
-            .get_observer(&Attributes::from([]))
-            .expect("attributes not found")
-            .fetch();
-        assert_eq!(files, 3);
-        let whole_files = metrics
-            .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_files_finished")
-            .expect("file counter not found")
-            .get_observer(&Attributes::from(&[("result", "success")]))
-            .expect("attributes not found")
-            .fetch();
-        assert_eq!(whole_files, 3);
-        let truncated_files = metrics
-            .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_files_finished")
-            .expect("file counter not found")
-            .get_observer(&Attributes::from(&[
-                ("result", "error"),
-                ("reason", "truncated"),
-            ]))
-            .expect("attributes not found")
-            .fetch();
-        assert_eq!(truncated_files, 0);
-        let ops = metrics
-            .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_ops")
-            .expect("file counter not found")
-            .get_observer(&Attributes::from(&[("outcome", "success")]))
-            .expect("attributes not found")
-            .fetch();
-        assert_eq!(ops, 3);
-        let ops = metrics
-            .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_ops")
-            .expect("file counter not found")
-            .get_observer(&Attributes::from(&[("outcome", "skipped_empty")]))
-            .expect("attributes not found")
-            .fetch();
-        assert_eq!(ops, 1);
+        assert_counter!(
+            metrics,
+            U64Counter,
+            "ingester_wal_replay_files_started",
+            value = 3,
+        );
+        assert_counter!(
+            metrics,
+            U64Counter,
+            "ingester_wal_replay_files_finished",
+            labels = Attributes::from(&[("result", "success")]),
+            value = 3,
+        );
+        assert_counter!(
+            metrics,
+            U64Counter,
+            "ingester_wal_replay_files_finished",
+            labels = Attributes::from(&[("result", "error"), ("reason", "truncated")]),
+            value = 0,
+        );
+        assert_counter!(
+            metrics,
+            U64Counter,
+            "ingester_wal_replay_ops",
+            labels = Attributes::from(&[("outcome", "success")]),
+            value = 3,
+        );
+        assert_counter!(
+            metrics,
+            U64Counter,
+            "ingester_wal_replay_ops",
+            labels = Attributes::from(&[("outcome", "skipped_empty")]),
+            value = 1,
+        );
     }
 
     #[derive(Debug)]
@@ -800,23 +796,20 @@ mod tests {
         assert_eq!(max_sequence_number, SequenceNumber::new(3));
         assert!(wal.closed_segment_ids.lock().is_empty());
 
-        let whole_files = metrics
-            .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_files_finished")
-            .expect("file counter not found")
-            .get_observer(&Attributes::from(&[("result", "success")]))
-            .expect("attributes not found")
-            .fetch();
-        assert_eq!(whole_files, 2);
-        let truncated_files = metrics
-            .get_instrument::<Metric<U64Counter>>("ingester_wal_replay_files_finished")
-            .expect("file counter not found")
-            .get_observer(&Attributes::from(&[
-                ("result", "error"),
-                ("reason", "truncated"),
-            ]))
-            .expect("attributes not found")
-            .fetch();
-        assert_eq!(truncated_files, 1);
+        assert_counter!(
+            metrics,
+            U64Counter,
+            "ingester_wal_replay_files_finished",
+            labels = Attributes::from(&[("result", "success")]),
+            value = 2,
+        );
+        assert_counter!(
+            metrics,
+            U64Counter,
+            "ingester_wal_replay_files_finished",
+            labels = Attributes::from(&[("result", "error"), ("reason", "truncated")]),
+            value = 1,
+        );
     }
 
     #[tokio::test]
