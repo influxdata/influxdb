@@ -125,7 +125,8 @@ where
 mod tests {
     use assert_matches::assert_matches;
     use data_types::{
-        Column, ColumnId, ColumnType, ColumnsByName, NamespaceId, TableId, TableSchema,
+        Column, ColumnId, ColumnType, ColumnsByName, MaxColumnsPerTable, MaxTables, NamespaceId,
+        TableId, TableSchema,
     };
     use metric::{Attributes, MetricObserver, Observation};
 
@@ -163,8 +164,8 @@ mod tests {
         NamespaceSchema {
             id: NamespaceId::new(42),
             tables,
-            max_columns_per_table: 100,
-            max_tables: 42,
+            max_tables: MaxTables::new(42),
+            max_columns_per_table: MaxColumnsPerTable::new(100),
             retention_period_ns: None,
             partition_template: Default::default(),
         }

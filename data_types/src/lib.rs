@@ -19,16 +19,17 @@ use thiserror::Error;
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
-pub mod sequence_number_set;
-
 mod columns;
 pub use columns::*;
 mod namespace_name;
 pub use namespace_name::*;
-pub mod partition;
-pub use partition::*;
 pub mod partition_template;
 use partition_template::*;
+pub mod partition;
+pub use partition::*;
+pub mod sequence_number_set;
+pub mod service_limits;
+pub use service_limits::*;
 
 use observability_deps::tracing::warn;
 use schema::TIME_COLUMN_NAME;
@@ -283,38 +284,14 @@ pub struct Namespace {
     /// The retention period in ns. None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
     /// The maximum number of tables that can exist in this namespace
-    pub max_tables: i32,
+    pub max_tables: MaxTables,
     /// The maximum number of columns per table in this namespace
-    pub max_columns_per_table: i32,
+    pub max_columns_per_table: MaxColumnsPerTable,
     /// When this file was marked for deletion.
     pub deleted_at: Option<Timestamp>,
     /// The partition template to use for new tables in this namespace either created implicitly or
     /// created without specifying a partition template.
     pub partition_template: NamespacePartitionTemplateOverride,
-}
-
-use generated_types::influxdata::iox::namespace::v1 as namespace_proto;
-
-/// Overrides for service protection limits.
-#[derive(Debug, Copy, Clone)]
-pub struct NamespaceServiceProtectionLimitsOverride {
-    /// The maximum number of tables that can exist in this namespace
-    pub max_tables: Option<i32>,
-    /// The maximum number of columns per table in this namespace
-    pub max_columns_per_table: Option<i32>,
-}
-
-impl From<namespace_proto::ServiceProtectionLimits> for NamespaceServiceProtectionLimitsOverride {
-    fn from(value: namespace_proto::ServiceProtectionLimits) -> Self {
-        let namespace_proto::ServiceProtectionLimits {
-            max_tables,
-            max_columns_per_table,
-        } = value;
-        Self {
-            max_tables,
-            max_columns_per_table,
-        }
-    }
 }
 
 /// Schema collection for a namespace. This is an in-memory object useful for a schema
@@ -325,10 +302,10 @@ pub struct NamespaceSchema {
     pub id: NamespaceId,
     /// the tables in the namespace by name
     pub tables: BTreeMap<String, TableSchema>,
-    /// the number of columns per table this namespace allows
-    pub max_columns_per_table: usize,
     /// The maximum number of tables permitted in this namespace.
-    pub max_tables: usize,
+    pub max_tables: MaxTables,
+    /// the number of columns per table this namespace allows
+    pub max_columns_per_table: MaxColumnsPerTable,
     /// The retention period in ns.
     /// None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
@@ -353,8 +330,8 @@ impl NamespaceSchema {
         Self {
             id,
             tables: BTreeMap::new(),
-            max_columns_per_table: max_columns_per_table as usize,
-            max_tables: max_tables as usize,
+            max_tables,
+            max_columns_per_table,
             retention_period_ns,
             partition_template: partition_template.clone(),
         }
@@ -2670,8 +2647,8 @@ mod tests {
         let schema1 = NamespaceSchema {
             id: NamespaceId::new(1),
             tables: BTreeMap::from([]),
-            max_columns_per_table: 4,
-            max_tables: 42,
+            max_tables: MaxTables::new(42),
+            max_columns_per_table: MaxColumnsPerTable::new(4),
             retention_period_ns: None,
             partition_template: Default::default(),
         };
@@ -2685,8 +2662,8 @@ mod tests {
                     partition_template: Default::default(),
                 },
             )]),
-            max_columns_per_table: 4,
-            max_tables: 42,
+            max_tables: MaxTables::new(42),
+            max_columns_per_table: MaxColumnsPerTable::new(4),
             retention_period_ns: None,
             partition_template: Default::default(),
         };

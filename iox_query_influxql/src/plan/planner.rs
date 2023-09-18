@@ -1843,10 +1843,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 Literal::Float(v) => Ok(lit(*v)),
                 Literal::String(v) => Ok(lit(v)),
                 Literal::Boolean(v) => Ok(lit(*v)),
-                Literal::Timestamp(v) => Ok(lit(ScalarValue::TimestampNanosecond(
-                    Some(v.timestamp_nanos()),
-                    None,
-                ))),
+                Literal::Timestamp(v) => v
+                    .timestamp_nanos_opt()
+                    .ok_or_else(|| error::map::query("timestamp out of range"))
+                    .map(|ts| lit(ScalarValue::TimestampNanosecond(Some(ts), None))),
                 Literal::Duration(v) => {
                     Ok(lit(ScalarValue::IntervalMonthDayNano(Some((**v).into()))))
                 }
@@ -2210,9 +2210,14 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let time_range = if time_range.is_unbounded() {
             TimeRange {
                 lower: Some(match cutoff {
-                    MetadataCutoff::Absolute(dt) => dt.timestamp_nanos(),
+                    MetadataCutoff::Absolute(dt) => dt
+                        .timestamp_nanos_opt()
+                        .ok_or_else(|| error::map::query("timestamp out of range"))?,
                     MetadataCutoff::Relative(delta) => {
-                        start_time.timestamp_nanos() - delta.as_nanos() as i64
+                        start_time
+                            .timestamp_nanos_opt()
+                            .ok_or_else(|| error::map::query("timestamp out of range"))?
+                            - delta.as_nanos() as i64
                     }
                 }),
                 upper: None,

@@ -2,16 +2,15 @@
 
 #![allow(missing_docs)]
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{NamespaceId, NamespaceName, NamespaceSchema};
 use parking_lot::Mutex;
 
 use super::NamespaceResolver;
+
+use crate::test_helpers::new_empty_namespace_schema;
 
 #[derive(Debug, Default)]
 pub struct MockNamespaceResolver {
@@ -27,25 +26,13 @@ impl MockNamespaceResolver {
 
     pub fn with_mapping(self, name: impl Into<String> + 'static, id: NamespaceId) -> Self {
         let name = NamespaceName::try_from(name.into()).unwrap();
-        let empty_namespace_schema = Arc::new(new_empty_namespace_schema(id));
+        let empty_namespace_schema = Arc::new(new_empty_namespace_schema(id.get()));
         assert!(self
             .map
             .lock()
             .insert(name, empty_namespace_schema)
             .is_none());
         self
-    }
-}
-
-// Start a new `NamespaceSchema` with only the given ID; the rest of the fields are arbitrary.
-fn new_empty_namespace_schema(id: NamespaceId) -> NamespaceSchema {
-    NamespaceSchema {
-        id,
-        tables: BTreeMap::new(),
-        max_columns_per_table: 500,
-        max_tables: 200,
-        retention_period_ns: None,
-        partition_template: Default::default(),
     }
 }
 

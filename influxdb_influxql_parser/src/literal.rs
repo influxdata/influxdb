@@ -592,10 +592,9 @@ mod test {
 
         // infallible
         let ts = nanos_to_timestamp(i64::MAX);
-        assert_eq!(ts.timestamp_nanos(), i64::MAX);
+        assert_eq!(ts.timestamp_nanos_opt().unwrap(), i64::MAX);
 
-        // let ts = nanos_to_timestamp(i64::MIN);
-        // This line panics with an arithmetic overflow.
-        // assert_eq!(ts.timestamp_nanos(), i64::MIN);
+        let ts = nanos_to_timestamp(i64::MIN);
+        assert_eq!(ts.timestamp_nanos_opt().unwrap(), i64::MIN);
     }
 }

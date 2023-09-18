@@ -30,10 +30,6 @@ use thiserror::Error;
 
 const TIME_COLUMN: &str = "time";
 
-/// Default per-namespace table count service protection limit.
-pub const DEFAULT_MAX_TABLES: i32 = 500;
-/// Default per-table column count service protection limit.
-pub const DEFAULT_MAX_COLUMNS_PER_TABLE: i32 = 200;
 /// Default retention period for data in the catalog.
 pub const DEFAULT_RETENTION_PERIOD: Option<i64> = None;
 
@@ -676,4 +672,45 @@ mod tests {
             ],
         }
     );
+
+    #[tokio::test]
+    async fn validate_table_create_race_doesnt_get_all_columns() {
+        use crate::{interface::Catalog, test_helpers::arbitrary_namespace};
+        use std::{collections::BTreeSet, ops::DerefMut};
+        const NAMESPACE_NAME: &str = "bananas";
+
+        let repo = MemCatalog::new(Default::default());
+        let mut txn = repo.repositories().await;
+        let namespace = arbitrary_namespace(&mut *txn, NAMESPACE_NAME).await;
+
+        // One cached schema has no tables.
+        let empty_schema = NamespaceSchema::new_empty_from(&namespace);
+
+        // Another cached schema gets a write that creates a table with some columns.
+        let schema_with_table = empty_schema.clone();
+        let writes = mutable_batch_lp::lines_to_batches("m1,t1=a f1=2i", 42).unwrap();
+        validate_or_insert_schema(
+            writes.iter().map(|(k, v)| (k.as_str(), v)),
+            &schema_with_table,
+            txn.deref_mut(),
+        )
+        .await
+        .unwrap();
+
+        // then the empty schema adds the same table with some different columns
+        let other_writes = mutable_batch_lp::lines_to_batches("m1,t2=a f2=2i", 43).unwrap();
+        let formerly_empty_schema = validate_or_insert_schema(
+            other_writes.iter().map(|(k, v)| (k.as_str(), v)),
+            &empty_schema,
+            txn.deref_mut(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // the formerly-empty schema should NOT have all the columns; schema convergence is handled
+        // at a higher level by the namespace cache/gossip system
+        let table = formerly_empty_schema.tables.get("m1").unwrap();
+        assert_eq!(table.columns.names(), BTreeSet::from(["t2", "f2", "time"]));
+    }
 }

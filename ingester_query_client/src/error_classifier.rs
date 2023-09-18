@@ -46,8 +46,25 @@ pub fn is_upstream_error(e: &DynError) -> bool {
     })
 }
 
+/// Checks if the error shall be ignored by the client.
+///
+/// This when one of the following classes match:
+///
+/// - [upstream](is_upstream_error)
+/// - [circuit broken](crate::layers::circuit_breaker::Error::CircuitBroken)
+pub fn error_shall_be_ignored(e: &DynError) -> bool {
+    use crate::layers::circuit_breaker::Error;
+
+    is_upstream_error(e)
+        || e.error_chain().any(|e| {
+            e.downcast_ref::<Error>()
+                .map(|e| matches!(e, Error::CircuitBroken { .. }))
+                .unwrap_or_default()
+        })
+}
+
 /// Simple error for testing purposes that controles [`test_error_classifier`].
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 #[allow(missing_copy_implementations)]
 pub struct TestError {
     retry: bool,

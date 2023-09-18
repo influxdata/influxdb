@@ -224,30 +224,38 @@ impl FactoryBuilder {
         Arc::new(move |return_type| {
             let agg_type = AggType::try_from_return_type(return_type)?;
             let value_type = agg_type.value_type;
+            let timezone = match agg_type.time_type {
+                DataType::Timestamp(_, tz) => tz.clone(),
+                _ => None,
+            };
             let other_types = agg_type.other_types;
 
             let accumulator: Box<dyn Accumulator> = match selector_type {
                 SelectorType::First => Box::new(Selector::new(
                     Comparison::Min,
                     Target::Time,
+                    timezone,
                     value_type,
                     other_types.iter().cloned(),
                 )?),
                 SelectorType::Last => Box::new(Selector::new(
                     Comparison::Max,
                     Target::Time,
+                    timezone,
                     value_type,
                     other_types.iter().cloned(),
                 )?),
                 SelectorType::Min => Box::new(Selector::new(
                     Comparison::Min,
                     Target::Value,
+                    timezone,
                     value_type,
                     other_types.iter().cloned(),
                 )?),
                 SelectorType::Max => Box::new(Selector::new(
                     Comparison::Max,
                     Target::Value,
+                    timezone,
                     value_type,
                     other_types.iter().cloned(),
                 )?),
@@ -302,7 +310,7 @@ mod test {
     use datafusion::{datasource::MemTable, prelude::*};
 
     use super::*;
-    use utils::{run_case, run_cases_err};
+    use utils::{run_case, run_case_tz, run_cases_err};
 
     mod first {
         use super::*;
@@ -487,6 +495,22 @@ mod test {
         #[tokio::test]
         async fn test_err() {
             run_cases_err(selector_first(), "selector_first").await;
+        }
+
+        #[tokio::test]
+        async fn test_i64_tz() {
+            run_case_tz(
+                selector_first().call(vec![col("i64_value"), col("time")]),
+                Some("Australia/Hobart".into()),
+                vec![
+                    "+-----------------------------------------------------+",
+                    "| selector_first(t.i64_value,t.time)                  |",
+                    "+-----------------------------------------------------+",
+                    "| {value: 20, time: 1970-01-01T11:00:00.000001+11:00} |",
+                    "+-----------------------------------------------------+",
+                ],
+            )
+            .await;
         }
     }
 
@@ -674,6 +698,22 @@ mod test {
         async fn test_err() {
             run_cases_err(selector_last(), "selector_last").await;
         }
+
+        #[tokio::test]
+        async fn test_i64_tz() {
+            run_case_tz(
+                selector_last().call(vec![col("i64_value"), col("time")]),
+                Some("Australia/Adelaide".into()),
+                vec![
+                    "+-----------------------------------------------------+",
+                    "| selector_last(t.i64_value,t.time)                   |",
+                    "+-----------------------------------------------------+",
+                    "| {value: 30, time: 1970-01-01T09:30:00.000006+09:30} |",
+                    "+-----------------------------------------------------+",
+                ],
+            )
+            .await;
+        }
     }
 
     mod min {
@@ -847,6 +887,22 @@ mod test {
         #[tokio::test]
         async fn test_err() {
             run_cases_err(selector_min(), "selector_min").await;
+        }
+
+        #[tokio::test]
+        async fn test_i64_tz() {
+            run_case_tz(
+                selector_min().call(vec![col("i64_value"), col("time")]),
+                Some("Pacific/Chatham".into()),
+                vec![
+                    "+-----------------------------------------------------+",
+                    "| selector_min(t.i64_value,t.time)                    |",
+                    "+-----------------------------------------------------+",
+                    "| {value: 10, time: 1970-01-01T12:45:00.000004+12:45} |",
+                    "+-----------------------------------------------------+",
+                ],
+            )
+            .await;
         }
     }
 
@@ -1034,18 +1090,43 @@ mod test {
         async fn test_err() {
             run_cases_err(selector_max(), "selector_max").await;
         }
+
+        #[tokio::test]
+        async fn test_i64_tz() {
+            run_case_tz(
+                selector_max().call(vec![col("i64_value"), col("time")]),
+                Some("-05:00".into()),
+                vec![
+                    "+-----------------------------------------------------+",
+                    "| selector_max(t.i64_value,t.time)                    |",
+                    "+-----------------------------------------------------+",
+                    "| {value: 50, time: 1969-12-31T19:00:00.000005-05:00} |",
+                    "+-----------------------------------------------------+",
+                ],
+            )
+            .await;
+        }
     }
 
     mod utils {
-        use schema::TIME_DATA_TYPE;
+        use arrow::datatypes::TimeUnit;
 
         use super::*;
 
         /// Runs the expr using `run_plan` and compares the result to `expected`
         pub async fn run_case(expr: Expr, expected: Vec<&'static str>) {
-            println!("Running case for {expr}");
+            run_case_tz(expr, None, expected).await
+        }
 
-            let actual = run_plan(vec![expr.clone()]).await;
+        /// Runs the expr using `run_plan` in the requested timezone and compares the result to `expected`
+        pub async fn run_case_tz(expr: Expr, tz: Option<Arc<str>>, expected: Vec<&'static str>) {
+            if let Some(tz) = tz.as_ref() {
+                println!("Running case for {expr} in timezone {tz}");
+            } else {
+                println!("Running case for {expr}");
+            }
+
+            let actual = run_plan(vec![expr.clone()], tz).await;
 
             assert_eq!(
                 expected, actual,
@@ -1056,7 +1137,7 @@ mod test {
         pub async fn run_case_err(expr: Expr, expected: &str) {
             println!("Running error case for {expr}");
 
-            let (schema, input) = input();
+            let (schema, input) = input(None);
             let actual = run_with_inputs(Arc::clone(&schema), vec![expr.clone()], input.clone())
                 .await
                 .unwrap_err()
@@ -1100,7 +1181,7 @@ mod test {
             .await;
         }
 
-        fn input() -> (SchemaRef, Vec<RecordBatch>) {
+        fn input(tz: Option<Arc<str>>) -> (SchemaRef, Vec<RecordBatch>) {
             // define a schema for input
             // (value) and timestamp
             let schema = Arc::new(Schema::new(vec![
@@ -1117,8 +1198,16 @@ mod test {
                 Field::new("string_value", DataType::Utf8, true),
                 Field::new("bool_value", DataType::Boolean, true),
                 Field::new("bool_const", DataType::Boolean, true),
-                Field::new("time", TIME_DATA_TYPE(), true),
-                Field::new("time_dup", TIME_DATA_TYPE(), true),
+                Field::new(
+                    "time",
+                    DataType::Timestamp(TimeUnit::Nanosecond, tz.clone()),
+                    true,
+                ),
+                Field::new(
+                    "time_dup",
+                    DataType::Timestamp(TimeUnit::Nanosecond, tz.clone()),
+                    true,
+                ),
             ]));
 
             // define data in two partitions
@@ -1158,8 +1247,14 @@ mod test {
                     Arc::new(StringArray::from(vec![Some("two"), Some("four"), None])),
                     Arc::new(BooleanArray::from(vec![Some(true), Some(false), None])),
                     Arc::new(BooleanArray::from(vec![Some(true), Some(true), Some(true)])),
-                    Arc::new(TimestampNanosecondArray::from(vec![1000, 2000, 3000])),
-                    Arc::new(TimestampNanosecondArray::from(vec![1000, 1000, 2000])),
+                    Arc::new(
+                        TimestampNanosecondArray::from(vec![1000, 2000, 3000])
+                            .with_timezone_opt(tz.clone()),
+                    ),
+                    Arc::new(
+                        TimestampNanosecondArray::from(vec![1000, 1000, 2000])
+                            .with_timezone_opt(tz.clone()),
+                    ),
                 ],
             )
             .unwrap();
@@ -1181,8 +1276,14 @@ mod test {
                     Arc::new(StringArray::from(vec![] as Vec<Option<&str>>)),
                     Arc::new(BooleanArray::from(vec![] as Vec<Option<bool>>)),
                     Arc::new(BooleanArray::from(vec![] as Vec<Option<bool>>)),
-                    Arc::new(TimestampNanosecondArray::from(vec![] as Vec<i64>)),
-                    Arc::new(TimestampNanosecondArray::from(vec![] as Vec<i64>)),
+                    Arc::new(
+                        TimestampNanosecondArray::from(vec![] as Vec<i64>)
+                            .with_timezone_opt(tz.clone()),
+                    ),
+                    Arc::new(
+                        TimestampNanosecondArray::from(vec![] as Vec<i64>)
+                            .with_timezone_opt(tz.clone()),
+                    ),
                 ],
             ) {
                 Ok(a) => a,
@@ -1233,8 +1334,14 @@ mod test {
                         Some(false),
                     ])),
                     Arc::new(BooleanArray::from(vec![Some(true), Some(true), Some(true)])),
-                    Arc::new(TimestampNanosecondArray::from(vec![4000, 5000, 6000])),
-                    Arc::new(TimestampNanosecondArray::from(vec![2000, 3000, 3000])),
+                    Arc::new(
+                        TimestampNanosecondArray::from(vec![4000, 5000, 6000])
+                            .with_timezone_opt(tz.clone()),
+                    ),
+                    Arc::new(
+                        TimestampNanosecondArray::from(vec![2000, 3000, 3000])
+                            .with_timezone_opt(tz.clone()),
+                    ),
                 ],
             )
             .unwrap();
@@ -1258,8 +1365,8 @@ mod test {
         /// | 3         | 30        | 30        | three        | false      | 1970-01-01T00:00:00.000006 |,
         /// +-----------+-----------+--------------+------------+----------------------------+,
         /// ```
-        async fn run_plan(aggs: Vec<Expr>) -> Vec<String> {
-            let (schema, input) = input();
+        async fn run_plan(aggs: Vec<Expr>, tz: Option<Arc<str>>) -> Vec<String> {
+            let (schema, input) = input(tz);
 
             // Ensure the answer is the same regardless of the order of inputs
             let input_string = pretty_format_batches(&input).unwrap();

@@ -20,11 +20,9 @@ use std::sync::Arc;
 
 use data_types::{
     partition_template::NamespacePartitionTemplateOverride, Namespace as CatalogNamespace,
-    NamespaceName, NamespaceServiceProtectionLimitsOverride,
+    NamespaceName, NamespaceServiceProtectionLimitsOverride, ServiceLimitUpdate,
 };
-use generated_types::influxdata::iox::namespace::v1::{
-    update_namespace_service_protection_limit_request::LimitUpdate, *,
-};
+use generated_types::influxdata::iox::namespace::v1::*;
 use iox_catalog::interface::{Catalog, SoftDeletedRows};
 use observability_deps::tracing::{debug, info, warn};
 use tonic::{Request, Response, Status};
@@ -59,7 +57,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
                 Status::not_found(e.to_string())
             })?;
         Ok(Response::new(GetNamespacesResponse {
-            namespaces: namespaces.into_iter().map(namespace_to_proto).collect(),
+            namespaces: namespaces.iter().map(namespace_to_proto).collect(),
         }))
     }
 
@@ -114,7 +112,9 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             "created namespace"
         );
 
-        Ok(Response::new(namespace_to_create_response_proto(namespace)))
+        Ok(Response::new(CreateNamespaceResponse {
+            namespace: Some(namespace_to_proto(&namespace)),
+        }))
     }
 
     async fn delete_namespace(
@@ -175,7 +175,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
         );
 
         Ok(Response::new(UpdateNamespaceRetentionResponse {
-            namespace: Some(namespace_to_proto(namespace)),
+            namespace: Some(namespace_to_proto(&namespace)),
         }))
     }
 
@@ -196,50 +196,36 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             "updating namespace service protection limit",
         );
 
-        let namespace = match limit_update {
-            Some(LimitUpdate::MaxTables(n)) => {
-                if n == 0 {
-                    return Err(Status::invalid_argument(
-                        "max table limit for namespace must be greater than 0",
-                    ));
-                }
-                repos
-                    .namespaces()
-                    .update_table_limit(&namespace_name, n)
-                    .await
-                    .map_err(|e| {
-                        warn!(
-                            error = %e,
-                            %namespace_name,
-                            table_limit = %n,
-                            "failed to update table limit for namespace",
-                        );
-                        status_from_catalog_namespace_error(e)
-                    })
-            }
-            Some(LimitUpdate::MaxColumnsPerTable(n)) => {
-                if n == 0 {
-                    return Err(Status::invalid_argument(
-                        "max columns per table limit for namespace must be greater than 0",
-                    ));
-                }
-                repos
-                    .namespaces()
-                    .update_column_limit(&namespace_name, n)
-                    .await
-                    .map_err(|e| {
-                        warn!(
-                            error = %e,
-                            %namespace_name,
-                            per_table_column_limit = %n,
-                            "failed to update per table column limit for namespace",
-                        );
-                        status_from_catalog_namespace_error(e)
-                    })
-            }
-            None => Err(Status::invalid_argument(
-                "unsupported service protection limit change requested",
-            )),
+        let new_service_limits = ServiceLimitUpdate::try_from(limit_update)
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
+
+        let namespace = match new_service_limits {
+            ServiceLimitUpdate::MaxTables(new_max_tables) => repos
+                .namespaces()
+                .update_table_limit(&namespace_name, new_max_tables)
+                .await
+                .map_err(|e| {
+                    warn!(
+                        error = %e,
+                        %namespace_name,
+                        %new_max_tables,
+                        "failed to update table limit for namespace",
+                    );
+                    status_from_catalog_namespace_error(e)
+                }),
+            ServiceLimitUpdate::MaxColumnsPerTable(new_max_columns) => repos
+                .namespaces()
+                .update_column_limit(&namespace_name, new_max_columns)
+                .await
+                .map_err(|e| {
+                    warn!(
+                        error = %e,
+                        %namespace_name,
+                        %new_max_columns,
+                        "failed to update per table column limit for namespace",
+                    );
+                    status_from_catalog_namespace_error(e)
+                }),
         }?;
 
         info!(
@@ -252,33 +238,21 @@ impl namespace_service_server::NamespaceService for NamespaceService {
 
         Ok(Response::new(
             UpdateNamespaceServiceProtectionLimitResponse {
-                namespace: Some(namespace_to_proto(namespace)),
+                namespace: Some(namespace_to_proto(&namespace)),
             },
         ))
     }
 }
 
-fn namespace_to_proto(namespace: CatalogNamespace) -> Namespace {
+/// Convert the namespace record from the catalog into its protobuf representation.
+pub fn namespace_to_proto(namespace: &CatalogNamespace) -> Namespace {
     Namespace {
         id: namespace.id.get(),
         name: namespace.name.clone(),
         retention_period_ns: namespace.retention_period_ns,
-        max_tables: namespace.max_tables,
-        max_columns_per_table: namespace.max_columns_per_table,
+        max_tables: namespace.max_tables.get(),
+        max_columns_per_table: namespace.max_columns_per_table.get(),
         partition_template: namespace.partition_template.as_proto().cloned(),
-    }
-}
-
-fn namespace_to_create_response_proto(namespace: CatalogNamespace) -> CreateNamespaceResponse {
-    CreateNamespaceResponse {
-        namespace: Some(Namespace {
-            id: namespace.id.get(),
-            name: namespace.name.clone(),
-            retention_period_ns: namespace.retention_period_ns,
-            max_tables: namespace.max_tables,
-            max_columns_per_table: namespace.max_columns_per_table,
-            partition_template: namespace.partition_template.as_proto().cloned(),
-        }),
     }
 }
 
@@ -315,7 +289,10 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::partition_template::PARTITION_BY_DAY_PROTO;
     use generated_types::influxdata::iox::{
-        namespace::v1::namespace_service_server::NamespaceService as _,
+        namespace::v1::{
+            namespace_service_server::NamespaceService as _,
+            update_namespace_service_protection_limit_request::LimitUpdate,
+        },
         partition_template::v1::PartitionTemplate,
     };
     use iox_catalog::mem::MemCatalog;

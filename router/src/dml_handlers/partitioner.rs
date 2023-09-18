@@ -105,12 +105,11 @@ impl DmlHandler for Partitioner {
 mod tests {
     use assert_matches::assert_matches;
     use chrono::{format::StrftimeItems, TimeZone, Utc};
-    use data_types::{
-        partition_template::{test_table_partition_override, TemplatePart},
-        NamespaceId,
-    };
+    use data_types::partition_template::{test_table_partition_override, TemplatePart};
     use mutable_batch::writer::Writer;
     use proptest::prelude::*;
+
+    use crate::test_helpers::new_empty_namespace_schema;
 
     use super::*;
 
@@ -126,18 +125,6 @@ mod tests {
             .enumerate()
             .map(|(i, (name, data))| (TableId::new(i as _), (name, Default::default(), data)))
             .collect()
-    }
-
-    // Start a new `NamespaceSchema` with only the given ID; the rest of the fields are arbitrary.
-    fn namespace_schema(id: i64) -> Arc<NamespaceSchema> {
-        Arc::new(NamespaceSchema {
-            id: NamespaceId::new(id),
-            tables: Default::default(),
-            max_columns_per_table: 500,
-            max_tables: 200,
-            retention_period_ns: None,
-            partition_template: Default::default(),
-        })
     }
 
     // Generate a test case that partitions "lp".
@@ -161,7 +148,7 @@ mod tests {
 
                     let handler_ret = partitioner.write(
                         &ns,
-                        namespace_schema(42),
+                        Arc::new(new_empty_namespace_schema(42)),
                         writes,
                         None
                     ).await;
@@ -312,7 +299,7 @@ mod tests {
         let partitioner = Partitioner::default();
         let ns = NamespaceName::new("bananas").expect("valid db name");
 
-        let namespace_schema = namespace_schema(42);
+        let namespace_schema = Arc::new(new_empty_namespace_schema(42));
 
         let bananas_table_template = test_table_partition_override(vec![
             TemplatePart::TagValue("oranges"),
@@ -407,7 +394,7 @@ mod tests {
         fn prop_default_template_row_contents(times in arbitrary_timestamps()) {
             let partitioner = Partitioner::default();
             let ns = NamespaceName::new("bananas").expect("valid db name");
-            let namespace_schema = namespace_schema(42);
+            let namespace_schema = Arc::new(new_empty_namespace_schema(42));
 
             let row_count = times.len();
 
