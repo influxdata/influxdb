@@ -4548,6 +4548,7 @@ dependencies = [
  "backoff",
  "bytes",
  "cache_system",
+ "chrono",
  "client_util",
  "data_types",
  "datafusion",
