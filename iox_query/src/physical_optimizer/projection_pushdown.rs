@@ -1696,7 +1696,7 @@ mod tests {
         }
 
         fn statistics(&self) -> datafusion::physical_plan::Statistics {
-            unimplemented!()
+            Statistics::default()
         }
     }
 

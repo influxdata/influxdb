@@ -21,7 +21,6 @@ arrow = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c
 arrow-array = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5", default-features = false, features = ["chrono-tz"] }
 arrow-flight = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5", features = ["flight-sql-experimental"] }
 arrow-string = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5", default-features = false, features = ["dyn_cmp_dict"] }
-base64 = { version = "0.21" }
 byteorder = { version = "1" }
 bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
@@ -29,9 +28,8 @@ clap = { version = "4", features = ["derive", "env", "string"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "env", "help", "std", "string", "suggestions", "usage"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "261b900472406a613d379d1210a1806b0d117c0e" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "261b900472406a613d379d1210a1806b0d117c0e", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "261b900472406a613d379d1210a1806b0d117c0e", default-features = false, features = ["crypto_expressions", "encoding_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "81f33b0e27f5694348cd953a937203d835b57178" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "81f33b0e27f5694348cd953a937203d835b57178", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1", features = ["serde"] }
 fixedbitset = { version = "0.4" }
@@ -98,7 +96,6 @@ uuid = { version = "1", features = ["v4"] }
 
 [build-dependencies]
 ahash = { version = "0.8" }
-base64 = { version = "0.21" }
 byteorder = { version = "1" }
 bytes = { version = "1" }
 cc = { version = "1", default-features = false, features = ["parallel"] }
@@ -148,7 +145,7 @@ sqlx-macros-core = { version = "0.7", features = ["_rt-tokio", "_tls-rustls", "j
 sqlx-postgres = { version = "0.7", default-features = false, features = ["any", "json", "migrate", "offline", "uuid"] }
 sqlx-sqlite = { version = "0.7", default-features = false, features = ["any", "json", "migrate", "offline", "uuid"] }
 syn-dff4ba8e3ae991db = { package = "syn", version = "1", features = ["extra-traits", "full"] }
-syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "full", "visit-mut"] }
+syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "full", "visit", "visit-mut"] }
 tokio = { version = "1", features = ["full", "test-util", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net"] }
 tracing = { version = "0.1", features = ["log", "max_level_trace", "release_max_level_trace"] }
