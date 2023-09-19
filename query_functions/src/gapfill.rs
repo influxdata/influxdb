@@ -20,7 +20,7 @@
 //! produce a plan that fills gaps.
 use std::sync::Arc;
 
-use arrow::datatypes::{DataType, TimeUnit};
+use arrow::datatypes::{DataType, Field, TimeUnit};
 use datafusion::{
     error::DataFusionError,
     logical_expr::{
@@ -93,7 +93,22 @@ pub(crate) static INTERPOLATE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
         InfluxFieldType::UInteger,
     ]
     .iter()
-    .map(|&influx_type| TypeSignature::Exact(vec![influx_type.into()]))
+    .flat_map(|&influx_type| {
+        [
+            TypeSignature::Exact(vec![influx_type.into()]),
+            TypeSignature::Exact(vec![DataType::Struct(
+                vec![
+                    Field::new("value", influx_type.into(), true),
+                    Field::new(
+                        "time",
+                        DataType::Timestamp(TimeUnit::Nanosecond, None),
+                        true,
+                    ),
+                ]
+                .into(),
+            )]),
+        ]
+    })
     .collect();
     Arc::new(ScalarUDF::new(
         INTERPOLATE_UDF_NAME,

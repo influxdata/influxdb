@@ -403,7 +403,7 @@ impl Deref for ColumnSet {
 }
 
 /// Set of sorted columns in a specific given order at created time
-#[derive(Debug, Clone, PartialEq, Eq, Hash, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, sqlx::Type, Default)]
 #[sqlx(transparent, no_pg_array)]
 pub struct SortedColumnSet(Vec<ColumnId>);
 

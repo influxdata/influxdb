@@ -8,7 +8,7 @@ license.workspace = true
 
 [dependencies]
 chrono = { version = "0.4", default-features = false }
-croaring = "0.9.0"
+croaring = "1.0.0"
 influxdb-line-protocol = { path = "../influxdb_line_protocol" }
 iox_time = { path = "../iox_time" }
 generated_types = { path = "../generated_types" }

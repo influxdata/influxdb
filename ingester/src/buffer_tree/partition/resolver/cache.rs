@@ -11,8 +11,10 @@ use super::r#trait::PartitionProvider;
 use crate::{
     buffer_tree::{
         namespace::NamespaceName,
-        partition::{resolver::SortKeyResolver, PartitionData, SortKeyState},
-        table::TableMetadata,
+        partition::{
+            counter::PartitionCounter, resolver::SortKeyResolver, PartitionData, SortKeyState,
+        },
+        table::metadata::TableMetadata,
     },
     deferred_load::DeferredLoad,
 };
@@ -168,6 +170,7 @@ where
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table: Arc<DeferredLoad<TableMetadata>>,
+        partition_counter: Arc<PartitionCounter>,
     ) -> Arc<Mutex<PartitionData>> {
         // Use the cached PartitionKey instead of the caller's partition_key,
         // instead preferring to reuse the already-shared Arc<str> in the cache.
@@ -199,6 +202,7 @@ where
                 table_id,
                 table,
                 SortKeyState::Deferred(Arc::new(sort_key_resolver)),
+                partition_counter,
             )));
         }
 
@@ -206,7 +210,14 @@ where
 
         // Otherwise delegate to the catalog / inner impl.
         self.inner
-            .get_partition(partition_key, namespace_id, namespace_name, table_id, table)
+            .get_partition(
+                partition_key,
+                namespace_id,
+                namespace_name,
+                table_id,
+                table,
+                partition_counter,
+            )
             .await
     }
 }
@@ -215,6 +226,8 @@ where
 mod tests {
     // Harmless in tests - saves a bunch of extra vars.
     #![allow(clippy::await_holding_lock)]
+
+    use std::num::NonZeroUsize;
 
     use data_types::SortedColumnSet;
     use iox_catalog::mem::MemCatalog;
@@ -249,8 +262,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_miss() {
-        let data = PartitionDataBuilder::new().build();
-        let inner = MockPartitionProvider::default().with_partition(data);
+        let inner = MockPartitionProvider::default().with_partition(PartitionDataBuilder::new());
 
         let cache = new_cache(inner, []);
         let got = cache
@@ -260,6 +272,7 @@ mod tests {
                 defer_namespace_name_1_sec(),
                 ARBITRARY_TABLE_ID,
                 defer_table_metadata_1_sec(),
+                Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
             )
             .await;
 
@@ -303,6 +316,7 @@ mod tests {
                 defer_namespace_name_1_sec(),
                 ARBITRARY_TABLE_ID,
                 defer_table_metadata_1_sec(),
+                Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
             )
             .await;
 
@@ -340,11 +354,8 @@ mod tests {
     async fn test_miss_partition_key() {
         let other_key = PartitionKey::from("test");
         let other_partition_id = TransitionPartitionId::new(ARBITRARY_TABLE_ID, &other_key);
-        let inner = MockPartitionProvider::default().with_partition(
-            PartitionDataBuilder::new()
-                .with_partition_key(other_key.clone())
-                .build(),
-        );
+        let inner = MockPartitionProvider::default()
+            .with_partition(PartitionDataBuilder::new().with_partition_key(other_key.clone()));
 
         let partition = Partition::new_in_memory_only(
             ARBITRARY_CATALOG_PARTITION_ID,
@@ -363,6 +374,7 @@ mod tests {
                 defer_namespace_name_1_sec(),
                 ARBITRARY_TABLE_ID,
                 defer_table_metadata_1_sec(),
+                Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
             )
             .await;
 
@@ -378,11 +390,8 @@ mod tests {
     async fn test_miss_table_id() {
         let other_table = TableId::new(1234);
         let other_partition_id = TransitionPartitionId::new(other_table, &ARBITRARY_PARTITION_KEY);
-        let inner = MockPartitionProvider::default().with_partition(
-            PartitionDataBuilder::new()
-                .with_table_id(other_table)
-                .build(),
-        );
+        let inner = MockPartitionProvider::default()
+            .with_partition(PartitionDataBuilder::new().with_table_id(other_table));
 
         let partition = Partition::new_in_memory_only(
             ARBITRARY_CATALOG_PARTITION_ID,
@@ -401,6 +410,7 @@ mod tests {
                 defer_namespace_name_1_sec(),
                 other_table,
                 defer_table_metadata_1_sec(),
+                Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
             )
             .await;
 

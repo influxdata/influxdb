@@ -6,7 +6,8 @@ use criterion::{
 };
 use data_types::{
     partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
-    ColumnId, ColumnSchema, NamespaceId, NamespaceName, NamespaceSchema, TableId, TableSchema,
+    ColumnId, ColumnSchema, MaxColumnsPerTable, MaxTables, NamespaceId, NamespaceName,
+    NamespaceSchema, TableId, TableSchema,
 };
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use once_cell::sync::Lazy;
@@ -26,14 +27,14 @@ fn init_ns_cache(
 
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
     let cache = Arc::new(ShardedCache::new(
-        iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+        iter::repeat_with(MemoryNamespaceCache::default).take(10),
     ));
 
     let (actor, handle) = AntiEntropyActor::new(Arc::clone(&cache));
     rt.spawn(actor.run());
 
     let cache = MerkleTree::new(cache, handle);
-    let cache = Arc::new(ReadThroughCache::new(cache, Arc::clone(&catalog)));
+    let cache = ReadThroughCache::new(cache, Arc::clone(&catalog));
 
     for (name, schema) in initial_schema {
         cache.put_schema(name, schema);
@@ -155,8 +156,8 @@ fn generate_namespace_schema(tables: usize, columns_per_table: usize) -> Namespa
                 (format!("table{i}"), schema)
             })
             .collect::<BTreeMap<_, _>>(),
-        max_columns_per_table: usize::MAX,
-        max_tables: usize::MAX,
+        max_tables: MaxTables::new(i32::MAX),
+        max_columns_per_table: MaxColumnsPerTable::new(i32::MAX),
         retention_period_ns: None,
         partition_template,
     }

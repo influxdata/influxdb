@@ -928,23 +928,23 @@ name: logical_plan
 name: physical_plan
  plan
  SortPreservingMergeExec: [iox::measurement@0 ASC NULLS LAST,tag0@2 ASC NULLS LAST,time@1 ASC NULLS LAST]
-   UnionExec
-     SortExec: expr=[iox::measurement@0 ASC NULLS LAST,tag0@2 ASC NULLS LAST,time@1 ASC NULLS LAST]
+   SortExec: expr=[iox::measurement@0 ASC NULLS LAST,tag0@2 ASC NULLS LAST,time@1 ASC NULLS LAST]
+     InterleaveExec
        ProjectionExec: expr=[m0 as iox::measurement, 0 as time, tag0@0 as tag0, coalesce_struct(COUNT(m0.f64)@1, 0) as count, SUM(m0.f64)@2 as sum, STDDEV(m0.f64)@3 as stddev]
          AggregateExec: mode=FinalPartitioned, gby=[tag0@0 as tag0], aggr=[COUNT(m0.f64), SUM(m0.f64), STDDEV(m0.f64)]
            CoalesceBatchesExec: target_batch_size=8192
              RepartitionExec: partitioning=Hash([tag0@0], 4), input_partitions=4
-               RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                 AggregateExec: mode=Partial, gby=[tag0@1 as tag0], aggr=[COUNT(m0.f64), SUM(m0.f64), STDDEV(m0.f64)]
+               AggregateExec: mode=Partial, gby=[tag0@1 as tag0], aggr=[COUNT(m0.f64), SUM(m0.f64), STDDEV(m0.f64)]
+                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
                    ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[f64, tag0]
-     SortExec: expr=[iox::measurement@0 ASC NULLS LAST,tag0@2 ASC NULLS LAST,time@1 ASC NULLS LAST]
        ProjectionExec: expr=[m1 as iox::measurement, 0 as time, tag0@0 as tag0, coalesce_struct(COUNT(m1.f64)@1, 0) as count, SUM(m1.f64)@2 as sum, STDDEV(m1.f64)@3 as stddev]
-         RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=4
-           AggregateExec: mode=FinalPartitioned, gby=[tag0@0 as tag0], aggr=[COUNT(m1.f64), SUM(m1.f64), STDDEV(m1.f64)], ordering_mode=FullyOrdered
+         AggregateExec: mode=FinalPartitioned, gby=[tag0@0 as tag0], aggr=[COUNT(m1.f64), SUM(m1.f64), STDDEV(m1.f64)], ordering_mode=FullyOrdered
+           SortExec: expr=[tag0@0 ASC]
              CoalesceBatchesExec: target_batch_size=8192
-               RepartitionExec: partitioning=Hash([tag0@0], 4), input_partitions=1
+               RepartitionExec: partitioning=Hash([tag0@0], 4), input_partitions=4
                  AggregateExec: mode=Partial, gby=[tag0@1 as tag0], aggr=[COUNT(m1.f64), SUM(m1.f64), STDDEV(m1.f64)], ordering_mode=FullyOrdered
-                   ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[f64, tag0], output_ordering=[tag0@1 ASC]
+                   RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[f64, tag0], output_ordering=[tag0@1 ASC]
 -- InfluxQL: SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
 name: m0
 tags: tag0=val00
@@ -3125,3 +3125,51 @@ tags: host=
 +---------------------+------+------------+
 | 1970-01-01T00:00:00 |      | 2.98       |
 +---------------------+------+------------+
+-- InfluxQL: SELECT FIRST(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear);
+name: cpu
++---------------------+-------+
+| time                | first |
++---------------------+-------+
+| 2022-10-31T02:00:00 | 2.98  |
+| 2022-10-31T02:00:02 | 2.982 |
+| 2022-10-31T02:00:04 | 2.984 |
+| 2022-10-31T02:00:06 | 2.986 |
+| 2022-10-31T02:00:08 | 2.988 |
+| 2022-10-31T02:00:10 | 2.99  |
++---------------------+-------+
+-- InfluxQL: SELECT FIRST(usage_idle),usage_system FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear);
+name: cpu
++---------------------+-------+--------------+
+| time                | first | usage_system |
++---------------------+-------+--------------+
+| 2022-10-31T02:00:00 | 2.98  | 2.2          |
+| 2022-10-31T02:00:02 | 2.982 |              |
+| 2022-10-31T02:00:04 | 2.984 |              |
+| 2022-10-31T02:00:06 | 2.986 |              |
+| 2022-10-31T02:00:08 | 2.988 |              |
+| 2022-10-31T02:00:10 | 2.99  | 2.1          |
++---------------------+-------+--------------+
+-- InfluxQL: SELECT FIRST(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(99);
+name: cpu
++---------------------+-------+
+| time                | first |
++---------------------+-------+
+| 2022-10-31T02:00:00 | 2.98  |
+| 2022-10-31T02:00:02 | 99.0  |
+| 2022-10-31T02:00:04 | 99.0  |
+| 2022-10-31T02:00:06 | 99.0  |
+| 2022-10-31T02:00:08 | 99.0  |
+| 2022-10-31T02:00:10 | 2.99  |
++---------------------+-------+
+-- InfluxQL: SELECT FIRST(usage_idle),usage_system FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(99);
+name: cpu
++---------------------+-------+--------------+
+| time                | first | usage_system |
++---------------------+-------+--------------+
+| 2022-10-31T02:00:00 | 2.98  | 2.2          |
+| 2022-10-31T02:00:02 | 99.0  | 99.0         |
+| 2022-10-31T02:00:04 | 99.0  | 99.0         |
+| 2022-10-31T02:00:06 | 99.0  | 99.0         |
+| 2022-10-31T02:00:08 | 99.0  | 99.0         |
+| 2022-10-31T02:00:10 | 2.99  | 2.1          |
++---------------------+-------+--------------+

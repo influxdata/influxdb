@@ -111,7 +111,8 @@ impl Time {
 
     /// Returns the number of non-leap-nanoseconds since January 1, 1970 UTC
     pub fn timestamp_nanos(&self) -> i64 {
-        self.0.timestamp_nanos()
+        // TODO: ensure that this can never over-/underflow
+        self.0.timestamp_nanos_opt().expect("nanos in range")
     }
 
     /// Returns the number of seconds since January 1, 1970 UTC
@@ -539,7 +540,7 @@ mod test {
             );
             assert_eq!(
                 time,
-                Time::from_timestamp_nanos(date_time.timestamp_nanos())
+                Time::from_timestamp_nanos(date_time.timestamp_nanos_opt().unwrap())
             );
             assert_eq!(
                 Time::from_timestamp_millis(date_time.timestamp_millis()).unwrap(),
@@ -549,7 +550,10 @@ mod test {
                 )
             );
 
-            assert_eq!(time.timestamp_nanos(), date_time.timestamp_nanos());
+            assert_eq!(
+                time.timestamp_nanos(),
+                date_time.timestamp_nanos_opt().unwrap()
+            );
             assert_eq!(time.timestamp_millis(), date_time.timestamp_millis());
             assert_eq!(time.to_rfc3339(), date_time.to_rfc3339());
 

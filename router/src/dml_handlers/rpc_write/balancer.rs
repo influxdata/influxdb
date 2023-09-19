@@ -120,7 +120,8 @@ where
             }
         };
 
-        UpstreamSnapshot::new(probe.into_iter().chain(healthy), idx)
+        let contains_probe = probe.is_some();
+        UpstreamSnapshot::new(probe.into_iter().chain(healthy), idx, contains_probe)
     }
 }
 

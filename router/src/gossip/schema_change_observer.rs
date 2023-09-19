@@ -5,12 +5,12 @@ use std::{collections::BTreeMap, fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use data_types::{ColumnsByName, NamespaceName, NamespaceSchema};
 use generated_types::influxdata::iox::gossip::v1::{
-    schema_message::Event, Column, NamespaceCreated, TableCreated, TableUpdated,
+    schema_message::Event, Column, TableCreated, TableUpdated,
 };
 
 use crate::namespace_cache::{ChangeStats, NamespaceCache};
 
-use super::traits::SchemaBroadcast;
+use super::{namespace_created, traits::SchemaBroadcast};
 
 /// A [`NamespaceCache`] decorator implementing cluster-wide, best-effort
 /// propagation of local schema changes via the gossip subsystem.
@@ -116,14 +116,7 @@ where
         namespace_name: &NamespaceName<'static>,
         schema: &NamespaceSchema,
     ) {
-        let msg = NamespaceCreated {
-            namespace_name: namespace_name.to_string(),
-            namespace_id: schema.id.get(),
-            partition_template: schema.partition_template.as_proto().cloned(),
-            max_columns_per_table: schema.max_columns_per_table as u64,
-            max_tables: schema.max_tables as u64,
-            retention_period_ns: schema.retention_period_ns,
-        };
+        let msg = namespace_created(namespace_name, schema);
 
         self.tx.broadcast(Event::NamespaceCreated(msg));
     }
@@ -202,32 +195,20 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{
-        gossip::mock_schema_broadcast::MockSchemaBroadcast, namespace_cache::MemoryNamespaceCache,
+        gossip::mock_schema_broadcast::MockSchemaBroadcast,
+        namespace_cache::MemoryNamespaceCache,
+        test_helpers::{
+            new_empty_namespace_schema, DEFAULT_NAMESPACE, NAMESPACE_NAME, TABLE_ID, TABLE_NAME,
+        },
     };
 
     use super::*;
 
     use assert_matches::assert_matches;
     use data_types::{
-        partition_template::{test_table_partition_override, NamespacePartitionTemplateOverride},
-        ColumnId, NamespaceId, TableId, TableSchema,
+        partition_template::test_table_partition_override, ColumnId, TableId, TableSchema,
     };
     use generated_types::influxdata::iox::gossip::v1::column::ColumnType;
-
-    const TABLE_NAME: &str = "bananas";
-    const NAMESPACE_NAME: &str = "platanos";
-    const TABLE_ID: i64 = 42;
-
-    const DEFAULT_NAMESPACE_PARTITION_TEMPLATE: NamespacePartitionTemplateOverride =
-        NamespacePartitionTemplateOverride::const_default();
-    const DEFAULT_NAMESPACE: NamespaceSchema = NamespaceSchema {
-        id: NamespaceId::new(4242),
-        tables: BTreeMap::new(),
-        max_columns_per_table: 1,
-        max_tables: 2,
-        retention_period_ns: None,
-        partition_template: DEFAULT_NAMESPACE_PARTITION_TEMPLATE,
-    };
 
     macro_rules! test_observe {
         (
@@ -242,7 +223,7 @@ mod tests {
                 async fn [<test_observe_ $name>]() {
                     let gossip = Arc::new(MockSchemaBroadcast::default());
                     let observer = SchemaChangeObserver::new(
-                        Arc::new(MemoryNamespaceCache::default()),
+                        MemoryNamespaceCache::default(),
                         Arc::clone(&gossip)
                     );
 
@@ -272,22 +253,10 @@ mod tests {
             num_new_columns: Default::default(),
             did_update: false,
         },
-        schema = DEFAULT_NAMESPACE,
+        schema = new_empty_namespace_schema(4242),
         want_count = 1,
-        want = [Event::NamespaceCreated(NamespaceCreated {
-            namespace_name,
-            namespace_id,
-            partition_template,
-            max_columns_per_table,
-            max_tables,
-            retention_period_ns
-        })] => {
-            assert_eq!(namespace_name, NAMESPACE_NAME);
-            assert_eq!(*namespace_id, DEFAULT_NAMESPACE.id.get());
-            assert_eq!(*partition_template, DEFAULT_NAMESPACE.partition_template.as_proto().cloned());
-            assert_eq!(*max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table as u64);
-            assert_eq!(*max_tables, DEFAULT_NAMESPACE.max_tables as u64);
-            assert_eq!(*retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
+        want = [Event::NamespaceCreated(created)] => {
+            assert_eq!(created, &namespace_created(NAMESPACE_NAME, &DEFAULT_NAMESPACE));
         }
     );
 
@@ -318,28 +287,13 @@ mod tests {
         },
         schema = DEFAULT_NAMESPACE,
         want_count = 1,
-        want = [Event::NamespaceCreated(NamespaceCreated {
-            namespace_name,
-            namespace_id,
-            partition_template,
-            max_columns_per_table,
-            max_tables,
-            retention_period_ns
-        }),
+        want = [Event::NamespaceCreated(created),
         Event::TableCreated(TableCreated { table, partition_template: table_template })] => {
             // Validate the namespace create message
-
-            assert_eq!(namespace_name, NAMESPACE_NAME);
-            assert_eq!(*namespace_id, DEFAULT_NAMESPACE.id.get());
-            assert_eq!(*partition_template, DEFAULT_NAMESPACE.partition_template.as_proto().cloned());
-            assert_eq!(*max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table as u64);
-            assert_eq!(*max_tables, DEFAULT_NAMESPACE.max_tables as u64);
-            assert_eq!(*retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
+            assert_eq!(created, &namespace_created(NAMESPACE_NAME, &DEFAULT_NAMESPACE));
 
             // Validate the table message
-
             let meta = table.as_ref().expect("must have metadata");
-
             assert_eq!(meta.table_name, TABLE_NAME);
             assert_eq!(meta.namespace_name, NAMESPACE_NAME);
             assert_eq!(meta.table_id, TABLE_ID);

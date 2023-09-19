@@ -71,6 +71,7 @@ pub fn datafusion_error_to_tonic_code(e: &DataFusionError) -> tonic::Code {
         // (non internal) errors and only treat the ones
         // the user likely can't do anything about as internal
         DataFusionError::ObjectStore(_)
+        | DataFusionError::Configuration(_)
         | DataFusionError::IoError(_)
         // Substrait errors come from internal code and are unused
         // with DataFusion at the moment

@@ -25,7 +25,7 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 async-trait = "0.1"
-bytes = "1.4"
+bytes = "1.5"
 data_types = { path = "../data_types" }
 filetime = "0.2"
 metric = { path = "../metric" }

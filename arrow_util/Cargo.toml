@@ -16,10 +16,11 @@ comfy-table = { version = "7.0", default-features = false }
 hashbrown = { workspace = true }
 num-traits = "0.2"
 once_cell = { version = "1.18", features = ["parking_lot"] }
-regex = "1.9.4"
+regex = "1.9.5"
 snafu = "0.7"
 uuid = "1"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
 
 [dev-dependencies]
 datafusion = { workspace = true }

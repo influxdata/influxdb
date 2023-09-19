@@ -2,6 +2,93 @@ syntax = "proto3";
 package influxdata.iox.gossip.v1;
 option go_package = "github.com/influxdata/iox/gossip/v1";
 
+import "influxdata/iox/gossip/v1/schema.proto";
+
+// An RPC service provided by peers wishing to take part in anti-entropy of
+// their schema caches.
+service AntiEntropyService {
+  // Return the computed Merkle Search Tree difference between the senders
+  // serialised compact MST representation included in the request, and the
+  // receivers local MST.
+  //
+  // The caller of this RPC sends their serialised MST page ranges, and the
+  // callee performs the tree diff, returning the key ranges identified as
+  // containing inconsistencies.
+  rpc GetTreeDiff(GetTreeDiffRequest) returns (GetTreeDiffResponse);
+
+  // Fetch all schemas in the peer cache within the specified inclusive key
+  // range bounds.
+  rpc GetRange(GetRangeRequest) returns (GetRangeResponse);
+}
+
+// Request the receiver perform a Merkle Search Tree diff against the provided
+// set of MST pages.
+message GetTreeDiffRequest {
+  // Serialised representation of the sender's MST.
+  repeated PageRange pages = 1;
+}
+
+// The set of namespace name ranges that contain inconsistencies.
+message GetTreeDiffResponse {
+  // Computed diff ranges containing MST inconsistencies between the two nodes.
+  repeated DiffRange ranges = 1;
+}
+
+// A compact representation of a single page in a Merkle Search Tree.
+message PageRange {
+  // Lexicographically minimum namespace name in this page (inclusive).
+  string min = 1;
+
+  // Lexicographically maximum namespace name in this page (inclusive).
+  string max = 2;
+
+  // A 16-byte MST page hash covering all entries in this page.
+  bytes page_hash = 3;
+}
+
+// An inclusive range of namespace names which contains at least one
+// inconsistent schema.
+message DiffRange {
+  // Lexicographically minimum inconsistent namespace name in this diff range 
+  // (inclusive).
+  string min = 1;
+
+  // Lexicographically maximum inconsistent namespace name in this diff range
+  // (inclusive).
+  string max = 2;
+}
+
+// Fetch the namespace schemas with namespace names falling within the specified
+// inclusive range.
+message GetRangeRequest {
+  // Lexicographically minimum namespace name in this range to be fetched 
+  // (inclusive).
+  string min = 1;
+
+  // Lexicographically maximum namespace name in this range to be fetched
+  // (inclusive).
+  string max = 2;
+}
+
+// A set of namespace schemas for a range request.
+message GetRangeResponse {
+  repeated NamespaceSchemaEntry namespaces = 1;
+}
+
+// A composition of a "namespace create" event and zero-or-more "table create"
+// events.
+//
+// Convergence is achieved by reapplying these gossip events and merging their
+// content into the local node's schema cache.
+message NamespaceSchemaEntry {
+  // The "namespace create" event containing namespace parameters.
+  influxdata.iox.gossip.v1.NamespaceCreated namespace = 1;
+
+  // The "table create" events containing the set of all tables and their
+  // parameters.
+  repeated influxdata.iox.gossip.v1.TableCreated tables = 2;
+}
+
 // A gossip frame sent to peers to begin a sync round / consistency check.
 message ConsistencyProbe {
   // A 16-byte Merkle Search Tree root hash convering the schema cache content.

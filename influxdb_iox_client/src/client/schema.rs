@@ -24,12 +24,17 @@ impl Client {
         }
     }
 
-    /// Get the schema for a namespace.
-    pub async fn get_schema(&mut self, namespace: &str) -> Result<NamespaceSchema, Error> {
+    /// Get the schema for a namespace and, optionally, one table within that namespace.
+    pub async fn get_schema(
+        &mut self,
+        namespace: &str,
+        table: Option<&str>,
+    ) -> Result<NamespaceSchema, Error> {
         let response = self
             .inner
             .get_schema(GetSchemaRequest {
                 namespace: namespace.to_string(),
+                table: table.map(ToString::to_string),
             })
             .await?;
 

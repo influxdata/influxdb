@@ -156,7 +156,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_empty_content_hash_fixture() {
-        let (actor, handle) = AntiEntropyActor::new(Arc::new(MemoryNamespaceCache::default()));
+        let (actor, handle) = AntiEntropyActor::new(MemoryNamespaceCache::default());
         tokio::spawn(actor.run());
 
         let got = handle.content_hash().await;

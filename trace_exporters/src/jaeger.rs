@@ -139,7 +139,19 @@ impl JaegerAgentExporter {
                 service_name: self.service_name.clone(),
                 tags: self.tags.clone(),
             },
-            spans: spans.into_iter().map(Into::into).collect(),
+            spans: spans
+                .into_iter()
+                .filter_map(|span| match jaeger::Span::try_from(span) {
+                    Ok(span) => Some(span),
+                    Err(e) => {
+                        warn!(
+                            %e,
+                            "cannot convert span to jaeger format",
+                        );
+                        None
+                    }
+                })
+                .collect(),
             seq_no,
             stats: None,
         }

@@ -1,8 +1,12 @@
 //! Testing layer.
-use std::{fmt::Debug, sync::Mutex};
+use std::{
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use futures::StreamExt;
+use tokio::sync::Barrier;
 
 use crate::{
     error::DynError,
@@ -16,6 +20,7 @@ where
     ResponseMetadata: Clone + Debug + Send + Sync + 'static,
     ResponsePayload: Clone + Debug + Send + Sync + 'static,
 {
+    barriers: Vec<Arc<Barrier>>,
     res: Result<(ResponseMetadata, Vec<Result<ResponsePayload, DynError>>), DynError>,
 }
 
@@ -27,15 +32,43 @@ where
     /// Create OK response w/o any payload.
     pub fn ok(md: ResponseMetadata) -> Self {
         Self {
+            barriers: vec![],
             res: Ok((md, vec![])),
         }
     }
 
-    /// Create OK response w/ payload.
-    pub fn ok_payload<const N: usize>(md: ResponseMetadata, payload: [ResponsePayload; N]) -> Self {
+    /// Create ERR response w/o any payload.
+    pub fn err(e: DynError) -> Self {
         Self {
-            res: Ok((md, payload.into_iter().map(Ok).collect())),
+            barriers: vec![],
+            res: Err(e),
         }
+    }
+
+    /// Add OK payload response.
+    ///
+    /// # Panic
+    /// This is only legal for [`ok`](Self::ok) responses.
+    pub fn with_ok_payload(mut self, payload: ResponsePayload) -> Self {
+        self.res.as_mut().expect("ok status").1.push(Ok(payload));
+        self
+    }
+
+    /// Add Err payload response.
+    ///
+    /// # Panic
+    /// This is only legal for [`ok`](Self::ok) responses.
+    pub fn with_err_payload(mut self, e: DynError) -> Self {
+        self.res.as_mut().expect("ok status").1.push(Err(e));
+        self
+    }
+
+    /// Add barrier to initial response (i.e. BEFORE the metadata returns).
+    ///
+    /// Multiple barriers can be stacked, e.g. to check if the response is pending and then block it.
+    pub fn with_initial_barrier(mut self, barrier: Arc<Barrier>) -> Self {
+        self.barriers.push(barrier);
+        self
     }
 }
 
@@ -127,9 +160,13 @@ where
         };
 
         // assert AFTER dropping the lock guard
-        let response = maybe_response.expect("no response left");
+        let TestResponse { barriers, res } = maybe_response.expect("no response left");
 
-        response.res.map(|(metadata, payload)| QueryResponse {
+        for barrier in barriers {
+            barrier.wait().await;
+        }
+
+        res.map(|(metadata, payload)| QueryResponse {
             metadata,
             payload: futures::stream::iter(payload).boxed(),
         })

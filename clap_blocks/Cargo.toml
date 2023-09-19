@@ -15,7 +15,7 @@ metric = { path = "../metric" }
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
-sysinfo = "0.29.9"
+sysinfo = "0.29.10"
 trace_exporters = { path = "../trace_exporters" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
 uuid = { version = "1", features = ["v4"] }

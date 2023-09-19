@@ -485,6 +485,7 @@ impl Config {
             persist_hot_partition_cost,
             rpc_write_max_incoming_bytes: 1024 * 1024 * 1024, // 1GiB
             gossip_config: GossipConfig::disabled(),
+            max_partitions_per_namespace: None,
         };
 
         let router_config = RouterConfig {
@@ -522,6 +523,7 @@ impl Config {
             max_num_columns_per_table: 200,
             max_num_files_per_plan: 200,
             max_partition_fetch_queries_per_second: Some(500),
+            gossip_config: GossipConfig::disabled(),
         };
 
         let querier_config = QuerierConfig {

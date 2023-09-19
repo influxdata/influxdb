@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use data_types::{
     partition_template::TablePartitionTemplateOverride, ColumnId, ColumnSet, NamespaceId,
@@ -18,10 +18,10 @@ use crate::{
             name_resolver::{mock::MockNamespaceNameProvider, NamespaceNameProvider},
             NamespaceName,
         },
-        partition::{PartitionData, SortKeyState},
+        partition::{counter::PartitionCounter, PartitionData, SortKeyState},
         table::{
+            metadata::{TableMetadata, TableName},
             metadata_resolver::{mock::MockTableProvider, TableProvider},
-            TableMetadata, TableName,
         },
     },
     deferred_load::DeferredLoad,
@@ -83,15 +83,31 @@ lazy_static! {
 }
 
 /// Build a [`PartitionData`] with mostly arbitrary-yet-valid values for tests.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub(crate) struct PartitionDataBuilder {
     partition_id: Option<TransitionPartitionId>,
-    partition_key: Option<PartitionKey>,
+    partition_key: PartitionKey,
     namespace_id: Option<NamespaceId>,
-    table_id: Option<TableId>,
+    table_id: TableId,
     table_loader: Option<Arc<DeferredLoad<TableMetadata>>>,
     namespace_loader: Option<Arc<DeferredLoad<NamespaceName>>>,
     sort_key: Option<SortKeyState>,
+    partition_counter: Option<Arc<PartitionCounter>>,
+}
+
+impl Default for PartitionDataBuilder {
+    fn default() -> Self {
+        Self {
+            table_id: ARBITRARY_TABLE_ID,
+            partition_key: ARBITRARY_PARTITION_KEY.clone(),
+            partition_id: None,
+            namespace_id: None,
+            table_loader: None,
+            namespace_loader: None,
+            sort_key: None,
+            partition_counter: None,
+        }
+    }
 }
 
 impl PartitionDataBuilder {
@@ -105,8 +121,12 @@ impl PartitionDataBuilder {
     }
 
     pub(crate) fn with_partition_key(mut self, partition_key: PartitionKey) -> Self {
-        self.partition_key = Some(partition_key);
+        self.partition_key = partition_key;
         self
+    }
+
+    pub(crate) fn partition_key(&self) -> &PartitionKey {
+        &self.partition_key
     }
 
     pub(crate) fn with_namespace_id(mut self, namespace_id: NamespaceId) -> Self {
@@ -115,8 +135,12 @@ impl PartitionDataBuilder {
     }
 
     pub(crate) fn with_table_id(mut self, table_id: TableId) -> Self {
-        self.table_id = Some(table_id);
+        self.table_id = table_id;
         self
+    }
+
+    pub(crate) fn table_id(&self) -> TableId {
+        self.table_id
     }
 
     pub(crate) fn with_table_loader(
@@ -127,6 +151,10 @@ impl PartitionDataBuilder {
         self
     }
 
+    pub(crate) fn table_loader(&self) -> Option<Arc<DeferredLoad<TableMetadata>>> {
+        self.table_loader.clone()
+    }
+
     pub(crate) fn with_namespace_loader(
         mut self,
         namespace_loader: Arc<DeferredLoad<NamespaceName>>,
@@ -135,31 +163,48 @@ impl PartitionDataBuilder {
         self
     }
 
+    pub(crate) fn namespace_loader(&self) -> Option<Arc<DeferredLoad<NamespaceName>>> {
+        self.namespace_loader.clone()
+    }
+
     pub(crate) fn with_sort_key_state(mut self, sort_key_state: SortKeyState) -> Self {
         self.sort_key = Some(sort_key_state);
         self
     }
 
+    pub(crate) fn with_partition_counter(
+        mut self,
+        partition_counter: Arc<PartitionCounter>,
+    ) -> Self {
+        self.partition_counter = Some(partition_counter);
+        self
+    }
+
+    pub(crate) fn partition_counter(&self) -> Option<Arc<PartitionCounter>> {
+        self.partition_counter.clone()
+    }
+
     /// Generate a valid [`PartitionData`] for use in tests where the exact values (or at least
     /// some of them) don't particularly matter.
     pub(crate) fn build(self) -> PartitionData {
-        let table_id = self.table_id.unwrap_or(ARBITRARY_TABLE_ID);
-        let partition_key = self
-            .partition_key
-            .unwrap_or_else(|| ARBITRARY_PARTITION_KEY.clone());
         let partition_id = self.partition_id.unwrap_or_else(|| {
-            TransitionPartitionId::Deterministic(PartitionHashId::new(table_id, &partition_key))
+            TransitionPartitionId::Deterministic(PartitionHashId::new(
+                self.table_id,
+                &self.partition_key,
+            ))
         });
 
         PartitionData::new(
             partition_id,
-            partition_key,
+            self.partition_key,
             self.namespace_id.unwrap_or(ARBITRARY_NAMESPACE_ID),
             self.namespace_loader
                 .unwrap_or_else(defer_namespace_name_1_sec),
-            table_id,
+            self.table_id,
             self.table_loader.unwrap_or_else(defer_table_metadata_1_sec),
-            self.sort_key.unwrap_or(SortKeyState::Provided(None)),
+            self.sort_key.unwrap_or(SortKeyState::Provided(None, None)),
+            self.partition_counter
+                .unwrap_or_else(|| Arc::new(PartitionCounter::new(NonZeroUsize::MAX))),
         )
     }
 }
@@ -411,6 +456,35 @@ pub(crate) async fn populate_catalog(
         .id;
 
     (ns_id, table_id)
+}
+
+pub(crate) async fn populate_catalog_with_table_columns(
+    catalog: &dyn Catalog,
+    namespace: &str,
+    table: &str,
+    columns: &[&str],
+) -> (NamespaceId, TableId, Vec<ColumnId>) {
+    let mut c = catalog.repositories().await;
+    let ns_id = arbitrary_namespace(&mut *c, namespace).await.id;
+    let table_id = c
+        .tables()
+        .create(table, Default::default(), ns_id)
+        .await
+        .unwrap()
+        .id;
+
+    let mut column_ids = Vec::with_capacity(columns.len());
+    for column in columns {
+        column_ids.push(
+            c.columns()
+                .create_or_get(column, table_id, data_types::ColumnType::Tag)
+                .await
+                .expect("create column failed")
+                .id,
+        );
+    }
+
+    (ns_id, table_id, column_ids)
 }
 
 /// Assert `a` and `b` have identical metadata, and that when converting

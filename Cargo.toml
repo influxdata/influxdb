@@ -18,6 +18,7 @@ members = [
     "garbage_collector",
     "generated_types",
     "gossip",
+    "gossip_compaction",
     "gossip_parquet_file",
     "gossip_schema",
     "grpc-binary-logger-proto",
@@ -122,14 +123,14 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-arrow = { version = "45.0.0" }
-arrow-flight = { version = "45.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f3722c0af8418bcb19cf9dc5f7e458a3aa5f0f32", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f3722c0af8418bcb19cf9dc5f7e458a3aa5f0f32" }
+arrow = { version = "46.0.0" }
+arrow-flight = { version = "46.0.0" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "261b900472406a613d379d1210a1806b0d117c0e", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev = "261b900472406a613d379d1210a1806b0d117c0e" }
 
 hashbrown = { version = "0.14.0" }
-object_store = { version = "0.6.0" }
-parquet = { version = "45.0.0" }
+object_store = { version = "0.7.0" }
+parquet = { version = "46.0.0" }
 tonic = { version = "0.9.2", features = ["tls", "tls-webpki-roots"] }
 tonic-build = { version = "0.9.2" }
 tonic-health = { version = "0.9.2" }
@@ -159,3 +160,19 @@ opt-level = 3
 
 [profile.dev.package.similar]
 opt-level = 3
+
+[patch.crates-io]
+# Can remove after arrow 47 is released
+# Pin to https://github.com/apache/arrow-rs/pull/4790
+# To get fixes for
+# - https://github.com/apache/arrow-rs/issues/4788,
+# - https://github.com/apache/arrow-rs/pull/4799
+arrow = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-array = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-buffer = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-schema = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-select = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-string = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-ord = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-flight = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+parquet = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }

@@ -4,6 +4,7 @@ use chrono::Utc;
 use compactor_scheduler::CompactionJob;
 use data_types::{CompactionLevel, ParquetFile, ParquetFileParams, PartitionId};
 use futures::{stream, StreamExt, TryStreamExt};
+use gossip_compaction::tx::CompactionEventTx;
 use iox_query::exec::query_tracing::send_metrics_to_tracing;
 use observability_deps::tracing::info;
 use parquet_file::ParquetFilePath;
@@ -19,7 +20,7 @@ use crate::{
         timeout::{timeout_with_progress_checking, TimeoutWithProgress},
         Components,
     },
-    error::{DynError, ErrorKind, SimpleError},
+    error::{DynError, ErrorKind, ErrorKindExt, SimpleError},
     file_classification::{FileClassification, FilesForProgress},
     partition_info::PartitionInfo,
     PlanIR, RoundInfo,
@@ -33,6 +34,7 @@ pub async fn compact(
     partition_timeout: Duration,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: &Arc<Components>,
+    gossip_handle: Option<Arc<CompactionEventTx>>,
 ) {
     components
         .compaction_job_stream
@@ -54,6 +56,7 @@ pub async fn compact(
                 partition_timeout,
                 Arc::clone(&df_semaphore),
                 components,
+                gossip_handle.clone(),
             )
         })
         .buffer_unordered(partition_concurrency.get())
@@ -67,6 +70,7 @@ async fn compact_partition(
     partition_timeout: Duration,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
+    gossip_handle: Option<Arc<CompactionEventTx>>,
 ) {
     let partition_id = job.partition_id;
     info!(partition_id = partition_id.get(), timeout = ?partition_timeout, "compact partition",);
@@ -86,6 +90,7 @@ async fn compact_partition(
                 components,
                 scratchpad,
                 transmit_progress_signal,
+                gossip_handle,
             )
             .await // errors detected in the CompactionJob update_job_status(), will be handled in the timeout_with_progress_checking
         }
@@ -210,6 +215,7 @@ async fn try_compact_partition(
     components: Arc<Components>,
     scratchpad_ctx: Arc<dyn Scratchpad>,
     transmit_progress_signal: Sender<bool>,
+    gossip_handle: Option<Arc<CompactionEventTx>>,
 ) -> Result<(), DynError> {
     let partition_id = job.partition_id;
     let mut files = components.partition_files_source.fetch(partition_id).await;
@@ -273,6 +279,7 @@ async fn try_compact_partition(
                 let job = job.clone();
                 let branch_span = round_span.child("branch");
                 let round_info = round_info.clone();
+                let gossip_handle = gossip_handle.clone();
 
                 async move {
                     execute_branch(
@@ -285,6 +292,7 @@ async fn try_compact_partition(
                         partition_info,
                         round_info,
                         transmit_progress_signal,
+                        gossip_handle,
                     )
                     .await
                 }
@@ -310,6 +318,7 @@ async fn execute_branch(
     partition_info: Arc<PartitionInfo>,
     round_info: RoundInfo,
     transmit_progress_signal: Arc<Sender<bool>>,
+    gossip_handle: Option<Arc<CompactionEventTx>>,
 ) -> Result<Vec<ParquetFile>, DynError> {
     let files_next: Vec<ParquetFile> = Vec::new();
 
@@ -377,7 +386,7 @@ async fn execute_branch(
         let files_to_delete = chunk
             .iter()
             .flat_map(|plan| plan.input_parquet_files())
-            .collect();
+            .collect::<Vec<_>>();
 
         // Compact & Split
         let created_file_params = run_plans(
@@ -424,12 +433,21 @@ async fn execute_branch(
             Arc::clone(&components),
             job.clone(),
             &saved_parquet_file_state,
-            files_to_delete,
+            &files_to_delete,
             upgrade,
             created_file_params,
             target_level,
         )
         .await?;
+
+        // Broadcast the compaction event to gossip peers.
+        gossip_compaction_complete(
+            gossip_handle.as_deref(),
+            &created_files,
+            &upgraded_files,
+            files_to_delete,
+            target_level,
+        );
 
         // we only need to upgrade files on the first iteration, so empty the upgrade list for next loop.
         upgrade = Vec::new();
@@ -448,6 +466,36 @@ async fn execute_branch(
 
     files_next.extend(files_to_keep);
     Ok(files_next)
+}
+
+/// Broadcast a compaction completion event over gossip.
+fn gossip_compaction_complete(
+    gossip_handle: Option<&CompactionEventTx>,
+    created_files: &[ParquetFile],
+    upgraded_files: &[ParquetFile],
+    deleted_files: Vec<ParquetFile>,
+    target_level: CompactionLevel,
+) {
+    use generated_types::influxdata::iox::catalog::v1 as catalog_proto;
+    use generated_types::influxdata::iox::gossip::v1 as proto;
+
+    let handle = match gossip_handle {
+        Some(v) => v,
+        None => return,
+    };
+
+    let new_files = created_files
+        .iter()
+        .cloned()
+        .map(catalog_proto::ParquetFile::from)
+        .collect::<Vec<_>>();
+
+    handle.broadcast(proto::CompactionEvent {
+        new_files,
+        updated_file_ids: upgraded_files.iter().map(|v| v.id.get()).collect(),
+        deleted_file_ids: deleted_files.iter().map(|v| v.id.get()).collect(),
+        upgraded_target_level: target_level as _,
+    });
 }
 
 /// Compact or split given files
@@ -508,75 +556,98 @@ async fn execute_plan(
     span.set_metadata("input_bytes", plan_ir.input_bytes().to_string());
     span.set_metadata("reason", plan_ir.reason());
 
+    // We'll start with 1 permit and if the job exhausts resources, increase it.
+    let mut requested_permits = 1;
+    let mut res: Result<Vec<ParquetFileParams>, DynError> = Ok(Vec::new());
+
     let create = {
         // use the address of the plan as a uniq identifier so logs can be matched despite the concurrency.
         let plan_id = format!("{:p}", &plan_ir);
 
-        info!(
-            partition_id = partition_info.partition_id.get(),
-            jobs_running = df_semaphore.holders_acquired(),
-            jobs_pending = df_semaphore.holders_pending(),
-            permits_acquired = df_semaphore.permits_acquired(),
-            permits_pending = df_semaphore.permits_pending(),
-            plan_id,
-            "requesting job semaphore",
-        );
+        while requested_permits <= df_semaphore.total_permits() {
+            info!(
+                partition_id = partition_info.partition_id.get(),
+                jobs_running = df_semaphore.holders_acquired(),
+                jobs_pending = df_semaphore.holders_pending(),
+                requested_permits,
+                permits_acquired = df_semaphore.permits_acquired(),
+                permits_pending = df_semaphore.permits_pending(),
+                plan_id,
+                "requesting job semaphore",
+            );
 
-        // draw semaphore BEFORE creating the DataFusion plan and drop it directly AFTER finishing the
-        // DataFusion computation (but BEFORE doing any additional external IO).
-        //
-        // We guard the DataFusion planning (that doesn't perform any IO) via the semaphore as well in case
-        // DataFusion ever starts to pre-allocate buffers during the physical planning. To the best of our
-        // knowledge, this is currently (2023-08-29) not the case but if this ever changes, then we are prepared.
-        let permit_span = span.child("acquire_permit");
-        let permit = df_semaphore
-            .acquire(None)
-            .await
-            .expect("semaphore not closed");
-        drop(permit_span);
+            // draw semaphore BEFORE creating the DataFusion plan and drop it directly AFTER finishing the
+            // DataFusion computation (but BEFORE doing any additional external IO).
+            //
+            // We guard the DataFusion planning (that doesn't perform any IO) via the semaphore as well in case
+            // DataFusion ever starts to pre-allocate buffers during the physical planning. To the best of our
+            // knowledge, this is currently (2023-08-29) not the case but if this ever changes, then we are prepared.
+            let permit_span = span.child("acquire_permit");
+            let permit = df_semaphore
+                .acquire_many(requested_permits as u32, None)
+                .await
+                .expect("semaphore not closed");
+            drop(permit_span);
 
-        info!(
-            partition_id = partition_info.partition_id.get(),
-            column_count = partition_info.column_count(),
-            input_files = plan_ir.n_input_files(),
-            plan_id,
-            "job semaphore acquired",
-        );
+            info!(
+                partition_id = partition_info.partition_id.get(),
+                column_count = partition_info.column_count(),
+                input_files = plan_ir.n_input_files(),
+                plan_id,
+                "job semaphore acquired",
+            );
 
-        let df_span = span.child_span("data_fusion");
-        let plan = components
-            .df_planner
-            .plan(&plan_ir, Arc::clone(partition_info))
-            .await?;
-        let streams = components.df_plan_exec.exec(Arc::<
-            dyn datafusion::physical_plan::ExecutionPlan,
-        >::clone(&plan));
-        let job = components.parquet_files_sink.stream_into_file_sink(
-            streams,
-            Arc::clone(partition_info),
-            plan_ir.target_level(),
-            &plan_ir,
-        );
+            let df_span = span.child_span("data_fusion");
+            let plan = components
+                .df_planner
+                .plan(&plan_ir, Arc::clone(partition_info))
+                .await?;
+            let streams = components.df_plan_exec.exec(Arc::<
+                dyn datafusion::physical_plan::ExecutionPlan,
+            >::clone(&plan));
+            let job = components.parquet_files_sink.stream_into_file_sink(
+                streams,
+                Arc::clone(partition_info),
+                plan_ir.target_level(),
+                &plan_ir,
+            );
 
-        // TODO: react to OOM and try to divide branch
-        let res = job.await;
+            res = job.await;
 
-        if let Some(span) = &df_span {
-            send_metrics_to_tracing(Utc::now(), span, plan.as_ref(), true);
-        };
+            if let Some(span) = &df_span {
+                send_metrics_to_tracing(Utc::now(), span, plan.as_ref(), true);
+            };
 
-        drop(permit);
-        drop(df_span);
+            drop(permit);
+            drop(df_span);
 
-        // inputs can be removed from the scratchpad as soon as we're done with compaction.
+            info!(
+                partition_id = partition_info.partition_id.get(),
+                plan_id, "job semaphore released",
+            );
+
+            if let Err(e) = &res {
+                match e.classify() {
+                    ErrorKind::OutOfMemory => {
+                        requested_permits *= 2;
+                        info!(
+                            partition_id = partition_info.partition_id.get(),
+                            plan_id,
+                            requested_permits,
+                            "job failed with out of memory error - increased permit request",
+                        );
+                    }
+                    _ => break,
+                }
+            } else {
+                break;
+            }
+        }
+
+        // inputs can be removed from the scratchpad as soon as we're done with compaction
         scratchpad_ctx
             .clean_from_scratchpad(&plan_ir.input_paths())
             .await;
-
-        info!(
-            partition_id = partition_info.partition_id.get(),
-            plan_id, "job semaphore released",
-        );
 
         res?
     };
@@ -628,7 +699,7 @@ async fn update_catalog(
     components: Arc<Components>,
     job: CompactionJob,
     saved_parquet_file_state: &SavedParquetFileState,
-    files_to_delete: Vec<ParquetFile>,
+    files_to_delete: &[ParquetFile],
     files_to_upgrade: Vec<ParquetFile>,
     file_params_to_create: Vec<ParquetFileParams>,
     target_level: CompactionLevel,
@@ -646,7 +717,7 @@ async fn update_catalog(
         .commit
         .commit(
             job,
-            &files_to_delete,
+            files_to_delete,
             &files_to_upgrade,
             &file_params_to_create,
             target_level,

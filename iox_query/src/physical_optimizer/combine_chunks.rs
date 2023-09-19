@@ -114,15 +114,15 @@ mod tests {
         input:
           - " UnionExec"
           - "   UnionExec"
-          - "     RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+          - "     RecordBatchesExec: chunks=1"
           - "     ParquetExec: file_groups={1 group: [[2.parquet]]}"
           - "   UnionExec"
-          - "     RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+          - "     RecordBatchesExec: chunks=1"
           - "     ParquetExec: file_groups={2 groups: [[4.parquet], [5.parquet]]}"
         output:
           Ok:
             - " UnionExec"
-            - "   RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+            - "   RecordBatchesExec: chunks=2"
             - "   ParquetExec: file_groups={2 groups: [[2.parquet, 5.parquet], [4.parquet]]}"
         "###
         );
@@ -211,13 +211,13 @@ mod tests {
           - " UnionExec"
           - "   FilterExec: false"
           - "     UnionExec"
-          - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+          - "       RecordBatchesExec: chunks=1"
         output:
           Ok:
             - " UnionExec"
             - "   FilterExec: false"
             - "     UnionExec"
-            - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+            - "       RecordBatchesExec: chunks=1"
         "###
         );
     }

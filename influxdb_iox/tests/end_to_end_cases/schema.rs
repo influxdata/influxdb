@@ -52,7 +52,7 @@ impl SchemaTest {
                 );
 
                 let response = client
-                    .get_schema(state.cluster().namespace())
+                    .get_schema(state.cluster().namespace(), Some(cloned_self.table_name))
                     .await
                     .expect("successful response");
 

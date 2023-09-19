@@ -40,6 +40,7 @@ use metric::Registry;
 use parquet_file::storage::ParquetStorage;
 use std::{
     fmt::{Debug, Display},
+    num::NonZeroUsize,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -230,6 +231,9 @@ pub async fn create_ingester_server_type(
         ingester_config.persist_hot_partition_cost,
         object_store,
         gossip,
+        ingester_config
+            .max_partitions_per_namespace
+            .unwrap_or_else(|| NonZeroUsize::new(usize::MAX).unwrap()),
         shutdown_rx.map(|v| v.expect("shutdown sender dropped without calling shutdown")),
     )
     .await?;

@@ -6,9 +6,9 @@ use arrow::{
 };
 use data_types::{
     partition_template::TablePartitionTemplateOverride, Column, ColumnSet, ColumnType,
-    ColumnsByName, CompactionLevel, Namespace, NamespaceName, NamespaceSchema, ParquetFile,
-    ParquetFileParams, Partition, PartitionId, SortedColumnSet, Table, TableId, TableSchema,
-    Timestamp, TransitionPartitionId,
+    ColumnsByName, CompactionLevel, MaxColumnsPerTable, MaxTables, Namespace, NamespaceName,
+    NamespaceSchema, ParquetFile, ParquetFileParams, Partition, PartitionId, SortedColumnSet,
+    Table, TableId, TableSchema, Timestamp, TransitionPartitionId,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::{unbounded_memory_pool, MemoryStream};
@@ -264,22 +264,22 @@ impl TestNamespace {
         .unwrap()
     }
 
-    /// Set the number of columns per table allowed in this namespace.
-    pub async fn update_column_limit(&self, new_max: i32) {
-        let mut repos = self.catalog.catalog.repositories().await;
-        repos
-            .namespaces()
-            .update_column_limit(&self.namespace.name, new_max)
-            .await
-            .unwrap();
-    }
-
     /// Set the number of tables allowed in this namespace.
     pub async fn update_table_limit(&self, new_max: i32) {
         let mut repos = self.catalog.catalog.repositories().await;
         repos
             .namespaces()
-            .update_table_limit(&self.namespace.name, new_max)
+            .update_table_limit(&self.namespace.name, MaxTables::new(new_max))
+            .await
+            .unwrap();
+    }
+
+    /// Set the number of columns per table allowed in this namespace.
+    pub async fn update_column_limit(&self, new_max: i32) {
+        let mut repos = self.catalog.catalog.repositories().await;
+        repos
+            .namespaces()
+            .update_column_limit(&self.namespace.name, MaxColumnsPerTable::new(new_max))
             .await
             .unwrap();
     }
@@ -332,6 +332,7 @@ impl TestTable {
             .partitions()
             .cas_sort_key(
                 &TransitionPartitionId::Deprecated(partition.id),
+                None,
                 None,
                 sort_key,
                 &SortedColumnSet::from(sort_key_ids.iter().cloned()),
@@ -450,14 +451,16 @@ impl TestPartition {
         sort_key: SortKey,
         sort_key_ids: &SortedColumnSet,
     ) -> Arc<Self> {
-        let old_sort_key = partition_lookup(
+        let partition = partition_lookup(
             self.catalog.catalog.repositories().await.as_mut(),
             &self.partition.transition_partition_id(),
         )
         .await
         .unwrap()
-        .unwrap()
-        .sort_key;
+        .unwrap();
+
+        let old_sort_key = partition.sort_key;
+        let old_sort_key_ids = partition.sort_key_ids;
 
         let partition = self
             .catalog
@@ -468,6 +471,7 @@ impl TestPartition {
             .cas_sort_key(
                 &self.partition.transition_partition_id(),
                 Some(old_sort_key),
+                old_sort_key_ids,
                 &sort_key.to_columns().collect::<Vec<_>>(),
                 sort_key_ids,
             )
@@ -795,19 +799,22 @@ async fn update_catalog_sort_key_if_needed<R>(
 
     // Similarly to what the ingester does, if there's an existing sort key in the catalog, add new
     // columns onto the end
-    match partition.sort_key() {
-        Some(catalog_sort_key) => {
+
+    match (partition.sort_key(), partition.sort_key_ids_none_if_empty()) {
+        (Some(catalog_sort_key), Some(catalog_sort_key_ids)) => {
             let new_sort_key = sort_key.to_columns().collect::<Vec<_>>();
             let (_metadata, update) = adjust_sort_key_columns(&catalog_sort_key, &new_sort_key);
             if let Some(new_sort_key) = update {
-                let new_columns = new_sort_key.to_columns().collect::<Vec<_>>();
-                debug!(
-                    "Updating sort key from {:?} to {:?}",
-                    catalog_sort_key.to_columns().collect::<Vec<_>>(),
-                    &new_columns,
-                );
+                let new_sort_key = new_sort_key.to_columns().collect::<Vec<_>>();
+                let new_sort_key_ids = columns.ids_for_names(&new_sort_key);
 
-                let column_ids = columns.ids_for_names(&new_columns);
+                debug!(
+                    "Updating (sort_key, sort_key_ids) from ({:?}, {:?}) to ({:?}, {:?})",
+                    catalog_sort_key.to_columns().collect::<Vec<_>>(),
+                    catalog_sort_key_ids,
+                    &new_sort_key,
+                    &new_sort_key_ids,
+                );
 
                 repos
                     .partitions()
@@ -819,23 +826,29 @@ async fn update_catalog_sort_key_if_needed<R>(
                                 .map(ToString::to_string)
                                 .collect::<Vec<_>>(),
                         ),
-                        &new_columns,
-                        &column_ids,
+                        partition.sort_key_ids,
+                        &new_sort_key,
+                        &new_sort_key_ids,
                     )
                     .await
                     .unwrap();
             }
         }
-        None => {
+        (None, None) => {
             let new_columns = sort_key.to_columns().collect::<Vec<_>>();
             debug!("Updating sort key from None to {:?}", &new_columns);
             let column_ids = columns.ids_for_names(&new_columns);
             repos
                 .partitions()
-                .cas_sort_key(id, None, &new_columns, &column_ids)
+                .cas_sort_key(id, None, None, &new_columns, &column_ids)
                 .await
                 .unwrap();
         }
+        _ => panic!(
+            "sort_key {:?} and sort_key_ids {:?} should be both None or both Some",
+            partition.sort_key(),
+            partition.sort_key_ids_none_if_empty()
+        ),
     }
 }
 

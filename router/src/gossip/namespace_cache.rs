@@ -5,8 +5,8 @@ use std::{borrow::Cow, collections::BTreeMap, fmt::Debug};
 use async_trait::async_trait;
 use data_types::{
     partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
-    ColumnSchema, ColumnsByName, NamespaceId, NamespaceName, NamespaceNameError, NamespaceSchema,
-    TableId, TableSchema,
+    ColumnSchema, ColumnsByName, MaxColumnsPerTable, MaxTables, NamespaceId, NamespaceName,
+    NamespaceNameError, NamespaceSchema, TableId, TableSchema,
 };
 use generated_types::influxdata::iox::gossip::v1::{
     schema_message::Event, NamespaceCreated, TableCreated, TableUpdated,
@@ -164,8 +164,8 @@ where
             }) => {
                 debug!(
                     namespace_id = note.namespace_id,
-                    max_columns_per_table = note.max_columns_per_table,
                     max_tables = note.max_tables,
+                    max_columns_per_table = note.max_columns_per_table,
                     retention_period_ns = note.retention_period_ns,
                     ?partition_template,
                     "discovered new namespace via gossip"
@@ -180,8 +180,10 @@ where
                     NamespaceSchema {
                         id: NamespaceId::new(note.namespace_id),
                         tables: Default::default(),
-                        max_columns_per_table: note.max_columns_per_table as _,
-                        max_tables: note.max_tables as _,
+                        max_tables: MaxTables::new(note.max_tables as i32),
+                        max_columns_per_table: MaxColumnsPerTable::new(
+                            note.max_columns_per_table as i32,
+                        ),
                         retention_period_ns: note.retention_period_ns,
                         partition_template,
                     },
@@ -392,24 +394,29 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::{
         partition_template::{NamespacePartitionTemplateOverride, PARTITION_BY_DAY_PROTO},
-        ColumnId, ColumnType, NamespaceId,
+        ColumnId, ColumnType,
     };
 
-    use crate::namespace_cache::{CacheMissErr, MemoryNamespaceCache};
+    use crate::{
+        gossip::namespace_created,
+        namespace_cache::{CacheMissErr, MemoryNamespaceCache},
+        test_helpers::{
+            new_empty_namespace_schema, DEFAULT_NAMESPACE, DEFAULT_NAMESPACE_PARTITION_TEMPLATE,
+            NAMESPACE_NAME,
+        },
+    };
 
     use super::*;
 
-    const NAMESPACE_NAME: &str = "ns_bananas";
-    const DEFAULT_NAMESPACE_PARTITION_TEMPLATE: NamespacePartitionTemplateOverride =
-        NamespacePartitionTemplateOverride::const_default();
-    const DEFAULT_NAMESPACE: NamespaceSchema = NamespaceSchema {
-        id: NamespaceId::new(4242),
-        tables: BTreeMap::new(),
-        max_columns_per_table: 1,
-        max_tables: 2,
-        retention_period_ns: None,
-        partition_template: DEFAULT_NAMESPACE_PARTITION_TEMPLATE,
-    };
+    // Compare the simply-typed attributes to ensure they're the same (`tables` being a complex
+    // attribute checked separately)
+    fn assert_namespace_attributes_eq(left: &NamespaceSchema, right: &NamespaceSchema) {
+        assert_eq!(left.id, right.id);
+        assert_eq!(left.max_tables, right.max_tables);
+        assert_eq!(left.max_columns_per_table, right.max_columns_per_table);
+        assert_eq!(left.retention_period_ns, right.retention_period_ns);
+        assert_eq!(left.partition_template, right.partition_template);
+    }
 
     /// Generate a test that processes the provided gossip message, and asserts
     /// the state of the namespace named [`NAMESPACE_NAME`] in the cache after.
@@ -472,7 +479,7 @@ mod tests {
     // This test focuses on the table metadata.
     test_handle_gossip_message_!(
         table_created_no_columns,
-        existing = Some(DEFAULT_NAMESPACE.clone()),
+        existing = Some(new_empty_namespace_schema(4242)),
         message = Event::TableCreated(TableCreated {
             table: Some(TableUpdated {
                 table_name: "bananas".to_string(),
@@ -483,12 +490,8 @@ mod tests {
             partition_template: Some((**PARTITION_BY_DAY_PROTO).clone()),
         }),
         want = Ok(ns) => {
-            assert_eq!(ns.id, DEFAULT_NAMESPACE.id);
+            assert_namespace_attributes_eq(&ns, &new_empty_namespace_schema(4242));
             assert_eq!(ns.tables.len(), 1);
-            assert_eq!(ns.max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table);
-            assert_eq!(ns.max_tables, DEFAULT_NAMESPACE.max_tables);
-            assert_eq!(ns.retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
-            assert_eq!(ns.partition_template, DEFAULT_NAMESPACE.partition_template);
 
             assert_matches!(ns.tables.get("bananas"), Some(TableSchema { id, partition_template, columns }) => {
                 assert_eq!(id.get(), 42);
@@ -505,7 +508,7 @@ mod tests {
     // TableCreated message.
     test_handle_gossip_message_!(
         table_created,
-        existing = Some(DEFAULT_NAMESPACE.clone()),
+        existing = Some(new_empty_namespace_schema(4242)),
         message = Event::TableCreated(TableCreated {
             table: Some(TableUpdated {
                 table_name: "bananas".to_string(),
@@ -522,12 +525,8 @@ mod tests {
             partition_template: Some((**PARTITION_BY_DAY_PROTO).clone()),
         }),
         want = Ok(ns) => {
-            assert_eq!(ns.id, DEFAULT_NAMESPACE.id);
+            assert_namespace_attributes_eq(&ns, &DEFAULT_NAMESPACE);
             assert_eq!(ns.tables.len(), 1);
-            assert_eq!(ns.max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table);
-            assert_eq!(ns.max_tables, DEFAULT_NAMESPACE.max_tables);
-            assert_eq!(ns.retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
-            assert_eq!(ns.partition_template, DEFAULT_NAMESPACE.partition_template);
 
             assert_matches!(ns.tables.get("bananas"), Some(TableSchema { id, partition_template, columns }) => {
                 assert_eq!(id.get(), 42);
@@ -559,12 +558,8 @@ mod tests {
             partition_template: None,
         }),
         want = Ok(ns) => {
-            assert_eq!(ns.id, DEFAULT_NAMESPACE.id);
+            assert_namespace_attributes_eq(&ns, &DEFAULT_NAMESPACE);
             assert_eq!(ns.tables.len(), 1);
-            assert_eq!(ns.max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table);
-            assert_eq!(ns.max_tables, DEFAULT_NAMESPACE.max_tables);
-            assert_eq!(ns.retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
-            assert_eq!(ns.partition_template, DEFAULT_NAMESPACE.partition_template);
 
             assert_matches!(ns.tables.get("bananas"), Some(TableSchema { id, partition_template, columns }) => {
                 assert_eq!(id.get(), 42);
@@ -612,12 +607,8 @@ mod tests {
             partition_template: None,
         }),
         want = Ok(ns) => {
-            assert_eq!(ns.id, DEFAULT_NAMESPACE.id);
+            assert_namespace_attributes_eq(&ns, &DEFAULT_NAMESPACE);
             assert_eq!(ns.tables.len(), 2);
-            assert_eq!(ns.max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table);
-            assert_eq!(ns.max_tables, DEFAULT_NAMESPACE.max_tables);
-            assert_eq!(ns.retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
-            assert_eq!(ns.partition_template, DEFAULT_NAMESPACE.partition_template);
 
             // The original table still exists
             assert_matches!(ns.tables.get("platanos"), Some(TableSchema { id, .. }) => {
@@ -678,12 +669,8 @@ mod tests {
             partition_template: None,
         }),
         want = Ok(ns) => {
-            assert_eq!(ns.id, DEFAULT_NAMESPACE.id);
+            assert_namespace_attributes_eq(&ns, &DEFAULT_NAMESPACE);
             assert_eq!(ns.tables.len(), 1);
-            assert_eq!(ns.max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table);
-            assert_eq!(ns.max_tables, DEFAULT_NAMESPACE.max_tables);
-            assert_eq!(ns.retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
-            assert_eq!(ns.partition_template, DEFAULT_NAMESPACE.partition_template);
 
             assert_matches!(ns.tables.get("bananas"), Some(TableSchema { id, partition_template, columns }) => {
                 assert_eq!(id.get(), 42);
@@ -823,12 +810,8 @@ mod tests {
             ],
         }),
         want = Ok(ns) => {
-            assert_eq!(ns.id, DEFAULT_NAMESPACE.id);
+            assert_namespace_attributes_eq(&ns, &DEFAULT_NAMESPACE);
             assert_eq!(ns.tables.len(), 1);
-            assert_eq!(ns.max_columns_per_table, DEFAULT_NAMESPACE.max_columns_per_table);
-            assert_eq!(ns.max_tables, DEFAULT_NAMESPACE.max_tables);
-            assert_eq!(ns.retention_period_ns, DEFAULT_NAMESPACE.retention_period_ns);
-            assert_eq!(ns.partition_template, DEFAULT_NAMESPACE.partition_template);
 
             assert_matches!(ns.tables.get("bananas"), Some(TableSchema { id, partition_template, columns }) => {
                 assert_eq!(id.get(), 42);
@@ -855,14 +838,10 @@ mod tests {
     test_handle_gossip_message_!(
         namespace_created_missing_name,
         existing = None,
-        message = Event::NamespaceCreated(NamespaceCreated {
-            namespace_name: "".to_string(), // missing in proto
-            namespace_id: DEFAULT_NAMESPACE.id.get(),
-            partition_template: Some((**PARTITION_BY_DAY_PROTO).clone()),
-            max_columns_per_table: DEFAULT_NAMESPACE.max_columns_per_table as _,
-            max_tables: DEFAULT_NAMESPACE.max_tables as _,
-            retention_period_ns: DEFAULT_NAMESPACE.retention_period_ns,
-        }),
+        message = Event::NamespaceCreated(namespace_created(
+            "", // missing name in proto
+            &DEFAULT_NAMESPACE,
+        )),
         want = Err(CacheMissErr { .. })
     );
 
@@ -871,12 +850,8 @@ mod tests {
         namespace_created,
         existing = None,
         message = Event::NamespaceCreated(NamespaceCreated {
-            namespace_name: NAMESPACE_NAME.to_string(),
-            namespace_id: DEFAULT_NAMESPACE.id.get(),
             partition_template: None,
-            max_columns_per_table: DEFAULT_NAMESPACE.max_columns_per_table as _,
-            max_tables: DEFAULT_NAMESPACE.max_tables as _,
-            retention_period_ns: DEFAULT_NAMESPACE.retention_period_ns,
+            ..namespace_created(NAMESPACE_NAME, &DEFAULT_NAMESPACE)
         }),
         want = Ok(v) => {
             assert_eq!(*v, DEFAULT_NAMESPACE);
@@ -889,12 +864,11 @@ mod tests {
         namespace_created_specified_partition_template,
         existing = None,
         message = Event::NamespaceCreated(NamespaceCreated {
-            namespace_name: NAMESPACE_NAME.to_string(), // missing in proto
-            namespace_id: DEFAULT_NAMESPACE.id.get(),
             partition_template: Some((**PARTITION_BY_DAY_PROTO).clone()),
-            max_columns_per_table: DEFAULT_NAMESPACE.max_columns_per_table as _,
-            max_tables: DEFAULT_NAMESPACE.max_tables as _,
-            retention_period_ns: DEFAULT_NAMESPACE.retention_period_ns,
+            ..namespace_created(
+                NAMESPACE_NAME,
+                &DEFAULT_NAMESPACE,
+            )
         }),
         want = Ok(v) => {
             let mut want = DEFAULT_NAMESPACE.clone();
@@ -908,19 +882,16 @@ mod tests {
         namespace_created_existing,
         existing = Some(DEFAULT_NAMESPACE),
         message = Event::NamespaceCreated(NamespaceCreated {
-            namespace_name: NAMESPACE_NAME.to_string(), // missing in proto
-            namespace_id: DEFAULT_NAMESPACE.id.get(),
-
             // The partition template is not allowed to change over the lifetime
             // of the namespace.
             partition_template: DEFAULT_NAMESPACE.partition_template.as_proto().cloned(),
-
             // But these fields can change.
             //
             // They will be ignored, and the local values used instead.
-            max_columns_per_table: 123456,
             max_tables: 123456,
+            max_columns_per_table: 123456,
             retention_period_ns: Some(123456),
+            ..namespace_created(NAMESPACE_NAME, &DEFAULT_NAMESPACE)
         }),
         want = Ok(v) => {
             // Mutable values remain unmodified

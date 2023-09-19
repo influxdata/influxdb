@@ -52,6 +52,24 @@ pub mod namespace_cache;
 pub mod schema_change_observer;
 pub mod traits;
 
+use data_types::NamespaceSchema;
+use generated_types::influxdata::iox::gossip::v1::NamespaceCreated;
+
+/// Make a `NamespaceCreated` protobuf instance from the specified name and schema.
+pub(crate) fn namespace_created(
+    namespace_name: impl Into<String>,
+    schema: &NamespaceSchema,
+) -> NamespaceCreated {
+    NamespaceCreated {
+        namespace_name: namespace_name.into(),
+        namespace_id: schema.id.get(),
+        partition_template: schema.partition_template.as_proto().cloned(),
+        max_tables: schema.max_tables.get() as u64,
+        max_columns_per_table: schema.max_columns_per_table.get() as u64,
+        retention_period_ns: schema.retention_period_ns,
+    }
+}
+
 #[cfg(test)]
 mod mock_schema_broadcast;
 
@@ -62,16 +80,18 @@ mod tests {
     use data_types::{
         partition_template::{
             test_table_partition_override, NamespacePartitionTemplateOverride,
-            TablePartitionTemplateOverride, PARTITION_BY_DAY_PROTO,
+            TablePartitionTemplateOverride,
         },
-        Column, ColumnId, ColumnsByName, NamespaceId, NamespaceName, NamespaceSchema, TableId,
-        TableSchema,
+        Column, ColumnId, ColumnsByName, NamespaceName, TableId, TableSchema,
     };
     use generated_types::influxdata::iox::gossip::v1::schema_message::Event;
     use gossip_schema::dispatcher::SchemaEventHandler;
     use test_helpers::timeout::FutureTimeout;
 
-    use crate::namespace_cache::{CacheMissErr, MemoryNamespaceCache, NamespaceCache};
+    use crate::{
+        namespace_cache::{CacheMissErr, MemoryNamespaceCache, NamespaceCache},
+        test_helpers::DEFAULT_NAMESPACE,
+    };
 
     use super::{
         namespace_cache::NamespaceSchemaGossip, schema_change_observer::SchemaChangeObserver,
@@ -148,17 +168,7 @@ mod tests {
 
         // Wrap the tables into a schema
         let namespace_name = NamespaceName::try_from("bananas").unwrap();
-        let schema = NamespaceSchema {
-            id: NamespaceId::new(4242),
-            tables,
-            max_columns_per_table: 1,
-            max_tables: 2,
-            retention_period_ns: Some(1234),
-            partition_template: NamespacePartitionTemplateOverride::try_from(
-                (**PARTITION_BY_DAY_PROTO).clone(),
-            )
-            .unwrap(),
-        };
+        let schema = DEFAULT_NAMESPACE;
 
         // Put the new schema into A's cache
         node_a.put_schema(namespace_name.clone(), schema.clone());
@@ -206,14 +216,7 @@ mod tests {
 
         // Wrap the tables into a schema
         let namespace_name = NamespaceName::try_from("bananas").unwrap();
-        let schema = NamespaceSchema {
-            id: NamespaceId::new(4242),
-            tables,
-            max_columns_per_table: 1,
-            max_tables: 2,
-            retention_period_ns: Some(1234),
-            partition_template: NamespacePartitionTemplateOverride::default(),
-        };
+        let schema = DEFAULT_NAMESPACE;
 
         // Put the new schema into A's cache
         node_a.put_schema(namespace_name.clone(), schema.clone());

@@ -1297,10 +1297,10 @@ mod tests {
         ---
         input:
           - " ProjectionExec: expr=[tag1@0 as tag1]"
-          - "   RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+          - "   RecordBatchesExec: chunks=1"
         output:
           Ok:
-            - " RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+            - " RecordBatchesExec: chunks=1"
         "###
         );
 
@@ -1330,7 +1330,7 @@ mod tests {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: vec![vec![]],
+            output_ordering: vec![],
             infinite_source: false,
         };
         let plan = Arc::new(ParquetExec::new(base_config, None, None));

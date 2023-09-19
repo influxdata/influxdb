@@ -129,8 +129,22 @@ impl From<tonic::Status> for Error {
 
 #[cfg(test)]
 mod test {
+    use std::{
+        net::SocketAddr,
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        },
+        time::Duration,
+    };
+
     use assert_matches::assert_matches;
     use test_helpers_end_to_end::Authorizer as AuthorizerServer;
+    use tokio::{
+        net::TcpListener,
+        task::{spawn, JoinHandle},
+    };
+    use tonic::transport::{server::TcpIncoming, Server};
 
     use super::*;
     use crate::{Action, Authorizer, Permission, Resource};
@@ -213,5 +227,83 @@ mod test {
             .await;
 
         assert_matches!(got, Err(Error::InvalidToken));
+    }
+
+    #[tokio::test]
+    async fn test_delayed_probe_response() {
+        #[derive(Default, Debug)]
+        struct DelayedAuthorizer(Arc<AtomicBool>);
+
+        impl DelayedAuthorizer {
+            fn start_countdown(&self) {
+                let started = Arc::clone(&self.0);
+                spawn(async move {
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    started.store(true, Ordering::Relaxed);
+                });
+            }
+        }
+
+        #[async_trait]
+        impl proto::iox_authorizer_service_server::IoxAuthorizerService for DelayedAuthorizer {
+            async fn authorize(
+                &self,
+                _request: tonic::Request<proto::AuthorizeRequest>,
+            ) -> Result<tonic::Response<AuthorizeResponse>, tonic::Status> {
+                let startup_done = self.0.load(Ordering::Relaxed);
+                if !startup_done {
+                    return Err(tonic::Status::deadline_exceeded("startup not done"));
+                }
+
+                Ok(tonic::Response::new(AuthorizeResponse {
+                    valid: true,
+                    subject: None,
+                    permissions: vec![],
+                }))
+            }
+        }
+
+        #[derive(Debug)]
+        struct DelayedServer {
+            addr: SocketAddr,
+            handle: JoinHandle<Result<(), tonic::transport::Error>>,
+        }
+
+        impl DelayedServer {
+            async fn create() -> Self {
+                let listener = TcpListener::bind("localhost:0").await.unwrap();
+                let addr = listener.local_addr().unwrap();
+                let incoming = TcpIncoming::from_listener(listener, false, None).unwrap();
+
+                // start countdown mocking startup delay of sidecar
+                let authz = DelayedAuthorizer::default();
+                authz.start_countdown();
+
+                let router = Server::builder().add_service(
+                    proto::iox_authorizer_service_server::IoxAuthorizerServiceServer::new(authz),
+                );
+                let handle = spawn(router.serve_with_incoming(incoming));
+                Self { addr, handle }
+            }
+
+            fn addr(&self) -> String {
+                format!("http://{}", self.addr)
+            }
+
+            fn close(self) {
+                self.handle.abort();
+            }
+        }
+
+        let authz_server = DelayedServer::create().await;
+        let authz_client = IoxAuthorizer::connect_lazy(authz_server.addr())
+            .expect("Failed to create IoxAuthorizer client.");
+
+        assert_matches!(
+            authz_client.probe().await,
+            Ok(()),
+            "authz probe should work even with delay"
+        );
+        authz_server.close();
     }
 }

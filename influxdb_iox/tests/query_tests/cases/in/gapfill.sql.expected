@@ -34,9 +34,9 @@
 |    |           CoalesceBatchesExec: target_batch_size=8192    |
 |    |             RepartitionExec: partitioning=Hash([date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@0], 4), input_partitions=4    |
 |    |               AggregateExec: mode=Partial, gby=[date_bin(600000000000, time@0) as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[COUNT(cpu.user)]    |
-|    |                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
-|    |                   CoalesceBatchesExec: target_batch_size=8192    |
-|    |                     FilterExec: time@0 >= 957528000000000000 AND time@0 <= 957531540000000000    |
+|    |                 CoalesceBatchesExec: target_batch_size=8192    |
+|    |                   FilterExec: time@0 >= 957528000000000000 AND time@0 <= 957531540000000000    |
+|    |                     RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
 |    |                       ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[time, user], predicate=time@2 >= 957528000000000000 AND time@2 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000    |
 |    |    |
 ----------
@@ -124,12 +124,14 @@ Error during planning: gap-filling query is missing lower time bound
 |    |     SortPreservingMergeExec: [region@0 ASC,date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1 ASC]    |
 |    |       SortExec: expr=[region@0 ASC,date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1 ASC]    |
 |    |         AggregateExec: mode=FinalPartitioned, gby=[region@0 as region, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1 as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[AVG(cpu.user)], ordering_mode=PartiallyOrdered    |
-|    |           CoalesceBatchesExec: target_batch_size=8192    |
-|    |             RepartitionExec: partitioning=Hash([region@0, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1], 4), input_partitions=1    |
-|    |               AggregateExec: mode=Partial, gby=[region@0 as region, date_bin(600000000000, time@1) as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[AVG(cpu.user)], ordering_mode=PartiallyOrdered    |
-|    |                 CoalesceBatchesExec: target_batch_size=8192    |
-|    |                   FilterExec: time@1 >= 957528000000000000 AND time@1 <= 957531540000000000    |
-|    |                     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[region, time, user], output_ordering=[region@0 ASC, time@1 ASC], predicate=time@2 >= 957528000000000000 AND time@2 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000    |
+|    |           SortExec: expr=[region@0 ASC]    |
+|    |             CoalesceBatchesExec: target_batch_size=8192    |
+|    |               RepartitionExec: partitioning=Hash([region@0, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1], 4), input_partitions=4    |
+|    |                 AggregateExec: mode=Partial, gby=[region@0 as region, date_bin(600000000000, time@1) as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[AVG(cpu.user)], ordering_mode=PartiallyOrdered    |
+|    |                   CoalesceBatchesExec: target_batch_size=8192    |
+|    |                     FilterExec: time@1 >= 957528000000000000 AND time@1 <= 957531540000000000    |
+|    |                       RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
+|    |                         ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[region, time, user], output_ordering=[region@0 ASC, time@1 ASC], predicate=time@2 >= 957528000000000000 AND time@2 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000    |
 |    |    |
 ----------
 -- SQL: SELECT region, date_bin_gapfill(interval '5 minute', time) as minute, locf(min(cpu.user)) from cpu where time between timestamp '2000-05-05T12:15:00Z' and timestamp '2000-05-05T12:59:00Z' group by region, minute;
@@ -251,4 +253,16 @@ Error during planning: gap-filling query is missing lower time bound
 -- SQL: select date_bin_gapfill('60 seconds'::interval, time)::bigint as time, sum(idle) from cpu WHERE time >= '2020-06-11T16:52:00Z' AND time < '2020-06-11T16:54:00Z' group by 1;
 Error while planning query: Optimizer rule 'handle_gap_fill' failed
 caused by
-Error during planning: DATE_BIN_GAPFILL must a top-level expression in the GROUP BY clause when gap filling. It cannot be part of another expression or cast
+Error during planning: DATE_BIN_GAPFILL must be a top-level expression in the GROUP BY clause when gap filling. It cannot be part of another expression or cast
+-- SQL: SELECT date_bin_gapfill(interval '4 minutes', time) as four_minute, interpolate(selector_last(cpu.idle, time))['value'] as last, interpolate(selector_first(cpu.idle, time))['value'] as first, count(*) from cpu where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:40:00Z' group by four_minute;
++----------------------+------+-------+----------+
+| four_minute          | last | first | COUNT(*) |
++----------------------+------+-------+----------+
+| 2000-05-05T12:16:00Z |      |       |          |
+| 2000-05-05T12:20:00Z | 70.0 | 70.0  | 1        |
+| 2000-05-05T12:24:00Z | 67.5 | 67.5  |          |
+| 2000-05-05T12:28:00Z | 65.0 | 65.0  | 1        |
+| 2000-05-05T12:32:00Z | 62.5 | 62.5  |          |
+| 2000-05-05T12:36:00Z | 60.0 | 60.0  | 1        |
+| 2000-05-05T12:40:00Z |      |       | 1        |
++----------------------+------+-------+----------+

@@ -351,8 +351,15 @@ pub fn merge_small_l0_chains(
     let mut merged_chains: Vec<Vec<ParquetFile>> = Vec::with_capacity(chains.len());
     let mut prior_chain_bytes: usize = 0;
     let mut prior_chain_idx: i32 = -1;
+    let mut prior_chain_min: Timestamp = Timestamp::new(0);
+    let mut prior_chain_max: Timestamp = Timestamp::new(0);
     for chain in &chains {
+        if chain.is_empty() {
+            continue;
+        }
         let this_chain_bytes = chain.iter().map(|f| f.file_size_bytes as usize).sum();
+        let this_chain_min = chain.iter().map(|f| f.min_time).min().unwrap();
+        let this_chain_max = chain.iter().map(|f| f.max_time).max().unwrap();
 
         // matching max_lo_created_at times indicates that the files were deliberately split.  We shouldn't merge
         // chains with matching max_lo_created_at times, because that would encourage undoing the previous split,
@@ -370,18 +377,51 @@ pub fn merge_small_l0_chains(
             }
         }
 
+        // These chains must be merged based on max_l0_created_at (to protect dedup), so its possible the sort order differs
+        // from min_time sorted chains.  We can't merge chains if doing so would make the resulting chain overlap another
+        // chain without including it.
+        let mut ooo_overlapped_chains = false;
+        if prior_chain_bytes > 0 {
+            for alt_chain in &chains {
+                // if alt_chain is not already in prior_chain, we need to investigate further
+                if alt_chain[0].min_time < prior_chain_min
+                    || alt_chain[0].min_time > prior_chain_max
+                {
+                    // if alt_chain is not already in chain, we need to investigate further
+                    if alt_chain[0].min_time < this_chain_min
+                        || alt_chain[0].min_time > this_chain_max
+                    {
+                        // alt_chain isn't in prior_chain or chain.  If alt_chain would overlap the merged result
+                        // of the other two, we can't assume it will be included.  So we can't merge them.
+                        let combined_min = prior_chain_min.min(this_chain_min);
+                        let combined_max = prior_chain_max.max(this_chain_max);
+                        if alt_chain[0].min_time >= combined_min
+                            && alt_chain[0].min_time <= combined_max
+                        {
+                            ooo_overlapped_chains = true;
+                        }
+                    }
+                }
+            }
+        }
+
         // Merge it if: there a prior chain to merge with, and merging wouldn't make it too big, or undo a previous split
         if prior_chain_bytes > 0
             && prior_chain_bytes + this_chain_bytes <= max_compact_size
             && matches == 0
+            && !ooo_overlapped_chains
         {
             // this chain can be added to the prior chain.
             merged_chains[prior_chain_idx as usize].append(&mut chain.clone());
             prior_chain_bytes += this_chain_bytes;
+            prior_chain_min = prior_chain_min.min(this_chain_min);
+            prior_chain_max = prior_chain_max.max(this_chain_max);
         } else {
             merged_chains.push(chain.to_vec());
             prior_chain_bytes = this_chain_bytes;
             prior_chain_idx += 1;
+            prior_chain_min = this_chain_min;
+            prior_chain_max = this_chain_max;
         }
     }
 

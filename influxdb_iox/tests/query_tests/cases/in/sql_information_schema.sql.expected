@@ -53,3 +53,14 @@
 | public        | iox          | h2o        | temp        | Float64                     | YES         |
 | public        | iox          | h2o        | time        | Timestamp(Nanosecond, None) | NO          |
 +---------------+--------------+------------+-------------+-----------------------------+-------------+
+-- SQL: DESCRIBE h2o;
++-------------+-----------------------------+-------------+
+| column_name | data_type                   | is_nullable |
++-------------+-----------------------------+-------------+
+| city        | Dictionary(Int32, Utf8)     | YES         |
+| moisture    | Float64                     | YES         |
+| other_temp  | Float64                     | YES         |
+| state       | Dictionary(Int32, Utf8)     | YES         |
+| temp        | Float64                     | YES         |
+| time        | Timestamp(Nanosecond, None) | NO          |
++-------------+-----------------------------+-------------+

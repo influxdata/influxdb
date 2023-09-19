@@ -189,7 +189,13 @@ pub async fn create_compactor_server_type(
         max_num_files_per_plan: compactor_config.max_num_files_per_plan,
         max_partition_fetch_queries_per_second: compactor_config
             .max_partition_fetch_queries_per_second,
-    });
+        gossip_seeds: compactor_config.gossip_config.seed_list,
+        gossip_bind_address: compactor_config
+            .gossip_config
+            .gossip_bind_address
+            .map(Into::into),
+    })
+    .await;
 
     Arc::new(CompactorServerType::new(
         compactor,

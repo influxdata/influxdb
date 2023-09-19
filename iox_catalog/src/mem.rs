@@ -1,7 +1,7 @@
 //! This module implements an in-memory implementation of the iox_catalog interface. It can be
 //! used for testing or for an IOx designed to run without catalog persistence.
 
-use crate::interface::{verify_sort_key_length, MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE};
+use crate::interface::MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE;
 use crate::{
     interface::{
         CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
@@ -9,7 +9,6 @@ use crate::{
         MAX_PARQUET_FILES_SELECTED_ONCE_FOR_RETENTION,
     },
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
 use data_types::SortedColumnSet;
@@ -17,10 +16,10 @@ use data_types::{
     partition_template::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
     },
-    Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId, ParquetFileParams,
-    Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
-    Timestamp, TransitionPartitionId,
+    Column, ColumnId, ColumnType, CompactionLevel, MaxColumnsPerTable, MaxTables, Namespace,
+    NamespaceId, NamespaceName, NamespaceServiceProtectionLimitsOverride, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionHashId, PartitionId, PartitionKey,
+    SkippedCompaction, Table, TableId, Timestamp, TransitionPartitionId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use snafu::ensure;
@@ -160,14 +159,18 @@ impl NamespaceRepo for MemTxn {
             });
         }
 
-        let max_tables = service_protection_limits.and_then(|l| l.max_tables);
-        let max_columns_per_table = service_protection_limits.and_then(|l| l.max_columns_per_table);
+        let max_tables = service_protection_limits
+            .and_then(|l| l.max_tables)
+            .unwrap_or_default();
+        let max_columns_per_table = service_protection_limits
+            .and_then(|l| l.max_columns_per_table)
+            .unwrap_or_default();
 
         let namespace = Namespace {
             id: NamespaceId::new(stage.namespaces.len() as i64 + 1),
             name: name.to_string(),
-            max_tables: max_tables.unwrap_or(DEFAULT_MAX_TABLES),
-            max_columns_per_table: max_columns_per_table.unwrap_or(DEFAULT_MAX_COLUMNS_PER_TABLE),
+            max_tables,
+            max_columns_per_table,
             retention_period_ns,
             deleted_at: None,
             partition_template: partition_template.unwrap_or_default(),
@@ -225,7 +228,7 @@ impl NamespaceRepo for MemTxn {
         }
     }
 
-    async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {
+    async fn update_table_limit(&mut self, name: &str, new_max: MaxTables) -> Result<Namespace> {
         let stage = self.stage();
         match stage.namespaces.iter_mut().find(|n| n.name == name) {
             Some(n) => {
@@ -238,7 +241,11 @@ impl NamespaceRepo for MemTxn {
         }
     }
 
-    async fn update_column_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {
+    async fn update_column_limit(
+        &mut self,
+        name: &str,
+        new_max: MaxColumnsPerTable,
+    ) -> Result<Namespace> {
         let stage = self.stage();
         match stage.namespaces.iter_mut().find(|n| n.name == name) {
             Some(n) => {
@@ -299,7 +306,7 @@ impl TableRepo for MemTxn {
                         .iter()
                         .filter(|t| t.namespace_id == namespace_id)
                         .count();
-                    if tables_count >= max_tables.try_into().unwrap() {
+                    if tables_count >= max_tables.get().try_into().unwrap() {
                         return Err(Error::TableCreateLimitError {
                             table_name: name.to_string(),
                             namespace_id,
@@ -423,7 +430,7 @@ impl ColumnRepo for MemTxn {
                             .iter()
                             .filter(|t| t.table_id == table_id)
                             .count();
-                        if columns_count >= max_columns_per_table.try_into().unwrap() {
+                        if columns_count >= max_columns_per_table.get().try_into().unwrap() {
                             return Err(Error::ColumnCreateLimitError {
                                 column_name: name.to_string(),
                                 table_id,
@@ -662,13 +669,21 @@ impl PartitionRepo for MemTxn {
         &mut self,
         partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
+        old_sort_key_ids: Option<SortedColumnSet>,
         new_sort_key: &[&str],
         new_sort_key_ids: &SortedColumnSet,
-    ) -> Result<Partition, CasFailure<Vec<String>>> {
-        verify_sort_key_length(new_sort_key, new_sort_key_ids);
+    ) -> Result<Partition, CasFailure<(Vec<String>, Option<SortedColumnSet>)>> {
+        // These asserts are here to cacth bugs. They will be removed when we remove the sort_key
+        // field from the Partition
+        assert_eq!(
+            old_sort_key.as_ref().map(|v| v.len()),
+            old_sort_key_ids.as_ref().map(|v| v.len())
+        );
+        assert_eq!(new_sort_key.len(), new_sort_key_ids.len());
 
         let stage = self.stage();
         let old_sort_key = old_sort_key.unwrap_or_default();
+        let old_sort_key_ids = old_sort_key_ids.unwrap_or_default();
 
         match stage.partitions.iter_mut().find(|p| match partition_id {
             TransitionPartitionId::Deterministic(hash_id) => {
@@ -676,12 +691,19 @@ impl PartitionRepo for MemTxn {
             }
             TransitionPartitionId::Deprecated(id) => p.id == *id,
         }) {
-            Some(p) if p.sort_key == old_sort_key => {
+            Some(p) if p.sort_key_ids == Some(old_sort_key_ids) => {
+                // This is here to catch bugs. It will be removed when we remove the sort_key
+                assert_eq!(p.sort_key, old_sort_key);
                 p.sort_key = new_sort_key.iter().map(|s| s.to_string()).collect();
                 p.sort_key_ids = Some(new_sort_key_ids.clone());
                 Ok(p.clone())
             }
-            Some(p) => return Err(CasFailure::ValueMismatch(p.sort_key.clone())),
+            Some(p) => {
+                return Err(CasFailure::ValueMismatch((
+                    p.sort_key.clone(),
+                    p.sort_key_ids.clone(),
+                )));
+            }
             None => Err(CasFailure::QueryError(Error::PartitionNotFound {
                 id: partition_id.clone(),
             })),

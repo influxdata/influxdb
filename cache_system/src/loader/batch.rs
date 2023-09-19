@@ -12,10 +12,12 @@ use std::{
 };
 
 use async_trait::async_trait;
-use futures::FutureExt;
+use futures::{
+    channel::oneshot::{channel, Sender},
+    FutureExt,
+};
 use observability_deps::tracing::trace;
 use parking_lot::Mutex;
-use tokio::sync::oneshot::{channel, Sender};
 
 use crate::cancellation_safe_future::{CancellationSafeFuture, CancellationSafeFutureReceiver};
 

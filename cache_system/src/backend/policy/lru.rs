@@ -419,7 +419,8 @@ where
     /// Notification when the background worker is idle, so tests know that the state has converged and that they can
     /// continue working.
     #[allow(dead_code)]
-    notify_idle_test_side: tokio::sync::mpsc::UnboundedSender<tokio::sync::oneshot::Sender<()>>,
+    notify_idle_test_side:
+        tokio::sync::mpsc::UnboundedSender<futures::channel::oneshot::Sender<()>>,
 }
 
 impl<S> ResourcePool<S>
@@ -519,7 +520,7 @@ where
     /// # Panic
     /// Panics if the background worker is not idle within 5s or if the worker died.
     pub async fn wait_converged(&self) {
-        let (tx, rx) = tokio::sync::oneshot::channel();
+        let (tx, rx) = futures::channel::oneshot::channel();
         self.notify_idle_test_side
             .send(tx)
             .expect("background worker alive");
@@ -885,7 +886,7 @@ mod it {
 async fn clean_up_loop<S>(
     shared: Arc<SharedState<S>>,
     mut notify_idle_worker_side: tokio::sync::mpsc::UnboundedReceiver<
-        tokio::sync::oneshot::Sender<()>,
+        futures::channel::oneshot::Sender<()>,
     >,
 ) where
     S: Resource,

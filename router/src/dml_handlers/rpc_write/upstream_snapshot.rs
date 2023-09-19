@@ -163,17 +163,26 @@ pub(super) struct UpstreamSnapshot<C> {
     /// The length of `state.clients` to avoid locking to read this static
     /// value.
     len: usize,
+
+    contains_probe: bool,
 }
 
 impl<C> UpstreamSnapshot<C> {
     /// Initialise a new snapshot, yielding the 0-indexed `i`-th element of
     /// `clients` next (or wrapping around if `i` is out-of-bounds).
     ///
+    /// If one or more clients are included to perform a health probe,
+    /// `contains_probe` should be true.
+    ///
     /// Holds up to 3 elements on the stack; more than 3 elements will cause an
     /// allocation during construction.
     ///
     /// If `clients` is empty, this method returns [`None`].
-    pub(super) fn new(clients: impl Iterator<Item = C>, i: usize) -> Option<Self> {
+    pub(super) fn new(
+        clients: impl Iterator<Item = C>,
+        i: usize,
+        contains_probe: bool,
+    ) -> Option<Self> {
         let clients: SmallVec<[UpstreamState<C>; 3]> =
             clients.map(UpstreamState::Available).collect();
         if clients.is_empty() {
@@ -181,6 +190,7 @@ impl<C> UpstreamSnapshot<C> {
         }
         Some(Self {
             len: clients.len(),
+            contains_probe,
             state: Arc::new(Mutex::new(SharedState {
                 // So first call is the ith element even after the inc in next().
                 idx: i.wrapping_sub(1),
@@ -225,6 +235,12 @@ impl<C> UpstreamSnapshot<C> {
     /// this iterator will yield fewer distinct `C` than this returned number.
     pub(super) fn initial_len(&self) -> usize {
         self.len
+    }
+
+    /// Returns `true` if this [`UpstreamSnapshot`] was initialised with a
+    /// client selected for a health probe request.
+    pub(super) fn contains_probe(&self) -> bool {
+        self.contains_probe
     }
 }
 
@@ -297,7 +313,7 @@ mod tests {
             AtomicUsize::new(0),
         ];
 
-        let snap = UpstreamSnapshot::new(elements.iter(), 0)
+        let snap = UpstreamSnapshot::new(elements.iter(), 0, false)
             .expect("non-empty element set should yield snapshot");
 
         assert_eq!(snap.initial_len(), 3);
@@ -312,21 +328,21 @@ mod tests {
         let elements = [1, 2, 3];
 
         assert_eq!(
-            **UpstreamSnapshot::new(elements.iter(), 0)
+            **UpstreamSnapshot::new(elements.iter(), 0, false)
                 .expect("non-empty element set should yield snapshot")
                 .next()
                 .expect("should yield value"),
             1
         );
         assert_eq!(
-            **UpstreamSnapshot::new(elements.iter(), 1)
+            **UpstreamSnapshot::new(elements.iter(), 1, false)
                 .expect("non-empty element set should yield snapshot")
                 .next()
                 .expect("should yield value"),
             2
         );
         assert_eq!(
-            **UpstreamSnapshot::new(elements.iter(), 2)
+            **UpstreamSnapshot::new(elements.iter(), 2, false)
                 .expect("non-empty element set should yield snapshot")
                 .next()
                 .expect("should yield value"),
@@ -335,7 +351,7 @@ mod tests {
 
         // Wraparound
         assert_eq!(
-            **UpstreamSnapshot::new(elements.iter(), 3)
+            **UpstreamSnapshot::new(elements.iter(), 3, false)
                 .expect("non-empty element set should yield snapshot")
                 .next()
                 .expect("should yield value"),
@@ -353,7 +369,7 @@ mod tests {
 
         // Create a snapshot and iterate over it twice.
         {
-            let mut snap = UpstreamSnapshot::new(elements.iter(), 0)
+            let mut snap = UpstreamSnapshot::new(elements.iter(), 0, false)
                 .expect("non-empty element set should yield snapshot");
             for _ in 0..(elements.len() * 2) {
                 snap.next()
@@ -374,7 +390,7 @@ mod tests {
 
         // First element removed
         {
-            let mut snap = UpstreamSnapshot::new(elements.iter(), 0)
+            let mut snap = UpstreamSnapshot::new(elements.iter(), 0, false)
                 .expect("non-empty element set should yield snapshot");
 
             assert_eq!(snap.initial_len(), 3);
@@ -394,7 +410,7 @@ mod tests {
 
         // Second element removed
         {
-            let mut snap = UpstreamSnapshot::new(elements.iter(), 0)
+            let mut snap = UpstreamSnapshot::new(elements.iter(), 0, false)
                 .expect("non-empty element set should yield snapshot");
             assert_eq!(snap.next().as_deref(), Some(&&1));
 
@@ -413,7 +429,7 @@ mod tests {
 
         // Last element removed
         {
-            let mut snap = UpstreamSnapshot::new(elements.iter(), 0)
+            let mut snap = UpstreamSnapshot::new(elements.iter(), 0, false)
                 .expect("non-empty element set should yield snapshot");
             assert_eq!(snap.next().as_deref(), Some(&&1));
             assert_eq!(snap.next().as_deref(), Some(&&2));
@@ -435,7 +451,7 @@ mod tests {
     #[test]
     fn test_remove_all_elements() {
         let elements = [42];
-        let mut snap = UpstreamSnapshot::new(elements.iter(), 0)
+        let mut snap = UpstreamSnapshot::new(elements.iter(), 0, false)
             .expect("non-empty element set should yield snapshot");
 
         assert_eq!(snap.initial_len(), 1);
@@ -450,18 +466,28 @@ mod tests {
 
     #[test]
     fn test_empty_snap() {
-        assert!(UpstreamSnapshot::<usize>::new(iter::empty(), 0).is_none());
-        assert!(UpstreamSnapshot::<usize>::new(iter::empty(), 1).is_none());
+        assert!(UpstreamSnapshot::<usize>::new(iter::empty(), 0, false).is_none());
+        assert!(UpstreamSnapshot::<usize>::new(iter::empty(), 1, false).is_none());
     }
 
     #[test]
     #[should_panic(expected = "remove from disjoint sets")]
     fn test_upstream_from_disjoint_sets() {
-        let mut set_a = UpstreamSnapshot::new([1].iter(), 0).unwrap();
-        let set_b = UpstreamSnapshot::new([1].iter(), 0).unwrap();
+        let mut set_a = UpstreamSnapshot::new([1].iter(), 0, false).unwrap();
+        let set_b = UpstreamSnapshot::new([1].iter(), 0, false).unwrap();
 
         let item = set_a.next().unwrap();
         set_b.remove(item); // Oops - removing a from b!
+    }
+
+    #[test]
+    fn test_contains_probe() {
+        assert!(UpstreamSnapshot::new([1].iter(), 0, true)
+            .unwrap()
+            .contains_probe());
+        assert!(!UpstreamSnapshot::new([1].iter(), 0, false)
+            .unwrap()
+            .contains_probe());
     }
 
     proptest! {
@@ -481,7 +507,7 @@ mod tests {
             // Create a snapshot and iterate over it the specified number of
             // times.
             {
-                let mut snap = UpstreamSnapshot::new(elements.iter(), offset)
+                let mut snap = UpstreamSnapshot::new(elements.iter(), offset, false)
                     .expect("non-empty element set should yield snapshot");
 
                 for _ in 0..(elements.len() * complete_iters) {
@@ -511,7 +537,7 @@ mod tests {
             // Create a snapshot and iterate over it the specified number of
             // times.
             {
-                let mut snap = UpstreamSnapshot::new(elements.iter(), offset)
+                let mut snap = UpstreamSnapshot::new(elements.iter(), offset, false)
                     .expect("non-empty element set should yield snapshot");
 
                 // Take the specified index out of the set and hold onto it.
@@ -552,7 +578,7 @@ mod tests {
 
         // Create a snapshot and iterate over it the specified number of
         // times.
-        let snap = UpstreamSnapshot::<_>::new(elements.clone().into_iter(), 0)
+        let snap = UpstreamSnapshot::<_>::new(elements.clone().into_iter(), 0, false)
             .expect("non-empty element set should yield snapshot");
 
         let (tx, mut rx) = mpsc::channel(2);
@@ -592,7 +618,7 @@ mod tests {
 
         // Create a snapshot and iterate over it the specified number of
         // times.
-        let snap = UpstreamSnapshot::<_>::new(elements.clone().into_iter(), 0)
+        let snap = UpstreamSnapshot::<_>::new(elements.clone().into_iter(), 0, false)
             .expect("non-empty element set should yield snapshot");
 
         let (tx, mut rx) = mpsc::channel(N);

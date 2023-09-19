@@ -4,7 +4,7 @@ use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BatchSize, BenchmarkGroup, Criterion,
     Throughput,
 };
-use data_types::{NamespaceId, NamespaceName, NamespaceSchema};
+use data_types::{MaxColumnsPerTable, MaxTables, NamespaceId, NamespaceName, NamespaceSchema};
 use hashbrown::HashMap;
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use mutable_batch::MutableBatch;
@@ -43,9 +43,7 @@ fn bench(group: &mut BenchmarkGroup<WallTime>, tables: usize, columns_per_table:
 
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
     let ns_cache = Arc::new(ReadThroughCache::new(
-        Arc::new(ShardedCache::new(
-            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
-        )),
+        ShardedCache::new(iter::repeat_with(MemoryNamespaceCache::default).take(10)),
         Arc::clone(&catalog),
     ));
     let validator = SchemaValidator::new(catalog, Arc::clone(&ns_cache), &metrics);
@@ -53,8 +51,8 @@ fn bench(group: &mut BenchmarkGroup<WallTime>, tables: usize, columns_per_table:
     let namespace_schema = NamespaceSchema {
         id: NamespaceId::new(42),
         tables: Default::default(),
-        max_columns_per_table: 42,
-        max_tables: 42,
+        max_tables: MaxTables::new(42),
+        max_columns_per_table: MaxColumnsPerTable::new(42),
         retention_period_ns: None,
         partition_template: Default::default(),
     };

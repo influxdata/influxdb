@@ -76,7 +76,7 @@ impl PercentileAccumulator {
     }
 
     fn set_percentile(&mut self, array: ArrayRef) -> Result<()> {
-        if self.percentile.is_none() {
+        if self.percentile.is_none() && array.is_valid(0) {
             self.percentile = match array.data_type() {
                 DataType::Int64 => Some(downcast_value!(array, Int64Array).value(0) as f64),
                 DataType::Float64 => Some(downcast_value!(array, Float64Array).value(0)),
@@ -104,7 +104,7 @@ impl Accumulator for PercentileAccumulator {
             .percentile
             .and_then(|n| percentile_idx(self.data.len(), n));
         if idx.is_none() {
-            return Ok(ScalarValue::Null);
+            return Ok(ScalarValue::Float64(None));
         }
 
         let array = ScalarValue::iter_to_array(self.data.clone())?;

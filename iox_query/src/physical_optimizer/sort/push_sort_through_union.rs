@@ -266,7 +266,7 @@ mod test {
           - "     RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
           - "       RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
           - "         UnionExec"
-          - "           RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+          - "           RecordBatchesExec: chunks=2"
           - "           ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         output:
           Ok:
@@ -275,7 +275,7 @@ mod test {
             - "     SortPreservingRepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
             - "       UnionExec"
             - "         SortExec: expr=[col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
-            - "           RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+            - "           RecordBatchesExec: chunks=2"
             - "         ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         "###
         );
@@ -317,7 +317,7 @@ mod test {
           - "       RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
           - "         RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
           - "           UnionExec"
-          - "             RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+          - "             RecordBatchesExec: chunks=2"
           - "             ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         output:
           Ok:
@@ -327,7 +327,7 @@ mod test {
             - "       SortPreservingRepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
             - "         UnionExec"
             - "           SortExec: expr=[col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
-            - "             RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+            - "             RecordBatchesExec: chunks=2"
             - "           ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         "###
         );
@@ -358,14 +358,14 @@ mod test {
           - " DeduplicateExec: [col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
           - "   SortExec: expr=[col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
           - "     UnionExec"
-          - "       RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+          - "       RecordBatchesExec: chunks=2"
           - "       ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
             - "   UnionExec"
             - "     SortExec: expr=[col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
-            - "       RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+            - "       RecordBatchesExec: chunks=2"
             - "     ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         "###
         );
@@ -402,8 +402,8 @@ mod test {
           - "     RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
           - "       RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
           - "         UnionExec"
-          - "           RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
-          - "           RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+          - "           RecordBatchesExec: chunks=2"
+          - "           RecordBatchesExec: chunks=2"
         output:
           Ok:
             - " DeduplicateExec: [col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
@@ -411,8 +411,8 @@ mod test {
             - "     RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
             - "       RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
             - "         UnionExec"
-            - "           RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
-            - "           RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+            - "           RecordBatchesExec: chunks=2"
+            - "           RecordBatchesExec: chunks=2"
         "###
         );
     }
@@ -537,7 +537,7 @@ mod test {
           - "       RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
           - "         RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
           - "           UnionExec"
-          - "             RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+          - "             RecordBatchesExec: chunks=2"
           - "             ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         output:
           Ok:
@@ -546,7 +546,7 @@ mod test {
             - "     SortPreservingRepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
             - "       UnionExec"
             - "         SortExec: expr=[col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
-            - "           RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+            - "           RecordBatchesExec: chunks=2"
             - "         ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         "###
         );
@@ -586,7 +586,7 @@ mod test {
           - "       RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
           - "         RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
           - "           UnionExec"
-          - "             RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+          - "             RecordBatchesExec: chunks=2"
           - "             ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         output:
           Ok:
@@ -596,7 +596,7 @@ mod test {
             - "       RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
             - "         RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
             - "           UnionExec"
-            - "             RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+            - "             RecordBatchesExec: chunks=2"
             - "             ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         "###
         );
@@ -635,7 +635,7 @@ mod test {
           - "     RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
           - "       RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
           - "         UnionExec"
-          - "           RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+          - "           RecordBatchesExec: chunks=2"
           - "           ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col1@0 ASC, col2@1 ASC, time@3 ASC, __chunk_order@4 ASC]"
         output:
           Ok:
@@ -644,7 +644,7 @@ mod test {
             - "     RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
             - "       RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
             - "         UnionExec"
-            - "           RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+            - "           RecordBatchesExec: chunks=2"
             - "           ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col1@0 ASC, col2@1 ASC, time@3 ASC, __chunk_order@4 ASC]"
         "###
         );

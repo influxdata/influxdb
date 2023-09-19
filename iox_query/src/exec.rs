@@ -579,21 +579,20 @@ mod tests {
         );
 
         // block some reservation
-        let plan = Arc::new(TestExec::default());
-        let barrier = Arc::clone(&plan.barrier);
-        let schema = plan.schema();
+        let test_input = Arc::new(TestExec::default());
+        let schema = test_input.schema();
         let plan = Arc::new(SortExec::new(
             vec![PhysicalSortExpr {
                 expr: Arc::new(Column::new_with_schema("c", &schema).unwrap()),
                 options: Default::default(),
             }],
-            plan,
+            Arc::clone(&test_input) as _,
         ));
         let ctx = exec.new_context(ExecutorType::Query);
         let handle = tokio::spawn(async move {
             ctx.collect(plan).await.unwrap();
         });
-        barrier.wait().await;
+        test_input.wait().await;
         assert_eq!(
             PoolMetrics::read(&exec.config.metric_registry),
             PoolMetrics {
@@ -601,6 +600,7 @@ mod tests {
                 limit: TESTING_MEM_POOL_SIZE as u64,
             },
         );
+        test_input.wait_for_finish().await;
 
         // end w/o any reservation
         handle.await.unwrap();
@@ -642,7 +642,10 @@ mod tests {
     #[derive(Debug)]
     struct TestExec {
         schema: SchemaRef,
+        // Barrier after a batch has been produced
         barrier: Arc<Barrier>,
+        // Barrier right before the operator is complete
+        barrier_finish: Arc<Barrier>,
     }
 
     impl Default for TestExec {
@@ -654,7 +657,20 @@ mod tests {
                     true,
                 )])),
                 barrier: Arc::new(Barrier::new(2)),
+                barrier_finish: Arc::new(Barrier::new(2)),
             }
+        }
+    }
+
+    impl TestExec {
+        /// wait for the first output to be produced
+        pub async fn wait(&self) {
+            self.barrier.wait().await;
+        }
+
+        /// wait for output to be done
+        pub async fn wait_for_finish(&self) {
+            self.barrier_finish.wait().await;
         }
     }
 
@@ -704,6 +720,8 @@ mod tests {
         {
             let barrier = Arc::clone(&self.barrier);
             let schema = Arc::clone(&self.schema);
+            let barrier_finish = Arc::clone(&self.barrier_finish);
+            let schema_finish = Arc::clone(&self.schema);
             let stream = futures::stream::iter([Ok(RecordBatch::try_new(
                 Arc::clone(&self.schema),
                 vec![Arc::new(Int64Array::from(vec![1i64; 100]))],
@@ -712,6 +730,10 @@ mod tests {
             .chain(futures::stream::once(async move {
                 barrier.wait().await;
                 Ok(RecordBatch::new_empty(schema))
+            }))
+            .chain(futures::stream::once(async move {
+                barrier_finish.wait().await;
+                Ok(RecordBatch::new_empty(schema_finish))
             }));
             let stream = BoxRecordBatchStream {
                 schema: Arc::clone(&self.schema),

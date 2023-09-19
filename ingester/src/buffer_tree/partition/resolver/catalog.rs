@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{NamespaceId, Partition, PartitionKey, TableId};
+use data_types::{Column, NamespaceId, Partition, PartitionKey, TableId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
@@ -14,8 +14,11 @@ use super::r#trait::PartitionProvider;
 use crate::{
     buffer_tree::{
         namespace::NamespaceName,
-        partition::{PartitionData, SortKeyState},
-        table::TableMetadata,
+        partition::{
+            counter::PartitionCounter, resolver::build_sort_key_from_sort_key_ids_and_columns,
+            PartitionData, SortKeyState,
+        },
+        table::metadata::TableMetadata,
     },
     deferred_load::DeferredLoad,
 };
@@ -51,6 +54,18 @@ impl CatalogPartitionResolver {
             .create_or_get(partition_key, table_id)
             .await
     }
+
+    async fn get_columns(
+        &self,
+        table_id: TableId,
+    ) -> Result<Vec<Column>, iox_catalog::interface::Error> {
+        self.catalog
+            .repositories()
+            .await
+            .columns()
+            .list_by_table_id(table_id)
+            .await
+    }
 }
 
 #[async_trait]
@@ -62,6 +77,7 @@ impl PartitionProvider for CatalogPartitionResolver {
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table: Arc<DeferredLoad<TableMetadata>>,
+        partition_counter: Arc<PartitionCounter>,
     ) -> Arc<Mutex<PartitionData>> {
         debug!(
             %partition_key,
@@ -76,6 +92,24 @@ impl PartitionProvider for CatalogPartitionResolver {
             .await
             .expect("retry forever");
 
+        let p_sort_key = p.sort_key();
+        let p_sort_key_ids = p.sort_key_ids_none_if_empty();
+
+        // fetch columns of the table to build sort_key from sort_key_ids
+        let columns = Backoff::new(&self.backoff_config)
+            .retry_all_errors("resolve partition's table columns", || {
+                self.get_columns(table_id)
+            })
+            .await
+            .expect("retry forever");
+
+        // build sort_key from sort_key_ids and columns
+        let sort_key =
+            build_sort_key_from_sort_key_ids_and_columns(&p_sort_key_ids, columns.into_iter());
+
+        // This is here to catch bugs and will be removed once the sort_key is removed from the partition
+        assert_eq!(sort_key, p_sort_key);
+
         Arc::new(Mutex::new(PartitionData::new(
             p.transition_partition_id(),
             // Use the caller's partition key instance, as it MAY be shared with
@@ -86,7 +120,8 @@ impl PartitionProvider for CatalogPartitionResolver {
             namespace_name,
             table_id,
             table,
-            SortKeyState::Provided(p.sort_key()),
+            SortKeyState::Provided(sort_key, p_sort_key_ids),
+            partition_counter,
         )))
     }
 }
@@ -96,7 +131,7 @@ mod tests {
     // Harmless in tests - saves a bunch of extra vars.
     #![allow(clippy::await_holding_lock)]
 
-    use std::{sync::Arc, time::Duration};
+    use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
     use iox_catalog::{
@@ -105,7 +140,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::buffer_tree::table::TableName;
+    use crate::buffer_tree::table::metadata::TableName;
 
     const TABLE_NAME: &str = "bananas";
     const NAMESPACE_NAME: &str = "ns-bananas";
@@ -149,6 +184,7 @@ mod tests {
                     },
                     &metrics,
                 )),
+                Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
             )
             .await;
 
@@ -160,7 +196,7 @@ mod tests {
             got.lock().table().get().await.name().to_string(),
             table_name.to_string()
         );
-        assert_matches!(got.lock().sort_key(), SortKeyState::Provided(None));
+        assert_matches!(got.lock().sort_key(), SortKeyState::Provided(None, None));
         assert!(got.lock().partition_key.ptr_eq(&callers_partition_key));
 
         let mut repos = catalog.repositories().await;

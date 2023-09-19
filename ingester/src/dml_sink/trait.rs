@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Debug, ops::Deref, sync::Arc};
 
-use crate::dml_payload::IngestOp;
+use crate::{buffer_tree::BufferWriteError, dml_payload::IngestOp};
 use async_trait::async_trait;
 use thiserror::Error;
 
@@ -11,7 +11,7 @@ pub enum DmlError {
     ///
     /// [`BufferTree`]: crate::buffer_tree::BufferTree
     #[error("failed to buffer op: {0}")]
-    Buffer(#[from] mutable_batch::Error),
+    Buffer(#[from] BufferWriteError),
 
     /// An error appending the [`IngestOp`] to the write-ahead log.
     #[error("wal commit failure: {0}")]

@@ -139,12 +139,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let execution_start_time = Local::now();
+    let execution_start_time_nanos = execution_start_time
+        .timestamp_nanos_opt()
+        .expect("'now' is in nano range");
 
     let start_datetime = datetime_nanoseconds(config.start.as_deref(), execution_start_time);
     let end_datetime = datetime_nanoseconds(config.end.as_deref(), execution_start_time);
 
-    let start_display = start_datetime.unwrap_or_else(|| execution_start_time.timestamp_nanos());
-    let end_display = end_datetime.unwrap_or_else(|| execution_start_time.timestamp_nanos());
+    let start_display = start_datetime.unwrap_or(execution_start_time_nanos);
+    let end_display = end_datetime.unwrap_or(execution_start_time_nanos);
 
     let continue_on = config.do_continue;
 
@@ -201,7 +204,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         &mut points_writer_builder,
         start_datetime,
         end_datetime,
-        execution_start_time.timestamp_nanos(),
+        execution_start_time_nanos,
         continue_on,
         config.batch_size,
         config.print,
@@ -231,7 +234,9 @@ fn datetime_nanoseconds(arg: Option<&str>, now: DateTime<Local>) -> Option<i64> 
                 now - chrono_duration
             });
 
-        datetime.timestamp_nanos()
+        datetime
+            .timestamp_nanos_opt()
+            .expect("timestamp out of range")
     })
 }
 
@@ -255,7 +260,9 @@ mod test {
     fn relative() {
         let fixed_now = Local::now();
         let ns = datetime_nanoseconds(Some("1hr"), fixed_now);
-        let expected = (fixed_now - chrono::Duration::hours(1)).timestamp_nanos();
+        let expected = (fixed_now - chrono::Duration::hours(1))
+            .timestamp_nanos_opt()
+            .unwrap();
         assert_eq!(ns, Some(expected));
     }
 }

@@ -14,8 +14,10 @@ use super::PartitionProvider;
 use crate::{
     buffer_tree::{
         namespace::NamespaceName,
-        partition::{resolver::SortKeyResolver, PartitionData, SortKeyState},
-        table::TableMetadata,
+        partition::{
+            counter::PartitionCounter, resolver::SortKeyResolver, PartitionData, SortKeyState,
+        },
+        table::metadata::TableMetadata,
     },
     deferred_load::DeferredLoad,
 };
@@ -148,6 +150,7 @@ where
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table: Arc<DeferredLoad<TableMetadata>>,
+        partition_counter: Arc<PartitionCounter>,
     ) -> Arc<Mutex<PartitionData>> {
         let hash_id = PartitionHashId::new(table_id, &partition_key);
 
@@ -189,6 +192,7 @@ where
                 table_id,
                 table,
                 SortKeyState::Deferred(Arc::new(sort_key_resolver)),
+                partition_counter,
             )));
         }
 
@@ -202,14 +206,21 @@ where
         // This partition MAY be an old-style / row-ID-addressed partition
         // that needs querying for.
         self.inner
-            .get_partition(partition_key, namespace_id, namespace_name, table_id, table)
+            .get_partition(
+                partition_key,
+                namespace_id,
+                namespace_name,
+                table_id,
+                table,
+                partition_counter,
+            )
             .await
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{num::NonZeroUsize, sync::Arc};
 
     use data_types::PartitionId;
     use hashbrown::HashMap;
@@ -248,6 +259,7 @@ mod tests {
             _namespace_name: Arc<DeferredLoad<NamespaceName>>,
             table_id: TableId,
             _table: Arc<DeferredLoad<TableMetadata>>,
+            _partition_counter: Arc<PartitionCounter>,
         ) -> Arc<Mutex<PartitionData>> {
             let mut builder = PartitionDataBuilder::default();
 
@@ -366,7 +378,8 @@ mod tests {
                     ARBITRARY_NAMESPACE_ID,
                     defer_namespace_name_1_sec(),
                     p.table_id,
-                    defer_table_metadata_1_sec()
+                    defer_table_metadata_1_sec(),
+                    Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
                 ));
 
                 let got_id = got.lock().partition_id().clone();
@@ -417,6 +430,7 @@ mod tests {
                 defer_namespace_name_1_sec(),
                 ARBITRARY_TABLE_ID,
                 defer_table_metadata_1_sec(),
+                Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
             )
             .await;
 

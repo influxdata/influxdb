@@ -22,7 +22,7 @@
 |    |             SortPreservingMergeExec: [tag@2 ASC,time@3 ASC,__chunk_order@0 ASC]    |
 |    |               UnionExec    |
 |    |                 SortExec: expr=[tag@2 ASC,time@3 ASC,__chunk_order@0 ASC]    |
-|    |                   RecordBatchesExec: batches_groups=1 batches=1 total_rows=1    |
+|    |                   RecordBatchesExec: chunks=1    |
 |    |                 ParquetExec: file_groups={10 groups: [[1/1/1/00000000-0000-0000-0000-00000000000a.parquet], [1/1/1/00000000-0000-0000-0000-00000000000b.parquet], [1/1/1/00000000-0000-0000-0000-00000000000c.parquet], [1/1/1/00000000-0000-0000-0000-00000000000d.parquet], [1/1/1/00000000-0000-0000-0000-00000000000e.parquet], ...]}, projection=[__chunk_order, f, tag, time], output_ordering=[tag@2 ASC, time@3 ASC, __chunk_order@0 ASC]    |
 |    |    |
 ----------

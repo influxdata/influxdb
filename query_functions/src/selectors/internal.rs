@@ -81,6 +81,7 @@ impl ActionNeeded {
 pub struct Selector {
     comp: Comparison,
     target: Target,
+    timezone: Option<Arc<str>>,
     value: ScalarValue,
     time: Option<i64>,
     other: Box<[ScalarValue]>,
@@ -90,12 +91,14 @@ impl Selector {
     pub fn new<'a>(
         comp: Comparison,
         target: Target,
+        timezone: Option<Arc<str>>,
         data_type: &'a DataType,
         other_types: impl IntoIterator<Item = &'a DataType>,
     ) -> DataFusionResult<Self> {
         Ok(Self {
             comp,
             target,
+            timezone,
             value: ScalarValue::try_from(data_type)?,
             time: None,
             other: other_types
@@ -210,7 +213,10 @@ impl Selector {
             // Note: We MUST also mask-out NULLs in `value_arr`, otherwise we may easily select that!
             let time_arr = arrow::compute::nullif(
                 time_arr,
-                &arrow::compute::neq_dyn(&self.value.to_array_of_size(time_arr.len()), &value_arr)?,
+                &arrow::compute::kernels::cmp::neq(
+                    &self.value.to_array_of_size(time_arr.len()),
+                    &value_arr,
+                )?,
             )?;
             let time_arr =
                 arrow::compute::nullif(&time_arr, &arrow::compute::is_null(&value_arr)?)?;
@@ -266,7 +272,7 @@ impl Accumulator for Selector {
     fn state(&self) -> DataFusionResult<Vec<ScalarValue>> {
         Ok([
             self.value.clone(),
-            ScalarValue::TimestampNanosecond(self.time, None),
+            ScalarValue::TimestampNanosecond(self.time, self.timezone.clone()),
         ]
         .into_iter()
         .chain(self.other.iter().cloned())
@@ -305,7 +311,7 @@ impl Accumulator for Selector {
     fn evaluate(&self) -> DataFusionResult<ScalarValue> {
         Ok(make_struct_scalar(
             &self.value,
-            &ScalarValue::TimestampNanosecond(self.time, None),
+            &ScalarValue::TimestampNanosecond(self.time, self.timezone.clone()),
             self.other.iter(),
         ))
     }

@@ -260,12 +260,10 @@ pub async fn create_router_server_type(
     // Initialise an instrumented namespace cache to be shared with the schema
     // validator, and namespace auto-creator that reports cache hit/miss/update
     // metrics.
-    let ns_cache = Arc::new(InstrumentedCache::new(
-        Arc::new(ShardedCache::new(
-            std::iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
-        )),
+    let ns_cache = InstrumentedCache::new(
+        ShardedCache::new(std::iter::repeat_with(MemoryNamespaceCache::default).take(10)),
         &metrics,
-    ));
+    );
 
     // Pre-warm the cache before adding the gossip layer to avoid broadcasting
     // the full cache content at startup.
@@ -312,6 +310,8 @@ pub async fn create_router_server_type(
     // other peers, helping converge them.
     let ns_cache = match gossip_config.gossip_bind_address {
         Some(bind_addr) => {
+            let ns_cache = Arc::new(ns_cache);
+
             // Initialise the NamespaceSchemaGossip responsible for applying the
             // incoming gossip schema diffs.
             let gossip_reader = Arc::new(NamespaceSchemaGossip::new(Arc::clone(&ns_cache)));
@@ -513,7 +513,7 @@ mod tests {
 
         drop(repos); // Or it'll deadlock.
 
-        let cache = Arc::new(MemoryNamespaceCache::default());
+        let cache = MemoryNamespaceCache::default();
         pre_warm_schema_cache(&cache, &*catalog)
             .await
             .expect("pre-warming failed");

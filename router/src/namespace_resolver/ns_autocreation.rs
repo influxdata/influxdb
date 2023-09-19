@@ -137,13 +137,14 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
-    use data_types::{Namespace, NamespaceId, NamespaceSchema};
+    use data_types::{Namespace, NamespaceId};
     use iox_catalog::{interface::SoftDeletedRows, mem::MemCatalog};
 
     use super::*;
     use crate::{
         namespace_cache::{MemoryNamespaceCache, ReadThroughCache},
         namespace_resolver::{mock::MockNamespaceResolver, NamespaceSchemaResolver},
+        test_helpers::new_empty_namespace_schema,
     };
 
     /// Common retention period value we'll use in tests
@@ -159,21 +160,8 @@ mod tests {
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
 
         // Prep the cache before the test to cause a hit
-        let cache = Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
-            Arc::clone(&catalog),
-        ));
-        cache.put_schema(
-            ns.clone(),
-            NamespaceSchema {
-                id: NAMESPACE_ID,
-                tables: Default::default(),
-                max_columns_per_table: 4,
-                max_tables: 42,
-                retention_period_ns: None,
-                partition_template: Default::default(),
-            },
-        );
+        let cache = ReadThroughCache::new(MemoryNamespaceCache::default(), Arc::clone(&catalog));
+        cache.put_schema(ns.clone(), new_empty_namespace_schema(NAMESPACE_ID.get()));
 
         let creator = NamespaceAutocreation::new(
             MockNamespaceResolver::default().with_mapping(ns.clone(), NAMESPACE_ID),
@@ -210,10 +198,7 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
 
-        let cache = Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
-            Arc::clone(&catalog),
-        ));
+        let cache = ReadThroughCache::new(MemoryNamespaceCache::default(), Arc::clone(&catalog));
 
         let creator = NamespaceAutocreation::new(
             MockNamespaceResolver::default().with_mapping(ns.clone(), NamespaceId::new(1)),
@@ -243,8 +228,8 @@ mod tests {
             Namespace {
                 id: NamespaceId::new(1),
                 name: ns.to_string(),
-                max_tables: iox_catalog::DEFAULT_MAX_TABLES,
-                max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
+                max_tables: Default::default(),
+                max_columns_per_table: Default::default(),
                 retention_period_ns: TEST_RETENTION_PERIOD_NS,
                 deleted_at: None,
                 partition_template: Default::default(),
@@ -258,10 +243,7 @@ mod tests {
 
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
-        let cache = Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
-            Arc::clone(&catalog),
-        ));
+        let cache = ReadThroughCache::new(MemoryNamespaceCache::default(), Arc::clone(&catalog));
 
         let creator = NamespaceAutocreation::new(
             MockNamespaceResolver::default(),
@@ -296,7 +278,7 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
         let cache = Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
+            MemoryNamespaceCache::default(),
             Arc::clone(&catalog),
         ));
 

@@ -9,7 +9,7 @@ pub use wal_replay::*;
 mod graceful_shutdown;
 mod wal_replay;
 
-use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{net::SocketAddr, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
 use arrow_flight::flight_service_server::FlightService;
 use backoff::BackoffConfig;
@@ -278,6 +278,7 @@ pub async fn new<F>(
     persist_hot_partition_cost: usize,
     object_store: ParquetStorage,
     gossip: GossipConfig,
+    max_partitions_per_namespace: NonZeroUsize,
     shutdown: F,
 ) -> Result<IngesterGuard<impl IngesterRpcInterface>, InitError>
 where
@@ -430,6 +431,7 @@ where
         namespace_name_provider,
         table_provider,
         partition_provider,
+        max_partitions_per_namespace,
         Arc::new(hot_partition_persister),
         Arc::clone(&metrics),
     ));

@@ -6,7 +6,7 @@ use criterion::{
 };
 use data_types::{
     partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
-    NamespaceId, NamespaceName, NamespaceSchema, TableId,
+    MaxColumnsPerTable, MaxTables, NamespaceId, NamespaceName, NamespaceSchema, TableId,
 };
 use generated_types::influxdata::iox::partition_template::v1 as proto;
 use hashbrown::HashMap;
@@ -166,8 +166,8 @@ fn bench(
     let schema = Arc::new(NamespaceSchema {
         id: NamespaceId::new(42),
         tables: Default::default(),
-        max_columns_per_table: 1000,
-        max_tables: 1000,
+        max_tables: MaxTables::new(1000),
+        max_columns_per_table: MaxColumnsPerTable::new(1000),
         retention_period_ns: None,
         partition_template: partition_template.clone(),
     });

@@ -71,7 +71,7 @@ impl<T> InstrumentedCache<T> {
 }
 
 #[async_trait]
-impl<T, P> NamespaceCache for Arc<InstrumentedCache<T, P>>
+impl<T, P> NamespaceCache for InstrumentedCache<T, P>
 where
     T: NamespaceCache,
     P: TimeProvider,
@@ -125,7 +125,8 @@ where
 mod tests {
     use assert_matches::assert_matches;
     use data_types::{
-        Column, ColumnId, ColumnType, ColumnsByName, NamespaceId, TableId, TableSchema,
+        Column, ColumnId, ColumnType, ColumnsByName, MaxColumnsPerTable, MaxTables, NamespaceId,
+        TableId, TableSchema,
     };
     use metric::{Attributes, MetricObserver, Observation};
 
@@ -163,8 +164,8 @@ mod tests {
         NamespaceSchema {
             id: NamespaceId::new(42),
             tables,
-            max_columns_per_table: 100,
-            max_tables: 42,
+            max_tables: MaxTables::new(42),
+            max_columns_per_table: MaxColumnsPerTable::new(100),
             retention_period_ns: None,
             partition_template: Default::default(),
         }
@@ -194,8 +195,8 @@ mod tests {
     async fn test_put() {
         let ns = NamespaceName::new("test").expect("namespace name is valid");
         let registry = metric::Registry::default();
-        let cache = Arc::new(MemoryNamespaceCache::default());
-        let cache = Arc::new(InstrumentedCache::new(cache, &registry));
+        let cache = MemoryNamespaceCache::default();
+        let cache = InstrumentedCache::new(cache, &registry);
 
         // No tables
         let schema = new_schema(&[]);

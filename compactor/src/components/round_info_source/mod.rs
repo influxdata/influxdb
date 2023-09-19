@@ -321,6 +321,7 @@ impl LevelBasedRoundInfo {
 
         // If we're not doing vertical splitting, while we've got the chains, lets check for a previous vertical split.
         // We'll preserve prior splitting activity by creating CompactionRange for each of the previous splits.
+        let mut prior_max = -1;
         if chains.len() > 1 {
             let mut prior_overlapping_max = Timestamp::new(0);
             let mut prior_chain_max: i64 = 0;
@@ -331,6 +332,8 @@ impl LevelBasedRoundInfo {
                 let mut min = chain.iter().map(|f| f.min_time).min().unwrap();
 
                 let max = chain.iter().map(|f| f.max_time).max().unwrap();
+                assert!(min.get() > prior_max);
+                prior_max = max.get();
 
                 if min <= prior_overlapping_max && prior_overlapping_max != Timestamp::new(0) {
                     // Target level files overlap more than one start level file, and there is a target level file overlapping

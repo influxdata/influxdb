@@ -1,7 +1,7 @@
 //! Command line options for running an ingester for a router using the RPC write path to talk to.
 
-use super::main;
-use crate::process_info::{setup_metric_registry, USIZE_MAX};
+use std::{num::NonZeroUsize, sync::Arc};
+
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, ingester::IngesterConfig, object_store::make_object_store,
     run_config::RunConfig,
@@ -18,8 +18,10 @@ use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
 use panic_logging::make_panics_fatal;
 use parquet_file::storage::{ParquetStorage, StorageId};
-use std::{num::NonZeroUsize, sync::Arc};
 use thiserror::Error;
+
+use super::main;
+use crate::process_info::{setup_metric_registry, USIZE_MAX};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -70,7 +72,7 @@ pub struct Config {
     #[clap(
         long = "exec-thread-count",
         env = "INFLUXDB_IOX_EXEC_THREAD_COUNT",
-        default_value = "4",
+        default_value = as_clap_str(half_cores()),
         action
     )]
     pub exec_thread_count: NonZeroUsize,
@@ -83,6 +85,16 @@ pub struct Config {
         action
     )]
     exec_mem_pool_bytes: usize,
+}
+
+/// Returns exactly half the number of logical cores, or 1 if on a single core
+/// system.
+fn half_cores() -> usize {
+    std::cmp::max(num_cpus::get() / 2, 1)
+}
+
+fn as_clap_str(v: usize) -> clap::builder::OsStr {
+    clap::builder::OsStr::from(std::ffi::OsString::from(v.to_string()))
 }
 
 pub async fn command(config: Config) -> Result<()> {
