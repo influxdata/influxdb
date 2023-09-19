@@ -1992,7 +1992,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "observability_deps",
- "pbjson",
+ "pbjson 0.6.0",
  "pbjson-build",
  "pbjson-types",
  "prost",
@@ -2791,7 +2791,7 @@ dependencies = [
  "datafusion",
  "datafusion-proto",
  "flatbuffers",
- "pbjson",
+ "pbjson 0.6.0",
  "pbjson-build",
  "predicate",
  "prost",
@@ -4103,6 +4103,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pbjson"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1030c719b0ec2a2d25a5df729d6cff1acf3cc230bf766f4f97833591f7577b90"
+dependencies = [
+ "base64 0.21.4",
+ "serde",
+]
+
+[[package]]
 name = "pbjson-build"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4122,7 +4132,7 @@ checksum = "4a88c8d87f99a4ac14325e7a4c24af190fca261956e3b82dd7ed67e77e6c7043"
 dependencies = [
  "bytes",
  "chrono",
- "pbjson",
+ "pbjson 0.5.1",
  "pbjson-build",
  "prost",
  "prost-build",
