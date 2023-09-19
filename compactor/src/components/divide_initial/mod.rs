@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 
 use data_types::{ParquetFile, TransitionPartitionId};
 
-use crate::RoundInfo;
+use crate::round_info::CompactType;
 
 pub mod multiple_branches;
 
@@ -15,7 +15,7 @@ pub trait DivideInitial: Debug + Display + Send + Sync {
     fn divide(
         &self,
         files: Vec<ParquetFile>,
-        round_info: RoundInfo,
+        op: CompactType,
         partition: TransitionPartitionId,
     ) -> (Vec<Vec<ParquetFile>>, Vec<ParquetFile>);
 }

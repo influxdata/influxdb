@@ -2,8 +2,7 @@ use std::fmt::{Debug, Display};
 
 use data_types::{ParquetFile, TransitionPartitionId};
 
-use crate::RoundInfo;
-
+use crate::round_info::CompactType;
 pub mod many_files;
 
 pub trait RoundSplit: Debug + Display + Send + Sync {
@@ -16,7 +15,7 @@ pub trait RoundSplit: Debug + Display + Send + Sync {
     fn split(
         &self,
         files: Vec<ParquetFile>,
-        round_info: RoundInfo,
+        op: CompactType,
         partition: TransitionPartitionId,
     ) -> (Vec<ParquetFile>, Vec<ParquetFile>);
 }

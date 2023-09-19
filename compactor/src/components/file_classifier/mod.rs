@@ -5,7 +5,9 @@ use std::{
 
 use data_types::ParquetFile;
 
-use crate::{file_classification::FileClassification, partition_info::PartitionInfo, RoundInfo};
+use crate::{
+    file_classification::FileClassification, partition_info::PartitionInfo, round_info::CompactType,
+};
 
 pub mod logging;
 pub mod split_based;
@@ -14,7 +16,7 @@ pub trait FileClassifier: Debug + Display + Send + Sync {
     fn classify(
         &self,
         partition_info: &PartitionInfo,
-        round_info: &RoundInfo,
+        op: &CompactType,
         files: Vec<ParquetFile>,
     ) -> FileClassification;
 }
@@ -26,9 +28,9 @@ where
     fn classify(
         &self,
         partition_info: &PartitionInfo,
-        round_info: &RoundInfo,
+        op: &CompactType,
         files: Vec<ParquetFile>,
     ) -> FileClassification {
-        self.as_ref().classify(partition_info, round_info, files)
+        self.as_ref().classify(partition_info, op, files)
     }
 }
