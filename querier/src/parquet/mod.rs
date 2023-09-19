@@ -260,7 +260,7 @@ pub mod tests {
             self.adapter
                 .new_chunks(
                     Arc::clone(&self.cached_table),
-                    vec![Arc::clone(&self.parquet_file)].into(),
+                    [Arc::clone(&self.parquet_file)],
                     &cached_partitions,
                     None,
                 )

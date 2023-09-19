@@ -55,7 +55,7 @@ impl ChunkAdapter {
     pub(crate) async fn new_chunks(
         &self,
         cached_table: Arc<CachedTable>,
-        files: Arc<[Arc<ParquetFile>]>,
+        files: impl IntoIterator<Item = Arc<ParquetFile>> + Send,
         cached_partitions: &HashMap<TransitionPartitionId, Arc<CachedPartition>>,
         span: Option<Span>,
     ) -> Vec<QuerierParquetChunk> {
@@ -66,10 +66,7 @@ impl ChunkAdapter {
             let _span_recorder = span_recorder.child("prepare files");
 
             files
-                .iter()
-                // throw out files that belong to removed partitions
-                .filter(|f| cached_partitions.contains_key(&f.partition_id))
-                .cloned()
+                .into_iter()
                 .map(|f| PreparedParquetFile::new(f, &cached_table))
                 .collect::<Vec<_>>()
         };
