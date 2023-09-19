@@ -207,7 +207,7 @@ impl PartitionBuilder {
                 TableId::new(0),
                 PartitionKey::from("key"),
                 vec![],
-                None,
+                Default::default(),
                 None,
             ),
         }

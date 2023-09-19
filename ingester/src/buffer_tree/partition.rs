@@ -1147,7 +1147,7 @@ mod tests {
             .await
             .expect("should create");
         // Test: sort_key_ids from create_or_get which is empty
-        assert!(partition.sort_key_ids().unwrap().is_empty());
+        assert!(partition.sort_key_ids().is_empty());
 
         let updated_partition = catalog
             .repositories()
@@ -1165,7 +1165,7 @@ mod tests {
         // Test: sort_key_ids after updating
         assert_eq!(
             updated_partition.sort_key_ids(),
-            Some(&SortedColumnSet::from([1]))
+            &SortedColumnSet::from([1])
         );
 
         // Read the just-created sort key (None)

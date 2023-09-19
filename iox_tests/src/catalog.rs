@@ -471,7 +471,7 @@ impl TestPartition {
             .cas_sort_key(
                 &self.partition.transition_partition_id(),
                 Some(old_sort_key),
-                old_sort_key_ids,
+                Some(old_sort_key_ids),
                 &sort_key.to_columns().collect::<Vec<_>>(),
                 sort_key_ids,
             )
@@ -826,7 +826,7 @@ async fn update_catalog_sort_key_if_needed<R>(
                                 .map(ToString::to_string)
                                 .collect::<Vec<_>>(),
                         ),
-                        partition.sort_key_ids,
+                        Some(partition.sort_key_ids),
                         &new_sort_key,
                         &new_sort_key_ids,
                     )
