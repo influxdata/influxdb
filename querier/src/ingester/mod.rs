@@ -954,7 +954,7 @@ impl QueryChunk for IngesterChunk {
     }
 
     fn data(&self) -> QueryChunkData {
-        QueryChunkData::RecordBatches(self.batches.clone())
+        QueryChunkData::in_mem(self.batches.clone(), Arc::clone(self.schema.inner()))
     }
 
     fn chunk_type(&self) -> &str {

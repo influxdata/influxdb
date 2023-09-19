@@ -9,7 +9,6 @@ use datafusion::{
     execution::context::TaskContext,
     physical_plan::{
         expressions::{Column, PhysicalSortExpr},
-        memory::MemoryStream,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
         ColumnStatistics, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
         SendableRecordBatchStream, Statistics,
@@ -18,11 +17,7 @@ use datafusion::{
 };
 use observability_deps::tracing::trace;
 use schema::sort::SortKey;
-use std::{
-    collections::{HashMap, HashSet},
-    fmt,
-    sync::Arc,
-};
+use std::{collections::HashMap, fmt, sync::Arc};
 
 /// Implements the DataFusion physical plan interface for [`RecordBatch`]es with automatic projection and NULL-column creation.
 ///
@@ -178,47 +173,22 @@ impl ExecutionPlan for RecordBatchesExec {
         let schema = self.schema();
 
         let chunk = &self.chunks[partition];
-        let part_schema = chunk.schema().as_arrow();
 
-        // The output selection is all the columns in the schema.
-        //
-        // However, this chunk may not have all those columns. Thus we
-        // restrict the requested selection to the actual columns
-        // available, and use SchemaAdapterStream to pad the rest of
-        // the columns with NULLs if necessary
-        let final_output_column_names: HashSet<_> =
-            schema.fields().iter().map(|f| f.name()).collect();
-        let projection: Vec<_> = part_schema
-            .fields()
-            .iter()
-            .enumerate()
-            .filter(|(_idx, field)| final_output_column_names.contains(field.name()))
-            .map(|(idx, _)| idx)
-            .collect();
-        let projection = (!((projection.len() == part_schema.fields().len())
-            && (projection.iter().enumerate().all(|(a, b)| a == *b))))
-        .then_some(projection);
-        let incomplete_output_schema = projection
-            .as_ref()
-            .map(|projection| Arc::new(part_schema.project(projection).expect("projection broken")))
-            .unwrap_or(part_schema);
-
-        let batches = chunk.data().into_record_batches().ok_or_else(|| {
-            DataFusionError::Execution(String::from("chunk must contain record batches"))
-        })?;
-
-        let stream = Box::pin(MemoryStream::try_new(
-            batches.clone(),
-            incomplete_output_schema,
-            projection,
-        )?);
+        let stream = match chunk.data() {
+            crate::QueryChunkData::RecordBatches(stream) => stream,
+            crate::QueryChunkData::Parquet(_) => {
+                return Err(DataFusionError::Execution(String::from(
+                    "chunk must contain record batches",
+                )));
+            }
+        };
         let virtual_columns = HashMap::from([(
             CHUNK_ORDER_COLUMN_NAME,
             ScalarValue::from(chunk.order().get()),
         )]);
         let adapter = Box::pin(
             SchemaAdapterStream::try_new(stream, schema, &virtual_columns, baseline_metrics)
-                .map_err(|e| DataFusionError::Internal(e.to_string()))?,
+                .map_err(|e| DataFusionError::External(Box::new(e)))?,
         );
 
         trace!(partition, "End RecordBatchesExec::execute");

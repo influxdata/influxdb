@@ -19,16 +19,6 @@ use futures::Stream;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display(
-        "Internal error creating SchemaAdapterStream: field '{}' does not appear in the output schema, known fields are: {:?}",
-        field_name,
-        known_fields,
-    ))]
-    InternalLostInputField {
-        field_name: String,
-        known_fields: Vec<String>,
-    },
-
     #[snafu(display("Internal error creating SchemaAdapterStream: input field '{}' had type '{:?}' which is different than output field '{}' which had type '{:?}'",
                     input_field_name, input_field_type, output_field_name, output_field_type,))]
     InternalDataTypeMismatch {
@@ -151,29 +141,6 @@ impl SchemaAdapterStream {
                 }
             })
             .collect::<Vec<_>>();
-
-        // sanity logic checks
-        for input_field in input_schema.fields() {
-            // that there are no fields in the input schema that are
-            // not present in the desired output schema (otherwise we
-            // are dropping fields -- theys should have been selected
-            // out with projection push down)
-            if !output_schema
-                .fields()
-                .iter()
-                .any(|output_field| input_field.name() == output_field.name())
-            {
-                return InternalLostInputFieldSnafu {
-                    field_name: input_field.name(),
-                    known_fields: output_schema
-                        .fields()
-                        .iter()
-                        .map(|f| f.name().clone())
-                        .collect::<Vec<String>>(),
-                }
-                .fail();
-            }
-        }
 
         // Verify the mappings match the output type
         for (output_index, mapping) in mappings.iter().enumerate() {
@@ -417,17 +384,27 @@ mod tests {
             Field::new("a", DataType::Int32, false),
         ]));
         let input_stream = stream_from_batch(batch.schema(), batch);
-        let res = SchemaAdapterStream::try_new(
+        let adapter_stream = SchemaAdapterStream::try_new(
             input_stream,
             output_schema,
             &Default::default(),
             baseline_metrics(),
-        );
+        )
+        .unwrap();
 
-        assert_contains!(
-            res.unwrap_err().to_string(),
-            "field 'b' does not appear in the output schema"
-        );
+        let output = collect(Box::pin(adapter_stream))
+            .await
+            .expect("Running plan");
+        let expected = vec![
+            "+-----+---+",
+            "| c   | a |",
+            "+-----+---+",
+            "| foo | 1 |",
+            "| bar | 2 |",
+            "| baz | 3 |",
+            "+-----+---+",
+        ];
+        assert_batches_eq!(&expected, &output);
     }
 
     #[tokio::test]
