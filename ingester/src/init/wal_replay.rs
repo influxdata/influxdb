@@ -961,9 +961,14 @@ mod tests {
         // Unblock the ingest state and assert file replay proceeds to complete
         // with the sink having received the expected number of calls
         assert!(ingest_state.unset(IngestStateError::PersistSaturated));
-        assert_matches!(replay_task.await.expect("replay task failed to join"), Ok(Some(id)) => {
-            assert_eq!(id, SequenceNumber::new(2));
-        });
+        assert_matches!(replay_task
+            .with_timeout_panic(Duration::from_secs(2))
+            .await
+            .expect("replay task failed to join"),
+            Ok(Some(id)) => {
+                assert_eq!(id, SequenceNumber::new(2));
+            }
+        );
         assert_eq!(mock_sink.get_calls().len(), 2);
     }
 
