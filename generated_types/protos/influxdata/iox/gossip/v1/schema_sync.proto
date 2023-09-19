@@ -36,10 +36,10 @@ message GetTreeDiffResponse {
 
 // A compact representation of a single page in a Merkle Search Tree.
 message PageRange {
-  // Minimum namespace name in this page (inclusive).
+  // Lexicographically minimum namespace name in this page (inclusive).
   string min = 1;
 
-  // Maximum namespace name in this page (inclusive).
+  // Lexicographically maximum namespace name in this page (inclusive).
   string max = 2;
 
   // A 16-byte MST page hash covering all entries in this page.
@@ -49,20 +49,24 @@ message PageRange {
 // An inclusive range of namespace names which contains at least one
 // inconsistent schema.
 message DiffRange {
-  // Minimum inconsistent namespace name in this diff range (inclusive).
+  // Lexicographically minimum inconsistent namespace name in this diff range 
+  // (inclusive).
   string min = 1;
 
-  // Maximum inconsistent namespace name in this diff range (inclusive).
+  // Lexicographically maximum inconsistent namespace name in this diff range
+  // (inclusive).
   string max = 2;
 }
 
 // Fetch the namespace schemas with namespace names falling within the specified
 // inclusive range.
 message GetRangeRequest {
-  // Minimum namespace name in this range to be fetched (inclusive).
+  // Lexicographically minimum namespace name in this range to be fetched 
+  // (inclusive).
   string min = 1;
 
-  // Maximum namespace name in this range to be fetched (inclusive).
+  // Lexicographically maximum namespace name in this range to be fetched
+  // (inclusive).
   string max = 2;
 }
 
