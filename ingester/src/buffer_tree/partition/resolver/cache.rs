@@ -11,7 +11,9 @@ use super::r#trait::PartitionProvider;
 use crate::{
     buffer_tree::{
         namespace::NamespaceName,
-        partition::{resolver::SortKeyResolver, PartitionData, SortKeyState},
+        partition::{
+            counter::PartitionCounter, resolver::SortKeyResolver, PartitionData, SortKeyState,
+        },
         table::metadata::TableMetadata,
     },
     deferred_load::DeferredLoad,
@@ -168,6 +170,7 @@ where
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table: Arc<DeferredLoad<TableMetadata>>,
+        partition_counter: Arc<PartitionCounter>,
     ) -> Arc<Mutex<PartitionData>> {
         // Use the cached PartitionKey instead of the caller's partition_key,
         // instead preferring to reuse the already-shared Arc<str> in the cache.
@@ -199,6 +202,7 @@ where
                 table_id,
                 table,
                 SortKeyState::Deferred(Arc::new(sort_key_resolver)),
+                partition_counter,
             )));
         }
 
@@ -206,7 +210,14 @@ where
 
         // Otherwise delegate to the catalog / inner impl.
         self.inner
-            .get_partition(partition_key, namespace_id, namespace_name, table_id, table)
+            .get_partition(
+                partition_key,
+                namespace_id,
+                namespace_name,
+                table_id,
+                table,
+                partition_counter,
+            )
             .await
     }
 }
@@ -215,6 +226,8 @@ where
 mod tests {
     // Harmless in tests - saves a bunch of extra vars.
     #![allow(clippy::await_holding_lock)]
+
+    use std::num::NonZeroUsize;
 
     use data_types::SortedColumnSet;
     use iox_catalog::mem::MemCatalog;
@@ -259,6 +272,7 @@ mod tests {
                 defer_namespace_name_1_sec(),
                 ARBITRARY_TABLE_ID,
                 defer_table_metadata_1_sec(),
+                Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
             )
             .await;
 
@@ -302,6 +316,7 @@ mod tests {
                 defer_namespace_name_1_sec(),
                 ARBITRARY_TABLE_ID,
                 defer_table_metadata_1_sec(),
+                Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
             )
             .await;
 
@@ -359,6 +374,7 @@ mod tests {
                 defer_namespace_name_1_sec(),
                 ARBITRARY_TABLE_ID,
                 defer_table_metadata_1_sec(),
+                Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
             )
             .await;
 
@@ -394,6 +410,7 @@ mod tests {
                 defer_namespace_name_1_sec(),
                 other_table,
                 defer_table_metadata_1_sec(),
+                Arc::new(PartitionCounter::new(NonZeroUsize::new(1).unwrap())),
             )
             .await;
 

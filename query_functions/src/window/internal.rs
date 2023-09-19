@@ -199,7 +199,9 @@ fn to_timestamp_nanos_utc(
     let ndatetime = NaiveDateTime::new(ndate, ntime);
 
     let datetime = DateTime::<Utc>::from_naive_utc_and_offset(ndatetime, Utc);
-    datetime.timestamp_nanos()
+    datetime
+        .timestamp_nanos_opt()
+        .expect("timestamp nanos in range")
 }
 
 impl Add<Duration> for i64 {
@@ -386,7 +388,7 @@ mod tests {
     /// t: mustParseTime("1970-02-01T00:00:00Z"),
     fn must_parse_time(s: &str) -> i64 {
         let datetime = DateTime::parse_from_rfc3339(s).unwrap();
-        datetime.timestamp_nanos()
+        datetime.timestamp_nanos_opt().unwrap()
     }
 
     /// TestWindow_GetEarliestBounds

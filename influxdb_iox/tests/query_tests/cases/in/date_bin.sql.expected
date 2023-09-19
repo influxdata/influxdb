@@ -111,9 +111,9 @@
 |    |     CoalesceBatchesExec: target_batch_size=8192    |
 |    |       RepartitionExec: partitioning=Hash([date_bin(Utf8("1 month"),cpu.time,Utf8("1970-12-31T00:15:00Z"))@0], 4), input_partitions=4    |
 |    |         AggregateExec: mode=Partial, gby=[date_bin(79228162514264337593543950336, time@0, 31450500000000000) as date_bin(Utf8("1 month"),cpu.time,Utf8("1970-12-31T00:15:00Z"))], aggr=[COUNT(cpu.user)]    |
-|    |           RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
-|    |             CoalesceBatchesExec: target_batch_size=8192    |
-|    |               FilterExec: time@0 >= 957528000000000000 AND time@0 <= 957531540000000000    |
+|    |           CoalesceBatchesExec: target_batch_size=8192    |
+|    |             FilterExec: time@0 >= 957528000000000000 AND time@0 <= 957531540000000000    |
+|    |               RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
 |    |                 ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[time, user], predicate=time@2 >= 957528000000000000 AND time@2 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000    |
 |    |    |
 ----------

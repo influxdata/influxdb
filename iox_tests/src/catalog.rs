@@ -6,9 +6,9 @@ use arrow::{
 };
 use data_types::{
     partition_template::TablePartitionTemplateOverride, Column, ColumnSet, ColumnType,
-    ColumnsByName, CompactionLevel, Namespace, NamespaceName, NamespaceSchema, ParquetFile,
-    ParquetFileParams, Partition, PartitionId, SortedColumnSet, Table, TableId, TableSchema,
-    Timestamp, TransitionPartitionId,
+    ColumnsByName, CompactionLevel, MaxColumnsPerTable, MaxTables, Namespace, NamespaceName,
+    NamespaceSchema, ParquetFile, ParquetFileParams, Partition, PartitionId, SortedColumnSet,
+    Table, TableId, TableSchema, Timestamp, TransitionPartitionId,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::{unbounded_memory_pool, MemoryStream};
@@ -264,22 +264,22 @@ impl TestNamespace {
         .unwrap()
     }
 
-    /// Set the number of columns per table allowed in this namespace.
-    pub async fn update_column_limit(&self, new_max: i32) {
-        let mut repos = self.catalog.catalog.repositories().await;
-        repos
-            .namespaces()
-            .update_column_limit(&self.namespace.name, new_max)
-            .await
-            .unwrap();
-    }
-
     /// Set the number of tables allowed in this namespace.
     pub async fn update_table_limit(&self, new_max: i32) {
         let mut repos = self.catalog.catalog.repositories().await;
         repos
             .namespaces()
-            .update_table_limit(&self.namespace.name, new_max)
+            .update_table_limit(&self.namespace.name, MaxTables::new(new_max))
+            .await
+            .unwrap();
+    }
+
+    /// Set the number of columns per table allowed in this namespace.
+    pub async fn update_column_limit(&self, new_max: i32) {
+        let mut repos = self.catalog.catalog.repositories().await;
+        repos
+            .namespaces()
+            .update_column_limit(&self.namespace.name, MaxColumnsPerTable::new(new_max))
             .await
             .unwrap();
     }

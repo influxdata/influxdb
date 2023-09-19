@@ -277,6 +277,7 @@ mod tests {
             table::{metadata::TableMetadata, metadata_resolver::mock::MockTableProvider},
         },
         deferred_load::{self, DeferredLoad},
+        persist::{drain_buffer::persist_partitions, queue::mock::MockPersistQueue},
         query::partition_response::PartitionResponse,
         test_util::{
             defer_namespace_name_1_ms, make_write_op, PartitionDataBuilder,
@@ -821,24 +822,27 @@ mod tests {
     async fn test_write_query_partition_limit_enforced() {
         maybe_start_logging();
 
+        let other_table_id = TableId::new(ARBITRARY_TABLE_ID.get() + 1);
+
         let partition_provider = Arc::new(
             MockPartitionProvider::default()
                 .with_partition(
                     PartitionDataBuilder::new().with_partition_key(ARBITRARY_PARTITION_KEY.clone()),
                 )
                 .with_partition(
-                    PartitionDataBuilder::new().with_partition_key(PARTITION2_KEY.clone()),
+                    PartitionDataBuilder::new()
+                        .with_partition_key(PARTITION2_KEY.clone())
+                        .with_table_id(other_table_id),
                 ),
         );
 
         let table_provider = Arc::clone(&*ARBITRARY_TABLE_PROVIDER);
-        let partition_count_limit = 1;
 
         let buf = BufferTree::new(
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
             table_provider,
             partition_provider,
-            NonZeroUsize::new(partition_count_limit).unwrap(),
+            NonZeroUsize::new(1).unwrap(),
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
         );
@@ -861,23 +865,69 @@ mod tests {
         .expect("failed to perform first write");
 
         // Second write to a second table should hit the limit and be rejected
-        let err = buf
-            .apply(IngestOp::Write(make_write_op(
-                &PARTITION2_KEY,
-                ARBITRARY_NAMESPACE_ID,
-                "BANANASareDIFFERENT",
-                TableId::new(ARBITRARY_TABLE_ID.get() + 1),
-                0,
-                "BANANASareDIFFERENT,region=Asturias temp=35 4242424242",
-                None,
-            )))
-            .await
-            .expect_err("limit should be enforced");
+        {
+            let err = buf
+                .apply(IngestOp::Write(make_write_op(
+                    &PARTITION2_KEY,
+                    ARBITRARY_NAMESPACE_ID,
+                    "BANANASareDIFFERENT",
+                    other_table_id,
+                    0,
+                    "BANANASareDIFFERENT,region=Asturias temp=35 4242424242",
+                    None,
+                )))
+                .await
+                .expect_err("limit should be enforced");
 
-        assert_matches!(err, BufferWriteError::PartitionLimit { count: 1 });
+            assert_matches!(err, BufferWriteError::PartitionLimit { count: 1 });
+        }
 
-        // Only one partition should exist (second was rejected)
+        // Only one partition should exist (second was rejected and not created)
         assert_eq!(buf.partitions().count(), 1);
+
+        // Persisting all the data in the buffered partition should allow the
+        // second partition to be created and wrote to.
+        persist_partitions(buf.partitions(), &Arc::new(MockPersistQueue::default())).await;
+
+        // The second write for the second partition must now be accepted.
+        // Second write to a second table should hit the limit and be rejected
+        buf.apply(IngestOp::Write(make_write_op(
+            &PARTITION2_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            "BANANASareDIFFERENT",
+            other_table_id,
+            0,
+            "BANANASareDIFFERENT,region=Asturias temp=35 4242424242",
+            None,
+        )))
+        .await
+        .expect("failed to perform write after persist");
+
+        // There should now be 2 partitions.
+        assert_eq!(buf.partitions().count(), 2);
+
+        // And writing to the first, existing partition should fail, as the
+        // non-empty partition limit has been reached.
+        {
+            let err = buf
+                .apply(IngestOp::Write(make_write_op(
+                    &ARBITRARY_PARTITION_KEY,
+                    ARBITRARY_NAMESPACE_ID,
+                    &ARBITRARY_TABLE_NAME,
+                    ARBITRARY_TABLE_ID,
+                    0,
+                    format!(
+                        r#"{},region=Asturias temp=35 4242424242"#,
+                        &*ARBITRARY_TABLE_NAME
+                    )
+                    .as_str(),
+                    None,
+                )))
+                .await
+                .expect_err("limit should be enforced");
+
+            assert_matches!(err, BufferWriteError::PartitionLimit { count: 1 });
+        }
     }
 
     /// Ensure partition pruning during query execution also prunes metadata

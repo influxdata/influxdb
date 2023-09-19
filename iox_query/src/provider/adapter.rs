@@ -209,7 +209,7 @@ impl SchemaAdapterStream {
                     }
                 }
                 ColumnMapping::Virtual(value) => {
-                    let data_type = value.get_datatype();
+                    let data_type = value.data_type();
                     if &data_type != output_field.data_type() {
                         return InternalDataTypeMismatchForVirtualSnafu {
                             field_type: data_type,

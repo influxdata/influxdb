@@ -236,8 +236,8 @@ where
                     NamespaceSchema {
                         id: ns.id,
                         tables: Default::default(),
-                        max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE as usize,
-                        max_tables: iox_catalog::DEFAULT_MAX_TABLES as usize,
+                        max_tables: Default::default(),
+                        max_columns_per_table: Default::default(),
                         retention_period_ns,
                         partition_template: partition_template.unwrap_or_default(),
                     },

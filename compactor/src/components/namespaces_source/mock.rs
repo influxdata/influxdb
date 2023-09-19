@@ -49,7 +49,10 @@ impl NamespacesSource for MockNamespacesSource {
 mod tests {
     use std::collections::BTreeMap;
 
-    use data_types::{Column, ColumnId, ColumnType, ColumnsByName, TableId, TableSchema};
+    use data_types::{
+        Column, ColumnId, ColumnType, ColumnsByName, MaxColumnsPerTable, MaxTables, TableId,
+        TableSchema,
+    };
 
     use super::*;
 
@@ -182,8 +185,8 @@ mod tests {
                     ns: Namespace {
                         id,
                         name: "ns".to_string(),
-                        max_tables: 10,
-                        max_columns_per_table: 10,
+                        max_tables: MaxTables::new(10),
+                        max_columns_per_table: MaxColumnsPerTable::new(10),
                         retention_period_ns: None,
                         deleted_at: None,
                         partition_template: Default::default(),
@@ -191,8 +194,8 @@ mod tests {
                     schema: NamespaceSchema {
                         id,
                         tables,
-                        max_columns_per_table: 10,
-                        max_tables: 42,
+                        max_tables: MaxTables::new(42),
+                        max_columns_per_table: MaxColumnsPerTable::new(10),
                         retention_period_ns: None,
                         partition_template: Default::default(),
                     },

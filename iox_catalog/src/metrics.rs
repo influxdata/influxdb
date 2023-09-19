@@ -7,10 +7,10 @@ use crate::interface::{
 use async_trait::async_trait;
 use data_types::{
     partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
-    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId, ParquetFileParams,
-    Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction, SortedColumnSet,
-    Table, TableId, Timestamp, TransitionPartitionId,
+    Column, ColumnType, CompactionLevel, MaxColumnsPerTable, MaxTables, Namespace, NamespaceId,
+    NamespaceName, NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId,
+    ParquetFileParams, Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction,
+    SortedColumnSet, Table, TableId, Timestamp, TransitionPartitionId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -139,8 +139,8 @@ decorate!(
         "namespace_get_by_id" = get_by_id(&mut self, id: NamespaceId, deleted: SoftDeletedRows) -> Result<Option<Namespace>>;
         "namespace_get_by_name" = get_by_name(&mut self, name: &str, deleted: SoftDeletedRows) -> Result<Option<Namespace>>;
         "namespace_soft_delete" = soft_delete(&mut self, name: &str) -> Result<()>;
-        "namespace_update_table_limit" = update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace>;
-        "namespace_update_column_limit" = update_column_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace>;
+        "namespace_update_table_limit" = update_table_limit(&mut self, name: &str, new_max: MaxTables) -> Result<Namespace>;
+        "namespace_update_column_limit" = update_column_limit(&mut self, name: &str, new_max: MaxColumnsPerTable) -> Result<Namespace>;
     ]
 );
 

@@ -209,8 +209,8 @@ mod tests {
                     .unwrap()
                     .clone(),
             ),
-            max_columns_per_table: 1,
             max_tables: 2,
+            max_columns_per_table: 1,
             retention_period_ns: Some(1234),
         });
 
@@ -240,8 +240,8 @@ mod tests {
             namespace_name: "bananas".to_string(),
             namespace_id: 4242,
             partition_template: None,
-            max_columns_per_table: 1,
             max_tables: 2,
+            max_columns_per_table: 1,
             retention_period_ns: Some(1234),
         });
 

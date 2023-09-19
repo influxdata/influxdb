@@ -39,8 +39,6 @@ use crate::{
     query_adaptor::QueryAdaptor,
 };
 
-const MAX_NAMESPACE_PARTITION_COUNT: usize = usize::MAX;
-
 /// Data of a Table in a given Namespace
 #[derive(Debug)]
 pub(crate) struct TableData<O> {
@@ -58,13 +56,11 @@ pub(crate) struct TableData<O> {
     // Map of partition key to its data
     partition_data: ArcMap<PartitionKey, Mutex<PartitionData>>,
 
-    /// A counter tracking the approximate number of partitions currently
-    /// buffered.
+    /// A counter tracking the number of non-empty partitions currently
+    /// buffered for the parent namespace.
     ///
-    /// This counter is NOT atomically incremented w.r.t creation of the
-    /// partitions it tracks, and therefore is susceptible to "overrun",
-    /// breaching the configured partition count limit by a relatively small
-    /// degree.
+    /// This counter is eventually consistent / relaxed when read, but strongly
+    /// consistent when enforced.
     partition_count: Arc<PartitionCounter>,
 
     post_write_observer: Arc<O>,
@@ -145,16 +141,15 @@ where
         let p = self.partition_data.get(&partition_key);
         let partition_data = match p {
             Some(p) => p,
-            None if self.partition_count.is_maxed() => {
-                // This namespace has exceeded the upper bound on partitions.
-                //
-                // This counter is approximate, but monotonic - the count may be
-                // over the desired limit.
-                return Err(BufferWriteError::PartitionLimit {
-                    count: self.partition_count.read(),
-                });
-            }
             None => {
+                // This namespace has may have exceeded the upper bound on
+                // non-empty partitions.
+                //
+                // As an optimisation, check if the partition will be writeable
+                // before creating it, to avoid creating many
+                // impossible-to-write-to partitions.
+                self.partition_count.is_maxed()?;
+
                 let p = self
                     .partition_provider
                     .get_partition(
@@ -163,16 +158,15 @@ where
                         Arc::clone(&self.namespace_name),
                         self.table_id,
                         Arc::clone(&self.catalog_table),
+                        Arc::clone(&self.partition_count),
                     )
                     .await;
+
                 // Add the partition to the map.
                 //
                 // This MAY return a different instance than `p` if another
                 // thread has already initialised the partition.
-                self.partition_data.get_or_insert_with(&partition_key, || {
-                    self.partition_count.inc();
-                    p
-                })
+                self.partition_data.get_or_insert_with(&partition_key, || p)
             }
         };
 
@@ -405,11 +399,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_partition_init() {
+        let partition_counter = Arc::new(PartitionCounter::new(NonZeroUsize::new(42).unwrap()));
+
         // Configure the mock partition provider to return a partition for a table ID.
         let partition_provider =
             Arc::new(MockPartitionProvider::default().with_partition(PartitionDataBuilder::new()));
-
-        let partition_counter = Arc::new(PartitionCounter::new(NonZeroUsize::new(42).unwrap()));
 
         let table = TableData::new(
             ARBITRARY_TABLE_ID,
@@ -445,7 +439,8 @@ mod tests {
         // Referencing the partition should succeed
         assert!(table.partition_data.get(&ARBITRARY_PARTITION_KEY).is_some());
 
-        // The partition should have been recorded in the partition count.
+        // The partition should have been recorded in the "non-empty" partition
+        // count.
         assert_eq!(partition_counter.read(), 1);
     }
 
