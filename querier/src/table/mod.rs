@@ -1,4 +1,3 @@
-use self::query_access::QuerierTableChunkPruner;
 use crate::{
     cache::{
         namespace::CachedTable,
@@ -11,7 +10,7 @@ use crate::{
 use data_types::{ColumnId, NamespaceId, ParquetFile, TableId, TransitionPartitionId};
 use datafusion::{error::DataFusionError, prelude::Expr};
 use futures::join;
-use iox_query::{provider, provider::ChunkPruner, QueryChunk};
+use iox_query::{provider, pruning::prune_chunks, QueryChunk};
 use observability_deps::tracing::debug;
 use schema::Schema;
 use snafu::{ResultExt, Snafu};
@@ -24,8 +23,9 @@ use tokio_util::sync::CancellationToken;
 use trace::span::{Span, SpanRecorder};
 use uuid::Uuid;
 
-pub use self::query_access::metrics::PruneMetrics;
+pub use self::metrics::PruneMetrics;
 
+mod metrics;
 mod query_access;
 
 #[cfg(test)]
@@ -283,16 +283,12 @@ impl QuerierTable {
         let num_initial_parquet_file_chunks = parquet_file_chunks.len();
         debug!(num_chunks=%num_initial_parquet_file_chunks, "Fetched Parquet file chunks");
 
-        let pruned_parquet_file_chunks = self
-            .chunk_pruner()
-            .prune_chunks(
-                self.table_name(),
-                // use up-to-date schema
-                &cached_table.schema,
-                parquet_file_chunks,
-                filters,
-            )
-            .context(ChunkPruningSnafu)?;
+        let pruned_parquet_file_chunks = self.prune_chunks(
+            // use up-to-date schema
+            &cached_table.schema,
+            parquet_file_chunks,
+            filters,
+        );
         let num_final_parquet_file_chunks = pruned_parquet_file_chunks.len();
 
         // build final chunk list from ingester chunks + pruned parquet file chunks
@@ -385,13 +381,6 @@ impl QuerierTable {
         partitions.into_iter().map(|p| (p.id.clone(), p)).collect()
     }
 
-    /// Get a chunk pruner that can be used to prune chunks retrieved via [`chunks`](Self::chunks)
-    pub fn chunk_pruner(&self) -> Arc<dyn ChunkPruner> {
-        Arc::new(QuerierTableChunkPruner::new(Arc::clone(
-            &self.prune_metrics,
-        )))
-    }
-
     /// Get partitions from ingesters.
     async fn ingester_partitions(
         &self,
@@ -469,6 +458,40 @@ impl QuerierTable {
         let partitions = partitions_result?;
 
         Ok(partitions)
+    }
+
+    fn prune_chunks(
+        &self,
+        table_schema: &Schema,
+        chunks: Vec<Arc<dyn QueryChunk>>,
+        filters: &[Expr],
+    ) -> Vec<Arc<dyn QueryChunk>> {
+        let chunks = match prune_chunks(table_schema, &chunks, filters) {
+            Ok(keeps) => {
+                assert_eq!(chunks.len(), keeps.len());
+                chunks
+                    .into_iter()
+                    .zip(keeps.iter())
+                    .filter_map(|(chunk, keep)| {
+                        if *keep {
+                            self.prune_metrics.was_not_pruned(chunk.as_ref());
+                            Some(chunk)
+                        } else {
+                            self.prune_metrics.was_pruned_late(chunk.as_ref());
+                            None
+                        }
+                    })
+                    .collect()
+            }
+            Err(reason) => {
+                for chunk in &chunks {
+                    self.prune_metrics.could_not_prune(reason, chunk.as_ref())
+                }
+                chunks
+            }
+        };
+
+        chunks
     }
 
     /// clear the parquet file cache
