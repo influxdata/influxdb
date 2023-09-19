@@ -109,6 +109,8 @@ pub enum Error {
         source: blocking::ReaderError,
     },
 
+    /// This error indicates that the next entry cannot be read from the
+    /// segment file.
     UnableToReadNextOps {
         source: blocking::ReaderError,
     },

@@ -190,6 +190,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 mod tests {
     use super::*;
     use crate::{SegmentId, FILE_TYPE_IDENTIFIER};
+    use assert_matches::assert_matches;
     use byteorder::WriteBytesExt;
     use std::io::Write;
     use test_helpers::assert_error;
@@ -256,7 +257,9 @@ mod tests {
         assert_eq!(uuid, segment_file.id.as_bytes());
 
         let read_fail = reader.one_entry();
-        assert_error!(read_fail, Error::UnableToReadData { .. });
+        assert_matches!(read_fail, Err(Error::UnableToReadData { source: e }) => {
+            assert_matches!(e.kind(), std::io::ErrorKind::UnexpectedEof);
+        });
         // Trying to continue reading will fail as well, see:
         // <https://github.com/influxdata/influxdb_iox/issues/6222>
         assert_error!(reader.one_entry(), Error::UnableToReadData { .. });
@@ -281,7 +284,9 @@ mod tests {
         assert_eq!(uuid, segment_file.id.as_bytes());
 
         let read_fail = reader.one_entry();
-        assert_error!(read_fail, Error::UnableToReadData { .. });
+        assert_matches!(read_fail, Err(Error::UnableToReadData { source: e }) => {
+            assert_matches!(e.kind(), std::io::ErrorKind::UnexpectedEof);
+        });
         // Trying to continue reading will fail as well, see:
         // <https://github.com/influxdata/influxdb_iox/issues/6222>
         assert_error!(reader.one_entry(), Error::UnableToReadData { .. });
