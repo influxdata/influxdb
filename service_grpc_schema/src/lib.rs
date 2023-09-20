@@ -70,11 +70,10 @@ impl schema_service_server::SchemaService for SchemaService {
         .map_err(|e| {
             warn!(error=%e, %req.namespace, "failed to retrieve namespace schema");
             Status::not_found(e.to_string())
-        })
-        .map(Arc::new)?;
+        })?;
 
         Ok(Response::new(GetSchemaResponse {
-            schema: Some((&*schema).into()),
+            schema: Some((&schema).into()),
         }))
     }
 }
