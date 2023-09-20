@@ -3,9 +3,9 @@ use crate::{
         namespace::CachedTable,
         partition::{CachedPartition, PartitionRequest},
     },
-    ingester::{self, IngesterPartition},
+    ingester::{self, IngesterConnection, IngesterPartition},
     parquet::ChunkAdapter,
-    IngesterConnection, CONCURRENT_CHUNK_CREATION_JOBS,
+    CONCURRENT_CHUNK_CREATION_JOBS,
 };
 use data_types::{
     ColumnId, NamespaceId, ParquetFile, TableId, TimestampMinMax, TransitionPartitionId,
@@ -44,7 +44,7 @@ mod test_util;
 #[allow(clippy::large_enum_variant)]
 pub enum Error {
     #[snafu(display("Error getting partitions from ingester: {}", source))]
-    GettingIngesterPartitions { source: ingester::Error },
+    GettingIngesterPartitions { source: ingester::DynError },
 
     #[snafu(display("Chunk pruning failed: {}", source))]
     ChunkPruning { source: provider::Error },
