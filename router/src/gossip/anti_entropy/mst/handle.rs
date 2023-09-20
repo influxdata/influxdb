@@ -7,7 +7,7 @@ use merkle_search_tree::digest::RootHash;
 use observability_deps::tracing::error;
 use tokio::sync::{mpsc, oneshot};
 
-use super::actor::Op;
+use super::actor::{MerkleSnapshot, Op};
 
 /// A handle to an [`AntiEntropyActor`].
 ///
@@ -106,6 +106,22 @@ impl AntiEntropyHandle {
 
         self.op_tx
             .send(Op::ContentHash(tx))
+            .await
+            .expect("anti-entropy actor has stopped");
+
+        rx.await.expect("anti-entropy actor has stopped")
+    }
+
+    /// Obtain a [`MerkleSnapshot`] for the current Merkle Search Tree state.
+    ///
+    /// A [`MerkleSnapshot`] is a compact serialised representation of the MST
+    /// state.
+    #[allow(dead_code)]
+    pub(crate) async fn snapshot(&self) -> MerkleSnapshot {
+        let (tx, rx) = oneshot::channel();
+
+        self.op_tx
+            .send(Op::Snapshot(tx))
             .await
             .expect("anti-entropy actor has stopped");
 
