@@ -74,39 +74,8 @@ impl schema_service_server::SchemaService for SchemaService {
         .map(Arc::new)?;
 
         Ok(Response::new(GetSchemaResponse {
-            schema: Some(schema_to_proto(&schema)),
+            schema: Some((&*schema).into()),
         }))
-    }
-}
-
-fn schema_to_proto(schema: &data_types::NamespaceSchema) -> NamespaceSchema {
-    NamespaceSchema {
-        id: schema.id.get(),
-        tables: schema
-            .tables
-            .iter()
-            .map(|(name, t)| {
-                (
-                    name.clone(),
-                    TableSchema {
-                        id: t.id.get(),
-                        columns: t
-                            .columns
-                            .iter()
-                            .map(|(name, c)| {
-                                (
-                                    name.clone(),
-                                    ColumnSchema {
-                                        id: c.id.get(),
-                                        column_type: c.column_type as i32,
-                                    },
-                                )
-                            })
-                            .collect(),
-                    },
-                )
-            })
-            .collect(),
     }
 }
 
