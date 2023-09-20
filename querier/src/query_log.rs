@@ -12,7 +12,7 @@ use std::{
 };
 use trace::ctx::TraceId;
 
-// The query duration used for queries still running.
+/// The query duration used for queries still running.
 const UNCOMPLETED_DURATION: i64 = -1;
 
 /// Information about a single query that was executed
@@ -21,7 +21,7 @@ pub struct QueryLogEntry {
     pub namespace_id: NamespaceId,
 
     /// The type of query
-    pub query_type: String,
+    pub query_type: &'static str,
 
     /// The text of the query (SQL for sql queries, pbjson for storage rpc queries)
     pub query_text: QueryText,
@@ -56,7 +56,7 @@ impl QueryLogEntry {
     /// Creates a new QueryLogEntry -- use `QueryLog::push` to add new entries to the log
     fn new(
         namespace_id: NamespaceId,
-        query_type: String,
+        query_type: &'static str,
         query_text: QueryText,
         trace_id: Option<TraceId>,
         issue_time: Time,
@@ -128,13 +128,13 @@ impl QueryLog {
     pub fn push(
         &self,
         namespace_id: NamespaceId,
-        query_type: impl Into<String>,
+        query_type: &'static str,
         query_text: QueryText,
         trace_id: Option<TraceId>,
     ) -> Arc<QueryLogEntry> {
         let entry = Arc::new(QueryLogEntry::new(
             namespace_id,
-            query_type.into(),
+            query_type,
             query_text,
             trace_id,
             self.time_provider.now(),
@@ -179,7 +179,7 @@ mod test_super {
 
         let entry = Arc::new(QueryLogEntry::new(
             NamespaceId::new(1),
-            "sql".into(),
+            "sql",
             Box::new("SELECT 1"),
             None,
             time_provider.now(),

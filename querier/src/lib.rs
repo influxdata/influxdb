@@ -42,4 +42,5 @@ pub use ingester::{
     Error as IngesterError, IngesterConnection, IngesterConnectionImpl, IngesterPartition,
 };
 pub use namespace::QuerierNamespace;
+pub use query_log::QueryLogEntry;
 pub use server::QuerierServer;

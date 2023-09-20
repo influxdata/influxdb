@@ -62,14 +62,14 @@ impl QueryNamespace for QuerierNamespace {
 
     fn record_query(
         &self,
-        ctx: &IOxSessionContext,
-        query_type: &str,
+        span_ctx: Option<&SpanContext>,
+        query_type: &'static str,
         query_text: QueryText,
     ) -> QueryCompletedToken {
         // When the query token is dropped the query entry's completion time
         // will be set.
         let query_log = Arc::clone(&self.query_log);
-        let trace_id = ctx.span().map(|s| s.ctx.trace_id);
+        let trace_id = span_ctx.map(|ctx| ctx.trace_id);
         let entry = query_log.push(self.id, query_type, query_text, trace_id);
         QueryCompletedToken::new(move |success| query_log.set_completed(entry, success))
     }

@@ -14,6 +14,8 @@
 
 use datafusion_util::MemoryStream;
 use futures::TryStreamExt;
+use trace::ctx::SpanContext;
+
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -181,13 +183,13 @@ pub trait QueryNamespace: Debug + Send + Sync {
     /// Record that particular type of query was run / planned
     fn record_query(
         &self,
-        ctx: &IOxSessionContext,
-        query_type: &str,
+        span_ctx: Option<&SpanContext>,
+        query_type: &'static str,
         query_text: QueryText,
     ) -> QueryCompletedToken;
 
     /// Returns a new execution context suitable for running queries
-    fn new_query_context(&self, span_ctx: Option<trace::ctx::SpanContext>) -> IOxSessionContext;
+    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext;
 }
 
 /// Raw data of a [`QueryChunk`].

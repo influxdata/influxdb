@@ -162,8 +162,8 @@ impl QueryNamespace for TestDatabase {
 
     fn record_query(
         &self,
-        _ctx: &IOxSessionContext,
-        _query_type: &str,
+        _span_ctx: Option<&SpanContext>,
+        _query_type: &'static str,
         _query_text: QueryText,
     ) -> QueryCompletedToken {
         QueryCompletedToken::new(|_| {})

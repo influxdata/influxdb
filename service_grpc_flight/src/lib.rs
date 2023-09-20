@@ -490,7 +490,7 @@ where
     async fn run_do_get(
         &self,
         span_ctx: Option<SpanContext>,
-        trace: String,
+        external_span_ctx: Option<RequestLogContext>,
         permit: InstrumentedAsyncOwnedSemaphorePermit,
         query: RunQuery,
         namespace_name: String,
@@ -511,7 +511,11 @@ where
         let ctx = db.new_query_context(span_ctx);
         let (query_completed_token, physical_plan) = match &query {
             RunQuery::Sql(sql_query) => {
-                let token = db.record_query(&ctx, "sql", Box::new(sql_query.clone()));
+                let token = db.record_query(
+                    external_span_ctx.as_ref().map(RequestLogContext::ctx),
+                    "sql",
+                    Box::new(sql_query.clone()),
+                );
                 let plan = Planner::new(&ctx)
                     .sql(sql_query)
                     .await
@@ -522,7 +526,11 @@ where
                 (token, plan)
             }
             RunQuery::InfluxQL(sql_query) => {
-                let token = db.record_query(&ctx, "influxql", Box::new(sql_query.clone()));
+                let token = db.record_query(
+                    external_span_ctx.as_ref().map(RequestLogContext::ctx),
+                    "influxql",
+                    Box::new(sql_query.clone()),
+                );
                 let plan = Planner::new(&ctx)
                     .influxql(sql_query)
                     .await
@@ -533,7 +541,11 @@ where
                 (token, plan)
             }
             RunQuery::FlightSQL(msg) => {
-                let token = db.record_query(&ctx, "flightsql", Box::new(msg.to_string()));
+                let token = db.record_query(
+                    external_span_ctx.as_ref().map(RequestLogContext::ctx),
+                    "flightsql",
+                    Box::new(msg.to_string()),
+                );
                 let plan = Planner::new(&ctx)
                     .flight_sql_do_get(&namespace_name, db, msg.clone())
                     .await
@@ -559,7 +571,13 @@ where
         // handling in this file happen during planning)
         let output = output.map(move |res| {
             if let Err(e) = &res {
-                info!(%namespace_name, %query, %trace, %e, "Error executing query via DoGet");
+                info!(
+                    %namespace_name,
+                    %query,
+                    trace=external_span_ctx.format_jaeger().as_str(),
+                    %e,
+                    "Error executing query via DoGet",
+                );
             }
             res
         });
@@ -595,7 +613,6 @@ where
         request: Request<Ticket>,
     ) -> Result<Response<Self::DoGetStream>, tonic::Status> {
         let external_span_ctx: Option<RequestLogContext> = request.extensions().get().cloned();
-        let trace = external_span_ctx.format_jaeger();
         let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
         let authz_token = get_flight_authz(request.metadata());
         let mut is_debug = has_debug_header(request.metadata());
@@ -635,7 +652,7 @@ where
         info!(
             %namespace_name,
             %query,
-            %trace,
+            trace=external_span_ctx.format_jaeger().as_str(),
             variant=query.variant(),
             "DoGet request",
         );
@@ -643,7 +660,7 @@ where
         let response = self
             .run_do_get(
                 span_ctx,
-                trace.clone(),
+                external_span_ctx.clone(),
                 permit,
                 query.clone(),
                 namespace_name.to_string(),
@@ -652,10 +669,22 @@ where
             .await;
 
         if let Err(e) = &response {
-            info!(%namespace_name, %query, %trace, %e, "Error running DoGet");
+            info!(
+                %namespace_name,
+                %query,
+                trace=external_span_ctx.format_jaeger().as_str(),
+                %e,
+                "Error running DoGet",
+            );
         } else {
             let elapsed = Instant::now() - start;
-            debug!(%namespace_name, %query, %trace, ?elapsed, "Completed DoGet request");
+            debug!(
+                %namespace_name,
+                %query,
+                trace=external_span_ctx.format_jaeger().as_str(),
+                ?elapsed,
+                "Completed DoGet request",
+            );
         }
         response
     }

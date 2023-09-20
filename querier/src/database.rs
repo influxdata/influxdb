@@ -7,6 +7,7 @@ use crate::{
     parquet::ChunkAdapter,
     query_log::QueryLog,
     table::PruneMetrics,
+    QueryLogEntry,
 };
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
@@ -15,7 +16,10 @@ use iox_catalog::interface::SoftDeletedRows;
 use iox_query::exec::Executor;
 use service_common::QueryNamespaceProvider;
 use snafu::Snafu;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
 use trace::span::{Span, SpanRecorder};
 use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
@@ -197,14 +201,14 @@ impl QuerierDatabase {
             .expect("retry forever")
     }
 
-    /// Return connection to ingester(s) to get and aggregate information from them
-    pub fn ingester_connection(&self) -> Option<Arc<dyn IngesterConnection>> {
-        self.ingester_connection.clone()
-    }
-
     /// Executor
     pub(crate) fn exec(&self) -> &Executor {
         &self.exec
+    }
+
+    /// Get query log entries.
+    pub fn query_log(&self) -> VecDeque<Arc<QueryLogEntry>> {
+        self.query_log.entries()
     }
 }
 

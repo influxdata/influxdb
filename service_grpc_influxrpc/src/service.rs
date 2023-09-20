@@ -394,7 +394,11 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let query_completed_token = db.record_query(&ctx, "read_filter", defer_json(&req));
+        let query_completed_token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            "read_filter",
+            defer_json(&req),
+        );
 
         let frames = read_filter_impl(Arc::clone(&db), db_name, req, &ctx)
             .await?
@@ -442,7 +446,11 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let query_completed_token = db.record_query(&ctx, "read_group", defer_json(&req));
+        let query_completed_token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            "read_group",
+            defer_json(&req),
+        );
 
         let ReadGroupRequest {
             read_source: _read_source,
@@ -518,8 +526,11 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let query_completed_token =
-            db.record_query(&ctx, "read_window_aggregate", defer_json(&req));
+        let query_completed_token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            "read_window_aggregate",
+            defer_json(&req),
+        );
 
         let ReadWindowAggregateRequest {
             read_source: _read_source,
@@ -596,7 +607,11 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let query_completed_token = db.record_query(&ctx, "tag_keys", defer_json(&req));
+        let query_completed_token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            "tag_keys",
+            defer_json(&req),
+        );
 
         let TagKeysRequest {
             tags_source: _tag_source,
@@ -664,7 +679,11 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let query_completed_token = db.record_query(&ctx, "tag_values", defer_json(&req));
+        let query_completed_token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            "tag_values",
+            defer_json(&req),
+        );
 
         let TagValuesRequest {
             tags_source: _tag_source,
@@ -765,7 +784,7 @@ where
 
         let ctx = db.new_query_context(span_ctx);
         let query_completed_token = db.record_query(
-            &ctx,
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
             "tag_values_grouped_by_measurement_and_tag_key",
             defer_json(&req),
         );
@@ -873,7 +892,11 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let query_completed_token = db.record_query(&ctx, "measurement_names", defer_json(&req));
+        let query_completed_token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            "measurement_names",
+            defer_json(&req),
+        );
 
         let MeasurementNamesRequest {
             source: _source,
@@ -930,7 +953,11 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let query_completed_token = db.record_query(&ctx, "measurement_tag_keys", defer_json(&req));
+        let query_completed_token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            "measurement_tag_keys",
+            defer_json(&req),
+        );
 
         let MeasurementTagKeysRequest {
             source: _source,
@@ -998,8 +1025,11 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let query_completed_token =
-            db.record_query(&ctx, "measurement_tag_values", defer_json(&req));
+        let query_completed_token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            "measurement_tag_values",
+            defer_json(&req),
+        );
 
         let MeasurementTagValuesRequest {
             source: _source,
@@ -1068,7 +1098,11 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let query_completed_token = db.record_query(&ctx, "measurement_fields", defer_json(&req));
+        let query_completed_token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            "measurement_fields",
+            defer_json(&req),
+        );
 
         let MeasurementFieldsRequest {
             source: _source,
