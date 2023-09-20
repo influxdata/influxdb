@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use ingester_query_grpc::IngesterQueryRequest;
 use trace::{ctx::SpanContext, span::SpanRecorder};
 
-use crate::ingester::flight_client::{Error as FlightClientError, IngesterFlightClient, QueryData};
+use super::flight_client::{Error as FlightClientError, IngesterFlightClient, QueryData};
 
 #[derive(Debug)]
 pub struct InvalidateOnErrorFlightClient {

@@ -1,7 +1,7 @@
 use super::{PruneMetrics, QuerierTable, QuerierTableArgs};
 use crate::{
-    cache::CatalogCache, create_ingester_connection_for_testing, parquet::ChunkAdapter,
-    IngesterPartition,
+    cache::CatalogCache, create_ingester_connection_for_testing, ingester::IngesterPartition,
+    parquet::ChunkAdapter,
 };
 use arrow::record_batch::RecordBatch;
 use data_types::ChunkId;
@@ -100,19 +100,27 @@ impl IngesterPartitionBuilder {
 
     /// Create an ingester partition with the specified field values
     pub(crate) fn build(&self) -> IngesterPartition {
-        let data = self.lp.iter().map(|lp| lp_to_record_batch(lp)).collect();
+        let data = self
+            .lp
+            .iter()
+            .map(|lp| lp_to_record_batch(lp))
+            .collect::<Vec<RecordBatch>>();
+
+        let schema = data[0].schema();
+        assert!(data.iter().all(|b| b.schema() == schema));
+        let fields = schema
+            .fields()
+            .iter()
+            .map(|f| f.name().as_str())
+            .collect::<Vec<_>>();
+        let schema = self.schema.select_by_names(&fields).unwrap();
 
         let mut part = IngesterPartition::new(
             Uuid::new_v4(),
             self.partition.partition.transition_partition_id(),
             0,
         )
-        .try_add_chunk(
-            ChunkId::new_test(self.ingester_chunk_id),
-            self.schema.clone(),
-            data,
-        )
-        .unwrap();
+        .push_chunk(ChunkId::new_test(self.ingester_chunk_id), schema, data);
 
         part.set_partition_column_ranges(&self.partition_column_ranges);
 
