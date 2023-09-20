@@ -3242,6 +3242,7 @@ dependencies = [
  "metric",
  "mutable_batch",
  "object_store",
+ "observability_deps",
  "router",
  "thiserror",
  "tokio",
