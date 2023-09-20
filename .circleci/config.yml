@@ -29,9 +29,9 @@ executors:
       image: ubuntu-2004:202101-01
       resource_class: arm.large
   darwin:
+    resource_class: macos.m1.medium.gen1
     macos:
-      xcode: 12.5.1
-      resource_class: medium
+      xcode: 15.0.0
     shell: /bin/bash -eo pipefail
   windows:
     machine:
@@ -389,6 +389,9 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
+      - run:
+          name: Install Rosetta
+          command: .circleci/scripts/install-rosetta
       - run:
           name: Run tests
           command: ./scripts/ci/run-prebuilt-tests.sh $(pwd)/test-bin $(pwd)/test-results
