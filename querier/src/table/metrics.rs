@@ -48,9 +48,13 @@ impl PruneMetricsGroup {
     }
 
     pub fn register(&self, chunk: &dyn QueryChunk) {
+        self.register_low_level(chunk_rows(chunk) as u64, chunk_estimate_size(chunk) as u64);
+    }
+
+    fn register_low_level(&self, rows: u64, bytes: u64) {
         self.chunks.inc(1);
-        self.rows.inc(chunk_rows(chunk) as u64);
-        self.bytes.inc(chunk_estimate_size(chunk) as u64);
+        self.rows.inc(rows);
+        self.bytes.inc(bytes);
     }
 }
 
@@ -128,8 +132,8 @@ impl PruneMetrics {
     }
 
     /// Called when the specified chunk was pruned late (i.e. before partition pruning).
-    pub fn was_pruned_early(&self, chunk: &dyn QueryChunk) {
-        self.pruned_early.register(chunk);
+    pub fn was_pruned_early(&self, rows: u64, bytes: u64) {
+        self.pruned_early.register_low_level(rows, bytes);
     }
 
     /// Called when the specified chunk was pruned late (i.e. after partition pruning).
