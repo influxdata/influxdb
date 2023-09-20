@@ -59,7 +59,7 @@ impl SortKeyResolver {
                 // This is here to catch bugs and will be removed once the sort_key is removed from the partition
                 assert_eq!(sort_key, p_sort_key);
 
-                Result::<_, iox_catalog::interface::Error>::Ok((sort_key, p_sort_key_ids))
+                Result::<_, iox_catalog::interface::Error>::Ok((sort_key, p_sort_key_ids.cloned()))
             })
             .await
             .expect("retry forever")
@@ -69,7 +69,7 @@ impl SortKeyResolver {
 // build sort_key from sort_key_ids and columns
 // panic if the sort_key_ids are not found in the columns
 pub(crate) fn build_sort_key_from_sort_key_ids_and_columns<I>(
-    sort_key_ids: &Option<SortedColumnSet>,
+    sort_key_ids: &Option<&SortedColumnSet>,
     columns: I,
 ) -> Option<SortKey>
 where
@@ -125,7 +125,7 @@ mod tests {
             .expect("should create");
 
         // Test: sort_key_ids from create_or_get which is empty
-        assert!(partition.sort_key_ids().unwrap().is_empty());
+        assert!(partition.sort_key_ids().is_empty());
 
         let fetcher = SortKeyResolver::new(
             PARTITION_KEY.into(),
@@ -154,8 +154,8 @@ mod tests {
         let (fetched_sort_key, fetched_sort_key_ids) = fetcher.fetch().await;
         assert_eq!(fetched_sort_key, catalog_state.sort_key());
         assert_eq!(
-            fetched_sort_key_ids,
-            catalog_state.sort_key_ids_none_if_empty()
+            &fetched_sort_key_ids.unwrap(),
+            catalog_state.sort_key_ids_none_if_empty().unwrap()
         );
     }
 
@@ -180,7 +180,8 @@ mod tests {
         ];
 
         // sort_key_ids include some columns that are not in the columns
-        let sort_key_ids = Some(SortedColumnSet::from([2, 3]));
+        let sort_key_ids_val = SortedColumnSet::from([2, 3]);
+        let sort_key_ids = Some(&sort_key_ids_val);
         let _sort_key =
             build_sort_key_from_sort_key_ids_and_columns(&sort_key_ids, columns.into_iter());
     }
@@ -218,7 +219,8 @@ mod tests {
         assert_eq!(sort_key, None);
 
         // sort_key_ids is empty
-        let sort_key_ids = Some(SortedColumnSet::new(vec![]));
+        let sort_key_ids_val = SortedColumnSet::new(vec![]);
+        let sort_key_ids = Some(&sort_key_ids_val);
         let sort_key = build_sort_key_from_sort_key_ids_and_columns(
             &sort_key_ids,
             columns.clone().into_iter(),
@@ -227,7 +229,8 @@ mod tests {
         assert_eq!(sort_key, Some(SortKey::from_columns(vec)));
 
         // sort_key_ids include all columns and in the same order
-        let sort_key_ids = Some(SortedColumnSet::from([1, 2, 3]));
+        let sort_key_ids_val = SortedColumnSet::from([1, 2, 3]);
+        let sort_key_ids = Some(&sort_key_ids_val);
         let sort_key = build_sort_key_from_sort_key_ids_and_columns(
             &sort_key_ids,
             columns.clone().into_iter(),
@@ -238,7 +241,8 @@ mod tests {
         );
 
         // sort_key_ids include all columns but in different order
-        let sort_key_ids = Some(SortedColumnSet::from([2, 3, 1]));
+        let sort_key_ids_val = SortedColumnSet::from([2, 3, 1]);
+        let sort_key_ids = Some(&sort_key_ids_val);
         let sort_key = build_sort_key_from_sort_key_ids_and_columns(
             &sort_key_ids,
             columns.clone().into_iter(),
@@ -249,7 +253,8 @@ mod tests {
         );
 
         // sort_key_ids include some columns
-        let sort_key_ids = Some(SortedColumnSet::from([2, 3]));
+        let sort_key_ids_val = SortedColumnSet::from([2, 3]);
+        let sort_key_ids = Some(&sort_key_ids_val);
         let sort_key = build_sort_key_from_sort_key_ids_and_columns(
             &sort_key_ids,
             columns.clone().into_iter(),
@@ -257,7 +262,8 @@ mod tests {
         assert_eq!(sort_key, Some(SortKey::from_columns(vec!["dos", "tres"])));
 
         // sort_key_ids include some columns in different order
-        let sort_key_ids = Some(SortedColumnSet::from([3, 1]));
+        let sort_key_ids_val = SortedColumnSet::from([3, 1]);
+        let sort_key_ids = Some(&sort_key_ids_val);
         let sort_key = build_sort_key_from_sort_key_ids_and_columns(
             &sort_key_ids,
             columns.clone().into_iter(),

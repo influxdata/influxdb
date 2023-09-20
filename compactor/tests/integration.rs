@@ -56,9 +56,9 @@ async fn test_num_files_over_limit() {
 
     setup.run_compact().await;
     //
-    // read files and verify 3 files
+    // read files and verify 2 files
     let files = setup.list_by_table_not_to_delete().await;
-    assert_eq!(files.len(), 3);
+    assert_eq!(files.len(), 2);
 
     //
     // verify ID and compaction level of the files
@@ -68,9 +68,8 @@ async fn test_num_files_over_limit() {
     assert_levels(
         &files,
         vec![
-            (7, CompactionLevel::FileNonOverlapped),
-            (8, CompactionLevel::FileNonOverlapped),
             (9, CompactionLevel::FileNonOverlapped),
+            (10, CompactionLevel::FileNonOverlapped),
         ],
     );
 }

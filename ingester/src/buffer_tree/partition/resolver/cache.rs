@@ -302,7 +302,7 @@ mod tests {
             ARBITRARY_TABLE_ID,
             stored_partition_key.clone(),
             vec!["dos".to_string(), "bananas".to_string()],
-            Some(SortedColumnSet::from([1, 2])),
+            SortedColumnSet::from([1, 2]),
             Default::default(),
         );
 
@@ -362,7 +362,7 @@ mod tests {
             ARBITRARY_TABLE_ID,
             ARBITRARY_PARTITION_KEY.clone(),
             Default::default(),
-            None,
+            Default::default(),
             Default::default(),
         );
 
@@ -398,7 +398,7 @@ mod tests {
             ARBITRARY_TABLE_ID,
             ARBITRARY_PARTITION_KEY.clone(),
             Default::default(),
-            None,
+            Default::default(),
             Default::default(),
         );
 

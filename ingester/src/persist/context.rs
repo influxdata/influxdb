@@ -30,7 +30,7 @@ pub(super) enum PersistError {
     /// A concurrent sort key update was observed and the sort key update was
     /// aborted. The newly observed sort key is returned.
     #[error("detected concurrent sort key update")]
-    ConcurrentSortKeyUpdate(SortKey, Option<SortedColumnSet>),
+    ConcurrentSortKeyUpdate(SortKey, SortedColumnSet),
 }
 
 /// An internal type that contains all necessary information to run a persist

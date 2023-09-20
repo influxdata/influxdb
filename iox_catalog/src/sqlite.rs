@@ -825,15 +825,13 @@ struct PartitionPod {
     table_id: TableId,
     partition_key: PartitionKey,
     sort_key: Json<Vec<String>>,
-    sort_key_ids: Option<Json<Vec<i64>>>,
+    sort_key_ids: Json<Vec<i64>>,
     new_file_at: Option<Timestamp>,
 }
 
 impl From<PartitionPod> for Partition {
     fn from(value: PartitionPod) -> Self {
-        let sort_key_ids = value
-            .sort_key_ids
-            .map(|sort_key_ids| SortedColumnSet::from(sort_key_ids.0));
+        let sort_key_ids = SortedColumnSet::from(value.sort_key_ids.0);
 
         Self::new_with_hash_id_from_sqlite_catalog_only(
             value.id,
@@ -1021,7 +1019,7 @@ WHERE table_id = $1;
         old_sort_key_ids: Option<SortedColumnSet>,
         new_sort_key: &[&str],
         new_sort_key_ids: &SortedColumnSet,
-    ) -> Result<Partition, CasFailure<(Vec<String>, Option<SortedColumnSet>)>> {
+    ) -> Result<Partition, CasFailure<(Vec<String>, SortedColumnSet)>> {
         // These asserts are here to cacth bugs. They will be removed when we remove the sort_key
         // field from the Partition
         assert_eq!(
@@ -1809,7 +1807,7 @@ mod tests {
         assert_eq!(table_partitions[0].hash_id().unwrap(), &hash_id);
 
         // Test: sort_key_ids from partition_create_or_get_idempotent
-        assert!(table_partitions[0].sort_key_ids().unwrap().is_empty());
+        assert!(table_partitions[0].sort_key_ids().is_empty());
     }
 
     #[tokio::test]
@@ -1858,7 +1856,7 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file
             .expect("idempotent write should succeed");
 
         // Test: sort_key_ids from freshly insert with empty value
-        assert!(inserted_again.sort_key_ids().unwrap().is_empty());
+        assert!(inserted_again.sort_key_ids().is_empty());
 
         assert_eq!(partition, &inserted_again);
 

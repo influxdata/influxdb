@@ -7,7 +7,11 @@ use self::{
     test_util::MockIngesterConnection,
 };
 use crate::cache::{namespace::CachedTable, CatalogCache};
-use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
+use arrow::{
+    datatypes::{DataType, TimeUnit},
+    error::ArrowError,
+    record_batch::RecordBatch,
+};
 use arrow_flight::decode::DecodedPayload;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
@@ -982,6 +986,11 @@ impl QueryChunk for IngesterChunk {
 /// Namely, dictionary encoded columns (e.g. tags) are returned as `DataType::Utf8` even when they
 /// were sent as `DataType::Dictionary(Int32, Utf8)`.
 ///
+/// # Timezone conversion
+/// Where the ingester and querier are running different versions there may be an inconsistency
+/// with the timezone used throughout the system. This will convert timestamp fields with the
+/// timezone of None to Some("UTC") and vice-versa as required by the querier.
+///
 /// # Panic
 /// Panics when a column was not found in the given batch.
 fn ensure_schema(batch: RecordBatch, expected_schema: &Schema) -> Result<RecordBatch> {
@@ -999,27 +1008,40 @@ fn ensure_schema(batch: RecordBatch, expected_schema: &Schema) -> Result<RecordB
                     let actual_type = col.data_type();
 
                     // check type
-                    if desired_type != actual_type {
-                        if let DataType::Dictionary(_key_type, value_type) = desired_type.clone() {
-                            if value_type.as_ref() == actual_type {
-                                // convert
-                                return arrow::compute::cast(col, desired_type).context(
-                                    ConvertingRecordBatchSnafu {
-                                        column_name: desired_field.name(),
-                                        data_type: desired_type.clone(),
-                                    },
-                                );
-                            }
+                    match (desired_type, actual_type) {
+                        (t1, t2) if t1 == t2 => Ok(Arc::clone(col)),
+                        (DataType::Dictionary(_key_type, value_type), t2)
+                            if value_type.as_ref() == t2 =>
+                        {
+                            arrow::compute::cast(col, desired_type).context(
+                                ConvertingRecordBatchSnafu {
+                                    column_name: desired_field.name(),
+                                    data_type: desired_type.clone(),
+                                },
+                            )
                         }
-
-                        RecordBatchTypeSnafu {
+                        (
+                            DataType::Timestamp(TimeUnit::Nanosecond, None),
+                            DataType::Timestamp(TimeUnit::Nanosecond, Some(tz)),
+                        ) if tz.as_ref() == "UTC" => arrow::compute::cast(col, desired_type)
+                            .context(ConvertingRecordBatchSnafu {
+                                column_name: desired_field.name(),
+                                data_type: desired_type.clone(),
+                            }),
+                        (
+                            DataType::Timestamp(TimeUnit::Nanosecond, Some(tz)),
+                            DataType::Timestamp(TimeUnit::Nanosecond, None),
+                        ) if tz.as_ref() == "UTC" => arrow::compute::cast(col, desired_type)
+                            .context(ConvertingRecordBatchSnafu {
+                                column_name: desired_field.name(),
+                                data_type: desired_type.clone(),
+                            }),
+                        _ => RecordBatchTypeSnafu {
                             column_name: desired_field.name(),
                             actual_data_type: actual_type.clone(),
                             desired_data_type: desired_type.clone(),
                         }
-                        .fail()
-                    } else {
-                        Ok(Arc::clone(col))
+                        .fail(),
                     }
                 }
                 None => panic!("Column not found: {}", desired_field.name()),
@@ -1035,7 +1057,7 @@ mod tests {
     use super::{flight_client::QueryData, *};
     use arrow::{
         array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
-        datatypes::Int32Type,
+        datatypes::{DataType, Fields, Int32Type, Schema as ArrowSchema, TimeUnit},
     };
     use assert_matches::assert_matches;
     use data_types::{PartitionKey, TableId};
@@ -1043,7 +1065,7 @@ mod tests {
     use iox_tests::TestCatalog;
     use metric::Attributes;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-    use schema::{builder::SchemaBuilder, InfluxFieldType, Projection};
+    use schema::{builder::SchemaBuilder, InfluxFieldType, Projection, TIME_DATA_TIMEZONE};
     use std::collections::{BTreeSet, HashMap};
     use tokio::{runtime::Handle, sync::Mutex};
     use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector};
@@ -1709,9 +1731,17 @@ mod tests {
 
         let cases = vec![
             // send a batch that matches the schema exactly
-            RecordBatch::try_from_iter(vec![("t", dict_array()), ("time", ts_array())]).unwrap(),
+            RecordBatch::try_from_iter(vec![
+                ("t", dict_array()),
+                ("time", ts_array(TIME_DATA_TIMEZONE())),
+            ])
+            .unwrap(),
             // Model what the ingester sends (dictionary decoded to string)
-            RecordBatch::try_from_iter(vec![("t", string_array()), ("time", ts_array())]).unwrap(),
+            RecordBatch::try_from_iter(vec![
+                ("t", string_array()),
+                ("time", ts_array(TIME_DATA_TIMEZONE())),
+            ])
+            .unwrap(),
         ];
 
         for case in cases {
@@ -1735,8 +1765,11 @@ mod tests {
             .timestamp()
             .build()
             .unwrap();
-        let batch =
-            RecordBatch::try_from_iter(vec![("b", int64_array()), ("time", ts_array())]).unwrap();
+        let batch = RecordBatch::try_from_iter(vec![
+            ("b", int64_array()),
+            ("time", ts_array(TIME_DATA_TIMEZONE())),
+        ])
+        .unwrap();
 
         let err = IngesterPartition::new(ingester_uuid, partition_id(1), 0)
             .try_add_chunk(ChunkId::new(), expected_schema, vec![batch])
@@ -1745,11 +1778,108 @@ mod tests {
         assert_matches!(err, Error::RecordBatchType { .. });
     }
 
-    fn ts_array() -> ArrayRef {
+    #[test]
+    fn test_ingester_partition_timezone_cast_to_none() {
+        let ingester_uuid = Uuid::new_v4();
+        let expected_schema = with_timezone(
+            SchemaBuilder::new()
+                .field("f", DataType::Int64)
+                .unwrap()
+                .timestamp()
+                .build()
+                .unwrap(),
+            None,
+        );
+
+        let cases = vec![
+            // send a batch that matches the schema exactly
+            RecordBatch::try_from_iter(vec![("f", int64_array()), ("time", ts_array(None))])
+                .unwrap(),
+            // send time in UTC timezone
+            RecordBatch::try_from_iter(vec![
+                ("f", int64_array()),
+                ("time", ts_array(Some("UTC".into()))),
+            ])
+            .unwrap(),
+        ];
+
+        for case in cases {
+            // Construct a partition and ensure it doesn't error
+            let ingester_partition = IngesterPartition::new(ingester_uuid, partition_id(1), 0)
+                .try_add_chunk(ChunkId::new(), expected_schema.clone(), vec![case])
+                .unwrap();
+
+            for batch in &ingester_partition.chunks[0].batches {
+                assert_eq!(batch.schema(), expected_schema.as_arrow());
+            }
+        }
+    }
+
+    #[test]
+    fn test_ingester_partition_timezone_cast_to_utc() {
+        let ingester_uuid = Uuid::new_v4();
+        let expected_schema = with_timezone(
+            SchemaBuilder::new()
+                .field("f", DataType::Int64)
+                .unwrap()
+                .timestamp()
+                .build()
+                .unwrap(),
+            Some("UTC".into()),
+        );
+
+        let cases = vec![
+            // send a batch that matches the schema exactly
+            RecordBatch::try_from_iter(vec![
+                ("f", int64_array()),
+                ("time", ts_array(Some("UTC".into()))),
+            ])
+            .unwrap(),
+            // send time in no timezone
+            RecordBatch::try_from_iter(vec![("f", int64_array()), ("time", ts_array(None))])
+                .unwrap(),
+        ];
+
+        for case in cases {
+            // Construct a partition and ensure it doesn't error
+            let ingester_partition = IngesterPartition::new(ingester_uuid, partition_id(1), 0)
+                .try_add_chunk(ChunkId::new(), expected_schema.clone(), vec![case])
+                .unwrap();
+
+            for batch in &ingester_partition.chunks[0].batches {
+                assert_eq!(batch.schema(), expected_schema.as_arrow());
+            }
+        }
+    }
+
+    fn with_timezone(schema: Schema, tz: Option<Arc<str>>) -> Schema {
+        let arrow_schema = schema.as_arrow();
+        let fields: Fields = arrow_schema
+            .fields()
+            .iter()
+            .map(|f| {
+                if let &DataType::Timestamp(TimeUnit::Nanosecond, _) = f.data_type() {
+                    Arc::new(
+                        f.as_ref()
+                            .clone()
+                            .with_data_type(DataType::Timestamp(TimeUnit::Nanosecond, tz.clone())),
+                    )
+                } else {
+                    Arc::clone(f)
+                }
+            })
+            .collect();
+        let new_arrow_schema =
+            ArrowSchema::new_with_metadata(fields, arrow_schema.metadata().clone());
+        Schema::try_from(Arc::new(new_arrow_schema)).unwrap()
+    }
+
+    fn ts_array(tz: Option<Arc<str>>) -> ArrayRef {
         Arc::new(
             [Some(1), Some(2), Some(3)]
                 .iter()
-                .collect::<TimestampNanosecondArray>(),
+                .collect::<TimestampNanosecondArray>()
+                .with_timezone_opt(tz),
         )
     }
 

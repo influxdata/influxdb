@@ -1,21 +1,24 @@
 use std::{
     cmp::max,
     fmt::{Debug, Display},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use crate::components::{
     split_or_compact::start_level_files_to_split::{
-        linear_dist_ranges, merge_small_l0_chains, select_split_times, split_into_chains,
+        linear_dist_ranges, merge_l1_spanned_chains, merge_small_l0_chains, select_split_times,
+        split_into_chains,
     },
     Components,
 };
 use async_trait::async_trait;
-use data_types::{CompactionLevel, FileRange, ParquetFile, Timestamp, TransitionPartitionId};
+use data_types::{CompactionLevel, ParquetFile, Timestamp, TransitionPartitionId};
 use itertools::Itertools;
 use observability_deps::tracing::{debug, info};
 
-use crate::{error::DynError, PartitionInfo, RoundInfo};
+use crate::{
+    error::DynError, round_info::CompactRange, round_info::CompactType, PartitionInfo, RoundInfo,
+};
 
 /// Calculates information about what this compaction round does.
 /// When we get deeper into the compaction decision making, there
@@ -28,10 +31,10 @@ pub trait RoundInfoSource: Debug + Display + Send + Sync {
     async fn calculate(
         &self,
         components: Arc<Components>,
-        last_round_info: Option<RoundInfo>,
+        last_round_info: Option<Arc<RoundInfo>>,
         partition_info: &PartitionInfo,
         files: Vec<ParquetFile>,
-    ) -> Result<(RoundInfo, Vec<Vec<ParquetFile>>, Vec<ParquetFile>), DynError>;
+    ) -> Result<(Arc<RoundInfo>, bool), DynError>;
 }
 
 #[derive(Debug)]
@@ -56,16 +59,16 @@ impl RoundInfoSource for LoggingRoundInfoWrapper {
     async fn calculate(
         &self,
         components: Arc<Components>,
-        last_round_info: Option<RoundInfo>,
+        last_round_info: Option<Arc<RoundInfo>>,
         partition_info: &PartitionInfo,
         files: Vec<ParquetFile>,
-    ) -> Result<(RoundInfo, Vec<Vec<ParquetFile>>, Vec<ParquetFile>), DynError> {
+    ) -> Result<(Arc<RoundInfo>, bool), DynError> {
         let res = self
             .inner
             .calculate(components, last_round_info, partition_info, files)
             .await;
-        if let Ok((round_info, branches, files_later)) = &res {
-            debug!(round_info_source=%self.inner, %round_info, branches=branches.len(), files_later=files_later.len(), "running round");
+        if let Ok((round_info, done)) = &res {
+            debug!(round_info_source=%self.inner, %round_info, %done, "running round");
         }
         res
     }
@@ -208,197 +211,427 @@ impl LevelBasedRoundInfo {
         false
     }
 
-    /// vertical_split_handling determines if vertical splitting is necessary, or has already been done.
-    /// If splitting is necessary, a vec of split times is returned.  If a previous split is detected, a
-    /// vec of CompactionRange is returned to preserve the prior split.
-    /// The need for more splitting takes precedence over acting on prior splitting.  So if a vec of split times
-    /// is returned, the caller will use those split times in a VerticalSplit RoundInfo for vertical splitting.
-    /// If only a vec of CompactRanges are returned, the caller will use those to preserve the prior split until
-    /// all the L0s are compacted to L1.
-    /// If neither is returned, the caller will identify another type of RoundInfo for this round of compaction.
-    pub fn vertical_split_handling(
+    /// consider_vertical_splitting determines if vertical splitting is necessary, and if so, a vec of split times is
+    /// returned.
+    pub fn consider_vertical_splitting(
         &self,
         partition_id: TransitionPartitionId,
         files: Vec<ParquetFile>,
         max_compact_size: usize,
-    ) -> (Vec<i64>, Vec<FileRange>) {
-        let (start_level_files, mut target_level_files): (Vec<ParquetFile>, Vec<ParquetFile>) =
-            files
-                .into_iter()
-                .filter(|f| f.compaction_level != CompactionLevel::Final)
-                .partition(|f| f.compaction_level == CompactionLevel::Initial);
+    ) -> Vec<i64> {
+        let file_cnt = files.len();
+
+        let (start_level_files, target_level_files): (Vec<ParquetFile>, Vec<ParquetFile>) = files
+            .into_iter()
+            .filter(|f| f.compaction_level != CompactionLevel::Final)
+            .partition(|f| f.compaction_level == CompactionLevel::Initial);
 
         let len = start_level_files.len();
         let mut split_times = Vec::with_capacity(len);
 
-        // Break up the start level files into chains of files that overlap each other.
-        // Then we'll determine if vertical splitting is needed within each chain.
-        let chains = split_into_chains(start_level_files);
-        let chains = merge_small_l0_chains(chains, max_compact_size);
-        let mut ranges = Vec::with_capacity(chains.len());
+        let cap: usize = start_level_files
+            .iter()
+            .map(|f| f.file_size_bytes as usize)
+            .sum();
 
-        for chain in &chains {
-            let chain_cap: usize = chain.iter().map(|f| f.file_size_bytes as usize).sum();
-
-            if chain.len() > 300 && chain_cap / chain.len() < max_compact_size / 10 {
-                info!("skipping vertical splitting on partition_id {} for now, due to excessive file count.  chain length: {}, cap: {} MB",
-                    partition_id, chain.len(), chain_cap/1024/1024);
-                continue;
-            }
-
-            // A single file over max size can just get upgraded to L1, then L2, unless it overlaps other L0s.
-            // So multi file chains over the max compact size may need split
-            if chain.len() > 1 && chain_cap > max_compact_size {
-                // This chain is too big to compact on its own, so files will be split it into smaller, more manageable chains.
-                // We can't know the data distribution within each file without reading the file (too expensive), but we can
-                // still learn a lot about the data distribution accross the set of files by assuming even distribtuion within each
-                // file and considering the distribution of files within the chain's time range.
-                let linear_ranges =
-                    linear_dist_ranges(chain, chain_cap, max_compact_size, partition_id.clone());
-
-                for range in linear_ranges {
-                    // split at every time range of linear distribution.
-                    if !split_times.is_empty() {
-                        split_times.push(range.min - 1);
-                    }
-
-                    // how many start level files are in this range?
-                    let overlaps = chain
-                        .iter()
-                        .filter(|f| {
-                            f.overlaps_time_range(
-                                Timestamp::new(range.min),
-                                Timestamp::new(range.max),
-                            )
-                        })
-                        .count();
-
-                    if overlaps > 1 && range.cap > max_compact_size {
-                        // Since we'll be splitting the start level files within this range, it would be nice to align the split times to
-                        // the min/max times of target level files.  select_split_times will use the min/max time of target level files
-                        // as hints, and see what lines up to where the range needs split.
-                        let mut split_hints: Vec<i64> =
-                            Vec::with_capacity(range.cap * 2 / max_compact_size + 1);
-
-                        // split time is the last time included in the 'left' side of the split.  Our goal with these hints is to avoid
-                        // overlaps with L1 files, we'd like the 'left file' to end before this L1 file starts (split=min-1), or it can
-                        // include up to the last ns of the L1 file (split=max).
-                        for f in &target_level_files {
-                            if f.min_time.get() - 1 > range.min && f.min_time.get() < range.max {
-                                split_hints.push(f.min_time.get() - 1);
-                            }
-                            if f.max_time.get() > range.min && f.max_time.get() < range.max {
-                                split_hints.push(f.max_time.get());
-                            }
-                        }
-
-                        // We may have started splitting files, and now there's a new L0 added that spans our previous splitting.
-                        // We'll detect multiple L0 files ending at the same time, and add that to the split hints.
-                        let end_times = chain
-                            .iter()
-                            .map(|f| f.max_time.get())
-                            .sorted()
-                            .dedup_with_count();
-                        for (count, time) in end_times {
-                            if count > 1 {
-                                // wether we previously split here or not, with at least 2 L0s ending here, its a good place to split.
-                                split_hints.push(time);
-                            }
-                        }
-
-                        let splits = select_split_times(
-                            range.cap,
-                            max_compact_size,
-                            range.min,
-                            range.max,
-                            split_hints.clone(),
-                        );
-                        split_times.extend(splits);
-                    }
-                }
-            }
+        // TODO: remove this:
+        if start_level_files.len() > 300 && cap / file_cnt < max_compact_size / 10 {
+            info!("skipping vertical splitting on partition_id {} for now, due to excessive file count.  file count: {}, cap: {} MB",
+                partition_id, start_level_files.len(), cap/1024/1024);
+            return vec![];
         }
 
-        // If we're not doing vertical splitting, while we've got the chains, lets check for a previous vertical split.
-        // We'll preserve prior splitting activity by creating CompactionRange for each of the previous splits.
-        let mut prior_max = -1;
-        if chains.len() > 1 {
-            let mut prior_overlapping_max = Timestamp::new(0);
-            let mut prior_chain_max: i64 = 0;
-            let mut overlaps: Vec<ParquetFile>;
-            let mut adding_ranges = true;
+        // A single file over max size can just get upgraded to L1, then L2, unless it overlaps other L0s.
+        // So multi file filess over the max compact size may need split
+        if start_level_files.len() > 1 && cap > max_compact_size {
+            // files in this range are too big to compact in one job, so files will be split it into smaller, more manageable ranges.
+            // We can't know the data distribution within each file without reading the file (too expensive), but we can
+            // still learn a lot about the data distribution accross the set of files by assuming even distribtuion within each
+            // file and considering the distribution of files within the files's time range.
+            let linear_ranges = linear_dist_ranges(
+                &start_level_files,
+                cap,
+                max_compact_size,
+                partition_id.clone(),
+            );
 
-            for chain in &chains {
-                let mut min = chain.iter().map(|f| f.min_time).min().unwrap();
-
-                let max = chain.iter().map(|f| f.max_time).max().unwrap();
-                assert!(min.get() > prior_max);
-                prior_max = max.get();
-
-                if min <= prior_overlapping_max && prior_overlapping_max != Timestamp::new(0) {
-                    // Target level files overlap more than one start level file, and there is a target level file overlapping
-                    // the prior chain of L0s and this one.  We'll split the target level file at the pror range/chain max before
-                    // proceeding with compactions.
-                    split_times.push(prior_chain_max);
-                    adding_ranges = false;
+            let mut first_range = true;
+            for range in linear_ranges {
+                // split at every time range of linear distribution.
+                if !first_range {
+                    split_times.push(range.min - 1);
                 }
+                first_range = false;
 
-                // As we identify overlaps, we'll include some don't quite overlap, but are between the prior chain and this one.
-                // By including them here, we preserve the opportunity to grow small L1s in a "gappy" leading edge pattern.
-                // If they're large, they'll be excluded from the L0->L1 compaction, so there's no harm including them.
-                let search_min =
-                    (prior_overlapping_max + 1).max(Timestamp::new(prior_chain_max + 1));
-                (overlaps, target_level_files) = target_level_files.into_iter().partition(|f2| {
-                    f2.overlaps_time_range(search_min, max)
-                        && f2.compaction_level != CompactionLevel::Final
-                });
-                let l0cap: usize = chain
+                // how many start level files are in this range?
+                let overlaps = start_level_files
                     .iter()
-                    .map(|f| f.file_size_bytes as usize)
-                    .sum::<usize>();
-                let cap = l0cap
-                    + overlaps
-                        .iter()
-                        .map(|f| f.file_size_bytes as usize)
-                        .sum::<usize>();
+                    .filter(|f| {
+                        f.overlaps_time_range(Timestamp::new(range.min), Timestamp::new(range.max))
+                    })
+                    .count();
 
-                if !overlaps.is_empty() {
-                    prior_overlapping_max = overlaps.iter().map(|f| f.max_time).max().unwrap();
-                    let prior_smallest_max = overlaps.iter().map(|f| f.max_time).min().unwrap();
-                    if prior_smallest_max < min {
-                        // Expand the range to include this file, so it can be included (if its small and we'd like to grow it).
-                        min = prior_smallest_max;
+                if overlaps > 1 && range.cap > max_compact_size {
+                    // Since we'll be splitting the start level files within this range, it would be nice to align the split times to
+                    // the min/max times of target level files.  select_split_times will use the min/max time of target level files
+                    // as hints, and see what lines up to where the range needs split.
+                    let mut split_hints: Vec<i64> =
+                        Vec::with_capacity(range.cap * 2 / max_compact_size + 1);
+
+                    // split time is the last time included in the 'left' side of the split.  Our goal with these hints is to avoid
+                    // overlaps with L1 files, we'd like the 'left file' to end before this L1 file starts (split=min-1), or it can
+                    // include up to the last ns of the L1 file (split=max).
+                    for f in &target_level_files {
+                        if f.min_time.get() - 1 > range.min && f.min_time.get() < range.max {
+                            split_hints.push(f.min_time.get() - 1);
+                        }
+                        if f.max_time.get() > range.min && f.max_time.get() < range.max {
+                            split_hints.push(f.max_time.get());
+                        }
                     }
+
+                    // We may have started splitting files, and now there's a new L0 added that spans our previous splitting.
+                    // We'll detect multiple L0 files ending at the same time, and add that to the split hints.
+                    let end_times = start_level_files
+                        .iter()
+                        .map(|f| f.max_time.get())
+                        .sorted()
+                        .dedup_with_count();
+                    for (count, time) in end_times {
+                        if count > 1 {
+                            // wether we previously split here or not, with at least 2 L0s ending here, its a good place to split.
+                            split_hints.push(time);
+                        }
+                    }
+
+                    let splits = select_split_times(
+                        range.cap,
+                        max_compact_size,
+                        range.min,
+                        range.max,
+                        split_hints.clone(),
+                    );
+                    split_times.extend(splits);
                 }
-
-                // To avoid illegal max_l0_created_at ordering issues, we can only compact ranges from the left.
-                // The first ineligible (too big) range will make us quit.
-                if adding_ranges && l0cap <= max_compact_size {
-                    ranges.push(FileRange {
-                        min: min.get(),
-                        max: max.get(),
-                        cap,
-                    });
-                } else {
-                    adding_ranges = false;
-                }
-
-                prior_chain_max = max.get();
-            }
-
-            // If this function returns both split times and ranges, the split times take precedence.  But if we're highly backlogged,
-            // it is preferable to compact some ranges down to L1 as they become available, rather that splitting a potentially huge backlog
-            // before we compact anything.  So if we've got a few ranges eligible for compaction, we'll start them with them, and may
-            // do more vertical splitting later.
-            if ranges.len() >= 10 {
-                // There's enough ranges to work on, discard the split times so we compact the ranges.
-                split_times = vec![];
             }
         }
 
         split_times.sort();
         split_times.dedup();
-        (split_times, ranges)
+        split_times
+    }
+
+    // derive_draft_ranges takes a last round info option and a vec of files - one of them must be populated.
+    // From this, we'll get a draft of CompactRanges for the current round of compaction.  Its a draft because
+    // it partially set up, having only the files, min, max, and cap set.  The op, branches, and files_for_later
+    // will be determined shortly.
+    // We split up into several ranges to keep the L0->L1 compaction simple (the overlaps allowed in L0 make it messy).
+    // But we don't want to create artificial divisions in L2, so L2's get set aside until we've consolidated to
+    // a single CompactRange.
+    fn derive_draft_ranges(
+        &self,
+        partition_info: &PartitionInfo,
+        last_round_info: Option<Arc<RoundInfo>>,
+        files: Vec<ParquetFile>,
+    ) -> (Vec<CompactRange>, Option<Vec<ParquetFile>>) {
+        // We require exactly 1 source of information: either 'files' because this is the first round, or 'last_round_info' from the prior round.
+        if let Some(last_round_info) = last_round_info {
+            assert!(
+                files.is_empty(),
+                "last_round_info and files must not both be populated"
+            );
+            self.evaluate_prior_ranges(partition_info, last_round_info)
+        } else {
+            assert!(
+                !files.is_empty(),
+                "last_round_info and files must not both be empty"
+            );
+            // This is the first round, so no prior round info.
+            // We'll take a look at 'files' and see what we can do.
+            self.split_files_into_ranges(files)
+        }
+    }
+
+    // evaluate_prior_ranges is a helper function for derive_draft_ranges, used when there is prior round info.
+    // It takes the prior round's ranges, and splits them if they did vertical splitting, or combines them if
+    // they finished compacting their L0s.
+    fn evaluate_prior_ranges(
+        &self,
+        partition_info: &PartitionInfo,
+        last_round_info: Arc<RoundInfo>,
+    ) -> (Vec<CompactRange>, Option<Vec<ParquetFile>>) {
+        // We'll start with the ranges from the prior round.
+        let mut ranges = Vec::with_capacity(last_round_info.ranges.len());
+
+        // As we iterate through the last_round_info's ranges, we'll try to consolidate ranges for any that don't have L0s.
+        let mut prior_range: Option<CompactRange> = None;
+
+        for range in &last_round_info.ranges {
+            // The prior round should have handled its `files_for_now`, so that should `None`.
+            // What the prior round considered `files_for_later` will now become `files_for_now`.
+            assert!(
+                range.files_for_now.lock().unwrap().is_none(),
+                "files_for_now should be empty for range {}->{} on partition {}",
+                range.min,
+                range.max,
+                partition_info.partition_id()
+            );
+            assert!(
+                range.branches.lock().unwrap().is_none(),
+                "branches should be empty for range {}->{} on partition {}",
+                range.min,
+                range.max,
+                partition_info.partition_id()
+            );
+
+            let files_for_now = range.files_for_later.lock().unwrap().take();
+            assert!(
+                files_for_now.is_some(),
+                "files_for_later should not be None for range {}->{} on partition {}",
+                range.min,
+                range.max,
+                partition_info.partition_id()
+            );
+            let mut files_for_now = files_for_now.unwrap();
+            assert!(
+                !files_for_now.is_empty(),
+                "files_for_later should not be empty for range {}->{} on partition {}",
+                range.min,
+                range.max,
+                partition_info.partition_id()
+            );
+
+            if let Some(split_times) = range.op.split_times() {
+                // In the prior round, this range did vertical splitting.  Those split times now divide this range into several ranges.
+
+                if prior_range.is_some() {
+                    ranges.push(prior_range.unwrap());
+                    prior_range = None;
+                }
+
+                let mut split_ranges = Vec::with_capacity(split_times.len());
+                let mut max = range.max;
+
+                for split_time in split_times.into_iter().rev() {
+                    // By iterating in reverse, everything above the split time is in this split
+                    let this_split_files_for_now: Vec<ParquetFile>;
+                    (this_split_files_for_now, files_for_now) = files_for_now
+                        .into_iter()
+                        .partition(|f| f.max_time.get() > split_time);
+                    let cap = this_split_files_for_now
+                        .iter()
+                        .map(|f| f.file_size_bytes as usize)
+                        .sum::<usize>();
+
+                    let this_split_files_for_now = if this_split_files_for_now.is_empty() {
+                        None
+                    } else {
+                        Some(this_split_files_for_now.clone())
+                    };
+
+                    split_ranges.insert(
+                        0,
+                        CompactRange {
+                            op: CompactType::Deferred {},
+                            min: split_time + 1,
+                            max,
+                            cap,
+                            has_l0s: true,
+                            files_for_now: Mutex::new(this_split_files_for_now),
+                            branches: Mutex::new(None),
+                            files_for_later: Mutex::new(None),
+                        },
+                    );
+
+                    // split_time is the highest time in the 'left' file, so that will be max time for the next range.
+                    max = split_time;
+                }
+
+                if !files_for_now.is_empty() {
+                    let cap = files_for_now
+                        .iter()
+                        .map(|f| f.file_size_bytes as usize)
+                        .sum::<usize>();
+                    let files_for_now = Some(files_for_now.clone());
+
+                    split_ranges.insert(
+                        0,
+                        CompactRange {
+                            op: CompactType::Deferred {},
+                            min: range.min,
+                            max,
+                            cap,
+                            has_l0s: true,
+                            files_for_now: Mutex::new(files_for_now),
+                            branches: Mutex::new(None),
+                            files_for_later: Mutex::new(None),
+                        },
+                    );
+                }
+
+                ranges.append(&mut split_ranges);
+            } else {
+                // Carry forward the prior range
+                let has_l0s = files_for_now
+                    .iter()
+                    .any(|f| f.compaction_level == CompactionLevel::Initial);
+
+                if prior_range.is_some() && (!prior_range.as_mut().unwrap().has_l0s || !has_l0s) {
+                    // This and the prior range don't both have L0s; we can consolidate.
+                    let prior = prior_range.as_mut().unwrap();
+                    prior.max = range.max;
+                    prior.cap += range.cap;
+                    prior.has_l0s = prior.has_l0s || has_l0s;
+                    prior.add_files_for_now(files_for_now);
+                } else {
+                    if let Some(prior_range) = prior_range {
+                        // we'll not be consolidating with with the prior range, so push it
+                        ranges.push(prior_range);
+                    }
+
+                    let files_for_now = if files_for_now.is_empty() {
+                        None
+                    } else {
+                        Some(files_for_now.clone())
+                    };
+                    let this_range = CompactRange {
+                        op: range.op.clone(),
+                        min: range.min,
+                        max: range.max,
+                        cap: range.cap,
+                        has_l0s,
+                        files_for_now: Mutex::new(files_for_now),
+                        branches: Mutex::new(None),
+                        files_for_later: Mutex::new(None),
+                    };
+                    prior_range = Some(this_range);
+                };
+            }
+        }
+        if let Some(prior_range) = prior_range {
+            ranges.push(prior_range);
+        }
+
+        // If we still have several ranges, L2s (if any) need to stay in round_info.files_for_later.  If we have 1 range
+        // without L0s, the L2s can go in that range.
+        let mut deferred_l2s = last_round_info.take_l2_files_for_later();
+        if ranges.len() == 1 && !ranges[0].has_l0s && deferred_l2s.is_some() {
+            ranges[0].add_files_for_now(deferred_l2s.unwrap());
+            deferred_l2s = None;
+        }
+        (ranges, deferred_l2s)
+    }
+
+    // split_files_into_ranges is a helper function for derive_draft_ranges, used when there is no prior round info.
+    // Its given the files found in the catalog, and puts them into range(s).
+    fn split_files_into_ranges(
+        &self,
+        files: Vec<ParquetFile>,
+    ) -> (Vec<CompactRange>, Option<Vec<ParquetFile>>) {
+        let (l0_files, other_files): (Vec<ParquetFile>, Vec<ParquetFile>) = files
+            .into_iter()
+            .partition(|f| f.compaction_level == CompactionLevel::Initial);
+        if !l0_files.is_empty() {
+            // We'll get all the L0 files compacted to L1 before dealing with L2 files - so separate them.
+            let (l2_files_for_later, mut l1_files): (Vec<ParquetFile>, Vec<ParquetFile>) =
+                other_files
+                    .into_iter()
+                    .partition(|f| f.compaction_level == CompactionLevel::Final);
+
+            // Break up the start level files into chains of files that overlap each other.
+            // Then we'll determine if vertical splitting is needed within each chain.
+            let chains = split_into_chains(l0_files);
+
+            // This function is detecting what ranges we already have, not identifying splitting to make ranges we want.
+            // So we may have to combine some chains based on L1s overlapping.
+            let chains = merge_l1_spanned_chains(chains, &l1_files);
+
+            // the goal is nice bite sized chains.  If some are very small, merge them with their neighbor(s).
+            let chains = merge_small_l0_chains(chains, self.max_total_file_size_per_plan);
+
+            let mut ranges = Vec::with_capacity(chains.len());
+            let mut this_split: Vec<ParquetFile>;
+
+            for mut chain in chains {
+                let mut max = chain.iter().map(|f| f.max_time).max().unwrap().get();
+
+                // 'chain' is the L0s that will become a region.  We also need the L1s and L2s that belong in this region.
+
+                (this_split, l1_files) =
+                    l1_files.into_iter().partition(|f| f.min_time.get() <= max);
+
+                if !this_split.is_empty() {
+                    max = max.max(this_split.iter().map(|f| f.max_time).max().unwrap().get());
+                }
+
+                this_split.append(&mut chain);
+                let min = this_split.iter().map(|f| f.min_time).min().unwrap().get();
+                let cap = this_split
+                    .iter()
+                    .map(|f| f.file_size_bytes as usize)
+                    .sum::<usize>();
+
+                ranges.push(CompactRange {
+                    op: CompactType::Deferred {},
+                    min,
+                    max,
+                    cap,
+                    has_l0s: true,
+                    files_for_now: Mutex::new(Some(this_split)),
+                    branches: Mutex::new(None),
+                    files_for_later: Mutex::new(None),
+                });
+            }
+
+            this_split = l1_files;
+            if !this_split.is_empty() {
+                let min = this_split.iter().map(|f| f.min_time).min().unwrap().get();
+                let max = this_split.iter().map(|f| f.max_time).max().unwrap().get();
+                let cap = this_split
+                    .iter()
+                    .map(|f| f.file_size_bytes as usize)
+                    .sum::<usize>();
+
+                ranges.push(CompactRange {
+                    op: CompactType::Deferred {},
+                    min,
+                    max,
+                    cap,
+                    has_l0s: true,
+                    files_for_now: Mutex::new(Some(this_split)),
+                    branches: Mutex::new(None),
+                    files_for_later: Mutex::new(None),
+                });
+            }
+
+            let l2_files_for_later = if l2_files_for_later.is_empty() {
+                None
+            } else {
+                Some(l2_files_for_later)
+            };
+            (ranges, l2_files_for_later)
+        } else {
+            // No start level files, we can put everything in one range.
+            let min = other_files.iter().map(|f| f.min_time).min().unwrap().get();
+            let max = other_files.iter().map(|f| f.max_time).max().unwrap().get();
+            let cap = other_files
+                .iter()
+                .map(|f| f.file_size_bytes as usize)
+                .sum::<usize>();
+            (
+                vec![CompactRange {
+                    op: CompactType::Deferred {},
+                    min,
+                    max,
+                    cap,
+                    has_l0s: false,
+                    files_for_now: Mutex::new(Some(other_files)),
+                    branches: Mutex::new(None),
+                    files_for_later: Mutex::new(None),
+                }],
+                None,
+            )
+        }
     }
 }
 
@@ -409,152 +642,127 @@ impl RoundInfoSource for LevelBasedRoundInfo {
     async fn calculate(
         &self,
         components: Arc<Components>,
-        last_round_info: Option<RoundInfo>,
+        last_round_info: Option<Arc<RoundInfo>>,
         partition_info: &PartitionInfo,
         files: Vec<ParquetFile>,
-    ) -> Result<(RoundInfo, Vec<Vec<ParquetFile>>, Vec<ParquetFile>), DynError> {
-        let mut ranges: Vec<FileRange> = vec![];
+    ) -> Result<(Arc<RoundInfo>, bool), DynError> {
+        // Step 1: Establish range boundaries, with files in each range.
+        let (prior_ranges, mut l2_files_for_later) =
+            self.derive_draft_ranges(partition_info, last_round_info, files);
 
-        if let Some(last_round_info) = last_round_info {
-            if let Some(last_ranges) = last_round_info.ranges() {
-                // Last round had L0 CompactRange.  If we have unfinished business from that,
-                // we need to continue with those ranges.
-                for range in last_ranges {
-                    // If this range still has overapping L0 files, we need to keep it.
-                    for f in &files {
-                        if f.compaction_level == CompactionLevel::Initial
-                            && f.overlaps_ranges(&vec![range])
-                        {
-                            ranges.push(range);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        let range_cnt = prior_ranges.len();
 
-        // start_level is usually the lowest level we have files in, but occasionally we decide to
-        // compact L1->L2 when L0s still exist.  If this comes back as L1, we'll ignore L0s for this
-        // round and force an early L1-L2 compaction.
-        let start_level = get_start_level(
-            &files,
-            self.max_num_files_per_plan,
-            self.max_total_file_size_per_plan,
-            partition_info.partition_id(),
-        );
-
-        let round_info = if !ranges.is_empty() {
-            RoundInfo::CompactRanges {
-                ranges,
-                max_num_files_to_group: self.max_num_files_per_plan,
-                max_total_file_size_to_group: self.max_total_file_size_per_plan,
-            }
-        } else if start_level == CompactionLevel::Initial {
-            let (split_times, ranges) = self.vertical_split_handling(
-                partition_info.partition_id(),
-                files.clone().to_vec(),
-                self.max_total_file_size_per_plan,
+        // Step 2: Determine the op for each range.
+        let mut ranges: Vec<CompactRange> = Vec::with_capacity(range_cnt);
+        for mut range in prior_ranges {
+            let files_for_now = range.files_for_now.lock().unwrap().take();
+            assert!(
+                files_for_now.is_some(),
+                "files_for_now should not be None for range {}->{} on partition {}",
+                range.min,
+                range.max,
+                partition_info.partition_id()
             );
+            let files_for_now = files_for_now.unwrap();
 
-            if !split_times.is_empty() {
-                RoundInfo::VerticalSplit { split_times }
-            } else if !ranges.is_empty() {
-                RoundInfo::CompactRanges {
-                    ranges,
-                    max_num_files_to_group: self.max_num_files_per_plan,
-                    max_total_file_size_to_group: self.max_total_file_size_per_plan,
+            // If we're down to a single range, we should check if we're done.
+            if range_cnt == 1
+                && !components
+                    .partition_filter
+                    .apply(partition_info, &files_for_now)
+                    .await?
+            {
+                return Ok((
+                    Arc::new(RoundInfo {
+                        ranges,
+                        l2_files_for_later: Mutex::new(l2_files_for_later),
+                    }),
+                    true,
+                ));
+            }
+
+            range.has_l0s = files_for_now
+                .iter()
+                .any(|f| f.compaction_level == CompactionLevel::Initial);
+
+            if range.has_l0s {
+                let split_times = self.consider_vertical_splitting(
+                    partition_info.partition_id(),
+                    files_for_now.clone().to_vec(),
+                    self.max_total_file_size_per_plan,
+                );
+
+                if !split_times.is_empty() {
+                    range.op = CompactType::VerticalSplit { split_times };
+                } else if self
+                    .too_many_small_files_to_compact(&files_for_now, CompactionLevel::Initial)
+                {
+                    range.op = CompactType::ManySmallFiles {
+                        start_level: CompactionLevel::Initial,
+                        max_num_files_to_group: self.max_num_files_per_plan,
+                        max_total_file_size_to_group: self.max_total_file_size_per_plan,
+                    };
+                } else {
+                    range.op = CompactType::TargetLevel {
+                        target_level: CompactionLevel::FileNonOverlapped,
+                        max_total_file_size_to_group: self.max_total_file_size_per_plan,
+                    };
                 }
-            } else if self.too_many_small_files_to_compact(&files, start_level) {
-                RoundInfo::ManySmallFiles {
-                    start_level,
-                    max_num_files_to_group: self.max_num_files_per_plan,
+            } else if range_cnt == 1 {
+                range.op = CompactType::TargetLevel {
+                    target_level: CompactionLevel::Final,
                     max_total_file_size_to_group: self.max_total_file_size_per_plan,
-                }
+                };
             } else {
-                RoundInfo::TargetLevel {
-                    target_level: CompactionLevel::FileNonOverlapped,
-                    max_total_file_size_to_group: self.max_total_file_size_per_plan,
-                }
+                // The L0s of this range are compacted, but this range needs to hang out a while until its neighbors catch up.
+                range.op = CompactType::Deferred {};
+            };
+
+            if range.op.is_deferred() {
+                range.add_files_for_later(files_for_now);
+                ranges.push(range);
+            } else {
+                // start_level is usually the lowest level we have files in, but occasionally we decide to
+                // compact L1->L2 when L0s still exist.  If this comes back as L1, we'll ignore L0s for this
+                // round and force an early L1-L2 compaction.
+                let (files_for_now, mut files_later) = components.round_split.split(
+                    files_for_now,
+                    range.op.clone(),
+                    partition_info.partition_id(),
+                );
+
+                let (branches, more_for_later) = components.divide_initial.divide(
+                    files_for_now,
+                    range.op.clone(),
+                    partition_info.partition_id(),
+                );
+
+                files_later.extend(more_for_later);
+
+                if !branches.is_empty() {
+                    range.branches = Mutex::new(Some(branches));
+                } // else, leave it None, since Some is assumed to be non-empty.
+
+                if !files_later.is_empty() {
+                    range.files_for_later = Mutex::new(Some(files_later));
+                } // else, leave it None, since Some is assumed to be non-empty.
+                ranges.push(range);
             }
-        } else {
-            let target_level = start_level.next();
-            RoundInfo::TargetLevel {
-                target_level,
-                max_total_file_size_to_group: self.max_total_file_size_per_plan,
-            }
-        };
-
-        let (files_now, mut files_later) =
-            components
-                .round_split
-                .split(files, round_info.clone(), partition_info.partition_id());
-
-        let (branches, more_for_later) = components.divide_initial.divide(
-            files_now,
-            round_info.clone(),
-            partition_info.partition_id(),
-        );
-        files_later.extend(more_for_later);
-
-        Ok((round_info, branches, files_later))
-    }
-}
-
-// get_start_level decides what level to start compaction from.  Often this is the lowest level
-// we have ParquetFiles in, but occasionally we decide to compact L1->L2 when L0s still exist.
-//
-// If we ignore the invariants (where intra-level overlaps are allowed), this would be a math problem
-// to optimize write amplification.
-//
-// However, allowing intra-level overlaps in L0 but not L1/L2 adds extra challenge to compacting L0s to L1.
-// This is especially true when there are large quantitites of overlapping L0s and L1s, potentially resulting
-// in many split/compact cycles to resolve the overlaps.
-//
-// Since L1 & L2 only have inter-level overlaps, they can be compacted with just a few splits to align the L1s
-// with the L2s.  The relative ease of moving data from L1 to L2 provides additional motivation to compact the
-// L1s to L2s when a backlog of L0s exist. The easily solvable L1->L2 compaction can give us a clean slate in
-// L1, greatly simplifying the remaining L0->L1 compactions.
-fn get_start_level(
-    files: &[ParquetFile],
-    max_files: usize,
-    max_bytes: usize,
-    partition: TransitionPartitionId,
-) -> CompactionLevel {
-    // panic if the files are empty
-    assert!(
-        !files.is_empty(),
-        "files should not be empty, partition_id={}",
-        partition
-    );
-
-    let mut l0_cnt: usize = 0;
-    let mut l0_bytes: usize = 0;
-    let mut l1_bytes: usize = 0;
-
-    for f in files {
-        match f.compaction_level {
-            CompactionLevel::Initial => {
-                l0_cnt += 1;
-                l0_bytes += f.file_size_bytes as usize;
-            }
-            CompactionLevel::FileNonOverlapped => {
-                l1_bytes += f.file_size_bytes as usize;
-            }
-            _ => {}
         }
-    }
 
-    if l1_bytes > 3 * max_bytes && (l0_cnt > max_files || l0_bytes > max_bytes) {
-        // L1 is big enough to pose an overlap challenge compacting from L0, and there is quite a bit more coming from L0.
-        // The criteria for this early L1->L2 compaction significanly impacts write amplification.  The above values optimize
-        // existing test cases, but may be changed as additional test cases are added.
-        CompactionLevel::FileNonOverlapped
-    } else if l0_bytes > 0 {
-        CompactionLevel::Initial
-    } else if l1_bytes > 0 {
-        CompactionLevel::FileNonOverlapped
-    } else {
-        CompactionLevel::Final
+        if ranges.len() == 1 && !ranges[0].has_l0s && l2_files_for_later.is_some() {
+            // Single range without L0s, its time to work on the L2s.
+            ranges[0].add_files_for_now(l2_files_for_later.unwrap());
+            l2_files_for_later = None;
+        }
+
+        Ok((
+            Arc::new(RoundInfo {
+                ranges,
+                l2_files_for_later: Mutex::new(l2_files_for_later),
+            }),
+            false,
+        ))
     }
 }
 

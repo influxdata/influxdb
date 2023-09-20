@@ -3,12 +3,7 @@ use std::fmt::Display;
 use data_types::{CompactionLevel, ParquetFile, Timestamp, TransitionPartitionId};
 use observability_deps::tracing::warn;
 
-use crate::{
-    components::split_or_compact::start_level_files_to_split::{
-        merge_small_l0_chains, split_into_chains,
-    },
-    RoundInfo,
-};
+use crate::round_info::CompactType;
 
 use super::DivideInitial;
 
@@ -44,129 +39,85 @@ impl DivideInitial for MultipleBranchesDivideInitial {
     fn divide(
         &self,
         files: Vec<ParquetFile>,
-        round_info: RoundInfo,
+        op: CompactType,
         partition: TransitionPartitionId,
     ) -> (Vec<Vec<ParquetFile>>, Vec<ParquetFile>) {
         let mut more_for_later = vec![];
-        match round_info {
-            RoundInfo::ManySmallFiles {
+        match op {
+            CompactType::ManySmallFiles {
                 start_level,
                 max_num_files_to_group,
                 max_total_file_size_to_group,
             } => {
-                // Files must be sorted by `max_l0_created_at` when there are overlaps to resolve.
-                // If the `start_level` is greater than 0, there cannot be overlaps within the level,
-                // so sorting by `max_l0_created_at` is not necessary (however, sorting by `min_time`
-                // is needed to avoid introducing overlaps within their levels).  When the `start_level`
-                // is 0, we have to sort by `max_l0_created_at` if a chain of overlaps is too big for
-                // a single compaction.
-                //
-                // See tests many_l0_files_different_created_order and many_l1_files_different_created_order for examples
+                // Since its ManySmallFiles, we know the files are L0s, and the total bytes is under our limit.
+                // We just need to split them up into branches for compaction.
+                // TODO: it would be nice to pick some good split times, store them in the ManySmallFiles op, and use them consistently across all the branches.  That should make the later round more efficient.
+                let mut branches = Vec::with_capacity(files.len() / max_num_files_to_group);
+                let files = order_files(files, start_level);
+                let capacity = files.len();
 
-                let start_level_files = files
-                    .into_iter()
-                    .filter(|f| f.compaction_level == start_level)
-                    .collect::<Vec<_>>();
-                let mut branches = Vec::with_capacity(start_level_files.len());
-
-                let mut chains = Vec::with_capacity(start_level_files.len());
-                if start_level == CompactionLevel::Initial {
-                    // L0 files can be highly overlapping, requiring 'vertical splitting' (see high_l0_overlap_split).
-                    // Achieving `vertical splitting` requires we tweak the grouping here for two reasons:
-                    //  1) Allow the large highly overlapped groups of L0s to remain in a single branch, so they trigger the split
-                    //  2) Prevent the output of a prior split from being grouped together to undo the previous veritacal split.
-
-                    // Both of these objectives need to consider the L0s as a chains of overlapping files.  The chains are
-                    // each a set of L0s that overlap each other, but do not overlap the other chains.
-                    // Chains can be created based on min_time/max_time without regard for max_l0_created_at because there
-                    // are no overlaps between chains.
-                    let initial_chains = split_into_chains(start_level_files);
-
-                    // Reason 1) above - keep the large groups of L0s in a single branch to facilitate later splitting.
-                    for chain in initial_chains {
-                        let this_chain_bytes: usize =
-                            chain.iter().map(|f| f.file_size_bytes as usize).sum();
-                        if this_chain_bytes > 2 * max_total_file_size_to_group {
-                            // This is a very large set of overlapping L0s, its needs vertical splitting, so keep the branch intact
-                            // to trigger the split.
-                            branches.push(chain);
-                        } else {
-                            chains.push(chain);
+                let mut current_branch = Vec::with_capacity(capacity.min(max_num_files_to_group));
+                let mut current_branch_size = 0;
+                for f in files {
+                    if current_branch.len() == max_num_files_to_group
+                        || current_branch_size + f.file_size_bytes as usize
+                            > max_total_file_size_to_group
+                    {
+                        if current_branch.is_empty() {
+                            warn!(
+                                "Size of a file {} is larger than the max size limit to compact on partition {}.",
+                                f.file_size_bytes,
+                                partition
+                            );
                         }
-                    }
 
-                    // If the chains are smaller than the max compact size, combine them to get better compaction group sizes.
-                    // This combining of chains must happen based on max_l0_created_at (it can only join adjacent chains, when
-                    // sorted by max_l0_created_at).
-                    chains = merge_small_l0_chains(chains, max_total_file_size_to_group);
-                } else {
-                    chains = vec![start_level_files];
-                }
-
-                // Reason 2) above - ensure the grouping in branches doesn't undo the vertical splitting.
-                // Assume we start with 30 files (A,B,C,...), that were each split into 3 files (A1, A2, A3, B1, ..).  If we create branches
-                // from sorting all files by max_l0_created_at we'd undo the vertical splitting (A1-A3 would get compacted back into one file).
-                // Currently the contents of each chain is more like A1, B1, C1, so by grouping chains together we can preserve the previous
-                // vertical splitting.
-                for chain in chains {
-                    let start_level_files = order_files(chain, start_level);
-
-                    let capacity = start_level_files.len();
-
-                    // Split L0s into many small groups, each has max_num_files_to_group but not exceed max_total_file_size_to_group
-                    // Collect files until either limit is reached
-                    let mut current_branch = Vec::with_capacity(capacity);
-                    let mut current_branch_size = 0;
-                    for f in start_level_files {
-                        if current_branch.len() == max_num_files_to_group
-                            || current_branch_size + f.file_size_bytes as usize
-                                > max_total_file_size_to_group
-                        {
-                            if current_branch.is_empty() {
-                                warn!(
-                                    "Size of a file {} is larger than the max size limit to compact on partition {}.",
-                                    f.file_size_bytes,
-                                    partition
-                                );
-                            }
-                            if current_branch.len() == 1 {
-                                // Compacting a branch of 1 won't help us reduce the L0 file count.  Put it on the ignore list.
-                                more_for_later.push(current_branch.pop().unwrap());
-                            } else if !current_branch.is_empty() {
-                                branches.push(current_branch);
-                            }
-                            current_branch = Vec::with_capacity(capacity);
-                            current_branch_size = 0;
-                        }
-                        current_branch_size += f.file_size_bytes as usize;
-                        current_branch.push(f);
-                    }
-
-                    // push the last branch
-                    if !current_branch.is_empty() {
                         if current_branch.len() == 1 {
                             // Compacting a branch of 1 won't help us reduce the L0 file count.  Put it on the ignore list.
                             more_for_later.push(current_branch.pop().unwrap());
-                        } else {
+                        } else if !current_branch.is_empty() {
                             branches.push(current_branch);
                         }
+                        current_branch = Vec::with_capacity(capacity);
+                        current_branch_size = 0;
+                    }
+                    current_branch_size += f.file_size_bytes as usize;
+                    current_branch.push(f);
+                }
+
+                // push the last branch
+                if !current_branch.is_empty() {
+                    if current_branch.len() == 1 {
+                        // Compacting a branch of 1 won't help us reduce the L0 file count.  Put it on the ignore list.
+                        more_for_later.push(current_branch.pop().unwrap());
+                    } else {
+                        branches.push(current_branch);
                     }
                 }
 
                 (branches, more_for_later)
             }
 
-            RoundInfo::TargetLevel {
+            CompactType::TargetLevel {
                 target_level,
                 max_total_file_size_to_group,
             } => {
+                let start_level = target_level.prev();
+
                 let total_bytes: usize = files.iter().map(|f| f.file_size_bytes as usize).sum();
-                if total_bytes < max_total_file_size_to_group {
+                let start_file_cnt = files
+                    .iter()
+                    .filter(|f| f.compaction_level == start_level)
+                    .count();
+
+                if start_file_cnt == 0 {
+                    // No files to compact
+                    (vec![], files)
+                } else if total_bytes < max_total_file_size_to_group {
                     (vec![files], more_for_later)
                 } else {
                     let (mut for_now, rest): (Vec<ParquetFile>, Vec<ParquetFile>) = files
                         .into_iter()
-                        .partition(|f| f.compaction_level == target_level.prev());
+                        .partition(|f| f.compaction_level == start_level);
 
                     let min_time = for_now.iter().map(|f| f.min_time).min().unwrap();
                     let max_time = for_now.iter().map(|f| f.max_time).max().unwrap();
@@ -181,7 +132,7 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                 }
             }
 
-            RoundInfo::SimulatedLeadingEdge {
+            CompactType::SimulatedLeadingEdge {
                 max_num_files_to_group,
                 max_total_file_size_to_group,
             } => {
@@ -248,31 +199,10 @@ impl DivideInitial for MultipleBranchesDivideInitial {
             }
 
             // RoundSplit already eliminated all the files we don't need to work on.
-            RoundInfo::VerticalSplit { .. } => (vec![files], more_for_later),
+            CompactType::VerticalSplit { .. } => (vec![files], more_for_later),
 
-            RoundInfo::CompactRanges { ranges, .. } => {
-                // Each range describes what can be a distinct branch, concurrently compacted.
-
-                let mut branches = Vec::with_capacity(ranges.len());
-                let mut this_branch: Vec<ParquetFile>;
-                let mut files = files;
-
-                for range in &ranges {
-                    (this_branch, files) = files.into_iter().partition(|f2| {
-                        f2.overlaps_time_range(Timestamp::new(range.min), Timestamp::new(range.max))
-                    });
-
-                    if !this_branch.is_empty() {
-                        branches.push(this_branch)
-                    }
-                }
-                assert!(
-                    files.is_empty(),
-                    "all files should map to a range, instead partition {} had unmapped files",
-                    partition
-                );
-                (branches, vec![])
-            }
+            // Deferred does nothing now, everything is for later
+            CompactType::Deferred { .. } => (vec![], files),
         }
     }
 }
@@ -317,7 +247,7 @@ mod tests {
 
     #[test]
     fn test_divide_num_file() {
-        let round_info = RoundInfo::ManySmallFiles {
+        let op = CompactType::ManySmallFiles {
             start_level: CompactionLevel::Initial,
             max_num_files_to_group: 2,
             max_total_file_size_to_group: 100,
@@ -328,7 +258,7 @@ mod tests {
         assert_eq!(
             divide.divide(
                 vec![],
-                round_info.clone(),
+                op.clone(),
                 TransitionPartitionId::Deprecated(PartitionId::new(0))
             ),
             (Vec::<Vec<_>>::new(), Vec::new())
@@ -353,7 +283,7 @@ mod tests {
 
         let (branches, more_for_later) = divide.divide(
             files,
-            round_info.clone(),
+            op.clone(),
             TransitionPartitionId::Deprecated(PartitionId::new(0)),
         );
         // output must be split into their max_l0_created_at
@@ -364,7 +294,7 @@ mod tests {
 
     #[test]
     fn test_divide_size_limit() {
-        let round_info = RoundInfo::ManySmallFiles {
+        let op = CompactType::ManySmallFiles {
             start_level: CompactionLevel::Initial,
             max_num_files_to_group: 10,
             max_total_file_size_to_group: 100,
@@ -392,7 +322,7 @@ mod tests {
 
         let (branches, more_for_later) = divide.divide(
             files,
-            round_info,
+            op,
             TransitionPartitionId::Deprecated(PartitionId::new(0)),
         );
         // output must be split into their max_l0_created_at

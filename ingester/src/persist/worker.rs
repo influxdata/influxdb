@@ -434,7 +434,7 @@ where
                     Ok(_) => ControlFlow::Break(Ok(new_sort_key_colids)),
                     Err(CasFailure::QueryError(e)) => ControlFlow::Continue(e),
                     Err(CasFailure::ValueMismatch((observed_sort_key, observed_sort_key_ids)))
-                        if observed_sort_key_ids.as_ref() == Some(&new_sort_key_colids) =>
+                        if observed_sort_key_ids == new_sort_key_colids =>
                     {
                         // Invariant: if the column name sort IDs match, the
                         // sort key column strings must also match.
@@ -530,14 +530,12 @@ where
             // Update the cached sort key in the Context (which pushes it
             // through into the PartitionData also) to reflect the newly
             // observed value for the next attempt.
-            assert!(new_sort_key_ids.is_some());
-            let new_sort_key_ids = new_sort_key_ids.unwrap();
             ctx.set_partition_sort_key(new_sort_key.clone(), new_sort_key_ids.clone())
                 .await;
 
             return Err(PersistError::ConcurrentSortKeyUpdate(
                 new_sort_key,
-                Some(new_sort_key_ids),
+                new_sort_key_ids,
             ));
         }
     }

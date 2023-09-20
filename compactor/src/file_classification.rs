@@ -88,6 +88,7 @@ pub enum FilesToSplitOrCompact {
 pub enum NoneReason {
     NoInputFiles,
     NoFilesToSplitFound,
+    Deferred,
 }
 
 /// Reasons why there are files to split
