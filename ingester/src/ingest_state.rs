@@ -69,7 +69,7 @@ impl IngestState {
     ///
     /// Returns true if this call set the error state to `error`, false if
     /// `error` was already set.
-    pub fn set(&self, error: IngestStateError) -> bool {
+    pub(crate) fn set(&self, error: IngestStateError) -> bool {
         let set = error.as_bits();
         let mut current = self.state.load(Ordering::Relaxed);
         loop {
@@ -105,7 +105,7 @@ impl IngestState {
     ///
     /// Returns true if this call unset the `error` state, false if `error` was
     /// already unset.
-    pub fn unset(&self, error: IngestStateError) -> bool {
+    pub(crate) fn unset(&self, error: IngestStateError) -> bool {
         let unset = error.as_bits();
         let mut current = self.state.load(Ordering::Relaxed);
         loop {
@@ -144,7 +144,7 @@ impl IngestState {
     ///   2. [`IngestStateError::DiskFull`]
     ///   3. [`IngestStateError::PersistSaturated`].
     ///
-    pub fn read(&self) -> Result<(), IngestStateError> {
+    pub(crate) fn read(&self) -> Result<(), IngestStateError> {
         let current = self.state.load(Ordering::Relaxed);
 
         if current != 0 {
@@ -163,7 +163,7 @@ impl IngestState {
     ///
     /// If more than one error state is set, this follows the same precedence
     /// rules as [`IngestState::read()`].
-    pub fn read_with_exceptions<const N: usize>(
+    pub(crate) fn read_with_exceptions<const N: usize>(
         &self,
         exceptions: [IngestStateError; N],
     ) -> Result<(), IngestStateError> {
