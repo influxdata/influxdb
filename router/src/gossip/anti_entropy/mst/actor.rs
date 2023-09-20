@@ -2,7 +2,7 @@
 use std::sync::Arc;
 
 use data_types::{NamespaceName, NamespaceSchema};
-use merkle_search_tree::{digest::RootHash, MerkleSearchTree};
+use merkle_search_tree::{diff::PageRangeSnapshot, digest::RootHash, MerkleSearchTree};
 use observability_deps::tracing::{debug, info, trace};
 use tokio::sync::{mpsc, oneshot};
 
@@ -10,11 +10,17 @@ use crate::namespace_cache::{CacheMissErr, NamespaceCache};
 
 use super::handle::AntiEntropyHandle;
 
+/// An alias for a [`PageRangeSnapshot`] for [`NamespaceName`] keys.
+pub(crate) type MerkleSnapshot = PageRangeSnapshot<NamespaceName<'static>>;
+
 /// Requests sent from an [`AntiEntropyHandle`] to an [`AntiEntropyActor`].
 #[derive(Debug)]
 pub(super) enum Op {
     /// Request the content / merkle tree root hash.
     ContentHash(oneshot::Sender<RootHash>),
+
+    /// Request a [`MerkleSnapshot`] of the current MST state.
+    Snapshot(oneshot::Sender<MerkleSnapshot>),
 }
 
 /// A [`NamespaceCache`] anti-entropy state tracking primitive.
@@ -137,14 +143,30 @@ where
     fn handle_op(&mut self, op: Op) {
         match op {
             Op::ContentHash(tx) => {
-                let root_hash = self.mst.root_hash().clone();
-
-                debug!(%root_hash, "generated content hash");
-
                 // The caller may have stopped listening, so ignore any errors.
-                let _ = tx.send(root_hash);
+                let _ = tx.send(self.generate_root().clone());
+            }
+            Op::Snapshot(tx) => {
+                // The root hash must be generated before serialising the page
+                // ranges.
+                self.generate_root();
+
+                let snap = PageRangeSnapshot::from(
+                    self.mst
+                        .serialise_page_ranges()
+                        .expect("root hash generated"),
+                );
+
+                let _ = tx.send(snap);
             }
         }
+    }
+
+    /// Generate the MST root hash and log it for debugging purposes.
+    fn generate_root(&mut self) -> &RootHash {
+        let root_hash = self.mst.root_hash();
+        debug!(%root_hash, "generated content hash");
+        root_hash
     }
 }
 
