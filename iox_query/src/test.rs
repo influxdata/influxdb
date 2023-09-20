@@ -283,6 +283,12 @@ impl TableProvider for TestDatabaseTableProvider {
 }
 
 #[derive(Debug)]
+enum TestChunkData {
+    RecordBatches(Vec<RecordBatch>),
+    Parquet(ParquetExecInput),
+}
+
+#[derive(Debug)]
 pub struct TestChunk {
     /// Table name
     table_name: String,
@@ -302,7 +308,7 @@ pub struct TestChunk {
     may_contain_pk_duplicates: bool,
 
     /// Data in this chunk.
-    table_data: QueryChunkData,
+    table_data: TestChunkData,
 
     /// A saved error that is returned instead of actual results
     saved_error: Option<String>,
@@ -372,7 +378,7 @@ impl TestChunk {
             num_rows: None,
             id: ChunkId::new_test(0),
             may_contain_pk_duplicates: Default::default(),
-            table_data: QueryChunkData::RecordBatches(vec![]),
+            table_data: TestChunkData::RecordBatches(vec![]),
             saved_error: Default::default(),
             order: ChunkOrder::MIN,
             sort_key: None,
@@ -383,10 +389,10 @@ impl TestChunk {
 
     fn push_record_batch(&mut self, batch: RecordBatch) {
         match &mut self.table_data {
-            QueryChunkData::RecordBatches(batches) => {
+            TestChunkData::RecordBatches(batches) => {
                 batches.push(batch);
             }
-            QueryChunkData::Parquet(_) => panic!("chunk is parquet-based"),
+            TestChunkData::Parquet(_) => panic!("chunk is parquet-based"),
         }
     }
 
@@ -403,14 +409,14 @@ impl TestChunk {
 
     pub fn with_dummy_parquet_file_and_store(self, store: &str) -> Self {
         match self.table_data {
-            QueryChunkData::RecordBatches(batches) => {
+            TestChunkData::RecordBatches(batches) => {
                 assert!(batches.is_empty(), "chunk already has record batches");
             }
-            QueryChunkData::Parquet(_) => panic!("chunk already has a file"),
+            TestChunkData::Parquet(_) => panic!("chunk already has a file"),
         }
 
         Self {
-            table_data: QueryChunkData::Parquet(ParquetExecInput {
+            table_data: TestChunkData::Parquet(ParquetExecInput {
                 object_store_url: ObjectStoreUrl::parse(store).unwrap(),
                 object_meta: ObjectMeta {
                     location: Self::parquet_location(self.id),
@@ -436,7 +442,7 @@ impl TestChunk {
     pub fn with_id(mut self, id: u128) -> Self {
         self.id = ChunkId::new_test(id);
 
-        if let QueryChunkData::Parquet(parquet_input) = &mut self.table_data {
+        if let TestChunkData::Parquet(parquet_input) = &mut self.table_data {
             parquet_input.object_meta.location = Self::parquet_location(self.id);
         }
 
@@ -1078,7 +1084,12 @@ impl QueryChunk for TestChunk {
     fn data(&self) -> QueryChunkData {
         self.check_error().unwrap();
 
-        self.table_data.clone()
+        match &self.table_data {
+            TestChunkData::RecordBatches(batches) => {
+                QueryChunkData::in_mem(batches.clone(), Arc::clone(self.schema.inner()))
+            }
+            TestChunkData::Parquet(input) => QueryChunkData::Parquet(input.clone()),
+        }
     }
 
     fn chunk_type(&self) -> &str {

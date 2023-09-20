@@ -12,18 +12,20 @@
     unused_crate_dependencies
 )]
 
+use datafusion_util::MemoryStream;
+use futures::TryStreamExt;
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
 use arrow::{
-    datatypes::{DataType, Field},
+    datatypes::{DataType, Field, SchemaRef},
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, TransitionPartitionId};
 use datafusion::{
     error::DataFusionError,
-    physical_plan::Statistics,
+    physical_plan::{SendableRecordBatchStream, Statistics},
     prelude::{Expr, SessionContext},
 };
 use exec::IOxSessionContext;
@@ -189,12 +191,9 @@ pub trait QueryNamespace: Debug + Send + Sync {
 }
 
 /// Raw data of a [`QueryChunk`].
-#[derive(Debug, Clone)]
 pub enum QueryChunkData {
-    /// In-memory record batches.
-    ///
-    /// **IMPORTANT: All batches MUST have the schema that the [chunk reports](QueryChunk::schema).**
-    RecordBatches(Vec<RecordBatch>),
+    /// Record batches.
+    RecordBatches(SendableRecordBatchStream),
 
     /// Parquet file.
     ///
@@ -210,7 +209,7 @@ impl QueryChunkData {
         session_ctx: &SessionContext,
     ) -> Vec<RecordBatch> {
         match self {
-            Self::RecordBatches(batches) => batches,
+            Self::RecordBatches(batches) => batches.try_collect::<Vec<_>>().await.unwrap(),
             Self::Parquet(exec_input) => exec_input
                 .read_to_batches(schema.as_arrow(), Projection::All, session_ctx)
                 .await
@@ -218,11 +217,19 @@ impl QueryChunkData {
         }
     }
 
-    /// Extract [record batches](Self::RecordBatches) variant.
-    pub fn into_record_batches(self) -> Option<Vec<RecordBatch>> {
+    /// Create data based on batches and schema.
+    pub fn in_mem(batches: Vec<RecordBatch>, schema: SchemaRef) -> Self {
+        let s = MemoryStream::new_with_schema(batches, schema);
+        let s: SendableRecordBatchStream = Box::pin(s);
+        Self::RecordBatches(s)
+    }
+}
+
+impl std::fmt::Debug for QueryChunkData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::RecordBatches(batches) => Some(batches),
-            Self::Parquet(_) => None,
+            Self::RecordBatches(_) => f.debug_tuple("RecordBatches").field(&"<stream>").finish(),
+            Self::Parquet(input) => f.debug_tuple("Parquet").field(input).finish(),
         }
     }
 }
