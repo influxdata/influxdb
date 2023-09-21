@@ -1,0 +1,1472 @@
+-- Test Setup: InfluxQLSelectSupport
+-- InfluxQL: SHOW MEASUREMENTS;
+name: measurements
++-----------------+
+| name            |
++-----------------+
+| cpu             |
+| disk            |
+| m0              |
+| m1              |
+| m2              |
+| m3              |
+| m4              |
+| select_test     |
+| selector_test_1 |
+| selector_test_2 |
+| time_test       |
++-----------------+
+-- InfluxQL: SHOW MEASUREMENTS LIMIT 2;
+name: measurements
++------+
+| name |
++------+
+| cpu  |
+| disk |
++------+
+-- InfluxQL: SHOW MEASUREMENTS OFFSET 1;
+name: measurements
++-----------------+
+| name            |
++-----------------+
+| disk            |
+| m0              |
+| m1              |
+| m2              |
+| m3              |
+| m4              |
+| select_test     |
+| selector_test_1 |
+| selector_test_2 |
+| time_test       |
++-----------------+
+-- InfluxQL: SHOW MEASUREMENTS LIMIT 1 OFFSET 2;
+name: measurements
++------+
+| name |
++------+
+| m0   |
++------+
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT =~ /m.*/;
+name: measurements
++-----------+
+| name      |
++-----------+
+| m0        |
+| m1        |
+| m2        |
+| m3        |
+| m4        |
+| time_test |
++-----------+
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT =~ /d\isk/;
+name: measurements
++------+
+| name |
++------+
+| disk |
++------+
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = disk;
+name: measurements
++------+
+| name |
++------+
+| disk |
++------+
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = does_not_exist;
++------+
+| name |
++------+
++------+
+-- InfluxQL: SHOW MEASUREMENTS WHERE time >= '2022-10-31T02:00:30Z';
+name: measurements
++------+
+| name |
++------+
+| m0   |
++------+
+-- InfluxQL: SHOW MEASUREMENTS WHERE tag0 = 'a';
+name: measurements
++-------------+
+| name        |
++-------------+
+| m3          |
+| select_test |
++-------------+
+-- InfluxQL: SHOW MEASUREMENTS WHERE tag0 = 'a' AND tag1 = 'a';
+name: measurements
++-------------+
+| name        |
++-------------+
+| select_test |
++-------------+
+-- InfluxQL: SHOW MEASUREMENTS WHERE tag0 = "a";
++------+
+| name |
++------+
++------+
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = /my_db/;
+Error while planning query: Error during planning: expected string but got regex
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT =~ my_db;
+Error while planning query: Error during planning: expected regex but got string
+-- InfluxQL: SHOW MEASUREMENTS ON my_db;
+Error while planning query: This feature is not implemented: SHOW MEASUREMENTS ON <database>
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = x.my_db;
+Error while planning query: This feature is not implemented: retention policy in from clause
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = x.y.my_db;
+Error while planning query: This feature is not implemented: database name in from clause
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT =~ x./my_db/;
+Error while planning query: This feature is not implemented: retention policy in from clause
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT =~ x.y./my_db/;
+Error while planning query: This feature is not implemented: database name in from clause
+-- InfluxQL: SHOW FIELD KEYS;
+name: cpu
++--------------+-----------+
+| fieldKey     | fieldType |
++--------------+-----------+
+| usage_idle   | float     |
+| usage_system | float     |
++--------------+-----------+
+name: disk
++------------+-----------+
+| fieldKey   | fieldType |
++------------+-----------+
+| bytes_free | integer   |
+| bytes_used | integer   |
++------------+-----------+
+name: m0
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
+| i64      | integer   |
+| str      | string    |
++----------+-----------+
+name: m1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
+| i64      | integer   |
+| str      | string    |
++----------+-----------+
+name: m2
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
++----------+-----------+
+name: m3
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| u64      | unsigned  |
++----------+-----------+
+name: m4
++-----------+-----------+
+| fieldKey  | fieldType |
++-----------+-----------+
+| field.one | float     |
++-----------+-----------+
+name: select_test
++-------------+-----------+
+| fieldKey    | fieldType |
++-------------+-----------+
+| st_field    | string    |
+| st_field_aa | float     |
+| st_field_ab | float     |
+| st_field_ba | float     |
+| st_field_bb | float     |
++-------------+-----------+
+name: selector_test_1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| field1   | float     |
+| field2   | float     |
+| field3   | float     |
++----------+-----------+
+name: selector_test_2
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f        | float     |
++----------+-----------+
+name: time_test
++--------------------------------+-----------+
+| fieldKey                       | fieldType |
++--------------------------------+-----------+
+| tt_field                       | string    |
+| tt_field_at_default_cutoff     | float     |
+| tt_field_before_default_cutoff | float     |
+| tt_field_late                  | float     |
++--------------------------------+-----------+
+-- InfluxQL: SHOW FIELD KEYS LIMIT 2;
+name: cpu
++--------------+-----------+
+| fieldKey     | fieldType |
++--------------+-----------+
+| usage_idle   | float     |
+| usage_system | float     |
++--------------+-----------+
+name: disk
++------------+-----------+
+| fieldKey   | fieldType |
++------------+-----------+
+| bytes_free | integer   |
+| bytes_used | integer   |
++------------+-----------+
+name: m0
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
+| i64      | integer   |
++----------+-----------+
+name: m1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
+| i64      | integer   |
++----------+-----------+
+name: m2
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
++----------+-----------+
+name: m3
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| u64      | unsigned  |
++----------+-----------+
+name: m4
++-----------+-----------+
+| fieldKey  | fieldType |
++-----------+-----------+
+| field.one | float     |
++-----------+-----------+
+name: select_test
++-------------+-----------+
+| fieldKey    | fieldType |
++-------------+-----------+
+| st_field    | string    |
+| st_field_aa | float     |
++-------------+-----------+
+name: selector_test_1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| field1   | float     |
+| field2   | float     |
++----------+-----------+
+name: selector_test_2
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f        | float     |
++----------+-----------+
+name: time_test
++----------------------------+-----------+
+| fieldKey                   | fieldType |
++----------------------------+-----------+
+| tt_field                   | string    |
+| tt_field_at_default_cutoff | float     |
++----------------------------+-----------+
+-- InfluxQL: SHOW FIELD KEYS OFFSET 1;
+name: cpu
++--------------+-----------+
+| fieldKey     | fieldType |
++--------------+-----------+
+| usage_system | float     |
++--------------+-----------+
+name: disk
++------------+-----------+
+| fieldKey   | fieldType |
++------------+-----------+
+| bytes_used | integer   |
++------------+-----------+
+name: m0
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| i64      | integer   |
+| str      | string    |
++----------+-----------+
+name: m1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| i64      | integer   |
+| str      | string    |
++----------+-----------+
+name: select_test
++-------------+-----------+
+| fieldKey    | fieldType |
++-------------+-----------+
+| st_field_aa | float     |
+| st_field_ab | float     |
+| st_field_ba | float     |
+| st_field_bb | float     |
++-------------+-----------+
+name: selector_test_1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| field2   | float     |
+| field3   | float     |
++----------+-----------+
+name: time_test
++--------------------------------+-----------+
+| fieldKey                       | fieldType |
++--------------------------------+-----------+
+| tt_field_at_default_cutoff     | float     |
+| tt_field_before_default_cutoff | float     |
+| tt_field_late                  | float     |
++--------------------------------+-----------+
+-- InfluxQL: SHOW FIELD KEYS LIMIT 1 OFFSET 2;
+name: m0
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| str      | string    |
++----------+-----------+
+name: m1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| str      | string    |
++----------+-----------+
+name: select_test
++-------------+-----------+
+| fieldKey    | fieldType |
++-------------+-----------+
+| st_field_ab | float     |
++-------------+-----------+
+name: selector_test_1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| field3   | float     |
++----------+-----------+
+name: time_test
++--------------------------------+-----------+
+| fieldKey                       | fieldType |
++--------------------------------+-----------+
+| tt_field_before_default_cutoff | float     |
++--------------------------------+-----------+
+-- InfluxQL: SHOW FIELD KEYS FROM cpu;
+name: cpu
++--------------+-----------+
+| fieldKey     | fieldType |
++--------------+-----------+
+| usage_idle   | float     |
+| usage_system | float     |
++--------------+-----------+
+-- InfluxQL: SHOW FIELD KEYS FROM disk,cpu,disk;
+name: cpu
++--------------+-----------+
+| fieldKey     | fieldType |
++--------------+-----------+
+| usage_idle   | float     |
+| usage_system | float     |
++--------------+-----------+
+name: disk
++------------+-----------+
+| fieldKey   | fieldType |
++------------+-----------+
+| bytes_free | integer   |
+| bytes_used | integer   |
++------------+-----------+
+-- InfluxQL: SHOW FIELD KEYS FROM cpu,disk,cpu;
+name: cpu
++--------------+-----------+
+| fieldKey     | fieldType |
++--------------+-----------+
+| usage_idle   | float     |
+| usage_system | float     |
++--------------+-----------+
+name: disk
++------------+-----------+
+| fieldKey   | fieldType |
++------------+-----------+
+| bytes_free | integer   |
+| bytes_used | integer   |
++------------+-----------+
+-- InfluxQL: SHOW FIELD KEYS FROM /m.*/;
+name: m0
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
+| i64      | integer   |
+| str      | string    |
++----------+-----------+
+name: m1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
+| i64      | integer   |
+| str      | string    |
++----------+-----------+
+name: m2
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
++----------+-----------+
+name: m3
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| u64      | unsigned  |
++----------+-----------+
+name: m4
++-----------+-----------+
+| fieldKey  | fieldType |
++-----------+-----------+
+| field.one | float     |
++-----------+-----------+
+name: time_test
++--------------------------------+-----------+
+| fieldKey                       | fieldType |
++--------------------------------+-----------+
+| tt_field                       | string    |
+| tt_field_at_default_cutoff     | float     |
+| tt_field_before_default_cutoff | float     |
+| tt_field_late                  | float     |
++--------------------------------+-----------+
+-- InfluxQL: SHOW FIELD KEYS FROM /d\isk/;
+name: disk
++------------+-----------+
+| fieldKey   | fieldType |
++------------+-----------+
+| bytes_free | integer   |
+| bytes_used | integer   |
++------------+-----------+
+-- InfluxQL: SHOW FIELD KEYS FROM does_not_exist;
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
++----------+-----------+
+-- InfluxQL: SHOW FIELD KEYS FROM "";
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
++----------+-----------+
+-- InfluxQL: SHOW FIELD KEYS ON my_db;
+Error while planning query: This feature is not implemented: SHOW FIELD KEYS ON <database>
+-- InfluxQL: SHOW FIELD KEYS FROM x.my_db;
+Error while planning query: This feature is not implemented: retention policy in from clause
+-- InfluxQL: SHOW FIELD KEYS FROM x.y.my_db;
+Error while planning query: This feature is not implemented: database name in from clause
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0";
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
+| tag0 | val03 |
+| tag0 | val04 |
+| tag0 | val05 |
+| tag0 | val07 |
+| tag0 | val08 |
+| tag0 | val09 |
+| tag0 | val10 |
++------+-------+
+name: m3
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | a     |
++------+-------+
+name: select_test
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | a     |
+| tag0 | b     |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "does_not_exist";
++-----+-------+
+| key | value |
++-----+-------+
++-----+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY != "tag0";
+name: cpu
++------+-----------+
+| key  | value     |
++------+-----------+
+| cpu  | cpu-total |
+| cpu  | cpu0      |
+| cpu  | cpu1      |
+| host | host1     |
++------+-----------+
+name: disk
++--------+---------+
+| key    | value   |
++--------+---------+
+| device | disk1s1 |
+| device | disk1s2 |
+| device | disk1s5 |
+| host   | host1   |
++--------+---------+
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag1 | val10 |
+| tag1 |       |
++------+-------+
+name: m3
++------+-------+
+| key  | value |
++------+-------+
+| tag1 | b     |
+| tag2 | c     |
+| tag3 | d     |
++------+-------+
+name: m4
++---------+-------+
+| key     | value |
++---------+-------+
+| tag.one | foo   |
++---------+-------+
+name: select_test
++-----------+-------+
+| key       | value |
++-----------+-------+
+| st_tag    | aa    |
+| st_tag    | ab    |
+| st_tag    | ba    |
+| st_tag    | bb    |
+| st_tag_aa | x     |
+| st_tag_aa |       |
+| st_tag_ab | x     |
+| st_tag_ab |       |
+| st_tag_ba | x     |
+| st_tag_ba |       |
+| st_tag_bb | x     |
+| st_tag_bb |       |
+| tag1      | a     |
+| tag1      | b     |
++-----------+-------+
+name: time_test
++------------------------------+-------------------+
+| key                          | value             |
++------------------------------+-------------------+
+| tt_tag                       | at_default_cutoff |
+| tt_tag                       | late              |
+| tt_tag_at_default_cutoff     | a                 |
+| tt_tag_at_default_cutoff     |                   |
+| tt_tag_before_default_cutoff |                   |
+| tt_tag_late                  | 1                 |
+| tt_tag_late                  |                   |
++------------------------------+-------------------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY != "does_not_exist";
+name: cpu
++------+-----------+
+| key  | value     |
++------+-----------+
+| cpu  | cpu-total |
+| cpu  | cpu0      |
+| cpu  | cpu1      |
+| host | host1     |
++------+-----------+
+name: disk
++--------+---------+
+| key    | value   |
++--------+---------+
+| device | disk1s1 |
+| device | disk1s2 |
+| device | disk1s5 |
+| host   | host1   |
++--------+---------+
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
+| tag1 | val10 |
+| tag1 |       |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
+| tag0 | val03 |
+| tag0 | val04 |
+| tag0 | val05 |
+| tag0 | val07 |
+| tag0 | val08 |
+| tag0 | val09 |
+| tag0 | val10 |
++------+-------+
+name: m3
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | a     |
+| tag1 | b     |
+| tag2 | c     |
+| tag3 | d     |
++------+-------+
+name: m4
++---------+-------+
+| key     | value |
++---------+-------+
+| tag.one | foo   |
++---------+-------+
+name: select_test
++-----------+-------+
+| key       | value |
++-----------+-------+
+| st_tag    | aa    |
+| st_tag    | ab    |
+| st_tag    | ba    |
+| st_tag    | bb    |
+| st_tag_aa | x     |
+| st_tag_aa |       |
+| st_tag_ab | x     |
+| st_tag_ab |       |
+| st_tag_ba | x     |
+| st_tag_ba |       |
+| st_tag_bb | x     |
+| st_tag_bb |       |
+| tag0      | a     |
+| tag0      | b     |
+| tag1      | a     |
+| tag1      | b     |
++-----------+-------+
+name: time_test
++------------------------------+-------------------+
+| key                          | value             |
++------------------------------+-------------------+
+| tt_tag                       | at_default_cutoff |
+| tt_tag                       | late              |
+| tt_tag_at_default_cutoff     | a                 |
+| tt_tag_at_default_cutoff     |                   |
+| tt_tag_before_default_cutoff |                   |
+| tt_tag_late                  | 1                 |
+| tt_tag_late                  |                   |
++------------------------------+-------------------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY =~ /tag.*/;
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
+| tag1 | val10 |
+| tag1 |       |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
+| tag0 | val03 |
+| tag0 | val04 |
+| tag0 | val05 |
+| tag0 | val07 |
+| tag0 | val08 |
+| tag0 | val09 |
+| tag0 | val10 |
++------+-------+
+name: m3
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | a     |
+| tag1 | b     |
+| tag2 | c     |
+| tag3 | d     |
++------+-------+
+name: m4
++---------+-------+
+| key     | value |
++---------+-------+
+| tag.one | foo   |
++---------+-------+
+name: select_test
++-----------+-------+
+| key       | value |
++-----------+-------+
+| st_tag    | aa    |
+| st_tag    | ab    |
+| st_tag    | ba    |
+| st_tag    | bb    |
+| st_tag_aa | x     |
+| st_tag_aa |       |
+| st_tag_ab | x     |
+| st_tag_ab |       |
+| st_tag_ba | x     |
+| st_tag_ba |       |
+| st_tag_bb | x     |
+| st_tag_bb |       |
+| tag0      | a     |
+| tag0      | b     |
+| tag1      | a     |
+| tag1      | b     |
++-----------+-------+
+name: time_test
++------------------------------+-------------------+
+| key                          | value             |
++------------------------------+-------------------+
+| tt_tag                       | at_default_cutoff |
+| tt_tag                       | late              |
+| tt_tag_at_default_cutoff     | a                 |
+| tt_tag_at_default_cutoff     |                   |
+| tt_tag_before_default_cutoff |                   |
+| tt_tag_late                  | 1                 |
+| tt_tag_late                  |                   |
++------------------------------+-------------------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY !~ /tag.*/;
+name: cpu
++------+-----------+
+| key  | value     |
++------+-----------+
+| cpu  | cpu-total |
+| cpu  | cpu0      |
+| cpu  | cpu1      |
+| host | host1     |
++------+-----------+
+name: disk
++--------+---------+
+| key    | value   |
++--------+---------+
+| device | disk1s1 |
+| device | disk1s2 |
+| device | disk1s5 |
+| host   | host1   |
++--------+---------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY IN ("device", "host", "device");
+name: cpu
++------+-------+
+| key  | value |
++------+-------+
+| host | host1 |
++------+-------+
+name: disk
++--------+---------+
+| key    | value   |
++--------+---------+
+| device | disk1s1 |
+| device | disk1s2 |
+| device | disk1s5 |
+| host   | host1   |
++--------+---------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0" LIMIT 2;
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+name: m3
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | a     |
++------+-------+
+name: select_test
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | a     |
+| tag0 | b     |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0" OFFSET 1;
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val01 |
+| tag0 | val02 |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val01 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val01 |
+| tag0 | val02 |
+| tag0 | val03 |
+| tag0 | val04 |
+| tag0 | val05 |
+| tag0 | val07 |
+| tag0 | val08 |
+| tag0 | val09 |
+| tag0 | val10 |
++------+-------+
+name: select_test
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | b     |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0" LIMIT 1 OFFSET 2;
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val02 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val02 |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES FROM m0 WITH KEY = "tag0";
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES FROM m0,m1,m0 WITH KEY = "tag0";
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES FROM m1,m0,m1 WITH KEY = "tag0";
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES FROM /m.*/ WITH KEY = "tag0";
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
+| tag0 | val03 |
+| tag0 | val04 |
+| tag0 | val05 |
+| tag0 | val07 |
+| tag0 | val08 |
+| tag0 | val09 |
+| tag0 | val10 |
++------+-------+
+name: m3
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | a     |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES FROM /d\isk/ WITH KEY = "device";
+name: disk
++--------+---------+
+| key    | value   |
++--------+---------+
+| device | disk1s1 |
+| device | disk1s2 |
+| device | disk1s5 |
++--------+---------+
+-- InfluxQL: SHOW TAG VALUES FROM does_not_exist WITH KEY = "tag0";
++-----+-------+
+| key | value |
++-----+-------+
++-----+-------+
+-- InfluxQL: SHOW TAG VALUES FROM "" WITH KEY = "tag0";
++-----+-------+
+| key | value |
++-----+-------+
++-----+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "tt_tag";
+name: time_test
++--------+-------------------+
+| key    | value             |
++--------+-------------------+
+| tt_tag | at_default_cutoff |
+| tt_tag | late              |
++--------+-------------------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "tt_tag" WHERE time >= '1990-01-01T00:00:00Z';
+name: time_test
++--------+-------------------+
+| key    | value             |
++--------+-------------------+
+| tt_tag | at_default_cutoff |
+| tt_tag | late              |
++--------+-------------------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "tt_tag" WHERE time >= '2022-10-31T02:00:00Z';
+name: time_test
++--------+-------+
+| key    | value |
++--------+-------+
+| tt_tag | late  |
++--------+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "tt_tag" WHERE time >= '1970-01-01T01:00:00Z';
+name: time_test
++--------+-----------------------+
+| key    | value                 |
++--------+-----------------------+
+| tt_tag | at_default_cutoff     |
+| tt_tag | before_default_cutoff |
+| tt_tag | late                  |
++--------+-----------------------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "st_tag" WHERE tag0 = 'a';
+name: select_test
++--------+-------+
+| key    | value |
++--------+-------+
+| st_tag | aa    |
+| st_tag | ab    |
++--------+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "st_tag" WHERE tag0 = 'a' AND tag1 = 'b';
+name: select_test
++--------+-------+
+| key    | value |
++--------+-------+
+| st_tag | ab    |
++--------+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "st_tag" WHERE tag0 = "a";
++-----+-------+
+| key | value |
++-----+-------+
++-----+-------+
+-- InfluxQL: SHOW TAG VALUES ON my_db WITH KEY = "tag0";
+Error while planning query: This feature is not implemented: SHOW TAG VALUES ON <database>
+-- InfluxQL: SHOW TAG VALUES FROM x.my_db WITH KEY = "tag0";
+Error while planning query: This feature is not implemented: retention policy in from clause
+-- InfluxQL: SHOW TAG VALUES FROM x.y.my_db WITH KEY = "tag0";
+Error while planning query: This feature is not implemented: database name in from clause
+-- InfluxQL: SHOW TAG KEYS;
+name: cpu
++--------+
+| tagKey |
++--------+
+| cpu    |
+| host   |
++--------+
+name: disk
++--------+
+| tagKey |
++--------+
+| device |
+| host   |
++--------+
+name: m0
++--------+
+| tagKey |
++--------+
+| tag0   |
+| tag1   |
++--------+
+name: m1
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m2
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m3
++--------+
+| tagKey |
++--------+
+| tag0   |
+| tag1   |
+| tag2   |
+| tag3   |
++--------+
+name: m4
++---------+
+| tagKey  |
++---------+
+| tag.one |
++---------+
+name: select_test
++-----------+
+| tagKey    |
++-----------+
+| st_tag    |
+| st_tag_aa |
+| st_tag_ab |
+| st_tag_ba |
+| st_tag_bb |
+| tag0      |
+| tag1      |
++-----------+
+name: selector_test_1
++--------+
+| tagKey |
++--------+
+| tag1   |
+| tag2   |
+| tag3   |
++--------+
+name: selector_test_2
++--------+
+| tagKey |
++--------+
+| first  |
++--------+
+name: time_test
++------------------------------+
+| tagKey                       |
++------------------------------+
+| tt_tag                       |
+| tt_tag_at_default_cutoff     |
+| tt_tag_before_default_cutoff |
+| tt_tag_late                  |
++------------------------------+
+-- InfluxQL: SHOW TAG KEYS LIMIT 1;
+name: cpu
++--------+
+| tagKey |
++--------+
+| cpu    |
++--------+
+name: disk
++--------+
+| tagKey |
++--------+
+| device |
++--------+
+name: m0
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m1
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m2
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m3
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m4
++---------+
+| tagKey  |
++---------+
+| tag.one |
++---------+
+name: select_test
++--------+
+| tagKey |
++--------+
+| st_tag |
++--------+
+name: selector_test_1
++--------+
+| tagKey |
++--------+
+| tag1   |
++--------+
+name: selector_test_2
++--------+
+| tagKey |
++--------+
+| first  |
++--------+
+name: time_test
++--------+
+| tagKey |
++--------+
+| tt_tag |
++--------+
+-- InfluxQL: SHOW TAG KEYS OFFSET 1;
+name: cpu
++--------+
+| tagKey |
++--------+
+| host   |
++--------+
+name: disk
++--------+
+| tagKey |
++--------+
+| host   |
++--------+
+name: m0
++--------+
+| tagKey |
++--------+
+| tag1   |
++--------+
+name: m3
++--------+
+| tagKey |
++--------+
+| tag1   |
+| tag2   |
+| tag3   |
++--------+
+name: select_test
++-----------+
+| tagKey    |
++-----------+
+| st_tag_aa |
+| st_tag_ab |
+| st_tag_ba |
+| st_tag_bb |
+| tag0      |
+| tag1      |
++-----------+
+name: selector_test_1
++--------+
+| tagKey |
++--------+
+| tag2   |
+| tag3   |
++--------+
+name: time_test
++------------------------------+
+| tagKey                       |
++------------------------------+
+| tt_tag_at_default_cutoff     |
+| tt_tag_before_default_cutoff |
+| tt_tag_late                  |
++------------------------------+
+-- InfluxQL: SHOW TAG KEYS LIMIT 1 OFFSET 1;
+name: cpu
++--------+
+| tagKey |
++--------+
+| host   |
++--------+
+name: disk
++--------+
+| tagKey |
++--------+
+| host   |
++--------+
+name: m0
++--------+
+| tagKey |
++--------+
+| tag1   |
++--------+
+name: m3
++--------+
+| tagKey |
++--------+
+| tag1   |
++--------+
+name: select_test
++-----------+
+| tagKey    |
++-----------+
+| st_tag_aa |
++-----------+
+name: selector_test_1
++--------+
+| tagKey |
++--------+
+| tag2   |
++--------+
+name: time_test
++--------------------------+
+| tagKey                   |
++--------------------------+
+| tt_tag_at_default_cutoff |
++--------------------------+
+-- InfluxQL: SHOW TAG KEYS FROM cpu;
+name: cpu
++--------+
+| tagKey |
++--------+
+| cpu    |
+| host   |
++--------+
+-- InfluxQL: SHOW TAG KEYS FROM disk,cpu,disk;
+name: cpu
++--------+
+| tagKey |
++--------+
+| cpu    |
+| host   |
++--------+
+name: disk
++--------+
+| tagKey |
++--------+
+| device |
+| host   |
++--------+
+-- InfluxQL: SHOW TAG KEYS FROM cpu,disk,cpu;
+name: cpu
++--------+
+| tagKey |
++--------+
+| cpu    |
+| host   |
++--------+
+name: disk
++--------+
+| tagKey |
++--------+
+| device |
+| host   |
++--------+
+-- InfluxQL: SHOW TAG KEYS FROM /m.*/;
+name: m0
++--------+
+| tagKey |
++--------+
+| tag0   |
+| tag1   |
++--------+
+name: m1
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m2
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m3
++--------+
+| tagKey |
++--------+
+| tag0   |
+| tag1   |
+| tag2   |
+| tag3   |
++--------+
+name: m4
++---------+
+| tagKey  |
++---------+
+| tag.one |
++---------+
+name: time_test
++------------------------------+
+| tagKey                       |
++------------------------------+
+| tt_tag                       |
+| tt_tag_at_default_cutoff     |
+| tt_tag_before_default_cutoff |
+| tt_tag_late                  |
++------------------------------+
+-- InfluxQL: SHOW TAG KEYS FROM /d\isk/;
+name: disk
++--------+
+| tagKey |
++--------+
+| device |
+| host   |
++--------+
+-- InfluxQL: SHOW TAG KEYS FROM does_not_exist;
++--------+
+| tagKey |
++--------+
++--------+
+-- InfluxQL: SHOW TAG KEYS FROM "";
++--------+
+| tagKey |
++--------+
++--------+
+-- InfluxQL: SHOW TAG KEYS FROM time_test WHERE time >= '1990-01-01T00:00:00Z';
+name: time_test
++--------------------------+
+| tagKey                   |
++--------------------------+
+| tt_tag                   |
+| tt_tag_at_default_cutoff |
+| tt_tag_late              |
++--------------------------+
+-- InfluxQL: SHOW TAG KEYS FROM time_test WHERE time >= '2022-10-31T02:00:00Z';
+name: time_test
++-------------+
+| tagKey      |
++-------------+
+| tt_tag      |
+| tt_tag_late |
++-------------+
+-- InfluxQL: SHOW TAG KEYS FROM time_test WHERE time >= '1970-01-01T01:00:00Z';
+name: time_test
++------------------------------+
+| tagKey                       |
++------------------------------+
+| tt_tag                       |
+| tt_tag_at_default_cutoff     |
+| tt_tag_before_default_cutoff |
+| tt_tag_late                  |
++------------------------------+
+-- InfluxQL: SHOW TAG KEYS FROM select_test WHERE tag0 = 'a';
+name: select_test
++-----------+
+| tagKey    |
++-----------+
+| st_tag    |
+| st_tag_aa |
+| st_tag_ab |
+| tag0      |
+| tag1      |
++-----------+
+-- InfluxQL: SHOW TAG KEYS FROM select_test WHERE tag0 = 'a' AND tag1 = 'b';
+name: select_test
++-----------+
+| tagKey    |
++-----------+
+| st_tag    |
+| st_tag_ab |
+| tag0      |
+| tag1      |
++-----------+
+-- InfluxQL: SHOW TAG KEYS FROM select_test WHERE tag0 = "a";
++--------+
+| tagKey |
++--------+
++--------+
+-- InfluxQL: SHOW TAG KEYS WHERE tag0 = 'a';
+name: m3
++--------+
+| tagKey |
++--------+
+| tag0   |
+| tag1   |
+| tag2   |
+| tag3   |
++--------+
+name: select_test
++-----------+
+| tagKey    |
++-----------+
+| st_tag    |
+| st_tag_aa |
+| st_tag_ab |
+| tag0      |
+| tag1      |
++-----------+
+-- InfluxQL: SHOW TAG KEYS ON my_db;
+Error while planning query: This feature is not implemented: SHOW TAG KEYS ON <database>
+-- InfluxQL: SHOW TAG KEYS FROM x.my_db;
+Error while planning query: This feature is not implemented: retention policy in from clause
+-- InfluxQL: SHOW TAG KEYS FROM x.y.my_db;
+Error while planning query: This feature is not implemented: database name in from clause
+-- InfluxQL: SHOW RETENTION POLICIES;
+name: retention_policies
++---------+----------+--------------------+----------+---------+
+| name    | duration | shardGroupDuration | replicaN | default |
++---------+----------+--------------------+----------+---------+
+| autogen | 0s       | 168h0m0s           | 1        | true    |
++---------+----------+--------------------+----------+---------+
+-- InfluxQL: SHOW RETENTION POLICIES ON my_db;
+Error while planning query: This feature is not implemented: SHOW RETENTION POLICIES ON <database>

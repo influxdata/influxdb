@@ -1,0 +1,50 @@
+syntax = "proto3";
+package influxdata.iox.delete.v1;
+option go_package = "github.com/influxdata/iox/delete/v1";
+
+import "influxdata/iox/predicate/v1/predicate.proto";
+
+service DeleteService {
+  // Delete data for a table on a specified predicate
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+}
+
+// Request to delete data from a table on a specified predicate
+message DeleteRequest {
+  reserved 1;
+  reserved "db_name";
+
+  reserved 2;
+  reserved "table_name";
+
+  reserved 3;
+  reserved "start_time";
+
+  reserved 4;
+  reserved "stop_time";
+
+  reserved 5;
+  reserved "predicate";
+
+  // Delete payload
+  DeletePayload payload = 6;
+}
+
+message DeleteResponse {
+}
+
+// A delete payload
+message DeletePayload {
+  // Was the name of the database / namespace.
+  reserved "db_name";
+  reserved 1;
+
+  // The catalog ID for this database / namespace.
+  int64 database_id = 4;
+
+  // An optional table name to restrict this delete to
+  string table_name = 2;
+
+  // The predicate identifying data to delete
+  influxdata.iox.predicate.v1.Predicate predicate = 3;
+}

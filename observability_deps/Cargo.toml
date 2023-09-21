@@ -1,0 +1,17 @@
+[package]
+name = "observability_deps"
+description = "Observability ecosystem dependencies for InfluxDB IOx, to ensure consistent versions and unified updates"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies] # In alphabetical order
+tracing = { version = "0.1", features = ["max_level_trace"] }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[features]
+default = []
+
+# Optionally enable trace events in the release build if enabled.
+release_max_level_trace = ["tracing/release_max_level_trace"]

@@ -1,0 +1,77 @@
+syntax = "proto3";
+package influxdata.iox.ingester.v1;
+option go_package = "github.com/influxdata/iox/ingester/v1";
+
+import "google/protobuf/timestamp.proto";
+
+// IOx-specific metadata that will be serialized into the file-level key-value Parquet metadata
+// under a single key.
+message IoxMetadata {
+  // Removed as the Parquet metadata itself contains the row count & min/max
+  // timestamps, and specifying them here creates a dependency that prevents
+  // streaming serialisation (needing to know the number rows before you can
+  // serialize your parquet file with this metadata structure within it)
+  reserved 10, 11, 12, 14;
+  reserved "row_count", "min_sequence_number", "time_of_first_write", "time_of_last_write";
+  // Renamed to shard_id
+  reserved 5;
+  reserved "sequencer_id";
+  // shard_id was removed
+  reserved 17;
+  reserved "shard_id";
+  // max_sequence_number was removed
+  reserved 13;
+  reserved "max_sequence_number";
+  // Was the unique database partition ID. Moving to deterministic hash-based partition IDs
+  // that can be built from the table ID and the partition key, so storing the new partition hash
+  // ID here would be redundant.
+  reserved 8;
+  reserved "partition_id";
+
+  // Object store ID. Used in the parquet filename. 16 bytes in big-endian order.
+  bytes object_store_id = 1;
+
+  // Timestamp when this file was created.
+  google.protobuf.Timestamp creation_timestamp = 2;
+
+  // Unique namespace ID.
+  int64 namespace_id = 3;
+
+  // Unique name of the namespace.
+  string namespace_name = 4;
+
+  // Unique table ID.
+  int64 table_id = 6;
+
+  // Table that holds this parquet file.
+  string table_name = 7;
+
+  // Partition key of the partition that holds this parquet file.
+  string partition_key = 9;
+
+  // The sort key of this chunk
+  SortKey sort_key = 15;
+
+  // the compaction level of the file
+  int32 compaction_level = 16;
+
+  // max creation time of all L0 files this file is compacted to
+  google.protobuf.Timestamp max_l0_created_at = 18;
+}
+
+// Sort key of a chunk.
+message SortKey {
+  // A sort expression
+  message Expr {
+    // The name of the column
+    string column = 1;
+
+    /// Whether the data is sorted in descending order
+    bool descending = 2;
+
+    /// Whether the data is sorted with nulls first
+    bool nulls_first = 3;
+  }
+
+  repeated Expr expressions = 1;
+}

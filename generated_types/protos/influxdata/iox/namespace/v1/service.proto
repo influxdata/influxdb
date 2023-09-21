@@ -1,0 +1,118 @@
+syntax = "proto3";
+package influxdata.iox.namespace.v1;
+option go_package = "github.com/influxdata/iox/namespace/v1";
+
+import "influxdata/iox/partition_template/v1/template.proto";
+
+service NamespaceService {
+  // Get all namespaces
+  rpc GetNamespaces(GetNamespacesRequest) returns (GetNamespacesResponse);
+
+  // Create a namespace
+  rpc CreateNamespace(CreateNamespaceRequest) returns (CreateNamespaceResponse);
+
+  // Delete a namespace
+  rpc DeleteNamespace(DeleteNamespaceRequest) returns (DeleteNamespaceResponse);
+
+  // Update retention period
+  rpc UpdateNamespaceRetention(UpdateNamespaceRetentionRequest)
+      returns (UpdateNamespaceRetentionResponse);
+
+  // Update a service protection limit of a namespace. For this change to take
+  // effect, all routers MUST be restarted
+  rpc UpdateNamespaceServiceProtectionLimit(
+      UpdateNamespaceServiceProtectionLimitRequest)
+      returns (UpdateNamespaceServiceProtectionLimitResponse);
+}
+
+message GetNamespacesRequest {}
+
+message GetNamespacesResponse { repeated Namespace namespaces = 1; }
+
+message CreateNamespaceRequest {
+  // Name of the namespace to be created
+  string name = 1;
+
+  // Retention period in nanoseconds.
+  //
+  // NULL means "infinite retention", and 0 is mapped to NULL. Negative values
+  // are rejected.
+  optional int64 retention_period_ns = 2;
+
+  // Partitioning scheme to use for tables created in this namespace
+  optional influxdata.iox.partition_template.v1.PartitionTemplate
+      partition_template = 3;
+
+  ServiceProtectionLimits service_protection_limits = 4;
+}
+
+message CreateNamespaceResponse { Namespace namespace = 1; }
+
+message DeleteNamespaceRequest {
+  // Name of the namespace to be deleted
+  string name = 1;
+}
+
+message DeleteNamespaceResponse {}
+
+message UpdateNamespaceRetentionRequest {
+  // Name of the namespace to be set
+  string name = 1;
+
+  // Retention period in nanoseconds.
+  //
+  // NULL means "infinite retention", and 0 is mapped to NULL. Negative values
+  // are rejected.
+  optional int64 retention_period_ns = 2;
+}
+
+message UpdateNamespaceRetentionResponse { Namespace namespace = 1; }
+
+message UpdateNamespaceServiceProtectionLimitRequest {
+  // Namespace to have its service protection limits updated.
+  string name = 1;
+
+  // The service protection limit to update.
+  oneof limit_update {
+    // Change the maximum number of tables the namespace may have.
+    int32 max_tables = 2;
+    // Change the maximum number of columns each table in the namespace may
+    // have.
+    int32 max_columns_per_table = 3;
+  }
+}
+
+message UpdateNamespaceServiceProtectionLimitResponse {
+  Namespace namespace = 1;
+}
+
+message ServiceProtectionLimits {
+  // Change the maximum number of tables the namespace may have.
+  optional int32 max_tables = 2;
+  // Change the maximum number of columns each table in the namespace may
+  // have.
+  optional int32 max_columns_per_table = 3;
+}
+
+message Namespace {
+  // Namespace ID
+  int64 id = 1;
+
+  // Name of the Namespace
+  string name = 2;
+
+  // Retention period in nanoseconds.
+  //
+  // NULL means "infinite retention".
+  optional int64 retention_period_ns = 3;
+
+  // The maximum number of tables which this namespace is allowed to contain.
+  int32 max_tables = 4;
+
+  // The maximum number of columns a table belonging to this namespace may have.
+  int32 max_columns_per_table = 5;
+
+  // The default partitioning scheme used for any new tables that are created
+  // in this namespace, if any.
+  optional influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 6;
+}

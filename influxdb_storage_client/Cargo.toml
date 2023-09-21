@@ -1,0 +1,17 @@
+[package]
+name = "influxdb_storage_client"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+client_util = { path = "../client_util" }
+generated_types = { path = "../generated_types" }
+prost = "0.11"
+tonic = { workspace = true }
+futures-util = { version = "0.3" }
+observability_deps = { path = "../observability_deps"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]

@@ -1,0 +1,179 @@
+[workspace]
+# In alphabetical order
+members = [
+    "arrow_util",
+    "authz",
+    "backoff",
+    "cache_system",
+    "clap_blocks",
+    "client_util",
+    "compactor_test_utils",
+    "compactor",
+    "compactor_scheduler",
+    "data_types",
+    "datafusion_util",
+    "dml",
+    "executor",
+    "flightsql",
+    "garbage_collector",
+    "generated_types",
+    "gossip",
+    "gossip_compaction",
+    "gossip_parquet_file",
+    "gossip_schema",
+    "grpc-binary-logger-proto",
+    "grpc-binary-logger-test-proto",
+    "grpc-binary-logger",
+    "import_export",
+    "influxdb_influxql_parser",
+    "influxdb_iox_client",
+    "influxdb_iox",
+    "influxdb_line_protocol",
+    "influxdb_storage_client",
+    "influxdb_tsm",
+    "influxdb2_client",
+    "influxrpc_parser",
+    "ingest_structure",
+    "ingester_query_grpc",
+    "ingester_query_client",
+    "ingester_test_ctx",
+    "ingester",
+    "iox_catalog",
+    "iox_data_generator",
+    "iox_query_influxql",
+    "iox_query_influxrpc",
+    "iox_query",
+    "iox_tests",
+    "iox_time",
+    "ioxd_common",
+    "ioxd_compactor",
+    "ioxd_garbage_collector",
+    "ioxd_ingester",
+    "ioxd_querier",
+    "ioxd_router",
+    "ioxd_test",
+    "logfmt",
+    "metric_exporters",
+    "metric",
+    "mutable_batch_lp",
+    "mutable_batch_pb",
+    "mutable_batch_tests",
+    "mutable_batch",
+    "object_store_metrics",
+    "observability_deps",
+    "panic_logging",
+    "parquet_file",
+    "parquet_to_line_protocol",
+    "predicate",
+    "querier",
+    "query_functions",
+    "router",
+    "schema",
+    "service_common",
+    "service_grpc_catalog",
+    "service_grpc_flight",
+    "service_grpc_influxrpc",
+    "service_grpc_namespace",
+    "service_grpc_object_store",
+    "service_grpc_schema",
+    "service_grpc_table",
+    "service_grpc_testing",
+    "sharder",
+    "sqlx-hotswap-pool",
+    "test_helpers_end_to_end",
+    "test_helpers",
+    "tokio_metrics_bridge",
+    "trace_exporters",
+    "trace_http",
+    "trace",
+    "tracker",
+    "trogging",
+    "wal_inspect",
+    "wal",
+    "workspace-hack",
+]
+default-members = ["influxdb_iox"]
+
+resolver = "2"
+
+exclude = [
+    "*.md",
+    "*.txt",
+    ".circleci/",
+    ".editorconfig",
+    ".git*",
+    ".github/",
+    ".kodiak.toml",
+    "Dockerfile*",
+    "LICENSE*",
+    "buf.yaml",
+    "docker/",
+    "docs/",
+    "massif.out.*",
+    "perf/",
+    "scripts/",
+    "test_bench/",
+    "test_fixtures/",
+    "tools/",
+]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["IOx Project Developers"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+arrow = { version = "46.0.0" }
+arrow-flight = { version = "46.0.0" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "81f33b0e27f5694348cd953a937203d835b57178", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev = "81f33b0e27f5694348cd953a937203d835b57178" }
+
+hashbrown = { version = "0.14.0" }
+object_store = { version = "0.7.0" }
+parquet = { version = "46.0.0" }
+tonic = { version = "0.9.2", features = ["tls", "tls-webpki-roots"] }
+tonic-build = { version = "0.9.2" }
+tonic-health = { version = "0.9.2" }
+tonic-reflection = { version = "0.9.2" }
+
+# This profile optimizes for runtime performance and small binary size at the expense of longer
+# build times. It's most suitable for final release builds.
+[profile.release]
+codegen-units = 16
+debug = true
+lto = "thin"
+
+[profile.bench]
+debug = true
+
+# This profile optimizes for short build times at the expense of larger binary size and slower
+# runtime performance. It's most suitable for development iterations.
+[profile.quick-release]
+inherits = "release"
+codegen-units = 16
+lto = false
+incremental = true
+
+# Per insta docs: https://insta.rs/docs/quickstart/#optional-faster-runs
+[profile.dev.package.insta]
+opt-level = 3
+
+[profile.dev.package.similar]
+opt-level = 3
+
+[patch.crates-io]
+# Can remove after arrow 47 is released
+# Pin to https://github.com/apache/arrow-rs/pull/4790
+# To get fixes for
+# - https://github.com/apache/arrow-rs/issues/4788,
+# - https://github.com/apache/arrow-rs/pull/4799
+arrow = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-array = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-buffer = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-schema = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-select = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-string = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-ord = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+arrow-flight = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }
+parquet = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5" }

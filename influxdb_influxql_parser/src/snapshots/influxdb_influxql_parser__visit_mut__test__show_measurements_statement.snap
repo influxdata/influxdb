@@ -1,0 +1,9 @@
+---
+source: influxdb_influxql_parser/src/visit_mut.rs
+expression: "visit_statement!(\"SHOW MEASUREMENTS\")"
+---
+- pre_visit_statement
+- pre_visit_show_measurements_statement
+- post_visit_show_measurements_statement
+- post_visit_statement
+

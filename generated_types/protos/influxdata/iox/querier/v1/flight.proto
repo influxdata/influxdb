@@ -1,0 +1,94 @@
+syntax = "proto3";
+package influxdata.iox.querier.v1;
+option go_package = "github.com/influxdata/iox/querier/v1";
+
+/*
+ * Message definition for the native InfluxDB IOx Flight API
+ *
+ * ReadInfo is sent to an InfluxDB IOx Querier server's `DoGet` RPC
+ * method as the opaque "Ticket" in Arrow Flight messages.
+ *
+ * Tickets are created by encoding these messages using the protobuf
+ * binary format.
+ *
+ * IOx clients can construct these Tickets directly to avoid making
+ * two RPC requests as typically required by Arrow Flight (a
+ * `GetFlightInfo` followed by a `DoGet`).
+ */
+message ReadInfo {
+  // Database name
+  // This used to be namespace_name
+  string database = 1;
+
+  // Query text (either SQL or InfluxQL, depending on query_type)
+  string sql_query = 2;
+
+  // A FlightSQL command payload (serialized protobuf bytes). One of
+  // the messages defined in the [protobuf definition].
+  //
+  // [protobuf definition]: https://arrow.apache.org/docs/format/FlightSql.html#protocol-buffer-definitions
+  bytes flightsql_command = 4;
+
+  // The type of query
+  QueryType query_type = 3;
+
+  enum QueryType {
+    // An unspecified query type. IOx may choose how to interpret sql_query.
+    QUERY_TYPE_UNSPECIFIED = 0;
+
+    // SQL query. `sql_query` contains a SQL query as text
+    QUERY_TYPE_SQL = 1;
+
+    // InfluxQL query. `sql_query` contains an InfluxQL query as text
+    QUERY_TYPE_INFLUX_QL = 2;
+
+    // FlightSQL message: `sql_query` is empty, flightsql_command
+    // contains a serialized FlightSQL message.
+    QUERY_TYPE_FLIGHT_SQL_MESSAGE = 3;
+  }
+
+  // Do we present debug information to the user?
+  //
+  // Debug information are mostly features that are helpful to IOx developers but a unhelpful or even confusing to end
+  // users. One example are process-local query logs, which in most deployment scenarios will be inconsistent from a
+  // user PoV due to the routing layer that sits in front of the queriers.
+  //
+  // Note that debug information MUST NOT include security-relevant information. E.g. the process-local query log
+  // mentioned above MUST be namespace-scoped! So even a user hand-crafsts the `ReadInfo` message, they do NOT gain
+  // relevant information. The worst case is that their user experience will be suboptimal.
+  bool is_debug = 5;
+}
+
+// Message included in the DoGet response from the querier
+//
+// Currently this does not contain any information, but IOx may
+// provide data lineage information, statistics, watermarks or other
+// information in the future.
+message AppMetadata {}
+
+// A structure which describes the layout of the group key in a `RecordBatch`.
+// This information is used to map the data in a `RecordBatch` to the InfluxDB data model
+// where in addition to a data type, each columns is either a `tag`, `field` or `timestamp`
+//
+// Typically, this structure is encoded in the schema of a `RecordBatch`.
+message InfluxQlMetadata {
+  uint32 measurement_column_index = 1;
+
+  // Provides additional metadata about a column that is used
+  // to form part of the group key.
+  message TagKeyColumn {
+    // The tag key name.
+    string tag_key = 1;
+    // The column index of the tag values.
+    uint32 column_index = 2;
+    // `true` if the tag key column is also a projected column in original query.
+    bool is_projected = 3;
+  }
+
+  // A list of tag key names and and associated metadata.
+  //
+  // **Note**:
+  // The vector is sorted by the `tag_key` field in lexicographically
+  // ascending order.
+  repeated TagKeyColumn tag_key_columns = 2;
+}

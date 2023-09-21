@@ -1,0 +1,147 @@
+syntax = "proto3";
+package influxdata.iox.ingester.v1;
+option go_package = "github.com/influxdata/iox/ingester/v1";
+
+// Request to the ingester service for data that is not yet
+// persisted. This is how the querier and ingester interact.
+//
+// This type of message is Serialized as the Ticket value for the
+// Arrow Flight doGet request.
+message IngesterQueryRequest {
+  // Was table indexed via string (instead of via ID)
+  reserved "table";
+  reserved 1;
+
+  // Table to search
+  int64 table_id = 9;
+
+  // Columns the query service is interested in
+  repeated string columns = 2;
+
+  // Was start time of the query; now use the one in predicate
+  reserved "min_time";
+  reserved 3;
+
+  // Was end time of the query; now use the one in predicate
+  reserved "max_time";
+  reserved 4;
+
+  // Predicate for filtering
+  optional Predicate predicate = 5;
+
+  // Was for only returning rows with a sequence number greater than this
+  reserved "greater_than_sequence_number";
+  reserved 6;
+
+  // Was namespace indexed as a string (instead of via ID)
+  reserved "namespace";
+  reserved 7;
+
+  // Namespace to search
+  int64 namespace_id = 10;
+
+  // was used to only request data from a single sequencer ID
+  reserved "sequencer_id";
+  reserved 8;
+}
+
+// Metadata that the ingester provides to the query service along with the results. Serialized
+// in every FlightData's app_metadata .
+message IngesterQueryResponseMetadata {
+  // There was no field 1, oops.
+  reserved 1;
+
+  // Was max persisted sequence number of the table
+  reserved "max_sequencer_number";
+  reserved 2;
+
+  // Was max sequence number persisted for this table
+  reserved "parquet_max_sequence_number";
+  reserved 3;
+
+  // Was max sequence number for a tombstone associated with this table
+  reserved "tombstone_max_sequence_number";
+  reserved 4;
+
+  // Fields from a time when this metadata was sent once at the beginning of the response stream instead of once per
+  // partition.
+  reserved "unpersisted_partitions";
+  reserved 5;
+  reserved "batch_partition_ids";
+  reserved 6;
+
+  // Was partition status.
+  reserved "status";
+  reserved 8;
+
+  // UUID of this ingester instance.
+  string ingester_uuid = 9;
+
+  // Number of Parquet files that have been persisted to object storage for this partition.
+  uint64 completed_persistence_count = 10;
+
+  // Either the catalog-assigned partition ID or the deterministic identifier
+  // created from the table ID and partition key.
+  //
+  // For "old-style" partitions that were created before the switch to
+  // deterministic partition IDs, a `catalog_id` is returned, and this is used
+  // to address the partition by row ID.
+  //
+  // For "new-style" partitions, a deterministic hash-based ID is used to
+  // address a partition.
+  //
+  // Invariant: a partition is EITHER an "old-style", row addressed partition,
+  // OR a "new-style" hash ID addressed partition for the lifetime of the
+  // partition.
+  //
+  // See <https://github.com/influxdata/idpe/issues/17476>.
+  oneof partition_identifier {
+    // An "old-style" partition addressed by catalog row ID.
+    int64 catalog_id = 7;
+
+    // A "new-style" partition addressed by a deterministic hash ID.
+    bytes hash_id = 11;
+  }
+}
+
+// Serialization of `predicate::predicate::Predicate` that contains DataFusion `Expr`s
+message Predicate {
+  // Optional field restriction. If any are present, restricts the results to only tables which
+  // have *at least one* of the fields in field_columns.
+  repeated string field_columns = 1;
+
+  // partition key is no longer part of the predicate
+  reserved 2;
+  reserved "partition_key";
+
+  // Optional timestamp range: only rows within this range are included in results. Other rows are
+  // excluded.
+  optional TimestampRange range = 3;
+
+  // Optional arbitrary predicates, represented as list of DataFusion expressions applied a logical
+  // conjunction (aka they are 'AND'ed together). Only rows that evaluate to TRUE for all these
+  // expressions should be returned. Other rows are excluded from the results.
+  //
+  // Encoded using DataFusion's Expr serialization code
+  repeated bytes exprs = 4;
+
+  // Optional arbitrary predicates on the special `_value` column. These expressions are applied to
+  // `field_columns` projections in the form of `CASE` statement conditions.
+  repeated ValueExpr value_expr = 5;
+}
+
+// Specifies a continuous range of nanosecond timestamps.
+message TimestampRange {
+  // Start defines the inclusive lower bound.
+  int64 start = 1;
+
+  // End defines the exclusive upper bound.
+  int64 end = 2;
+}
+
+
+// A wrapper around a DataFusion expression against `_value` columns
+message ValueExpr {
+  // Encoded using DataFusion's Expr serialization code
+  bytes expr = 1;
+}

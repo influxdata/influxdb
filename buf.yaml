@@ -1,0 +1,22 @@
+---
+version: v1beta1
+build:
+  roots:
+    - generated_types/protos/
+    - ingester_query_grpc/protos/
+
+lint:
+  allow_comment_ignores: true
+  ignore:
+    - google
+    - grpc
+    - com/github/influxdata/idpe/storage/read
+    - influxdata/platform
+  use:
+    - DEFAULT
+    - STYLE_DEFAULT
+
+breaking:
+  use:
+    - WIRE
+    - WIRE_JSON

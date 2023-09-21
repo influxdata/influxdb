@@ -1,0 +1,188 @@
+# One run of the data generator output to --print will generate lines like this:
+
+# m1,agent_id=1,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_1,t1=t1_1,t2=t2_1_t1_1,t3=t3_1 intfield=48.31541353358504,intfield=63.16007209180341 1635968173847440000
+# m1,agent_id=1,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_2,t1=t1_1,t2=t2_1_t1_1,t3=t3_1 intfield=88.35678081075594,intfield=92.55272385943789 1635968173847440000
+# m1,agent_id=1,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_1,t1=t1_1,t2=t2_2_t1_1,t3=t3_1 intfield=71.34233494102085,intfield=19.35816384444733 1635968173847440000
+# m1,agent_id=1,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_2,t1=t1_1,t2=t2_2_t1_1,t3=t3_1 intfield=76.63378118605834,intfield=16.298451067775588 1635968173847440000
+# m1,agent_id=1,foo_bar=foo_8ffe4113-4680-43bd-9512-663bc84164f5_2_l8wdy_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_1,t1=t1_2,t2=t2_3_t1_2,t3=t3_2 intfield=96.71554665990536,intfield=93.44948263155631 1635968173847440000
+# m1,agent_id=1,foo_bar=foo_8ffe4113-4680-43bd-9512-663bc84164f5_2_l8wdy_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_2,t1=t1_2,t2=t2_3_t1_2,t3=t3_2 intfield=78.16527647371738,intfield=2.302033401489534 1635968173847440000
+# m1,agent_id=1,foo_bar=foo_8ffe4113-4680-43bd-9512-663bc84164f5_2_l8wdy_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_1,t1=t1_2,t2=t2_4_t1_2,t3=t3_2 intfield=90.37434758868368,intfield=7.552315135635346 1635968173847440000
+# m1,agent_id=1,foo_bar=foo_8ffe4113-4680-43bd-9512-663bc84164f5_2_l8wdy_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_2,t1=t1_2,t2=t2_4_t1_2,t3=t3_2 intfield=25.173607422073285,intfield=99.10021825896477 1635968173847440000
+# m1,agent_id=1,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_1,t1=t1_3,t2=t2_5_t1_3,t3=t3_1 intfield=31.724290085601936,intfield=71.04269945188204 1635968173847440000
+# m1,agent_id=1,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_2,t1=t1_3,t2=t2_5_t1_3,t3=t3_1 intfield=98.38837237131071,intfield=95.35495119280799 1635968173847440000
+# m1,agent_id=1,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_1,t1=t1_3,t2=t2_6_t1_3,t3=t3_1 intfield=15.860338450579835,intfield=20.932831216902017 1635968173847440000
+# m1,agent_id=1,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_2,t1=t1_3,t2=t2_6_t1_3,t3=t3_1 intfield=73.52354656855404,intfield=21.906048846128144 1635968173847440000
+# m2,agent_id=1,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03 i64field=1678687i,strfield="7bAK",uptime=0i,uptime_format="0 days, 00:00" 1635968173847440000
+# m2,agent_id=1,foo_bar=foo_8ffe4113-4680-43bd-9512-663bc84164f5_2_l8wdy_2021-11-03 i64field=7287348i,strfield="r2Xj",uptime=0i,uptime_format="0 days, 00:00" 1635968173847440000
+# m1,agent_id=2,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_1,t1=t1_1,t2=t2_1_t1_1,t3=t3_1 intfield=34.21564966893025,intfield=28.404777885873145 1635968173849823000
+# m1,agent_id=2,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_2,t1=t1_1,t2=t2_1_t1_1,t3=t3_1 intfield=89.53280753147736,intfield=88.35520078152399 1635968173849823000
+# m1,agent_id=2,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_1,t1=t1_1,t2=t2_2_t1_1,t3=t3_1 intfield=93.0798657117769,intfield=95.15086332651886 1635968173849823000
+# m1,agent_id=2,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_2,t1=t1_1,t2=t2_2_t1_1,t3=t3_1 intfield=16.383204148086563,intfield=69.36287104937198 1635968173849823000
+# m1,agent_id=2,foo_bar=foo_8ffe4113-4680-43bd-9512-663bc84164f5_2_l8wdy_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_1,t1=t1_2,t2=t2_3_t1_2,t3=t3_2 intfield=86.07310267461553,intfield=84.1837111118747 1635968173849823000
+# m1,agent_id=2,foo_bar=foo_8ffe4113-4680-43bd-9512-663bc84164f5_2_l8wdy_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_2,t1=t1_2,t2=t2_3_t1_2,t3=t3_2 intfield=66.97292091697567,intfield=13.792714677819795 1635968173849823000
+# m1,agent_id=2,foo_bar=foo_8ffe4113-4680-43bd-9512-663bc84164f5_2_l8wdy_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_1,t1=t1_2,t2=t2_4_t1_2,t3=t3_2 intfield=41.66956499741617,intfield=60.54778655915278 1635968173849823000
+# m1,agent_id=2,foo_bar=foo_8ffe4113-4680-43bd-9512-663bc84164f5_2_l8wdy_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_2,t1=t1_2,t2=t2_4_t1_2,t3=t3_2 intfield=50.85432735762039,intfield=51.71473345880968 1635968173849823000
+# m1,agent_id=2,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_1,t1=t1_3,t2=t2_5_t1_3,t3=t3_1 intfield=35.488387176278735,intfield=40.69930728826883 1635968173849823000
+# m1,agent_id=2,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_2,t1=t1_3,t2=t2_5_t1_3,t3=t3_1 intfield=52.224104265522485,intfield=17.630042482636732 1635968173849823000
+# m1,agent_id=2,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_1,t1=t1_3,t2=t2_6_t1_3,t3=t3_1 intfield=37.061044012796174,intfield=71.24055048796617 1635968173849823000
+# m1,agent_id=2,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03,m1tag=1-1,m1tag2=1-2,other=o_2,t1=t1_3,t2=t2_6_t1_3,t3=t3_1 intfield=31.513973186770073,intfield=61.978547758411295 1635968173849823000
+# m2,agent_id=2,foo_bar=foo_8386ce4f-958d-42d5-9826-5dffc7e35ff9_1_DsZup_2021-11-03 i64field=3258846i,strfield="j9PD",uptime=0i,uptime_format="0 days, 00:00" 1635968173849823000
+# m2,agent_id=2,foo_bar=foo_8ffe4113-4680-43bd-9512-663bc84164f5_2_l8wdy_2021-11-03 i64field=4426192i,strfield="RBhn",uptime=0i,uptime_format="0 days, 00:00" 1635968173849823000
+# new_agent_measurement-1,agent-name=another_example f1=f 1635968398968189000
+# new_agent_measurement-2,agent-name=another_example f1=f 1635968398968189000
+
+name = "full_example"
+
+# Values are automatically generated before the agents are initialized. They generate tag key/value pairs
+# with the name of the value as the tag key and the evaluated template as the value. These pairs
+# can be shared across tagsets and used in the agents as pre-generated data.
+[[values]]
+# The name appears as the tag key in generated tag pairs and is used later when specifying tag_sets.
+# It must not have a . in it, which is used to access children later.
+name = "foo_bar"
+# This number of tag pairs will be generated. If this is > 1, the id or a random character string should be
+# used in the template to ensure that the tag key/value pairs are unique.
+cardinality = 2
+# The template will be evaluated for each tag pair (so N times where n == cardinality)
+# the template can use a number of helpers, which are shown in this example.
+# guid - generate a guid
+# id - the id of the tag pair. ids start at 0
+# random - generate random character string of the passed in length
+# format-time - strftime formatted string for now
+template = "foo_{{guid}}_{{id}}_{{random 5}}_{{format-time \"%Y-%m-%d\"}}"
+
+[[values]]
+name = "t1"
+template = "t1_{{id}}"
+cardinality = 3
+# each t1 generated will reference one of t3 and one of foo_bar. As each t1 is generated
+# it will loop through the t3 and foo_bar collections. So the 3rd t1 that is generated will
+# reference the first t3 and foo_bar
+has_one = ["t3", "foo_bar"]
+
+[[values]]
+name = "t2"
+# note that in this template we can access the parent's id because of the belongs_to
+template = "t2_{{id}}_t1_{{t1.id}}"
+cardinality = 2
+belongs_to = "t1"
+
+[[values]]
+name = "t3"
+template = "t3_{{id}}"
+cardinality = 2
+
+[[values]]
+name = "other"
+template = "o_{{id}}"
+cardinality = 2
+
+# tag_sets can be used later in the measurement specification. Each measurement can use one
+# tag set (or none). For each sampling that is generated, each measurement will have lines
+# generated equal to the cardinality of the tagset.
+[[tag_sets]]
+name = "example"
+# for_each specifies how to iterate through the values to generate tagsets. If you want to
+# use values that belong_to others or are a has_one, specify their parent first. For values
+# without relationships, you'll get a combined cardinality of each multiplied by the other.
+# In this example we get cardinality of card(t1) * card(foo_bar) * card(other). The has_one
+# members of t1 don't increase cardinality.
+for_each = [
+    "t1",
+    "t1.t3",
+    "t1.foo_bar",
+    "t1.t2",
+    "other",
+]
+
+[[tag_sets]]
+name = "foos"
+# note here that we have a tag set of foo_bar tag pairs. Values can be used outside the
+# context of where they may be referenced in belong_to or has_one
+for_each = [
+    "foo_bar"
+]
+
+# Agent specs can be referenced later on by bucket writers, which specify how frequently
+# data should be written and by how many different agents.
+[[agents]]
+name = "first_agent"
+# if specifying tag_pairs at the agent level, every line that the agent generates will have these
+# tag pairs added to it. Note that the template has the same helpers as those in value (except for id).
+# In addition, it has an accessor for the agent id.
+tag_pairs = [
+    {key = "agent_id", template = "{{agent.id}}"}
+]
+
+[[agents.measurements]]
+name = "m1"
+# each sampling will have all the tag sets from this collection in addition to the tags and tag_pairs specified
+tag_set = "example"
+# for each agent, this specific measurement will be decorated with these additional tags. All the previous
+# template helpers are available including  now `measurement.id` and `tag.id`.
+# This example also shows how to automatically generate many tags using `count` and how to specify
+# that the tag value template should be re-evaluated after N number of lines. This N is counted across
+# samplings.
+tag_pairs = [
+    {key = "m1tag", template = "{{measurement.id}}-{{id}}", count = 2, regenerate_after_lines = 5}
+]
+
+# field values are generated on every line as they're written out
+[[agents.measurements.fields]]
+name = "intfield"
+# Count is optional, we can use it to automatically create many fields
+count = 2
+f64_range = [0.0, 100.00]
+
+[[agents.measurements]]
+name = "m2"
+tag_set = "foos"
+
+[[agents.measurements.fields]]
+name = "i64field"
+i64_range = [1, 8147240]
+
+[[agents.measurements.fields]]
+name = "strfield"
+template = "{{random 4}}"
+
+# this generates an int value representing how long the agent has been running
+[[agents.measurements.fields]]
+name = "uptime"
+uptime = "i64"
+
+# generates uptime as a string value
+[[agents.measurements.fields]]
+name = "uptime_format"
+uptime = "telegraf"
+
+[[agents]]
+name = "another_example"
+tag_pairs = [{key = "agent_name", template = "agent.name"}]
+
+[[agents.measurements]]
+name = "new_agent_measurement-{{measurement.id}}"
+# you can automatically generate many measurements with the same schema
+count = 2
+
+[[agents.measurements.fields]]
+name = "f1"
+bool = true
+
+# database_writers specify how to split up the list of supplied buckets to write to. If
+# only a single one is specified via the CLI flags, then you'd want only a single bucket_writer
+# with a percent of 1.0.
+#
+# These make it possible to split up a large list of buckets to write to and send different
+# amounts of write load as well as different schemas through specifying different agents.
+[[database_writers]]
+# the first 20% of the databases specified in the --bucket_list file will have these agents writing to them
+database_ratio = 0.2
+# for each of those databases, have 3 of the first_agent writing every 10s, and 1 of the another_example writing every minute.
+agents = [{name = "first_agent", count = 3, sampling_interval = "10s"}, {name = "another_example", sampling_interval = "1m"}]
+
+[[database_writers]]
+# the remaining 80% of the databases specified will write using these agents
+database_ratio = 0.8
+# we'll only have a single agent of another_example for each database
+agents = [{name = "another_example", sampling_interval = "1s"}]

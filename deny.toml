@@ -1,0 +1,48 @@
+# Configuration documentation:
+#   https://embarkstudios.github.io/cargo-deny/index.html
+
+[advisories]
+vulnerability = "deny"
+yanked = "deny"
+unmaintained = "warn"
+notice = "warn"
+ignore = [
+]
+git-fetch-with-cli = true
+
+[licenses]
+allow-osi-fsf-free = "either"
+copyleft = "deny"
+unlicensed = "deny"
+default = "deny"
+
+exceptions = [
+    # We should probably NOT bundle CA certs but use the OS ones.
+    { name = "webpki-roots", allow = ["MPL-2.0"] },
+]
+
+[[licenses.clarify]]
+name = "ring"
+expression = "BSD-4-Clause AND ISC AND MIT AND OpenSSL"
+license-files = [
+    # https://github.com/briansmith/ring/blob/95948b3977013aed16db92ae32e6b8384496a740/LICENSE
+    { path = "LICENSE", hash = 0xbd0eed23 },
+]
+
+[sources.allow-org]
+github = ["influxdata", "apache"]
+
+[bans]
+multiple-versions = "warn"
+deny = [
+    # We are using rustls as the TLS implementation, so we shouldn't be linking
+    # in OpenSSL too.
+    #
+    # If you're hitting this, you might want to take a look at what new
+    # dependencies you have introduced and check if there's a way to depend on
+    # rustls instead of OpenSSL (tip: check the crate's feature flags).
+    { name = "openssl-sys" },
+    # We've decided to use the `humantime` crate to parse and generate friendly time formats; use
+    # that rather than chrono-english.
+    { name = "chrono-english" },
+]

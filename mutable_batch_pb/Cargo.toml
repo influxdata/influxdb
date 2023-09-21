@@ -1,0 +1,21 @@
+[package]
+name = "mutable_batch_pb"
+description = "Conversion logic for binary write protocol <-> MutableBatch"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+arrow_util = { path = "../arrow_util" }
+dml = { path = "../dml" }
+generated_types = { path = "../generated_types" }
+hashbrown = { workspace = true }
+mutable_batch = { path = "../mutable_batch" }
+schema = { path = "../schema" }
+snafu = "0.7"
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+mutable_batch_lp = { path = "../mutable_batch_lp" }
+data_types = { path = "../data_types" }

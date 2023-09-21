@@ -1,0 +1,25 @@
+-- Test Setup: FiftySortedSameParquetFiles
+-- SQL: select count(1), sum(f1) from m;
++-----------------+-----------+
+| COUNT(Int64(1)) | SUM(m.f1) |
++-----------------+-----------+
+| 1               | 1.0       |
++-----------------+-----------+
+-- SQL: EXPLAIN select count(1), sum(f1) from m;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | Aggregate: groupBy=[[]], aggr=[[COUNT(Int64(1)), SUM(m.f1)]]    |
+|    |   TableScan: m projection=[f1]    |
+| physical_plan    | AggregateExec: mode=Final, gby=[], aggr=[COUNT(Int64(1)), SUM(m.f1)]    |
+|    |   CoalescePartitionsExec    |
+|    |     AggregateExec: mode=Partial, gby=[], aggr=[COUNT(Int64(1)), SUM(m.f1)]    |
+|    |       RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
+|    |         ProjectionExec: expr=[f1@1 as f1]    |
+|    |           DeduplicateExec: [tag1@2 ASC,tag2@3 ASC,tag3@4 ASC,tag4@5 ASC,time@6 ASC]    |
+|    |             SortPreservingMergeExec: [tag1@2 ASC,tag2@3 ASC,tag3@4 ASC,tag4@5 ASC,time@6 ASC,__chunk_order@0 ASC]    |
+|    |               SortExec: expr=[tag1@2 ASC,tag2@3 ASC,tag3@4 ASC,tag4@5 ASC,time@6 ASC,__chunk_order@0 ASC]    |
+|    |                 ParquetExec: file_groups={4 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet, 1/1/1/00000000-0000-0000-0000-000000000001.parquet, 1/1/1/00000000-0000-0000-0000-000000000002.parquet, 1/1/1/00000000-0000-0000-0000-000000000003.parquet, 1/1/1/00000000-0000-0000-0000-000000000004.parquet, ...], [1/1/1/00000000-0000-0000-0000-000000000005.parquet, 1/1/1/00000000-0000-0000-0000-000000000006.parquet, 1/1/1/00000000-0000-0000-0000-000000000007.parquet, 1/1/1/00000000-0000-0000-0000-000000000008.parquet, 1/1/1/00000000-0000-0000-0000-000000000009.parquet, ...], [1/1/1/00000000-0000-0000-0000-00000000000a.parquet, 1/1/1/00000000-0000-0000-0000-00000000000b.parquet, 1/1/1/00000000-0000-0000-0000-00000000000c.parquet, 1/1/1/00000000-0000-0000-0000-00000000000d.parquet, 1/1/1/00000000-0000-0000-0000-00000000000e.parquet, ...], [1/1/1/00000000-0000-0000-0000-00000000000f.parquet, 1/1/1/00000000-0000-0000-0000-000000000010.parquet, 1/1/1/00000000-0000-0000-0000-000000000011.parquet, 1/1/1/00000000-0000-0000-0000-000000000012.parquet, 1/1/1/00000000-0000-0000-0000-000000000013.parquet, ...]]}, projection=[__chunk_order, f1, tag1, tag2, tag3, tag4, time]    |
+|    |    |
+----------

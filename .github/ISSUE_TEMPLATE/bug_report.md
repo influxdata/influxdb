@@ -5,36 +5,39 @@ about: Create a report to help us improve
 
 <!--
 
-Thank you for reporting a bug in InfluxDB. 
+Thank you for reporting a bug in InfluxDB IOx. 
 
-* Please ask usage questions on the Influx Community site.
-    * https://community.influxdata.com/
-* Please add a :+1: or comment on a similar existing bug report instead of opening a new one.
-    * https://github.com/influxdata/influxdb/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aopen+is%3Aclosed+sort%3Aupdated-desc+label%3Akind%2Fbug+
-* Please check whether the bug can be reproduced with the latest release.
+Have you read the contributing section of the README? Please do if you haven't.
+https://github.com/influxdata/influxdb_iox/blob/main/README.md
+
+* Please ask usage questions in the Influx Slack (there is an #influxdb-iox channel).
+    * https://influxdata.com/slack
+* Please don't open duplicate issues; use the search. If there is an existing issue please don't add "+1" or "me too" comments; only add comments with new information.
+* Please check whether the bug can be reproduced with tip of main.
 * The fastest way to fix a bug is to open a Pull Request.
     * https://github.com/influxdata/influxdb/pulls
 
 -->
 
 __Steps to reproduce:__
-List the minimal actions needed to reproduce the behavior.
+List the minimal actions needed to reproduce the behaviour.
 
 1. ...
 2. ...
 3. ...
 
-__Expected behavior:__
+__Expected behaviour:__
 Describe what you expected to happen.
 
-__Actual behavior:__
+__Actual behaviour:__
 Describe What actually happened.
 
 __Environment info:__
 
-* System info: Run `uname -srm` and copy the output here
-* InfluxDB version: Run `influxd version` and copy the output here
-* Other relevant environment details: Container runtime, disk info, etc
+* Please provide the command you used to build the project, including any `RUSTFLAGS`.
+* System info: Run `uname -srm` or similar and copy the output here (we want to know your OS, architecture etc).
+* If you're running IOx in a containerised environment then details about that would be helpful.
+* Other relevant environment details: disk info, hardware setup etc.
 
 __Config:__
 Copy any non-default config values here or attach the full config as a gist or file.
@@ -42,15 +45,6 @@ Copy any non-default config values here or attach the full config as a gist or f
 <!-- The following sections are only required if relevant. -->
 
 __Logs:__
-Include snippet of errors in log.
-
-__Performance:__
-Generate profiles with the following commands for bugs related to performance, locking, out of memory (OOM), etc.
-
-```sh
-# Commands should be run when the bug is actively happening.
-# Note: This command will run for ~30 seconds.
-curl -o profiles.tar.gz "http://localhost:8086/debug/pprof/all?cpu=30s"
-iostat -xd 1 30 > iostat.txt
-# Attach the `profiles.tar.gz` and `iostat.txt` output files.
-```
+Include snippet of errors in logs or stack traces here.
+Sometimes you can get useful information by running the program with the `RUST_BACKTRACE=full` environment variable.
+Finally, the IOx server has a `-vv` for verbose logging.

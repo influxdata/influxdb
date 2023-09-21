@@ -1,976 +1,575 @@
-version: "2.1"
+---
+# CI Overview
+# -----------
+#
+# Each night:
+#
+#   A build image is created (ci_image) from `docker/Dockerfile.ci` and is
+#   pushed to `quay.io/influxdb/rust:ci`. This build image is then used to run
+#   the CI tasks for the day.
+#
+# Every commit:
+#
+# The CI for every PR and merge to main runs tests, fmt, lints and compiles debug binaries
+#
+# On main if all these checks pass it will then additionally compile in "release" mode and
+# publish a docker image to quay.io/influxdb/iox:$COMMIT_SHA
+#
+# Manually trigger build and push of container image for a branch:
+#
+# Navigate to https://app.circleci.com/pipelines/github/influxdata/influxdb_iox?branch=<branch-name> (<- change this!)
+# Then:
+#
+# - Click "Run Pipeline" in the top-right
+# - Expand "Add Parameters"
+# - Add a "boolean" parameter called "release_branch" with the value true
+# - Click "Run Pipeline"
+#
+# You can also do this using the CircleCI API:
+#
+# Using `xh`:
+#
+#   # e.g. using 'xh' (https://github.com/ducaale/xh)
+#   $ xh -a '<your personal circleCI token>:' POST \
+#       https://circleci.com/api/v2/project/github/influxdata/influxdb_iox/pipeline \
+#       parameters:='{"release_branch": true}' branch=chore/ci-tidy-up
+#
+# ...or equivalent with `curl`:
+#   $ curl -XPOST -H "Content-Type: application/json" -H "Circle-Token: <your personal circleCI token>" \
+#       -d '{"parameters": {"release_branch": true}, "branch": "chore/ci-tidy-up"}' \
+#       https://circleci.com/api/v2/project/github/influxdata/influxdb_iox/pipeline
+#
+# Manual CI Base Image:
+#
+# It is possible to manually trigger a rebuild of the base image used in CI. To do this, navigate to
+# https://app.circleci.com/pipelines/github/influxdata/influxdb_iox?branch=main (overriding the
+# branch name if desired). Then:
+# - Click "Run Pipeline" in the top-right
+# - Expand "Add Parameters"
+# - Add a "boolean" parameter called "ci_image" with the value true
+# - Click "Run Pipeline"
+#
+# If you refresh the page you should see a newly running ci_image workflow
+#
 
-orbs:
-  aws-s3:    circleci/aws-s3@2.0.0
-  terraform: circleci/terraform@2.1.0
+version: 2.1
+
+commands:
+  rust_components:
+    description: Verify installed components
+    steps:
+      - run:
+          name: Verify installed components
+          command: |
+            rustup --version
+            rustup show
+            cargo fmt --version
+            cargo clippy --version
+            cargo install cargo-hakari && cargo hakari --version
+
+  login_to_gcloud:
+    steps:
+      - run:
+          name: Login to gcloud
+          command: |
+            echo "${GCLOUD_SERVICE_ACCOUNT_KEY}" >/tmp/gcloud.json
+            gcloud auth activate-service-account "${GCLOUD_SERVICE_ACCOUNT_EMAIL}" --key-file /tmp/gcloud.json --quiet
+            rm -f /tmp/gcloud.json
+            gcloud auth configure-docker us-docker.pkg.dev
+
+jobs:
+  fmt:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Rust fmt
+          command: cargo fmt --all -- --check
+  lint:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Clippy
+          command: cargo clippy --all-targets --all-features --workspace -- -D warnings
+      - run:
+          name: Shellcheck
+          command: find scripts -type f ! \( -iname '*.py' -or -iname '*.supp' \) -exec shellcheck {} +
+      - run:
+          name: Yamllint
+          command: yamllint --config-file .circleci/yamllint.yml --strict .
+      - run:
+          name: migrations check
+          command: iox_catalog/check_linear_migrations.sh migrations
+  cargo_audit:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Install cargo-deny
+          command: cargo install cargo-deny
+      - run:
+          name: cargo-deny Checks
+          command: cargo deny check -s
+  doc:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    resource_class: large # use of a smaller executor runs out of memory
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      # Turn warnings into errors
+      RUSTDOCFLAGS: "-D warnings -A rustdoc::private-intra-doc-links"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Cargo doc
+          command: cargo doc --document-private-items --no-deps --workspace
+      - run:
+          name: Compress Docs
+          command: tar -cvzf rustdoc.tar.gz target/doc/
+      - store_artifacts:
+          path: rustdoc.tar.gz
+  workspace_hack_checks:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "77:99:88:4a:ac:1f:55:9e:39:c7:1f:e4:7f:1e:60:4b"
+      - checkout
+      - rust_components
+      - run:
+          name: Configure git
+          command: |
+            git config user.email "circleci@influxdata.com"
+            git config user.name "CircleCI[bot]"
+      - run:
+          name: Commit any changes from cargo hakari
+          command: |
+            cargo hakari generate
+            cargo hakari manage-deps -y
+            if [[ $(git status --porcelain) ]] ; then
+              if [[ $(git rev-list --count --author=CircleCI origin/main..) -ne 0 ]]; then
+                echo "There's already a cargo hakari commit on this branch, but there are cargo hakari changes... something is wrong."
+              else
+                git commit -am "chore: Run cargo hakari tasks"
+                git push origin "$CIRCLE_BRANCH"
+                echo "Cargo hakari changes need to be committed before merging this branch."
+              fi
+              exit 1
+            else
+              echo "No changes to commit"
+            fi
+
+  # Run integration tests that need postgres and other external dependencies
+  # such as influxdb v1 and java
+  test_integration:
+    # setup multiple docker images (see https://circleci.com/docs/2.0/configuration-reference/#docker)
+    docker:
+      - image: quay.io/influxdb/rust:ci
+      - image: postgres
+        environment:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        command:
+          - "postgres"
+          - "-c"
+          - "max_connections=200"
+    resource_class: xlarge # use of a smaller executor tends crashes on link
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      RUST_BACKTRACE: "1"
+      # Run integration tests
+      TEST_INTEGRATION: 1
+      INFLUXDB_IOX_INTEGRATION_LOCAL: 1
+      POSTGRES_USER: postgres
+      TEST_INFLUXDB_IOX_CATALOG_DSN: "postgres://postgres@localhost/iox_shared"
+      # When removing this, also remove the ignore on the test in trogging/src/cli.rs
+      RUST_LOG: debug,,hyper::proto::h1=info,h2=info
+      LOG_FILTER: debug,,hyper::proto::h1=info,h2=info
+      # Run the JDBC tests
+      TEST_INFLUXDB_JDBC: "true"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Download flight-sql-jdbc-driver-10.0.0.jar
+          command: make -C influxdb_iox/tests/jdbc_client flight-sql-jdbc-driver-10.0.0.jar
+      - run:
+          name: cargo test -p influxdb2_client
+          command: cargo test -p influxdb2_client
+      - run:
+          name: cargo test -p iox_catalog
+          command: cargo test -p iox_catalog
+      - run:
+          name: cargo test --test end_to_end
+          command: cargo test --test end_to_end
+
+  # Run all tests (without external dependencies, like a developer would)
+  test:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    resource_class: 2xlarge+ # use of a smaller executor tends crashes on link
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      RUST_BACKTRACE: "1"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: cargo test --workspace
+          command: cargo test --workspace
+
+
+  # end to end tests with Heappy (heap profiling enabled)
+  test_heappy:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    resource_class: xlarge # use of a smaller executor tends crashes on link
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      RUST_BACKTRACE: "1"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: cargo test --no-default-features --features=heappy end_to_end
+          command: cargo test --no-default-features --features=heappy end_to_end
+
+  # Build a dev binary.
+  #
+  # Compiles a binary with the default ("dev") cargo profile from the iox source
+  # using the latest ci_image and ensures various targets compile successfully
+  build_dev:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    resource_class: 2xlarge # use of a smaller executor tends crashes on link
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
+      # avarage. At peak this is a bit tight, so lower the CPU count for cargo a bit.
+      CARGO_BUILD_JOBS: "12"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Cargo build
+          command: cargo build --workspace
+      - run:
+          name: Check benches compile
+          command: cargo check --workspace --benches
+      - run:
+          name: Check extra features (like prod image)
+          command: cargo check --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof"
+      - run:
+          # Validate that the data generator compiles (in the same way as it does in release builds)
+          name: Check iox_data_generator compiles
+          command: cargo check  --package="iox_data_generator"  --no-default-features
+
+  # Lint protobufs.
+  protobuf-lint:
+    docker:
+      - image: bufbuild/buf:0.40.0
+    environment:
+      # Value to look for to skip breaking changes check
+      SKIP_LABEL: "https://api.github.com/repos/influxdata/influxdb_iox/labels/incompatible%20protobuf"
+    steps:
+      - checkout
+      - run:
+          name: buf lint
+          command: buf lint
+      - run:
+          name: buf breaking changes
+          command: |
+            echo "If you want to make changes forbidden by this lint, please"
+            echo "coordinate with the conductor team, add the 'incompatible protobuf' label"
+            echo "to the PR, and rerun this test"
+            # Check if label is present using github API:
+            # Inspired by https://discuss.circleci.com/t/tag-label-filter/11158
+            if wget -O -  https://api.github.com/repos/influxdata/influxdb_iox/issues/$(echo $CIRCLE_PULL_REQUEST | grep -oE "[^/pull]+$") | grep "$SKIP_LABEL" ; then echo "SKIPPING (FOUND LABEL)" && exit ; else echo "CHECKING (NO LABEL FOUND)"; fi
+            git fetch origin main
+            # compare against only changes in this branch (not against
+            # other stuff that may have been added to main since last merge)
+            MERGE_BASE=$(git merge-base origin/main $CIRCLE_BRANCH) sh -c 'buf breaking --against ".git#ref=$MERGE_BASE,depth=100"'
+
+  # Lint docs
+  docs-lint:
+    docker:
+      - image: python:3-slim-bullseye
+    steps:
+      # need a proper SSH client for checkout
+      # https://discuss.circleci.com/t/circleci-user-key-uses-rsa-with-sha1-which-github-has-deprecated/42548
+      - run:
+          name: Install GIT and SSH
+          command: |
+            apt-get update
+            apt-get install -y git ssh
+      - checkout
+      - run:
+          name: Lint docs
+          command: ./scripts/lint_docs.py ./docs
+
+  # Compile cargo "release" profile binaries for iox & data generator
+  #
+  # Uses the latest ci_image (influxdb/rust below) to build a release binary and
+  # copies it to a minimal container image based upon `rust:slim-buster`. This
+  # minimal image is then pushed to `quay.io/influxdb/iox:${BRANCH}`.
+  build_release:
+    # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
+    # kinda small node)
+    machine:
+      image: ubuntu-2004:2022.04.2
+    resource_class: 2xlarge # CPU bound, so make it fast
+    steps:
+      - checkout
+      - run:
+          name: Cargo release build with target arch set for CRoaring
+          command: |
+            COMMIT_SHA="$(git rev-parse HEAD)"
+
+            .circleci/docker_build_release.bash \
+              "influxdb_iox" \
+              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
+              "quay.io/influxdb/iox:$COMMIT_SHA"
+
+            .circleci/docker_build_release.bash \
+              "iox_data_generator" \
+              "" \
+              "quay.io/influxdb/iox_data_generator:$COMMIT_SHA"
+
+            docker run -it --rm quay.io/influxdb/iox:$COMMIT_SHA debug print-cpu
+
+            mkdir /tmp/images
+            docker save quay.io/influxdb/iox:"$COMMIT_SHA" | gzip > /tmp/images/iox.tar.gz
+            docker save quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" | gzip > /tmp/images/iox_data_generator.tar.gz
+          # linking might take a while and doesn't produce CLI output
+          no_output_timeout: 30m
+      - store_artifacts:
+          path: /tmp/images
+      - persist_to_workspace:
+          root: /tmp/images
+          paths:
+            - "*.tar.gz"
+
+  deploy_release:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+        # See https://github.com/containers/skopeo/issues/942
+        XDG_RUNTIME_DIR: /home/rust/.run
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp/images
+      - run:
+          name: set up runtime dir
+          command: |
+            mkdir -p "$XDG_RUNTIME_DIR"
+      - login_to_gcloud
+      - run:
+          name: quay login
+          command: |
+            echo "$QUAY_INFLUXDB_IOX_PASS" | skopeo login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
+      - run:
+          name: Upload images
+          command: |
+            COMMIT_SHA="$(git rev-parse HEAD)"
+            BRANCH="$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')"
+
+            images=( "iox" "iox_data_generator" )
+            registries=( "quay.io/influxdb" "us-docker.pkg.dev/influxdb2-artifacts/iox" )
+            tags=( "$COMMIT_SHA" "$BRANCH" )
+
+            for image in "${images[@]}"; do
+              echo "Image: $image"
+              oci_path="oci-archive:///tmp/images/$image.oci.tar"
+
+              # convert the gzipped docker image into OCI
+              gzip -d "/tmp/images/$image.tar.gz"
+              skopeo copy --format oci --quiet "docker-archive:///tmp/images/$image.tar" "$oci_path"
+
+              for registry in "${registries[@]}"; do
+                echo "  Registry: $registry"
+
+                # upload all tags
+                # Note: Uploading the 2nd tag for the same image (to the same registry) is very cheap since all layers
+                #       exist already (from the previous tag).
+                for tag in "${tags[@]}"; do
+                  echo "    Upload: tag=$tag"
+                  docker_url="docker://$registry/$image:$tag"
+                  skopeo copy --quiet "$oci_path" "$docker_url"
+
+                  # print out digest AFTER upload, see https://github.com/containers/skopeo/issues/469
+                  echo "      Digest: $(skopeo inspect "$docker_url" | jq ".Digest")"
+                done
+              done
+            done
+
+  # Prepare the CI image used for other tasks.
+  #
+  # A nightly job (scheduled below in the `workflows` section) to build the CI
+  # image (influxdb/rust) used for the rest of the checks.
+  #
+  # To modify the contents of the CI image, update docker/Dockerfile.ci
+  ci_image:
+    # Use a `machine` executor instead of a docker-based because:
+    # - we bootstrap our CI images somehow (we could use a docker-hub image as well)
+    # - the machine executor also supports multi-arch builds
+    # - we only run this job once a day, so the additional startup delay of 30-60s doesn't really matter
+    machine:
+      # https://circleci.com/docs/2.0/configuration-reference/#available-machine-images
+      image: ubuntu-2004:2022.04.2
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run: |
+          echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
+      - run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          RUST_VERSION=$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)
+          docker --version
+          docker build -t quay.io/influxdb/rust:$COMMIT_SHA -t quay.io/influxdb/rust:ci -f docker/Dockerfile.ci --build-arg RUST_VERSION=$RUST_VERSION .
+          docker push --all-tags quay.io/influxdb/rust
 
 parameters:
-  cross-container-tag:
-    type: string
-    default: go1.20.5-latest
-
-  workflow:
-    type: string
-    default: build
-
-executors:
-  cross-builder:
-    docker:
-      # NOTE: To upgrade the Go version, first push the upgrade to the cross-builder Dockerfile
-      # in the edge repo, then update the version here to match.
-      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
-    resource_class: large
-  linux-amd64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: large
-  linux-arm64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: arm.large
-  darwin:
-    resource_class: macos.m1.medium.gen1
-    macos:
-      xcode: 15.0.0
-    shell: /bin/bash -eo pipefail
-  windows:
-    machine:
-      image: windows-server-2019-vs2019:stable
-      resource_class: windows.medium
-    shell: bash.exe -eo pipefail
-
-# Unlike when a commit is pushed to a branch, CircleCI does not automatically
-# execute a workflow when a tag is pushed to a repository. These filters
-# allow the corresponding workflow to execute on any branch or tag.
-any_filter: &any_filter
-  filters:
-    tags:
-      only: /.*/
-    branches:
-      only: /.*/
-
-release_filter: &release_filter
-  filters:
-    tags:
-      # This regex matches what is found in 'scripts/get-version' with the
-      # '[[:digit:]]' transformed into '\d'. This also excludes release
-      # candidate detection, because this filter only matches against
-      # full releases.
-      only: /^v(\d+)(?:\.(\d+))?(?:\.(\d+))?$/
-    branches:
-      ignore: /.*/
-
-nofork_filter: &nofork_filter
-  filters:
-    branches:
-      ignore: /pull\/[0-9]+/
-
+  ci_image:
+    description: "Trigger build of CI image"
+    type: boolean
+    default: false
+  release_branch:
+    description: "Build and push container image for non-main branch"
+    type: boolean
+    default: false
 
 workflows:
   version: 2
-  build:
-    when:
-      equal: [ << pipeline.parameters.workflow >>, build ]
-    jobs:
-      - test-race:
-          <<: *any_filter
-      - test-build:
-          <<: *any_filter
-          name: test-build-<< matrix.os >>-<< matrix.arch >>
-          matrix:
-            parameters:
-              os: [ linux, darwin, windows ]
-              arch: [ amd64, arm64 ]
-            exclude:
-              - { os: darwin,  arch: arm64 }
-              - { os: windows, arch: arm64 }
-              # linux/amd64 can be tested directly from our cross-builder image
-              # to save time & enable running with the race detector.
-              - { os: linux,   arch: amd64 }
-      - test-prebuilt:
-          <<: *any_filter
-          name: test-linux-arm64
-          executor: linux-arm64
-          requires:
-            - test-build-linux-arm64
-      - test-prebuilt:
-          <<: *any_filter
-          name: test-darwin
-          executor: darwin
-          requires:
-            - test-build-darwin-amd64
-      - test-prebuilt:
-          <<: *any_filter
-          name: test-windows
-          executor: windows
-          requires:
-            - test-build-windows-amd64
-      - fluxtest:
-          <<: *any_filter
-      - tlstest:
-          <<: *any_filter
-      - lint:
-          <<: *any_filter
-      - build:
-          <<: *any_filter
-          name: build-<< matrix.os >>-<< matrix.arch >>
-          build-type: snapshot
-          matrix:
-            parameters:
-              os:   [ linux, darwin, windows ]
-              arch: [ amd64, arm64 ]
-            exclude:
-              - { os: darwin,  arch: arm64 }
-              - { os: windows, arch: arm64 }
-      - build-packages:
-          <<: *any_filter
-          requires:
-            - build-linux-amd64
-            - build-linux-arm64
-            - build-darwin-amd64
-            - build-windows-amd64
-      - check_package_deb_amd64:
-          requires:
-            - build-packages
-      - check_package_deb_arm64:
-          requires:
-            - build-packages
-      - check_package_rpm:
-          <<: *nofork_filter
-          name:
-            check_package_rpm-<< matrix.arch >>
-          matrix:
-            parameters:
-              arch: [ x86_64, aarch64 ]
-          requires:
-            - build-packages
-      - test-downgrade:
-          <<: *any_filter
-          requires:
-            - build-linux-amd64
-      - e2e-monitor-ci:
-          <<: *nofork_filter
-          requires:
-            - build-linux-amd64
-      - test-linux-packages:
-          <<: *nofork_filter
-          requires:
-            - build-packages
-      - sign-packages:
-          <<: *release_filter
-          requires:
-            - build-packages
-      - s3-publish-packages:
-          <<: *release_filter
-          requires:
-            - test-linux-packages
-            - build-packages
-            - sign-packages
-      - changelog:
-          <<: *release_filter
-          workflow: release
-      - changelog-upload:
-          <<: *release_filter
-          workflow: release
-          requires:
-            - changelog
-      - perf-test:
-          record_results: true
-          requires:
-            - build-packages
-          filters:
-            branches:
-              only:
-                - master
-      - grace-test:
-          <<: *any_filter
-          requires:
-            - build-linux-amd64
-      - litmus-smoke-test:
-          <<: *any_filter
-          requires:
-            - build-linux-amd64
-      - litmus-full-test:
-          requires:
-            - build-linux-amd64
-          filters:
-            branches:
-              only: master
-      - share-testing-image:
-          filters:
-            branches:
-              only:
-                - master
-          requires:
-            - e2e-monitor-ci
 
-  aws-destroy-daily:
-    triggers:
-      - schedule:
-          # run every day at 10pm -- note: use spaces, not tabs
-          cron: "0 22 * * *"
-          filters:
-            branches:
-              only:
-                - "master"
-    jobs:
-      - aws-destroy-by-date
-
-  nightly:
+  # CI for all pull requests.
+  ci:
     when:
       and:
-        # This requires a pipeline trigger with a custom "workflow" parameter
-        # set to "nightly". Since we want to trigger this workflow on several
-        # branches, we cannot use the trigger name as suggested by the
-        # documentation.
-        #
-        # For more information:
-        # https://circleci.com/docs/scheduled-pipelines/
-        - equal: [ << pipeline.trigger_source >>, scheduled_pipeline ]
-        - equal: [ << pipeline.parameters.workflow >>, nightly ]
+        - not: << pipeline.parameters.ci_image >>
+        - not: << pipeline.parameters.release_branch >>
     jobs:
-      - changelog:
-          workflow: nightly
-      - changelog-upload:
-          workflow: nightly
-          requires:
-            - changelog
-      - test-race
-      - test-build:
-          name: test-build-<< matrix.os >>-<< matrix.arch >>
-          matrix:
-            parameters:
-              os:   [ linux, darwin, windows ]
-              arch: [ amd64, arm64 ]
-            exclude:
-              - { os: darwin,  arch: arm64 }
-              - { os: windows, arch: arm64 }
-              # linux/amd64 can be tested directly from our cross-builder image
-              # to save time & enable running with the race detector.
-              - { os: linux,   arch: amd64 }
-      - test-prebuilt:
-          name: test-linux-arm64
-          executor: linux-arm64
-          requires:
-            - test-build-linux-arm64
-      - test-prebuilt:
-          name: test-darwin
-          executor: darwin
-          requires:
-            - test-build-darwin-amd64
-      - test-prebuilt:
-          name: test-windows
-          executor: windows
-          requires:
-            - test-build-windows-amd64
+      - fmt
       - lint
-      - fluxtest
-      - tlstest
-      - build:
-          name: build-nightly-<< matrix.os >>-<< matrix.arch >>
-          build-type: nightly
-          matrix:
-            parameters:
-              os:   [ linux, darwin, windows ]
-              arch: [ amd64, arm64 ]
-            exclude:
-              - { os: darwin,  arch: arm64 }
-              - { os: windows, arch: arm64 }
-      - build-docker-nightly:
-          name:           build-docker-nightly-arm64
-          resource_class: arm.medium
-          arch:           arm64
-          arch_docker:    arm64v8
+      - cargo_audit
+      - protobuf-lint
+      - docs-lint
+      - test
+      - test_heappy
+      - test_integration
+      - build_dev
+      - doc
+      - workspace_hack_checks
+      - build_release:
+          filters:
+            branches:
+              only: main
+      - deploy_release:
+          filters:
+            branches:
+              only: main
+          requires: # Only deploy if all tests have passed
+            - fmt
+            - lint
+            - cargo_audit
+            - protobuf-lint
+            - docs-lint
+            - test
+            - test_heappy
+            - test_integration
+            - build_dev
+            - build_release
+            - doc
+
+  # Manual build of CI image
+  ci_image:
+    when: << pipeline.parameters.ci_image >>
+    jobs:
+      - ci_image
+
+  # Force build and push of container image for non-main branch.
+  # See instructions at the top of this file
+  release_branch:
+    when: << pipeline.parameters.release_branch >>
+    jobs:
+      - build_release
+      - deploy_release:
           requires:
-            - build-nightly-linux-arm64
-      - build-docker-nightly:
-          name:           build-docker-nightly-amd64
-          resource_class: medium
-          arch:           amd64
-          arch_docker:    amd64
-          requires:
-            - build-nightly-linux-amd64
-      - docker-nightly-manifest:
-          requires:
-            - build-docker-nightly-amd64
-            - build-docker-nightly-arm64
-      - build-packages:
-          requires:
-            - build-nightly-linux-amd64
-            - build-nightly-linux-arm64
-            - build-nightly-darwin-amd64
-            - build-nightly-windows-amd64
-      - litmus-full-test:
-          requires:
-            - build-nightly-linux-amd64
-      - grace-test:
-          requires:
-            - build-nightly-linux-amd64
+            - build_release
 
-commands:
-  quay_login:
-    steps:
-      - run:
-          name: Log in to Quay
-          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-
-jobs:
-  lint:
-    executor: cross-builder
-    steps:
-      - checkout
-      - run:
-          name: Check go version
-          command: ./scripts/ci/check-system-go-matches-go-mod.sh
-          when: always
-      - run:
-          name: Check flag generation
-          command: ./scripts/ci/lint/flags.bash
-          when: always
-      - run:
-          name: Check SQL migrations
-          command: make checksqlmigrations
-          when: always
-      - run:
-          name: Check formatting
-          command: make checkfmt
-          when: always
-      - run:
-          name: Check codegen
-          command: make checkgenerate
-          when: always
-      - run:
-          name: vet
-          command: make vet
-          when: always
-      - run:
-          name: staticcheck
-          command: |
-            go install honnef.co/go/tools/cmd/staticcheck
-            staticcheck ./...
-          when: always
-
-  test-race:
-    executor: cross-builder
-    parallelism: 8
-    steps:
-      - checkout
-      - run:
-          name: Run race tests
-          command: ./scripts/ci/run-race-tests.sh $(pwd)/test-results
-      - store_test_results:
-          path: ./test-results
-      - store_artifacts:
-          path: ./test-results
-          destination: raw-test-results
-
-  test-build:
-    executor: cross-builder
-    resource_class: large
-    parameters:
-      os:
-        type: string
-      arch:
-        type: string
-    steps:
-      - checkout
-      - run:
-          name: Build test binaries
-          command: |
-            export GOOS=<< parameters.os >>
-            export GOARCH=<< parameters.arch >>
-            ./scripts/ci/build-tests.sh ./test-bin
-      - persist_to_workspace:
-          root: .
-          paths:
-            - test-bin
-
-  test-prebuilt:
-    parameters:
-      executor:
-        type: executor
-    executor: << parameters.executor >>
-    parallelism: 8
-    steps:
-      - checkout
-      - attach_workspace:
-          at: .
-      - run:
-          name: Install Rosetta
-          command: .circleci/scripts/install-rosetta
-      - run:
-          name: Run tests
-          command: ./scripts/ci/run-prebuilt-tests.sh $(pwd)/test-bin $(pwd)/test-results
-      - store_test_results:
-          path: ./test-results
-      - store_artifacts:
-          path: ./test-results
-          destination: raw-test-results
-
-  fluxtest:
-    executor: cross-builder
-    steps:
-      - checkout
-      - run: make test-flux
-
-  tlstest:
-    executor: cross-builder
-    steps:
-      - checkout
-      - run: make test-tls
-
-  build:
-    executor: cross-builder
-    parameters:
-      os:
-        type: string
-      arch:
-        type: string
-      build-type:
-        type: string
-    steps:
-      - checkout
-      - run:
-          name: Install Package Dependencies
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install --yes git
-      - run:
-          name: Get InfluxDB Version
-          command: |
-            PREFIX=2.x .circleci/scripts/get-version
-      - run:
-          name: Generate UI assets
-          command: make generate-web-assets
-      - run:
-          name: Build binaries
-          command: |
-            build_type="<< parameters.build-type >>"
-
-            # release builds occur from the "build" pipeline
-            if [[ ${build_type} == snapshot ]]
-            then
-              # `get-version` determines whether this is a release build. If
-              # this is a release build, ensure that the proper version is
-              # templated into the go binary.
-              if [[ ${RELEASE:-} ]]
-              then
-                build_type=release
-              fi
-            fi
-
-            export GOOS=<< parameters.os >>
-            export GOARCH=<< parameters.arch >>
-            ./scripts/ci/build.sh "bin/influxd_$(go env GOOS)_$(go env GOARCH)" "${build_type}" ./cmd/influxd
-      - store_artifacts:
-          path: bin
-      - persist_to_workspace:
-          root: .
-          paths:
-            - bin
-
-  build-packages:
-    machine:
-      image: ubuntu-2204:current
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - run: |
-          export DEBIAN_FRONTEND=noninteractive
-          sudo -E apt-get update
-          sudo -E apt-get install --no-install-recommends --yes \
-            asciidoc        \
-            build-essential \
-            git             \
-            python3         \
-            rpm             \
-            ruby-dev        \
-            xmlto
-
-          sudo gem install fpm
-
-          python3 -m pip install -r .circleci/scripts/package/requirements.txt
-
-          # Unfortunately, this must be executed as root. This is so permission
-          # modifying commands (chown, chmod, etc.) succeed.
-          sudo --preserve-env=CIRCLE_TAG,CIRCLE_SHA1 .circleci/scripts/package/build.py
-      - store_artifacts:
-          path: artifacts/
-      - persist_to_workspace:
-          root: .
-          paths:
-            - artifacts
-
-  sign-packages:
-    circleci_ip_ranges: true
-    docker:
-      - image: quay.io/influxdb/rsign:latest
-        auth:
-          username: $QUAY_RSIGN_USERNAME
-          password: $QUAY_RSIGN_PASSWORD
-    steps:
-      - add_ssh_keys:
-          fingerprints:
-            - fc:7b:6e:a6:38:7c:63:5a:13:be:cb:bb:fa:33:b3:3c
-      - attach_workspace:
-          at: /tmp/workspace
-      - run: |
-          for target in /tmp/workspace/artifacts/*
-          do
-            case "${target}"
-            in
-              # rsign is shipped on Alpine Linux which uses "busybox ash" instead
-              # of bash. ash is somewhat more posix compliant and is missing some
-              # extensions and niceties from bash.
-              *.deb|*.rpm|*.tar.gz|*.zip)
-                rsign "${target}"
-              ;;
-            esac
-
-            if [ -f "${target}" ]
-            then
-              # Since all artifacts are present, sign them here. This saves Circle
-              # credits over spinning up another instance just to separate out the
-              # checksum job. Individual checksums are written by the
-              # "build_packages" script.
-              sha256sum "${target}" >> "/tmp/workspace/artifacts/influxdb2.${CIRCLE_TAG}.digests"
-            fi
-          done
-      - persist_to_workspace:
-          root: /tmp/workspace
-          paths:
-            - artifacts
-      - store_artifacts:
-          path: /tmp/workspace/artifacts
-
-  s3-publish-packages:
-    docker:
-      - image: ubuntu:latest
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - run:
-          name: Publish Packages to S3
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install --yes awscli git
-
-            PREFIX=2.x .circleci/scripts/get-version
-            source "${BASH_ENV}"
-
-            # required for sha256sum generate the correct paths
-            pushd /tmp/workspace/artifacts
-
-            # Since the artifacts are generated in parallel, the checksums
-            # cannot be calculated until all artifacts are complete. This
-            # excludes `CHANGELOG.md`. Historically, `CHANGELOG.md` was
-            # not included in the checksums.
-            sha256sum * | tee influxdb.${VERSION}.sha256
-
-            aws s3 sync . 's3://dl.influxdata.com/influxdb/releases'
-
-  build-docker-nightly:
-    parameters:
-      resource_class:
-        type: string
-      arch:
-        type: string
-      arch_docker:
-        type: string
-    machine:
-      image: ubuntu-2004:current
-    resource_class: << parameters.resource_class >>
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - quay_login
-      - run:
-          name: Install Dependencies
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            sudo apt-get update
-            sudo apt-get install -y docker
-      - run:
-          name: Build Docker Container
-          command: |
-            # The Dockerfile requires `influxd` to build the container. This
-            # is written into `/tmp/workspace/bin/` by `build-binaries`. For
-            # the Dockerfile to build successfully, copy `influxd` to
-            # the current directory.
-            cp /tmp/workspace/bin/influxd_linux_<< parameters.arch >>/influxd .
-
-            docker build -f docker/influxd/Dockerfile -t quay.io/influxdb/influxdb-<< parameters.arch_docker >>:nightly .
-
-            docker push quay.io/influxdb/influxdb-<< parameters.arch_docker >>:nightly
-
-  docker-nightly-manifest:
-    machine:
-      image: ubuntu-2004:current
-    steps:
-      - run:
-          name: Install Dependencies
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            sudo apt-get update
-            sudo apt-get install -y docker
-      - quay_login
-      - run:
-          name: Update Docker Manifests
-          command: |
-            docker manifest create                    \
-              quay.io/influxdb/influxdb:nightly       \
-              quay.io/influxdb/influxdb-amd64:nightly \
-              quay.io/influxdb/influxdb-arm64v8:nightly
-            docker manifest push \
-              quay.io/influxdb/influxdb:nightly
-
-  test-linux-packages:
-    executor: terraform/default
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - add_ssh_keys:
-          fingerprints:
-            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
-      - terraform/validate:
-          path: scripts/ci/
-      - run:
-          name: Terraform apply
-          command: |
-            set -x
-            export DEBNAME="$(find /tmp/workspace/artifacts/influxdb2*amd64.deb)"
-            terraform -chdir=scripts/ci init -input=false
-            AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY terraform \
-              -chdir=scripts/ci \
-              apply \
-                -auto-approve \
-                -var package_path=${DEBNAME} \
-                -var instance_name=circleci-terraform-${CIRCLE_SHA1} \
-                -var additional_files_dir=${PWD}/scripts/ci/tests/
-      - run:
-          name: Install deb
-          command: |
-            set -x
-            export ec2_ip=$(terraform -chdir=scripts/ci output -raw test_node_ssh)
-            ssh -o "StrictHostKeyChecking=no" ubuntu@$ec2_ip \<< EOF
-            sudo apt-get update && sudo apt-get install -y /home/ubuntu/influxdb.deb
-            EOF
-      - run:
-          name: Run tests
-          command: |
-            set -x
-            export ec2_ip=$(terraform -chdir=scripts/ci output -raw test_node_ssh)
-            files=$(ssh -o "StrictHostKeyChecking=no" ubuntu@$ec2_ip 'find /home/ubuntu/files/ -maxdepth 1 -mindepth 1 | sort')
-            for file in $files; do
-              ssh -o "StrictHostKeyChecking=no" ubuntu@$ec2_ip "sudo $file"
-            done
-      - run:
-          name: Terraform destroy
-          when: always
-          command: |
-            AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY terraform \
-              -chdir=scripts/ci \
-              destroy \
-                -auto-approve
-
-  perf-test:
-    docker:
-      - image: cimg/base:2022.04
-    resource_class: small
-    parameters:
-      record_results:
-        type: boolean
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      # To ssh into aws without failing host key checks
-      - add_ssh_keys:
-          fingerprints:
-            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
-      - run:
-          name: Set up AWS CLI
-          command: |
-            ./scripts/ci/install-aws-cli.sh
-            echo "export AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID}" >> vars.sh
-            echo "export AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY}" >> vars.sh
-            echo "export TEST_RECORD_RESULTS=<< parameters.record_results >>" >> vars.sh
-            echo 'export DATA_I_TYPE="r5.2xlarge"' >>  vars.sh
-      - run:
-          name: Set up AWS instance
-          command: |
-            scripts/ci/perf_test.sh
-      - run:
-          name: Run perf test
-          no_output_timeout: 20m
-          command: |
-            source vars.sh
-            set -x
-            ssh "ubuntu@$EC2_IP" "sudo ./run_perftest.sh"
-      - run:
-          name: Tear down AWS instance
-          when: always
-          command: |
-            source vars.sh
-            set -x
-            if [[ -n "$EC2_INSTANCE_ID" ]] ; then
-              aws --region us-west-2 ec2 terminate-instances --instance-ids "$EC2_INSTANCE_ID"
-            fi
-
-  aws-destroy-by-date:
-    executor: linux-amd64
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - add_ssh_keys:
-          fingerprints:
-            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
-      - run:
-          name: Destroy AWS instances with datestring more than a day old
-          no_output_timeout: 20m
-          command: |
-            set -x
-            yesterday_date=$(date --date "yesterday" +%Y%m%d)
-            instance_info=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} \
-              AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} \
-              aws --region us-west-2 ec2 describe-instances \
-                --filters "Name=tag:Name,Values=oss-perftest-*" \
-                --query "Reservations[].Instances[].[InstanceId, Tags[?Key=='Name']|[0].Value]" \
-                --output text)
-            while [ -n "$instance_info" ]; do
-              instance_id=$(echo $instance_info | tr -s ' ' | cut -d ' ' -f1)
-              name=$(echo $instance_info | tr -s ' ' | cut -d ' ' -f2)
-              instance_info=$(echo $instance_info | tr -s ' ' | cut -d ' ' -f3-)
-              date=$(echo $name | cut -d '-' -f3)
-              if [ $date -le $yesterday_date ]; then
-                AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
-              fi
-            done
-
-  e2e-monitor-ci:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
-      - attach_workspace:
-          at: .
-      - setup_remote_docker
-      - quay_login
-      - run:
-          name: Build and push candidate docker image
-          command: |
-            cp bin/influxd_linux_amd64/influxd .
-            docker build -f docker/influxd/Dockerfile -t quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} .
-            docker push quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
-      - run:
-          name: Run the tests
-          command: API_KEY=${MONITOR_CI_API_KEY} MONITOR_CI_BRANCH="master" OSS_SHA=${CIRCLE_SHA1} RUN_WORKFLOW="build_oss" ./scripts/ci/run-monitor-ci-tests.bash
-      - store_artifacts:
-          path: monitor-ci/test-artifacts/results/build-oss-image
-          destination: test_artifacts/results/build-oss-image
-      - store_artifacts:
-          path: monitor-ci/test-artifacts/results/oss-e2e
-          destination: test_artifacts/results/oss-e2e
-      - store_artifacts:
-          path: monitor-ci/test-artifacts/results/shared
-          destination: test_artifacts/results/shared
-
-  litmus-smoke-test:
-    executor: linux-amd64
-    steps:
-      - attach_workspace:
-          at: ~/project
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/smoke/test_smoke.py -e BINARYPATH=/Litmus/result/bin/influxd_linux_amd64/influxd -e BOLTPATH=/Litmus/result/influxd_test/influxd.bolt -e ENGINEPATH=/Litmus/result/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
-      - store_artifacts:
-          path: ~/project
-          destination: raw-daily-output
-      - store_test_results:
-          path: ~/project
-
-  litmus-full-test:
-    executor: linux-amd64
-    steps:
-      - attach_workspace:
-          at: ~/project
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e BINARYPATH=/Litmus/result/bin/influxd_linux_amd64/influxd -e BOLTPATH=/tmp/influxd_test/influxd.bolt -e ENGINEPATH=/tmp/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
-      - store_artifacts:
-          path: ~/project
-          destination: raw-daily-output
-      - store_test_results:
-          path: ~/project
-
-  grace-test:
-    executor: linux-amd64
-    steps:
-      - attach_workspace:
-          at: ~/project
-      - run:
-          command: ./bin/influxd_linux_amd64/influxd --store=memory --log-level=debug
-          background: true
-      - run: mkdir -p ~/project/results
-      - run:
-          name: Wait for influxd to bind HTTP port
-          command: |
-            attempts=0
-            max_attempts=30
-            while ! curl localhost:8086/health; do
-              attempts=$((attempts+1))
-              if [[ $attempts = $max_attempts ]]; then
-                >&2 echo influxd "didn't" start in time
-                exit 1
-              fi
-              sleep 1
-            done
-      - run:
-          name: Run grace test driver
-          command: |
-            docker run -v ~/project/results:/grace/test-results/grace-results \
-              --env GRACE_BASE_URL="http://172.17.0.1:8086" \
-              --env GRACE_ORG_NAME="daily-org" \
-              --env GRACE_BUCKET_NAME="daily-bucket" \
-              --env GRACE_USER="daily@influxdata.com" \
-              --env GRACE_PASS="dailyPassword" \
-              --env GRACE_VALIDATE_OPENAPI=1 \
-              quay.io/influxdb/grace:latest-cd
-      - store_artifacts:
-          path: ~/project/results
-      - store_test_results:
-          path: ~/project/results
-
-  test-downgrade:
-    executor: cross-builder
-    steps:
-      - checkout
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run downgrade tests
-          command: |
-            ./scripts/ci/test-downgrade.sh $(pwd)/bin/influxd_linux_amd64/influxd
-
-  share-testing-image:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - setup_remote_docker
-      - quay_login
-      - run:
-          name: Push the image to Quay
-          command: |
-            docker pull quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
-            docker tag quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} quay.io/influxdb/oss-acceptance:latest
-            docker push quay.io/influxdb/oss-acceptance:latest
-
-  changelog:
-    parameters:
-      workflow:
-        type: string
-    docker:
-      - image: quay.io/influxdb/changelogger:latest
-    steps:
-      - checkout
-      - when:
-          condition:
-            or:
-              - equal: [ << parameters.workflow >>, nightly  ]
-              - equal: [ << parameters.workflow >>, snapshot ]
-          steps:
-            - run: changelogger --product OSS
-      - when:
-          condition:
-            equal: [ << parameters.workflow >>, release ]
-          steps:
-            - run: |
-                export DESCRIPTION="In addition to the list of changes below, please also see the [official release \
-                notes](https://docs.influxdata.com/influxdb/${CIRCLE_BRANCH}/reference/release-notes/influxdb/) for \
-                other important information about this release."
-
-                changelogger --product OSS --release "<< pipeline.git.tag >>" --description "${DESCRIPTION}"
-      - store_artifacts:
-          path: changelog_artifacts/
-      - persist_to_workspace:
-          root: changelog_artifacts/
-          paths:
-            - .
-
-  changelog-upload:
-    parameters:
-      workflow:
-        type: string
-    docker:
-      - image: cimg/python:3.6
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - when:
-          condition:
-            equal: [ << parameters.workflow >>, release ]
-          steps:
-            - aws-s3/copy:
-                aws-region:            AWS_S3_REGION
-                aws-access-key-id:     AWS_ACCESS_KEY_ID
-                aws-secret-access-key: AWS_SECRET_ACCESS_KEY
-                to:   "s3://dl.influxdata.com/influxdb/releases/CHANGELOG.<< pipeline.git.tag >>.md"
-                from: /tmp/workspace/CHANGELOG.md
-      - when:
-          condition:
-            equal: [ << parameters.workflow >>, nightly ]
-          steps:
-            - aws-s3/copy:
-                aws-region:            AWS_S3_REGION
-                aws-access-key-id:     AWS_ACCESS_KEY_ID
-                aws-secret-access-key: AWS_SECRET_ACCESS_KEY
-                to:   "s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md"
-                from: /tmp/workspace/CHANGELOG.md
-
-  check_package_deb_amd64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: medium
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - run:
-          name: Validate Debian Package (AMD64)
-          command: |
-            sudo .circleci/scripts/package-validation/debian \
-              /tmp/workspace/artifacts/influxdb2*amd64.deb
-
-  check_package_deb_arm64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: arm.medium
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - run:
-          name: Validate Debian Package (ARM64)
-          command: |
-            sudo .circleci/scripts/package-validation/debian \
-              /tmp/workspace/artifacts/influxdb2*arm64.deb
-
-  check_package_rpm:
-    executor: linux-amd64
-    parameters:
-      arch:
-        type: string
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - add_ssh_keys:
-          fingerprints:
-            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
-      - checkout
-      - run: |
-          AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID \
-          AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY \
-          .circleci/scripts/package-validation/redhat << parameters.arch >> /tmp/workspace/artifacts/influxdb2*.<< parameters.arch >>.rpm
+  # Nightly rebuild of the build container
+  ci_image_nightly:
+    triggers:
+      - schedule:
+          cron: "0 5 * * *"
+          filters:
+            branches:
+              only:
+                - main
+    jobs:
+      - ci_image

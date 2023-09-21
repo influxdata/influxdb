@@ -1,0 +1,28 @@
+// This file contains InfluxDB error definitions.
+//
+// Copy/pasted, as closely as verbatim as possible, from
+// https://github.com/influxdata/idpe/blob/master/kit/grpc/errors.proto
+
+syntax = "proto3";
+package influxdata.platform.errors;
+
+import "google/protobuf/any.proto";
+
+message InternalError {
+    string message = 1;
+}
+
+message InfluxDBError {
+    string code = 1;
+    string message = 2;
+    string op = 3;
+    google.protobuf.Any error = 4;
+}
+
+message FluxError {
+    uint32 code = 1;
+    string message = 2;
+    string doc_url = 3;
+    google.protobuf.Any error = 4;
+}
+

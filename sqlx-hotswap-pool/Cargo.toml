@@ -1,0 +1,21 @@
+[package]
+name = "sqlx-hotswap-pool"
+description = "Workaround for the lack of dyanmic credential update support in sqlx"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Prevent this from being published to crates.io!
+publish = false
+
+[dependencies]
+sqlx = { version = "0.7.1", features = ["runtime-tokio-rustls", "postgres", "json", "tls-rustls"] }
+either = "1.9.0"
+futures = "0.3"
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+dotenvy = "0.15.7"
+rand = { version = "0.8", features = ["small_rng"] }
+tokio = { version = "1.32", features = ["rt-multi-thread", "macros", "parking_lot"] }

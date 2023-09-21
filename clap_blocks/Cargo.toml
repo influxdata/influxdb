@@ -1,0 +1,31 @@
+[package]
+name = "clap_blocks"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+futures = "0.3"
+http = "0.2.9"
+humantime = "2.1.0"
+iox_catalog = { path = "../iox_catalog" }
+metric = { path = "../metric" }
+object_store = { workspace = true }
+observability_deps = { path = "../observability_deps" }
+snafu = "0.7"
+sysinfo = "0.29.10"
+trace_exporters = { path = "../trace_exporters" }
+trogging = { path = "../trogging", default-features = false, features = ["clap"] }
+uuid = { version = "1", features = ["v4"] }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+tempfile = "3.8.0"
+test_helpers = { path = "../test_helpers" }
+
+[features]
+azure = ["object_store/azure"] # Optional Azure Object store support
+gcp = ["object_store/gcp"] # Optional GCP object store support
+aws = ["object_store/aws"] # Optional AWS / S3 object store support

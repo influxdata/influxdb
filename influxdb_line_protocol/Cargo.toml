@@ -1,0 +1,27 @@
+[package]
+name = "influxdb-line-protocol"
+version = "1.0.0"
+authors = ["InfluxDB IOx Project Developers"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+description = "InfluxDB line protocol parser and builder."
+homepage = "https://github.com/influxdata/influxdb_iox/tree/main/influxdb_line_protocol"
+repository = "https://github.com/influxdata/influxdb_iox/tree/main/influxdb_line_protocol"
+
+# Note this crate is published as its own crate on crates.io but kept in
+# this repository for maintenance convenience.
+#
+# Thus it is important not to have workspace dependencies.
+#
+# https://github.com/influxdata/influxdb_iox/issues/7051
+
+[dependencies] # In alphabetical order
+bytes = "1.5"
+log = "0.4.20"
+nom = { version = "7", default-features = false, features = ["std"] }
+smallvec = { version = "1.11.1", features = ["union"] }
+snafu = "0.7"
+
+[dev-dependencies] # In alphabetical order
+test_helpers = { path = "../test_helpers" }

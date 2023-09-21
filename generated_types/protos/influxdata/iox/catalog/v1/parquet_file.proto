@@ -1,0 +1,48 @@
+syntax = "proto3";
+package influxdata.iox.catalog.v1;
+option go_package = "github.com/influxdata/iox/catalog/v1";
+
+import "influxdata/iox/catalog/v1/partition_identifier.proto";
+
+message ParquetFile {
+    reserved 7;
+    reserved "min_sequence_number";
+    reserved 2;
+    reserved "sequencer_id";
+    reserved 17;
+    reserved "shard_id";
+    reserved 8;
+    reserved "max_sequence_number";
+    reserved 5;
+    reserved "partition_id";
+
+    // the id of the file in the catalog
+    int64 id = 1;
+    // the namespace id
+    int64 namespace_id = 3;
+    // the table id
+    int64 table_id = 4;
+
+    PartitionIdentifier partition_identifier = 19;
+
+    // the object store uuid
+    string object_store_id = 6;
+    // the min timestamp of data in this file
+    int64 min_time = 9;
+    // the max timestamp of data in this file
+    int64 max_time = 10;
+    // the optional timestamp of when this file was marked for deletion
+    optional int64 to_delete = 11;
+    // the file size in bytes
+    int64 file_size_bytes = 12;
+    // the number of rows in this file
+    int64 row_count = 13;
+    // the compaction level of the file
+    int32 compaction_level = 14;
+    // the creation timestamp of the parquet file
+    int64 created_at = 15;
+    // Set of columns within this parquet file.
+    repeated int64 column_set = 16;
+    // max creation timestamp of all L0s this parquet file is compacted to
+    int64 max_l0_created_at = 18;
+}

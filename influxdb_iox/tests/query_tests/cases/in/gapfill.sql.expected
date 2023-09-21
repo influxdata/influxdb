@@ -1,0 +1,268 @@
+-- Test Setup: OneMeasurementTwoSeries
+-- SQL: SELECT * FROM cpu ORDER BY REGION, TIME;
++------+--------+----------------------+------+
+| idle | region | time                 | user |
++------+--------+----------------------+------+
+| 70.0 | a      | 2000-05-05T12:20:00Z | 23.2 |
+|      | a      | 2000-05-05T12:40:00Z | 21.0 |
+|      | b      | 2000-05-05T12:31:00Z | 25.2 |
+| 60.0 | b      | 2000-05-05T12:39:00Z | 28.9 |
++------+--------+----------------------+------+
+-- SQL: SELECT * FROM cpu ORDER BY TIME;
++------+--------+----------------------+------+
+| idle | region | time                 | user |
++------+--------+----------------------+------+
+| 70.0 | a      | 2000-05-05T12:20:00Z | 23.2 |
+|      | b      | 2000-05-05T12:31:00Z | 25.2 |
+| 60.0 | b      | 2000-05-05T12:39:00Z | 28.9 |
+|      | a      | 2000-05-05T12:40:00Z | 21.0 |
++------+--------+----------------------+------+
+-- SQL: EXPLAIN SELECT date_bin_gapfill(interval '10 minute', time) as minute, count(cpu.user) from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by minute;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | Projection: date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time) AS minute, COUNT(cpu.user)    |
+|    |   GapFill: groupBy=[date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[[COUNT(cpu.user)]], time_column=date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time), stride=IntervalMonthDayNano("600000000000"), range=Included(Literal(TimestampNanosecond(957528000000000000, None)))..Included(Literal(TimestampNanosecond(957531540000000000, None)))    |
+|    |     Aggregate: groupBy=[[date_bin(IntervalMonthDayNano("600000000000"), cpu.time) AS date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)]], aggr=[[COUNT(cpu.user)]]    |
+|    |       TableScan: cpu projection=[time, user], full_filters=[cpu.time >= TimestampNanosecond(957528000000000000, None), cpu.time <= TimestampNanosecond(957531540000000000, None)]    |
+| physical_plan    | ProjectionExec: expr=[date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@0 as minute, COUNT(cpu.user)@1 as COUNT(cpu.user)]    |
+|    |   GapFillExec: group_expr=[date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@0], aggr_expr=[COUNT(cpu.user)@1], stride=600000000000, time_range=Included("957528000000000000")..Included("957531540000000000")    |
+|    |     SortPreservingMergeExec: [date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@0 ASC]    |
+|    |       SortExec: expr=[date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@0 ASC]    |
+|    |         AggregateExec: mode=FinalPartitioned, gby=[date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@0 as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[COUNT(cpu.user)]    |
+|    |           CoalesceBatchesExec: target_batch_size=8192    |
+|    |             RepartitionExec: partitioning=Hash([date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@0], 4), input_partitions=4    |
+|    |               AggregateExec: mode=Partial, gby=[date_bin(600000000000, time@0) as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[COUNT(cpu.user)]    |
+|    |                 CoalesceBatchesExec: target_batch_size=8192    |
+|    |                   FilterExec: time@0 >= 957528000000000000 AND time@0 <= 957531540000000000    |
+|    |                     RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
+|    |                       ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[time, user], predicate=time@2 >= 957528000000000000 AND time@2 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000    |
+|    |    |
+----------
+-- SQL: SELECT date_bin_gapfill(interval '10 minute', time) as minute, count(cpu.user) from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by minute;
++----------------------+-----------------+
+| minute               | COUNT(cpu.user) |
++----------------------+-----------------+
+| 2000-05-05T12:00:00Z |                 |
+| 2000-05-05T12:10:00Z |                 |
+| 2000-05-05T12:20:00Z | 1               |
+| 2000-05-05T12:30:00Z | 2               |
+| 2000-05-05T12:40:00Z | 1               |
+| 2000-05-05T12:50:00Z |                 |
++----------------------+-----------------+
+-- SQL: SELECT region, date_bin_gapfill('10 minute', time) as minute, locf(avg(cpu.user)) from cpu group by region, minute;
+Error while planning query: Optimizer rule 'handle_gap_fill' failed
+caused by
+Error during planning: gap-filling query is missing both upper and lower time bounds
+-- SQL: SELECT region, date_bin_gapfill('10 minute', time) as minute, locf(avg(cpu.user)) from cpu where time >= timestamp '2000-05-05T12:00:00Z' group by region, minute;
+Error while planning query: Optimizer rule 'handle_gap_fill' failed
+caused by
+Error during planning: gap-filling query is missing upper time bound
+-- SQL: SELECT region, date_bin_gapfill('10 minute', time) as minute, locf(avg(cpu.user)) from cpu where time < timestamp '2000-05-05T13:00:00Z' group by region, minute;
+Error while planning query: Optimizer rule 'handle_gap_fill' failed
+caused by
+Error during planning: gap-filling query is missing lower time bound
+-- SQL: SELECT date_bin_gapfill(interval '10 minute', time) as minute from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by minute;
++----------------------+
+| minute               |
++----------------------+
+| 2000-05-05T12:00:00Z |
+| 2000-05-05T12:10:00Z |
+| 2000-05-05T12:20:00Z |
+| 2000-05-05T12:30:00Z |
+| 2000-05-05T12:40:00Z |
+| 2000-05-05T12:50:00Z |
++----------------------+
+-- SQL: SELECT date_bin_gapfill(interval '10 minute', time) as minute, region, count(cpu.user) from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by minute, region;
++----------------------+--------+-----------------+
+| minute               | region | COUNT(cpu.user) |
++----------------------+--------+-----------------+
+| 2000-05-05T12:00:00Z | a      |                 |
+| 2000-05-05T12:10:00Z | a      |                 |
+| 2000-05-05T12:20:00Z | a      | 1               |
+| 2000-05-05T12:30:00Z | a      |                 |
+| 2000-05-05T12:40:00Z | a      | 1               |
+| 2000-05-05T12:50:00Z | a      |                 |
+| 2000-05-05T12:00:00Z | b      |                 |
+| 2000-05-05T12:10:00Z | b      |                 |
+| 2000-05-05T12:20:00Z | b      |                 |
+| 2000-05-05T12:30:00Z | b      | 2               |
+| 2000-05-05T12:40:00Z | b      |                 |
+| 2000-05-05T12:50:00Z | b      |                 |
++----------------------+--------+-----------------+
+-- SQL: SELECT date_bin_gapfill(interval '10 minute', time, timestamp '1970-01-01T00:00:07Z') as minute, region, count(cpu.user) from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by minute, region;
++----------------------+--------+-----------------+
+| minute               | region | COUNT(cpu.user) |
++----------------------+--------+-----------------+
+| 2000-05-05T11:50:07Z | a      |                 |
+| 2000-05-05T12:00:07Z | a      |                 |
+| 2000-05-05T12:10:07Z | a      | 1               |
+| 2000-05-05T12:20:07Z | a      |                 |
+| 2000-05-05T12:30:07Z | a      | 1               |
+| 2000-05-05T12:40:07Z | a      |                 |
+| 2000-05-05T12:50:07Z | a      |                 |
+| 2000-05-05T11:50:07Z | b      |                 |
+| 2000-05-05T12:00:07Z | b      |                 |
+| 2000-05-05T12:10:07Z | b      |                 |
+| 2000-05-05T12:20:07Z | b      |                 |
+| 2000-05-05T12:30:07Z | b      | 2               |
+| 2000-05-05T12:40:07Z | b      |                 |
+| 2000-05-05T12:50:07Z | b      |                 |
++----------------------+--------+-----------------+
+-- SQL: EXPLAIN SELECT region, date_bin_gapfill(interval '10 minute', time) as minute, locf(avg(cpu.user)) from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by region, minute;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | Projection: cpu.region, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time) AS minute, AVG(cpu.user) AS locf(AVG(cpu.user))    |
+|    |   GapFill: groupBy=[cpu.region, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[[LOCF(AVG(cpu.user))]], time_column=date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time), stride=IntervalMonthDayNano("600000000000"), range=Included(Literal(TimestampNanosecond(957528000000000000, None)))..Included(Literal(TimestampNanosecond(957531540000000000, None)))    |
+|    |     Aggregate: groupBy=[[cpu.region, date_bin(IntervalMonthDayNano("600000000000"), cpu.time) AS date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)]], aggr=[[AVG(cpu.user)]]    |
+|    |       TableScan: cpu projection=[region, time, user], full_filters=[cpu.time >= TimestampNanosecond(957528000000000000, None), cpu.time <= TimestampNanosecond(957531540000000000, None)]    |
+| physical_plan    | ProjectionExec: expr=[region@0 as region, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1 as minute, AVG(cpu.user)@2 as locf(AVG(cpu.user))]    |
+|    |   GapFillExec: group_expr=[region@0, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1], aggr_expr=[LOCF(AVG(cpu.user)@2)], stride=600000000000, time_range=Included("957528000000000000")..Included("957531540000000000")    |
+|    |     SortPreservingMergeExec: [region@0 ASC,date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1 ASC]    |
+|    |       SortExec: expr=[region@0 ASC,date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1 ASC]    |
+|    |         AggregateExec: mode=FinalPartitioned, gby=[region@0 as region, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1 as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[AVG(cpu.user)], ordering_mode=PartiallyOrdered    |
+|    |           SortExec: expr=[region@0 ASC]    |
+|    |             CoalesceBatchesExec: target_batch_size=8192    |
+|    |               RepartitionExec: partitioning=Hash([region@0, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1], 4), input_partitions=4    |
+|    |                 AggregateExec: mode=Partial, gby=[region@0 as region, date_bin(600000000000, time@1) as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[AVG(cpu.user)], ordering_mode=PartiallyOrdered    |
+|    |                   CoalesceBatchesExec: target_batch_size=8192    |
+|    |                     FilterExec: time@1 >= 957528000000000000 AND time@1 <= 957531540000000000    |
+|    |                       RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
+|    |                         ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[region, time, user], output_ordering=[region@0 ASC, time@1 ASC], predicate=time@2 >= 957528000000000000 AND time@2 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000    |
+|    |    |
+----------
+-- SQL: SELECT region, date_bin_gapfill(interval '5 minute', time) as minute, locf(min(cpu.user)) from cpu where time between timestamp '2000-05-05T12:15:00Z' and timestamp '2000-05-05T12:59:00Z' group by region, minute;
++--------+----------------------+---------------------+
+| region | minute               | locf(MIN(cpu.user)) |
++--------+----------------------+---------------------+
+| a      | 2000-05-05T12:15:00Z |                     |
+| a      | 2000-05-05T12:20:00Z | 23.2                |
+| a      | 2000-05-05T12:25:00Z | 23.2                |
+| a      | 2000-05-05T12:30:00Z | 23.2                |
+| a      | 2000-05-05T12:35:00Z | 23.2                |
+| a      | 2000-05-05T12:40:00Z | 21.0                |
+| a      | 2000-05-05T12:45:00Z | 21.0                |
+| a      | 2000-05-05T12:50:00Z | 21.0                |
+| a      | 2000-05-05T12:55:00Z | 21.0                |
+| b      | 2000-05-05T12:15:00Z |                     |
+| b      | 2000-05-05T12:20:00Z |                     |
+| b      | 2000-05-05T12:25:00Z |                     |
+| b      | 2000-05-05T12:30:00Z | 25.2                |
+| b      | 2000-05-05T12:35:00Z | 28.9                |
+| b      | 2000-05-05T12:40:00Z | 28.9                |
+| b      | 2000-05-05T12:45:00Z | 28.9                |
+| b      | 2000-05-05T12:50:00Z | 28.9                |
+| b      | 2000-05-05T12:55:00Z | 28.9                |
++--------+----------------------+---------------------+
+-- SQL: SELECT date_bin_gapfill(interval '1 minute', time) as minute, locf(min(cpu.idle)) from cpu where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:40:00Z' group by minute;
++----------------------+---------------------+
+| minute               | locf(MIN(cpu.idle)) |
++----------------------+---------------------+
+| 2000-05-05T12:19:00Z |                     |
+| 2000-05-05T12:20:00Z | 70.0                |
+| 2000-05-05T12:21:00Z | 70.0                |
+| 2000-05-05T12:22:00Z | 70.0                |
+| 2000-05-05T12:23:00Z | 70.0                |
+| 2000-05-05T12:24:00Z | 70.0                |
+| 2000-05-05T12:25:00Z | 70.0                |
+| 2000-05-05T12:26:00Z | 70.0                |
+| 2000-05-05T12:27:00Z | 70.0                |
+| 2000-05-05T12:28:00Z | 70.0                |
+| 2000-05-05T12:29:00Z | 70.0                |
+| 2000-05-05T12:30:00Z | 70.0                |
+| 2000-05-05T12:31:00Z | 70.0                |
+| 2000-05-05T12:32:00Z | 70.0                |
+| 2000-05-05T12:33:00Z | 70.0                |
+| 2000-05-05T12:34:00Z | 70.0                |
+| 2000-05-05T12:35:00Z | 70.0                |
+| 2000-05-05T12:36:00Z | 70.0                |
+| 2000-05-05T12:37:00Z | 70.0                |
+| 2000-05-05T12:38:00Z | 70.0                |
+| 2000-05-05T12:39:00Z | 60.0                |
+| 2000-05-05T12:40:00Z | 60.0                |
++----------------------+---------------------+
+-- SQL: SELECT date_bin_gapfill(interval '4 minutes', time) as four_minute, interpolate(min(cpu.idle)), interpolate(min(cpu."user")), count(*) from cpu where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:40:00Z' group by four_minute;
++----------------------+----------------------------+----------------------------+----------+
+| four_minute          | interpolate(MIN(cpu.idle)) | interpolate(MIN(cpu.user)) | COUNT(*) |
++----------------------+----------------------------+----------------------------+----------+
+| 2000-05-05T12:16:00Z |                            |                            |          |
+| 2000-05-05T12:20:00Z | 70.0                       | 23.2                       | 1        |
+| 2000-05-05T12:24:00Z | 67.5                       | 24.2                       |          |
+| 2000-05-05T12:28:00Z | 65.0                       | 25.2                       | 1        |
+| 2000-05-05T12:32:00Z | 62.5                       | 27.05                      |          |
+| 2000-05-05T12:36:00Z | 60.0                       | 28.9                       | 1        |
+| 2000-05-05T12:40:00Z |                            | 21.0                       | 1        |
++----------------------+----------------------------+----------------------------+----------+
+-- SQL: SELECT date_bin_gapfill(interval '4 minutes 1 nanosecond', time, timestamp '2000-05-05T12:15:59.999999999') as four_minute, interpolate(min(cpu.idle)), interpolate(min(cpu."user")), count(*) from cpu where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:44:00Z' group by four_minute;
++--------------------------------+----------------------------+----------------------------+----------+
+| four_minute                    | interpolate(MIN(cpu.idle)) | interpolate(MIN(cpu.user)) | COUNT(*) |
++--------------------------------+----------------------------+----------------------------+----------+
+| 2000-05-05T12:15:59.999999999Z |                            |                            |          |
+| 2000-05-05T12:20:00Z           | 70.0                       | 23.2                       | 1        |
+| 2000-05-05T12:24:00.000000001Z | 67.5                       | 24.2                       |          |
+| 2000-05-05T12:28:00.000000002Z | 65.0                       | 25.2                       | 1        |
+| 2000-05-05T12:32:00.000000003Z | 62.5                       | 23.1                       |          |
+| 2000-05-05T12:36:00.000000004Z | 60.0                       | 21.0                       | 2        |
+| 2000-05-05T12:40:00.000000005Z |                            |                            |          |
++--------------------------------+----------------------------+----------------------------+----------+
+-- SQL: SELECT region, date_bin_gapfill('10 minute', time) as minute, locf(avg(cpu.user)) as locf_avg_user from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by region, minute;
++--------+----------------------+--------------------+
+| region | minute               | locf_avg_user      |
++--------+----------------------+--------------------+
+| a      | 2000-05-05T12:00:00Z |                    |
+| a      | 2000-05-05T12:10:00Z |                    |
+| a      | 2000-05-05T12:20:00Z | 23.2               |
+| a      | 2000-05-05T12:30:00Z | 23.2               |
+| a      | 2000-05-05T12:40:00Z | 21.0               |
+| a      | 2000-05-05T12:50:00Z | 21.0               |
+| b      | 2000-05-05T12:00:00Z |                    |
+| b      | 2000-05-05T12:10:00Z |                    |
+| b      | 2000-05-05T12:20:00Z |                    |
+| b      | 2000-05-05T12:30:00Z | 27.049999999999997 |
+| b      | 2000-05-05T12:40:00Z | 27.049999999999997 |
+| b      | 2000-05-05T12:50:00Z | 27.049999999999997 |
++--------+----------------------+--------------------+
+-- SQL: SELECT date_bin_gapfill(INTERVAL '1 minute', time) as _time, pod, locf(selector_last(image, time)) FROM (VALUES ('2023-06-10T12:00:00Z'::timestamp, 'pod1', 'imageA'), ('2023-06-10T12:00:00Z'::timestamp, 'pod2', 'imageA'), ('2023-06-10T12:00:01Z'::timestamp, 'pod1', 'imageB'), ('2023-06-10T12:00:02Z'::timestamp, 'pod1', 'imageB'), ('2023-06-10T12:00:02Z'::timestamp, 'pod2', 'imageB') ) AS data(time, pod, image) WHERE time >= timestamp '2023-06-10T11:55:00Z' AND time < timestamp '2023-06-10T12:05:00Z' GROUP BY _time, pod;
++----------------------+------+--------------------------------------------+
+| _time                | pod  | locf(selector_last(data.image,data.time))  |
++----------------------+------+--------------------------------------------+
+| 2023-06-10T11:55:00Z | pod1 |                                            |
+| 2023-06-10T11:56:00Z | pod1 |                                            |
+| 2023-06-10T11:57:00Z | pod1 |                                            |
+| 2023-06-10T11:58:00Z | pod1 |                                            |
+| 2023-06-10T11:59:00Z | pod1 |                                            |
+| 2023-06-10T12:00:00Z | pod1 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:01:00Z | pod1 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:02:00Z | pod1 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:03:00Z | pod1 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:04:00Z | pod1 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T11:55:00Z | pod2 |                                            |
+| 2023-06-10T11:56:00Z | pod2 |                                            |
+| 2023-06-10T11:57:00Z | pod2 |                                            |
+| 2023-06-10T11:58:00Z | pod2 |                                            |
+| 2023-06-10T11:59:00Z | pod2 |                                            |
+| 2023-06-10T12:00:00Z | pod2 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:01:00Z | pod2 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:02:00Z | pod2 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:03:00Z | pod2 | {value: imageB, time: 2023-06-10T12:00:02} |
+| 2023-06-10T12:04:00Z | pod2 | {value: imageB, time: 2023-06-10T12:00:02} |
++----------------------+------+--------------------------------------------+
+-- SQL: select date_bin_gapfill('60 seconds'::interval, time)::bigint as time, sum(idle) from cpu WHERE time >= '2020-06-11T16:52:00Z' AND time < '2020-06-11T16:54:00Z' group by 1;
+Error while planning query: Optimizer rule 'handle_gap_fill' failed
+caused by
+Error during planning: DATE_BIN_GAPFILL must be a top-level expression in the GROUP BY clause when gap filling. It cannot be part of another expression or cast
+-- SQL: SELECT date_bin_gapfill(interval '4 minutes', time) as four_minute, interpolate(selector_last(cpu.idle, time))['value'] as last, interpolate(selector_first(cpu.idle, time))['value'] as first, count(*) from cpu where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:40:00Z' group by four_minute;
++----------------------+------+-------+----------+
+| four_minute          | last | first | COUNT(*) |
++----------------------+------+-------+----------+
+| 2000-05-05T12:16:00Z |      |       |          |
+| 2000-05-05T12:20:00Z | 70.0 | 70.0  | 1        |
+| 2000-05-05T12:24:00Z | 67.5 | 67.5  |          |
+| 2000-05-05T12:28:00Z | 65.0 | 65.0  | 1        |
+| 2000-05-05T12:32:00Z | 62.5 | 62.5  |          |
+| 2000-05-05T12:36:00Z | 60.0 | 60.0  | 1        |
+| 2000-05-05T12:40:00Z |      |       | 1        |
++----------------------+------+-------+----------+

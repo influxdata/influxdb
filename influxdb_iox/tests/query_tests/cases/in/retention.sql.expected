@@ -1,0 +1,68 @@
+-- Test Setup: ThreeChunksWithRetention
+-- SQL: SELECT * FROM cpu order by host, load, time;
++------+------+----------------------+
+| host | load | time                 |
++------+------+----------------------+
+| a    | 1.0  | 2022-01-01T11:00:00Z |
+| b    | 2.0  | 2022-01-01T11:00:00Z |
+| bb   | 21.0 | 2022-01-01T11:00:00Z |
+| d    | 4.0  | 2022-01-01T11:00:00Z |
++------+------+----------------------+
+-- SQL: EXPLAIN SELECT * FROM cpu order by host, load, time;
+-- Results After Normalizing UUIDs
+-- Results After Normalizing Filters
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | Sort: cpu.host ASC NULLS LAST, cpu.load ASC NULLS LAST, cpu.time ASC NULLS LAST    |
+|    |   TableScan: cpu projection=[host, load, time]    |
+| physical_plan    | SortExec: expr=[host@0 ASC NULLS LAST,load@1 ASC NULLS LAST,time@2 ASC NULLS LAST]    |
+|    |   ProjectionExec: expr=[host@1 as host, load@2 as load, time@3 as time]    |
+|    |     DeduplicateExec: [host@1 ASC,time@3 ASC]    |
+|    |       SortPreservingMergeExec: [host@1 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |         UnionExec    |
+|    |           SortExec: expr=[host@1 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |             CoalesceBatchesExec: target_batch_size=8192    |
+|    |               FilterExec: time@3 > <REDACTED>    |
+|    |                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
+|    |                   RecordBatchesExec: chunks=1    |
+|    |           SortExec: expr=[host@1 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |             CoalesceBatchesExec: target_batch_size=8192    |
+|    |               FilterExec: time@3 > <REDACTED>    |
+|    |                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2    |
+|    |                   ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[__chunk_order, host, load, time], output_ordering=[host@1 ASC, time@3 ASC, __chunk_order@0 ASC], predicate=time@2 > <REDACTED>, pruning_predicate=time_max@0 > <REDACTED>    |
+|    |    |
+----------
+-- SQL: SELECT * FROM cpu WHERE host != 'b' ORDER BY host,time;
++------+------+----------------------+
+| host | load | time                 |
++------+------+----------------------+
+| a    | 1.0  | 2022-01-01T11:00:00Z |
+| bb   | 21.0 | 2022-01-01T11:00:00Z |
+| d    | 4.0  | 2022-01-01T11:00:00Z |
++------+------+----------------------+
+-- SQL: EXPLAIN SELECT * FROM cpu WHERE host != 'b' ORDER BY host,time;
+-- Results After Normalizing UUIDs
+-- Results After Normalizing Filters
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | Sort: cpu.host ASC NULLS LAST, cpu.time ASC NULLS LAST    |
+|    |   TableScan: cpu projection=[host, load, time], full_filters=[cpu.host != Dictionary(Int32, Utf8("b"))]    |
+| physical_plan    | SortExec: expr=[host@0 ASC NULLS LAST,time@2 ASC NULLS LAST]    |
+|    |   ProjectionExec: expr=[host@1 as host, load@2 as load, time@3 as time]    |
+|    |     DeduplicateExec: [host@1 ASC,time@3 ASC]    |
+|    |       SortPreservingMergeExec: [host@1 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |         UnionExec    |
+|    |           SortExec: expr=[host@1 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |             CoalesceBatchesExec: target_batch_size=8192    |
+|    |               FilterExec: host@1 != b AND time@3 > <REDACTED>    |
+|    |                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
+|    |                   RecordBatchesExec: chunks=1    |
+|    |           SortExec: expr=[host@1 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |             CoalesceBatchesExec: target_batch_size=8192    |
+|    |               FilterExec: host@1 != b AND time@3 > <REDACTED>    |
+|    |                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2    |
+|    |                   ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[__chunk_order, host, load, time], output_ordering=[host@1 ASC, time@3 ASC, __chunk_order@0 ASC], predicate=host@0 != b AND time@2 > <REDACTED>, pruning_predicate=(host_min@0 != b OR b != host_max@1) AND time_max@2 > <REDACTED>    |
+|    |    |
+----------

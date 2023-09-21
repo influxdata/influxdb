@@ -1,11 +1,13 @@
-# EditorConfig helps us maintain consistent formatting on non-source files.
-# Visit https://editorconfig.org/ for details on how to configure your editor to respect these settings.
-
-# This is the terminal .editorconfig in this repository.
 root = true
 
-# You can't change this to * without the `checkfmt` make target failing due to many
-# files that don't adhere to this.
-[*.yml]
+[*]
+end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
+indent_style = space
+
+[{Dockerfile*,*.proto}]
+indent_size = 2
+
+[{*.rs,*.toml,*.sh,*.bash}]
+indent_size = 4

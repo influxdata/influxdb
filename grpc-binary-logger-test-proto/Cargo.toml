@@ -1,0 +1,15 @@
+[package]
+name = "grpc-binary-logger-test-proto"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+prost = "0.11"
+tonic = { workspace = true }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[build-dependencies]
+prost-build = "0.11"
+tonic-build = { workspace = true }

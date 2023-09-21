@@ -1,0 +1,29 @@
+[package]
+name = "mutable_batch"
+description = "A mutable arrow RecordBatch"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+arrow = { workspace = true, features = ["prettyprint"] }
+arrow_util = { path = "../arrow_util" }
+chrono = { version = "0.4", default-features = false }
+data_types = { path = "../data_types" }
+iox_time = { path = "../iox_time" }
+schema = { path = "../schema" }
+snafu = "0.7"
+hashbrown = { workspace = true }
+itertools = "0.11"
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+percent-encoding = "2.2.0"
+thiserror = "1.0.48"
+unicode-segmentation = "1.10.1"
+
+[dev-dependencies]
+assert_matches = "1.5.0"
+mutable_batch_lp = { path = "../mutable_batch_lp" }
+paste = "1.0.14"
+proptest = { version = "1.2.0", default-features = false }
+rand = "0.8"

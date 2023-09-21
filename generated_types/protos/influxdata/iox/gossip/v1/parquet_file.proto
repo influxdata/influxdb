@@ -1,0 +1,8 @@
+syntax = "proto3";
+package influxdata.iox.gossip.v1;
+option go_package = "github.com/influxdata/iox/gossip/v1";
+
+import "influxdata/iox/catalog/v1/parquet_file.proto";
+
+/// A gossip-specific wrapper over a `ParquetFile` record.
+message NewParquetFile { influxdata.iox.catalog.v1.ParquetFile file = 1; }

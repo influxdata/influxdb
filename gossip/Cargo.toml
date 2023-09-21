@@ -1,0 +1,25 @@
+[package]
+name = "gossip"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = "0.1.73"
+futures = "0.3.28"
+hashbrown.workspace = true
+metric = { version = "0.1.0", path = "../metric" }
+prost = "0.11.9"
+rand = "0.8.5"
+thiserror = "1.0.48"
+tokio = { version = "1.32.0", features = ["net", "io-util", "time", "rt", "sync", "macros"] }
+tracing = "0.1.37"
+uuid = { version = "1.4.1", features = ["v4"] }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[build-dependencies]
+prost-build = "0.11.9"
+
+[dev-dependencies]
+test_helpers = { path = "../test_helpers", features = ["future_timeout"] }

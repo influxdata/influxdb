@@ -1,0 +1,19 @@
+[package]
+name = "ioxd_garbage_collector"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = "0.1"
+futures = "0.3"
+hyper = "0.14"
+garbage_collector = { path = "../garbage_collector" }
+ioxd_common = { path = "../ioxd_common" }
+metric = { path = "../metric" }
+snafu = "0.7"
+tokio = { version = "1", features = ["sync"] }
+trace = { path = "../trace" }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+tokio-util = "0.7.9"

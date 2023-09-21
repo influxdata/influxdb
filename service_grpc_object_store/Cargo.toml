@@ -1,0 +1,23 @@
+[package]
+name = "service_grpc_object_store"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+futures = "0.3"
+generated_types = { path = "../generated_types" }
+iox_catalog = { path = "../iox_catalog" }
+object_store = { workspace = true }
+observability_deps = { path = "../observability_deps" }
+parquet_file = { path = "../parquet_file" }
+tonic = { workspace = true }
+uuid = { version = "1", features = ["v4"] }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+bytes = "1.5"
+data_types = { path = "../data_types" }
+metric = { path = "../metric" }
+tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }

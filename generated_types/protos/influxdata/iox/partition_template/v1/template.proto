@@ -1,0 +1,43 @@
+syntax = "proto3";
+package influxdata.iox.partition_template.v1;
+option go_package = "github.com/influxdata/iox/partition_template/v1";
+
+// A partitioning template describes how data is split into IOx partitions in
+// the ingest pipeline.
+message PartitionTemplate {
+  // One or more partitioning template parts.
+  //
+  // Each template part is evaluated in sequence, concatinating the final
+  // partition key from the output of each part, delimited by hyphens.
+  //
+  // For example, given the following template:
+  //
+  // ```text
+  // [ TemplatePart::time_format("%Y.%j") TemplatePart::tag_value("region") ]
+  // ```
+  //
+  // The below example rows would have the specified partition key derived:
+  //
+  // ```text
+  // time=2023-03-10T13:00:00, region=EMEA, x=42   => "2023.69-EMEA"
+  // time=2023-03-10T13:00:00, region=EMEA-bananas => "2023.69-EMEA-bananas"
+  // time=2023-03-10T13:00:00, x=42                => "2023.69-region"
+  // ```
+  repeated TemplatePart parts = 1;
+}
+
+// A sub-part of a PartitionTemplate.
+message TemplatePart {
+  oneof part {
+    // A tag value matcher extracts a string value from the tag with the
+    // specified name.
+    //
+    // If a row does not contain the specified tag, the provided tag name is
+    // rendered instead of the (missing) value.
+    string tag_value = 1;
+
+    // A time format matcher accepts a "strftime"-like format string and
+    // evaluates it against the "time" column.
+    string time_format = 2;
+  }
+}

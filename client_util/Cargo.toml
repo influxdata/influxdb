@@ -1,0 +1,19 @@
+[package]
+name = "client_util"
+description = "Shared code for IOx clients"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+http = "0.2.9"
+reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls"] }
+thiserror = "1.0.48"
+tonic = { workspace = true }
+tower = "0.4"
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+tokio = { version = "1.32", features = ["macros", "parking_lot", "rt-multi-thread"] }
+mockito = { version = "1.2", default-features = false }

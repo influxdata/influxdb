@@ -1,0 +1,15 @@
+-- Test Setup: TwoMeasurementsManyFields
+-- SQL: SELECT state AS name FROM h2o UNION ALL SELECT city AS name FROM h2o;
+-- Results After Sorting
++--------+
+| name   |
++--------+
+| Boston |
+| Boston |
+| Boston |
+| Boston |
+| CA     |
+| MA     |
+| MA     |
+| MA     |
++--------+

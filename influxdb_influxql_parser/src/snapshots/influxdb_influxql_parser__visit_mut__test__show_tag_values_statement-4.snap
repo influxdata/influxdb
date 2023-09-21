@@ -1,0 +1,41 @@
+---
+source: influxdb_influxql_parser/src/visit_mut.rs
+expression: "visit_statement!(\"SHOW TAG VALUES ON telegraf FROM cpu WITH KEY = host WHERE host = \\\"west\\\" LIMIT 5 OFFSET 10\")"
+---
+- pre_visit_statement
+- pre_visit_show_tag_values_statement
+- pre_visit_on_clause
+- post_visit_on_clause
+- pre_visit_show_from_clause
+- pre_visit_qualified_measurement_name
+- pre_visit_measurement_name
+- post_visit_measurement_name
+- post_visit_qualified_measurement_name
+- post_visit_show_from_clause
+- pre_visit_with_key_clause
+- post_visit_with_key_clause
+- pre_visit_where_clause
+- pre_visit_conditional_expression
+- pre_visit_conditional_binary
+- pre_visit_conditional_expression
+- pre_visit_expr
+- pre_visit_var_ref
+- post_visit_var_ref
+- post_visit_expr
+- post_visit_conditional_expression
+- pre_visit_conditional_expression
+- pre_visit_expr
+- pre_visit_var_ref
+- post_visit_var_ref
+- post_visit_expr
+- post_visit_conditional_expression
+- post_visit_conditional_binary
+- post_visit_conditional_expression
+- post_visit_where_clause
+- pre_visit_limit_clause
+- post_visit_limit_clause
+- pre_visit_offset_clause
+- post_visit_offset_clause
+- post_visit_show_tag_values_statement
+- post_visit_statement
+

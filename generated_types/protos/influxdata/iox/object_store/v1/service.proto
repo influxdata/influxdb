@@ -1,0 +1,18 @@
+syntax = "proto3";
+package influxdata.iox.object_store.v1;
+option go_package = "github.com/influxdata/iox/object_store/v1";
+
+service ObjectStoreService {
+    // Get the parquet file from the object store by its uuid
+    rpc GetParquetFileByObjectStoreId(GetParquetFileByObjectStoreIdRequest) returns (stream GetParquetFileByObjectStoreIdResponse);
+}
+
+message GetParquetFileByObjectStoreIdRequest {
+    // the parquet file object store uuid
+    string uuid = 1;
+}
+
+message GetParquetFileByObjectStoreIdResponse {
+    // bytes from the parquet file in object store
+    bytes data = 1;
+}

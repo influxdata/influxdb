@@ -1,0 +1,25 @@
+[package]
+name = "ioxd_ingester"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies] # In alphabetical order
+arrow-flight = { workspace = true }
+async-trait = "0.1"
+clap_blocks = { path = "../clap_blocks" }
+futures = "0.3.28"
+generated_types = { path = "../generated_types" }
+hyper = "0.14"
+ingester = { path = "../ingester" }
+iox_catalog = { path = "../iox_catalog" }
+iox_query = { version = "0.1.0", path = "../iox_query" }
+ioxd_common = { path = "../ioxd_common" }
+metric = { path = "../metric" }
+parquet_file = { version = "0.1.0", path = "../parquet_file" }
+thiserror = "1.0.48"
+tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = { version = "0.7.9" }
+trace = { path = "../trace" }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }

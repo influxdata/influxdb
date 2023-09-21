@@ -1,0 +1,674 @@
+-- Query tests derived from https://github.com/influxdata/influxdb_iox/issues/6112
+-- IOX_SETUP: InfluxQLSelectSupport
+
+--
+-- Single measurement queries
+--
+
+-- Validates expected data is returned
+-- Projection wildcard, all tags and fields
+SELECT * FROM m0;
+
+-- No matching measurement
+SELECT * FROM non_existent;
+
+-- Projection wildcard, only tags
+SELECT *::tag, f64 FROM m0;
+
+-- Projection wildcard, only fields
+SELECT *::field FROM m0;
+
+-- Projection regex, mixture of tags and fields
+SELECT /64|tag0/ FROM m0;
+
+-- Projection specific tags and fields
+SELECT f64, tag0 FROM m0;
+
+-- Explicitly select time column, should appear in first column
+SELECT f64, tag0, time FROM m0;
+
+-- Alias time column
+SELECT f64, tag0, time as timestamp FROM m0;
+
+-- Alias field and tag columns
+SELECT f64 as f, tag0 as t FROM m0;
+
+-- arithmetic operators
+SELECT f64, f64 * 2, i64, i64 + i64 FROM m0;
+
+-- bitwise operators
+SELECT i64, i64 & 1 FROM m0;
+
+-- Automatic type coercion integer → float
+SELECT f64 + i64 FROM m0;
+
+-- Type cast postfix operator
+SELECT f64, f64::integer FROM m0;
+
+-- Column alias behaviour
+SELECT f64 AS f64_2, f64, f64, f64 FROM m0 LIMIT 1;
+
+--
+-- WHERE clause
+--
+
+-- Single tag
+SELECT tag0, f64 FROM m0 WHERE tag0 = 'val00';
+
+SELECT tag0, f64 FROM m0 WHERE tag0 =~ /^val0(1|2)/;
+
+-- Conjunction (AND)
+SELECT /tag(0|1)/, f64 FROM m0 WHERE tag0 = 'val00' AND tag1 = 'val10';
+
+-- Disjunction (OR)
+SELECT /tag(0|1)/, f64 FROM m0 WHERE tag0 = 'val00' OR tag1 = 'val10';
+
+-- arithmetic
+SELECT f64 FROM m0 WHERE f64 > 10 + 10;
+
+-- bitwise
+SELECT i64 FROM m0 WHERE i64 & 1 = 0;
+
+-- time bounds
+
+-- timestamp format %Y-%M-%D
+SELECT i64 FROM m0 WHERE time > '2022-10-31';
+
+-- timestamp format %Y-%M-%D %h:%m:%s
+SELECT i64 FROM m0 WHERE time > '2022-10-31 02:00:10';
+
+-- now() and duration
+-- NOTE: 100000d is > 270 years, so this test should be ok for a while.
+--       However, if this test is still in use in 270 years and it starts failing,
+--       try increasing the number of days 😂
+SELECT i64 FROM m0 WHERE time > now() - 100000d;
+
+-- the time range should apply to the the entire result set not just cpu = 'cpu1'
+SELECT cpu, usage_idle FROM cpu WHERE cpu = 'cpu0' OR cpu = 'cpu1' AND time >= 1667181610000000000;
+
+-- combining relational operators for time ranges should return no results, as it
+-- evaluates to false, like InfluxQL
+SELECT cpu, usage_idle FROM cpu WHERE time >= 1667181610000000000 OR time = 1667181600000000000;
+
+-- Multiple timestamps combined with OR not supported
+--
+-- This is a side effect of supporting InfluxQL expecting a single time range in order to
+--
+-- 1. Push the outer time range to subqueries, if the bounds are narrower; and
+-- 2. correctly identifying lower and upper bounds for GROUP BY time
+--
+SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000 AND cpu = 'cpu0';
+SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000;
+
+
+-- NOT NULL test
+-- WHERE tag1 != '' is the equivalent to tag1 IS NOT NULL
+SELECT tag1, f64 FROM m0 WHERE tag1 != '';
+
+-- This is equivalent to the query above
+SELECT tag1, f64 FROM m0 WHERE tag1 !~ /^$/;
+
+-- NULL test
+-- WHERE tag1 = '' is the equivalent to tag1 IS NULL
+SELECT tag1, f64 FROM m0 WHERE tag1 = '';
+
+-- This is equivalent to the query above
+SELECT tag1, f64 FROM m0 WHERE tag1 =~ /^$/;
+
+--
+-- LIMIT and OFFSET clauses
+-- NOTE: these are working, but due to incorrect default ordering
+-- some tests fail
+--
+
+SELECT tag0, f64 FROM m0 LIMIT 1;
+
+SELECT tag0, f64 FROM m0 WHERE tag0 = 'val00' LIMIT 2 OFFSET 1;
+
+SELECT tag0, f64 FROM m0 LIMIT 1 OFFSET 1;
+
+-- OFFSET clause, no LIMIT clause
+-- TODO(sgc): Fails due to a bug in InfluxQL that utilises the following optimisation
+--  https://github.com/influxdata/influxdb/blob/dee8977d2c6598cb2d17e9334ea997c99853640a/tsdb/engine/tsm1/iterator.gen.go#L344-L347
+--  which breaks after returning the first point after the offset, because itr.opt.Limit == 0
+-- SELECT tag0, f64 FROM m0 OFFSET 1;
+
+--
+-- Sort ordering
+--
+
+-- No GROUP BY clause
+
+-- Default sort: expected output should default to ORDER BY TIME asc
+SELECT * FROM m0;
+
+-- Sort time in descending order
+SELECT * FROM m0 ORDER BY time DESC;
+
+--
+-- Scalar functions in projection
+--
+
+-- Validate all scalar functions with a float field
+SELECT
+    f64,
+    abs(f64 * -1),
+    sin(f64),
+    cos(f64),
+    tan(f64),
+    asin(1/f64),
+    acos(1/f64),
+    atan(f64),
+    atan2(f64, 2),
+    exp(f64),
+    log(f64, 8),
+    ln(f64),
+    log2(f64),
+    log10(f64),
+    sqrt(f64),
+    pow(f64, 2),
+    floor(f64),
+    ceil(f64),
+    round(f64)
+FROM m0 LIMIT 1;
+
+-- Validate all scalar functions with an integer field
+SELECT
+    i64,
+    abs(i64 * -1),
+    sin(i64),
+    cos(i64),
+    tan(i64),
+-- TODO(sgc): Not coerced to float, so returns incorrect result
+--    asin(1/i64),
+    acos(1/i64),
+    atan(i64),
+    atan2(i64, 2),
+    exp(i64),
+    log(i64, 8),
+    ln(i64),
+    log2(i64),
+    log10(i64),
+    sqrt(i64),
+    pow(i64, 2),
+    floor(i64),
+    ceil(i64),
+    round(i64)
+FROM m0 LIMIT 1;
+
+-- validate log requires two arguments
+SELECT log(f64) FROM m0 LIMIT 1;
+
+-- Deviation from InfluxQL is that NaNs are not coalesced to NULL
+-- The InfluxQL compatibility later will be responsible for this translation
+SELECT f64, asin(f64), acos(f64) FROM m0 LIMIT 1;
+
+-- INF support
+SELECT f64, pow(f64, pow(2, 10)) FROM m0 LIMIT 1;
+
+--
+-- TZ clause support
+--
+
+-- Interpret date/time (%Y-%M-%D %h:%m:%s) in timezone specified by TZ clause
+-- TODO(sgc): condition is correct, but `time` column is not display in local timezone
+--  as DataFusion does not support timestamp with timezone data types, and displaying
+--  the values in the local timezone
+
+---- SELECT f64 FROM m0 WHERE time = '2022-10-31 13:00:00' TZ('Australia/Hobart');
+---- SELECT f64 FROM m0 WHERE time = '2022-10-31T13:00:00Z' TZ('Australia/Hobart');
+
+--
+-- Validate conditional expressions
+--
+
+SELECT f64 FROM m0 WHERE f64 >= 19 + 0.5;
+SELECT f64 FROM m0 WHERE f64 - 0.5 >= 19;
+SELECT f64 FROM m0 WHERE str = 'h' + 'i';
+
+-- should be odd floating point numbers
+SELECT f64 FROM m0 WHERE f64::integer & 1 = 1;
+
+-- should be even floating point numbers
+SELECT f64 FROM m0 WHERE f64::integer & 1 = 0;
+
+-- These two deviate from InfluxQL, as the casting is optional
+SELECT f64 FROM m0 WHERE f64 & 1 = 1;
+SELECT f64 FROM m0 WHERE f64 & 1 = 0;
+
+-- Expressions with incompatible types should succeed and may or may not return results
+SELECT f64 FROM m0 WHERE f64 >= 19 + 0.5 OR str = 1;
+SELECT f64 FROM m0 WHERE f64 >= 19.5 AND str = 1;
+
+-- Missing columns should succeed and may or may not return results
+SELECT f64 FROM m0 WHERE f64 >= 19 + 0.5 OR non_existent = 1;
+SELECT f64 FROM m0 WHERE f64 >= 19.5 AND non_existent = 1;
+
+-- Regular expressions should succeed and may or may not return results
+SELECT f64 FROM m0 WHERE f64 >= 19.5 AND f64 =~ /foo/;
+SELECT f64 FROM m0 WHERE f64 >= 19.5 OR f64 =~ /foo/;
+
+-- arithmetic scalar function calls work
+SELECT time, floor(f64) FROM m0 WHERE floor(f64) = 19.0;
+
+-- aggregate function calls produce an error
+SELECT *, floor(f64) FROM m0 WHERE sum(f64) > 100.0;
+
+--
+-- Validate column expressions
+--
+
+-- float types
+SELECT tag0, f64, f64 * 0.5, f64 + str FROM m0 WHERE f64 > 19;
+-- string types
+SELECT tag0, str, str + 'foo', str * 5 FROM m0 WHERE f64 > 19;
+-- integer types
+SELECT tag0, i64, i64 * 0.5, i64 + f64::integer, i64 & 1 FROM m0 WHERE f64 > 19;
+
+-- non-existing column
+SELECT f64, non_existing, f64 + non_existing FROM m0 WHERE f64 > 19;
+
+--
+-- Multiple measurements in the FROM clause
+--
+
+SELECT usage_idle, bytes_used FROM cpu, disk;
+
+--
+-- GROUP BY
+--
+
+-- Validate ordering without GROUP BY
+SELECT cpu, usage_idle FROM cpu;
+
+-- Validate various GROUP BY scenarios
+SELECT usage_idle FROM cpu GROUP BY cpu;
+SELECT usage_idle, cpu FROM cpu GROUP BY cpu;
+
+-- group by a non-existent tag
+SELECT usage_idle FROM cpu GROUP BY cpu, non_existent;
+-- group by and project a non-existent tag
+SELECT usage_idle, non_existent FROM cpu GROUP BY cpu, non_existent;
+
+-- multiple measurements and tags in the group by
+
+SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu;
+SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu, non_existent;
+SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu, device;
+SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY device, cpu;
+SELECT usage_idle, bytes_free, device, cpu FROM cpu, disk GROUP BY device, cpu;
+
+--
+-- Aggregate queries
+--
+
+SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0;
+SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1;
+SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0;
+-- IOX_COMPARE: no_borders
+EXPLAIN SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
+SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
+SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0, non_existent;
+SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY non_existent;
+SELECT COUNT(f64), COUNT(f64) + COUNT(f64), COUNT(f64) * 3 FROM m0;
+-- non-existent columns in an aggregate should evaluate to NULL
+SELECT COUNT(f64) as the_count, SUM(non_existent) as foo FROM m0;
+-- non-existent columns in an aggregate expression should evaluate to NULL
+SELECT COUNT(f64) as the_count, SUM(f64) + SUM(non_existent) as foo FROM m0;
+
+-- measurements with different schema
+SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk;
+SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk GROUP BY TIME(10s) FILL(none);
+
+-- using aggregates across measurements
+SELECT MEAN(usage_idle) + MEAN(bytes_free) FROM cpu, disk;
+-- using aggregates with missing fields, should return a single, null value for the row
+SELECT MEAN(usage_idle) + MEAN(foo) FROM cpu;
+-- should return the mean result and a null result for the second column
+SELECT MEAN(usage_idle), MEAN(usage_idle) + MEAN(foo) FROM cpu;
+-- should return no results
+SELECT MEAN(foo) FROM cpu;
+-- should return a row for each tag key
+SELECT MEAN(usage_idle) + MEAN(foo) FROM cpu GROUP BY cpu;
+-- should return a row result for each tag key
+SELECT MEAN(usage_idle), MEAN(usage_idle) + MEAN(foo) FROM cpu GROUP BY cpu;
+-- should return nothing
+SELECT MEAN(foo) FROM cpu GROUP BY cpu;
+
+SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s) FILL(none);
+-- supports offset parameter
+SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s, 1s) FILL(none);
+
+-- N.B. The gap filling of the COUNT(usage_idle) and COUNT(bytes_free)
+-- columns happens before the two measurements are UNIONed together
+-- when producing the output table. This means that a COUNT column for
+-- a field that is not present for a measurement will contain NULLs,
+-- rather than being filled with 0s. This is consistent with older
+-- versions of influxdb.
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk;
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY TIME(1s) FILL(none);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY cpu;
+SELECT COUNT(usage_idle) as count_usage_idle, COUNT(bytes_free) as count_bytes_free FROM cpu, disk WHERE cpu = 'cpu0' OR device = 'disk1s1' GROUP BY cpu;
+
+-- measurements without any matching fields are omitted from the result set
+SELECT SUM(usage_idle) FROM cpu, disk WHERE cpu = 'cpu0' GROUP BY cpu;
+SELECT SUM(usage_idle) FROM cpu, disk GROUP BY cpu;
+
+-- Fallible cases
+
+-- Mixing aggregate and non-aggregate columns
+SELECT COUNT(usage_idle) + usage_idle FROM cpu;
+SELECT COUNT(usage_idle), usage_idle FROM cpu;
+
+--
+-- gap filling via FILL clause
+--
+
+-- Default FILL(null) when FILL is omitted
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s);
+SELECT COUNT(usage_idle)+2 FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s);
+SELECT COUNT(usage_idle)+1, COUNT(bytes_free)+2 FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s);
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(null);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(null);
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(previous);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(previous);
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(3.14);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(3.14);
+SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear);
+SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear);
+SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear) LIMIT 3 OFFSET 1;
+SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear) LIMIT 3 OFFSET 1;
+
+-- determines correct time range when multiple lower bounds
+-- expected: pick narrowest lower bound
+SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:04Z' AND time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(0);
+-- determines correct time range when multiple upper bounds
+-- expected: pick narrowest upper bound
+SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:00:10Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(0);
+
+-- interpolates NULLs if there is no subsequent value
+SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear);
+
+-- correct data type of FILL(value) depending on the data type of the aggregate
+SELECT COUNT(usage_idle), SUM(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(3.14);
+SELECT COUNT(bytes_free), SUM(bytes_free) FROM disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(3.14);
+
+-- can combine multiple aggregates into a binary expression
+SELECT COUNT(bytes_free) as a, SUM(bytes_free) as b, COUNT(bytes_free) + SUM(bytes_free) as "a+b" FROM disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(5);
+
+-- grouping by tags
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu;
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu FILL(null);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu, device FILL(null);
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu FILL(previous);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu, device FILL(previous);
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu FILL(3.14);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu, device FILL(3.14);
+
+-- Succeeds without upper bound
+-- NOTE: expected to return no data, as there is none within the time range
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= now() - 2m GROUP BY TIME(30s) FILL(null);
+
+--
+-- LIMIT and OFFSET
+--
+
+-- raw query, single measurement
+SELECT f64 FROM m0 WHERE tag0 = 'val00' LIMIT 3;
+SELECT f64 FROM m0 WHERE tag0 = 'val00' ORDER BY DESC LIMIT 3;
+SELECT f64 FROM m0 WHERE tag0 = 'val00' LIMIT 2 OFFSET 1;
+SELECT f64 FROM m0 WHERE tag0 = 'val00' ORDER BY DESC LIMIT 2 OFFSET 1;
+SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' LIMIT 2;
+SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' ORDER BY DESC LIMIT 2;
+SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' LIMIT 2 OFFSET 1;
+SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' ORDER BY DESC LIMIT 2 OFFSET 1;
+-- correct final ordering
+-- See: https://github.com/influxdata/influxdb_iox/issues/7460
+SELECT f64 FROM m2 GROUP BY tag0 LIMIT 1;
+
+-- raw query, multiple measurements
+SELECT usage_idle, bytes_free FROM cpu, disk WHERE cpu = 'cpu-total' OR device = 'disk1s1' LIMIT 2;
+SELECT usage_idle, bytes_free FROM cpu, disk WHERE cpu = 'cpu-total' OR device = 'disk1s1' ORDER BY DESC LIMIT 2;
+SELECT usage_idle, bytes_free FROM cpu, disk WHERE cpu = 'cpu-total' OR device = 'disk1s1' LIMIT 2 OFFSET 1;
+SELECT usage_idle, bytes_free FROM cpu, disk WHERE cpu = 'cpu-total' OR device = 'disk1s1' ORDER BY DESC LIMIT 2 OFFSET 1;
+
+-- raw query, group by tag
+SELECT usage_idle FROM cpu GROUP BY cpu LIMIT 2;
+SELECT usage_idle FROM cpu GROUP BY cpu LIMIT 2 OFFSET 1;
+
+-- raw query, group by tag, multiple measurements
+SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu, device LIMIT 2;
+SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu, device LIMIT 2 OFFSET 1;
+
+-- aggregate
+SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu LIMIT 1;
+SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu OFFSET 1;
+
+-- aggregate, grouping by tag
+SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu LIMIT 1;
+SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu OFFSET 1;
+
+-- aggregate, group by TIME
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:05:00Z' GROUP BY TIME(30s) LIMIT 2;
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:05:00Z' GROUP BY TIME(30s) LIMIT 2 OFFSET 2;
+
+-- aggregate, group by TIME and tag
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:05:00Z' GROUP BY TIME(30s), cpu LIMIT 2;
+
+-- aggregate, group by TIME, multiple measurements
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) LIMIT 1;
+-- should return the same row as the prior query
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) ORDER BY DESC LIMIT 1 OFFSET 3;
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) ORDER BY DESC LIMIT 1;
+
+-- aggregate, group by TIME and tag, multiple measurements
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu, device LIMIT 1;
+
+--
+-- Selector functions
+--
+
+-- Single selectors, which should produce a non-zero timestamp
+-- for the matching value of the selector function.
+SELECT FIRST(usage_idle) FROM cpu;
+SELECT LAST(usage_idle) FROM cpu;
+SELECT MAX(usage_idle) FROM cpu;
+SELECT MIN(usage_idle) FROM cpu;
+
+-- Single selectors with a GROUP BY tag should produce non-zero
+-- timestamps for the values in each group
+SELECT FIRST(usage_idle) FROM cpu GROUP BY cpu;
+SELECT LAST(usage_idle) FROM cpu GROUP BY cpu;
+SELECT MAX(usage_idle) FROM cpu GROUP BY cpu;
+SELECT MIN(usage_idle) FROM cpu GROUP BY cpu;
+
+-- Adding group by time means the timestamp
+-- should be the start of each window
+SELECT FIRST(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:00:30Z' GROUP BY TIME(10s);
+
+-- Multiple selectors result in an aggregate query and therefore
+-- a zero timestamp value.
+SELECT FIRST(usage_idle), MAX(usage_idle) FROM cpu;
+
+-- Mixing selectors and aggregates,
+-- timestamp should be start of each window
+SELECT FIRST(usage_idle), COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu LIMIT 1;
+
+-- FILL(0)
+SELECT FIRST(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu FILL(0);
+
+-- Selector queries with tag and field projections
+SELECT FIRST(usage_idle), usage_user, usage_system FROM cpu;
+SELECT field1, FIRST(field2), field3 FROM selector_test_1 WHERE time >=0 AND time < 10 GROUP BY TIME(30s);
+SELECT field1, FIRST(field2), field3 FROM selector_test_1 WHERE time >=0 AND time < 10 GROUP BY TIME(30s) FILL(0);
+
+-- Selector queries with tag and field projections and name clashes
+SELECT FIRST(f), first FROM selector_test_2 WHERE time >=0 AND time < 10 GROUP BY TIME(30s);
+
+--
+-- DISTINCT
+--
+
+-- There is no guaranteed order
+SELECT COUNT(DISTINCT str) FROM m0;
+-- IOX_COMPARE: sorted
+SELECT COUNT(DISTINCT str) FROM m0 GROUP BY tag0;
+-- IOX_COMPARE: sorted
+SELECT DISTINCT str FROM m0;
+-- IOX_COMPARE: sorted
+SELECT DISTINCT(str) FROM m0;
+-- IOX_COMPARE: sorted
+SELECT DISTINCT str FROM m0 GROUP BY tag0;
+-- IOX_COMPARE: sorted
+SELECT DISTINCT str FROM m0 GROUP BY tag0 LIMIT 2;
+
+-- test with integers
+-- IOX_COMPARE: sorted
+SELECT DISTINCT i64 FROM m0;
+-- IOX_COMPARE: sorted
+SELECT COUNT(DISTINCT i64) FROM m0;
+
+-- mixed
+SELECT COUNT(DISTINCT str), COUNT(DISTINCT i64) FROM m0;
+
+-- fallible cases
+SELECT DISTINCT(str), DISTINCT(i64) FROM m0;
+
+-- non-existing table
+SELECT * FROM does_not_exist;
+
+--
+-- Subqueries
+--
+
+SELECT * FROM (SELECT usage_idle FROM cpu);
+
+SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY cpu);
+
+-- GROUP BY should be pushed to subquery
+SELECT * FROM (SELECT usage_idle FROM cpu) GROUP BY cpu;
+
+SELECT cpu, usage_idle FROM (SELECT usage_idle FROM cpu GROUP BY cpu);
+
+SELECT * FROM (SELECT COUNT(usage_idle) FROM cpu);
+
+SELECT count FROM (SELECT COUNT(usage_idle) FROM cpu);
+
+SELECT * FROM (SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu);
+
+SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu);
+
+SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu GROUP BY cpu);
+
+SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu GROUP BY cpu) GROUP BY cpu;
+
+SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu) GROUP BY cpu;
+
+-- group by should be pushed to subquery, resulting in COUNTs that are grouped
+SELECT * FROM (SELECT COUNT(usage_idle) FROM cpu) GROUP BY cpu;
+
+SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY cpu) GROUP BY cpu;
+
+-- GROUP BY should be pushed to subquery
+SELECT * FROM (SELECT usage_idle FROM cpu) GROUP BY cpu;
+
+-- GROUP BY should be pushed through multiple levels of subqueries
+SELECT * FROM (SELECT MAX(value) FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)) GROUP BY cpu;
+
+-- GROUP BY time with default FILL(none) for subquery
+SELECT value FROM (SELECT mean(usage_idle) AS value FROM cpu GROUP BY TIME(10s));
+
+-- Multiple subqueries from same measurement, rows with same timestamp are not combined
+SELECT sum_idle, sum_system FROM (SELECT sum(usage_idle) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)), (SELECT sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s));
+
+-- Similar query as prior, rows with same timestamp are combined (as expected)
+SELECT sum_idle, sum_system FROM (SELECT sum(usage_idle) AS sum_idle, sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s));
+
+-- Conditions on fields projected of subquery
+-- Source: Cloud 2
+SELECT P / 99.99 FROM (SELECT max(usage_system) AS P, mean(usage_idle) AS S FROM cpu GROUP BY time(10s)) WHERE S > 0.50 AND S < 1.50 AND P > 0.0 AND P < 1.0 GROUP BY cpu FILL(null);
+
+-- DISTINCT tag value from subquery
+-- Source: Cloud 2
+SELECT distinct(cpu) FROM (SELECT usage_idle, cpu FROM cpu);
+
+SELECT LAST(usage_idle) FROM cpu, cpu GROUP BY cpu;
+
+-- Multiple subqueries from same measurement
+SELECT last(usage_idle), last(usage_system) FROM (SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total'), (SELECT usage_system FROM cpu WHERE cpu = 'cpu-total');
+
+-- Similar query produces expected output of prior query
+SELECT last(usage_idle), last(usage_system) FROM (SELECT usage_idle, usage_system FROM cpu WHERE cpu = 'cpu-total');
+
+-- Multiple subqueries from same measurement, GROUP BY TIME
+SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)), (SELECT sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);
+
+-- Multiple subqueries from same measurement, GROUP BY TIME
+SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle, sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);
+
+-- Select the last value from two subqueries using two fields
+-- aliased to the same name, `sum_idle`. This results in multiple
+-- multiple rows for each timestamp.
+--
+-- Result  : Inconsistent
+-- Priority: LOW
+--
+-- Doesn't generate consistent results, as sometimes the values for `usage_idle`:
+--
+-- name: cpu
+-- +---------------------+---------------+
+-- | time                | last_sum_idle |
+-- +---------------------+---------------+
+-- | 2022-10-31T02:00:00 | 2.98          |
+-- | 2022-10-31T02:00:10 | 2.99          |
+-- +---------------------+---------------+
+--
+-- Other executions produce the value for `usage_system`:
+--
+-- name: cpu
+-- +---------------------+---------------+
+-- | time                | last_sum_idle |
+-- +---------------------+---------------+
+-- | 2022-10-31T02:00:00 | 2.2           |
+-- | 2022-10-31T02:00:10 | 2.1           |
+-- +---------------------+---------------+
+--
+-- A possible fix is to introduce a column that assigned a unique number to
+-- each subquery to ensure the results are deterministic.
+-- SELECT last(*) FROM (SELECT sum(usage_idle) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)), (SELECT sum(usage_system) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);
+
+-- subquery time range should be restricted
+SELECT COUNT(usage_idle) FROM (SELECT cpu, usage_idle FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:30Z') WHERE time >= '2022-10-31T02:00:10Z' AND time <= '2022-10-31T02:00:20Z' GROUP BY time(5s), cpu FILL(0);
+
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:05Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(10s) FILL(0);
+
+SELECT min, max, max - min FROM (SELECT MIN(usage_idle), MAX(usage_system) FROM cpu GROUP BY TIME(1m));
+SELECT min, max, max - min FROM (SELECT MIN(usage_idle), MAX(usage_system) FROM cpu GROUP BY TIME(10s));
+
+-- the predicate in the outer-most query is the narrowest, and therefore pushed through all the children
+SELECT * FROM (SELECT * FROM (SELECT FIRST(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z') WHERE time >= '2022-10-31T02:00:00Z') WHERE time >= '2022-10-31T02:00:10Z';
+
+--
+-- division operator not performing cast
+--
+-- https://github.com/influxdata/influxdb_iox/issues/8168
+--
+
+-- Raw query
+SELECT bytes_free / bytes_used AS result FROM disk;
+
+-- Aggregate query
+SELECT SUM(bytes_free) / SUM(bytes_used) AS result FROM disk WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY time(5s) FILL(null);
+
+-- Unsupported: host is a field in one subquery and a tag in the other
+SELECT count(host) FROM (SELECT usage_idle AS host FROM cpu), (SELECT host, usage_idle FROM cpu);
+
+-- Using a selector or a aggregate function on a tag column returns NULL
+SELECT last(host) AS host, first(usage_idle) AS usage_idle FROM cpu GROUP BY host;
+
+-- Gap filling selector aggregates (issue 8302)
+SELECT FIRST(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear);
+SELECT FIRST(usage_idle),usage_system FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear);
+SELECT FIRST(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(99);
+SELECT FIRST(usage_idle),usage_system FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(99);

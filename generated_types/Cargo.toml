@@ -1,0 +1,23 @@
+[package]
+name = "generated_types"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies] # In alphabetical order
+observability_deps = { path = "../observability_deps" }
+pbjson = "0.6"
+pbjson-types = "0.5"
+prost = "0.11"
+serde = { version = "1.0", features = ["derive"] }
+tonic = { workspace = true }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+bytes = "1.5"
+
+[build-dependencies] # In alphabetical order
+tonic-build = { workspace = true }
+prost-build = "0.11"
+pbjson-build = "0.5"

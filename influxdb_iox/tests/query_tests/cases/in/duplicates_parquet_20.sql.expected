@@ -1,0 +1,25 @@
+-- Test Setup: TwentySortedParquetFiles
+-- SQL: select count(*), sum(f) from m;
++----------+----------+
+| COUNT(*) | SUM(m.f) |
++----------+----------+
+| 21       | 33.0     |
++----------+----------+
+-- SQL: EXPLAIN select count(*), sum(f) from m;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | Aggregate: groupBy=[[]], aggr=[[COUNT(UInt8(1)) AS COUNT(*), SUM(m.f)]]    |
+|    |   TableScan: m projection=[f]    |
+| physical_plan    | AggregateExec: mode=Final, gby=[], aggr=[COUNT(*), SUM(m.f)]    |
+|    |   CoalescePartitionsExec    |
+|    |     AggregateExec: mode=Partial, gby=[], aggr=[COUNT(*), SUM(m.f)]    |
+|    |       UnionExec    |
+|    |         ParquetExec: file_groups={4 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet, 1/1/1/00000000-0000-0000-0000-000000000001.parquet, 1/1/1/00000000-0000-0000-0000-000000000002.parquet], [1/1/1/00000000-0000-0000-0000-000000000003.parquet, 1/1/1/00000000-0000-0000-0000-000000000004.parquet, 1/1/1/00000000-0000-0000-0000-000000000005.parquet], [1/1/1/00000000-0000-0000-0000-000000000006.parquet, 1/1/1/00000000-0000-0000-0000-000000000007.parquet], [1/1/1/00000000-0000-0000-0000-000000000008.parquet, 1/1/1/00000000-0000-0000-0000-000000000009.parquet]]}, projection=[f]    |
+|    |         ProjectionExec: expr=[f@1 as f]    |
+|    |           DeduplicateExec: [tag@2 ASC,time@3 ASC]    |
+|    |             SortPreservingMergeExec: [tag@2 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |               ParquetExec: file_groups={10 groups: [[1/1/1/00000000-0000-0000-0000-00000000000a.parquet], [1/1/1/00000000-0000-0000-0000-00000000000b.parquet], [1/1/1/00000000-0000-0000-0000-00000000000c.parquet], [1/1/1/00000000-0000-0000-0000-00000000000d.parquet], [1/1/1/00000000-0000-0000-0000-00000000000e.parquet], ...]}, projection=[__chunk_order, f, tag, time], output_ordering=[tag@2 ASC, time@3 ASC, __chunk_order@0 ASC]    |
+|    |    |
+----------

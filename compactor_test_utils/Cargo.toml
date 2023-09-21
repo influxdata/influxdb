@@ -1,0 +1,33 @@
+[package]
+name = "compactor_test_utils"
+description = "Utilities for writing tests for compactor"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = "0.1.73"
+backoff = { path = "../backoff" }
+compactor = { path = "../compactor" }
+compactor_scheduler = { path = "../compactor_scheduler" }
+data_types = { path = "../data_types" }
+datafusion = { workspace = true }
+datafusion_util = { path = "../datafusion_util" }
+futures = "0.3"
+iox_catalog = { path = "../iox_catalog" }
+iox_query = { path = "../iox_query" }
+iox_tests = { path = "../iox_tests" }
+iox_time = { path = "../iox_time" }
+object_store = { workspace = true }
+observability_deps = { path = "../observability_deps" }
+parquet_file = { path = "../parquet_file" }
+schema = { path = "../schema" }
+tokio = { version = "1", features = ["macros", "rt", "sync"] }
+trace = { version = "0.1.0", path = "../trace" }
+tracker = { path = "../tracker" }
+uuid = { version = "1", features = ["v4"] }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+insta = { version = "1.32.0", features = ["yaml"] }

@@ -1,0 +1,106 @@
+/* IOx authorizer protocol */
+
+syntax = "proto3";
+
+package influxdata.iox.authz.v1;
+option go_package = "github.com/influxdata/iox/authz/v1";
+
+/*
+ * An authorizer validates a provided authorization token and returns
+ * the permissions associated with the token.
+ */
+service IoxAuthorizerService {
+
+  /*
+    * Authorize is used to validate a token and return the set of 
+    * permissions associated with the token.
+    */
+  rpc Authorize(AuthorizeRequest) returns (AuthorizeResponse);
+}
+
+/*
+ * The request message 
+ */
+message AuthorizeRequest {
+  /*
+   * Token provided to IOx in the request.
+   */
+  bytes token = 1;
+
+  /*
+   * The set of permissions that will be validated with the token.
+   */
+  repeated Permission permissions = 15;
+}
+
+message AuthorizeResponse {
+  /*
+   * Indication whether the token provided in the request is a valid
+   * token within the service. A token may be valid and not have any
+   * of the requested permissions associated with it.
+   */
+  bool valid = 1;
+
+  /*
+   * The identity of the subject associated with the request token.
+   * This will never be present when a token is not valid, and might
+   * not be present if the token does not have an associated subject.
+   */
+  optional Subject subject = 2;
+
+  /*
+   * The set of permissions associated with the token.
+   * If the token is not valid this will be empty.
+   */
+  repeated Permission permissions = 15;
+}
+
+message Permission {
+  oneof permission_one_of {
+    ResourceActionPermission resource_action = 1;
+  }
+}
+
+message ResourceActionPermission {
+  enum ResourceType {
+    /*
+     * Resource type that is either unspecified or unrecognized. Permissions
+     * with unknown resource type can never match a token's permissions,
+     * so this type will never be returned from an Authorize call.
+     */
+    RESOURCE_TYPE_UNSPECIFIED = 0;
+
+    /*
+     * Permission to access a database.
+     */
+    RESOURCE_TYPE_DATABASE = 1;
+  }
+
+  enum Action {
+    /*
+     * Action that is either unspecified, or unrecognized. Permissions
+     * with unknown actions can never match a token's permissions so this
+     * type will never be returned from an Authorize call.
+     */
+    ACTION_UNSPECIFIED = 0;
+
+    ACTION_READ_SCHEMA = 1;
+    ACTION_READ = 2;
+    ACTION_WRITE = 3;
+    ACTION_CREATE = 4;
+    ACTION_DELETE = 5;
+  }
+
+  ResourceType resource_type = 1;
+  optional string resource_id = 2;
+  Action action = 3;
+}
+
+message Subject {
+  /*
+   * Globally unique ID for the subject. This is not security sensitive
+   * and is safe to use in logs and other metrics.
+   */
+  string id = 1;
+}
+

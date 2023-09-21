@@ -1,0 +1,26 @@
+-- IOX_SETUP: top_bottom
+
+--
+-- top
+--
+SELECT top(writes, 2) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001;
+SELECT top(usage_system,3) FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001 AND cpu = 'cpu0';
+SELECT top(usage_idle,5), cpu FROM cpu GROUP BY machine;
+SELECT top(writes,3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT top(writes,2) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
+SELECT top(usage_system,machine,cpu,2) FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001;
+SELECT top(usage_system,machine,2),cpu FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001;
+SELECT top(usage_system,machine,2),machine FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001;
+SELECT top(usage_idle,machine,cpu,2) FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001 GROUP BY TIME(60s);
+--
+-- bottom
+--
+SELECT bottom(reads, 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001;
+SELECT bottom(usage_system,3) FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001 AND cpu = 'cpu1';
+SELECT bottom(usage_idle,5), cpu FROM cpu GROUP BY machine;
+SELECT bottom(writes,3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT bottom(writes,2) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
+SELECT bottom(usage_system,machine,cpu,2) FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001;
+SELECT bottom(usage_system,machine,2),cpu FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001;
+SELECT bottom(usage_system,machine,2),machine FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001;
+SELECT bottom(usage_idle,machine,cpu,2) FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001 GROUP BY TIME(60s);

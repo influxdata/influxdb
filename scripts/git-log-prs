@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# This script will filter the git history for a given revision range
+# and report which PRs got landed in that range.
+#
+# It knows about our good and bad habits and deals with both merge
+# commits, and stash/rebase merges.
+#
+# Example usage:
+#
+# ./scripts/git-log-prs HEAD~10..main
+# ./scripts/git-log-prs 8376983..main --titles
+
+set -eu -o pipefail
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+usage() {
+  echo "$0 [ --titles ] <rev_range>"
+  exit 1
+}
+
+ensure_command_gh() {
+  type -P "gh" &> /dev/null || {
+    echo "Command 'gh' not found"
+    echo
+    echo "Macos:"
+    echo "  brew install gh"
+    echo
+    echo "Other OS:"
+    echo "  see https://github.com/cli/cli"
+    exit 1
+  } >&2
+}
+
+get_title() {
+  local sha="$1"
+  local pr="$2"
+
+  if [ "$(git show "${sha}" --pretty=format:%b | wc -l | awk '{print $1}')" == 1 ]; then
+    git show "${sha}" --pretty=format:%b
+  else
+    ensure_command_gh
+    gh pr view "${pr}" --json title --jq '.title'
+  fi
+}
+
+main() {
+  local positionals=()
+  local commits=""
+  local titles=""
+  local git_dir="${SCRIPT_DIR}/.."
+
+  while [[ $# -gt 0 ]]; do
+    local key="$1"
+
+    case "${key}" in
+        # print titles
+        --titles)
+        titles=true
+        shift
+        ;;
+
+        # print commit shas
+        --commits)
+        commits=true
+        shift
+        ;;
+
+        # git directory; defaults to the repo where this script lives
+        -C)
+        git_dir="$2"
+        shift
+        shift
+        ;;
+
+        *)
+        positionals+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if [ ${#positionals[@]} -lt 1 ]; then
+    usage
+  fi
+
+  local rev_range="${positionals[0]}"
+  cd "${git_dir}"
+
+  git log \
+      --committer='GitHub <noreply@github.com>' \
+      --pretty=format:'%h: %s' \
+      "${rev_range}" \
+    | sed 's/\([^:]*\): Merge pull request #\([0-9]*\).*/\1: \2/' \
+    | sed 's/\([^:]*\): .*(#\([0-9]*\))$/\1: \2/' \
+    | grep -E '^[a-f0-9]*: [0-9]*$' \
+    | while read -r line; do
+      read -r -a line_arr <<< "${line}"
+
+      local sha="${line_arr[0]%:}"
+      local pr=${line_arr[1]}
+
+      local title=""
+      if [ -n "${titles}" ]; then
+        title=$(get_title "${sha}" "${pr}" | sed 's;(#\([0-9]\+\));(influxdata/influxdb_iox#\1);g')
+      fi
+
+      local commit=""
+      if [ -n "${commits}" ]; then
+        commit="${sha} "
+      fi
+
+      echo "${commit}${pr} ${title}"
+  done
+}
+
+main "$@"

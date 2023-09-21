@@ -1,0 +1,15 @@
+[package]
+name = "metric_exporters"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies] # In alphabetical order
+observability_deps = { path = "../observability_deps" }
+metric = { path = "../metric" }
+prometheus = { version = "0.13", default-features = false }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies] # In alphabetical order
+test_helpers = { path = "../test_helpers" }

@@ -1,0 +1,19 @@
+-- Query tests for influxql percentile
+-- IOX_SETUP: percentile
+
+--
+-- Selectors
+--
+SELECT PERCENTILE(usage_idle,50) FROM cpu;
+SELECT cpu,PERCENTILE(usage_idle,66.667),usage_system FROM cpu;
+SELECT PERCENTILE(usage_idle,33.333) FROM cpu GROUP BY cpu;
+SELECT PERCENTILE(usage_idle,90),usage_user FROM cpu WHERE cpu='3';
+-- 0th percentile doesn't return any rows.
+SELECT PERCENTILE(usage_idle,0) FROM cpu;
+
+--
+-- Aggregators
+--
+SELECT PERCENTILE(usage_system, 50), PERCENTILE(usage_system, 90), PERCENTILE(usage_system, 99) FROM cpu;
+SELECT PERCENTILE(usage_system, 50), PERCENTILE(usage_system, 90), PERCENTILE(usage_system, 99) FROM cpu GROUP BY cpu;
+SELECT PERCENTILE(usage_system, 50), PERCENTILE(usage_system, 90), PERCENTILE(usage_system, 99) FROM cpu WHERE time >= '1970-01-01 00:00:00' AND time < '1970-01-01 03:00:00'  GROUP BY time(1h),cpu;

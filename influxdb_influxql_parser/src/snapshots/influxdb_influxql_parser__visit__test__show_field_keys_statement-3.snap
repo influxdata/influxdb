@@ -1,0 +1,15 @@
+---
+source: influxdb_influxql_parser/src/visit.rs
+expression: "visit_statement!(\"SHOW FIELD KEYS FROM cpu\")"
+---
+- pre_visit_statement
+- pre_visit_show_field_keys_statement
+- pre_visit_show_from_clause
+- pre_visit_qualified_measurement_name
+- pre_visit_measurement_name
+- post_visit_measurement_name
+- post_visit_qualified_measurement_name
+- post_visit_show_from_clause
+- post_visit_show_field_keys_statement
+- post_visit_statement
+

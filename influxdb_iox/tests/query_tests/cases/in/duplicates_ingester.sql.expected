@@ -1,0 +1,109 @@
+-- Test Setup: OneMeasurementFourChunksWithDuplicatesWithIngester
+-- SQL: select time, state, city, min_temp, max_temp, area from h2o order by time, state, city;
+-- Results After Sorting
++--------------------------------+-------+---------+----------+----------+------+
+| time                           | state | city    | min_temp | max_temp | area |
++--------------------------------+-------+---------+----------+----------+------+
+| 1970-01-01T00:00:00.000000050Z | MA    | Boston  | 70.4     |          |      |
+| 1970-01-01T00:00:00.000000150Z | MA    | Bedford | 71.59    | 78.75    | 742  |
+| 1970-01-01T00:00:00.000000250Z | MA    | Andover |          | 69.2     |      |
+| 1970-01-01T00:00:00.000000250Z | MA    | Boston  | 65.4     | 75.4     |      |
+| 1970-01-01T00:00:00.000000250Z | MA    | Reading | 53.4     |          |      |
+| 1970-01-01T00:00:00.000000300Z | CA    | SF      | 79.0     | 87.2     | 500  |
+| 1970-01-01T00:00:00.000000300Z | CA    | SJ      | 78.5     | 88.0     |      |
+| 1970-01-01T00:00:00.000000350Z | CA    | SJ      | 75.5     | 84.08    |      |
+| 1970-01-01T00:00:00.000000400Z | MA    | Bedford | 65.22    | 80.75    | 750  |
+| 1970-01-01T00:00:00.000000400Z | MA    | Boston  | 65.4     | 82.67    |      |
+| 1970-01-01T00:00:00.000000450Z | CA    | SJ      | 77.0     | 90.7     |      |
+| 1970-01-01T00:00:00.000000500Z | CA    | SJ      | 69.5     | 88.2     |      |
+| 1970-01-01T00:00:00.000000600Z | MA    | Bedford |          | 88.75    | 742  |
+| 1970-01-01T00:00:00.000000600Z | MA    | Boston  | 67.4     |          |      |
+| 1970-01-01T00:00:00.000000600Z | MA    | Reading | 60.4     |          |      |
+| 1970-01-01T00:00:00.000000650Z | CA    | SF      | 68.4     | 85.7     | 500  |
+| 1970-01-01T00:00:00.000000650Z | CA    | SJ      | 69.5     | 89.2     |      |
+| 1970-01-01T00:00:00.000000700Z | CA    | SJ      | 75.5     | 84.08    |      |
++--------------------------------+-------+---------+----------+----------+------+
+-- SQL: explain select time, state, city, min_temp, max_temp, area from h2o order by time, state, city;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | Sort: h2o.time ASC NULLS LAST, h2o.state ASC NULLS LAST, h2o.city ASC NULLS LAST    |
+|    |   Projection: h2o.time, h2o.state, h2o.city, h2o.min_temp, h2o.max_temp, h2o.area    |
+|    |     TableScan: h2o projection=[area, city, max_temp, min_temp, state, time]    |
+| physical_plan    | SortPreservingMergeExec: [time@0 ASC NULLS LAST,state@1 ASC NULLS LAST,city@2 ASC NULLS LAST]    |
+|    |   UnionExec    |
+|    |     SortExec: expr=[time@0 ASC NULLS LAST,state@1 ASC NULLS LAST,city@2 ASC NULLS LAST]    |
+|    |       ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[time, state, city, min_temp, max_temp, area], output_ordering=[state@1 ASC, city@2 ASC, time@0 ASC]    |
+|    |     SortExec: expr=[time@0 ASC NULLS LAST,state@1 ASC NULLS LAST,city@2 ASC NULLS LAST]    |
+|    |       ProjectionExec: expr=[time@1 as time, state@2 as state, city@3 as city, min_temp@4 as min_temp, max_temp@5 as max_temp, area@6 as area]    |
+|    |         DeduplicateExec: [state@2 ASC,city@3 ASC,time@1 ASC]    |
+|    |           SortPreservingMergeExec: [state@2 ASC,city@3 ASC,time@1 ASC,__chunk_order@0 ASC]    |
+|    |             ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000001.parquet], [1/1/1/00000000-0000-0000-0000-000000000002.parquet]]}, projection=[__chunk_order, time, state, city, min_temp, max_temp, area], output_ordering=[state@2 ASC, city@3 ASC, time@1 ASC, __chunk_order@0 ASC]    |
+|    |     SortExec: expr=[time@0 ASC NULLS LAST,state@1 ASC NULLS LAST,city@2 ASC NULLS LAST]    |
+|    |       ProjectionExec: expr=[time@1 as time, state@2 as state, city@3 as city, min_temp@4 as min_temp, max_temp@5 as max_temp, area@6 as area]    |
+|    |         DeduplicateExec: [city@3 ASC,state@2 ASC,time@1 ASC]    |
+|    |           SortExec: expr=[city@3 ASC,state@2 ASC,time@1 ASC,__chunk_order@0 ASC]    |
+|    |             RecordBatchesExec: chunks=1    |
+|    |    |
+----------
+-- SQL: EXPLAIN select time, state, city, min_temp, max_temp, area from h2o;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | Projection: h2o.time, h2o.state, h2o.city, h2o.min_temp, h2o.max_temp, h2o.area    |
+|    |   TableScan: h2o projection=[area, city, max_temp, min_temp, state, time]    |
+| physical_plan    | UnionExec    |
+|    |   ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[time, state, city, min_temp, max_temp, area], output_ordering=[state@1 ASC, city@2 ASC, time@0 ASC]    |
+|    |   ProjectionExec: expr=[time@1 as time, state@2 as state, city@3 as city, min_temp@4 as min_temp, max_temp@5 as max_temp, area@6 as area]    |
+|    |     DeduplicateExec: [state@2 ASC,city@3 ASC,time@1 ASC]    |
+|    |       SortPreservingMergeExec: [state@2 ASC,city@3 ASC,time@1 ASC,__chunk_order@0 ASC]    |
+|    |         ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000001.parquet], [1/1/1/00000000-0000-0000-0000-000000000002.parquet]]}, projection=[__chunk_order, time, state, city, min_temp, max_temp, area], output_ordering=[state@2 ASC, city@3 ASC, time@1 ASC, __chunk_order@0 ASC]    |
+|    |   ProjectionExec: expr=[time@1 as time, state@2 as state, city@3 as city, min_temp@4 as min_temp, max_temp@5 as max_temp, area@6 as area]    |
+|    |     DeduplicateExec: [city@3 ASC,state@2 ASC,time@1 ASC]    |
+|    |       SortExec: expr=[city@3 ASC,state@2 ASC,time@1 ASC,__chunk_order@0 ASC]    |
+|    |         RecordBatchesExec: chunks=1    |
+|    |    |
+----------
+-- SQL: EXPLAIN select state as name from h2o UNION ALL select city as name from h2o;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | Union    |
+|    |   Projection: h2o.state AS name    |
+|    |     TableScan: h2o projection=[state]    |
+|    |   Projection: h2o.city AS name    |
+|    |     TableScan: h2o projection=[city]    |
+| physical_plan    | UnionExec    |
+|    |   ProjectionExec: expr=[state@0 as name]    |
+|    |     UnionExec    |
+|    |       ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[state], output_ordering=[state@0 ASC]    |
+|    |       ProjectionExec: expr=[state@2 as state]    |
+|    |         DeduplicateExec: [state@2 ASC,city@1 ASC,time@3 ASC]    |
+|    |           SortPreservingMergeExec: [state@2 ASC,city@1 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |             ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000001.parquet], [1/1/1/00000000-0000-0000-0000-000000000002.parquet]]}, projection=[__chunk_order, city, state, time], output_ordering=[state@2 ASC, city@1 ASC, time@3 ASC, __chunk_order@0 ASC]    |
+|    |       ProjectionExec: expr=[state@2 as state]    |
+|    |         DeduplicateExec: [city@1 ASC,state@2 ASC,time@3 ASC]    |
+|    |           SortExec: expr=[city@1 ASC,state@2 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |             RecordBatchesExec: chunks=1    |
+|    |   ProjectionExec: expr=[city@0 as name]    |
+|    |     UnionExec    |
+|    |       ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[city]    |
+|    |       ProjectionExec: expr=[city@1 as city]    |
+|    |         DeduplicateExec: [state@2 ASC,city@1 ASC,time@3 ASC]    |
+|    |           SortPreservingMergeExec: [state@2 ASC,city@1 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |             ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000001.parquet], [1/1/1/00000000-0000-0000-0000-000000000002.parquet]]}, projection=[__chunk_order, city, state, time], output_ordering=[state@2 ASC, city@1 ASC, time@3 ASC, __chunk_order@0 ASC]    |
+|    |       ProjectionExec: expr=[city@1 as city]    |
+|    |         DeduplicateExec: [city@1 ASC,state@2 ASC,time@3 ASC]    |
+|    |           SortExec: expr=[city@1 ASC,state@2 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |             RecordBatchesExec: chunks=1    |
+|    |    |
+----------
+-- SQL: select count(*) from h2o;
++----------+
+| COUNT(*) |
++----------+
+| 18       |
++----------+

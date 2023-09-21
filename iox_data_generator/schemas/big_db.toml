@@ -1,0 +1,143 @@
+# this schema is for testing what it looks like with a database that has
+# hundreds of thousands of measurements with different levels of throughput.
+#
+# The high agent sends 10k lines with 500 measurements totaling 2.48 MB per sampling
+# The medium agent sends 10k lines with 1k measurements totaling 2.14 MB per sampling
+# The low agent sends 10k lines with 10k measurements and 1.45 MB per sampling
+#
+# Based on the database_writers at the bottom, this will write 225k total measurements
+# across 50 separate agents writing once every 10s. Aggregate throughput is about
+# 35.76 MB/sec of raw line protocol
+name = "big_db"
+
+[[values]]
+name = "some_tag_here"
+cardinality = 10
+template = "value-{{id}}-{{random 5}}"
+
+[[values]]
+name = "some_other_tag"
+cardinality = 2
+template = "value-{{id}}-{{random 10}}"
+belongs_to = "some_tag_here"
+
+[[values]]
+name = "some_static_tag"
+cardinality = 1
+template = "whatevs-is-something-we-have"
+
+[[tag_sets]]
+name = "20card"
+for_each = [
+    "some_tag_here",
+    "some_tag_here.some_other_tag",
+    "some_static_tag",
+]
+
+[[tag_sets]]
+name = "10card"
+for_each = [
+    "some_tag_here",
+    "some_static_tag",
+]
+
+[[tag_sets]]
+name = "2card"
+for_each = [
+    "some_other_tag",
+    "some_static_tag",
+]
+
+# generates data that looks like:
+#
+# high_measurement_10_card_500_1,agent_id=1,foo_bar=stuff-is-here-now,measurement_id=500,some_other_tag=value-17-0wyJ8VuUO7,some_static_tag=whatevs-is-something-we-have,some_tag_here=value-9-fuFo3 intfield=63976i,floatfield=0.6004810270043124 1639597814875290000
+# high_measurement_10_card_500_1,agent_id=1,foo_bar=stuff-is-here-now,measurement_id=500,some_other_tag=value-18-I9P4V97Kfm,some_static_tag=whatevs-is-something-we-have,some_tag_here=value-9-fuFo3 intfield=24564i,floatfield=0.11957361442062764 1639597814875290000
+# high_measurement_10_card_500_1,agent_id=1,foo_bar=stuff-is-here-now,measurement_id=500,some_other_tag=value-19-HaW3lHJ2le,some_static_tag=whatevs-is-something-we-have,some_tag_here=value-10-yH0Bj intfield=18157i,floatfield=0.10429525001385809 1639597814875290000
+# high_measurement_10_card_500_1,agent_id=1,foo_bar=stuff-is-here-now,measurement_id=500,some_other_tag=value-20-XOgmzSFzm7,some_static_tag=whatevs-is-something-we-have,some_tag_here=value-10-yH0Bj intfield=51041i,floatfield=0.802468465951919 1639597814875290000
+[[agents]]
+name = "high"
+tag_pairs = [
+    {key = "agent_id", template = "{{agent.id}}"},
+    {key = "foo_bar", template = "stuff-is-here-now"}
+]
+
+[[agents.measurements]]
+name = "high_measurement_10_card_{{measurement.id}}_{{agent.id}}"
+count = 500
+tag_set = "20card"
+tag_pairs = [
+    {key = "measurement_id", template = "{{measurement.id}}"}
+]
+
+[[agents.measurements.fields]]
+name = "intfield"
+i64_range = [1, 100000]
+
+[[agents.measurements.fields]]
+name = "floatfield"
+f64_range = [0.0, 1.0]
+
+# generates data that looks like:
+#
+# med_measurement_10_card_1000_1,agent_id=1,foo_bar=stuff-is-here-now,measurement_id=1000,some_static_tag=whatevs-is-something-we-have,some_tag_here=value-7-UhxFA intfield=24707i,floatfield=0.762661180672112 1639597855224165000
+# med_measurement_10_card_1000_1,agent_id=1,foo_bar=stuff-is-here-now,measurement_id=1000,some_static_tag=whatevs-is-something-we-have,some_tag_here=value-8-YzAUN intfield=94490i,floatfield=0.4309492192063673 1639597855224165000
+# med_measurement_10_card_1000_1,agent_id=1,foo_bar=stuff-is-here-now,measurement_id=1000,some_static_tag=whatevs-is-something-we-have,some_tag_here=value-9-vUmMN intfield=68817i,floatfield=0.9156455784544137 1639597855224165000
+# med_measurement_10_card_1000_1,agent_id=1,foo_bar=stuff-is-here-now,measurement_id=1000,some_static_tag=whatevs-is-something-we-have,some_tag_here=value-10-gxcic intfield=84220i,floatfield=0.9267974321691199 1639597855224165000
+[[agents]]
+name = "medium"
+tag_pairs = [
+    {key = "agent_id", template = "{{agent.id}}"},
+    {key = "foo_bar", template = "stuff-is-here-now"}
+]
+
+[[agents.measurements]]
+name = "med_measurement_10_card_{{measurement.id}}_{{agent.id}}"
+count = 1000
+tag_set = "10card"
+tag_pairs = [
+    {key = "measurement_id", template = "{{measurement.id}}"}
+]
+
+[[agents.measurements.fields]]
+name = "intfield"
+i64_range = [1, 100000]
+
+[[agents.measurements.fields]]
+name = "floatfield"
+f64_range = [0.0, 1.0]
+
+# generates data that looks like:
+#
+# low_measurement_2_card_4986_1,agent_id=1,foo_bar=stuff-is-here-now,measurement_id=4986 intfield=17484i,floatfield=0.5834872217437403 1639597582877742000
+# low_measurement_2_card_4987_1,agent_id=1,foo_bar=stuff-is-here-now,measurement_id=4987 intfield=83563i,floatfield=0.7354522843365716 1639597582877742000
+# low_measurement_2_card_4988_1,agent_id=1,foo_bar=stuff-is-here-now,measurement_id=4988 intfield=74676i,floatfield=0.7443686050113958 1639597582877742000
+# low_measurement_2_card_4989_1,agent_id=1,foo_bar=stuff-is-here-now,measurement_id=4989 intfield=69285i,floatfield=0.05047660569705048 1639597582877742000
+# low_measurement_2_card_4990_1,agent_id=1,foo_bar=stuff-is-here-now,measurement_id=4990 intfield=36686i,floatfield=0.7546950434825994 1639597582877742000
+[[agents]]
+name = "low"
+tag_pairs = [
+    {key = "agent_id", template = "{{agent.id}}"},
+    {key = "foo_bar", template = "stuff-is-here-now"}
+]
+
+[[agents.measurements]]
+name = "low_measurement_2_card_{{measurement.id}}_{{agent.id}}"
+count = 10000
+tag_pairs = [
+    {key = "measurement_id", template = "{{measurement.id}}"}
+]
+
+[[agents.measurements.fields]]
+name = "intfield"
+i64_range = [1, 100000]
+
+[[agents.measurements.fields]]
+name = "floatfield"
+f64_range = [0.0, 1.0]
+
+[[database_writers]]
+agents = [
+    {name = "high", sampling_interval = "10s", count = 10}, # 5,000 measurements
+    {name = "medium", sampling_interval = "10s", count = 20}, # 20,000 measurements
+    {name = "low", sampling_interval = "10s", count = 20} # 200,000 measurements
+]

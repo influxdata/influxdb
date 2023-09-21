@@ -1,0 +1,35 @@
+name = "tracing_schema"
+
+[[values]]
+name = "host"
+template = "server-{{id}}"
+cardinality = 3000
+has_one = ["service"]
+
+[[values]]
+name = "service"
+template = "service-{{id}}"
+cardinality = 10
+
+[[tag_sets]]
+name = "host_services"
+for_each = ["host", "host.service"]
+
+[[agents]]
+name = "tracing_agent"
+
+[[agents.measurements]]
+name = "traces"
+tag_set = "host_services"
+tag_pairs = [
+    {key = "trace_id", template = "{{guid}}", regenerate_after_lines = 10},
+    {key = "span_id", template = "{{guid}}", regenerate_after_lines = 1},
+]
+
+[[agents.measurements.fields]]
+name = "timing"
+f64_range = [0.0, 500.0]
+
+[[database_writers]]
+database_ratio = 1.0
+agents = [{name = "tracing_agent", sampling_interval = "1s"}]

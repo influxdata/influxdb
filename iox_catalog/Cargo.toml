@@ -1,0 +1,39 @@
+[package]
+name = "iox_catalog"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies] # In alphabetical order
+async-trait = "0.1.73"
+data_types = { path = "../data_types" }
+futures = "0.3"
+iox_time = { version = "0.1.0", path = "../iox_time" }
+log = "0.4"
+metric = { version = "0.1.0", path = "../metric" }
+mutable_batch = { path = "../mutable_batch" }
+observability_deps = { path = "../observability_deps" }
+once_cell = { version = "1.18", features = ["parking_lot"] }
+parking_lot = { version = "0.12" }
+serde = { version = "1.0", features = ["derive"] }
+siphasher = "1.0"
+snafu = "0.7"
+sqlx = { version = "0.7.1", features = [ "runtime-tokio-rustls" , "postgres", "uuid", "sqlite" ] }
+sqlx-hotswap-pool = { path = "../sqlx-hotswap-pool" }
+thiserror = "1.0.48"
+tokio = { version = "1.32", features = ["io-util", "macros", "parking_lot", "rt-multi-thread", "time"] }
+uuid = { version = "1", features = ["v4"] }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies] # In alphabetical order
+assert_matches = "1.5.0"
+dotenvy = "0.15.7"
+generated_types = { path = "../generated_types" }
+mutable_batch_lp = { path = "../mutable_batch_lp" }
+paste = "1.0.14"
+pretty_assertions = "1.4.0"
+proptest = { version = "1", default_features = false, features = ["std"] }
+rand = "0.8"
+tempfile = "3"
+test_helpers = { path = "../test_helpers" }

@@ -1,0 +1,47 @@
+// This file defines the InfluxDB storage gRPC service definition (how the rest of influxdb /
+// flux / influxql talk to the storage system)
+//
+// Copy/pasted, as closely as verbatim as possible, from
+// https://github.com/influxdata/idpe/blob/master/storage/storageproto/service.proto
+
+syntax = "proto3";
+package influxdata.platform.storage;
+
+import "google/protobuf/empty.proto";
+import "influxdata/platform/storage/storage_common.proto";
+
+service Storage {
+    // ReadFilter performs a filter operation at storage
+    rpc ReadFilter (ReadFilterRequest) returns (stream ReadResponse);
+
+    // ReadGroup performs a group operation at storage
+    rpc ReadGroup (ReadGroupRequest) returns (stream ReadResponse);
+
+    // ReadWindowAggregate performs a window aggregate operation at storage
+    rpc ReadWindowAggregate (ReadWindowAggregateRequest) returns (stream ReadResponse);
+
+    // TagKeys performs a read operation for tag keys
+    rpc TagKeys (TagKeysRequest) returns (stream StringValuesResponse);
+
+    // TagValues performs a read operation for tag values
+    rpc TagValues (TagValuesRequest) returns (stream StringValuesResponse);
+
+    rpc TagValuesGroupedByMeasurementAndTagKey (TagValuesGroupedByMeasurementAndTagKeyRequest) returns (stream TagValuesResponse);
+
+    // ReadSeriesCardinality performs a read operation for series cardinality
+    rpc ReadSeriesCardinality (ReadSeriesCardinalityRequest) returns (stream Int64ValuesResponse);
+
+    // Capabilities returns a map of keys and values identifying the capabilities supported by the storage engine
+    rpc Capabilities (google.protobuf.Empty) returns (CapabilitiesResponse);
+
+    rpc MeasurementNames(MeasurementNamesRequest) returns (stream StringValuesResponse);
+
+    rpc MeasurementTagKeys(MeasurementTagKeysRequest) returns (stream StringValuesResponse);
+
+    rpc MeasurementTagValues(MeasurementTagValuesRequest) returns (stream StringValuesResponse);
+
+    rpc MeasurementFields(MeasurementFieldsRequest) returns (stream MeasurementFieldsResponse);
+
+    // Offsets gets the partition offsets of the node
+    rpc Offsets (google.protobuf.Empty) returns (OffsetsResponse);
+}

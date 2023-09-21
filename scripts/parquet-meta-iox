@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -eu -o pipefail
+
+if ! command -v parquet &> /dev/null; then
+  echo "parquet CLI tool required"
+  echo "  brew install parquet-cli"
+  echo
+  echo "  (yes there is also linuxbrew; and probably you can find it somewhere else)"
+fi
+
+parquet meta "$1" \
+ | grep IOX:metadata: \
+ | awk '{print $2}' \
+ | base64 -d \
+ | ./scripts/prototxt \
+     decode influxdata.iox.ingester.v1.IoxMetadata

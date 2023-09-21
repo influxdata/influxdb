@@ -1,0 +1,16 @@
+[package]
+name = "trace"
+description = "Distributed tracing support within IOx"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono = { version = "0.4", default-features = false }
+observability_deps = { path = "../observability_deps" }
+parking_lot = "0.12"
+rand = "0.8"
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]

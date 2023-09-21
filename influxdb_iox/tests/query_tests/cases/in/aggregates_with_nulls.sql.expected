@@ -1,0 +1,17 @@
+-- Test Setup: TwoMeasurementsManyNulls
+-- SQL: SELECT count(DISTINCT city) FROM o2;
+-- Results After Sorting
++-------------------------+
+| COUNT(DISTINCT o2.city) |
++-------------------------+
+| 2                       |
++-------------------------+
+-- SQL: SELECT count(*), city FROM o2 GROUP BY city;
+-- Results After Sorting
++----------+--------+
+| COUNT(*) | city   |
++----------+--------+
+| 1        | Boston |
+| 2        | NYC    |
+| 2        |        |
++----------+--------+

@@ -1,0 +1,35 @@
+-- Test Setup: DuplicateDifferentDomains
+-- SQL: select * from m order by time;
++-----+-----+--------------------------------+
+| f   | tag | time                           |
++-----+-----+--------------------------------+
+| 1.0 | A   | 1970-01-01T00:00:00Z           |
+| 3.0 | A   | 1970-01-01T00:00:00.000000001Z |
+| 2.0 | A   | 1970-01-02T00:00:00Z           |
++-----+-----+--------------------------------+
+-- SQL: explain select * from m order by time;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | Sort: m.time ASC NULLS LAST    |
+|    |   TableScan: m projection=[f, tag, time]    |
+| physical_plan    | SortPreservingMergeExec: [time@2 ASC NULLS LAST]    |
+|    |   UnionExec    |
+|    |     SortExec: expr=[time@2 ASC NULLS LAST]    |
+|    |       ProjectionExec: expr=[f@1 as f, tag@2 as tag, time@3 as time]    |
+|    |         DeduplicateExec: [tag@2 ASC,time@3 ASC]    |
+|    |           SortPreservingMergeExec: [tag@2 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |             ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[__chunk_order, f, tag, time], output_ordering=[tag@2 ASC, time@3 ASC, __chunk_order@0 ASC]    |
+|    |     SortExec: expr=[time@2 ASC NULLS LAST]    |
+|    |       ProjectionExec: expr=[f@1 as f, tag@2 as tag, time@3 as time]    |
+|    |         DeduplicateExec: [tag@2 ASC,time@3 ASC]    |
+|    |           SortPreservingMergeExec: [tag@2 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |             ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000002.parquet], [1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[__chunk_order, f, tag, time], output_ordering=[tag@2 ASC, time@3 ASC, __chunk_order@0 ASC]    |
+|    |     SortExec: expr=[time@2 ASC NULLS LAST]    |
+|    |       ProjectionExec: expr=[f@1 as f, tag@2 as tag, time@3 as time]    |
+|    |         DeduplicateExec: [tag@2 ASC,time@3 ASC]    |
+|    |           SortPreservingMergeExec: [tag@2 ASC,time@3 ASC,__chunk_order@0 ASC]    |
+|    |             ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000004.parquet], [1/1/1/00000000-0000-0000-0000-000000000005.parquet]]}, projection=[__chunk_order, f, tag, time], output_ordering=[tag@2 ASC, time@3 ASC, __chunk_order@0 ASC]    |
+|    |    |
+----------

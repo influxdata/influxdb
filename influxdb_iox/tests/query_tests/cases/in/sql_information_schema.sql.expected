@@ -1,0 +1,66 @@
+-- Test Setup: TwoMeasurementsManyFields
+-- SQL: SELECT * from information_schema.tables where table_schema != 'system';
+-- Results After Sorting
++---------------+--------------------+-------------+------------+
+| table_catalog | table_schema       | table_name  | table_type |
++---------------+--------------------+-------------+------------+
+| public        | information_schema | columns     | VIEW       |
+| public        | information_schema | df_settings | VIEW       |
+| public        | information_schema | tables      | VIEW       |
+| public        | information_schema | views       | VIEW       |
+| public        | iox                | h2o         | BASE TABLE |
+| public        | iox                | o2          | BASE TABLE |
++---------------+--------------------+-------------+------------+
+-- SQL: SELECT * from information_schema.columns where table_name = 'h2o' OR table_name = 'o2';
+-- Results After Sorting
++---------------+--------------+------------+-------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+
+| table_catalog | table_schema | table_name | column_name | ordinal_position | column_default | is_nullable | data_type                   | character_maximum_length | character_octet_length | numeric_precision | numeric_precision_radix | numeric_scale | datetime_precision | interval_type |
++---------------+--------------+------------+-------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+
+| public        | iox          | h2o        | city        | 0                |                | YES         | Dictionary(Int32, Utf8)     |                          |                        |                   |                         |               |                    |               |
+| public        | iox          | h2o        | moisture    | 1                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |
+| public        | iox          | h2o        | other_temp  | 2                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |
+| public        | iox          | h2o        | state       | 3                |                | YES         | Dictionary(Int32, Utf8)     |                          |                        |                   |                         |               |                    |               |
+| public        | iox          | h2o        | temp        | 4                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |
+| public        | iox          | h2o        | time        | 5                |                | NO          | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |
+| public        | iox          | o2         | city        | 0                |                | YES         | Dictionary(Int32, Utf8)     |                          |                        |                   |                         |               |                    |               |
+| public        | iox          | o2         | reading     | 1                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |
+| public        | iox          | o2         | state       | 2                |                | YES         | Dictionary(Int32, Utf8)     |                          |                        |                   |                         |               |                    |               |
+| public        | iox          | o2         | temp        | 3                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |
+| public        | iox          | o2         | time        | 4                |                | NO          | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |
++---------------+--------------+------------+-------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+
+-- SQL: SHOW TABLES;
+-- Results After Sorting
++---------------+--------------------+-------------+------------+
+| table_catalog | table_schema       | table_name  | table_type |
++---------------+--------------------+-------------+------------+
+| public        | information_schema | columns     | VIEW       |
+| public        | information_schema | df_settings | VIEW       |
+| public        | information_schema | tables      | VIEW       |
+| public        | information_schema | views       | VIEW       |
+| public        | iox                | h2o         | BASE TABLE |
+| public        | iox                | o2          | BASE TABLE |
+| public        | system             | queries     | BASE TABLE |
++---------------+--------------------+-------------+------------+
+-- SQL: SHOW COLUMNS FROM h2o;
+-- Results After Sorting
++---------------+--------------+------------+-------------+-----------------------------+-------------+
+| table_catalog | table_schema | table_name | column_name | data_type                   | is_nullable |
++---------------+--------------+------------+-------------+-----------------------------+-------------+
+| public        | iox          | h2o        | city        | Dictionary(Int32, Utf8)     | YES         |
+| public        | iox          | h2o        | moisture    | Float64                     | YES         |
+| public        | iox          | h2o        | other_temp  | Float64                     | YES         |
+| public        | iox          | h2o        | state       | Dictionary(Int32, Utf8)     | YES         |
+| public        | iox          | h2o        | temp        | Float64                     | YES         |
+| public        | iox          | h2o        | time        | Timestamp(Nanosecond, None) | NO          |
++---------------+--------------+------------+-------------+-----------------------------+-------------+
+-- SQL: DESCRIBE h2o;
++-------------+-----------------------------+-------------+
+| column_name | data_type                   | is_nullable |
++-------------+-----------------------------+-------------+
+| city        | Dictionary(Int32, Utf8)     | YES         |
+| moisture    | Float64                     | YES         |
+| other_temp  | Float64                     | YES         |
+| state       | Dictionary(Int32, Utf8)     | YES         |
+| temp        | Float64                     | YES         |
+| time        | Timestamp(Nanosecond, None) | NO          |
++-------------+-----------------------------+-------------+
