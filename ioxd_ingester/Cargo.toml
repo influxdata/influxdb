@@ -20,6 +20,6 @@ metric = { path = "../metric" }
 parquet_file = { version = "0.1.0", path = "../parquet_file" }
 thiserror = "1.0.48"
 tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
-tokio-util = { version = "0.7.8" }
+tokio-util = { version = "0.7.9" }
 trace = { path = "../trace" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

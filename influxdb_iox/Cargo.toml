@@ -74,7 +74,7 @@ thiserror = "1.0.48"
 tikv-jemalloc-ctl = { version = "0.5.4", optional = true }
 tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "io-std"] }
 tokio-stream = { version = "0.1", features = ["net"] }
-tokio-util = { version = "0.7.8", features = ["compat"] }
+tokio-util = { version = "0.7.9", features = ["compat"] }
 tonic = { workspace = true }
 uuid = { version = "1", features = ["v4"] }
 # jemalloc-sys with unprefixed_malloc_on_supported_platforms feature and heappy are mutually exclusive
