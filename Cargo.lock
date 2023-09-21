@@ -283,7 +283,7 @@ dependencies = [
  "paste",
  "prost",
  "tokio",
- "tonic",
+ "tonic 0.9.2",
 ]
 
 [[package]]
@@ -517,7 +517,7 @@ dependencies = [
  "snafu",
  "test_helpers_end_to_end",
  "tokio",
- "tonic",
+ "tonic 0.9.2",
  "workspace-hack",
 ]
 
@@ -799,8 +799,10 @@ checksum = "7f2c685bad3eb3d45a01354cedb7d5faa66194d1d58ba6e267a8de788f79db38"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-targets 0.48.5",
 ]
 
@@ -924,7 +926,7 @@ dependencies = [
  "reqwest",
  "thiserror",
  "tokio",
- "tonic",
+ "tonic 0.9.2",
  "tower",
  "workspace-hack",
 ]
@@ -1078,7 +1080,7 @@ checksum = "c2895653b4d9f1538a83970077cb01dfc77a4810524e51a110944688e916b18e"
 dependencies = [
  "prost",
  "prost-types",
- "tonic",
+ "tonic 0.9.2",
  "tracing-core",
 ]
 
@@ -1101,7 +1103,7 @@ dependencies = [
  "thread_local",
  "tokio",
  "tokio-stream",
- "tonic",
+ "tonic 0.9.2",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
@@ -2038,7 +2040,7 @@ dependencies = [
  "prost",
  "prost-build",
  "serde",
- "tonic",
+ "tonic 0.9.2",
  "tonic-build",
  "workspace-hack",
 ]
@@ -2162,7 +2164,7 @@ dependencies = [
  "prost-build",
  "tokio",
  "tokio-stream",
- "tonic",
+ "tonic 0.9.2",
  "tonic-build",
  "tower",
  "workspace-hack",
@@ -2175,7 +2177,7 @@ dependencies = [
  "prost",
  "prost-build",
  "prost-types",
- "tonic",
+ "tonic 0.9.2",
  "tonic-build",
  "workspace-hack",
 ]
@@ -2186,7 +2188,7 @@ version = "0.1.0"
 dependencies = [
  "prost",
  "prost-build",
- "tonic",
+ "tonic 0.9.2",
  "tonic-build",
  "workspace-hack",
 ]
@@ -2657,7 +2659,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tokio_metrics_bridge",
- "tonic",
+ "tonic 0.9.2",
  "trace_exporters",
  "trogging",
  "uuid",
@@ -2688,7 +2690,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
- "tonic",
+ "tonic 0.9.2",
 ]
 
 [[package]]
@@ -2700,7 +2702,7 @@ dependencies = [
  "generated_types",
  "observability_deps",
  "prost",
- "tonic",
+ "tonic 0.9.2",
  "workspace-hack",
 ]
 
@@ -2726,6 +2728,42 @@ dependencies = [
  "generated_types",
  "snafu",
  "sqlparser",
+ "workspace-hack",
+]
+
+[[package]]
+name = "ingest_structure"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow_util",
+ "assert_matches",
+ "async-trait",
+ "bytes",
+ "chrono",
+ "data_types",
+ "futures",
+ "generated_types",
+ "influxdb-line-protocol",
+ "iox_catalog",
+ "iox_tests",
+ "iox_time",
+ "metric",
+ "observability_deps",
+ "once_cell",
+ "parking_lot",
+ "paste",
+ "pretty_assertions",
+ "schema",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "snafu",
+ "test_helpers",
+ "tokio",
+ "tokio-stream",
+ "tonic 0.8.3",
+ "trace",
  "workspace-hack",
 ]
 
@@ -2784,7 +2822,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
- "tonic",
+ "tonic 0.9.2",
  "trace",
  "tracker",
  "uuid",
@@ -2813,7 +2851,7 @@ dependencies = [
  "snafu",
  "test_helpers",
  "tokio",
- "tonic",
+ "tonic 0.9.2",
  "trace",
  "trace_http",
  "uuid",
@@ -2839,7 +2877,7 @@ dependencies = [
  "query_functions",
  "serde",
  "snafu",
- "tonic",
+ "tonic 0.9.2",
  "tonic-build",
  "workspace-hack",
 ]
@@ -2873,7 +2911,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-util",
- "tonic",
+ "tonic 0.9.2",
  "trace",
  "workspace-hack",
 ]
@@ -3119,7 +3157,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util",
- "tonic",
+ "tonic 0.9.2",
  "tonic-health",
  "tonic-reflection",
  "tower",
@@ -3220,7 +3258,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
- "tonic",
+ "tonic 0.9.2",
  "trace",
  "workspace-hack",
 ]
@@ -4631,7 +4669,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-util",
- "tonic",
+ "tonic 0.9.2",
  "trace",
  "trace_http",
  "tracker",
@@ -4921,7 +4959,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
- "tonic",
+ "tonic 0.9.2",
  "trace",
  "trace_http",
  "workspace-hack",
@@ -5196,7 +5234,7 @@ dependencies = [
  "metric",
  "parking_lot",
  "predicate",
- "tonic",
+ "tonic 0.9.2",
  "trace",
  "tracker",
  "workspace-hack",
@@ -5212,7 +5250,7 @@ dependencies = [
  "metric",
  "observability_deps",
  "tokio",
- "tonic",
+ "tonic 0.9.2",
  "uuid",
  "workspace-hack",
 ]
@@ -5242,7 +5280,7 @@ dependencies = [
  "snafu",
  "test_helpers",
  "tokio",
- "tonic",
+ "tonic 0.9.2",
  "trace",
  "trace_http",
  "tracker",
@@ -5279,7 +5317,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-stream",
- "tonic",
+ "tonic 0.9.2",
  "trace",
  "trace_http",
  "tracker",
@@ -5298,7 +5336,7 @@ dependencies = [
  "observability_deps",
  "paste",
  "tokio",
- "tonic",
+ "tonic 0.9.2",
  "workspace-hack",
 ]
 
@@ -5316,7 +5354,7 @@ dependencies = [
  "observability_deps",
  "parquet_file",
  "tokio",
- "tonic",
+ "tonic 0.9.2",
  "uuid",
  "workspace-hack",
 ]
@@ -5331,7 +5369,7 @@ dependencies = [
  "iox_catalog",
  "observability_deps",
  "tokio",
- "tonic",
+ "tonic 0.9.2",
  "workspace-hack",
 ]
 
@@ -5345,7 +5383,7 @@ dependencies = [
  "metric",
  "observability_deps",
  "tokio",
- "tonic",
+ "tonic 0.9.2",
  "workspace-hack",
 ]
 
@@ -5355,7 +5393,7 @@ version = "0.1.0"
 dependencies = [
  "generated_types",
  "observability_deps",
- "tonic",
+ "tonic 0.9.2",
  "workspace-hack",
 ]
 
@@ -6004,7 +6042,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-util",
- "tonic",
+ "tonic 0.9.2",
  "workspace-hack",
 ]
 
@@ -6238,6 +6276,38 @@ dependencies = [
 
 [[package]]
 name = "tonic"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f219fad3b929bef19b1f86fbc0358d35daed8f2cac972037ac0dc10bbb8d5fb"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "axum",
+ "base64 0.13.1",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "h2",
+ "http",
+ "http-body",
+ "hyper",
+ "hyper-timeout",
+ "percent-encoding",
+ "pin-project",
+ "prost",
+ "prost-derive",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tower",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "tonic"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3082666a3a6433f7f511c7192923fa1fe07c69332d3c6a2e6bb040b569199d5a"
@@ -6291,7 +6361,7 @@ dependencies = [
  "prost",
  "tokio",
  "tokio-stream",
- "tonic",
+ "tonic 0.9.2",
 ]
 
 [[package]]
@@ -6304,7 +6374,7 @@ dependencies = [
  "prost-types",
  "tokio",
  "tokio-stream",
- "tonic",
+ "tonic 0.9.2",
 ]
 
 [[package]]
@@ -6437,6 +6507,16 @@ checksum = "0955b8137a1df6f1a2e9a37d8a6656291ff0297c1a97c24e0d8425fe2312f79a"
 dependencies = [
  "once_cell",
  "valuable",
+]
+
+[[package]]
+name = "tracing-futures"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
+dependencies = [
+ "pin-project",
+ "tracing",
 ]
 
 [[package]]
@@ -7118,7 +7198,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util",
- "tonic",
+ "tonic 0.9.2",
  "tower",
  "tracing",
  "tracing-core",

@@ -28,7 +28,8 @@ use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
 
-const TIME_COLUMN: &str = "time";
+/// Column name for built in time column on every table.
+pub const TIME_COLUMN: &str = "time";
 
 /// Default retention period for data in the catalog.
 pub const DEFAULT_RETENTION_PERIOD: Option<i64> = None;
@@ -260,7 +261,8 @@ where
     Ok(())
 }
 
-async fn table_load_or_create<R>(
+/// load the table or create a new one
+pub async fn table_load_or_create<R>(
     repos: &mut R,
     namespace_id: NamespaceId,
     namespace_partition_template: &NamespacePartitionTemplateOverride,
