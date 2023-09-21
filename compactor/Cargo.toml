@@ -29,7 +29,7 @@ parquet_file = { path = "../parquet_file" }
 rand = "0.8.3"
 schema = { path = "../schema" }
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
-tokio-util = { version = "0.7.8" }
+tokio-util = { version = "0.7.9" }
 trace = { version = "0.1.0", path = "../trace" }
 tracker = { path = "../tracker" }
 uuid = { version = "1", features = ["v4"] }
