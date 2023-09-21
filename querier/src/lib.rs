@@ -33,13 +33,7 @@ const CONCURRENT_CHUNK_CREATION_JOBS: usize = 100;
 
 pub use cache::CatalogCache as QuerierCatalogCache;
 pub use database::{Error as QuerierDatabaseError, QuerierDatabase};
-pub use ingester::{
-    create_ingester_connection_for_testing, create_ingester_connections,
-    flight_client::{
-        Error as IngesterFlightClientError, IngesterFlightClient,
-        QueryData as IngesterFlightClientQueryData,
-    },
-    Error as IngesterError, IngesterConnection, IngesterConnectionImpl, IngesterPartition,
-};
+pub use ingester::{create_ingester_connection_for_testing, create_ingester_connections};
 pub use namespace::QuerierNamespace;
+pub use query_log::QueryLogEntry;
 pub use server::QuerierServer;

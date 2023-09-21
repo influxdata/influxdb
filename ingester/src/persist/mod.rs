@@ -401,7 +401,7 @@ mod tests {
         // Test: sort_key_ids after updating
         assert_eq!(
             updated_partition.sort_key_ids(),
-            Some(&SortedColumnSet::from([region_column_id.get()]))
+            &SortedColumnSet::from([region_column_id.get()])
         );
 
         // Enqueue the persist job

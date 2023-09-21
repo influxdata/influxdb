@@ -139,11 +139,12 @@ impl QueryChunk for QueryAdaptor {
     fn data(&self) -> QueryChunkData {
         let schema = self.schema().as_arrow();
 
-        QueryChunkData::RecordBatches(
+        QueryChunkData::in_mem(
             self.data
                 .iter()
                 .map(|b| ensure_schema(&schema, b).expect("schema handling broken"))
                 .collect(),
+            Arc::clone(self.schema.inner()),
         )
     }
 

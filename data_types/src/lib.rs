@@ -350,6 +350,40 @@ impl NamespaceSchema {
     }
 }
 
+impl From<&NamespaceSchema> for generated_types::influxdata::iox::schema::v1::NamespaceSchema {
+    fn from(schema: &NamespaceSchema) -> Self {
+        use generated_types::influxdata::iox::schema::v1 as proto;
+        Self {
+            id: schema.id.get(),
+            tables: schema
+                .tables
+                .iter()
+                .map(|(name, t)| {
+                    (
+                        name.clone(),
+                        proto::TableSchema {
+                            id: t.id.get(),
+                            columns: t
+                                .columns
+                                .iter()
+                                .map(|(name, c)| {
+                                    (
+                                        name.clone(),
+                                        proto::ColumnSchema {
+                                            id: c.id.get(),
+                                            column_type: c.column_type as i32,
+                                        },
+                                    )
+                                })
+                                .collect(),
+                        },
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
 /// Data object for a table
 #[derive(Debug, Clone, sqlx::FromRow, PartialEq)]
 pub struct Table {

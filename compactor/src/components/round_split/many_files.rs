@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use data_types::{CompactionLevel, ParquetFile, TransitionPartitionId};
 
-use crate::RoundInfo;
+use crate::round_info::CompactType;
 
 use super::RoundSplit;
 
@@ -28,12 +28,12 @@ impl RoundSplit for ManyFilesRoundSplit {
     fn split(
         &self,
         files: Vec<ParquetFile>,
-        round_info: RoundInfo,
+        op: CompactType,
         partition: TransitionPartitionId,
     ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
         // Scpecify specific arms to avoid missing any new variants
-        match round_info {
-            RoundInfo::ManySmallFiles { start_level, .. } => {
+        match op {
+            CompactType::ManySmallFiles { start_level, .. } => {
                 // Split start_level from the rest
                 let (start_level_files, rest) = files
                     .into_iter()
@@ -43,7 +43,7 @@ impl RoundSplit for ManyFilesRoundSplit {
 
             // A TargetLevel round only needs its start (source) and target (destination) levels.
             // All other files are a distraction that should wait for another round.
-            RoundInfo::TargetLevel { target_level, .. } => {
+            CompactType::TargetLevel { target_level, .. } => {
                 // Split start_level & target level from the rest
                 let start_level = target_level.prev();
                 let (start_files, rest) = files.into_iter().partition(|f| {
@@ -54,7 +54,7 @@ impl RoundSplit for ManyFilesRoundSplit {
                 (start_files, rest)
             }
 
-            RoundInfo::SimulatedLeadingEdge { .. } => {
+            CompactType::SimulatedLeadingEdge { .. } => {
                 // Split first two levels from the rest
                 let (start_files, rest) = files.into_iter().partition(|f| {
                     f.compaction_level == CompactionLevel::Initial
@@ -64,7 +64,7 @@ impl RoundSplit for ManyFilesRoundSplit {
                 (start_files, rest)
             }
 
-            RoundInfo::VerticalSplit { split_times } => {
+            CompactType::VerticalSplit { split_times } => {
                 // We're splitting L0 files at split_times.  So any L0 that overlaps a split_time needs processed, and all other files are ignored until later.
                 let (split_files, rest): (Vec<ParquetFile>, Vec<ParquetFile>) =
                     files.into_iter().partition(|f| {
@@ -79,15 +79,9 @@ impl RoundSplit for ManyFilesRoundSplit {
                 (split_files, rest)
             }
 
-            RoundInfo::CompactRanges { ranges, .. } => {
-                // We're compacting L0 & L1s in the specified ranges.  Files outside these ranges are
-                // ignored until a later round.
-                let (compact_files, rest): (Vec<ParquetFile>, Vec<ParquetFile>) =
-                    files.into_iter().partition(|f| {
-                        f.compaction_level != CompactionLevel::Final && f.overlaps_ranges(&ranges)
-                    });
-
-                (compact_files, rest)
+            CompactType::Deferred { .. } => {
+                // Nothing now, its all for later
+                (vec![], files)
             }
         }
     }
@@ -98,8 +92,6 @@ mod tests {
     use data_types::{CompactionLevel, PartitionId};
     use iox_tests::ParquetFileBuilder;
 
-    use crate::RoundInfo;
-
     use super::*;
 
     #[test]
@@ -109,7 +101,7 @@ mod tests {
 
     #[test]
     fn test_split_many_files() {
-        let round_info = RoundInfo::ManySmallFiles {
+        let op = CompactType::ManySmallFiles {
             start_level: CompactionLevel::Initial,
             max_num_files_to_group: 2,
             max_total_file_size_to_group: 100,
@@ -119,7 +111,7 @@ mod tests {
 
         // empty input
         assert_eq!(
-            split.split(vec![], round_info.clone(), default_partition.clone()),
+            split.split(vec![], op.clone(), default_partition.clone()),
             (vec![], vec![])
         );
 
@@ -133,7 +125,7 @@ mod tests {
         assert_eq!(
             split.split(
                 vec![f1.clone(), f2.clone()],
-                round_info.clone(),
+                op.clone(),
                 default_partition.clone()
             ),
             (vec![f1.clone(), f2.clone()], vec![])
@@ -149,7 +141,7 @@ mod tests {
         assert_eq!(
             split.split(
                 vec![f1.clone(), f2.clone(), f3.clone(), f4.clone()],
-                round_info.clone(),
+                op.clone(),
                 default_partition,
             ),
             (vec![f1, f2], vec![f3, f4])
@@ -158,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_split_target_level() {
-        let round_info = RoundInfo::TargetLevel {
+        let op = CompactType::TargetLevel {
             target_level: CompactionLevel::Final,
             max_total_file_size_to_group: 100 * 1024 * 1024,
         };
@@ -167,7 +159,7 @@ mod tests {
 
         // empty input
         assert_eq!(
-            split.split(vec![], round_info.clone(), default_partition.clone()),
+            split.split(vec![], op.clone(), default_partition.clone()),
             (vec![], vec![])
         );
 
@@ -175,11 +167,7 @@ mod tests {
         let f1 = ParquetFileBuilder::new(1).build();
         let f2 = ParquetFileBuilder::new(2).build();
         assert_eq!(
-            split.split(
-                vec![f1.clone(), f2.clone()],
-                round_info.clone(),
-                default_partition
-            ),
+            split.split(vec![f1.clone(), f2.clone()], op.clone(), default_partition),
             (vec![f1, f2], vec![])
         );
     }

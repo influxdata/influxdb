@@ -1326,7 +1326,7 @@ WHERE table_id = $1;
         old_sort_key_ids: Option<SortedColumnSet>,
         new_sort_key: &[&str],
         new_sort_key_ids: &SortedColumnSet,
-    ) -> Result<Partition, CasFailure<(Vec<String>, Option<SortedColumnSet>)>> {
+    ) -> Result<Partition, CasFailure<(Vec<String>, SortedColumnSet)>> {
         // These asserts are here to cacth bugs. They will be removed when we remove the sort_key
         // field from the Partition
         assert_eq!(
@@ -2214,7 +2214,7 @@ mod tests {
 
         assert_eq!(a.hash_id().unwrap(), &hash_id);
         // Test: sort_key_ids from partition_create_or_get_idempotent
-        assert!(a.sort_key_ids().unwrap().is_empty());
+        assert!(a.sort_key_ids().is_empty());
 
         // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent.
         let b = repos
@@ -2237,7 +2237,7 @@ mod tests {
         assert_eq!(table_partitions[0].hash_id().unwrap(), &hash_id);
 
         // Test: sort_key_ids from partition_create_or_get_idempotent
-        assert!(table_partitions[0].sort_key_ids().unwrap().is_empty());
+        assert!(table_partitions[0].sort_key_ids().is_empty());
     }
 
     #[tokio::test]
@@ -2289,7 +2289,7 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, sort_key_ids, new_file
             .expect("idempotent write should succeed");
 
         // Test: sort_key_ids from freshly insert with empty value
-        assert!(inserted_again.sort_key_ids().unwrap().is_empty());
+        assert!(inserted_again.sort_key_ids().is_empty());
 
         assert_eq!(partition, &inserted_again);
 

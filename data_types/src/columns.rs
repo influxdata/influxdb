@@ -462,6 +462,12 @@ where
     }
 }
 
+impl From<SortedColumnSet> for Vec<i64> {
+    fn from(val: SortedColumnSet) -> Self {
+        val.0.into_iter().map(|id| id.get()).collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;

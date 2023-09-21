@@ -90,7 +90,7 @@ assert_matches = "1.5"
 async-trait = "0.1"
 mutable_batch = { path = "../mutable_batch" }
 predicate = { path = "../predicate" }
-predicates = "3.0.3"
+predicates = "3.0.4"
 pretty_assertions = "1.4.0"
 proptest = { version = "1.2.0", default-features = false }
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }

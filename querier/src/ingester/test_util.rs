@@ -1,17 +1,17 @@
-use super::IngesterConnection;
+use super::{DynError, IngesterConnection};
 use crate::cache::namespace::CachedTable;
 use async_trait::async_trait;
 use data_types::NamespaceId;
 use datafusion::prelude::Expr;
 use parking_lot::Mutex;
-use schema::Schema as IOxSchema;
+use schema::Schema;
 use std::{any::Any, collections::HashSet, sync::Arc};
 use trace::span::Span;
 
 /// IngesterConnection for testing
 #[derive(Debug, Default)]
 pub struct MockIngesterConnection {
-    next_response: Mutex<Option<super::Result<Vec<super::IngesterPartition>>>>,
+    next_response: Mutex<Option<Result<Vec<super::IngesterPartition>, DynError>>>,
 }
 
 impl MockIngesterConnection {
@@ -22,7 +22,7 @@ impl MockIngesterConnection {
 
     /// Set next response for this connection.
     #[cfg(test)]
-    pub fn next_response(&self, response: super::Result<Vec<super::IngesterPartition>>) {
+    pub fn next_response(&self, response: Result<Vec<super::IngesterPartition>, DynError>) {
         *self.next_response.lock() = Some(response);
     }
 }
@@ -36,7 +36,7 @@ impl IngesterConnection for MockIngesterConnection {
         columns: Vec<String>,
         _filters: &[Expr],
         _span: Option<Span>,
-    ) -> super::Result<Vec<super::IngesterPartition>> {
+    ) -> Result<Vec<super::IngesterPartition>, DynError> {
         let Some(partitions) = self.next_response.lock().take() else {
             return Ok(vec![]);
         };
@@ -70,7 +70,7 @@ impl IngesterConnection for MockIngesterConnection {
                             .collect();
 
                         assert!(!batches.is_empty(), "Error: empty batches");
-                        let schema = IOxSchema::try_from(batches[0].schema()).unwrap();
+                        let schema = Schema::try_from(batches[0].schema()).unwrap();
                         super::IngesterChunk {
                             batches,
                             schema,

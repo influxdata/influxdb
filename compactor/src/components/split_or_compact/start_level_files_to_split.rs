@@ -233,6 +233,19 @@ pub fn linear_dist_ranges(
     // Our hypothetical regions are either linearly distributed, or small enough that the capacity spikes are still under max compact size.
     // Now we can attempt to consoliate regions of similar data density (or consolidate dissimilar regions up to max compact size).
     let mut ranges = Vec::with_capacity(split_count);
+
+    if split_count as i64 >= max_time - min_time {
+        // odd boundary case - we have very dense data.  Make a region per ns.
+        for t in min_time..max_time + 1 {
+            ranges.push(FileRange {
+                min: t,
+                max: t,
+                cap: cap / (max_time - min_time + 1) as usize,
+            });
+        }
+        return ranges;
+    }
+
     let mut consolidated_min_time: i64 = 0;
     let mut consolidated_max_time: i64 = 0;
     let mut consolidated_total_cap: usize = 0;
@@ -427,6 +440,47 @@ pub fn merge_small_l0_chains(
 
     // Put it back in the standard order.
     merged_chains.sort_by_key(|a| a[0].min_time);
+
+    merged_chains
+}
+
+// merge_l1_spanned_chains takes a vec of L0 chains, and a vec of L1 files.  Any pair of L0 chains that is
+// spanned by a single L1, are merged.
+// This is used when detecting previous vertical splitting, when we're deriving regions for the first time.
+// While compacting L0s to L1s, we must consider the existing L1s, so we don't create new L1s that overlap the
+// old L1s (an invariant violation).  So if two chains of L0s don't overlap each other, but both overlap the
+// same L1, we must consider them a single region.  Likely the first step will be split the L1 allowing them
+// to be separate regions, but for the initial region detection, we must consider them a single region.
+// That's what this function does.  Any L0 chains that overlap the same L1 are merged - regardless of their size.
+pub fn merge_l1_spanned_chains(
+    mut chains: Vec<Vec<ParquetFile>>,
+    l1s: &[ParquetFile],
+) -> Vec<Vec<ParquetFile>> {
+    chains.sort_by_key(|chain| chain[0].min_time);
+
+    let mut merged_chains: Vec<Vec<ParquetFile>> = Vec::with_capacity(chains.len());
+    let mut prior_chain_idx: i32 = -1;
+    let mut prior_l1_max_time: Option<Timestamp> = None;
+    for chain in &chains {
+        let this_chain_min = chain.iter().map(|f| f.min_time).min().unwrap();
+        let this_chain_max = chain.iter().map(|f| f.max_time).max().unwrap();
+
+        if prior_l1_max_time.is_some() && prior_l1_max_time.unwrap() >= this_chain_min {
+            // this chain is overlapped by an L1 that spans the prior chain and this one.  Merge them.
+            merged_chains[prior_chain_idx as usize].append(&mut chain.clone());
+        } else {
+            merged_chains.push(chain.to_vec());
+            prior_chain_idx += 1;
+        }
+
+        // If an L1 overlaps chain, and extends beyond it, we need to note it.  Since L1s cannot overlap, there will be
+        // at most one L1 that overlaps the end of this chain.
+        prior_l1_max_time = l1s
+            .iter()
+            .filter(|l1| l1.min_time <= this_chain_max && l1.max_time > this_chain_max)
+            .map(|l1| l1.max_time)
+            .max();
+    }
 
     merged_chains
 }

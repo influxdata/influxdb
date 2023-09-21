@@ -7,7 +7,7 @@ use merkle_search_tree::digest::RootHash;
 use observability_deps::tracing::error;
 use tokio::sync::{mpsc, oneshot};
 
-use super::actor::Op;
+use super::actor::{MerkleSnapshot, Op};
 
 /// A handle to an [`AntiEntropyActor`].
 ///
@@ -97,15 +97,43 @@ impl AntiEntropyHandle {
         }
     }
 
+    /// Send `name` to the MST actor to observe a new schema state.
+    ///
+    /// This method is the blocking variant of the non-blocking
+    /// [`AntiEntropyHandle::observe_update()`] that waits for `name` to be
+    /// successfully enqueued (blocking if the queue is full).
+    pub async fn observe_update_blocking(&self, name: NamespaceName<'static>) {
+        self.schema_tx
+            .send(name)
+            .await
+            .expect("mst actor not running");
+    }
+
     /// Return the current content hash ([`RootHash`]) describing the set of
     /// [`NamespaceSchema`] observed so far.
     ///
     /// [`NamespaceSchema`]: data_types::NamespaceSchema
-    pub(crate) async fn content_hash(&self) -> RootHash {
+    pub async fn content_hash(&self) -> RootHash {
         let (tx, rx) = oneshot::channel();
 
         self.op_tx
             .send(Op::ContentHash(tx))
+            .await
+            .expect("anti-entropy actor has stopped");
+
+        rx.await.expect("anti-entropy actor has stopped")
+    }
+
+    /// Obtain a [`MerkleSnapshot`] for the current Merkle Search Tree state.
+    ///
+    /// A [`MerkleSnapshot`] is a compact serialised representation of the MST
+    /// state.
+    #[allow(dead_code)]
+    pub(crate) async fn snapshot(&self) -> MerkleSnapshot {
+        let (tx, rx) = oneshot::channel();
+
+        self.op_tx
+            .send(Op::Snapshot(tx))
             .await
             .expect("anti-entropy actor has stopped");
 

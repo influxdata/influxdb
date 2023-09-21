@@ -470,7 +470,7 @@ pub struct Partition {
     /// For example, updating `A,B,C` to either `A,D,B,C` or `A,B,C,D`
     /// is legal. However, updating to `A,C,D,B` is not because the
     /// relative order of B and C have been reversed.
-    pub sort_key_ids: Option<SortedColumnSet>,
+    pub sort_key_ids: SortedColumnSet,
 
     /// The time at which the newest file of the partition is created
     pub new_file_at: Option<Timestamp>,
@@ -486,7 +486,7 @@ impl Partition {
         table_id: TableId,
         partition_key: PartitionKey,
         sort_key: Vec<String>,
-        sort_key_ids: Option<SortedColumnSet>,
+        sort_key_ids: SortedColumnSet,
         new_file_at: Option<Timestamp>,
     ) -> Self {
         let hash_id = PartitionHashId::new(table_id, &partition_key);
@@ -513,7 +513,7 @@ impl Partition {
         table_id: TableId,
         partition_key: PartitionKey,
         sort_key: Vec<String>,
-        sort_key_ids: Option<SortedColumnSet>,
+        sort_key_ids: SortedColumnSet,
         new_file_at: Option<Timestamp>,
     ) -> Self {
         Self {
@@ -550,21 +550,16 @@ impl Partition {
     }
 
     /// The sort_key_ids if present
-    pub fn sort_key_ids(&self) -> Option<&SortedColumnSet> {
-        self.sort_key_ids.as_ref()
+    pub fn sort_key_ids(&self) -> &SortedColumnSet {
+        &self.sort_key_ids
     }
 
-    /// The sort_key_ids if present and not empty
-    pub fn sort_key_ids_none_if_empty(&self) -> Option<SortedColumnSet> {
-        match self.sort_key_ids.as_ref() {
-            None => None,
-            Some(sort_key_ids) => {
-                if sort_key_ids.is_empty() {
-                    None
-                } else {
-                    Some(sort_key_ids.clone())
-                }
-            }
+    /// The sort_key_ids if not empty and None if empty
+    pub fn sort_key_ids_none_if_empty(&self) -> Option<&SortedColumnSet> {
+        if self.sort_key_ids.is_empty() {
+            None
+        } else {
+            Some(&self.sort_key_ids)
         }
     }
 }

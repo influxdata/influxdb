@@ -649,10 +649,19 @@ impl InfluxColumnType {
                 }
                 _ => false,
             },
-            Self::Field(_) | Self::Timestamp => {
+            Self::Field(_) => {
                 let default_type: ArrowDataType = self.into();
                 data_type == &default_type
             }
+            Self::Timestamp => match data_type {
+                ArrowDataType::Timestamp(TimeUnit::Nanosecond, None) => true,
+                ArrowDataType::Timestamp(TimeUnit::Nanosecond, Some(tz))
+                    if tz.as_ref() == "UTC" =>
+                {
+                    true
+                }
+                _ => false,
+            },
         }
     }
 }

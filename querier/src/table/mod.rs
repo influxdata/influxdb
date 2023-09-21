@@ -1,19 +1,27 @@
-use self::query_access::QuerierTableChunkPruner;
 use crate::{
     cache::{
         namespace::CachedTable,
         partition::{CachedPartition, PartitionRequest},
     },
-    ingester::{self, IngesterPartition},
+    ingester::{self, IngesterConnection, IngesterPartition},
     parquet::ChunkAdapter,
-    IngesterConnection,
+    CONCURRENT_CHUNK_CREATION_JOBS,
 };
-use data_types::{ColumnId, NamespaceId, ParquetFile, TableId, TransitionPartitionId};
+use data_types::{
+    ColumnId, NamespaceId, ParquetFile, TableId, TimestampMinMax, TransitionPartitionId,
+    MAX_NANO_TIME, MIN_NANO_TIME,
+};
 use datafusion::{error::DataFusionError, prelude::Expr};
-use futures::join;
-use iox_query::{provider, provider::ChunkPruner, QueryChunk};
+use futures::{join, StreamExt};
+use iox_query::{
+    chunk_statistics::create_chunk_statistics,
+    provider,
+    pruning::{prune_chunks, prune_summaries},
+    QueryChunk,
+};
 use observability_deps::tracing::debug;
-use schema::Schema;
+use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+use schema::{Schema, TIME_COLUMN_NAME};
 use snafu::{ResultExt, Snafu};
 use std::{
     collections::{HashMap, HashSet},
@@ -24,8 +32,9 @@ use tokio_util::sync::CancellationToken;
 use trace::span::{Span, SpanRecorder};
 use uuid::Uuid;
 
-pub use self::query_access::metrics::PruneMetrics;
+pub use self::metrics::PruneMetrics;
 
+mod metrics;
 mod query_access;
 
 #[cfg(test)]
@@ -35,7 +44,7 @@ mod test_util;
 #[allow(clippy::large_enum_variant)]
 pub enum Error {
     #[snafu(display("Error getting partitions from ingester: {}", source))]
-    GettingIngesterPartitions { source: ingester::Error },
+    GettingIngesterPartitions { source: ingester::DynError },
 
     #[snafu(display("Chunk pruning failed: {}", source))]
     ChunkPruning { source: provider::Error },
@@ -264,12 +273,35 @@ impl QuerierTable {
             )
             .await;
 
+        // prune partitons
+        let cached_partitions = self
+            .prune_partitions(
+                cached_partitions,
+                cached_table,
+                filters,
+                span_recorder.child_span("prune partitions"),
+            )
+            .await;
+        let parquet_files = parquet_files
+            .files
+            .iter()
+            .filter(|f| {
+                if cached_partitions.contains_key(&f.partition_id) {
+                    true
+                } else {
+                    self.prune_metrics
+                        .was_pruned_early(f.row_count as u64, f.file_size_bytes as u64);
+                    false
+                }
+            })
+            .cloned();
+
         // create parquet files
         let parquet_files = self
             .chunk_adapter
             .new_chunks(
                 Arc::clone(cached_table),
-                Arc::clone(&parquet_files.files),
+                parquet_files,
                 &cached_partitions,
                 span_recorder.child_span("new_chunks"),
             )
@@ -283,16 +315,12 @@ impl QuerierTable {
         let num_initial_parquet_file_chunks = parquet_file_chunks.len();
         debug!(num_chunks=%num_initial_parquet_file_chunks, "Fetched Parquet file chunks");
 
-        let pruned_parquet_file_chunks = self
-            .chunk_pruner()
-            .prune_chunks(
-                self.table_name(),
-                // use up-to-date schema
-                &cached_table.schema,
-                parquet_file_chunks,
-                filters,
-            )
-            .context(ChunkPruningSnafu)?;
+        let pruned_parquet_file_chunks = self.prune_chunks(
+            // use up-to-date schema
+            &cached_table.schema,
+            parquet_file_chunks,
+            filters,
+        );
         let num_final_parquet_file_chunks = pruned_parquet_file_chunks.len();
 
         // build final chunk list from ingester chunks + pruned parquet file chunks
@@ -331,7 +359,7 @@ impl QuerierTable {
         ingester_partitions: &[IngesterPartition],
         parquet_files: &[Arc<ParquetFile>],
         span: Option<Span>,
-    ) -> HashMap<TransitionPartitionId, Arc<CachedPartition>> {
+    ) -> Vec<Arc<CachedPartition>> {
         let span_recorder = SpanRecorder::new(span);
 
         let mut should_cover: HashMap<TransitionPartitionId, HashSet<ColumnId>> =
@@ -371,8 +399,7 @@ impl QuerierTable {
                 sort_key_should_cover: cover.into_iter().collect(),
             })
             .collect();
-        let partitions = self
-            .chunk_adapter
+        self.chunk_adapter
             .catalog_cache()
             .partition()
             .get(
@@ -380,16 +407,99 @@ impl QuerierTable {
                 requests,
                 span_recorder.child_span("fetch partitions"),
             )
-            .await;
-
-        partitions.into_iter().map(|p| (p.id.clone(), p)).collect()
+            .await
     }
 
-    /// Get a chunk pruner that can be used to prune chunks retrieved via [`chunks`](Self::chunks)
-    pub fn chunk_pruner(&self) -> Arc<dyn ChunkPruner> {
-        Arc::new(QuerierTableChunkPruner::new(Arc::clone(
-            &self.prune_metrics,
-        )))
+    async fn prune_partitions(
+        &self,
+        partitions: Vec<Arc<CachedPartition>>,
+        cached_table: &Arc<CachedTable>,
+        filters: &[Expr],
+        span: Option<Span>,
+    ) -> HashMap<TransitionPartitionId, Arc<CachedPartition>> {
+        let span_recorder = SpanRecorder::new(span);
+
+        let projections = partitions
+            .iter()
+            .map(|p| {
+                let mut projection = p
+                    .column_ranges
+                    .keys()
+                    .filter_map(|col| cached_table.column_id_map_rev.get(col).copied())
+                    .collect::<Vec<_>>();
+
+                // "time" is always required, otherwise DataFusion will be confused since it is marked as "not NULL"
+                if !p.column_ranges.contains_key(TIME_COLUMN_NAME) {
+                    if let Some(col_id) = cached_table.column_id_map_rev.get(TIME_COLUMN_NAME) {
+                        projection.push(*col_id);
+                    }
+                }
+
+                projection.sort();
+                projection.into()
+            })
+            .collect::<Vec<Box<[ColumnId]>>>();
+
+        let unique_projections = projections.iter().cloned().collect::<HashSet<_>>();
+        let mut unique_projections = unique_projections.into_iter().collect::<Vec<_>>();
+        unique_projections.sort();
+        let mut rng = StdRng::seed_from_u64(cached_table.id.get() as u64);
+        unique_projections.shuffle(&mut rng);
+
+        let projection_to_schema = futures::stream::iter(unique_projections)
+            .map(|column_ids| {
+                let span_recorder = &span_recorder;
+                let cached_table = Arc::clone(cached_table);
+                async move {
+                    let schema = self
+                        .chunk_adapter
+                        .catalog_cache()
+                        .projected_schema()
+                        .get(
+                            cached_table,
+                            column_ids.clone(),
+                            span_recorder.child_span("cache GET projected schema"),
+                        )
+                        .await;
+                    (column_ids, schema)
+                }
+            })
+            .buffer_unordered(CONCURRENT_CHUNK_CREATION_JOBS)
+            .collect::<HashMap<_, _>>()
+            .await;
+
+        let summaries = partitions
+            .iter()
+            .zip(projections)
+            .map(|(p, projection)| {
+                let schema = projection_to_schema
+                    .get(&projection)
+                    .expect("just gathered all projections");
+
+                // provide "all time" fall back for time column because DataFusion doesn't like if we set this to NULL
+                let ts_min_max = (!p.column_ranges.contains_key(TIME_COLUMN_NAME))
+                    .then(|| TimestampMinMax::new(MIN_NANO_TIME, MAX_NANO_TIME));
+
+                let stats = create_chunk_statistics(1, schema, ts_min_max, &p.column_ranges);
+                (Arc::new(stats), Arc::clone(schema.inner()))
+            })
+            .collect::<Vec<_>>();
+
+        match prune_summaries(&cached_table.schema, &summaries, filters) {
+            Ok(mask) => partitions
+                .into_iter()
+                .zip(mask)
+                .filter(|(_p, m)| *m)
+                .map(|(p, _m)| (p.id.clone(), p))
+                .collect(),
+            Err(e) => {
+                debug!(
+                    %e,
+                    "cannot prune partitions",
+                );
+                partitions.into_iter().map(|p| (p.id.clone(), p)).collect()
+            }
+        }
     }
 
     /// Get partitions from ingesters.
@@ -471,6 +581,40 @@ impl QuerierTable {
         Ok(partitions)
     }
 
+    fn prune_chunks(
+        &self,
+        table_schema: &Schema,
+        chunks: Vec<Arc<dyn QueryChunk>>,
+        filters: &[Expr],
+    ) -> Vec<Arc<dyn QueryChunk>> {
+        let chunks = match prune_chunks(table_schema, &chunks, filters) {
+            Ok(keeps) => {
+                assert_eq!(chunks.len(), keeps.len());
+                chunks
+                    .into_iter()
+                    .zip(keeps.iter())
+                    .filter_map(|(chunk, keep)| {
+                        if *keep {
+                            self.prune_metrics.was_not_pruned(chunk.as_ref());
+                            Some(chunk)
+                        } else {
+                            self.prune_metrics.was_pruned_late(chunk.as_ref());
+                            None
+                        }
+                    })
+                    .collect()
+            }
+            Err(reason) => {
+                for chunk in &chunks {
+                    self.prune_metrics.could_not_prune(reason, chunk.as_ref())
+                }
+                chunks
+            }
+        };
+
+        chunks
+    }
+
     /// clear the parquet file cache
     #[cfg(test)]
     fn clear_parquet_cache(&self) {
@@ -509,6 +653,7 @@ mod tests {
     };
     use arrow::datatypes::DataType;
     use arrow_util::assert_batches_eq;
+    use chrono::{Datelike, TimeZone, Utc};
     use data_types::{ChunkId, ColumnType};
     use datafusion::{
         prelude::{col, lit},
@@ -520,7 +665,8 @@ mod tests {
     };
     use iox_query::{chunk_statistics::ColumnRange, exec::IOxSessionContext};
     use iox_tests::{TestCatalog, TestParquetFileBuilder, TestTable};
-    use schema::{builder::SchemaBuilder, InfluxFieldType, TIME_COLUMN_NAME};
+    use metric::{Observation, RawReporter};
+    use schema::{builder::SchemaBuilder, InfluxFieldType, TIME_COLUMN_NAME, TIME_DATA_TIMEZONE};
     use std::sync::Arc;
     use test_helpers::maybe_start_logging;
     use trace::RingBufferTraceCollector;
@@ -842,6 +988,93 @@ mod tests {
         assert_eq!(
             chunks[1].id().get().as_u128(),
             file1.parquet_file.id.get() as u128
+        );
+
+        // check metrics
+        let mut reporter = RawReporter::default();
+        catalog.metric_registry().report(&mut reporter);
+        assert_eq!(
+            reporter
+                .metric("query_pruner_chunks")
+                .unwrap()
+                .observation(&[("result", "pruned_early")])
+                .unwrap(),
+            &Observation::U64Counter(1),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_default_date_partitioning() {
+        maybe_start_logging();
+
+        let t1_ns = 0i64;
+        let t2_ns = 100_000_000_000_000i64;
+        let t1 = Utc.timestamp_nanos(t1_ns);
+        let t2 = Utc.timestamp_nanos(t2_ns);
+        assert_eq!(t1.year(), t2.year());
+        assert_eq!(t1.month(), t2.month());
+        assert_ne!(t1.day(), t2.day());
+        println!("t1: {t1}, t2: {t2}");
+
+        let catalog = TestCatalog::new();
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
+        let table = ns.create_table("table").await;
+        let partition_a = table
+            .create_partition(&t1.format("%Y-%m-%d").to_string())
+            .await;
+        let partition_b = table
+            .create_partition(&t2.format("%Y-%m-%d").to_string())
+            .await;
+        make_schema(&table).await;
+
+        let _file1 = partition_a
+            .create_parquet_file(
+                TestParquetFileBuilder::default()
+                    .with_line_protocol(&format!("table foo=1 {}", t1_ns))
+                    .with_min_time(t1_ns)
+                    .with_max_time(t1_ns),
+            )
+            .await;
+        let file2 = partition_b
+            .create_parquet_file(
+                TestParquetFileBuilder::default()
+                    .with_line_protocol(&format!("table foo=2 {}", t2_ns))
+                    .with_min_time(t2_ns)
+                    .with_max_time(t2_ns),
+            )
+            .await;
+
+        let querier_table = TestQuerierTable::new(&catalog, &table).await;
+
+        let filters = vec![
+            col(TIME_COLUMN_NAME).gt_eq(lit(ScalarValue::TimestampNanosecond(
+                // use some cutoff that is in the middle of the second day
+                Some(t2_ns - 1_000),
+                TIME_DATA_TIMEZONE(),
+            ))),
+        ];
+        let mut chunks = querier_table
+            .chunks_with_predicate_and_projection(&filters, None)
+            .await
+            .unwrap();
+        chunks.sort_by_key(|c| c.chunk_type().to_owned());
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].chunk_type(), "parquet");
+        assert_eq!(
+            chunks[0].id().get().as_u128(),
+            file2.parquet_file.id.get() as u128
+        );
+
+        // check metrics
+        let mut reporter = RawReporter::default();
+        catalog.metric_registry().report(&mut reporter);
+        assert_eq!(
+            reporter
+                .metric("query_pruner_chunks")
+                .unwrap()
+                .observation(&[("result", "pruned_early")])
+                .unwrap(),
+            &Observation::U64Counter(1),
         );
     }
 

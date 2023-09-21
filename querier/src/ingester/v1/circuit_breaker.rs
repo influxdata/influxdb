@@ -21,7 +21,7 @@ use pin_project::{pin_project, pinned_drop};
 use rand::rngs::mock::StepRng;
 use trace::{ctx::SpanContext, span::SpanRecorder};
 
-use crate::ingester::flight_client::{Error as FlightClientError, IngesterFlightClient, QueryData};
+use super::flight_client::{Error as FlightClientError, IngesterFlightClient, QueryData};
 
 /// Wrapper around a [`Future`] that signals if the future was cancelled or not.
 #[pin_project(PinnedDrop)]

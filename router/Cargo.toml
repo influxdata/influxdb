@@ -20,7 +20,7 @@ hashbrown = { workspace = true }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
 iox_time = { path = "../iox_time" }
-merkle-search-tree = { version = "0.6.0", features = ["tracing"] }
+merkle-search-tree = { version = "0.7.0", features = ["tracing"] }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
@@ -36,7 +36,7 @@ service_grpc_object_store = { path = "../service_grpc_object_store" }
 service_grpc_schema = { path = "../service_grpc_schema" }
 service_grpc_table = { path = "../service_grpc_table" }
 sharder = { path = "../sharder" }
-smallvec = "1.11.0"
+smallvec = "1.11.1"
 thiserror = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 tonic = { workspace = true }

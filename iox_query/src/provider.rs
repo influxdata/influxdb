@@ -86,18 +86,6 @@ impl From<Error> for DataFusionError {
     }
 }
 
-/// Something that can prune chunks based on their metadata
-pub trait ChunkPruner: Sync + Send + std::fmt::Debug {
-    /// prune `chunks`, if possible, based on predicate.
-    fn prune_chunks(
-        &self,
-        table_name: &str,
-        table_schema: &Schema,
-        chunks: Vec<Arc<dyn QueryChunk>>,
-        filters: &[Expr],
-    ) -> Result<Vec<Arc<dyn QueryChunk>>>;
-}
-
 /// Builds a `ChunkTableProvider` from a series of `QueryChunk`s
 /// and ensures the schema across the chunks is compatible and
 /// consistent.
