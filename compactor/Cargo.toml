@@ -41,4 +41,4 @@ assert_matches = "1"
 compactor_test_utils = { path = "../compactor_test_utils" }
 iox_tests = { path = "../iox_tests" }
 test_helpers = { path = "../test_helpers" }
-insta = { version = "1.31.0", features = ["yaml"] }
+insta = { version = "1.32.0", features = ["yaml"] }
