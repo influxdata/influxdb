@@ -237,6 +237,8 @@ pub mod internal_implementation_details {
     pub use super::buffer_tree::*;
     pub use super::dml_payload::*;
     pub use super::dml_sink::*;
+    pub use super::ingest_state::*;
+    pub use super::init::wal_replay::*;
     pub use super::partition_iter::*;
     pub use super::persist::*;
 }

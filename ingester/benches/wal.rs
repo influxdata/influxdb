@@ -12,7 +12,7 @@ use ingester::internal_implementation_details::{
     write::{
         PartitionedData as PayloadPartitionedData, TableData as PayloadTableData, WriteOperation,
     },
-    DmlError, DmlSink, IngestOp, PartitionData, PartitionIter,
+    DmlError, DmlSink, IngestOp, IngestState, PartitionData, PartitionIter,
 };
 use wal::SequencedWalOp;
 
@@ -66,9 +66,15 @@ fn wal_replay_bench(c: &mut Criterion) {
                 let persist = MockPersistQueue::default();
 
                 // Replay the wal into the NOP.
-                ingester::replay(&wal, &sink, Arc::new(persist), &metric::Registry::default())
-                    .await
-                    .expect("WAL replay error");
+                ingester::internal_implementation_details::replay(
+                    &wal,
+                    &sink,
+                    Arc::new(persist),
+                    Arc::new(IngestState::default()),
+                    &metric::Registry::default(),
+                )
+                .await
+                .expect("WAL replay error");
             },
             // Use the WAL for one test invocation only, and re-create a new one
             // for the next iteration.
