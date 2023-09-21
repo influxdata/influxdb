@@ -20,4 +20,4 @@ bytes = "1.5"
 [build-dependencies] # In alphabetical order
 tonic-build = { workspace = true }
 prost-build = "0.11"
-pbjson-build = "0.5"
+pbjson-build = "0.6"
