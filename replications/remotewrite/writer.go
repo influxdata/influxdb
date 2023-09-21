@@ -248,6 +248,9 @@ func PostWrite(ctx context.Context, config *influxdb.ReplicationHTTPConfig, data
 		err = invalidResponseCode(res.StatusCode)
 	}
 
+	// Close Idle connections and prevent reaching file descriptor limit
+	conf.HTTPClient.CloseIdleConnections()
+
 	// Must return the response so that the status code and headers can be inspected by the caller, even if the response
 	// was not 204.
 	return res, err
