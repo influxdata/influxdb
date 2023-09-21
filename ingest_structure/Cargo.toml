@@ -25,7 +25,7 @@ serde_json = "1.0.91"
 serde_urlencoded = "0.7"
 snafu = "0.7"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-tonic = "0.8"
+tonic = "0.9"
 trace = { path = "../trace/" }
 workspace-hack = { path = "../workspace-hack"}
 
