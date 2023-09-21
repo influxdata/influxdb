@@ -1541,7 +1541,7 @@ func TestService(t *testing.T) {
 		})
 
 		t.Run("tasks", func(t *testing.T) {
-			t.Run("successfuly creates", func(t *testing.T) {
+			t.Run("successfully creates", func(t *testing.T) {
 				testfileRunner(t, "testdata/tasks.yml", func(t *testing.T, template *Template) {
 					orgID := platform.ID(9000)
 
@@ -1608,7 +1608,7 @@ func TestService(t *testing.T) {
 		})
 
 		t.Run("telegrafs", func(t *testing.T) {
-			t.Run("successfuly creates", func(t *testing.T) {
+			t.Run("successfully creates", func(t *testing.T) {
 				testfileRunner(t, "testdata/telegraf.yml", func(t *testing.T, template *Template) {
 					orgID := platform.ID(9000)
 
