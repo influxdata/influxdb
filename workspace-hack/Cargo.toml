@@ -60,7 +60,7 @@ petgraph = { version = "0.6" }
 phf_shared = { version = "0.11" }
 predicates = { version = "3" }
 proptest = { version = "1", default-features = false, features = ["std"] }
-prost = { version = "0.11" }
+prost = { version = "0.12" }
 prost-types = { version = "0.11" }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_core = { version = "0.6", default-features = false, features = ["std"] }
@@ -127,7 +127,7 @@ once_cell = { version = "1", features = ["parking_lot"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
 petgraph = { version = "0.6" }
 phf_shared = { version = "0.11" }
-prost = { version = "0.11" }
+prost = { version = "0.12" }
 prost-types = { version = "0.11" }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_core = { version = "0.6", default-features = false, features = ["std"] }

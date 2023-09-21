@@ -34,7 +34,7 @@ parking_lot = "0.12.1"
 parquet_file = { version = "0.1.0", path = "../parquet_file" }
 pin-project = "1.1.3"
 predicate = { version = "0.1.0", path = "../predicate" }
-prost = { version = "0.11.9", default-features = false, features = ["std"] }
+prost = { version = "0.12.1", default-features = false, features = ["std"] }
 rand = "0.8.5"
 schema = { version = "0.1.0", path = "../schema" }
 service_grpc_catalog = { version = "0.1.0", path = "../service_grpc_catalog" }
