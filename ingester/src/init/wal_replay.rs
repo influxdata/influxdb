@@ -1,4 +1,6 @@
-use std::{fmt::Debug, sync::Arc, time::Instant};
+use std::fmt::Debug;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
@@ -13,9 +15,14 @@ use crate::{
     dml_payload::write::{PartitionedData, TableData, WriteOperation},
     dml_payload::IngestOp,
     dml_sink::{DmlError, DmlSink},
+    ingest_state::{IngestState, IngestStateError},
     partition_iter::PartitionIter,
     persist::{drain_buffer::persist_partitions, queue::PersistQueue},
 };
+
+/// This duration controls how long to wait between reads of the ingest state
+/// when WAL op replay is blocked on an unhealthy ingest state.
+const OP_REPLAY_BACKPRESSURE_WAIT_DURATION: Duration = Duration::from_millis(500);
 
 /// Errors returned when replaying the write-ahead log.
 #[derive(Debug, Error)]
@@ -103,6 +110,7 @@ pub async fn replay<W, T, P>(
     wal: &W,
     sink: &T,
     persist: P,
+    ingest_state: Arc<IngestState>,
     metrics: &metric::Registry,
 ) -> Result<Option<SequenceNumber>, WalReplayError>
 where
@@ -180,8 +188,14 @@ where
         );
 
         // Replay this segment file, tracking successful replay in the metric
-        let replay_result =
-            replay_file(reader, sink, &ok_op_count_metric, &empty_op_count_metric).await;
+        let replay_result = replay_file(
+            reader,
+            sink,
+            &ok_op_count_metric,
+            &empty_op_count_metric,
+            &ingest_state,
+        )
+        .await;
         if replay_result.is_ok() {
             file_count_success_metric.inc(1);
         }
@@ -282,6 +296,7 @@ async fn replay_file<T, F>(
     sink: &T,
     ok_op_count_metric: &U64Counter,
     empty_op_count_metric: &U64Counter,
+    ingest_state: &Arc<IngestState>,
 ) -> Result<Option<SequenceNumber>, WalReplayError>
 where
     T: DmlSink,
@@ -349,6 +364,20 @@ where
                 None,
             );
 
+            loop {
+                match ingest_state.read_with_exceptions([IngestStateError::DiskFull]) {
+                    Ok(_) => break,
+                    Err(e) => {
+                        warn!(
+                            ingest_state_error=%e,
+                            wait_duration=?OP_REPLAY_BACKPRESSURE_WAIT_DURATION,
+                            "ingest state is unhealthy, waiting for ingest state to recover before replaying wal op",
+                        );
+                        tokio::time::sleep(OP_REPLAY_BACKPRESSURE_WAIT_DURATION).await;
+                    }
+                }
+            }
+
             debug!(
                 ?op,
                 ?op_min_sequence_number,
@@ -373,8 +402,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::VecDeque;
-    use std::sync::Arc;
+    use std::{collections::VecDeque, sync::Arc};
 
     use assert_matches::assert_matches;
     use async_trait::async_trait;
@@ -382,6 +410,7 @@ mod tests {
     use itertools::Itertools;
     use metric::{assert_counter, Attributes};
     use parking_lot::Mutex;
+    use test_helpers::timeout::FutureTimeout;
     use wal::Wal;
 
     use crate::{
@@ -572,10 +601,18 @@ mod tests {
             partitions: vec![Arc::new(Mutex::new(partition))],
         };
 
+        let ingest_state = Arc::new(IngestState::default());
         let metrics = metric::Registry::default();
-        let max_sequence_number = replay(&wal, &mock_iter, Arc::clone(&persist), &metrics)
-            .await
-            .expect("failed to replay WAL");
+        let max_sequence_number = replay(
+            &wal,
+            &mock_iter,
+            Arc::clone(&persist),
+            Arc::clone(&ingest_state),
+            &metrics,
+        )
+        .with_timeout_panic(Duration::from_secs(2))
+        .await
+        .expect("failed to replay WAL");
 
         assert_eq!(max_sequence_number, Some(SequenceNumber::new(43)));
 
@@ -794,10 +831,16 @@ mod tests {
         };
         let metrics = metric::Registry::default();
 
-        let max_sequence_number = replay(&wal, &mock_iter, Arc::clone(&persist), &metrics)
-            .await
-            .expect("failed to replay WAL")
-            .expect("should receive max sequence number");
+        let max_sequence_number = replay(
+            &wal,
+            &mock_iter,
+            Arc::clone(&persist),
+            Arc::new(IngestState::default()),
+            &metrics,
+        )
+        .await
+        .expect("failed to replay WAL")
+        .expect("should receive max sequence number");
         assert_eq!(max_sequence_number, SequenceNumber::new(3));
         assert!(wal.closed_segment_ids.lock().is_empty());
 
@@ -854,7 +897,14 @@ mod tests {
         };
         let metrics = metric::Registry::default();
 
-        let replay_result = replay(&wal, &mock_iter, Arc::clone(&persist), &metrics).await;
+        let replay_result = replay(
+            &wal,
+            &mock_iter,
+            Arc::clone(&persist),
+            Arc::new(IngestState::default()),
+            &metrics,
+        )
+        .await;
         assert_matches!(
             replay_result,
             Err(WalReplayError::ReadEntry(_, Some(id))) => {
@@ -868,5 +918,88 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![SegmentId::new(2), SegmentId::new(3)]
         );
+    }
+
+    #[tokio::test]
+    async fn test_replay_respects_ingest_state() {
+        let metrics = metric::Registry::default();
+        let metric = metrics.register_metric::<U64Counter>("foo", "bar");
+        let reader = MockSegmentedWalOpBatchReader::new(SegmentId::new(1)).with_entry_results([
+            Ok(vec![arbitrary_sequenced_wal_op(SequenceNumber::new(1))]),
+            Ok(vec![arbitrary_sequenced_wal_op(SequenceNumber::new(2))]),
+        ]);
+        let mock_sink = Arc::new(MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]));
+        // Create a blocked ingest state
+        let ingest_state = Arc::new(IngestState::default());
+        assert!(ingest_state.set(IngestStateError::PersistSaturated));
+
+        // Kick off the replay task, which should block attempting to apply
+        // any operations until the ingest state is healthy
+        let replay_task = {
+            let mock_sink = Arc::clone(&mock_sink);
+            let ingest_state = Arc::clone(&ingest_state);
+
+            tokio::spawn(async move {
+                replay_file(
+                    reader,
+                    &mock_sink,
+                    &metric.recorder(&[]),
+                    &metric.recorder(&[]),
+                    &ingest_state,
+                )
+                .await
+            })
+        };
+
+        // Sleep the test thread to yield to the file replay and give it a
+        // chance to spin, before ensuring the handle has not finished and
+        // no writes were applied to the sink.
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        assert!(!replay_task.is_finished());
+        assert!(mock_sink.get_calls().is_empty());
+
+        // Unblock the ingest state and assert file replay proceeds to complete
+        // with the sink having received the expected number of calls
+        assert!(ingest_state.unset(IngestStateError::PersistSaturated));
+        assert_matches!(replay_task
+            .with_timeout_panic(Duration::from_secs(2))
+            .await
+            .expect("replay task failed to join"),
+            Ok(Some(id)) => {
+                assert_eq!(id, SequenceNumber::new(2));
+            }
+        );
+        assert_eq!(mock_sink.get_calls().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_replay_continues_when_disk_full() {
+        let metrics = metric::Registry::default();
+        let metric = metrics.register_metric::<U64Counter>("foo", "bar");
+        let reader = MockSegmentedWalOpBatchReader::new(SegmentId::new(1)).with_entry_results([
+            Ok(vec![arbitrary_sequenced_wal_op(SequenceNumber::new(1))]),
+            Ok(vec![arbitrary_sequenced_wal_op(SequenceNumber::new(2))]),
+        ]);
+        let mock_sink = MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]);
+
+        // Construct an IngestState with `DiskFull` and ensure that the file is replayed.
+        let ingest_state = Arc::new(IngestState::default());
+        ingest_state.set(IngestStateError::DiskFull);
+
+        assert_matches!(
+            replay_file(
+                reader,
+                &mock_sink,
+                &metric.recorder(&[]),
+                &metric.recorder(&[]),
+                &Arc::clone(&ingest_state),
+            )
+            .with_timeout_panic(Duration::from_secs(2))
+            .await,
+            Ok(Some(id))=> {
+                assert_eq!(id, SequenceNumber::new(2));
+            }
+        );
+        assert_eq!(mock_sink.get_calls().len(), 2);
     }
 }

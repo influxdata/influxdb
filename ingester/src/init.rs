@@ -4,9 +4,10 @@ use gossip::{NopDispatcher, TopicInterests};
 use gossip_parquet_file::tx::ParquetFileTx;
 /// This needs to be pub for the benchmarks but should not be used outside the crate.
 #[cfg(feature = "benches")]
-pub use wal_replay::*;
+pub mod wal_replay;
 
 mod graceful_shutdown;
+#[cfg(not(feature = "benches"))]
 mod wal_replay;
 
 use std::{net::SocketAddr, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
@@ -462,10 +463,15 @@ where
     ));
 
     // Replay the WAL log files, if any.
-    let max_sequence_number =
-        wal_replay::replay(&wal, &buffer, Arc::clone(&persist_handle), &metrics)
-            .await
-            .map_err(|e| InitError::WalReplay(e.into()))?;
+    let max_sequence_number = wal_replay::replay(
+        &wal,
+        &buffer,
+        Arc::clone(&persist_handle),
+        Arc::clone(&ingest_state),
+        &metrics,
+    )
+    .await
+    .map_err(|e| InitError::WalReplay(e.into()))?;
 
     // Build the chain of DmlSink that forms the write path.
     let write_path = DmlSinkInstrumentation::new(
