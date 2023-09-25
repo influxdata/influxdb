@@ -1363,7 +1363,7 @@ dependencies = [
  "iox_time",
  "observability_deps",
  "once_cell",
- "ordered-float 3.9.1",
+ "ordered-float 4.1.0",
  "paste",
  "percent-encoding",
  "proptest",
@@ -4004,9 +4004,9 @@ dependencies = [
 
 [[package]]
 name = "ordered-float"
-version = "3.9.1"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a54938017eacd63036332b4ae5c8a49fc8c0c1d6d629893057e4f13609edd06"
+checksum = "e3a540f3e3b3d7929c884e46d093d344e4e5bdeed54d08bf007df50c93cc85d5"
 dependencies = [
  "num-traits",
 ]
