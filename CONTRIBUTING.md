@@ -106,6 +106,8 @@ Before you contribute to InfluxDB, please sign our [Individual Contributor Licen
 
 ## How to build InfluxDB from source
 
+_**⚠️ WARNING**_ Currently `x86_64`, aka `amd64` is the only supported build platform. 
+
 ### Install Go
 
 InfluxDB requires Go 1.20.
