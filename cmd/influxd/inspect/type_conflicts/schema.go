@@ -125,10 +125,10 @@ func (s Schema) WriteConflictsFile(filename string) error {
 
 func (s Schema) encodeSchema(filename string) (rErr error) {
 	schemaFile, err := os.Create(filename)
-	defer errors2.Capture(&rErr, schemaFile.Close)()
 	if err != nil {
 		return fmt.Errorf("unable to create schema file: %w", err)
 	}
+	defer errors2.Capture(&rErr, schemaFile.Close)()
 	return s.Encode(schemaFile)
 }
 
