@@ -7,7 +7,7 @@ orbs:
 parameters:
   cross-container-tag:
     type: string
-    default: go1.20.1-7254b98bc4080dce9c237b698e868e4e0567cee7
+    default: go1.20.10-latest
 
   workflow:
     type: string
