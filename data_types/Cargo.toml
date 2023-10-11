@@ -14,7 +14,7 @@ iox_time = { path = "../iox_time" }
 generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
 once_cell = "1"
-ordered-float = "3"
+ordered-float = "4"
 schema = { path = "../schema" }
 sha2 = "0.10"
 sqlx = { version = "0.7.1", features = ["runtime-tokio-rustls", "postgres", "uuid"] }
