@@ -14,6 +14,7 @@ const (
 	SlackType     = "slack"
 	PagerDutyType = "pagerduty"
 	HTTPType      = "http"
+	SMTPType	  = "smtp"
 	TelegramType  = "telegram"
 )
 
@@ -21,6 +22,7 @@ var typeToEndpoint = map[string]func() influxdb.NotificationEndpoint{
 	SlackType:     func() influxdb.NotificationEndpoint { return &Slack{} },
 	PagerDutyType: func() influxdb.NotificationEndpoint { return &PagerDuty{} },
 	HTTPType:      func() influxdb.NotificationEndpoint { return &HTTP{} },
+	SMTPType:      func() influxdb.NotificationEndpoint { return &SMTP{} },
 	TelegramType:  func() influxdb.NotificationEndpoint { return &Telegram{} },
 }
 
