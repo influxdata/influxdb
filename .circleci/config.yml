@@ -771,7 +771,7 @@ jobs:
             docker push quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
       - run:
           name: Run the tests
-          command: API_KEY=${MONITOR_CI_API_KEY} MONITOR_CI_BRANCH="master" OSS_SHA=${CIRCLE_SHA1} RUN_WORKFLOW="build_oss" ./scripts/ci/run-monitor-ci-tests.bash
+          command: API_KEY=${MONITOR_CI_API_KEY} MONITOR_CI_BRANCH="release/OSS" OSS_SHA=${CIRCLE_SHA1} RUN_WORKFLOW="build_oss" ./scripts/ci/run-monitor-ci-tests.bash
       - store_artifacts:
           path: monitor-ci/test-artifacts/results/build-oss-image
           destination: test_artifacts/results/build-oss-image
