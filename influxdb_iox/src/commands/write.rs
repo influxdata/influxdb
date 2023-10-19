@@ -1,5 +1,8 @@
 use futures::{stream::BoxStream, StreamExt};
-use influxdb_iox_client::{connection::Connection, write};
+use influxdb_iox_client::{
+    connection::Connection,
+    write::{self, DatabaseName},
+};
 use observability_deps::tracing::{debug, info};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
@@ -150,8 +153,9 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         .with_max_concurrent_uploads(max_concurrent_uploads)
         .with_max_request_payload_size_bytes(Some(max_request_payload_size_bytes));
 
+    let database = DatabaseName::split_org_db(namespace).context(ClientSnafu)?;
     let total_bytes = client
-        .write_lp_stream(namespace, lp_stream)
+        .write_lp_stream(database, lp_stream)
         .await
         .context(ClientSnafu)?;
 
