@@ -501,13 +501,13 @@ func TestMatchingRules(t *testing.T) {
 			exp: true,
 		},
 		{
-			name:     "Empty tag rule matches filterTags",
+			name:     "Empty tag rule does not match filterTags",
 			tagRules: []notification.TagRule{},
 			filterTags: []influxdb.Tag{
 				{Key: "a", Value: "b"},
 				{Key: "c", Value: "X"},
 			},
-			exp: true,
+			exp: false,
 		},
 		{
 			name: "Non empty tag rule matches empty filter tags",
