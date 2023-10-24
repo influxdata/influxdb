@@ -7,6 +7,7 @@
 package reads
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -47,7 +48,7 @@ func newLimitArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	}
 }
 
-func newWindowFirstArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowFirstArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	if window.IsZero() {
 		return newLimitArrayCursor(cur)
 	}
@@ -73,7 +74,7 @@ func newWindowFirstArrayCursor(cur cursors.Cursor, window interval.Window) curso
 	}
 }
 
-func newWindowLastArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowLastArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	if window.IsZero() {
 		return newLimitArrayCursor(cur)
 	}
@@ -99,7 +100,7 @@ func newWindowLastArrayCursor(cur cursors.Cursor, window interval.Window) cursor
 	}
 }
 
-func newWindowCountArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowCountArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
@@ -122,7 +123,7 @@ func newWindowCountArrayCursor(cur cursors.Cursor, window interval.Window) curso
 	}
 }
 
-func newWindowSumArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
+func newWindowSumArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
@@ -137,12 +138,12 @@ func newWindowSumArrayCursor(cur cursors.Cursor, window interval.Window) (cursor
 	default:
 		return nil, &errors2.Error{
 			Code: errors2.EInvalid,
-			Msg:  fmt.Sprintf("unsupported input type for sum aggregate: %s", arrayCursorType(cur)),
+			Msg:  fmt.Sprintf("unsupported input type for sum aggregate: %s. field : %s", arrayCursorType(cur), ctx.Value("field").(string)),
 		}
 	}
 }
 
-func newWindowMinArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowMinArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
@@ -159,7 +160,7 @@ func newWindowMinArrayCursor(cur cursors.Cursor, window interval.Window) cursors
 	}
 }
 
-func newWindowMaxArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowMaxArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
@@ -176,7 +177,7 @@ func newWindowMaxArrayCursor(cur cursors.Cursor, window interval.Window) cursors
 	}
 }
 
-func newWindowMeanArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
+func newWindowMeanArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
@@ -191,7 +192,7 @@ func newWindowMeanArrayCursor(cur cursors.Cursor, window interval.Window) (curso
 	default:
 		return nil, &errors2.Error{
 			Code: errors2.EInvalid,
-			Msg:  fmt.Sprintf("unsupported input type for mean aggregate: %s", arrayCursorType(cur)),
+			Msg:  fmt.Sprintf("unsupported input type for mean aggregate: %s, field : %s", arrayCursorType(cur), ctx.Value("field").(string)),
 		}
 	}
 }
