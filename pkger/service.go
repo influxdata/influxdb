@@ -1183,13 +1183,37 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID platfor
 }
 
 func (s *Service) dryRunNotificationRules(ctx context.Context, orgID platform.ID, rules map[string]*stateRule, endpoints map[string]*stateEndpoint) error {
+	existingRules, _, err := s.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
+		OrgID: &orgID,
+	})
+	if err != nil {
+		return internalErr(err)
+	}
+
 	for _, rule := range rules {
 		rule.orgID = orgID
 		var existing influxdb.NotificationRule
 		if rule.ID() != 0 {
 			existing, _ = s.ruleSVC.FindNotificationRuleByID(ctx, rule.ID())
+		} else {
+			for _, existingRule := range existingRules {
+				if rule.parserRule.Name() == existingRule.GetName() {
+					existing = existingRule
+					break
+				}
+			}
+		}
+		if IsNew(rule.stateStatus) && existing != nil {
+			rule.stateStatus = StateStatusExists
 		}
 		rule.existing = existing
+		if existing != nil {
+			existingEndpoint, err := s.endpointSVC.FindNotificationEndpointByID(ctx, existing.GetEndpointID())
+			if err != nil {
+				return internalErr(err)
+			}
+			rule.existingEndpoint = existingEndpoint
+		}
 	}
 
 	for _, r := range rules {

@@ -31,6 +31,13 @@ var (
 		Code: errors.EInvalid,
 		Msg:  "provided notification rule ID has invalid format",
 	}
+
+	// ErrNotificationRuleNameExists is used when notification rule
+	// with the specified name already exists.
+	ErrNotificationRuleNameExists = &errors.Error{
+		Code: errors.EConflict,
+		Msg:  "notification rule with specified name already exists",
+	}
 )
 
 // RuleService is an implementation of the influxdb CheckService
@@ -298,6 +305,10 @@ func (s *RuleService) PutNotificationRule(ctx context.Context, nr influxdb.Notif
 }
 
 func (s *RuleService) putNotificationRule(ctx context.Context, tx kv.Tx, nr influxdb.NotificationRule) error {
+	if err := s.nameConflict(ctx, tx, nr); err != nil {
+		return err
+	}
+
 	encodedID, _ := nr.GetID().Encode()
 
 	v, err := json.Marshal(nr)
@@ -496,5 +507,21 @@ func (s *RuleService) deleteNotificationRule(ctx context.Context, tx kv.Tx, r in
 		return InternalNotificationRuleStoreError(err)
 	}
 
+	return nil
+}
+
+func (s *RuleService) nameConflict(ctx context.Context, tx kv.Tx, nr influxdb.NotificationRule) error {
+	orgID := nr.GetOrgID()
+	nrs, _, err := s.findNotificationRules(ctx, tx, influxdb.NotificationRuleFilter{OrgID: &orgID})
+	if err != nil {
+		return err
+	}
+	id := nr.GetID()
+	name := nr.GetName()
+	for _, r := range nrs {
+		if name == r.GetName() && id != r.GetID() {
+			return ErrNotificationRuleNameExists
+		}
+	}
 	return nil
 }

@@ -1180,8 +1180,9 @@ type stateRule struct {
 
 	associatedEndpoint *stateEndpoint
 
-	parserRule *notificationRule
-	existing   influxdb.NotificationRule
+	parserRule       *notificationRule
+	existing         influxdb.NotificationRule
+	existingEndpoint influxdb.NotificationEndpoint
 }
 
 func (r *stateRule) ID() platform.ID {
@@ -1212,7 +1213,7 @@ func (r *stateRule) diffRule() DiffNotificationRule {
 		New: DiffNotificationRuleValues{
 			Name:            r.parserRule.Name(),
 			Description:     r.parserRule.description,
-			EndpointName:    r.endpointTemplateName(),
+			EndpointName:    r.endpointName(),
 			EndpointID:      SafeID(r.endpointID()),
 			EndpointType:    r.endpointType(),
 			Every:           r.parserRule.every.String(),
@@ -1230,9 +1231,12 @@ func (r *stateRule) diffRule() DiffNotificationRule {
 	sum.Old = &DiffNotificationRuleValues{
 		Name:         r.existing.GetName(),
 		Description:  r.existing.GetDescription(),
-		EndpointName: r.existing.GetName(),
 		EndpointID:   SafeID(r.existing.GetEndpointID()),
 		EndpointType: r.existing.Type(),
+	}
+
+	if r.existingEndpoint != nil {
+		sum.Old.EndpointName = r.existingEndpoint.GetName()
 	}
 
 	assignBase := func(b rule.Base) {
@@ -1282,6 +1286,13 @@ func (r *stateRule) endpointID() platform.ID {
 func (r *stateRule) endpointTemplateName() string {
 	if r.associatedEndpoint != nil && r.associatedEndpoint.parserEndpoint != nil {
 		return r.associatedEndpoint.parserEndpoint.MetaName()
+	}
+	return ""
+}
+
+func (r *stateRule) endpointName() string {
+	if r.associatedEndpoint != nil && r.associatedEndpoint.parserEndpoint != nil {
+		return r.associatedEndpoint.parserEndpoint.Name()
 	}
 	return ""
 }
