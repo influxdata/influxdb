@@ -20,3 +20,8 @@ updates:
       - dependency-name: "parquet"
       - dependency-name: "datafusion"
       - dependency-name: "datafusion-*"
+# Before switching to rust-based IOx, influxdb was a Go project which
+# dependabot tracked. After the switch, dependabot would issue alerts for go
+# files that no longer exist. Tell dependabot to ignore "gomod"
+ignore:
+  - package-ecosystem: "gomod"
