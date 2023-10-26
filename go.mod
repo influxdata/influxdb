@@ -29,7 +29,7 @@ require (
 	github.com/google/go-jsonnet v0.17.0
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe
-	github.com/influxdata/flux v0.194.3
+	github.com/influxdata/flux v0.194.4
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influx-cli/v2 v2.2.1-0.20221028161653-3285a03e9e28
 	github.com/influxdata/influxql v1.1.1-0.20211004132434-7e7d61973256
