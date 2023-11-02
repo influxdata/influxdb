@@ -28,4 +28,5 @@ updates:
   # files that no longer exist. Tell dependabot to ignore "gomod"
   - package-ecosystem: "gomod"
     directory: "/"
-    ignore: "*"
+    ignore:
+      - dependency-name: "*"
