@@ -2564,6 +2564,65 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb3"
+version = "0.1.0"
+dependencies = [
+ "backtrace",
+ "clap",
+ "clap_blocks",
+ "console-subscriber",
+ "dotenvy",
+ "influxdb3_server",
+ "iox_time",
+ "ioxd_common",
+ "libc",
+ "metric",
+ "num_cpus",
+ "object_store",
+ "observability_deps",
+ "once_cell",
+ "panic_logging",
+ "parking_lot",
+ "parquet_file",
+ "thiserror",
+ "tikv-jemalloc-ctl",
+ "tikv-jemalloc-sys",
+ "tokio",
+ "tokio-util",
+ "tokio_metrics_bridge",
+ "trace",
+ "trace_exporters",
+ "trogging",
+ "uuid",
+]
+
+[[package]]
+name = "influxdb3_server"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "async-trait",
+ "authz",
+ "futures",
+ "hyper",
+ "influxdb-line-protocol",
+ "metric",
+ "metric_exporters",
+ "observability_deps",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "tonic 0.9.2",
+ "tower",
+ "trace",
+ "trace_exporters",
+ "trace_http",
+]
+
+[[package]]
 name = "influxdb_influxql_parser"
 version = "0.1.0"
 dependencies = [

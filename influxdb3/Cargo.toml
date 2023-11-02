@@ -1,0 +1,63 @@
+[package]
+name = "influxdb3"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap_blocks = { path = "../clap_blocks" }
+influxdb3_server = { path = "../influxdb3_server" }
+iox_time = { path = "../iox_time" }
+ioxd_common = { path = "../ioxd_common"}
+metric = { path = "../metric" }
+object_store = { workspace = true }
+observability_deps = { path = "../observability_deps" }
+panic_logging = { path = "../panic_logging" }
+parquet_file = { path = "../parquet_file" }
+tokio_metrics_bridge = { path = "../tokio_metrics_bridge" }
+trace = { path = "../trace/" }
+trace_exporters = { path = "../trace_exporters" }
+trogging = { path = "../trogging", default-features = false, features = ["clap"] }
+
+# Crates.io dependencies, in alphabetical order
+backtrace = "0.3"
+clap = { version = "4", features = ["derive", "env", "string"] }
+console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
+dotenvy = "0.15.7"
+libc = { version = "0.2" }
+num_cpus = "1.16.0"
+once_cell = { version = "1.18", features = ["parking_lot"] }
+parking_lot = "0.12.1"
+thiserror = "1.0.48"
+tikv-jemalloc-ctl = { version = "0.5.4", optional = true }
+tikv-jemalloc-sys = { version = "0.5.4", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
+tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "io-std"] }
+tokio-util = { version = "0.7.9" }
+uuid = { version = "1", features = ["v4"] }
+
+[features]
+default = ["jemalloc_replacing_malloc"]
+
+azure = ["clap_blocks/azure"] # Optional Azure Object store support
+gcp = ["clap_blocks/gcp"] # Optional GCP object store support
+aws = ["clap_blocks/aws"] # Optional AWS / S3 object store support
+pprof = ["ioxd_common/pprof"] # Optional http://localhost:8080/debug/pprof/profile support
+heappy = ["ioxd_common/heappy"] # Optional http://localhost:8080/debug/pproc/alloc support
+
+# Enable tokio_console support (https://github.com/tokio-rs/console)
+#
+# Requires enabling trace level tracing events for [tokio,runtime].
+tokio_console = ["console-subscriber", "tokio/tracing", "observability_deps/release_max_level_trace"]
+
+# heappy is an optional feature; Not on by default as it
+# runtime overhead on all allocations (calls to malloc).
+# Cargo cannot currently implement mutually exclusive features so let's force every build
+# to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
+jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl"]
+
+# Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
+# linting
+clippy = []
