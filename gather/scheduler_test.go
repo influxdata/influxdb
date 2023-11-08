@@ -3,6 +3,7 @@ package gather
 import (
 	"context"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -77,3 +79,46 @@ const sampleRespSmall = `
 # TYPE go_goroutines gauge
 go_goroutines 36
 `
+
+func TestMetricsToPoints(t *testing.T) {
+	const overflow = 3
+	const goodPoints = 2
+	tags := map[string]string{"one": "first", "two": "second", "three": "third"}
+	fields := map[string]interface{}{"first_field": 32.2}
+
+	ms := MetricsSlice{
+		{
+			Name:      "a",
+			Tags:      tags,
+			Fields:    fields,
+			Timestamp: time.Now(),
+			Type:      dto.MetricType_GAUGE,
+		},
+		{
+			Name:      "b",
+			Tags:      tags,
+			Fields:    fields,
+			Timestamp: time.Now(),
+			Type:      dto.MetricType_GAUGE,
+		}, {
+			Name:      strings.Repeat("c", models.MaxKeyLength+overflow),
+			Tags:      tags,
+			Fields:    fields,
+			Timestamp: time.Now(),
+			Type:      dto.MetricType_GAUGE,
+		},
+		{
+			Name:      "d",
+			Tags:      tags,
+			Fields:    fields,
+			Timestamp: time.Now(),
+			Type:      dto.MetricType_GAUGE,
+		},
+	}
+	ps, err := ms.Points()
+	assert.ErrorContains(t, err, "max key length exceeded", "MetricSlice.Points did not have a 'max key length exceeded' error")
+	assert.Equal(t, goodPoints, len(ps), "wrong number of Points returned from MetricSlice.Points")
+	for _, p := range ps {
+		assert.NotNil(t, p, "nil Point object returned from MetricSlice.Points")
+	}
+}

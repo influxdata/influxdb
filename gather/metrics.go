@@ -31,14 +31,14 @@ type MetricsSlice []Metrics
 
 // Points convert the MetricsSlice to model.Points
 func (ms MetricsSlice) Points() (models.Points, error) {
-	ps := make([]models.Point, len(ms))
-	for mi, m := range ms {
+	ps := make([]models.Point, 0, len(ms))
+	for _, m := range ms {
 		point, err := models.NewPoint(m.Name, models.NewTags(m.Tags), m.Fields, m.Timestamp)
 		if err != nil {
 			return ps, err
 		}
 
-		ps[mi] = point
+		ps = append(ps, point)
 	}
 	return ps, nil
 }
