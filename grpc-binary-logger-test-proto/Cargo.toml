@@ -11,5 +11,5 @@ tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [build-dependencies]
-prost-build = "0.11"
+prost-build = "0.12"
 tonic-build = { workspace = true }
