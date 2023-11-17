@@ -11,6 +11,7 @@ license.workspace = true
 clap_blocks = { path = "../clap_blocks" }
 influxdb3_server = { path = "../influxdb3_server" }
 iox_time = { path = "../iox_time" }
+iox_query = { path = "../iox_query" }
 ioxd_common = { path = "../ioxd_common"}
 metric = { path = "../metric" }
 object_store = { workspace = true }

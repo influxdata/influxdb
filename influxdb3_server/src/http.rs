@@ -2,24 +2,26 @@
 
 use std::convert::Infallible;
 use std::fmt::Debug;
-use std::net::SocketAddr;
 use std::num::NonZeroI32;
 use std::str::Utf8Error;
 use std::sync::Arc;
+use arrow::record_batch::RecordBatch;
+use arrow::util::pretty;
+use bytes::{Bytes, BytesMut};
+use data_types::NamespaceName;
+use futures::StreamExt;
 use thiserror::Error;
-use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
+use hyper::{Body, Method, Request, Response, StatusCode};
+use hyper::header::CONTENT_ENCODING;
 use hyper::http::HeaderValue;
 use hyper::server::conn::{AddrIncoming, AddrStream};
 use tokio_util::sync::CancellationToken;
 use observability_deps::tracing::{debug, error, info};
 use serde::Deserialize;
-use tonic::async_trait;
 use authz::http::AuthorizationHeaderExtension;
 use tower::Layer;
-use trace::TraceCollector;
-use trace_http::ctx::TraceHeaderParser;
 use trace_http::tower::TraceLayer;
-use crate::{CommonServerState, QueryExecutor, WriteBuffer};
+use crate::{CommonServerState, QueryExecutor, write_buffer, WriteBuffer};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -50,6 +52,10 @@ pub enum Error {
     /// Decoding a gzip-compressed stream of data failed.
     #[error("error decoding gzip stream: {0}")]
     InvalidGzip(std::io::Error),
+
+    /// NamespaceName validation error.
+    #[error("error validating namespace name: {0}")]
+    InvalidNamespaceName(#[from] data_types::NamespaceNameError),
 
     /// Failure to decode the provided line protocol.
     #[error("failed to parse line protocol: {0}")]
@@ -83,6 +89,30 @@ pub enum Error {
     /// Hyper serving error
     #[error("error serving http: {0}")]
     ServingHttp(#[from] hyper::Error),
+
+    /// Missing parameters for query
+    #[error("missing query paramters 'db' and 'q'")]
+    MissingQueryParams,
+
+    /// MIssing parameters for write
+    #[error("missing query paramter 'db'")]
+    MissingWriteParams,
+
+    /// Serde decode error
+    #[error("serde error: {0}")]
+    Serde(#[from] serde_urlencoded::de::Error),
+
+    /// Arrow error
+    #[error("arrow error: {0}")]
+    Arrow(#[from] arrow::error::ArrowError),
+
+    /// Hyper error
+    #[error("hyper http error: {0}")]
+    Hyper(#[from] hyper::http::Error),
+
+    /// WriteBuffer error
+    #[error("write buffer error: {0}")]
+    WriteBuffer(#[from] write_buffer::Error),
 }
 
 impl Error {
@@ -104,14 +134,16 @@ pub(crate) struct HttpApi<W, Q> {
     common_state: CommonServerState,
     write_buffer: Arc<W>,
     query_executor: Arc<Q>,
+    max_request_bytes: usize,
 }
 
 impl<W, Q> HttpApi<W, Q> {
-    pub(crate) fn new(common_state: CommonServerState, write_buffer: Arc<W>, query_executor: Arc<Q>) -> Self {
+    pub(crate) fn new(common_state: CommonServerState, write_buffer: Arc<W>, query_executor: Arc<Q>, max_request_bytes: usize) -> Self {
         Self {
             common_state,
             write_buffer,
             query_executor,
+            max_request_bytes,
         }
     }
 }
@@ -123,13 +155,37 @@ where
 {
 
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let response_body = "write ok";
-        Ok(Response::new(Body::from(response_body.to_string())))
+        let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
+        let params: WriteParams = serde_urlencoded::from_str(query)?;
+        info!("write_lp to {}", params.db);
+
+
+        let body = self.read_body(req).await?;
+        let body = std::str::from_utf8(&body).map_err(Error::NonUtf8Body)?;
+
+        let database = NamespaceName::new(params.db)?;
+
+        self.write_buffer.write_lp(database, body).await?;
+
+        Ok(Response::new(Body::from("{}")))
     }
 
     async fn query_sql(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let response_body = "query ok";
-        Ok(Response::new(Body::from(response_body.to_string())))
+        let query = req.uri().query().ok_or(Error::MissingQueryParams)?;
+        let params: QuerySqlParams = serde_urlencoded::from_str(query)?;
+
+        info!("query_sql {:?}", params);
+
+        let result = self.query_executor.query(&params.db, &params.q, None, None).await.unwrap();
+
+        let batches: Vec<RecordBatch> = result.collect::<Vec<datafusion::common::Result<RecordBatch>>>().await.into_iter().map(|b| b.unwrap()).collect();
+        let pretty_string = format!("{}", pretty::pretty_format_batches(&batches)?);
+
+        // Create a response with the pretty-printed string as the body.
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", "text/plain; charset=utf-8")
+            .body(Body::from(pretty_string))?) // Handle this unwrap in production.
     }
 
     fn health(&self) -> Result<Response<Body>> {
@@ -140,10 +196,78 @@ where
     fn handle_metrics(&self) -> Result<Response<Body>> {
         let mut body: Vec<u8> = Default::default();
         let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
-        self.common_state.metric_registry().report(&mut reporter);
+        self.common_state.metrics.report(&mut reporter);
 
         Ok(Response::new(Body::from(body)))
     }
+
+    /// Parse the request's body into raw bytes, applying the configured size
+    /// limits and decoding any content encoding.
+    async fn read_body(&self, req: hyper::Request<Body>) -> Result<Bytes> {
+        let encoding = req
+            .headers()
+            .get(&CONTENT_ENCODING)
+            .map(|v| v.to_str().map_err(Error::NonUtf8ContentHeader))
+            .transpose()?;
+        let ungzip = match encoding {
+            None | Some("identity") => false,
+            Some("gzip") => true,
+            Some(v) => return Err(Error::InvalidContentEncoding(v.to_string())),
+        };
+
+        let mut payload = req.into_body();
+
+        let mut body = BytesMut::new();
+        while let Some(chunk) = payload.next().await {
+            let chunk = chunk.map_err(Error::ClientHangup)?;
+            // limit max size of in-memory payload
+            if (body.len() + chunk.len()) > self.max_request_bytes {
+                return Err(Error::RequestSizeExceeded(self.max_request_bytes));
+            }
+            body.extend_from_slice(&chunk);
+        }
+        let body = body.freeze();
+
+        // If the body is not compressed, return early.
+        if !ungzip {
+            return Ok(body);
+        }
+
+        // Unzip the gzip-encoded content
+        use std::io::Read;
+        let decoder = flate2::read::GzDecoder::new(&body[..]);
+
+        // Read at most max_request_bytes bytes to prevent a decompression bomb
+        // based DoS.
+        //
+        // In order to detect if the entire stream ahs been read, or truncated,
+        // read an extra byte beyond the limit and check the resulting data
+        // length - see the max_request_size_truncation test.
+        let mut decoder = decoder.take(self.max_request_bytes as u64 + 1);
+        let mut decoded_data = Vec::new();
+        decoder
+            .read_to_end(&mut decoded_data)
+            .map_err(Error::InvalidGzip)?;
+
+        // If the length is max_size+1, the body is at least max_size+1 bytes in
+        // length, and possibly longer, but truncated.
+        if decoded_data.len() > self.max_request_bytes {
+            return Err(Error::RequestSizeExceeded(self.max_request_bytes));
+        }
+
+        Ok(decoded_data.into())
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct QuerySqlParams {
+    pub(crate) db: String,
+    pub(crate) q: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct WriteParams {
+    pub(crate) db: String,
 }
 
 pub(crate) async fn serve<W: WriteBuffer, Q: QueryExecutor>(http_server: Arc<HttpApi<W, Q>>, shutdown: CancellationToken) -> Result<()> {

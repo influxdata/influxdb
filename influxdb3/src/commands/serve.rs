@@ -7,6 +7,7 @@ use clap_blocks::{
     object_store::{make_object_store, ObjectStoreConfig},
     socket_addr::SocketAddr,
 };
+use iox_query::exec::{Executor, ExecutorConfig};
 use observability_deps::tracing::*;
 use object_store::DynObjectStore;
 use iox_time::{SystemProvider, TimeProvider};
@@ -16,11 +17,12 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+use std::collections::HashMap;
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
-use influxdb3_server::{CommonServerState, DatabaseName, QueryExecutor, QueryResult, serve, Server, WriteBuffer};
-use ioxd_common::reexport::tonic::async_trait;
+use influxdb3_server::{CommonServerState, query_executor::QueryExecutorImpl, serve, Server, WriteBuffer};
+use influxdb3_server::write_buffer::WriteBufferImpl;
 use panic_logging::SendPanicsToTracing;
 use trace_exporters::TracingConfig;
 use trogging::cli::LoggingConfig;
@@ -103,6 +105,16 @@ pub struct Config {
     /// tracing options
     #[clap(flatten)]
     pub(crate) tracing_config: TracingConfig,
+
+    /// DataFusion config.
+    #[clap(
+    long = "datafusion-config",
+    env = "INFLUXDB_IOX_DATAFUSION_CONFIG",
+    default_value = "",
+    value_parser = parse_datafusion_config,
+    action
+    )]
+    pub datafusion_config: HashMap<String, String>,
 }
 
 #[cfg(all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")))]
@@ -191,16 +203,16 @@ pub async fn command(config: Config) -> Result<()> {
 
     info!(%num_threads, "Creating shared query executor");
     let parquet_store = ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-    // let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
-    //     num_threads,
-    //     target_query_partitions: num_threads,
-    //     object_stores: [&parquet_store_real, &parquet_store_scratchpad]
-    //         .into_iter()
-    //         .map(|store| (store.id(), Arc::clone(store.object_store())))
-    //         .collect(),
-    //     metric_registry: Arc::clone(&metrics),
-    //     mem_pool_size: querier_config.exec_mem_pool_bytes.bytes(),
-    // }));
+    let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
+        num_threads,
+        target_query_partitions: num_threads,
+        object_stores: [&parquet_store]
+            .into_iter()
+            .map(|store| (store.id(), Arc::clone(store.object_store())))
+            .collect(),
+        metric_registry: Arc::clone(&metrics),
+        mem_pool_size: config.exec_mem_pool_bytes.bytes(),
+    }));
 
     let trace_header_parser = TraceHeaderParser::new()
         .with_jaeger_trace_context_header_name(
@@ -210,32 +222,44 @@ pub async fn command(config: Config) -> Result<()> {
             config.tracing_config.traces_jaeger_debug_name
         );
 
-    let common_state = CommonServerState::new(metrics, trace_exporter, trace_header_parser, *config.http_bind_address);
-    let write_buffer = WriteBufferImpl{};
-    let query_executor = QueryExecutorImpl{};
+    let common_state = CommonServerState::new(Arc::clone(&metrics), trace_exporter, trace_header_parser, *config.http_bind_address);
+    let catalog = Arc::new(influxdb3_server::catalog::Catalog::new());
+    let write_buffer = Arc::new(WriteBufferImpl::new(Arc::clone(&catalog), Arc::clone(&object_store)));
+    let query_executor = QueryExecutorImpl::new(catalog,Arc::clone(&write_buffer), Arc::clone(&exec), Arc::clone(&metrics), Arc::new(config.datafusion_config), 10);
 
-    let server = Server::new(common_state, Arc::new(write_buffer), Arc::new(query_executor));
+    let server = Server::new(common_state, Arc::clone(&write_buffer), Arc::new(query_executor), config.max_http_request_size);
     serve(server, frontend_shutdown).await?;
 
     Ok(())
 }
 
-#[derive(Debug)]
-struct WriteBufferImpl {}
-
-#[async_trait]
-impl WriteBuffer for WriteBufferImpl {
-    async fn write_lp(&self, database: DatabaseName<'static>, lp: &str) -> influxdb3_server::Result<()> {
-        Ok(())
+fn parse_datafusion_config(
+    s: &str,
+) -> Result<HashMap<String, String>, Box<dyn std::error::Error + Send + Sync + 'static>> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Ok(HashMap::with_capacity(0));
     }
-}
 
-#[derive(Debug)]
-struct QueryExecutorImpl {}
-
-#[async_trait]
-impl QueryExecutor for QueryExecutorImpl {
-    async fn query(&self, database: DatabaseName<'static>, q: &str) -> influxdb3_server::Result<QueryResult> {
-        todo!()
+    let mut out = HashMap::new();
+    for part in s.split(',') {
+        let kv = part.trim().splitn(2, ':').collect::<Vec<_>>();
+        match kv.as_slice() {
+            [key, value] => {
+                let key_owned = key.trim().to_owned();
+                let value_owned = value.trim().to_owned();
+                let existed = out.insert(key_owned, value_owned).is_some();
+                if existed {
+                    return Err(format!("key '{key}' passed multiple times").into());
+                }
+            }
+            _ => {
+                return Err(
+                    format!("Invalid key value pair - expected 'KEY:VALUE' got '{s}'").into(),
+                );
+            }
+        }
     }
+
+    Ok(out)
 }

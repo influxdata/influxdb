@@ -8,23 +8,39 @@ license.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arrow = { workspace = true, features = ["prettyprint"] }
-async-trait = "0.1"
 authz = { path = "../authz", features = ["http"] }
-futures = "0.3.28"
-hyper = "0.14"
+bytes = "1.5"
+datafusion_util = { path = "../datafusion_util" }
+data_types = { path = "../data_types" }
+iox_catalog = { path = "../iox_catalog" }
+iox_query = { path = "../iox_query" }
 influxdb-line-protocol = { path = "../influxdb_line_protocol" }
+ingest_structure = { path = "../ingest_structure" }
+object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
 metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }
+schema = { path = "../schema" }
+service_common = { path = "../service_common" }
+service_grpc_flight = { path = "../service_grpc_flight" }
+trace = { path = "../trace/" }
+trace_exporters = { path = "../trace_exporters" }
+trace_http = { path = "../trace_http" }
+tracker = { path = "../tracker" }
+
+arrow = { workspace = true, features = ["prettyprint"] }
+chrono = "0.4"
+datafusion = { workspace = true }
+async-trait = "0.1"
+futures = "0.3.28"
+hyper = "0.14"
+parking_lot = "0.11.1"
 thiserror = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 tokio-util = { version = "0.7.9" }
 tonic = { workspace = true }
-trace = { path = "../trace/" }
-trace_exporters = { path = "../trace_exporters" }
-trace_http = { path = "../trace_http" }
 serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0.107"
 serde_urlencoded = "0.7.0"
 tower = "0.4.13"
+flate2 = "1.0.27"

@@ -9,6 +9,7 @@ use std::{
     convert::TryFrom,
     ops::Deref,
 };
+use serde::{Deserialize, Serialize};
 
 /// Unique ID for a `Column`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
@@ -223,7 +224,7 @@ impl TryFrom<&gossip::v1::Column> for ColumnSchema {
 
 /// The column data type
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash, sqlx::Type, Serialize, Deserialize)]
 #[repr(i16)]
 pub enum ColumnType {
     I64 = 1,
