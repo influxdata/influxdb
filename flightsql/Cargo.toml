@@ -19,5 +19,5 @@ iox_query = { path = "../iox_query" }
 bytes = "1.5"
 snafu = "0.7"
 once_cell = { version = "1", default-features = false }
-prost = "0.11"
+prost = "0.12"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

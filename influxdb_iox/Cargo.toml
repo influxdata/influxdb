@@ -35,7 +35,7 @@ observability_deps = { path = "../observability_deps" }
 panic_logging = { path = "../panic_logging" }
 parquet_file = { path = "../parquet_file" }
 parquet_to_line_protocol = { path = "../parquet_to_line_protocol" }
-prost = { version = "0.11" }
+prost = { version = "0.12" }
 iox_query = { path = "../iox_query" }
 schema = { path = "../schema" }
 iox_time = { path = "../iox_time" }

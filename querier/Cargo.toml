@@ -31,7 +31,7 @@ parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 pin-project = "1.1"
 predicate = { path = "../predicate" }
-prost = { version = "0.11" }
+prost = { version = "0.12" }
 rand = "0.8.3"
 service_common = { path = "../service_common" }
 schema = { path = "../schema" }

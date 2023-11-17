@@ -15,7 +15,7 @@ datafusion-proto = { workspace = true }
 flatbuffers = "23.5.26"
 pbjson = "0.6"
 predicate = { path = "../predicate" }
-prost = "0.11"
+prost = "0.12"
 query_functions = { path = "../query_functions" }
 serde = { version = "1.0", features = ["derive"] }
 snafu = "0.7"
