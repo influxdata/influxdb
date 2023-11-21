@@ -10,7 +10,7 @@ async-trait = "0.1.73"
 futures = "0.3.28"
 hashbrown.workspace = true
 metric = { version = "0.1.0", path = "../metric" }
-prost = "0.11.9"
+prost = "0.12.3"
 rand = "0.8.5"
 thiserror = "1.0.48"
 tokio = { version = "1.32.0", features = ["net", "io-util", "time", "rt", "sync", "macros"] }

@@ -18,7 +18,7 @@ generated_types = { path = "../generated_types" }
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
-prost = "0.11"
+prost = "0.12"
 
 [[bench]]
 name = "write_lp"

@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-prost = "0.11"
+prost = "0.12"
 tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 

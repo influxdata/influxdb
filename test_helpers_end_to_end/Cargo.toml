@@ -26,7 +26,7 @@ nix = { version = "0.27", default-features = false, features = ["signal"] }
 observability_deps = { path = "../observability_deps" }
 once_cell = { version = "1.18", features = ["parking_lot"] }
 parking_lot = "0.12"
-prost = "0.11"
+prost = "0.12"
 rand = "0.8.3"
 regex = "1.9"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }

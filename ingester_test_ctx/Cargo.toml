@@ -26,7 +26,7 @@ mutable_batch_pb = { version = "0.1.0", path = "../mutable_batch_pb" }
 object_store = { workspace = true }
 observability_deps = { version = "0.1.0", path = "../observability_deps" }
 parquet_file = { version = "0.1.0", path = "../parquet_file" }
-prost = { version = "0.11.9", default-features = false, features = ["std"] }
+prost = { version = "0.12.3", default-features = false, features = ["std"] }
 tempfile = { version = "3.8.0" }
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 tokio = { version = "1.32", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
