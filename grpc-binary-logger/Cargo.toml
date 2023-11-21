@@ -27,5 +27,5 @@ tokio-stream = { version = "0.1", features = ["net"] }
 assert_matches = "1"
 
 [build-dependencies]
-prost-build = "0.11"
+prost-build = "0.12"
 tonic-build = { workspace = true }

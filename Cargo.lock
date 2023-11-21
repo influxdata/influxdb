@@ -281,7 +281,7 @@ dependencies = [
  "futures",
  "once_cell",
  "paste",
- "prost",
+ "prost 0.11.9",
  "tokio",
  "tonic 0.9.2",
 ]
@@ -1078,8 +1078,8 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2895653b4d9f1538a83970077cb01dfc77a4810524e51a110944688e916b18e"
 dependencies = [
- "prost",
- "prost-types",
+ "prost 0.11.9",
+ "prost-types 0.11.9",
  "tonic 0.9.2",
  "tracing-core",
 ]
@@ -1097,7 +1097,7 @@ dependencies = [
  "hdrhistogram",
  "humantime",
  "parking_lot",
- "prost-types",
+ "prost-types 0.11.9",
  "serde",
  "serde_json",
  "thread_local",
@@ -1573,7 +1573,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "object_store",
- "prost",
+ "prost 0.11.9",
 ]
 
 [[package]]
@@ -1851,7 +1851,7 @@ dependencies = [
  "iox_query",
  "observability_deps",
  "once_cell",
- "prost",
+ "prost 0.11.9",
  "snafu",
  "workspace-hack",
 ]
@@ -2037,8 +2037,8 @@ dependencies = [
  "pbjson 0.6.0",
  "pbjson-build",
  "pbjson-types",
- "prost",
- "prost-build",
+ "prost 0.11.9",
+ "prost-build 0.12.3",
  "serde",
  "tonic 0.9.2",
  "tonic-build",
@@ -2086,8 +2086,8 @@ dependencies = [
  "futures",
  "hashbrown 0.14.0",
  "metric",
- "prost",
- "prost-build",
+ "prost 0.11.9",
+ "prost-build 0.12.3",
  "rand",
  "test_helpers",
  "thiserror",
@@ -2160,8 +2160,8 @@ dependencies = [
  "http-body",
  "hyper",
  "pin-project",
- "prost",
- "prost-build",
+ "prost 0.11.9",
+ "prost-build 0.12.3",
  "tokio",
  "tokio-stream",
  "tonic 0.9.2",
@@ -2174,9 +2174,9 @@ dependencies = [
 name = "grpc-binary-logger-proto"
 version = "0.1.0"
 dependencies = [
- "prost",
- "prost-build",
- "prost-types",
+ "prost 0.11.9",
+ "prost-build 0.12.3",
+ "prost-types 0.11.9",
  "tonic 0.9.2",
  "tonic-build",
  "workspace-hack",
@@ -2186,8 +2186,8 @@ dependencies = [
 name = "grpc-binary-logger-test-proto"
 version = "0.1.0"
 dependencies = [
- "prost",
- "prost-build",
+ "prost 0.11.9",
+ "prost-build 0.12.3",
  "tonic 0.9.2",
  "tonic-build",
  "workspace-hack",
@@ -2643,7 +2643,7 @@ dependencies = [
  "predicates",
  "pretty_assertions",
  "proptest",
- "prost",
+ "prost 0.11.9",
  "rustyline",
  "schema",
  "serde",
@@ -2682,7 +2682,7 @@ dependencies = [
  "generated_types",
  "influxdb-line-protocol",
  "insta",
- "prost",
+ "prost 0.11.9",
  "rand",
  "reqwest",
  "schema",
@@ -2701,7 +2701,7 @@ dependencies = [
  "futures-util",
  "generated_types",
  "observability_deps",
- "prost",
+ "prost 0.11.9",
  "tonic 0.9.2",
  "workspace-hack",
 ]
@@ -2812,7 +2812,7 @@ dependencies = [
  "pin-project",
  "predicate",
  "proptest",
- "prost",
+ "prost 0.11.9",
  "rand",
  "schema",
  "service_grpc_catalog",
@@ -2872,8 +2872,8 @@ dependencies = [
  "pbjson 0.6.0",
  "pbjson-build",
  "predicate",
- "prost",
- "prost-build",
+ "prost 0.11.9",
+ "prost-build 0.12.3",
  "query_functions",
  "serde",
  "snafu",
@@ -2906,7 +2906,7 @@ dependencies = [
  "object_store",
  "observability_deps",
  "parquet_file",
- "prost",
+ "prost 0.11.9",
  "tempfile",
  "test_helpers",
  "tokio",
@@ -3732,7 +3732,7 @@ dependencies = [
  "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
- "prost",
+ "prost 0.11.9",
 ]
 
 [[package]]
@@ -4125,7 +4125,7 @@ dependencies = [
  "observability_deps",
  "parquet",
  "pbjson-types",
- "prost",
+ "prost 0.11.9",
  "rand",
  "schema",
  "snafu",
@@ -4199,8 +4199,8 @@ checksum = "bdbb7b706f2afc610f3853550cdbbf6372fd324824a087806bd4480ea4996e24"
 dependencies = [
  "heck",
  "itertools 0.10.5",
- "prost",
- "prost-types",
+ "prost 0.11.9",
+ "prost-types 0.11.9",
 ]
 
 [[package]]
@@ -4213,8 +4213,8 @@ dependencies = [
  "chrono",
  "pbjson 0.5.1",
  "pbjson-build",
- "prost",
- "prost-build",
+ "prost 0.11.9",
+ "prost-build 0.11.9",
  "serde",
 ]
 
@@ -4408,9 +4408,9 @@ dependencies = [
  "nix 0.26.4",
  "once_cell",
  "parking_lot",
- "prost",
- "prost-build",
- "prost-derive",
+ "prost 0.11.9",
+ "prost-build 0.11.9",
+ "prost-derive 0.11.9",
  "protobuf",
  "sha2",
  "smallvec",
@@ -4496,6 +4496,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "prettyplease"
+version = "0.2.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c64d9ba0963cdcea2e1b2230fbae2bab30eb25a174be395c41e764bfb65dd62"
+dependencies = [
+ "proc-macro2",
+ "syn 2.0.29",
+]
+
+[[package]]
 name = "proc-macro-error"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4572,7 +4582,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b82eaa1d779e9a4bc1c3217db8ffbeabaae1dca241bf70183242128d48681cd"
 dependencies = [
  "bytes",
- "prost-derive",
+ "prost-derive 0.11.9",
+]
+
+[[package]]
+name = "prost"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "146c289cda302b98a28d40c8b3b90498d6e526dd24ac2ecea73e4e491685b94a"
+dependencies = [
+ "bytes",
+ "prost-derive 0.12.3",
 ]
 
 [[package]]
@@ -4588,11 +4608,33 @@ dependencies = [
  "log",
  "multimap",
  "petgraph",
- "prettyplease",
- "prost",
- "prost-types",
+ "prettyplease 0.1.25",
+ "prost 0.11.9",
+ "prost-types 0.11.9",
  "regex",
  "syn 1.0.109",
+ "tempfile",
+ "which",
+]
+
+[[package]]
+name = "prost-build"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c55e02e35260070b6f716a2423c2ff1c3bb1642ddca6f99e1f26d06268a0e2d2"
+dependencies = [
+ "bytes",
+ "heck",
+ "itertools 0.11.0",
+ "log",
+ "multimap",
+ "once_cell",
+ "petgraph",
+ "prettyplease 0.2.12",
+ "prost 0.12.3",
+ "prost-types 0.12.3",
+ "regex",
+ "syn 2.0.29",
  "tempfile",
  "which",
 ]
@@ -4611,12 +4653,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost-derive"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "efb6c9a1dd1def8e2124d17e83a20af56f1570d6c2d2bd9e266ccb768df3840e"
+dependencies = [
+ "anyhow",
+ "itertools 0.11.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.29",
+]
+
+[[package]]
 name = "prost-types"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "213622a1460818959ac1181aaeb2dc9c7f63df720db7d788b3e24eacd1983e13"
 dependencies = [
- "prost",
+ "prost 0.11.9",
+]
+
+[[package]]
+name = "prost-types"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "193898f59edcf43c26227dcd4c8427f00d99d61e95dcde58dabd49fa291d470e"
+dependencies = [
+ "prost 0.12.3",
 ]
 
 [[package]]
@@ -4661,7 +4725,7 @@ dependencies = [
  "parquet_file",
  "pin-project",
  "predicate",
- "prost",
+ "prost 0.11.9",
  "rand",
  "schema",
  "service_common",
@@ -5273,7 +5337,7 @@ dependencies = [
  "iox_query",
  "metric",
  "observability_deps",
- "prost",
+ "prost 0.11.9",
  "serde",
  "serde_json",
  "service_common",
@@ -5305,7 +5369,7 @@ dependencies = [
  "parking_lot",
  "pin-project",
  "predicate",
- "prost",
+ "prost 0.11.9",
  "query_functions",
  "regex",
  "schema",
@@ -6032,7 +6096,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "parking_lot",
- "prost",
+ "prost 0.11.9",
  "rand",
  "regex",
  "reqwest",
@@ -6294,8 +6358,8 @@ dependencies = [
  "hyper-timeout",
  "percent-encoding",
  "pin-project",
- "prost",
- "prost-derive",
+ "prost 0.11.9",
+ "prost-derive 0.11.9",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -6326,7 +6390,7 @@ dependencies = [
  "hyper-timeout",
  "percent-encoding",
  "pin-project",
- "prost",
+ "prost 0.11.9",
  "rustls-pemfile",
  "tokio",
  "tokio-rustls",
@@ -6344,9 +6408,9 @@ version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6fdaae4c2c638bb70fe42803a26fbd6fc6ac8c72f5c59f67ecc2a2dcabf4b07"
 dependencies = [
- "prettyplease",
+ "prettyplease 0.1.25",
  "proc-macro2",
- "prost-build",
+ "prost-build 0.11.9",
  "quote",
  "syn 1.0.109",
 ]
@@ -6358,7 +6422,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "080964d45894b90273d2b1dd755fdd114560db8636bb41cea615213c45043c4d"
 dependencies = [
  "async-stream",
- "prost",
+ "prost 0.11.9",
  "tokio",
  "tokio-stream",
  "tonic 0.9.2",
@@ -6370,8 +6434,8 @@ version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0543d7092032041fbeac1f2c84304537553421a11a623c2301b12ef0264862c7"
 dependencies = [
- "prost",
- "prost-types",
+ "prost 0.11.9",
+ "prost-types 0.11.9",
  "tokio",
  "tokio-stream",
  "tonic 0.9.2",
@@ -6745,7 +6809,7 @@ dependencies = [
  "mutable_batch_pb",
  "observability_deps",
  "parking_lot",
- "prost",
+ "prost 0.11.9",
  "snafu",
  "snap",
  "test_helpers",
@@ -7170,8 +7234,8 @@ dependencies = [
  "phf_shared",
  "predicates",
  "proptest",
- "prost",
- "prost-types",
+ "prost 0.11.9",
+ "prost-types 0.11.9",
  "rand",
  "rand_core",
  "regex",
