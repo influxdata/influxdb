@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/v2"
+	platcontext "github.com/influxdata/influxdb/v2/context"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"go.uber.org/zap"
 )
@@ -25,6 +27,10 @@ func LoggingMW(log *zap.Logger) kithttp.Middleware {
 				teedR: io.TeeReader(r.Body, &buf),
 			}
 
+			var auth influxdb.Authorizer
+
+			r = r.WithContext(platcontext.ProvideAuthorizerStorage(r.Context(), &auth))
+
 			defer func(start time.Time) {
 				errField := zap.Skip()
 				if errStr := w.Header().Get(kithttp.PlatformErrorCodeHeader); errStr != "" {
@@ -34,6 +40,12 @@ func LoggingMW(log *zap.Logger) kithttp.Middleware {
 				errReferenceField := zap.Skip()
 				if errReference := w.Header().Get(kithttp.PlatformErrorCodeHeader); errReference != "" {
 					errReferenceField = zap.String("error_code", errReference)
+				}
+
+				var id, userid string
+				if auth != nil {
+					id = auth.Identifier().String()
+					userid = auth.GetUserID().String()
 				}
 
 				fields := []zap.Field{
@@ -48,6 +60,8 @@ func LoggingMW(log *zap.Logger) kithttp.Middleware {
 					zap.String("referrer", r.Referer()),
 					zap.String("remote", r.RemoteAddr),
 					zap.String("user_agent", kithttp.UserAgent(r)),
+					zap.String("authenticated_id", id),
+					zap.String("user_id", userid),
 					zap.Duration("took", time.Since(start)),
 					errField,
 					errReferenceField,
