@@ -108,6 +108,9 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Set the Authorizer pointer for use in logging high up the call stack
+	platcontext.StoreAuthorizer(ctx, auth)
+
 	// jwt based auth is permission based rather than identity based
 	// and therefor has no associated user. if the user ID is invalid
 	// disregard the user active check
