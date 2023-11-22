@@ -49,6 +49,10 @@ func (h *Influx1xAuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http
 	}
 
 	auth, err := h.auth.Authorize(ctx, creds)
+
+	// Set the Authorizer pointer for use in logging high up the call stack
+	platcontext.StoreAuthorizer(ctx, auth)
+
 	if err != nil {
 		var erri *errors2.Error
 		if errors.As(err, &erri) {
