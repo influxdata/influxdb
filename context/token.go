@@ -12,7 +12,8 @@ import (
 type contextKey string
 
 const (
-	authorizerCtxKey contextKey = "influx/authorizer/v1"
+	authorizerCtxKey    contextKey = "influx/authorizer/v1"
+	authorizerCtxPtrKey contextKey = "influx/authorizer/pointer"
 )
 
 // SetAuthorizer sets an authorizer on context.
@@ -67,4 +68,23 @@ func GetUserID(ctx context.Context) (platform.ID, error) {
 		return 0, err
 	}
 	return a.GetUserID(), nil
+}
+
+// ProvideAuthorizerStorage puts a pointer to an Authorizer in the context.
+// This is used to pass an Authorizer up the stack for logging purposes
+func ProvideAuthorizerStorage(ctx context.Context, ap *influxdb.Authorizer) context.Context {
+	return context.WithValue(ctx, authorizerCtxPtrKey, ap)
+}
+
+// StoreAuthorizer stores an Authorizer in a pointer from the Context.
+// This permits functions deep in the stack to set the pointer to return
+// values up the call chain
+func StoreAuthorizer(ctx context.Context, auth influxdb.Authorizer) bool {
+	ap, ok := ctx.Value(authorizerCtxPtrKey).(*influxdb.Authorizer)
+	if ok && (ap != nil) {
+		(*ap) = auth
+		return true
+	} else {
+		return false
+	}
 }
