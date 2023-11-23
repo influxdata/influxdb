@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,6 +59,27 @@ func instaWait() waitFunc {
 		out := make(chan time.Time)
 		close(out)
 		return out
+	}
+}
+
+type containsMatcher struct {
+	substring string
+}
+
+func (cm *containsMatcher) Matches(x interface{}) bool {
+	if st, ok := x.(fmt.Stringer); ok {
+		return strings.Contains(st.String(), cm.substring)
+	} else {
+		s, ok := x.(string)
+		return ok && strings.Contains(s, cm.substring)
+	}
+}
+
+func (cm *containsMatcher) String() string {
+	if cm != nil {
+		return cm.substring
+	} else {
+		return ""
 	}
 }
 
@@ -137,7 +159,7 @@ func TestWrite(t *testing.T) {
 				w.waitFunc = instaWait()
 
 				configStore.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(testConfig, nil)
-				configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, status, invalidResponseCode(status).Error()).Return(nil)
+				configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, status, &containsMatcher{invalidResponseCode(status, nil).Error()}).Return(nil)
 				_, actualErr := w.Write(testData, testAttempts)
 				require.NotNil(t, actualErr)
 				require.Contains(t, actualErr.Error(), fmt.Sprintf("invalid response code %d", status))
@@ -165,7 +187,7 @@ func TestWrite(t *testing.T) {
 
 		configStore.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(testConfig, nil).Times(testAttempts - 1)
 		configStore.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(updatedConfig, nil)
-		configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusBadRequest, invalidResponseCode(http.StatusBadRequest).Error()).Return(nil).Times(testAttempts)
+		configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusBadRequest, &containsMatcher{invalidResponseCode(http.StatusBadRequest, nil).Error()}).Return(nil).Times(testAttempts)
 		for i := 1; i <= testAttempts; i++ {
 			_, actualErr := w.Write(testData, i)
 			if testAttempts == i {
@@ -190,7 +212,7 @@ func TestWrite(t *testing.T) {
 		configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusBadRequest, gomock.Any()).Return(nil)
 		backoff, actualErr := w.Write(testData, 1)
 		require.Equal(t, backoff, w.backoff(1))
-		require.Equal(t, invalidResponseCode(http.StatusBadRequest), actualErr)
+		require.ErrorContains(t, actualErr, invalidResponseCode(http.StatusBadRequest, nil).Error())
 	})
 
 	t.Run("uses wait time from response header if present", func(t *testing.T) {
@@ -218,9 +240,9 @@ func TestWrite(t *testing.T) {
 		}
 
 		configStore.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(testConfig, nil)
-		configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusTooManyRequests, invalidResponseCode(http.StatusTooManyRequests).Error()).Return(nil)
+		configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusTooManyRequests, &containsMatcher{invalidResponseCode(http.StatusTooManyRequests, nil).Error()}).Return(nil)
 		_, actualErr := w.Write(testData, 1)
-		require.Equal(t, invalidResponseCode(http.StatusTooManyRequests), actualErr)
+		require.ErrorContains(t, actualErr, invalidResponseCode(http.StatusTooManyRequests, nil).Error())
 	})
 
 	t.Run("can cancel with done channel", func(t *testing.T) {
@@ -234,9 +256,9 @@ func TestWrite(t *testing.T) {
 		w, configStore, _ := testWriter(t)
 
 		configStore.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(testConfig, nil)
-		configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusInternalServerError, invalidResponseCode(http.StatusInternalServerError).Error()).Return(nil)
+		configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusInternalServerError, &containsMatcher{invalidResponseCode(http.StatusInternalServerError, nil).Error()}).Return(nil)
 		_, actualErr := w.Write(testData, 1)
-		require.Equal(t, invalidResponseCode(http.StatusInternalServerError), actualErr)
+		require.ErrorContains(t, actualErr, invalidResponseCode(http.StatusInternalServerError, nil).Error())
 	})
 
 	t.Run("writes resume after temporary remote disconnect", func(t *testing.T) {
@@ -288,7 +310,7 @@ func TestWrite(t *testing.T) {
 				numAttempts = 0
 			} else {
 				// should fail
-				configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusGatewayTimeout, invalidResponseCode(http.StatusGatewayTimeout).Error()).Return(nil)
+				configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusGatewayTimeout, &containsMatcher{invalidResponseCode(http.StatusGatewayTimeout, nil).Error()}).Return(nil)
 				_, err := w.Write([]byte(testWrites[i]), numAttempts)
 				require.Error(t, err)
 				numAttempts++
@@ -312,11 +334,11 @@ func TestWrite_Metrics(t *testing.T) {
 		{
 			name:        "server errors",
 			status:      constantStatus(http.StatusTeapot),
-			expectedErr: invalidResponseCode(http.StatusTeapot),
+			expectedErr: invalidResponseCode(http.StatusTeapot, nil),
 			data:        []byte{},
 			registerExpectations: func(t *testing.T, store *replicationsMock.MockHttpConfigStore, conf *influxdb.ReplicationHTTPConfig) {
 				store.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(conf, nil)
-				store.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusTeapot, invalidResponseCode(http.StatusTeapot).Error()).Return(nil)
+				store.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusTeapot, &containsMatcher{invalidResponseCode(http.StatusTeapot, nil).Error()}).Return(nil)
 			},
 			checkMetrics: func(t *testing.T, reg *prom.Registry) {
 				mfs := promtest.MustGather(t, reg)
@@ -351,7 +373,7 @@ func TestWrite_Metrics(t *testing.T) {
 			data:   testData,
 			registerExpectations: func(t *testing.T, store *replicationsMock.MockHttpConfigStore, conf *influxdb.ReplicationHTTPConfig) {
 				store.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(conf, nil)
-				store.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusBadRequest, invalidResponseCode(http.StatusBadRequest).Error()).Return(nil)
+				store.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusBadRequest, &containsMatcher{invalidResponseCode(http.StatusBadRequest, nil).Error()}).Return(nil)
 			},
 			checkMetrics: func(t *testing.T, reg *prom.Registry) {
 				mfs := promtest.MustGather(t, reg)
@@ -382,7 +404,11 @@ func TestWrite_Metrics(t *testing.T) {
 
 			tt.registerExpectations(t, configStore, testConfig)
 			_, actualErr := w.Write(tt.data, 1)
-			require.Equal(t, tt.expectedErr, actualErr)
+			if tt.expectedErr != nil {
+				require.ErrorContains(t, actualErr, tt.expectedErr.Error())
+			} else {
+				require.NoError(t, actualErr)
+			}
 			tt.checkMetrics(t, reg)
 		})
 	}
