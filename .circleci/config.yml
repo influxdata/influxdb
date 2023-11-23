@@ -376,10 +376,10 @@ jobs:
       - checkout
       - run:
           name: Build test binaries
-          command: |
-            export GOOS=<< parameters.os >>
-            export GOARCH=<< parameters.arch >>
-            ./scripts/ci/build-tests.sh ./test-bin
+          environment:
+            GOOS:   << parameters.os >>
+            GOARCH: << parameters.arch >>
+          command: ./scripts/ci/build-tests.sh ./test-bin
       - persist_to_workspace:
           root: .
           paths:

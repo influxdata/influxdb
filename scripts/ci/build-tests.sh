@@ -20,17 +20,17 @@ function build_linux () {
 
     local -r extld="-fno-PIC -static -Wl,-z,stack-size=8388608"
     CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC="${cc}" go-test-compile \
-        -tags "$tags" -o "${1}/" -ldflags "-extldflags '$extld'" ./...
+        -x -tags "$tags" -o "${1}/" -ldflags "-extldflags '$extld'" ./...
 }
 
 function build_mac () {
     CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC="$(xcc darwin)" go-test-compile \
-        -tags sqlite_foreign_keys,sqlite_json -o "${1}/" ./...
+        -x -tags sqlite_foreign_keys,sqlite_json -o "${1}/" ./...
 }
 
 function build_windows () {
     CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC="$(xcc windows)" go-test-compile \
-        -tags sqlite_foreign_keys,sqlite_json,timetzdata -o "${1}/" ./...
+        -x -tags sqlite_foreign_keys,sqlite_json,timetzdata -o "${1}/" ./...
 }
 
 function build_test_tools () {
@@ -42,7 +42,7 @@ function build_test_tools () {
     cp "/usr/local/bin/gotestsum_$(go env GOOS)_$(go env GOARCH)${ext}" "$1/gotestsum${ext}"
 
     # Build test2json from the installed Go distribution.
-    CGO_ENABLED=0 go build -o "${1}/" -ldflags="-s -w" cmd/test2json
+    CGO_ENABLED=0 go build -x -o "${1}/" -ldflags="-s -w" cmd/test2json
 }
 
 function write_test_metadata () {
