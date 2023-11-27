@@ -74,7 +74,7 @@ serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }
 sha2 = { version = "0.10" }
 similar = { version = "2", features = ["inline"] }
-sqlparser = { version = "0.37", features = ["visitor"] }
+sqlparser = { version = "0.40", features = ["visitor"] }
 sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-rustls", "sqlite", "uuid"] }
 sqlx-core = { version = "0.7", features = ["_rt-tokio", "_tls-rustls", "any", "json", "migrate", "offline", "uuid"] }
 sqlx-postgres = { version = "0.7", default-features = false, features = ["any", "json", "migrate", "offline", "uuid"] }
