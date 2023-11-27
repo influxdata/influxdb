@@ -1,6 +1,7 @@
 version: 2.1
 orbs:
-  aws-s3: circleci/aws-s3@2.0.0
+  aws-cli: circleci/aws-cli@4.1.2
+  aws-s3: circleci/aws-s3@4.0.0
 parameters:
   cross-container-tag:
     type: string
@@ -303,50 +304,48 @@ jobs:
           paths:
             - changelog_artifacts
 
-  s3-publish-changelog:
+  publish_changelog:
+    docker:
+      - image: cimg/base:current
     parameters:
       build_type:
         type: string
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - aws-cli/setup:
+          aws_access_key_id: INFLUXDB1X_AWS_ACCESS_KEY_ID
+          aws_secret_access_key: INFLUXDB1X_AWS_SECRET_ACCESS_KEY
+          region: us-east-1
+      - when:
+          condition:
+            equal: [ << parameters.build_type >>, nightly ]
+          steps:
+            - aws-s3/copy:
+                from: /tmp/workspace/changelog_artifacts/CHANGELOG.md
+                to: s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/1.9/CHANGELOG.nightly.md
+      - when:
+          condition:
+            equal: [ << parameters.build_type >>, release ]
+          steps:
+            - aws-s3/copy:
+                from: /tmp/workspace/changelog_artifacts/CHANGELOG.md
+                to: s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/1.9/CHANGELOG.<< pipeline.git.tag >>.md
+
+  publish_packages:
     docker:
-      - image: ubuntu:latest
+      - image: cimg/base:current
     steps:
       - attach_workspace:
           at: /tmp/workspace
       - checkout
-      - run:
-          name: Publish CHANGELOG.md to S3
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install -y awscli
-
-            pushd /tmp/workspace/changelog_artifacts/
-
-            case "<< parameters.build_type >>"
-            in
-              nightly)
-                aws s3 cp CHANGELOG.md "s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md"
-                ;;
-              release)
-                aws s3 cp CHANGELOG.md "s3://dl.influxdata.com/influxdb/releases/CHANGELOG.<< pipeline.git.tag >>.md"
-                ;;
-            esac
-
-  s3-publish-packages:
-    docker:
-      - image: ubuntu:latest
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - run:
-          name: Publish Packages to S3
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install -y awscli
-
-            aws s3 sync /tmp/workspace/packages "s3://dl.influxdata.com/influxdb/releases"
+      - aws-cli/setup:
+          aws_access_key_id: INFLUXDB1X_AWS_ACCESS_KEY_ID
+          aws_secret_access_key: INFLUXDB1X_AWS_SECRET_ACCESS_KEY
+          region: us-east-1
+      - aws-s3/sync:
+          from: /tmp/workspace/packages
+          to: s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/1.9/
 
 release_filter: &release_filter
   filters:
@@ -379,12 +378,12 @@ workflows:
             - build_packages
       - changelog:
           <<: *release_filter
-      - s3-publish-changelog:
+      - publish_changelog:
           <<: *release_filter
           build_type: release
           requires:
             - changelog
-      - s3-publish-packages:
+      - publish_packages:
           <<: *release_filter
           requires:
             - sign_packages
@@ -424,7 +423,7 @@ workflows:
                 - "1.9"
     jobs:
       - changelog
-      - s3-publish-changelog:
+      - publish_changelog:
           build_type: nightly
           requires:
             - changelog
