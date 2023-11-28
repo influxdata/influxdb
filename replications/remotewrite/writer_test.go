@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
+	ihttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/replications/metrics"
 	replicationsMock "github.com/influxdata/influxdb/v2/replications/mock"
 	"github.com/stretchr/testify/require"
@@ -419,6 +420,7 @@ func TestPostWrite(t *testing.T) {
 
 	tests := []struct {
 		status  int
+		bodyErr error
 		wantErr bool
 	}{
 		{
@@ -432,6 +434,12 @@ func TestPostWrite(t *testing.T) {
 		{
 			status:  http.StatusBadRequest,
 			wantErr: true,
+			bodyErr: fmt.Errorf("This is a terrible error: %w", errors.New("there are bad things here")),
+		},
+		{
+			status:  http.StatusMethodNotAllowed,
+			wantErr: true,
+			bodyErr: fmt.Errorf("method not allowed: %w", errors.New("what were you thinking")),
 		},
 	}
 
@@ -442,7 +450,12 @@ func TestPostWrite(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, testData, recData)
 
-				w.WriteHeader(tt.status)
+				if tt.bodyErr != nil {
+					influxErrorCode := ihttp.StatusCodeToErrorCode(tt.status)
+					ihttp.WriteErrorResponse(context.Background(), w, influxErrorCode, tt.bodyErr.Error())
+				} else {
+					w.WriteHeader(tt.status)
+				}
 			}))
 			defer svr.Close()
 
@@ -453,12 +466,16 @@ func TestPostWrite(t *testing.T) {
 			res, err := PostWrite(context.Background(), config, testData, time.Second)
 			if tt.wantErr {
 				require.Error(t, err)
-				return
+				if nil != tt.bodyErr {
+					require.ErrorContains(t, err, tt.bodyErr.Error())
+				}
 			} else {
 				require.Nil(t, err)
 			}
 
-			require.Equal(t, tt.status, res.StatusCode)
+			if res != nil {
+				require.Equal(t, tt.status, res.StatusCode)
+			}
 		})
 	}
 }
