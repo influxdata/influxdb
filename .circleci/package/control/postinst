@@ -95,9 +95,7 @@ if [[ -L /etc/init.d/influxdb ]]; then
     rm -f /etc/init.d/influxdb
 fi
 
-# Distribution-specific logic
-if [[ -f /etc/redhat-release ]]; then
-    # RHEL-variant logic
+function redhat() {
     if command -v systemctl &>/dev/null; then
         install_systemd
     else
@@ -105,16 +103,40 @@ if [[ -f /etc/redhat-release ]]; then
         install_init
         install_chkconfig
     fi
-elif [[ -f /etc/debian_version ]]; then
+
+    case ${1} in
+    1)
+        # on-install
+        if should_upgrade; then
+            upgrade_notice
+        else
+            # Only execute "init_config" during "on-install". If the configuration
+            # is absent during "on-upgrade", assume that this it is an intentional
+            # choice by the system administrator. Writing default configuration
+            # after "influxd" has executed without *any* configuration, causes
+            # "influxd" to execute with different "bolt-path" and "engine"
+            # directories resulting in the perception of data loss.
+            init_config
+        fi
+    ;;
+    2)
+        # on-upgrade
+        if should_upgrade; then
+            upgrade_notice
+        fi
+    ;;
+    esac
+}
+
+function debian() {
     # Ownership for RH-based platforms is set in build.py via the `rmp-attr` option.
-    # We perform ownership change only for Debian-based systems.
-    # Moving these lines out of this if statement would make `rmp -V` fail after installation.
+    # We perform ownership change only for Debian-based systems. Moving these lines
+    # out of this if statement would make `rmp -V` fail after installation.
     chown -R -L influxdb:influxdb $LOG_DIR
     chown -R -L influxdb:influxdb $DATA_DIR
     chmod 755 $LOG_DIR
     chmod 755 $DATA_DIR
 
-    # Debian/Ubuntu logic
     if command -v systemctl &>/dev/null; then
         install_systemd
     else
@@ -122,8 +144,31 @@ elif [[ -f /etc/debian_version ]]; then
         install_init
         install_update_rcd
     fi
-elif [[ -f /etc/os-release ]]; then
+
+    if [[ ! "${2:-}" ]]; then
+        # on-install
+        if should_upgrade; then
+            upgrade_notice
+        else
+            # Only execute "init_config" during "on-install". If the configuration
+            # is absent during "on-upgrade", assume that this it is an intentional
+            # choice by the system administrator. Writing default configuration
+            # after "influxd" has executed without *any* configuration, causes
+            # "influxd" to execute with different "bolt-path" and "engine"
+            # directories resulting in the perception of data loss.
+            init_config
+        fi
+    else
+        # on-upgrade
+        if should_upgrade; then
+            upgrade_notice
+        fi
+    fi
+}
+
+function amazon() {
     source /etc/os-release
+
     if [[ "$NAME" = "Amazon Linux" ]]; then
         # Amazon Linux 2+ logic
         install_systemd
@@ -132,11 +177,22 @@ elif [[ -f /etc/os-release ]]; then
         install_init
         install_chkconfig
     fi
+
+    if should_upgrade; then
+        upgrade_notice
+    else
+        init_config
+    fi
+}
+
+if [[ "${RPM_INSTALL_PREFIX:-}" ]]; then
+    redhat "${@}"
+    exit 0
 fi
 
-# Check upgrade status
-if should_upgrade; then
-    upgrade_notice
-else
-    init_config
+if [[ "${DPKG_RUNNING_VERSION:-}" ]]; then
+    debian "${@}"
+    exit 0
 fi
+
+amazon "${@}"
