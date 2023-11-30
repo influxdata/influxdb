@@ -14,6 +14,7 @@ import (
 
 	"github.com/influxdata/influx-cli/v2/api"
 	"github.com/influxdata/influxdb/v2"
+	ihttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	ierrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/replications/metrics"
@@ -44,10 +45,11 @@ func invalidRemoteUrl(remoteUrl string, err error) *ierrors.Error {
 	}
 }
 
-func invalidResponseCode(code int) *ierrors.Error {
+func invalidResponseCode(code int, err error) *ierrors.Error {
 	return &ierrors.Error{
 		Code: ierrors.EInvalid,
 		Msg:  fmt.Sprintf("invalid response code %d, must be %d", code, http.StatusNoContent),
+		Err:  err,
 	}
 }
 
@@ -245,7 +247,10 @@ func PostWrite(ctx context.Context, config *influxdb.ReplicationHTTPConfig, data
 
 	// Only a response of 204 is valid for a successful write
 	if res.StatusCode != http.StatusNoContent {
-		err = invalidResponseCode(res.StatusCode)
+		if err == nil {
+			err = ihttp.CheckError(res)
+		}
+		err = invalidResponseCode(res.StatusCode, err)
 	}
 
 	// Must return the response so that the status code and headers can be inspected by the caller, even if the response
