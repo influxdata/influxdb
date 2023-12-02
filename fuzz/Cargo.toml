@@ -1,0 +1,26 @@
+[package]
+name = "influxdb-fuzz"
+description = "Fuzzing influxdb"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arrow_util = { path = "../arrow_util" }
+arbitrary = { version = "1", features = ["derive"] }
+arrow.workspace = true
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "fuzz_bitset"
+path = "fuzz_targets/fuzz_bitset.rs"
+test = false
+doc = false

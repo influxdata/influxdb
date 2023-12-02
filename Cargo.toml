@@ -15,6 +15,7 @@ members = [
     "dml",
     "executor",
     "flightsql",
+    "fuzz",
     "garbage_collector",
     "generated_types",
     "gossip",
