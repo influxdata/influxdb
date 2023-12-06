@@ -92,6 +92,12 @@ func CreateSeriesSegment(id uint16, path string) (*SeriesSegment, error) {
 // Open memory maps the data file at the file's path.
 func (s *SeriesSegment) Open() error {
 	if err := func() (err error) {
+		st, err := os.Stat(s.path)
+		if err != nil {
+			return fmt.Errorf("cannot stat %s: %w", s.path, err)
+		}
+		s.size = uint32(st.Size())
+
 		// Memory map file data.
 		if s.data, err = mmap.Map(s.path, int64(SeriesSegmentSize(s.id))); err != nil {
 			return err
@@ -120,14 +126,16 @@ func (s *SeriesSegment) Path() string { return s.path }
 // InitForWrite initializes a write handle for the segment.
 // This is only used for the last segment in the series file.
 func (s *SeriesSegment) InitForWrite() (err error) {
-	// Only calculcate segment data size if writing.
-	for s.size = uint32(SeriesSegmentHeaderSize); s.size < uint32(len(s.data)); {
-		flag, _, _, sz := ReadSeriesEntry(s.data[s.size:])
+	// Only recalculate segment data size if writing.
+	var size uint32
+	for size = uint32(SeriesSegmentHeaderSize); size < s.size; {
+		flag, _, _, sz := ReadSeriesEntry(s.data[size:])
 		if !IsValidSeriesEntryFlag(flag) {
 			break
 		}
-		s.size += uint32(sz)
+		size += uint32(sz)
 	}
+	s.size = size
 
 	// Open file handler for writing & seek to end of data.
 	if s.file, err = os.OpenFile(s.path, os.O_WRONLY|os.O_CREATE, 0666); err != nil {
@@ -243,8 +251,8 @@ func (s *SeriesSegment) MaxSeriesID() uint64 {
 
 // ForEachEntry executes fn for every entry in the segment.
 func (s *SeriesSegment) ForEachEntry(fn func(flag uint8, id uint64, offset int64, key []byte) error) error {
-	for pos := uint32(SeriesSegmentHeaderSize); pos < uint32(len(s.data)); {
-		flag, id, key, sz := ReadSeriesEntry(s.data[pos:])
+	for pos := uint32(SeriesSegmentHeaderSize); pos < s.size; {
+		flag, id, key, sz := ReadSeriesEntry(s.data[pos:s.size])
 		if !IsValidSeriesEntryFlag(flag) {
 			break
 		}
@@ -337,7 +345,7 @@ func ReadSeriesKeyFromSegments(a []*SeriesSegment, offset int64) []byte {
 		return nil
 	}
 	buf := segment.Slice(pos)
-	key, _ := ReadSeriesKey(buf)
+	key := ReadSeriesKey(buf)
 	return key
 }
 
@@ -425,7 +433,7 @@ func ReadSeriesEntry(data []byte) (flag uint8, id uint64, key []byte, sz int64) 
 	id, data = binary.BigEndian.Uint64(data), data[8:]
 	switch flag {
 	case SeriesEntryInsertFlag:
-		key, _ = ReadSeriesKey(data)
+		key = ReadSeriesKey(data)
 	}
 	return flag, id, key, int64(SeriesEntryHeaderSize + len(key))
 }
