@@ -252,7 +252,7 @@ func (s *SeriesSegment) MaxSeriesID() uint64 {
 // ForEachEntry executes fn for every entry in the segment.
 func (s *SeriesSegment) ForEachEntry(fn func(flag uint8, id uint64, offset int64, key []byte) error) error {
 	for pos := uint32(SeriesSegmentHeaderSize); pos < s.size; {
-		flag, id, key, sz := ReadSeriesEntry(s.data[pos:s.size])
+		flag, id, key, sz := ReadSeriesEntry(s.data[pos:])
 		if !IsValidSeriesEntryFlag(flag) {
 			break
 		}
@@ -424,6 +424,9 @@ func (hdr *SeriesSegmentHeader) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 func ReadSeriesEntry(data []byte) (flag uint8, id uint64, key []byte, sz int64) {
+	if len(data) <= 0 {
+		return 0, 0, nil, 1
+	}
 	// If flag byte is zero then no more entries exist.
 	flag, data = uint8(data[0]), data[1:]
 	if !IsValidSeriesEntryFlag(flag) {
