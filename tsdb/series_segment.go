@@ -129,7 +129,7 @@ func (s *SeriesSegment) InitForWrite() (err error) {
 	// Only recalculate segment data size if writing.
 	var size uint32
 	for size = uint32(SeriesSegmentHeaderSize); size < s.size; {
-		flag, _, _, sz := ReadSeriesEntry(s.data[size:])
+		flag, _, _, sz := ReadSeriesEntry(s.data[size:s.size])
 		if !IsValidSeriesEntryFlag(flag) {
 			break
 		}
@@ -252,7 +252,7 @@ func (s *SeriesSegment) MaxSeriesID() uint64 {
 // ForEachEntry executes fn for every entry in the segment.
 func (s *SeriesSegment) ForEachEntry(fn func(flag uint8, id uint64, offset int64, key []byte) error) error {
 	for pos := uint32(SeriesSegmentHeaderSize); pos < s.size; {
-		flag, id, key, sz := ReadSeriesEntry(s.data[pos:])
+		flag, id, key, sz := ReadSeriesEntry(s.data[pos:s.size])
 		if !IsValidSeriesEntryFlag(flag) {
 			break
 		}
@@ -433,6 +433,9 @@ func ReadSeriesEntry(data []byte) (flag uint8, id uint64, key []byte, sz int64) 
 		return 0, 0, nil, 1
 	}
 
+	if len(data) < 8 {
+		return 0, 0, nil, 1
+	}
 	id, data = binary.BigEndian.Uint64(data), data[8:]
 	switch flag {
 	case SeriesEntryInsertFlag:
