@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -139,44 +140,59 @@ func TestSeriesSegmentHeader(t *testing.T) {
 }
 
 func TestSeriesSegment_PartialWrite(t *testing.T) {
-	dir := t.TempDir()
+	for extraSegs := uint64(2000); extraSegs < 4000; extraSegs++ {
+		func() {
+			dir, cleanup := MustTempDir()
+			defer cleanup()
 
-	// Create a new initial segment (4mb) and initialize for writing.
-	segment, err := tsdb.CreateSeriesSegment(0, filepath.Join(dir, "0000"))
-	if err != nil {
-		t.Fatal(err)
-	} else if err := segment.InitForWrite(); err != nil {
-		t.Fatal(err)
-	}
-	defer segment.Close()
+			// Create a new initial segment (4mb) and initialize for writing.
+			segment, err := tsdb.CreateSeriesSegment(0, filepath.Join(dir, "0000"))
+			if err != nil {
+				t.Fatal(err)
+			} else if err := segment.InitForWrite(); err != nil {
+				t.Fatal(err)
+			}
+			defer segment.Close()
 
-	// Write two entries.
-	if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 1, tsdb.AppendSeriesKey(nil, []byte("A"), nil))); err != nil {
-		t.Fatal(err)
-	} else if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 2, tsdb.AppendSeriesKey(nil, []byte("B"), nil))); err != nil {
-		t.Fatal(err)
-	}
-	sz := segment.Size()
-	entrySize := len(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 2, tsdb.AppendSeriesKey(nil, []byte("B"), nil)))
+			// Write two entries.
+			if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 1, tsdb.AppendSeriesKey(nil, []byte("A"), nil))); err != nil {
+				t.Fatal(err)
+			}
 
-	// Close segment.
-	if err := segment.Close(); err != nil {
-		t.Fatal(err)
-	}
+			// Adding intermediary segments in between "A" and "B" is to try and induce a SIGBUS
+			// when the file truncation backs over a page.
+			for i := uint64(0); i < extraSegs; i++ {
+				if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 1+i, tsdb.AppendSeriesKey(nil, []byte(strconv.Itoa(int(i))), nil))); err != nil {
+					t.Fatal(err)
+				}
+			}
 
-	// Truncate at each point and reopen.
-	for i := entrySize; i > 0; i-- {
-		if err := os.Truncate(filepath.Join(dir, "0000"), sz-int64(entrySize-i)); err != nil {
-			t.Fatal(err)
-		}
-		segment := tsdb.NewSeriesSegment(0, filepath.Join(dir, "0000"))
-		if err := segment.Open(); err != nil {
-			t.Fatal(err)
-		} else if err := segment.InitForWrite(); err != nil {
-			t.Fatal(err)
-		} else if err := segment.Close(); err != nil {
-			t.Fatal(err)
-		}
+			if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 2+extraSegs, tsdb.AppendSeriesKey(nil, []byte("B"), nil))); err != nil {
+				t.Fatal(err)
+			}
+			sz := segment.Size()
+			entrySize := len(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 2+extraSegs, tsdb.AppendSeriesKey(nil, []byte("B"), nil)))
+
+			// Close segment.
+			if err := segment.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			// Truncate at each point and reopen.
+			for i := entrySize; i > 0; i-- {
+				if err := os.Truncate(filepath.Join(dir, "0000"), sz-int64(entrySize-i)); err != nil {
+					t.Fatal(err)
+				}
+				segment := tsdb.NewSeriesSegment(0, filepath.Join(dir, "0000"))
+				if err := segment.Open(); err != nil {
+					t.Fatal(err)
+				} else if err := segment.InitForWrite(); err != nil {
+					t.Fatal(err)
+				} else if err := segment.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}()
 	}
 }
 
