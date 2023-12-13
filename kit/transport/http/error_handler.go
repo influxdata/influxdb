@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/boltdb/bolt"
 	"io"
 	"mime"
 	"net/http"
 	"strings"
 
+	"github.com/boltdb/bolt"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"go.uber.org/zap"
 )
