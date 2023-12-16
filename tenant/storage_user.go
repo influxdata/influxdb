@@ -3,6 +3,7 @@ package tenant
 import (
 	"context"
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -93,7 +94,7 @@ func (s *Store) GetUser(ctx context.Context, tx kv.Tx, id platform.ID) (*influxd
 	}
 
 	if err != nil {
-		return nil, ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err)
 	}
 
 	return unmarshalUser(v)
@@ -111,7 +112,7 @@ func (s *Store) GetUserByName(ctx context.Context, tx kv.Tx, n string) (*influxd
 	}
 
 	if err != nil {
-		return nil, ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err)
 	}
 
 	var id platform.ID
@@ -208,11 +209,11 @@ func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) erro
 	}
 
 	if err := idx.Put([]byte(u.Name), encodedID); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	if err := b.Put(encodedID, v); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	return nil
@@ -240,13 +241,13 @@ func (s *Store) UpdateUser(ctx context.Context, tx kv.Tx, id platform.ID, upd in
 		}
 
 		if err := idx.Delete([]byte(u.Name)); err != nil {
-			return nil, ErrInternalServiceError(err)
+			return nil, errors.ErrInternalServiceError(err)
 		}
 
 		u.Name = *upd.Name
 
 		if err := idx.Put([]byte(u.Name), encodedID); err != nil {
-			return nil, ErrInternalServiceError(err)
+			return nil, errors.ErrInternalServiceError(err)
 		}
 	}
 
@@ -264,7 +265,7 @@ func (s *Store) UpdateUser(ctx context.Context, tx kv.Tx, id platform.ID, upd in
 		return nil, err
 	}
 	if err := b.Put(encodedID, v); err != nil {
-		return nil, ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err)
 	}
 
 	return u, nil
@@ -287,7 +288,7 @@ func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id platform.ID) error 
 	}
 
 	if err := idx.Delete([]byte(u.Name)); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	b, err := tx.Bucket(userBucket)
@@ -296,7 +297,7 @@ func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id platform.ID) error 
 	}
 
 	if err := b.Delete(encodedID); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	// Clean up users password.

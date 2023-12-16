@@ -19,6 +19,7 @@ package control
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"runtime/debug"
@@ -33,7 +34,7 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb/v2/kit/errors"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+	errors3 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
@@ -183,7 +184,7 @@ type QueryID uint64
 func New(config Config, logger *zap.Logger) (*Controller, error) {
 	c, err := config.complete(logger)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid controller config")
+		return nil, errors2.Wrap(err, "invalid controller config")
 	}
 	metricLabelKeys := append(c.MetricLabelKeys, orgLabel)
 	if logger == nil {
@@ -1112,7 +1113,7 @@ func handleFluxError(err error) error {
 	}
 	werr := handleFluxError(ferr.Err)
 
-	code := errors2.EInternal
+	code := errors3.EInternal
 	switch ferr.Code {
 	case codes.Inherit:
 		// If we are inheriting the error code, influxdb doesn't
@@ -1120,12 +1121,12 @@ func handleFluxError(err error) error {
 		// the error code from the wrapped error which has already
 		// been translated to an influxdb error (if possible).
 		if werr != nil {
-			code = errors2.ErrorCode(werr)
+			code = errors3.ErrorCode(werr)
 		}
 	case codes.NotFound:
-		code = errors2.ENotFound
+		code = errors3.ENotFound
 	case codes.Invalid:
-		code = errors2.EInvalid
+		code = errors3.EInvalid
 	// These don't really map correctly, but we want
 	// them to show up as 4XX so until influxdb error
 	// codes are updated for more types of failures,
@@ -1136,16 +1137,16 @@ func handleFluxError(err error) error {
 		codes.Aborted,
 		codes.OutOfRange,
 		codes.Unimplemented:
-		code = errors2.EInvalid
+		code = errors3.EInvalid
 	case codes.PermissionDenied:
-		code = errors2.EForbidden
+		code = errors3.EForbidden
 	case codes.Unauthenticated:
-		code = errors2.EUnauthorized
+		code = errors3.EUnauthorized
 	default:
 		// Everything else is treated as an internal error
 		// which is set above.
 	}
-	return &errors2.Error{
+	return &errors3.Error{
 		Code: code,
 		Msg:  ferr.Msg,
 		Err:  werr,

@@ -15,6 +15,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	ihttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -419,9 +420,10 @@ func TestPostWrite(t *testing.T) {
 	testData := []byte("some data")
 
 	tests := []struct {
-		status  int
-		bodyErr error
-		wantErr bool
+		status    int
+		influxErr string
+		bodyErr   error
+		wantErr   bool
 	}{
 		{
 			status:  http.StatusOK,
@@ -432,14 +434,16 @@ func TestPostWrite(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			status:  http.StatusBadRequest,
-			wantErr: true,
-			bodyErr: fmt.Errorf("This is a terrible error: %w", errors.New("there are bad things here")),
+			status:    http.StatusBadRequest,
+			influxErr: errors2.EEmptyValue,
+			wantErr:   true,
+			bodyErr:   fmt.Errorf("This is a terrible error: %w", errors.New("there are bad things here")),
 		},
 		{
-			status:  http.StatusMethodNotAllowed,
-			wantErr: true,
-			bodyErr: fmt.Errorf("method not allowed: %w", errors.New("what were you thinking")),
+			status:    http.StatusMethodNotAllowed,
+			influxErr: errors2.EMethodNotAllowed,
+			wantErr:   true,
+			bodyErr:   fmt.Errorf("method not allowed: %w", errors.New("what were you thinking")),
 		},
 	}
 
@@ -451,8 +455,7 @@ func TestPostWrite(t *testing.T) {
 				require.Equal(t, testData, recData)
 
 				if tt.bodyErr != nil {
-					influxErrorCode := ihttp.StatusCodeToErrorCode(tt.status)
-					ihttp.WriteErrorResponse(context.Background(), w, influxErrorCode, tt.bodyErr.Error())
+					ihttp.WriteErrorResponse(context.Background(), w, tt.influxErr, tt.bodyErr.Error())
 				} else {
 					w.WriteHeader(tt.status)
 				}

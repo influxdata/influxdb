@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/boltdb/bolt"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"go.uber.org/zap"
 )
@@ -36,7 +35,8 @@ func (h ErrorHandler) HandleHTTPError(ctx context.Context, err error, w http.Res
 
 	code := errors2.ErrorCode(err)
 	var msg string
-	if _, ok := err.(*errors2.Error); ok {
+	var eTmp *errors2.Error
+	if ok := errors.As(err, &eTmp); ok {
 		msg = err.Error()
 	} else {
 		msg = "An internal error has occurred - check server logs"
@@ -94,26 +94,19 @@ func ErrorCodeToStatusCode(ctx context.Context, code string) int {
 
 // influxDBErrorToStatusCode is a mapping of ErrorCode to http status code.
 var influxDBErrorToStatusCode = map[string]int{
-	errors2.EInternal:                  http.StatusInternalServerError,
-	errors2.ENotImplemented:            http.StatusNotImplemented,
-	errors2.EInvalid:                   http.StatusBadRequest,
-	errors2.EUnprocessableEntity:       http.StatusUnprocessableEntity,
-	errors2.EEmptyValue:                http.StatusBadRequest,
-	errors2.EConflict:                  http.StatusUnprocessableEntity,
-	errors2.ENotFound:                  http.StatusNotFound,
-	errors2.EUnavailable:               http.StatusServiceUnavailable,
-	errors2.EForbidden:                 http.StatusForbidden,
-	errors2.ETooManyRequests:           http.StatusTooManyRequests,
-	errors2.EUnauthorized:              http.StatusUnauthorized,
-	errors2.EMethodNotAllowed:          http.StatusMethodNotAllowed,
-	errors2.ETooLarge:                  http.StatusRequestEntityTooLarge,
-	bolt.ErrKeyTooLarge.Error():        http.StatusRequestEntityTooLarge,
-	bolt.ErrValueTooLarge.Error():      http.StatusRequestEntityTooLarge,
-	bolt.ErrKeyRequired.Error():        http.StatusBadRequest,
-	bolt.ErrBucketNameRequired.Error(): http.StatusBadRequest,
-	bolt.ErrBucketNotFound.Error():     http.StatusNotFound,
-	bolt.ErrBucketExists.Error():       http.StatusConflict,
-	bolt.ErrIncompatibleValue.Error():  http.StatusBadRequest,
+	errors2.EInternal:            http.StatusInternalServerError,
+	errors2.ENotImplemented:      http.StatusNotImplemented,
+	errors2.EInvalid:             http.StatusBadRequest,
+	errors2.EUnprocessableEntity: http.StatusUnprocessableEntity,
+	errors2.EEmptyValue:          http.StatusBadRequest,
+	errors2.EConflict:            http.StatusUnprocessableEntity,
+	errors2.ENotFound:            http.StatusNotFound,
+	errors2.EUnavailable:         http.StatusServiceUnavailable,
+	errors2.EForbidden:           http.StatusForbidden,
+	errors2.ETooManyRequests:     http.StatusTooManyRequests,
+	errors2.EUnauthorized:        http.StatusUnauthorized,
+	errors2.EMethodNotAllowed:    http.StatusMethodNotAllowed,
+	errors2.ETooLarge:            http.StatusRequestEntityTooLarge,
 }
 
 var httpStatusCodeToInfluxDBError = map[int]string{}

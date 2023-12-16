@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 )
 
@@ -39,7 +40,7 @@ func (s *Store) uniqueOrgName(ctx context.Context, tx kv.Tx, uname string) error
 	}
 
 	// any other error is some sort of internal server error
-	return ErrInternalServiceError(err)
+	return errors.ErrInternalServiceError(err)
 }
 
 func organizationIndexKey(n string) []byte {
@@ -81,7 +82,7 @@ func (s *Store) GetOrg(ctx context.Context, tx kv.Tx, id platform.ID) (*influxdb
 	}
 
 	if err != nil {
-		return nil, ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err)
 	}
 
 	return unmarshalOrg(v)
@@ -99,7 +100,7 @@ func (s *Store) GetOrgByName(ctx context.Context, tx kv.Tx, n string) (*influxdb
 	}
 
 	if err != nil {
-		return nil, ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err)
 	}
 
 	var id platform.ID
@@ -184,11 +185,11 @@ func (s *Store) CreateOrg(ctx context.Context, tx kv.Tx, o *influxdb.Organizatio
 	}
 
 	if err := idx.Put(organizationIndexKey(o.Name), encodedID); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	if err := b.Put(encodedID, v); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	return nil
@@ -217,13 +218,13 @@ func (s *Store) UpdateOrg(ctx context.Context, tx kv.Tx, id platform.ID, upd inf
 		}
 
 		if err := idx.Delete(organizationIndexKey(u.Name)); err != nil {
-			return nil, ErrInternalServiceError(err)
+			return nil, errors.ErrInternalServiceError(err)
 		}
 
 		u.Name = *upd.Name
 
 		if err := idx.Put(organizationIndexKey(*upd.Name), encodedID); err != nil {
-			return nil, ErrInternalServiceError(err)
+			return nil, errors.ErrInternalServiceError(err)
 		}
 	}
 
@@ -241,7 +242,7 @@ func (s *Store) UpdateOrg(ctx context.Context, tx kv.Tx, id platform.ID, upd inf
 		return nil, err
 	}
 	if err := b.Put(encodedID, v); err != nil {
-		return nil, ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err)
 	}
 
 	return u, nil
@@ -264,7 +265,7 @@ func (s *Store) DeleteOrg(ctx context.Context, tx kv.Tx, id platform.ID) error {
 	}
 
 	if err := idx.Delete([]byte(u.Name)); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	b, err := tx.Bucket(organizationBucket)
@@ -273,7 +274,7 @@ func (s *Store) DeleteOrg(ctx context.Context, tx kv.Tx, id platform.ID) error {
 	}
 
 	if err := b.Delete(encodedID); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	return nil
