@@ -24,11 +24,3 @@ var (
 		Msg:  "label not found",
 	}
 )
-
-// ErrInternalServiceError is used when the error comes from an internal system.
-func ErrInternalServiceError(err error) *errors.Error {
-	return &errors.Error{
-		Code: errors.EInternal,
-		Err:  err,
-	}
-}

@@ -6,7 +6,7 @@ import (
 
 	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/v2/kit/errors"
+	errors2 "github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
@@ -58,7 +58,7 @@ func NewWindowAggregateResultSet(ctx context.Context, req *datatypes.ReadWindowA
 	}
 
 	if nAggs := len(req.Aggregate); nAggs != 1 {
-		return nil, errors.Errorf(errors.InternalError, "attempt to create a windowAggregateResultSet with %v aggregate functions", nAggs)
+		return nil, errors2.Errorf(errors2.InternalError, "attempt to create a windowAggregateResultSet with %v aggregate functions", nAggs)
 	}
 
 	ascending := !IsLastDescendingAggregateOptimization(req)

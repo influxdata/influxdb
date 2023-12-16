@@ -132,7 +132,7 @@ func (s *Store) GetAuthorizationByID(ctx context.Context, tx kv.Tx, id platform.
 
 	b, err := tx.Bucket(authBucket)
 	if err != nil {
-		return nil, ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err)
 	}
 
 	v, err := b.Get(encodedID)
@@ -141,7 +141,7 @@ func (s *Store) GetAuthorizationByID(ctx context.Context, tx kv.Tx, id platform.
 	}
 
 	if err != nil {
-		return nil, ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err)
 	}
 
 	a := &influxdb.Authorization{}
@@ -302,11 +302,11 @@ func (s *Store) DeleteAuthorization(ctx context.Context, tx kv.Tx, id platform.I
 	}
 
 	if err := idx.Delete([]byte(a.Token)); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	if err := b.Delete(encodedID); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	return nil
@@ -354,7 +354,7 @@ func uniqueID(ctx context.Context, tx kv.Tx, id platform.ID) error {
 
 	b, err := tx.Bucket(authBucket)
 	if err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	_, err = b.Get(encodedID)

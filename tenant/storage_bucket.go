@@ -57,7 +57,7 @@ func (s *Store) uniqueBucketName(ctx context.Context, tx kv.Tx, oid platform.ID,
 	}
 
 	// any other error is some sort of internal server error
-	return ErrInternalServiceError(err)
+	return errors.ErrInternalServiceError(err)
 }
 
 func unmarshalBucket(v []byte) (*influxdb.Bucket, error) {
@@ -95,7 +95,7 @@ func (s *Store) GetBucket(ctx context.Context, tx kv.Tx, id platform.ID) (*influ
 	}
 
 	if err != nil {
-		return nil, ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err)
 	}
 
 	return unmarshalBucket(v)
@@ -330,11 +330,11 @@ func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Buc
 	}
 
 	if err := idx.Put(ikey, encodedID); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	if err := b.Put(encodedID, v); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	return nil
@@ -377,7 +377,7 @@ func (s *Store) UpdateBucket(ctx context.Context, tx kv.Tx, id platform.ID, upd 
 		}
 
 		if err := idx.Delete(oldIkey); err != nil {
-			return nil, ErrInternalServiceError(err)
+			return nil, errors.ErrInternalServiceError(err)
 		}
 
 		bucket.Name = *upd.Name
@@ -387,7 +387,7 @@ func (s *Store) UpdateBucket(ctx context.Context, tx kv.Tx, id platform.ID, upd 
 		}
 
 		if err := idx.Put(newIkey, encodedID); err != nil {
-			return nil, ErrInternalServiceError(err)
+			return nil, errors.ErrInternalServiceError(err)
 		}
 	}
 
@@ -412,7 +412,7 @@ func (s *Store) UpdateBucket(ctx context.Context, tx kv.Tx, id platform.ID, upd 
 		return nil, err
 	}
 	if err := b.Put(encodedID, v); err != nil {
-		return nil, ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err)
 	}
 
 	return bucket, nil
@@ -439,7 +439,7 @@ func (s *Store) DeleteBucket(ctx context.Context, tx kv.Tx, id platform.ID) erro
 		return err
 	}
 	if err := idx.Delete(ikey); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	b, err := tx.Bucket(bucketBucket)
@@ -448,7 +448,7 @@ func (s *Store) DeleteBucket(ctx context.Context, tx kv.Tx, id platform.ID) erro
 	}
 
 	if err := b.Delete(encodedID); err != nil {
-		return ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err)
 	}
 
 	return nil
