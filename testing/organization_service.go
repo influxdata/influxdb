@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
+	bolt "go.etcd.io/bbolt"
 )
 
 var orgBucketsIDGenerator = mock.NewMockIDGenerator()
@@ -171,6 +173,35 @@ func CreateOrganization(
 						},
 					},
 				},
+			},
+		},
+		{
+			name: "huge name",
+			fields: OrganizationFields{
+				IDGenerator:   mock.NewMockIDGenerator(),
+				OrgBucketIDs:  orgBucketsIDGenerator,
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*influxdb.Organization{
+					{
+						ID:   idOne,
+						Name: "organization1",
+					},
+				},
+			},
+			args: args{
+				organization: &influxdb.Organization{
+					ID:   idTwo,
+					Name: strings.Repeat("A Huge Organization Name", 10_000),
+				},
+			},
+			wants: wants{
+				organizations: []*influxdb.Organization{
+					{
+						ID:   idOne,
+						Name: "organization1",
+					},
+				},
+				err: &errors.Error{Code: errors.ETooLarge, Err: bolt.ErrKeyTooLarge},
 			},
 		},
 		{
