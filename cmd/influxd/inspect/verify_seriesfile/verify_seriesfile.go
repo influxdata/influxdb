@@ -269,7 +269,7 @@ func (v verify) verifySegment(segmentPath string, ids map[uint64]IDData) (valid 
 	v.Logger = v.Logger.With(zap.String("segment", segmentName))
 	v.Logger.Info("Verifying segment")
 
-	// Open up the segment and grab it's data.
+	// Open up the segment and grab its data.
 	segmentID, err := tsdb.ParseSeriesSegmentFilename(segmentName)
 	if err != nil {
 		return false, err
@@ -280,7 +280,8 @@ func (v verify) verifySegment(segmentPath string, ids map[uint64]IDData) (valid 
 		return false, nil
 	}
 	defer segment.Close()
-	buf := newBuffer(segment.Data())
+	// Only walk the file as it exists, not the whole mapping which may be bigger than the file.
+	buf := newBuffer(segment.Data()[:segment.Size()])
 
 	defer func() {
 		if rec := recover(); rec != nil {
