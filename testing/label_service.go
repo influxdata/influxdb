@@ -271,11 +271,11 @@ func CreateLabel(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.CreateLabel(ctx, tt.args.label)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			defer s.DeleteLabel(ctx, tt.args.label.ID)
 
@@ -410,11 +410,11 @@ func FindLabels(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			labels, err := s.FindLabels(ctx, tt.args.filter)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			if diff := cmp.Diff(labels, tt.wants.labels, labelCmpOptions...); diff != "" {
 				t.Errorf("labels are different -got/+want\ndiff %s", diff)
@@ -488,11 +488,11 @@ func FindLabelByID(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			label, err := s.FindLabelByID(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			if diff := cmp.Diff(label, tt.wants.label, labelCmpOptions...); diff != "" {
 				t.Errorf("labels are different -got/+want\ndiff %s", diff)
@@ -762,11 +762,11 @@ func UpdateLabel(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			_, err := s.UpdateLabel(ctx, tt.args.labelID, tt.args.update)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			labels, err := s.FindLabels(ctx, influxdb.LabelFilter{})
 			if err != nil {
@@ -859,11 +859,11 @@ func DeleteLabel(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteLabel(ctx, tt.args.labelID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			labels, err := s.FindLabels(ctx, influxdb.LabelFilter{})
 			if err != nil {
@@ -949,11 +949,11 @@ func CreateLabelMapping(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.CreateLabelMapping(ctx, tt.args.mapping)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			defer s.DeleteLabelMapping(ctx, tt.args.mapping)
 
@@ -1025,11 +1025,11 @@ func DeleteLabelMapping(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteLabelMapping(ctx, tt.args.mapping)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			labels, err := s.FindResourceLabels(ctx, tt.args.filter)
 			if err != nil {

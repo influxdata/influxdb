@@ -1030,7 +1030,7 @@ func FindChecks(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, _, opPrefix, done := init(tt.fields, t)
+			s, _, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -1049,7 +1049,7 @@ func FindChecks(
 			}
 
 			checks, _, err := s.FindChecks(ctx, filter, tt.args.findOptions)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, t)
 
 			if diff := cmp.Diff(checks, tt.wants.checks, checkCmpOptions...); diff != "" {
 				t.Errorf("checks are different -got/+want\ndiff %s", diff)
@@ -1536,14 +1536,14 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, _, opPrefix, done := init(tt.fields, t)
+			s, _, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			checkCreate := influxdb.CheckCreate{Check: tt.args.check, Status: influxdb.Active}
 
 			check, err := s.UpdateCheck(ctx, tt.args.id, checkCreate)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, t)
 
 			if diff := cmp.Diff(check, tt.wants.check, checkCmpOptions...); diff != "" {
 				t.Errorf("check is different -got/+want\ndiff %s", diff)
@@ -1731,7 +1731,7 @@ func MustIDBase16(s string) platform.ID {
 	return *id
 }
 
-func diffPlatformErrors(name string, actual, expected error, opPrefix string, t *testing.T) {
+func diffPlatformErrors(name string, actual, expected error, t *testing.T) {
 	t.Helper()
 	ErrorsEqual(t, actual, expected)
 }

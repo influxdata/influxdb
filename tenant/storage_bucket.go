@@ -330,11 +330,11 @@ func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Buc
 	}
 
 	if err := idx.Put(ikey, encodedID); err != nil {
-		return errors.ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateBucket))
 	}
 
 	if err := b.Put(encodedID, v); err != nil {
-		return errors.ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateBucket))
 	}
 
 	return nil

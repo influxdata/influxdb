@@ -217,11 +217,11 @@ func CreateDashboard(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.CreateDashboard(ctx, tt.args.dashboard)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(err, tt.wants.err, t)
 
 			defer s.DeleteDashboard(ctx, tt.args.dashboard.ID)
 
@@ -397,11 +397,11 @@ func AddDashboardCell(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.AddDashboardCell(ctx, tt.args.dashboardID, tt.args.cell, platform.AddDashboardCellOptions{})
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(err, tt.wants.err, t)
 
 			defer s.DeleteDashboard(ctx, tt.args.dashboardID)
 
@@ -493,12 +493,12 @@ func FindDashboardByID(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			dashboard, err := s.FindDashboardByID(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(err, tt.wants.err, t)
 
 			if diff := cmp.Diff(dashboard, tt.wants.dashboard, dashboardCmpOptions...); diff != "" {
 				t.Errorf("dashboard is different -got/+want\ndiff %s", diff)
@@ -999,7 +999,7 @@ func FindDashboards(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx, err := feature.Annotate(context.Background(), mock.NewFlagger(map[feature.Flag]interface{}{
 				feature.EnforceOrganizationDashboardLimits(): true,
@@ -1015,7 +1015,7 @@ func FindDashboards(
 			}
 
 			dashboards, _, err := s.FindDashboards(ctx, filter, tt.args.findOptions)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(err, tt.wants.err, t)
 
 			if diff := cmp.Diff(dashboards, tt.wants.dashboards, dashboardCmpOptions...); diff != "" {
 				t.Errorf("dashboards are different -got/+want\ndiff %s", diff)
@@ -1115,11 +1115,11 @@ func DeleteDashboard(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteDashboard(ctx, tt.args.ID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(err, tt.wants.err, t)
 
 			filter := platform.DashboardFilter{}
 			dashboards, _, err := s.FindDashboards(ctx, filter, platform.DefaultDashboardFindOptions)
@@ -1351,7 +1351,7 @@ func UpdateDashboard(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -1367,7 +1367,7 @@ func UpdateDashboard(
 			}
 
 			dashboard, err := s.UpdateDashboard(ctx, tt.args.id, upd)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(err, tt.wants.err, t)
 
 			if diff := cmp.Diff(dashboard, tt.wants.dashboard, dashboardCmpOptions...); diff != "" {
 				t.Errorf("dashboard is different -got/+want\ndiff %s", diff)
@@ -1454,11 +1454,11 @@ func RemoveDashboardCell(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.RemoveDashboardCell(ctx, tt.args.dashboardID, tt.args.cellID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(err, tt.wants.err, t)
 
 			defer s.DeleteDashboard(ctx, tt.args.dashboardID)
 
@@ -1662,11 +1662,11 @@ func UpdateDashboardCell(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			_, err := s.UpdateDashboardCell(ctx, tt.args.dashboardID, tt.args.cellID, tt.args.cellUpdate)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(err, tt.wants.err, t)
 
 			defer s.DeleteDashboard(ctx, tt.args.dashboardID)
 
@@ -1852,11 +1852,11 @@ func ReplaceDashboardCells(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.ReplaceDashboardCells(ctx, tt.args.dashboardID, tt.args.cells)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(err, tt.wants.err, t)
 
 			defer s.DeleteDashboard(ctx, tt.args.dashboardID)
 
@@ -1952,12 +1952,12 @@ func GetDashboardCellView(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			view, err := s.GetDashboardCellView(ctx, tt.args.dashboardID, tt.args.cellID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(err, tt.wants.err, t)
 
 			if diff := cmp.Diff(view, tt.wants.view); diff != "" {
 				t.Errorf("dashboard cell views are different -got/+want\ndiff %s", diff)
@@ -2125,7 +2125,7 @@ func UpdateDashboardCellView(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -2139,7 +2139,7 @@ func UpdateDashboardCellView(
 			}
 
 			view, err := s.UpdateDashboardCellView(ctx, tt.args.dashboardID, tt.args.cellID, upd)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(err, tt.wants.err, t)
 
 			if diff := cmp.Diff(view, tt.wants.view); diff != "" {
 				t.Errorf("dashboard cell views are different -got/+want\ndiff %s", diff)

@@ -119,7 +119,7 @@ func TestNotificationEndpointService_FindNotificationEndpointByID(t *testing.T) 
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindNotificationEndpointByID(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -203,7 +203,7 @@ func TestNotificationEndpointService_FindNotificationEndpoints(t *testing.T) {
 
 			oid := platform.ID(10)
 			edps, _, err := s.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{OrgID: &oid})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 
 			if diff := cmp.Diff(edps, tt.wants.notificationEndpoints, notificationEndpointCmpOptions...); diff != "" {
 				t.Errorf("notificationEndpoints are different -got/+want\ndiff %s", diff)
@@ -328,7 +328,7 @@ func TestNotificationEndpointService_UpdateNotificationEndpoint(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.UpdateNotificationEndpoint(ctx, tt.args.id, &endpoint.Slack{}, platform.ID(1))
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -448,7 +448,7 @@ func TestNotificationEndpointService_PatchNotificationEndpoint(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.PatchNotificationEndpoint(ctx, tt.args.id, influxdb.NotificationEndpointUpdate{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -559,7 +559,7 @@ func TestNotificationEndpointService_DeleteNotificationEndpoint(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, _, err := s.DeleteNotificationEndpoint(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -669,7 +669,7 @@ func TestNotificationEndpointService_CreateNotificationEndpoint(t *testing.T) {
 				Base: endpoint.Base{
 					OrgID: idPtr(tt.args.orgID)},
 			}, platform.ID(1))
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }

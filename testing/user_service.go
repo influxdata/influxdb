@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -11,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
+	bolt "go.etcd.io/bbolt"
 )
 
 const (
@@ -103,8 +105,9 @@ func CreateUser(
 		user *influxdb.User
 	}
 	type wants struct {
-		err   error
-		users []*influxdb.User
+		err         error
+		errOptional bool
+		users       []*influxdb.User
 	}
 
 	tests := []struct {
@@ -204,16 +207,54 @@ func CreateUser(
 				},
 			},
 		},
+		{
+			name: "names can't be huge",
+			fields: UserFields{
+				IDGenerator: &mock.IDGenerator{
+					IDFn: func() platform.ID {
+						return MustIDBase16(userOneID)
+					},
+				},
+				Users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: influxdb.Active,
+					},
+				},
+			},
+			args: args{
+				user: &influxdb.User{
+					ID:     MustIDBase16(userTwoID),
+					Name:   strings.Repeat("ATrulyEnormousUserName", 10_000),
+					Status: influxdb.Active,
+				},
+			},
+			wants: wants{
+				users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: influxdb.Active,
+					},
+				},
+				err: &errors.Error{
+					Code: errors.ETooLarge,
+					Op:   influxdb.OpCreateUser,
+					Err:  bolt.ErrKeyTooLarge,
+				},
+				errOptional: true,
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			err := s.CreateUser(ctx, tt.args.user)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
-
+			errCreate := s.CreateUser(ctx, tt.args.user)
+			diffPlatformErrors(tt.name, errCreate, tt.wants.err, tt.wants.errOptional, t)
 			// Delete only created users - ie., having a not nil ID
 			if tt.args.user.ID.Valid() {
 				defer s.DeleteUser(ctx, tt.args.user.ID)
@@ -222,6 +263,13 @@ func CreateUser(
 			users, _, err := s.FindUsers(ctx, influxdb.UserFilter{})
 			if err != nil {
 				t.Fatalf("failed to retrieve users: %v", err)
+			}
+
+			// If the operation succeeded against expectations (because is the inmem store)
+			// our wants list will be wrong, so don't compare it.
+
+			if tt.wants.errOptional && errCreate == nil {
+				return
 			}
 			if diff := cmp.Diff(users, tt.wants.users, userCmpOptions...); diff != "" {
 				t.Errorf("users are different -got/+want\ndiff %s", diff)
@@ -307,12 +355,12 @@ func FindUserByID(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			user, err := s.FindUserByID(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			if diff := cmp.Diff(user, tt.wants.user, userCmpOptions...); diff != "" {
 				t.Errorf("user is different -got/+want\ndiff %s", diff)
@@ -607,7 +655,7 @@ func FindUsers(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -620,7 +668,7 @@ func FindUsers(
 			}
 
 			users, _, err := s.FindUsers(ctx, filter, tt.args.findOptions)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			if diff := cmp.Diff(users, tt.wants.users, userCmpOptions...); diff != "" {
 				t.Errorf("users are different -got/+want\ndiff %s", diff)
@@ -720,11 +768,11 @@ func DeleteUser(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteUser(ctx, tt.args.ID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			filter := influxdb.UserFilter{}
 			users, _, err := s.FindUsers(ctx, filter)
@@ -931,11 +979,11 @@ func FindUser(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			user, err := s.FindUser(ctx, tt.args.filter)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			if diff := cmp.Diff(user, tt.wants.user, userCmpOptions...); diff != "" {
 				t.Errorf("users are different -got/+want\ndiff %s", diff)
@@ -1079,7 +1127,7 @@ func UpdateUser(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -1098,7 +1146,7 @@ func UpdateUser(
 			}
 
 			user, err := s.UpdateUser(ctx, tt.args.id, upd)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			if diff := cmp.Diff(user, tt.wants.user, userCmpOptions...); diff != "" {
 				t.Errorf("user is different -got/+want\ndiff %s", diff)
@@ -1154,5 +1202,5 @@ func UpdateUser_IndexHygiene(
 		Code: errors.ENotFound,
 		Op:   influxdb.OpFindUser,
 		Msg:  "user not found",
-	})
+	}, false)
 }

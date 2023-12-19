@@ -185,11 +185,11 @@ func (s *Store) CreateOrg(ctx context.Context, tx kv.Tx, o *influxdb.Organizatio
 	}
 
 	if err := idx.Put(organizationIndexKey(o.Name), encodedID); err != nil {
-		return errors.ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateOrganization))
 	}
 
 	if err := b.Put(encodedID, v); err != nil {
-		return errors.ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateOrganization))
 	}
 
 	return nil

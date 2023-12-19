@@ -209,11 +209,11 @@ func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) erro
 	}
 
 	if err := idx.Put([]byte(u.Name), encodedID); err != nil {
-		return errors.ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateUser))
 	}
 
 	if err := b.Put(encodedID, v); err != nil {
-		return errors.ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateUser))
 	}
 
 	return nil

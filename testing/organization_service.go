@@ -101,6 +101,7 @@ func CreateOrganization(
 	}
 	type wants struct {
 		err           error
+		errOptional   bool
 		organizations []*influxdb.Organization
 	}
 
@@ -201,7 +202,8 @@ func CreateOrganization(
 						Name: "organization1",
 					},
 				},
-				err: &errors.Error{Code: errors.ETooLarge, Err: bolt.ErrKeyTooLarge},
+				err:         &errors.Error{Code: errors.ETooLarge, Err: bolt.ErrKeyTooLarge},
+				errOptional: true,
 			},
 		},
 		{
@@ -333,18 +335,25 @@ func CreateOrganization(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			err := s.CreateOrganization(ctx, tt.args.organization)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			errCreate := s.CreateOrganization(ctx, tt.args.organization)
+			diffPlatformErrors(tt.name, errCreate, tt.wants.err, tt.wants.errOptional, t)
 
 			// Delete only newly created organizations
 			// if tt.args.organization.ID != nil {
 			defer s.DeleteOrganization(ctx, tt.args.organization.ID)
 
 			organizations, _, err := s.FindOrganizations(ctx, influxdb.OrganizationFilter{})
-			diffPlatformErrors(tt.name, err, nil, opPrefix, t)
+			diffPlatformErrors(tt.name, err, nil, tt.wants.errOptional, t)
+
+			// Our test cases wants list is for the case when the error occurs
+			// If the error does not occur (usually because of the inmem store)
+			// our list of wanted organizations will be wrong.
+			if tt.wants.errOptional && errCreate == nil {
+				return
+			}
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
 				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
 			}
@@ -427,12 +436,12 @@ func FindOrganizationByID(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			organization, err := s.FindOrganizationByID(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			if diff := cmp.Diff(organization, tt.wants.organization, organizationCmpOptions...); diff != "" {
 				t.Errorf("organization is different -got/+want\ndiff %s", diff)
@@ -641,7 +650,7 @@ func FindOrganizations(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -654,7 +663,7 @@ func FindOrganizations(
 			}
 
 			organizations, _, err := s.FindOrganizations(ctx, filter, tt.args.findOptions)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
 				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
@@ -750,15 +759,15 @@ func DeleteOrganization(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteOrganization(ctx, tt.args.ID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			filter := influxdb.OrganizationFilter{}
 			organizations, _, err := s.FindOrganizations(ctx, filter)
-			diffPlatformErrors(tt.name, err, nil, opPrefix, t)
+			diffPlatformErrors(tt.name, err, nil, false, t)
 
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
 				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
@@ -874,7 +883,7 @@ func FindOrganization(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			filter := influxdb.OrganizationFilter{}
@@ -886,7 +895,7 @@ func FindOrganization(
 			}
 
 			organization, err := s.FindOrganization(ctx, filter)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			if diff := cmp.Diff(organization, tt.wants.organization, organizationCmpOptions...); diff != "" {
 				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
@@ -1116,7 +1125,7 @@ func UpdateOrganization(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -1125,7 +1134,7 @@ func UpdateOrganization(
 			upd.Description = tt.args.description
 
 			organization, err := s.UpdateOrganization(ctx, tt.args.id, upd)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
 
 			if diff := cmp.Diff(organization, tt.wants.organization, organizationCmpOptions...); diff != "" {
 				t.Errorf("organization is different -got/+want\ndiff %s", diff)
