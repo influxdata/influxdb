@@ -157,7 +157,7 @@ func TestAuth_FindByID(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindByID(ctx, tt.args.orgID, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -377,7 +377,7 @@ func TestAuth_FindMany(t *testing.T) {
 			if ngots != len(gots) {
 				t.Errorf("got wrong number back")
 			}
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 			if diff := cmp.Diff(tt.wants.ms, gots, influxdbtesting.DBRPMappingCmpOptions...); diff != "" {
 				t.Errorf("unexpected result -want/+got:\n\t%s", diff)
 			}
@@ -464,7 +464,7 @@ func TestAuth_Create(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.Create(ctx, &tt.args.m)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -542,7 +542,7 @@ func TestAuth_Update(t *testing.T) {
 
 			// Does not matter how we update, we only need to check auth.
 			err := s.Update(ctx, &influxdb.DBRPMapping{ID: tt.args.id, OrganizationID: tt.args.orgID, BucketID: 1})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -633,7 +633,7 @@ func TestAuth_Delete(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.Delete(ctx, tt.args.orgID, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }

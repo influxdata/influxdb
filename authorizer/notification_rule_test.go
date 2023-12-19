@@ -117,7 +117,7 @@ func TestNotificationRuleStore_FindNotificationRuleByID(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindNotificationRuleByID(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -263,7 +263,7 @@ func TestNotificationRuleStore_FindNotificationRules(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			ts, _, err := s.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 
 			if diff := cmp.Diff(ts, tt.wants.notificationRules, notificationRuleCmpOptions...); diff != "" {
 				t.Errorf("notificationRules are different -got/+want\ndiff %s", diff)
@@ -391,7 +391,7 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 			}
 
 			_, err := s.UpdateNotificationRule(ctx, tt.args.id, nrc, platform.ID(1))
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -510,7 +510,7 @@ func TestNotificationRuleStore_PatchNotificationRule(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.PatchNotificationRule(ctx, tt.args.id, influxdb.NotificationRuleUpdate{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -619,7 +619,7 @@ func TestNotificationRuleStore_DeleteNotificationRule(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteNotificationRule(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -711,7 +711,7 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 			}
 
 			err := s.CreateNotificationRule(ctx, nrc, platform.ID(1))
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }

@@ -310,7 +310,7 @@ func TestTelegram_Valid(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			got := c.rule.Valid()
-			influxTesting.ErrorsEqual(t, got, c.err)
+			influxTesting.ErrorsEqual(t, got, c.err, false)
 		})
 	}
 

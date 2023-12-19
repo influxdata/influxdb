@@ -299,16 +299,19 @@ func BoltToInfluxError(err error) error {
 	}
 }
 
-func ErrInternalServiceError(err error) *Error {
+func ErrInternalServiceError(err error, options ...func(*Error)) *Error {
 	var e *Error
 	if !errors.As(err, &e) {
-		e = &Error{
-			Code: EInternal,
-			Err:  err,
-		}
+		setters := make([]func(*Error), 0, len(options)+2)
+		// Defaults first, so they can be overridden by arguments.
+		setters = append(setters, WithErrorErr(err), WithErrorCode(EInternal))
+		setters = append(setters, options...)
+		return NewError(setters...)
+	} else if e.Code == "" {
+		WithErrorCode(EInternal)(e)
 	}
-	if e.Code == "" {
-		e.Code = EInternal
+	for _, o := range options {
+		o(e)
 	}
 	return e
 }

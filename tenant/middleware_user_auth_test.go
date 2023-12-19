@@ -112,7 +112,7 @@ func TestUserService_FindUserByID(t *testing.T) {
 			ctx = icontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindUserByID(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -195,7 +195,7 @@ func TestUserService_FindUser(t *testing.T) {
 			ctx = icontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindUser(ctx, influxdb.UserFilter{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -305,7 +305,7 @@ func TestUserService_FindUsers(t *testing.T) {
 			ctx = icontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			users, _, err := s.FindUsers(ctx, influxdb.UserFilter{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 
 			if diff := cmp.Diff(users, tt.wants.users, userCmpOptions...); diff != "" {
 				t.Errorf("users are different -got/+want\ndiff %s", diff)
@@ -395,7 +395,7 @@ func TestUserService_UpdateUser(t *testing.T) {
 			ctx = icontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.UpdateUser(ctx, tt.args.id, influxdb.UserUpdate{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -477,7 +477,7 @@ func TestUserService_DeleteUser(t *testing.T) {
 			ctx = icontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.DeleteUser(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -555,7 +555,7 @@ func TestUserService_CreateUser(t *testing.T) {
 			ctx = icontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.CreateUser(ctx, &influxdb.User{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }

@@ -147,7 +147,7 @@ func TestValidCheck(t *testing.T) {
 	}
 	for _, c := range cases {
 		got := c.src.Valid(fluxlang.DefaultService)
-		influxTesting.ErrorsEqual(t, got, c.err)
+		influxTesting.ErrorsEqual(t, got, c.err, false)
 	}
 }
 

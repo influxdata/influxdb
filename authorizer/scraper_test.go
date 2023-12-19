@@ -112,7 +112,7 @@ func TestScraperTargetStoreService_GetTargetByID(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.GetTargetByID(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -237,7 +237,7 @@ func TestScraperTargetStoreService_ListTargets(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			ts, err := s.ListTargets(ctx, influxdb.ScraperTargetFilter{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 
 			if diff := cmp.Diff(ts, tt.wants.scrapers, scraperCmpOptions...); diff != "" {
 				t.Errorf("scrapers are different -got/+want\ndiff %s", diff)
@@ -407,7 +407,7 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.UpdateTarget(ctx, &influxdb.ScraperTarget{ID: tt.args.id, BucketID: tt.args.bucketID}, platform.ID(1))
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -513,7 +513,7 @@ func TestScraperTargetStoreService_RemoveTarget(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.RemoveTarget(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
@@ -653,7 +653,7 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.AddTarget(ctx, &influxdb.ScraperTarget{OrgID: tt.args.orgID, BucketID: tt.args.bucketID}, platform.ID(1))
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
 		})
 	}
 }
