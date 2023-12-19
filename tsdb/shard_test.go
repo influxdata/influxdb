@@ -2456,6 +2456,14 @@ func (sh *Shard) MustWritePointsString(s string) {
 	}
 }
 
+func MustTempDir() (string, func()) {
+	dir, err := os.MkdirTemp("", "shard-test")
+	if err != nil {
+		panic(fmt.Sprintf("failed to create temp dir: %v", err))
+	}
+	return dir, func() { os.RemoveAll(dir) }
+}
+
 type seriesIterator struct {
 	keys [][]byte
 }
