@@ -46,13 +46,17 @@ func NewTestInmemStore(t *testing.T) kv.SchemaStore {
 	return s
 }
 
-func diffPlatformErrors(name string, actual, expected error, errOptional bool, t *testing.T) {
+func diffPlatformErrors(name string, actual, expected error, inMemNoError, isInMem bool, t *testing.T) {
 	t.Helper()
-	ErrorsEqual(t, actual, expected, errOptional)
+	if inMemNoError && isInMem {
+		ErrorsEqual(t, actual, nil)
+	} else {
+		ErrorsEqual(t, actual, expected)
+	}
 }
 
 // ErrorsEqual checks to see if the provided errors are equivalent.
-func ErrorsEqual(t *testing.T, actual, expected error, errOptional bool) {
+func ErrorsEqual(t *testing.T, actual, expected error) {
 	t.Helper()
 	if expected == nil && actual == nil {
 		return
@@ -62,11 +66,7 @@ func ErrorsEqual(t *testing.T, actual, expected error, errOptional bool) {
 		t.Errorf("unexpected error %s", actual.Error())
 	}
 
-	if errOptional && actual == nil {
-		return
-	}
-
-	if expected != nil && !errOptional && actual == nil {
+	if expected != nil && actual == nil {
 		t.Errorf("expected error %s but received nil", expected.Error())
 	}
 

@@ -49,12 +49,11 @@ type OrganizationFields struct {
 }
 
 // OrganizationService tests all the service functions.
-func OrganizationService(
-	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()), t *testing.T,
-) {
+func OrganizationService(init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()), isInMem bool, t *testing.T) {
 	tests := []struct {
 		name string
 		fn   func(init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
+			isInMem bool,
 			t *testing.T)
 	}{
 		{
@@ -86,22 +85,19 @@ func OrganizationService(
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt
 			t.Parallel()
-			tt.fn(init, t)
+			tt.fn(init, isInMem, t)
 		})
 	}
 }
 
 // CreateOrganization testing
-func CreateOrganization(
-	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
-	t *testing.T,
-) {
+func CreateOrganization(init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()), isInMem bool, t *testing.T) {
 	type args struct {
 		organization *influxdb.Organization
 	}
 	type wants struct {
 		err           error
-		errOptional   bool
+		inMemNoError  bool
 		organizations []*influxdb.Organization
 	}
 
@@ -202,8 +198,8 @@ func CreateOrganization(
 						Name: "organization1",
 					},
 				},
-				err:         &errors.Error{Code: errors.ETooLarge, Err: bolt.ErrKeyTooLarge},
-				errOptional: true,
+				err:          &errors.Error{Code: errors.ETooLarge, Err: bolt.ErrKeyTooLarge},
+				inMemNoError: true,
 			},
 		},
 		{
@@ -339,19 +335,19 @@ func CreateOrganization(
 			defer done()
 			ctx := context.Background()
 			errCreate := s.CreateOrganization(ctx, tt.args.organization)
-			diffPlatformErrors(tt.name, errCreate, tt.wants.err, tt.wants.errOptional, t)
+			diffPlatformErrors(tt.name, errCreate, tt.wants.err, tt.wants.inMemNoError, isInMem, t)
 
 			// Delete only newly created organizations
 			// if tt.args.organization.ID != nil {
 			defer s.DeleteOrganization(ctx, tt.args.organization.ID)
 
 			organizations, _, err := s.FindOrganizations(ctx, influxdb.OrganizationFilter{})
-			diffPlatformErrors(tt.name, err, nil, tt.wants.errOptional, t)
+			diffPlatformErrors(tt.name, err, nil, tt.wants.inMemNoError, false, t)
 
 			// Our test cases wants list is for the case when the error occurs
 			// If the error does not occur (usually because of the inmem store)
 			// our list of wanted organizations will be wrong.
-			if tt.wants.errOptional && errCreate == nil {
+			if tt.wants.inMemNoError && errCreate == nil {
 				return
 			}
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
@@ -362,10 +358,7 @@ func CreateOrganization(
 }
 
 // FindOrganizationByID testing
-func FindOrganizationByID(
-	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
-	t *testing.T,
-) {
+func FindOrganizationByID(init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()), isInMem bool, t *testing.T) {
 	type args struct {
 		id platform.ID
 	}
@@ -441,7 +434,7 @@ func FindOrganizationByID(
 			ctx := context.Background()
 
 			organization, err := s.FindOrganizationByID(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(organization, tt.wants.organization, organizationCmpOptions...); diff != "" {
 				t.Errorf("organization is different -got/+want\ndiff %s", diff)
@@ -451,10 +444,7 @@ func FindOrganizationByID(
 }
 
 // FindOrganizations testing
-func FindOrganizations(
-	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
-	t *testing.T,
-) {
+func FindOrganizations(init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()), isInMem bool, t *testing.T) {
 	type args struct {
 		ID          platform.ID
 		name        string
@@ -663,7 +653,7 @@ func FindOrganizations(
 			}
 
 			organizations, _, err := s.FindOrganizations(ctx, filter, tt.args.findOptions)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
 				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
@@ -673,10 +663,7 @@ func FindOrganizations(
 }
 
 // DeleteOrganization testing
-func DeleteOrganization(
-	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
-	t *testing.T,
-) {
+func DeleteOrganization(init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()), isInMem bool, t *testing.T) {
 	type args struct {
 		ID platform.ID
 	}
@@ -763,11 +750,11 @@ func DeleteOrganization(
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteOrganization(ctx, tt.args.ID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			filter := influxdb.OrganizationFilter{}
 			organizations, _, err := s.FindOrganizations(ctx, filter)
-			diffPlatformErrors(tt.name, err, nil, false, t)
+			diffPlatformErrors(tt.name, err, nil, false, false, t)
 
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
 				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
@@ -777,10 +764,7 @@ func DeleteOrganization(
 }
 
 // FindOrganization testing
-func FindOrganization(
-	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
-	t *testing.T,
-) {
+func FindOrganization(init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()), isInMem bool, t *testing.T) {
 	type args struct {
 		name string
 		id   platform.ID
@@ -895,7 +879,7 @@ func FindOrganization(
 			}
 
 			organization, err := s.FindOrganization(ctx, filter)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(organization, tt.wants.organization, organizationCmpOptions...); diff != "" {
 				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
@@ -905,10 +889,7 @@ func FindOrganization(
 }
 
 // UpdateOrganization testing
-func UpdateOrganization(
-	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
-	t *testing.T,
-) {
+func UpdateOrganization(init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()), isInMem bool, t *testing.T) {
 	type args struct {
 		id          platform.ID
 		name        *string
@@ -1134,7 +1115,7 @@ func UpdateOrganization(
 			upd.Description = tt.args.description
 
 			organization, err := s.UpdateOrganization(ctx, tt.args.id, upd)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(organization, tt.wants.organization, organizationCmpOptions...); diff != "" {
 				t.Errorf("organization is different -got/+want\ndiff %s", diff)

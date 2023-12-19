@@ -146,7 +146,7 @@ func TestSecretService_LoadSecret(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.LoadSecret(ctx, tt.args.org, tt.args.key)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -272,7 +272,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			secrets, err := s.GetSecretKeys(ctx, tt.args.org)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			if diff := cmp.Diff(secrets, tt.wants.secrets, secretCmpOptions...); diff != "" {
 				t.Errorf("secrets are different -got/+want\ndiff %s", diff)
@@ -363,7 +363,7 @@ func TestSecretService_PatchSecrets(t *testing.T) {
 
 			patches := make(map[string]string)
 			err := s.PatchSecrets(ctx, tt.args.org, patches)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -449,7 +449,7 @@ func TestSecretService_DeleteSecret(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteSecret(ctx, tt.args.org)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -531,7 +531,7 @@ func TestSecretService_PutSecret(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.PutSecret(ctx, tt.args.orgID, "", "")
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -694,7 +694,7 @@ func TestSecretService_PutSecrets(t *testing.T) {
 
 			secrets := make(map[string]string)
 			err := s.PutSecrets(ctx, tt.args.orgID, secrets)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }

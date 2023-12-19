@@ -81,7 +81,7 @@ func TestParseNode(t *testing.T) {
 	}
 	for _, c := range cases {
 		node, err := Parse(c.str)
-		influxtesting.ErrorsEqual(t, err, c.err, false)
+		influxtesting.ErrorsEqual(t, err, c.err)
 		if c.err == nil {
 			if diff := cmp.Diff(node, c.node); diff != "" {
 				t.Errorf("tag rule mismatch:\n  %s", diff)
@@ -158,7 +158,7 @@ func TestParseTagRule(t *testing.T) {
 		p := new(parser)
 		p.sc = influxql.NewScanner(strings.NewReader(c.str))
 		tr, err := p.parseTagRuleNode()
-		influxtesting.ErrorsEqual(t, err, c.err, false)
+		influxtesting.ErrorsEqual(t, err, c.err)
 		if c.err == nil {
 			if diff := cmp.Diff(tr, c.node); diff != "" {
 				t.Errorf("tag rule mismatch:\n  %s", diff)

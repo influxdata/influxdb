@@ -112,7 +112,7 @@ func TestDashboardService_FindDashboardByID(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindDashboardByID(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -237,7 +237,7 @@ func TestDashboardService_FindDashboards(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			dashboards, _, err := s.FindDashboards(ctx, influxdb.DashboardFilter{}, influxdb.FindOptions{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			if diff := cmp.Diff(dashboards, tt.wants.dashboards, dashboardCmpOptions...); diff != "" {
 				t.Errorf("dashboards are different -got/+want\ndiff %s", diff)
@@ -352,7 +352,7 @@ func TestDashboardService_UpdateDashboard(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.UpdateDashboard(ctx, tt.args.id, influxdb.DashboardUpdate{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -457,7 +457,7 @@ func TestDashboardService_DeleteDashboard(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteDashboard(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -539,7 +539,7 @@ func TestDashboardService_CreateDashboard(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.CreateDashboard(ctx, &influxdb.Dashboard{OrganizationID: tt.args.orgID})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -657,19 +657,19 @@ func TestDashboardService_WriteDashboardCell(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.AddDashboardCell(ctx, 1, &influxdb.Cell{}, influxdb.AddDashboardCellOptions{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			err = s.RemoveDashboardCell(ctx, 1, 2)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			_, err = s.UpdateDashboardCellView(ctx, 1, 2, influxdb.ViewUpdate{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			_, err = s.UpdateDashboardCell(ctx, 1, 2, influxdb.CellUpdate{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			err = s.ReplaceDashboardCells(ctx, 1, []*influxdb.Cell{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -763,7 +763,7 @@ func TestDashboardService_FindDashboardCellView(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.GetDashboardCellView(ctx, 1, 1)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }

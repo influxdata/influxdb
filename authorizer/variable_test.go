@@ -112,7 +112,7 @@ func TestVariableService_FindVariableByID(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindVariableByID(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -236,7 +236,7 @@ func TestVariableService_FindVariables(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			variables, err := s.FindVariables(ctx, influxdb.VariableFilter{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			if diff := cmp.Diff(variables, tt.wants.variables, variableCmpOptions...); diff != "" {
 				t.Errorf("variables are different -got/+want\ndiff %s", diff)
@@ -351,7 +351,7 @@ func TestVariableService_UpdateVariable(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.UpdateVariable(ctx, tt.args.id, &influxdb.VariableUpdate{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -463,7 +463,7 @@ func TestVariableService_ReplaceVariable(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.ReplaceVariable(ctx, &tt.args.variable)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -568,7 +568,7 @@ func TestVariableService_DeleteVariable(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteVariable(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -650,7 +650,7 @@ func TestVariableService_CreateVariable(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.CreateVariable(ctx, &influxdb.Variable{OrganizationID: tt.args.orgID})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }

@@ -112,7 +112,7 @@ func TestTelegrafConfigStore_FindTelegrafConfigByID(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindTelegrafConfigByID(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -236,7 +236,7 @@ func TestTelegrafConfigStore_FindTelegrafConfigs(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			ts, _, err := s.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			if diff := cmp.Diff(ts, tt.wants.telegrafs, telegrafCmpOptions...); diff != "" {
 				t.Errorf("telegrafs are different -got/+want\ndiff %s", diff)
@@ -351,7 +351,7 @@ func TestTelegrafConfigStore_UpdateTelegrafConfig(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.UpdateTelegrafConfig(ctx, tt.args.id, &influxdb.TelegrafConfig{}, platform.ID(1))
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -456,7 +456,7 @@ func TestTelegrafConfigStore_DeleteTelegrafConfig(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteTelegrafConfig(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -538,7 +538,7 @@ func TestTelegrafConfigStore_CreateTelegrafConfig(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.CreateTelegrafConfig(ctx, &influxdb.TelegrafConfig{OrgID: tt.args.orgID}, platform.ID(1))
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }

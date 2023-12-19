@@ -10,7 +10,7 @@ import (
 )
 
 func TestOrganizationLoggingService(t *testing.T) {
-	influxdbtesting.OrganizationService(initBoltOrganizationLoggingService, t)
+	influxdbtesting.OrganizationService(initBoltOrganizationLoggingService, false, t)
 }
 
 func initBoltOrganizationLoggingService(f influxdbtesting.OrganizationFields, t *testing.T) (influxdb.OrganizationService, string, func()) {

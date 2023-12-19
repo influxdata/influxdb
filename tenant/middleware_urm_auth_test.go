@@ -164,7 +164,7 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 			))
 
 			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			if diff := cmp.Diff(urms, tt.wants.urms); diff != "" {
 				t.Errorf("urms are different -got/+want\ndiff %s", diff)
@@ -266,7 +266,7 @@ func TestURMService_FindUserResourceMappingsBucketAuth(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			if diff := cmp.Diff(urms, tt.wants.urms); diff != "" {
 				t.Errorf("urms are different -got/+want\ndiff %s", diff)
@@ -376,12 +376,12 @@ func TestURMService_WriteUserResourceMapping(t *testing.T) {
 
 			t.Run("create urm", func(t *testing.T) {
 				err := s.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{ResourceType: influxdb.BucketsResourceType, ResourceID: 1})
-				influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+				influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 			})
 
 			t.Run("delete urm", func(t *testing.T) {
 				err := s.DeleteUserResourceMapping(ctx, 1, 100)
-				influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+				influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 			})
 
 		})

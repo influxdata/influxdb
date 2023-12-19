@@ -207,7 +207,7 @@ func TestValidEndpoint(t *testing.T) {
 			} else {
 				exp = c.err
 			}
-			influxTesting.ErrorsEqual(t, got, exp, false)
+			influxTesting.ErrorsEqual(t, got, exp)
 		})
 	}
 }

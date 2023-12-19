@@ -136,7 +136,7 @@ func CreateSession(
 			defer done()
 			ctx := context.Background()
 			session, err := s.CreateSession(ctx, tt.args.user)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(session, tt.wants.session, sessionCmpOptions...); diff != "" {
 				t.Errorf("sessions are different -got/+want\ndiff %s", diff)
@@ -212,7 +212,7 @@ func FindSession(
 			ctx := context.Background()
 
 			session, err := s.FindSession(ctx, tt.args.key)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(session, tt.wants.session, sessionCmpOptions...); diff != "" {
 				t.Errorf("session is different -got/+want\ndiff %s", diff)
@@ -275,7 +275,7 @@ func ExpireSession(
 			ctx := context.Background()
 
 			err := s.ExpireSession(ctx, tt.args.key)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			session, err := s.FindSession(ctx, tt.args.key)
 			if err.Error() != influxdb.ErrSessionExpired && err.Error() != influxdb.ErrSessionNotFound {
@@ -418,7 +418,7 @@ func RenewSession(
 			ctx := context.Background()
 
 			err := s.RenewSession(ctx, tt.args.session, tt.args.expireAt)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			session, err := s.FindSession(ctx, tt.args.key)
 			if err != nil {

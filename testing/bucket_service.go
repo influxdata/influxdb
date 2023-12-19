@@ -379,7 +379,7 @@ func CreateBucket(
 			defer done()
 			ctx := context.Background()
 			err := s.CreateBucket(ctx, tt.args.bucket)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			// Delete only newly created buckets - ie., with a not nil ID
 			// if tt.args.bucket.ID.Valid() {
@@ -505,7 +505,7 @@ func FindBucketByID(
 			ctx := context.Background()
 
 			bucket, err := s.FindBucketByID(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(bucket, tt.wants.bucket, bucketCmpOptions...); diff != "" {
 				t.Errorf("bucket is different -got/+want\ndiff %s", diff)
@@ -907,7 +907,7 @@ func FindBuckets(
 			}
 
 			buckets, _, err := s.FindBuckets(ctx, filter, tt.args.findOptions)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			// remove system buckets
 			filteredBuckets := []*influxdb.Bucket{}
@@ -1074,7 +1074,7 @@ func DeleteBucket(
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteBucket(ctx, tt.args.ID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			filter := influxdb.BucketFilter{}
 			buckets, _, err := s.FindBuckets(ctx, filter)
@@ -1243,7 +1243,7 @@ func FindBucket(
 			}
 
 			bucket, err := s.FindBucket(ctx, filter)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(bucket, tt.wants.bucket, bucketCmpOptions...); diff != "" {
 				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
@@ -1738,7 +1738,7 @@ func UpdateBucket(
 			upd.Description = tt.args.description
 
 			bucket, err := s.UpdateBucket(ctx, tt.args.id, upd)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(bucket, tt.wants.bucket, bucketCmpOptions...); diff != "" {
 				t.Errorf("bucket is different -got/+want\ndiff %s", diff)

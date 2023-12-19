@@ -95,7 +95,7 @@ func CreateSource(
 			defer done()
 			ctx := context.Background()
 			err := s.CreateSource(ctx, tt.args.source)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 			defer s.DeleteSource(ctx, tt.args.source.ID)
 
 			sources, _, err := s.FindSources(ctx, platform.FindOptions{})
@@ -178,7 +178,7 @@ func FindSourceByID(
 			defer done()
 			ctx := context.Background()
 			source, err := s.FindSourceByID(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(source, tt.wants.source, sourceCmpOptions...); diff != "" {
 				t.Errorf("sources are different -got/+want\ndiff %s", diff)
@@ -254,7 +254,7 @@ func FindSources(
 			defer done()
 			ctx := context.Background()
 			sources, _, err := s.FindSources(ctx, tt.args.opts)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(sources, tt.wants.sources, sourceCmpOptions...); diff != "" {
 				t.Errorf("sources are different -got/+want\ndiff %s", diff)
@@ -343,7 +343,7 @@ func DeleteSource(
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteSource(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			sources, _, err := s.FindSources(ctx, platform.FindOptions{})
 			if err != nil {

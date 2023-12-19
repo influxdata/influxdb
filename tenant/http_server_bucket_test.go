@@ -200,7 +200,7 @@ func TestHTTPBucketService_InvalidRetention(t *testing.T) {
 			upd.Description = tt.args.description
 
 			bucket, err := s.UpdateBucket(ctx, tt.args.id, upd)
-			itesting.ErrorsEqual(t, err, tt.wants.err, false)
+			itesting.ErrorsEqual(t, err, tt.wants.err)
 
 			if diff := cmp.Diff(bucket, tt.wants.bucket, bucketCmpOptions...); diff != "" {
 				t.Errorf("bucket is different -got/+want\ndiff %s", diff)

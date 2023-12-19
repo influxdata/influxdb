@@ -117,7 +117,7 @@ func TestCheckService_FindCheckByID(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindCheckByID(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -263,7 +263,7 @@ func TestCheckService_FindChecks(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			ts, _, err := s.FindChecks(ctx, influxdb.CheckFilter{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			if diff := cmp.Diff(ts, tt.wants.checks, checkCmpOptions...); diff != "" {
 				t.Errorf("checks are different -got/+want\ndiff %s", diff)
@@ -391,7 +391,7 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 			}
 
 			_, err := s.UpdateCheck(ctx, tt.args.id, cc)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -510,7 +510,7 @@ func TestCheckService_PatchCheck(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.PatchCheck(ctx, tt.args.id, influxdb.CheckUpdate{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -619,7 +619,7 @@ func TestCheckService_DeleteCheck(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteCheck(ctx, tt.args.id)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
@@ -711,7 +711,7 @@ func TestCheckService_CreateCheck(t *testing.T) {
 			}
 
 			err := s.CreateCheck(ctx, cc, 3)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }

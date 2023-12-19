@@ -165,16 +165,16 @@ func TestAuthorizationService_ReadAuthorization(t *testing.T) {
 
 			t.Run("find authorization by id", func(t *testing.T) {
 				_, err := s.FindAuthorizationByID(ctx, 10)
-				influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+				influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 			})
 			t.Run("find authorization by token", func(t *testing.T) {
 				_, err := s.FindAuthorizationByToken(ctx, "10")
-				influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+				influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 			})
 
 			t.Run("find authorizations", func(t *testing.T) {
 				as, _, err := s.FindAuthorizations(ctx, influxdb.AuthorizationFilter{})
-				influxdbtesting.ErrorsEqual(t, err, nil, false)
+				influxdbtesting.ErrorsEqual(t, err, nil)
 
 				if diff := cmp.Diff(as, tt.wants.authorizations, authorizationCmpOptions...); diff != "" {
 					t.Errorf("authorizations are different -got/+want\ndiff %s", diff)
@@ -304,12 +304,12 @@ func TestAuthorizationService_WriteAuthorization(t *testing.T) {
 
 			t.Run("update authorization", func(t *testing.T) {
 				_, err := s.UpdateAuthorization(ctx, 10, &influxdb.AuthorizationUpdate{Status: influxdb.Active.Ptr()})
-				influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+				influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 			})
 
 			t.Run("delete authorization", func(t *testing.T) {
 				err := s.DeleteAuthorization(ctx, 10)
-				influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+				influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 			})
 
 		})
@@ -434,7 +434,7 @@ func TestAuthorizationService_CreateAuthorization(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.CreateAuthorization(ctx, &influxdb.Authorization{OrgID: 1, UserID: 1})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err, false)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }

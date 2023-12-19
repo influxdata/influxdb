@@ -63,6 +63,6 @@ func TestTagValid(t *testing.T) {
 	}
 	for _, c := range cases {
 		err := c.src.Valid()
-		influxTesting.ErrorsEqual(t, err, c.err, false)
+		influxTesting.ErrorsEqual(t, err, c.err)
 	}
 }

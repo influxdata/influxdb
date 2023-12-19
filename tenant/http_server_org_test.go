@@ -55,5 +55,5 @@ func initHttpOrgService(f itesting.OrganizationFields, t *testing.T) (influxdb.O
 }
 
 func TestHTTPOrgService(t *testing.T) {
-	itesting.OrganizationService(initHttpOrgService, t)
+	itesting.OrganizationService(initHttpOrgService, true, t)
 }

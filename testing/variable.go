@@ -842,7 +842,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 			}
 
 			variables, err := s.FindVariables(ctx, filter, tt.args.findOpts)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(variables, tt.wants.variables, variableCmpOptions...); diff != "" {
 				t.Errorf("variables are different -got/+want\ndiff %s", diff)

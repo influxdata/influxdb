@@ -324,7 +324,7 @@ func CreateAuthorization(
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
 
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			defer s.DeleteAuthorization(ctx, tt.args.authorization.ID)
 
@@ -422,7 +422,7 @@ func FindAuthorizationByID(
 
 			for i := range tt.fields.Authorizations {
 				authorization, err := s.FindAuthorizationByID(ctx, tt.fields.Authorizations[i].ID)
-				diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+				diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 				if diff := cmp.Diff(authorization, tt.wants.authorizations[i], authorizationCmpOptions...); diff != "" {
 					t.Errorf("authorization is different -got/+want\ndiff %s", diff)
@@ -675,7 +675,7 @@ func UpdateAuthorization(
 			ctx := context.Background()
 
 			updatedAuth, err := s.UpdateAuthorization(ctx, tt.args.id, tt.args.upd)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if tt.wants.err == nil {
 				authorization, err := s.FindAuthorizationByID(ctx, tt.args.id)
@@ -853,7 +853,7 @@ func FindAuthorizationByToken(
 			ctx := context.Background()
 
 			authorization, err := s.FindAuthorizationByToken(ctx, tt.args.token)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(authorization, tt.wants.authorization, authorizationCmpOptions...); diff != "" {
 				t.Errorf("authorization is different -got/+want\ndiff %s", diff)
@@ -1177,7 +1177,7 @@ func FindAuthorizations(
 			}
 
 			authorizations, _, err := s.FindAuthorizations(ctx, filter)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 			if diff := cmp.Diff(authorizations, tt.wants.authorizations, authorizationCmpOptions...); diff != "" {
 				t.Errorf("authorizations are different -got/+want\ndiff %s", diff)
 			}
@@ -1329,7 +1329,7 @@ func DeleteAuthorization(
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteAuthorization(ctx, tt.args.ID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			filter := influxdb.AuthorizationFilter{}
 			authorizations, _, err := s.FindAuthorizations(ctx, filter)

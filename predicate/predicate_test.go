@@ -341,7 +341,7 @@ func TestDataTypeConversion(t *testing.T) {
 	for _, c := range cases {
 		if c.node != nil {
 			dataType, err := c.node.ToDataType()
-			influxtesting.ErrorsEqual(t, err, c.err, false)
+			influxtesting.ErrorsEqual(t, err, c.err)
 			if c.err != nil {
 				continue
 			}

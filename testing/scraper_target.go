@@ -304,7 +304,7 @@ func AddTarget(
 			defer done()
 			ctx := context.Background()
 			err := s.AddTarget(ctx, tt.args.target, tt.args.userID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 			defer s.RemoveTarget(ctx, tt.args.target.ID)
 
 			targets, err := s.ListTargets(ctx, influxdb.ScraperTargetFilter{})
@@ -492,7 +492,7 @@ func ListTargets(
 			defer done()
 			ctx := context.Background()
 			targets, err := s.ListTargets(ctx, tt.args.filter)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(targets, tt.wants.targets, targetCmpOptions...); diff != "" {
 				t.Errorf("targets are different -got/+want\ndiff %s", diff)
@@ -590,7 +590,7 @@ func GetTargetByID(
 			ctx := context.Background()
 
 			target, err := s.GetTargetByID(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(target, tt.wants.target, targetCmpOptions...); diff != "" {
 				t.Errorf("target is different -got/+want\ndiff %s", diff)
@@ -695,7 +695,7 @@ func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetSto
 			defer done()
 			ctx := context.Background()
 			err := s.RemoveTarget(ctx, tt.args.ID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			targets, err := s.ListTargets(ctx, influxdb.ScraperTargetFilter{})
 			if err != nil {
@@ -836,7 +836,7 @@ func UpdateTarget(
 			}
 
 			target, err := s.UpdateTarget(ctx, upd, tt.args.userID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, false, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(target, tt.wants.target, targetCmpOptions...); diff != "" {
 				t.Errorf("scraper target is different -got/+want\ndiff %s", diff)
