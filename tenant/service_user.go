@@ -110,7 +110,7 @@ func (s *UserSvc) CreateUser(ctx context.Context, u *influxdb.User) error {
 	err := s.store.Update(ctx, func(tx kv.Tx) error {
 		return s.store.CreateUser(ctx, tx, u)
 	})
-	
+
 	return err
 }
 
