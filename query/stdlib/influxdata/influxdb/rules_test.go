@@ -1163,9 +1163,7 @@ func meanProcedureSpec() *universe.MeanProcedureSpec {
 	}
 }
 
-//
 // Window Aggregate Testing
-//
 func TestPushDownWindowAggregateRule(t *testing.T) {
 	rules := []plan.Rule{
 		universe.AggregateWindowRule{},
@@ -2724,9 +2722,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 	}
 }
 
-//
 // Group Aggregate Testing
-//
 func TestPushDownGroupAggregateRule(t *testing.T) {
 	readGroupAgg := func(aggregateMethod string) *influxdb.ReadGroupPhysSpec {
 		return &influxdb.ReadGroupPhysSpec{

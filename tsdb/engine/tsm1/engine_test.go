@@ -1196,7 +1196,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 }
 
 // Ensures that deleting series from TSM files with multiple fields removes all the
-/// series
+// / series
 func TestEngine_DeleteSeries(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {

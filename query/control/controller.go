@@ -33,7 +33,7 @@ import (
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/runtime"
-	"github.com/influxdata/influxdb/v2/kit/errors"
+	errors2 "github.com/influxdata/influxdb/v2/kit/errors"
 	errors3 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -155,7 +155,7 @@ func (c *Config) validate() error {
 		if c.MaxMemoryBytes != 0 {
 			// This is because we have to account for the per-query reserved memory and remove it from
 			// the max total memory. If there is not a maximum number of queries this is not possible.
-			return errors.New("Cannot limit max memory when ConcurrencyQuota is unlimited")
+			return errors.New("cannot limit max memory when ConcurrencyQuota is unlimited")
 		}
 	} else {
 		if c.QueueSize <= 0 {
