@@ -58,7 +58,7 @@ func TestSessionHandler_handleSignin(t *testing.T) {
 				password: "supersecret",
 			},
 			wants: wants{
-				cookie: "influxdb-oss-session=abc123xyz; Path=/api/; Expires=Thu, 26 Sep 2030 00:00:00 GMT; SameSite=Strict",
+				cookie: "influxdb-oss-session=abc123xyz; Path=/api/; Expires=Thu, 26 Sep 2030 00:00:00 GMT; Secure; SameSite=Strict",
 				code:   http.StatusNoContent,
 			},
 		},

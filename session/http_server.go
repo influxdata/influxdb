@@ -105,7 +105,7 @@ func (h *SessionHandler) handleSignin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	encodeCookieSession(w, s)
+	encodeCookieSession(w, s, (r != nil) && (r.TLS != nil))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -163,7 +163,7 @@ func decodeSignoutRequest(ctx context.Context, r *http.Request) (*signoutRequest
 
 const cookieSessionName = "influxdb-oss-session"
 
-func encodeCookieSession(w http.ResponseWriter, s *influxdb.Session) {
+func encodeCookieSession(w http.ResponseWriter, s *influxdb.Session, tlsEnabled bool) {
 	// We only need the session cookie for accesses to "/api/...", so limit
 	// it to that using "Path".
 	//
@@ -208,6 +208,8 @@ func encodeCookieSession(w http.ResponseWriter, s *influxdb.Session) {
 		Path:     "/api/", // since UI doesn't need it, limit cookie usage to API requests
 		Expires:  s.ExpiresAt,
 		SameSite: http.SameSiteStrictMode,
+		HttpOnly: tlsEnabled,
+		Secure:   tlsEnabled,
 	}
 
 	http.SetCookie(w, c)
