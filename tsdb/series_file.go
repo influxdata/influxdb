@@ -366,9 +366,9 @@ func AppendSeriesKey(dst []byte, name []byte, tags models.Tags) []byte {
 }
 
 // ReadSeriesKey returns the series key from the beginning of the buffer.
-func ReadSeriesKey(data []byte) (key, remainder []byte) {
+func ReadSeriesKey(data []byte) (key []byte) {
 	sz, n := binary.Uvarint(data)
-	return data[:int(sz)+n], data[int(sz)+n:]
+	return data[:int(sz)+n]
 }
 
 func ReadSeriesKeyLen(data []byte) (sz int, remainder []byte) {
