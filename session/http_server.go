@@ -208,7 +208,7 @@ func encodeCookieSession(w http.ResponseWriter, s *influxdb.Session, tlsEnabled 
 		Path:     "/api/", // since UI doesn't need it, limit cookie usage to API requests
 		Expires:  s.ExpiresAt,
 		SameSite: http.SameSiteStrictMode,
-		HttpOnly: tlsEnabled,
+		HttpOnly: true,
 		Secure:   tlsEnabled,
 	}
 
