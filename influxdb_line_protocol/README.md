@@ -4,14 +4,14 @@
 
 This crate contains pure Rust implementations of
 
-1. A [parser](https://docs.rs/influxdb_line_protocol/latest/influxdb_line_protocol/fn.parse_lines.html) for [InfluxDB Line Protocol] developed as part of the
+1. A [parser](https://docs.rs/influxdb-line-protocol/latest/influxdb_line_protocol/fn.parse_lines.html) for [InfluxDB Line Protocol] developed as part of the
 [InfluxDB IOx] project.  This implementation is intended to be
 compatible with the [Go implementation], however, this
 implementation uses a [nom] combinator-based parser rather than
 attempting to port the imperative Go logic so there are likely
-some small diferences.
+some small differences.
 
-2. A [builder](https://docs.rs/influxdb_line_protocol/latest/influxdb_line_protocol/builder/struct.LineProtocolBuilder.html) to contruct valid [InfluxDB Line Protocol]
+2. A [builder](https://docs.rs/influxdb-line-protocol/latest/influxdb_line_protocol/builder/struct.LineProtocolBuilder.html) to construct valid [InfluxDB Line Protocol]
 
 ## Example
 

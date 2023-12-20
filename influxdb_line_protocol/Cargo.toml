@@ -1,6 +1,6 @@
 [package]
 name = "influxdb-line-protocol"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["InfluxDB IOx Project Developers"]
 edition = "2021"
 license = "MIT OR Apache-2.0"

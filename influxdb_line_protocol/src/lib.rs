@@ -55,6 +55,11 @@
 //! [Go implementation]: https://github.com/influxdata/influxdb/blob/217eddc87e14a79b01d0c22994fc139f530094a2/models/points_parser.go
 //! [InfluxDB IOx]: https://github.com/influxdata/influxdb_iox
 //! [nom]: https://crates.io/crates/nom
+
+// Note this crate is published as its own crate on crates.io but kept in this repository for
+// maintenance convenience.
+//
+// Thus this crate can't use workspace lints, so these lint configurations must be here.
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
@@ -66,6 +71,7 @@
     clippy::dbg_macro,
     unused_crate_dependencies
 )]
+// DO NOT REMOVE these lint configurations; see note above!
 
 pub mod builder;
 pub use builder::LineProtocolBuilder;
@@ -1173,6 +1179,16 @@ mod test {
                 _ => panic!("field was not a Bool"),
             }
         }
+    }
+
+    #[test]
+    fn parse_lines_returns_all_lines_even_when_a_line_errors() {
+        let input = ",tag1=1,tag2=2 value=1 123\nm,tag1=one,tag2=2 value=1 123";
+        let vals = super::parse_lines(input).collect::<Vec<Result<_>>>();
+        assert!(matches!(
+            &vals[..],
+            &[Err(Error::MeasurementValueInvalid), Ok(_)]
+        ));
     }
 
     #[test]
