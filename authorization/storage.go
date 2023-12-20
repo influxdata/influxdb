@@ -43,7 +43,7 @@ func (s *Store) Update(ctx context.Context, fn func(kv.Tx) error) error {
 }
 
 func (s *Store) setup() error {
-	err := s.Update(context.Background(), func(tx kv.Tx) error {
+	return s.Update(context.Background(), func(tx kv.Tx) error {
 		if _, err := tx.Bucket(authBucket); err != nil {
 			return err
 		}
@@ -53,7 +53,6 @@ func (s *Store) setup() error {
 
 		return nil
 	})
-	return err
 }
 
 // generateSafeID attempts to create ids for buckets
