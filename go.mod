@@ -11,7 +11,6 @@ require (
 	github.com/apache/arrow/go/v7 v7.0.1
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3
 	github.com/benbjohnson/tmpl v1.0.0
-	github.com/boltdb/bolt v1.3.1
 	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash v1.1.0
 	github.com/davecgh/go-spew v1.1.1

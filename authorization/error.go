@@ -1,67 +1,67 @@
 package authorization
 
 import (
-	"errors"
+	errors2 "errors"
 	"fmt"
 
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 var (
 	// ErrInvalidAuthID is used when the Authorization's ID cannot be encoded
-	ErrInvalidAuthID = &errors2.Error{
-		Code: errors2.EInvalid,
+	ErrInvalidAuthID = &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  "authorization ID is invalid",
 	}
 
 	// ErrAuthNotFound is used when the specified auth cannot be found
-	ErrAuthNotFound = &errors2.Error{
-		Code: errors2.ENotFound,
+	ErrAuthNotFound = &errors.Error{
+		Code: errors.ENotFound,
 		Msg:  "authorization not found",
 	}
 
 	// NotUniqueIDError occurs when attempting to create an Authorization with an ID that already belongs to another one
-	NotUniqueIDError = &errors2.Error{
-		Code: errors2.EConflict,
+	NotUniqueIDError = &errors.Error{
+		Code: errors.EConflict,
 		Msg:  "ID already exists",
 	}
 
 	// ErrFailureGeneratingID occurs ony when the random number generator
 	// cannot generate an ID in MaxIDGenerationN times.
-	ErrFailureGeneratingID = &errors2.Error{
-		Code: errors2.EInternal,
+	ErrFailureGeneratingID = &errors.Error{
+		Code: errors.EInternal,
 		Msg:  "unable to generate valid id",
 	}
 
 	// ErrTokenAlreadyExistsError is used when attempting to create an authorization
 	// with a token that already exists
-	ErrTokenAlreadyExistsError = &errors2.Error{
-		Code: errors2.EConflict,
+	ErrTokenAlreadyExistsError = &errors.Error{
+		Code: errors.EConflict,
 		Msg:  "token already exists",
 	}
 )
 
 // ErrInvalidAuthIDError is used when a service was provided an invalid ID.
-func ErrInvalidAuthIDError(err error) *errors2.Error {
-	return &errors2.Error{
-		Code: errors2.EInvalid,
+func ErrInvalidAuthIDError(err error) *errors.Error {
+	return &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  "auth id provided is invalid",
 		Err:  err,
 	}
 }
 
 // UnexpectedAuthIndexError is used when the error comes from an internal system.
-func UnexpectedAuthIndexError(err error) *errors2.Error {
-	var e *errors2.Error
-	if !errors.As(err, &e) {
-		e = &errors2.Error{
+func UnexpectedAuthIndexError(err error) *errors.Error {
+	var e *errors.Error
+	if !errors2.As(err, &e) {
+		e = &errors.Error{
 			Msg:  fmt.Sprintf("unexpected error retrieving auth index; Err: %v", err),
-			Code: errors2.EInternal,
+			Code: errors.EInternal,
 			Err:  err,
 		}
 	}
 	if e.Code == "" {
-		e.Code = errors2.EInternal
+		e.Code = errors.EInternal
 	}
 	return e
 }
