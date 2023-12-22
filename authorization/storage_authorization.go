@@ -141,10 +141,13 @@ func (s *Store) GetAuthorizationByID(ctx context.Context, tx kv.Tx, id platform.
 	return a, nil
 }
 
-func (s *Store) GetAuthorizationByToken(ctx context.Context, tx kv.Tx, token string) (*influxdb.Authorization, error) {
+func (s *Store) GetAuthorizationByToken(ctx context.Context, tx kv.Tx, token string) (auth *influxdb.Authorization, retErr error) {
+	defer func() {
+		retErr = errors.ErrInternalServiceError(retErr, errors.WithErrorOp(influxdb.OpFindAuthorizationByToken))
+	}()
 	idx, err := authIndexBucket(tx)
 	if err != nil {
-		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindAuthorizationByToken))
+		return nil, err
 	}
 
 	// use the token to look up the authorization's ID
@@ -153,7 +156,6 @@ func (s *Store) GetAuthorizationByToken(ctx context.Context, tx kv.Tx, token str
 		return nil, &errors.Error{
 			Code: errors.ENotFound,
 			Msg:  "authorization not found",
-			Op:   influxdb.OpFindAuthorizationByToken,
 		}
 	}
 
@@ -162,11 +164,9 @@ func (s *Store) GetAuthorizationByToken(ctx context.Context, tx kv.Tx, token str
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
 			Err:  err,
-			Op:   influxdb.OpFindAuthorizationByToken,
 		}
 	}
 
-	// Do not use deferred error processing to avoid overwriting error opCode here
 	return s.GetAuthorizationByID(ctx, tx, id)
 }
 
