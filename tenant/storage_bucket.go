@@ -3,12 +3,12 @@ package tenant
 import (
 	"context"
 	"encoding/json"
-	"github.com/influxdata/influxdb/v2"
-	errors2 "github.com/influxdata/influxdb/v2/pkg/errors"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
+	errors2 "github.com/influxdata/influxdb/v2/pkg/errors"
 )
 
 var (
