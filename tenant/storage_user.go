@@ -78,7 +78,10 @@ func (s *Store) uniqueUserID(tx kv.Tx, id platform.ID) error {
 	return ErrUnprocessableUser(err)
 }
 
-func (s *Store) GetUser(ctx context.Context, tx kv.Tx, id platform.ID) (*influxdb.User, error) {
+func (s *Store) GetUser(ctx context.Context, tx kv.Tx, id platform.ID) (user *influxdb.User, retErr error) {
+	defer func() {
+		retErr = errors.ErrInternalServiceError(retErr, errors.WithErrorOp(influxdb.OpFindUserByID))
+	}()
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, InvalidUserIDError(err)
@@ -86,7 +89,7 @@ func (s *Store) GetUser(ctx context.Context, tx kv.Tx, id platform.ID) (*influxd
 
 	b, err := tx.Bucket(userBucket)
 	if err != nil {
-		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindUserByID))
+		return nil, err
 	}
 
 	v, err := b.Get(encodedID)
@@ -95,16 +98,19 @@ func (s *Store) GetUser(ctx context.Context, tx kv.Tx, id platform.ID) (*influxd
 	}
 
 	if err != nil {
-		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindUserByID))
+		return nil, err
 	}
 
 	return unmarshalUser(v)
 }
 
-func (s *Store) GetUserByName(ctx context.Context, tx kv.Tx, n string) (*influxdb.User, error) {
+func (s *Store) GetUserByName(ctx context.Context, tx kv.Tx, n string) (user *influxdb.User, retErr error) {
+	defer func() {
+		retErr = errors.ErrInternalServiceError(retErr, errors.WithErrorOp(influxdb.OpFindUser))
+	}()
 	b, err := tx.Bucket(userIndex)
 	if err != nil {
-		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindUser))
+		return nil, err
 	}
 
 	uid, err := b.Get([]byte(n))
@@ -113,7 +119,7 @@ func (s *Store) GetUserByName(ctx context.Context, tx kv.Tx, n string) (*influxd
 	}
 
 	if err != nil {
-		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindUser))
+		return nil, err
 	}
 
 	var id platform.ID
@@ -124,6 +130,9 @@ func (s *Store) GetUserByName(ctx context.Context, tx kv.Tx, n string) (*influxd
 }
 
 func (s *Store) ListUsers(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOptions) (users []*influxdb.User, retErr error) {
+	defer func() {
+		retErr = errors.ErrInternalServiceError(retErr, errors.WithErrorOp(influxdb.OpFindUsers))
+	}()
 	if len(opt) == 0 {
 		opt = append(opt, influxdb.FindOptions{})
 	}
@@ -131,7 +140,7 @@ func (s *Store) ListUsers(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpt
 
 	b, err := tx.Bucket(userBucket)
 	if err != nil {
-		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindUsers))
+		return nil, err
 	}
 
 	var opts []kv.CursorOption
@@ -150,13 +159,9 @@ func (s *Store) ListUsers(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpt
 
 	cursor, err := b.ForwardCursor(seek, opts...)
 	if err != nil {
-		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindUsers))
+		return nil, err
 	}
-	defer errors2.Capture(&retErr,
-		func() error {
-			e := cursor.Close()
-			return errors.ErrInternalServiceError(e, errors.WithErrorOp(influxdb.OpFindOrganizations))
-		})()
+	defer errors2.Capture(&retErr, cursor.Close)()
 
 	count := 0
 	us := []*influxdb.User{}
@@ -177,10 +182,13 @@ func (s *Store) ListUsers(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpt
 		}
 	}
 
-	return us, errors.ErrInternalServiceError(cursor.Err(), errors.WithErrorOp(influxdb.OpFindOrganizations))
+	return us, cursor.Err()
 }
 
-func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) error {
+func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) (retErr error) {
+	defer func() {
+		retErr = errors.ErrInternalServiceError(retErr, errors.WithErrorOp(influxdb.OpCreateUser))
+	}()
 	if !u.ID.Valid() {
 		u.ID = s.IDGen.ID()
 	}
@@ -200,12 +208,12 @@ func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) erro
 
 	idx, err := tx.Bucket(userIndex)
 	if err != nil {
-		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateUser))
+		return err
 	}
 
 	b, err := tx.Bucket(userBucket)
 	if err != nil {
-		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateUser))
+		return err
 	}
 
 	v, err := marshalUser(u)
@@ -214,17 +222,20 @@ func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) erro
 	}
 
 	if err := idx.Put([]byte(u.Name), encodedID); err != nil {
-		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateUser))
+		return err
 	}
 
 	if err := b.Put(encodedID, v); err != nil {
-		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateUser))
+		return err
 	}
 
 	return nil
 }
 
-func (s *Store) UpdateUser(ctx context.Context, tx kv.Tx, id platform.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
+func (s *Store) UpdateUser(ctx context.Context, tx kv.Tx, id platform.ID, upd influxdb.UserUpdate) (user *influxdb.User, retErr error) {
+	defer func() {
+		retErr = errors.ErrInternalServiceError(retErr, errors.WithErrorOp(influxdb.OpUpdateUser))
+	}()
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, err
@@ -242,17 +253,17 @@ func (s *Store) UpdateUser(ctx context.Context, tx kv.Tx, id platform.ID, upd in
 
 		idx, err := tx.Bucket(userIndex)
 		if err != nil {
-			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateUser))
+			return nil, err
 		}
 
 		if err := idx.Delete([]byte(u.Name)); err != nil {
-			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateUser))
+			return nil, err
 		}
 
 		u.Name = *upd.Name
 
 		if err := idx.Put([]byte(u.Name), encodedID); err != nil {
-			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateUser))
+			return nil, err
 		}
 	}
 
@@ -267,16 +278,19 @@ func (s *Store) UpdateUser(ctx context.Context, tx kv.Tx, id platform.ID, upd in
 
 	b, err := tx.Bucket(userBucket)
 	if err != nil {
-		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateUser))
+		return nil, err
 	}
 	if err := b.Put(encodedID, v); err != nil {
-		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateUser))
+		return nil, err
 	}
 
 	return u, nil
 }
 
-func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id platform.ID) error {
+func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id platform.ID) (retErr error) {
+	defer func() {
+		retErr = errors.ErrInternalServiceError(retErr, errors.WithErrorOp(influxdb.OpDeleteUser))
+	}()
 	u, err := s.GetUser(ctx, tx, id)
 	if err != nil {
 		return err
@@ -298,20 +312,20 @@ func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id platform.ID) error 
 
 	b, err := tx.Bucket(userBucket)
 	if err != nil {
-		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteUser))
+		return err
 	}
 
 	if err := b.Delete(encodedID); err != nil {
-		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteUser))
+		return err
 	}
 
-	// Clean up users password.
+	// Clean up user's password.
 	ub, err := tx.Bucket(userpasswordBucket)
 	if err != nil {
 		return UnavailablePasswordServiceError(err)
 	}
 	if err := ub.Delete(encodedID); err != nil {
-		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteUser))
+		return err
 	}
 
 	// Clean up user URMs.

@@ -3,13 +3,13 @@ package tenant
 import (
 	"context"
 	"encoding/json"
-	errors2 "github.com/influxdata/influxdb/v2/pkg/errors"
 	"strings"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
+	errors2 "github.com/influxdata/influxdb/v2/pkg/errors"
 )
 
 var (
@@ -157,7 +157,7 @@ func (s *Store) ListOrgs(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpti
 		}
 	}
 
-	return us, err
+	return us, cursor.Err()
 }
 
 func (s *Store) CreateOrg(ctx context.Context, tx kv.Tx, o *influxdb.Organization) (err error) {
