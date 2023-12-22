@@ -14,16 +14,14 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use chrono::{TimeZone, Utc};
-use data_types::{
-    ColumnType, NamespaceSchema, PartitionId, PartitionKey, TableId, TableSchema,
-};
+use data_types::{ColumnType, NamespaceSchema, PartitionId, PartitionKey, TableId, TableSchema};
 use generated_types::influxdata::iox::wal::v1::{
     value::Value as ProtoOneOfValue, PartitionBatch as ProtoPartitionBatch, Row as ProtoRow,
     TableBatch as ProtoTableBatch, Value as ProtoValue, WriteBatch as ProtoWriteBatch,
 };
 use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
 use iox_catalog::interface::Catalog;
-use iox_catalog::{interface::RepoCollection, TIME_COLUMN, table_load_or_create};
+use iox_catalog::{interface::RepoCollection, table_load_or_create, TIME_COLUMN};
 use schema::{InfluxColumnType, InfluxFieldType, SchemaBuilder};
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -446,7 +444,14 @@ where
     let mut table = match schema.tables.get(table_name) {
         Some(t) => Cow::Borrowed(t),
         None => {
-            let table = table_load_or_create(&mut *repos, schema.id, &schema.partition_template, table_name).await.context(CatalogSnafu)?;
+            let table = table_load_or_create(
+                &mut *repos,
+                schema.id,
+                &schema.partition_template,
+                table_name,
+            )
+            .await
+            .context(CatalogSnafu)?;
 
             assert!(schema
                 .to_mut()
@@ -668,18 +673,14 @@ pub struct TestStructure {
 
 pub mod test_helpers {
     use super::*;
+    use data_types::NamespaceName;
     use iox_catalog::{interface::Catalog, mem::MemCatalog};
     use std::ops::DerefMut;
-    use data_types::NamespaceName;
 
     pub async fn lp_to_record_batch(lp: &str) -> RecordBatch {
         let (test_structure, op) = lp_to_proto_initialize(lp).await;
         let (_, table_schema) = test_structure.schema.tables.first_key_value().unwrap();
-        rows_to_record_batch(
-            table_schema,
-            &op.table_batches[0].partition_batches[0].rows,
-        )
-        .unwrap()
+        rows_to_record_batch(table_schema, &op.table_batches[0].partition_batches[0].rows).unwrap()
     }
 
     pub async fn lp_to_proto_initialize(lp: &str) -> (TestStructure, ProtoWriteBatch) {
@@ -759,9 +760,9 @@ pub mod test_helpers {
 mod tests {
     use super::*;
     use arrow_util::assert_batches_eq;
+    use data_types::NamespaceName;
     use iox_catalog::{interface::Catalog, mem::MemCatalog};
     use std::ops::DerefMut;
-    use data_types::NamespaceName;
 
     #[tokio::test]
     async fn validate() {
