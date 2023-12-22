@@ -91,21 +91,16 @@ func (s *Store) CreateAuthorization(ctx context.Context, tx kv.Tx, a *influxdb.A
 	}
 
 	if err := idx.Put(authIndexKey(a.Token), encodedID); err != nil {
-		return &errors.Error{
-			Code: errors.EInternal,
-			Err:  err,
-		}
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateAuthorization))
 	}
 
 	b, err := tx.Bucket(authBucket)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateAuthorization))
 	}
 
 	if err := b.Put(encodedID, v); err != nil {
-		return &errors.Error{
-			Err: err,
-		}
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateAuthorization))
 	}
 
 	return nil
@@ -120,7 +115,7 @@ func (s *Store) GetAuthorizationByID(ctx context.Context, tx kv.Tx, id platform.
 
 	b, err := tx.Bucket(authBucket)
 	if err != nil {
-		return nil, errors.ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindAuthorizationByID))
 	}
 
 	v, err := b.Get(encodedID)
@@ -129,15 +124,12 @@ func (s *Store) GetAuthorizationByID(ctx context.Context, tx kv.Tx, id platform.
 	}
 
 	if err != nil {
-		return nil, errors.ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindAuthorizationByID))
 	}
 
 	a := &influxdb.Authorization{}
 	if err := decodeAuthorization(v, a); err != nil {
-		return nil, &errors.Error{
-			Code: errors.EInvalid,
-			Err:  err,
-		}
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindAuthorizationByID))
 	}
 
 	return a, nil
@@ -155,6 +147,7 @@ func (s *Store) GetAuthorizationByToken(ctx context.Context, tx kv.Tx, token str
 		return nil, &errors.Error{
 			Code: errors.ENotFound,
 			Msg:  "authorization not found",
+			Op:   influxdb.OpFindAuthorizationByToken,
 		}
 	}
 
@@ -163,6 +156,7 @@ func (s *Store) GetAuthorizationByToken(ctx context.Context, tx kv.Tx, token str
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
 			Err:  err,
+			Op:   influxdb.OpFindAuthorizationByToken,
 		}
 	}
 
@@ -182,7 +176,7 @@ func (s *Store) ListAuthorizations(ctx context.Context, tx kv.Tx, f influxdb.Aut
 		return true
 	})
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindAuthorizations))
 	}
 
 	return as, nil
@@ -226,18 +220,12 @@ func (s *Store) forEachAuthorization(ctx context.Context, tx kv.Tx, pred kv.Curs
 func (s *Store) UpdateAuthorization(ctx context.Context, tx kv.Tx, id platform.ID, a *influxdb.Authorization) (*influxdb.Authorization, error) {
 	v, err := encodeAuthorization(a)
 	if err != nil {
-		return nil, &errors.Error{
-			Code: errors.EInvalid,
-			Err:  err,
-		}
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorCode(errors.EInvalid), errors.WithErrorOp(influxdb.OpUpdateAuthorization))
 	}
 
 	encodedID, err := a.ID.Encode()
 	if err != nil {
-		return nil, &errors.Error{
-			Code: errors.ENotFound,
-			Err:  err,
-		}
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorCode(errors.ENotFound), errors.WithErrorOp(influxdb.OpUpdateAuthorization))
 	}
 
 	idx, err := authIndexBucket(tx)
@@ -246,21 +234,16 @@ func (s *Store) UpdateAuthorization(ctx context.Context, tx kv.Tx, id platform.I
 	}
 
 	if err := idx.Put(authIndexKey(a.Token), encodedID); err != nil {
-		return nil, &errors.Error{
-			Code: errors.EInternal,
-			Err:  err,
-		}
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateAuthorization))
 	}
 
 	b, err := tx.Bucket(authBucket)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateAuthorization))
 	}
 
 	if err := b.Put(encodedID, v); err != nil {
-		return nil, &errors.Error{
-			Err: err,
-		}
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateAuthorization))
 	}
 
 	return a, nil
@@ -286,15 +269,15 @@ func (s *Store) DeleteAuthorization(ctx context.Context, tx kv.Tx, id platform.I
 
 	b, err := tx.Bucket(authBucket)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteAuthorization))
 	}
 
 	if err := idx.Delete([]byte(a.Token)); err != nil {
-		return errors.ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteAuthorization))
 	}
 
 	if err := b.Delete(encodedID); err != nil {
-		return errors.ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteAuthorization))
 	}
 
 	return nil

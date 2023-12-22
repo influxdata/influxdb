@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
+	errors2 "github.com/influxdata/influxdb/v2/pkg/errors"
 )
 
 var (
@@ -25,7 +26,7 @@ func (s *Store) uniqueOrgName(ctx context.Context, tx kv.Tx, uname string) error
 	idx, err := tx.Bucket(organizationIndex)
 
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err)
 	}
 
 	_, err = idx.Get(key)
@@ -73,7 +74,7 @@ func (s *Store) GetOrg(ctx context.Context, tx kv.Tx, id platform.ID) (*influxdb
 
 	b, err := tx.Bucket(organizationBucket)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindOrganizationByID))
 	}
 
 	v, err := b.Get(encodedID)
@@ -82,7 +83,7 @@ func (s *Store) GetOrg(ctx context.Context, tx kv.Tx, id platform.ID) (*influxdb
 	}
 
 	if err != nil {
-		return nil, errors.ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindOrganizationByID))
 	}
 
 	return unmarshalOrg(v)
@@ -91,7 +92,7 @@ func (s *Store) GetOrg(ctx context.Context, tx kv.Tx, id platform.ID) (*influxdb
 func (s *Store) GetOrgByName(ctx context.Context, tx kv.Tx, n string) (*influxdb.Organization, error) {
 	b, err := tx.Bucket(organizationIndex)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindOrganization))
 	}
 
 	uid, err := b.Get(organizationIndexKey(n))
@@ -100,7 +101,7 @@ func (s *Store) GetOrgByName(ctx context.Context, tx kv.Tx, n string) (*influxdb
 	}
 
 	if err != nil {
-		return nil, errors.ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindOrganization))
 	}
 
 	var id platform.ID
@@ -110,7 +111,7 @@ func (s *Store) GetOrgByName(ctx context.Context, tx kv.Tx, n string) (*influxdb
 	return s.GetOrg(ctx, tx, id)
 }
 
-func (s *Store) ListOrgs(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOptions) ([]*influxdb.Organization, error) {
+func (s *Store) ListOrgs(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOptions) (orgs []*influxdb.Organization, retErr error) {
 	// if we dont have any options it would be irresponsible to just give back all orgs in the system
 	if len(opt) == 0 {
 		opt = append(opt, influxdb.FindOptions{})
@@ -119,14 +120,18 @@ func (s *Store) ListOrgs(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpti
 
 	b, err := tx.Bucket(organizationBucket)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindOrganizations))
 	}
 
 	cursor, err := b.ForwardCursor(nil)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindOrganizations))
 	}
-	defer cursor.Close()
+	defer errors2.Capture(&retErr,
+		func() error {
+			e := cursor.Close()
+			return errors.ErrInternalServiceError(e, errors.WithErrorOp(influxdb.OpFindOrganizations))
+		})()
 
 	count := 0
 	us := []*influxdb.Organization{}
@@ -147,7 +152,7 @@ func (s *Store) ListOrgs(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpti
 		}
 	}
 
-	return us, cursor.Err()
+	return us, errors.ErrInternalServiceError(cursor.Err(), errors.WithErrorOp(influxdb.OpFindOrganizations))
 }
 
 func (s *Store) CreateOrg(ctx context.Context, tx kv.Tx, o *influxdb.Organization) (err error) {
@@ -155,7 +160,7 @@ func (s *Store) CreateOrg(ctx context.Context, tx kv.Tx, o *influxdb.Organizatio
 	// generate new bucket ID
 	o.ID, err = s.generateSafeID(ctx, tx, organizationBucket, s.OrgIDGen)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateOrganization))
 	}
 
 	encodedID, err := o.ID.Encode()
@@ -171,17 +176,17 @@ func (s *Store) CreateOrg(ctx context.Context, tx kv.Tx, o *influxdb.Organizatio
 	o.SetUpdatedAt(s.now())
 	idx, err := tx.Bucket(organizationIndex)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateOrganization))
 	}
 
 	b, err := tx.Bucket(organizationBucket)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateOrganization))
 	}
 
 	v, err := marshalOrg(o)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateOrganization))
 	}
 
 	if err := idx.Put(organizationIndexKey(o.Name), encodedID); err != nil {
@@ -214,17 +219,17 @@ func (s *Store) UpdateOrg(ctx context.Context, tx kv.Tx, id platform.ID, upd inf
 
 		idx, err := tx.Bucket(organizationIndex)
 		if err != nil {
-			return nil, err
+			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateOrganization))
 		}
 
 		if err := idx.Delete(organizationIndexKey(u.Name)); err != nil {
-			return nil, errors.ErrInternalServiceError(err)
+			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateOrganization))
 		}
 
 		u.Name = *upd.Name
 
 		if err := idx.Put(organizationIndexKey(*upd.Name), encodedID); err != nil {
-			return nil, errors.ErrInternalServiceError(err)
+			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateOrganization))
 		}
 	}
 
@@ -239,10 +244,10 @@ func (s *Store) UpdateOrg(ctx context.Context, tx kv.Tx, id platform.ID, upd inf
 
 	b, err := tx.Bucket(organizationBucket)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateOrganization))
 	}
 	if err := b.Put(encodedID, v); err != nil {
-		return nil, errors.ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateOrganization))
 	}
 
 	return u, nil
@@ -261,20 +266,20 @@ func (s *Store) DeleteOrg(ctx context.Context, tx kv.Tx, id platform.ID) error {
 
 	idx, err := tx.Bucket(organizationIndex)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteOrganization))
 	}
 
 	if err := idx.Delete([]byte(u.Name)); err != nil {
-		return errors.ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteOrganization))
 	}
 
 	b, err := tx.Bucket(organizationBucket)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteOrganization))
 	}
 
 	if err := b.Delete(encodedID); err != nil {
-		return errors.ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteOrganization))
 	}
 
 	return nil

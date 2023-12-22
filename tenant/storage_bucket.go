@@ -3,8 +3,9 @@ package tenant
 import (
 	"context"
 	"encoding/json"
-
 	"github.com/influxdata/influxdb/v2"
+	errors2 "github.com/influxdata/influxdb/v2/pkg/errors"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -86,7 +87,7 @@ func (s *Store) GetBucket(ctx context.Context, tx kv.Tx, id platform.ID) (*influ
 
 	b, err := tx.Bucket(bucketBucket)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindBucket))
 	}
 
 	v, err := b.Get(encodedID)
@@ -95,7 +96,7 @@ func (s *Store) GetBucket(ctx context.Context, tx kv.Tx, id platform.ID) (*influ
 	}
 
 	if err != nil {
-		return nil, errors.ErrInternalServiceError(err)
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindBucket))
 	}
 
 	return unmarshalBucket(v)
@@ -104,15 +105,12 @@ func (s *Store) GetBucket(ctx context.Context, tx kv.Tx, id platform.ID) (*influ
 func (s *Store) GetBucketByName(ctx context.Context, tx kv.Tx, orgID platform.ID, n string) (*influxdb.Bucket, error) {
 	key, err := bucketIndexKey(orgID, n)
 	if err != nil {
-		return nil, &errors.Error{
-			Code: errors.EInvalid,
-			Err:  err,
-		}
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorCode(errors.EInvalid), errors.WithErrorOp(influxdb.OpFindBucket))
 	}
 
 	idx, err := tx.Bucket(bucketIndex)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindBucket))
 	}
 
 	buf, err := idx.Get(key)
@@ -123,14 +121,12 @@ func (s *Store) GetBucketByName(ctx context.Context, tx kv.Tx, orgID platform.ID
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindBucket))
 	}
 
 	var id platform.ID
 	if err := id.Decode(buf); err != nil {
-		return nil, &errors.Error{
-			Err: err,
-		}
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindBucket))
 	}
 	return s.GetBucket(ctx, tx, id)
 }
@@ -140,7 +136,7 @@ type BucketFilter struct {
 	OrganizationID *platform.ID
 }
 
-func (s *Store) ListBuckets(ctx context.Context, tx kv.Tx, filter BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, error) {
+func (s *Store) ListBuckets(ctx context.Context, tx kv.Tx, filter BucketFilter, opt ...influxdb.FindOptions) (buckets []*influxdb.Bucket, retErr error) {
 	// this isn't a list action its a `GetBucketByName`
 	if (filter.OrganizationID != nil && filter.OrganizationID.Valid()) && filter.Name != nil {
 		return nil, invalidBucketListRequest
@@ -158,7 +154,7 @@ func (s *Store) ListBuckets(ctx context.Context, tx kv.Tx, filter BucketFilter, 
 
 	b, err := tx.Bucket(bucketBucket)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindBuckets))
 	}
 
 	var opts []kv.CursorOption
@@ -177,9 +173,13 @@ func (s *Store) ListBuckets(ctx context.Context, tx kv.Tx, filter BucketFilter, 
 
 	cursor, err := b.ForwardCursor(seek, opts...)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindBuckets))
 	}
-	defer cursor.Close()
+	defer errors2.Capture(&retErr,
+		func() error {
+			e := cursor.Close()
+			return errors.ErrInternalServiceError(e, errors.WithErrorOp(influxdb.OpFindBuckets))
+		})()
 
 	count := 0
 	bs := []*influxdb.Bucket{}
@@ -203,22 +203,19 @@ func (s *Store) ListBuckets(ctx context.Context, tx kv.Tx, filter BucketFilter, 
 		}
 	}
 
-	return bs, cursor.Err()
+	return bs, errors.ErrInternalServiceError(cursor.Err(), errors.WithErrorOp(influxdb.OpFindBuckets))
 }
 
-func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID platform.ID, o influxdb.FindOptions) ([]*influxdb.Bucket, error) {
+func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID platform.ID, o influxdb.FindOptions) (buckets []*influxdb.Bucket, retErr error) {
 	// get the prefix key (org id with an empty name)
 	key, err := bucketIndexKey(orgID, "")
 	if err != nil {
-		return nil, &errors.Error{
-			Code: errors.EInvalid,
-			Err:  err,
-		}
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorCode(errors.EInvalid), errors.WithErrorOp(influxdb.OpFindBuckets))
 	}
 
 	idx, err := tx.Bucket(bucketIndex)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindBuckets))
 	}
 
 	start := key
@@ -242,17 +239,20 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID platform.I
 			return lastKey, nil
 		}()
 		if err != nil {
-			return nil, err
+			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindBuckets))
 		}
 		// Once we've found the end, walk backwards from it on the next iteration.
 		opts = append(opts, kv.WithCursorDirection(kv.CursorDescending))
 	}
 	cursor, err := idx.ForwardCursor(start, opts...)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindBuckets))
 	}
-	defer cursor.Close()
-
+	defer errors2.Capture(&retErr,
+		func() error {
+			e := cursor.Close()
+			return errors.ErrInternalServiceError(e, errors.WithErrorOp(influxdb.OpFindBuckets))
+		})()
 	count := 0
 	bs := []*influxdb.Bucket{}
 	searchingForAfter := o.After != nil
@@ -263,14 +263,12 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID platform.I
 		}
 
 		if err != nil {
-			return nil, err
+			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindBuckets))
 		}
 
 		var id platform.ID
 		if err := id.Decode(v); err != nil {
-			return nil, &errors.Error{
-				Err: err,
-			}
+			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindBuckets))
 		}
 		if searchingForAfter {
 			searchingForAfter = id != *o.After
@@ -278,7 +276,7 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID platform.I
 		}
 		b, err := s.GetBucket(ctx, tx, id)
 		if err != nil {
-			return nil, err
+			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpFindBuckets))
 		}
 
 		bs = append(bs, b)
@@ -288,7 +286,7 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID platform.I
 		}
 	}
 
-	return bs, cursor.Err()
+	return bs, errors.ErrInternalServiceError(cursor.Err(), errors.WithErrorOp(influxdb.OpFindBuckets))
 }
 
 func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Bucket) (err error) {
@@ -304,29 +302,29 @@ func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Buc
 	}
 
 	if err := s.uniqueBucketName(ctx, tx, bucket.OrgID, bucket.Name); err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateBucket))
 	}
 
 	bucket.SetCreatedAt(s.now())
 	bucket.SetUpdatedAt(s.now())
 	idx, err := tx.Bucket(bucketIndex)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateBucket))
 	}
 
 	b, err := tx.Bucket(bucketBucket)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateBucket))
 	}
 
 	v, err := marshalBucket(bucket)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateBucket))
 	}
 
 	ikey, err := bucketIndexKey(bucket.OrgID, bucket.Name)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpCreateBucket))
 	}
 
 	if err := idx.Put(ikey, encodedID); err != nil {
@@ -368,26 +366,26 @@ func (s *Store) UpdateBucket(ctx context.Context, tx kv.Tx, id platform.ID, upd 
 
 		idx, err := tx.Bucket(bucketIndex)
 		if err != nil {
-			return nil, err
+			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateBucket))
 		}
 
 		oldIkey, err := bucketIndexKey(bucket.OrgID, bucket.Name)
 		if err != nil {
-			return nil, err
+			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateBucket))
 		}
 
 		if err := idx.Delete(oldIkey); err != nil {
-			return nil, errors.ErrInternalServiceError(err)
+			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateBucket))
 		}
 
 		bucket.Name = *upd.Name
 		newIkey, err := bucketIndexKey(bucket.OrgID, bucket.Name)
 		if err != nil {
-			return nil, err
+			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateBucket))
 		}
 
 		if err := idx.Put(newIkey, encodedID); err != nil {
-			return nil, errors.ErrInternalServiceError(err)
+			return nil, errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpUpdateBucket))
 		}
 	}
 
@@ -431,24 +429,24 @@ func (s *Store) DeleteBucket(ctx context.Context, tx kv.Tx, id platform.ID) erro
 
 	idx, err := tx.Bucket(bucketIndex)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteBucket))
 	}
 
 	ikey, err := bucketIndexKey(bucket.OrgID, bucket.Name)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteBucket))
 	}
 	if err := idx.Delete(ikey); err != nil {
-		return errors.ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteBucket))
 	}
 
 	b, err := tx.Bucket(bucketBucket)
 	if err != nil {
-		return err
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteBucket))
 	}
 
 	if err := b.Delete(encodedID); err != nil {
-		return errors.ErrInternalServiceError(err)
+		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteBucket))
 	}
 
 	return nil

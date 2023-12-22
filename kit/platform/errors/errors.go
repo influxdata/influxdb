@@ -121,7 +121,9 @@ func WithErrorOp(op string) func(*Error) {
 
 // Error implements the error interface by writing out the recursive messages.
 func (e *Error) Error() string {
-	if e.Msg != "" && e.Err != nil {
+	if e == nil {
+		return ""
+	} else if e.Msg != "" && e.Err != nil {
 		var b strings.Builder
 		b.WriteString(e.Msg)
 		b.WriteString(": ")
@@ -281,6 +283,8 @@ func BoltToInfluxError(err error) error {
 	var e *Error
 	ok := errors.As(err, &e)
 	switch {
+	case err == nil:
+		return nil
 	case ok:
 		// Already an Influx error, we are good to go.
 		return e
@@ -299,9 +303,12 @@ func BoltToInfluxError(err error) error {
 	}
 }
 
-func ErrInternalServiceError(err error, options ...func(*Error)) *Error {
+func ErrInternalServiceError(err error, options ...func(*Error)) error {
 	var e *Error
-	if !errors.As(err, &e) {
+
+	if err == nil {
+		return nil
+	} else if !errors.As(err, &e) {
 		setters := make([]func(*Error), 0, len(options)+2)
 		// Defaults first, so they can be overridden by arguments.
 		setters = append(setters, WithErrorErr(err), WithErrorCode(EInternal))
