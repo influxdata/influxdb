@@ -81,7 +81,7 @@ func marshalBucket(u *influxdb.Bucket) ([]byte, error) {
 
 func (s *Store) GetBucket(ctx context.Context, tx kv.Tx, id platform.ID) (bucket *influxdb.Bucket, retErr error) {
 	defer func() {
-		retErr = errors.ErrInternalServiceError(retErr, errors.WithErrorOp(influxdb.OpFindBucket))
+		retErr = errors.ErrInternalServiceError(retErr, errors.WithErrorOp(influxdb.OpFindBucketByID))
 	}()
 	encodedID, err := id.Encode()
 	if err != nil {
