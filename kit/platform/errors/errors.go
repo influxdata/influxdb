@@ -83,6 +83,12 @@ func NewError(options ...func(*Error)) *Error {
 	return err
 }
 
+func (err *Error) Copy() *Error {
+	e := new(Error)
+	*e = *err
+	return e
+}
+
 func (err *Error) Unwrap() error {
 	if err != nil {
 		return err.Err
@@ -314,11 +320,17 @@ func ErrInternalServiceError(err error, options ...func(*Error)) error {
 		setters = append(setters, WithErrorErr(err), WithErrorCode(EInternal))
 		setters = append(setters, options...)
 		return NewError(setters...)
-	} else if e.Code == "" {
-		WithErrorCode(EInternal)(e)
+	} else {
+		// Copy the Error struct because many are
+		// global variables/pseudo-constants we don't
+		// want to modify
+		e = e.Copy()
+		if e.Code == "" {
+			WithErrorCode(EInternal)(e)
+		}
+		for _, o := range options {
+			o(e)
+		}
+		return e
 	}
-	for _, o := range options {
-		o(e)
-	}
-	return e
 }
