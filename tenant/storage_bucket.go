@@ -121,7 +121,7 @@ func (s *Store) GetBucketByName(ctx context.Context, tx kv.Tx, orgID platform.ID
 
 	buf, err := idx.Get(key)
 
-	// allow for hard coded bucket names that dont exist in the system
+	// allow for hard coded bucket names that don't exist in the system
 	if kv.IsNotFound(err) {
 		return nil, ErrBucketNotFoundByName(n)
 	}

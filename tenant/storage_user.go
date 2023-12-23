@@ -307,7 +307,7 @@ func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id platform.ID) (retEr
 	}
 
 	if err := idx.Delete([]byte(u.Name)); err != nil {
-		return errors.ErrInternalServiceError(err, errors.WithErrorOp(influxdb.OpDeleteUser))
+		return err
 	}
 
 	b, err := tx.Bucket(userBucket)
