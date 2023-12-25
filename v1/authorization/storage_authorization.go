@@ -3,6 +3,7 @@ package authorization
 import (
 	"context"
 	"encoding/json"
+	errors2 "errors"
 
 	"github.com/buger/jsonparser"
 	"github.com/influxdata/influxdb/v2"
@@ -75,7 +76,7 @@ func (s *Store) CreateAuthorization(ctx context.Context, tx kv.Tx, a *influxdb.A
 			continue
 		}
 		_, err := ts.GetBucket(ctx, tx, *p.Resource.ID)
-		if err == tenant.ErrBucketNotFound {
+		if errors2.Is(err, tenant.ErrBucketNotFound) {
 			return ErrBucketNotFound
 		}
 	}

@@ -2,6 +2,7 @@ package authorization
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -307,7 +308,7 @@ func TestAuthBucketNotExists(t *testing.T) {
 		return err
 	})
 
-	if err == nil || err != ErrBucketNotFound {
+	if err == nil || !errors.Is(err, ErrBucketNotFound) {
 		t.Fatalf("Authorization creating should have failed with ErrBucketNotFound [Error]: %v", err)
 	}
 }

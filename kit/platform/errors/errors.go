@@ -143,6 +143,14 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("<%s>", e.Code)
 }
 
+func (e *Error) Is(err error) bool {
+	var errError *Error
+
+	return errors.As(err, &errError) &&
+		strings.Contains(e.Error(), err.Error()) &&
+		e.Code == errError.Code
+}
+
 // ErrorCode returns the code of the root error, if available; otherwise returns EINTERNAL.
 func ErrorCode(err error) string {
 	if err == nil {
