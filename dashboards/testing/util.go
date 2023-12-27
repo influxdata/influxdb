@@ -9,8 +9,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
-// TODO(goller): remove opPrefix argument
-func diffPlatformErrors(name string, actual, expected error, opPrefix string, t *testing.T) {
+func diffPlatformErrors(actual, expected error, t *testing.T) {
 	t.Helper()
 	ErrorsEqual(t, actual, expected)
 }

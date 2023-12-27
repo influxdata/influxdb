@@ -8,8 +8,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/kit/migration"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/sqlite/test_migrations"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

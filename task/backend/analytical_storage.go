@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/kit/platform"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+	errors3 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
@@ -260,7 +260,7 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID plat
 	// check the taskService to see if the run is on its list
 	run, err := as.TaskService.FindRunByID(ctx, taskID, runID)
 	if err != nil {
-		if err, ok := err.(*errors2.Error); !ok || err.Msg != "run not found" {
+		if err, ok := err.(*errors3.Error); !ok || err.Msg != "run not found" {
 			return run, err
 		}
 	}
@@ -332,9 +332,9 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID plat
 	}
 
 	if len(re.runs) != 1 {
-		return nil, &errors2.Error{
+		return nil, &errors3.Error{
 			Msg:  "found multiple runs with id " + runID.String(),
-			Code: errors2.EInternal,
+			Code: errors3.EInternal,
 		}
 	}
 
@@ -344,7 +344,7 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID plat
 func (as *AnalyticalStorage) RetryRun(ctx context.Context, taskID, runID platform.ID) (*taskmodel.Run, error) {
 	run, err := as.TaskService.RetryRun(ctx, taskID, runID)
 	if err != nil {
-		if err, ok := err.(*errors2.Error); !ok || err.Msg != "run not found" {
+		if err, ok := err.(*errors3.Error); !ok || err.Msg != "run not found" {
 			return run, err
 		}
 	}

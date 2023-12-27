@@ -46,10 +46,13 @@ func NewTestInmemStore(t *testing.T) kv.SchemaStore {
 	return s
 }
 
-// TODO(goller): remove opPrefix argument
-func diffPlatformErrors(name string, actual, expected error, opPrefix string, t *testing.T) {
+func diffPlatformErrors(name string, actual, expected error, inMemNoError, isInMem bool, t *testing.T) {
 	t.Helper()
-	ErrorsEqual(t, actual, expected)
+	if inMemNoError && isInMem {
+		ErrorsEqual(t, actual, nil)
+	} else {
+		ErrorsEqual(t, actual, expected)
+	}
 }
 
 // ErrorsEqual checks to see if the provided errors are equivalent.
