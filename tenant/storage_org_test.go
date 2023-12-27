@@ -2,6 +2,7 @@ package tenant_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -121,7 +122,7 @@ func TestOrg(t *testing.T) {
 				}
 				require.Equal(t, expected, org)
 
-				if _, err := store.GetOrg(context.Background(), tx, 500); err != tenant.ErrOrgNotFound {
+				if _, err := store.GetOrg(context.Background(), tx, 500); !errors.Is(err, tenant.ErrOrgNotFound) {
 					t.Fatal("failed to get correct error when looking for invalid org by id")
 				}
 
@@ -205,7 +206,7 @@ func TestOrg(t *testing.T) {
 				require.NoError(t, err)
 
 				err = store.DeleteOrg(context.Background(), tx, firstOrgID)
-				if err != tenant.ErrOrgNotFound {
+				if !errors.Is(err, tenant.ErrOrgNotFound) {
 					t.Fatal("invalid error when deleting org that has already been deleted", err)
 				}
 

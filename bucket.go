@@ -2,12 +2,10 @@ package influxdb
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 const (
@@ -160,13 +158,4 @@ func (f BucketFilter) String() string {
 		parts = append(parts, "Org Name: "+*f.Org)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
-}
-
-func ErrInternalBucketServiceError(op string, err error) *errors.Error {
-	return &errors.Error{
-		Code: errors.EInternal,
-		Msg:  fmt.Sprintf("unexpected error in buckets; Err: %v", err),
-		Op:   op,
-		Err:  err,
-	}
 }

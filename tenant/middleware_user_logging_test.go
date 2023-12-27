@@ -10,7 +10,7 @@ import (
 )
 
 func TestUserLoggingService(t *testing.T) {
-	influxdbtesting.UserService(initBoltUserLoggingService, t)
+	influxdbtesting.UserService(initBoltUserLoggingService, false, t)
 }
 
 func initBoltUserLoggingService(f influxdbtesting.UserFields, t *testing.T) (influxdb.UserService, string, func()) {

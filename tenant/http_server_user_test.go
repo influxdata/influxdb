@@ -48,5 +48,5 @@ func initHttpUserService(f platformtesting.UserFields, t *testing.T) (platform.U
 
 func TestUserService(t *testing.T) {
 	t.Parallel()
-	platformtesting.UserService(initHttpUserService, t)
+	platformtesting.UserService(initHttpUserService, true, t)
 }

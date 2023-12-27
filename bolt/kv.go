@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration"
@@ -161,12 +162,13 @@ func (s *KVStore) View(ctx context.Context, fn func(tx kv.Tx) error) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	return s.DB().View(func(tx *bolt.Tx) error {
+	err := s.DB().View(func(tx *bolt.Tx) error {
 		return fn(&Tx{
 			tx:  tx,
 			ctx: ctx,
 		})
 	})
+	return errors2.BoltToInfluxError(err)
 }
 
 // Update opens up an update transaction against the store.
@@ -174,12 +176,13 @@ func (s *KVStore) Update(ctx context.Context, fn func(tx kv.Tx) error) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	return s.DB().Update(func(tx *bolt.Tx) error {
+	err := s.DB().Update(func(tx *bolt.Tx) error {
 		return fn(&Tx{
 			tx:  tx,
 			ctx: ctx,
 		})
 	})
+	return errors2.BoltToInfluxError(err)
 }
 
 // CreateBucket creates a bucket in the underlying boltdb store if it
@@ -187,7 +190,7 @@ func (s *KVStore) Update(ctx context.Context, fn func(tx kv.Tx) error) error {
 func (s *KVStore) CreateBucket(ctx context.Context, name []byte) error {
 	return s.DB().Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(name)
-		return err
+		return errors2.BoltToInfluxError(err)
 	})
 }
 
@@ -196,7 +199,7 @@ func (s *KVStore) CreateBucket(ctx context.Context, name []byte) error {
 func (s *KVStore) DeleteBucket(ctx context.Context, name []byte) error {
 	return s.DB().Update(func(tx *bolt.Tx) error {
 		if err := tx.DeleteBucket(name); err != nil && !errors.Is(err, bolt.ErrBucketNotFound) {
-			return err
+			return errors2.BoltToInfluxError(err)
 		}
 
 		return nil
@@ -210,7 +213,7 @@ func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
 
 	return s.DB().View(func(tx *bolt.Tx) error {
 		_, err := tx.WriteTo(w)
-		return err
+		return errors2.BoltToInfluxError(err)
 	})
 }
 
@@ -348,7 +351,7 @@ func (b *Bucket) Put(key []byte, value []byte) error {
 	if err == bolt.ErrTxNotWritable {
 		return kv.ErrTxNotWritable
 	}
-	return err
+	return errors2.BoltToInfluxError(err)
 }
 
 // Delete removes the provided key.
@@ -357,7 +360,7 @@ func (b *Bucket) Delete(key []byte) error {
 	if err == bolt.ErrTxNotWritable {
 		return kv.ErrTxNotWritable
 	}
-	return err
+	return errors2.BoltToInfluxError(err)
 }
 
 // ForwardCursor retrieves a cursor for iterating through the entries

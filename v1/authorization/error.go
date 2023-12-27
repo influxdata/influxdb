@@ -56,14 +56,6 @@ func ErrInvalidAuthIDError(err error) *errors.Error {
 	}
 }
 
-// ErrInternalServiceError is used when the error comes from an internal system.
-func ErrInternalServiceError(err error) *errors.Error {
-	return &errors.Error{
-		Code: errors.EInternal,
-		Err:  err,
-	}
-}
-
 // UnexpectedAuthIndexError is used when the error comes from an internal system.
 func UnexpectedAuthIndexError(err error) *errors.Error {
 	return &errors.Error{
