@@ -174,7 +174,7 @@ where
         let query = req.uri().query().ok_or(Error::MissingQueryParams)?;
         let params: QuerySqlParams = serde_urlencoded::from_str(query)?;
 
-        info!("query_sql {:?}", params);
+        println!("query_sql {:?}", params);
 
         let result = self.query_executor.query(&params.db, &params.q, None, None).await.unwrap();
 
@@ -272,11 +272,12 @@ pub(crate) struct WriteParams {
 
 pub(crate) async fn serve<W: WriteBuffer, Q: QueryExecutor>(http_server: Arc<HttpApi<W, Q>>, shutdown: CancellationToken) -> Result<()> {
     let listener = AddrIncoming::bind(&http_server.common_state.http_addr)?;
+    println!("binding listener");
     info!(bind_addr=%listener.local_addr(), "bound HTTP listener");
 
     let trace_layer = TraceLayer::new(
         http_server.common_state.trace_header_parser.clone(),
-        http_server.common_state.metrics.clone(),
+        Arc::<metric::Registry>::clone(&http_server.common_state.metrics),
         http_server.common_state.trace_collector().clone(),
         false,
         TRACE_SERVER_NAME,

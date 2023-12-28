@@ -10,7 +10,6 @@ use clap_blocks::{
 use iox_query::exec::{Executor, ExecutorConfig};
 use observability_deps::tracing::*;
 use object_store::DynObjectStore;
-use iox_time::{SystemProvider, TimeProvider};
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::{
     num::NonZeroUsize,
@@ -21,13 +20,14 @@ use std::collections::HashMap;
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
-use influxdb3_server::{CommonServerState, query_executor::QueryExecutorImpl, serve, Server, WriteBuffer};
+use influxdb3_server::{CommonServerState, query_executor::QueryExecutorImpl, serve, Server};
 use influxdb3_server::write_buffer::WriteBufferImpl;
 use panic_logging::SendPanicsToTracing;
 use trace_exporters::TracingConfig;
 use trogging::cli::LoggingConfig;
 
 /// The default name of the influxdb_iox data directory
+#[allow(dead_code)]
 pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 
 /// The default bind address for the HTTP API.
@@ -153,6 +153,7 @@ fn build_malloc_conf() -> String {
 /// If `p` does not exist, try to create it as a directory.
 ///
 /// panic's if the directory does not exist and can not be created
+#[allow(dead_code)]
 fn ensure_directory_exists(p: &Path) {
     if !p.exists() {
         info!(
@@ -192,8 +193,6 @@ pub async fn command(config: Config) -> Result<()> {
     let object_store: Arc<DynObjectStore> =
         make_object_store(&config.object_store_config)
             .map_err(Error::ObjectStoreParsing)?;
-
-    let time_provider: Arc<dyn TimeProvider> = Arc::new(SystemProvider::new());
 
     let trace_exporter = config.tracing_config.build()?;
 

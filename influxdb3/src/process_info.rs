@@ -66,6 +66,7 @@ pub fn setup_metric_registry() -> Arc<metric::Registry> {
 }
 
 /// String version of [`usize::MAX`].
+#[allow(dead_code)]
 pub static USIZE_MAX: Lazy<&'static str> = Lazy::new(|| {
     let s = usize::MAX.to_string();
     let s: Box<str> = Box::from(s);

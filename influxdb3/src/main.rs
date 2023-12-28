@@ -11,25 +11,15 @@ clippy::future_not_send
 )]
 
 use dotenvy::dotenv;
-use iox_time::{SystemProvider, TimeProvider};
-use observability_deps::tracing::{debug, warn};
+use observability_deps::tracing::warn;
 use process_info::VERSION_STRING;
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    str::FromStr,
-};
 use std::{
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::Duration,
 };
 use tokio::runtime::Runtime;
-use trace_exporters::{
-    DEFAULT_INFLUX_TRACE_CONTEXT_HEADER_NAME, DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME,
-};
 use trogging::{
     cli::LoggingConfigBuilderExt,
     tracing_subscriber::{prelude::*, Registry},
@@ -239,7 +229,7 @@ fn init_logs_and_tracing(
     config: &trogging::cli::LoggingConfig,
 ) -> Result<TroggingGuard, trogging::Error> {
     let log_layer = trogging::Builder::new()
-        .with_logging_config(&config)
+        .with_logging_config(config)
         .build()?;
 
     let layers = log_layer;
@@ -257,17 +247,4 @@ fn init_logs_and_tracing(
 
     let subscriber = Registry::default().with(layers);
     trogging::install_global(subscriber)
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::Write;
-
-    #[test]
-    // ensures that dependabot doesn't update dotenvy until https://github.com/allan2/dotenvy/issues/12 is fixed
-    fn dotenvy_regression() {
-        let mut tmp = tempfile::NamedTempFile::new().unwrap();
-        write!(tmp, "# '").unwrap();
-        dotenvy::from_path(tmp.path()).unwrap();
-    }
 }

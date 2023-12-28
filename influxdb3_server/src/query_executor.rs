@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use arrow::datatypes::SchemaRef;
-use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use datafusion::catalog::CatalogProvider;
 use datafusion::catalog::schema::SchemaProvider;
@@ -13,15 +12,12 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::SendableRecordBatchStream;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
-use datafusion::common::{ScalarValue, Statistics};
+use datafusion::common::Statistics;
 use datafusion::execution::context::SessionState;
 use datafusion::physical_plan::ExecutionPlan;
-use parking_lot::RwLock;
-use data_types::{ChunkId, ChunkOrder, PartitionKey, TableId, TimestampMinMax, TransitionPartitionId};
-use ingest_structure::test_helpers::lp_to_record_batch;
+use data_types::{ChunkId, ChunkOrder, TransitionPartitionId};
 use iox_query::exec::{Executor, ExecutorType, IOxSessionContext};
 use iox_query::{QueryChunk, QueryChunkData, QueryCompletedToken, QueryNamespace, QueryText};
-use iox_query::chunk_statistics::{ColumnRange, create_chunk_statistics};
 use iox_query::provider::ProviderBuilder;
 use metric::Registry;
 use observability_deps::tracing::info;
@@ -34,7 +30,7 @@ use trace::span::{Span, SpanExt, SpanRecorder};
 use trace_http::ctx::RequestLogContext;
 use tracker::{AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore};
 use crate::{QueryExecutor, WriteBuffer};
-use crate::catalog::{Catalog, DatabaseSchema, InnerCatalog};
+use crate::catalog::{Catalog, DatabaseSchema};
 
 #[derive(Debug)]
 pub struct QueryExecutorImpl<W> {
@@ -70,7 +66,7 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let token = db.record_query(
+        let _token = db.record_query(
             external_span_ctx.as_ref().map(RequestLogContext::ctx),
             "sql",
             Box::new(q.to_string()),
@@ -95,7 +91,7 @@ impl<W: WriteBuffer> QueryNamespaceProvider for QueryExecutorImpl<W> {
     type Db = QueryDatabase;
 
     async fn db(&self, name: &str, span: Option<Span>, _include_debug_info_tables: bool) -> Option<Arc<Self::Db>> {
-        let span_recorder = SpanRecorder::new(span);
+        let _span_recorder = SpanRecorder::new(span);
 
         let db_schema = self.catalog.db_schema(name)?;
 
@@ -136,7 +132,7 @@ impl QueryDatabase {
 
 #[async_trait]
 impl QueryNamespace for QueryDatabase {
-    async fn chunks(&self, table_name: &str, filters: &[Expr], projection: Option<&Vec<usize>>, ctx: IOxSessionContext) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+    async fn chunks(&self, _table_name: &str, _filters: &[Expr], _projection: Option<&Vec<usize>>, _ctx: IOxSessionContext) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         info!("called chunks on querydatabase");
         todo!()
     }
@@ -194,7 +190,7 @@ impl SchemaProvider for QueryDatabase {
 
     fn table_names(&self) -> Vec<String> {
         info!("table names");
-        let mut names: Vec<_> = self.db_schema.tables.keys().map(|t| t.clone()).collect();
+        let mut names: Vec<_> = self.db_schema.tables.keys().cloned().collect();
         names.sort();
         names
     }
@@ -205,7 +201,7 @@ impl SchemaProvider for QueryDatabase {
         let schema = self.db_schema.get_table_schema(name).unwrap();
 
         info!("return QueryTable");
-        let name: Arc<str> = "foo".into();
+        let name: Arc<str> = name.into();
         Some(Arc::new(QueryTable {
             db_schema: Arc::clone(&self.db_schema),
             name,
@@ -229,7 +225,7 @@ pub struct QueryTable {
 }
 
 impl QueryTable {
-    fn chunks(&self, ctx: &SessionState, projection: Option<&Vec<usize>>, filters: &[Expr], limit: Option<usize>) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+    fn chunks(&self, ctx: &SessionState, projection: Option<&Vec<usize>>, filters: &[Expr], _limit: Option<usize>) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         self.write_buffer.get_table_chunks(&self.db_schema.name, self.name.as_ref(), filters, projection, ctx)
     }
 }

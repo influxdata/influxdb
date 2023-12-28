@@ -3,7 +3,7 @@
 use std::any::Any;
 use std::borrow::Cow;
 use crate::catalog::{Catalog, DatabaseSchema, TableDefinition};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use arrow::{
     array::{
@@ -27,7 +27,6 @@ use data_types::{ChunkId, ChunkOrder, column_type_from_field, ColumnType, Namesp
 use influxdb_line_protocol::{FieldValue, parse_lines, ParsedLine};
 use iox_catalog::TIME_COLUMN;
 use iox_query::chunk_statistics::{ColumnRange, create_chunk_statistics};
-use iox_query::exec::IOxSessionContext;
 use iox_query::{QueryChunk, QueryChunkData};
 use observability_deps::tracing::info;
 use schema::Schema;
@@ -56,6 +55,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct WriteBufferImpl {
     catalog: Arc<Catalog>,
     buffered_data: RwLock<HashMap<String, DatabaseBuffer>>,
+    #[allow(dead_code)]
     object_store: Arc<dyn ObjectStore>,
 }
 
@@ -69,7 +69,7 @@ impl WriteBufferImpl {
     }
 
     async fn write_lp(&self, db_name: NamespaceName<'static>, lp: &str) -> Result<()> {
-        info!("write_lp to {} in writebuffer", db_name);
+        println!("write_lp to {} in writebuffer", db_name);
         let (sequence, db) = self.catalog.db_or_create(db_name.as_str());
         let result = parse_validate_and_update_schema(
             lp,
@@ -79,7 +79,7 @@ impl WriteBufferImpl {
         )?;
 
         if let Some(schema) = result.schema {
-            info!("replacing schema for {:?}", schema);
+            println!("replacing schema for {:?}", schema);
             self.catalog.replace_database(sequence, Arc::new(schema)).unwrap();
         }
 
@@ -102,8 +102,10 @@ impl WriteBufferImpl {
         Ok(())
     }
 
-    fn get_table_chunks(&self, database_name: &str, table_name: &str, filters: &[Expr], projection: Option<&Vec<usize>>, ctx: &SessionState) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+    fn get_table_chunks(&self, database_name: &str, table_name: &str, _filters: &[Expr], _projection: Option<&Vec<usize>>, _ctx: &SessionState) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         let db_schema = self.catalog.db_schema(database_name).unwrap();
+        println!("db_schema: {:#?}", db_schema);
+        println!("table_name: {}", table_name);
         let table = db_schema.tables.get(table_name).unwrap();
         let schema = table.schema.as_ref().cloned().unwrap();
 
@@ -113,7 +115,7 @@ impl WriteBufferImpl {
 
         for (partition_key, partition_buffer) in table_buffer.partition_buffers {
             let partition_key: PartitionKey = partition_key.into();
-            let batch = partition_buffer.rows_to_record_batch(&schema, &table.columns());
+            let batch = partition_buffer.rows_to_record_batch(&schema, table.columns());
             let column_ranges = Arc::new(partition_buffer.column_ranges);
             let batch_stats = create_chunk_statistics(partition_buffer.rows.len() as u64, &schema, Some(TimestampMinMax{min: partition_buffer.timestamp_min, max: partition_buffer.timestamp_max}), &column_ranges);
 
@@ -170,9 +172,9 @@ struct PartitionBuffer {
 }
 
 impl PartitionBuffer {
-    fn rows_to_record_batch(&self, schema: &Schema, column_types: &HashMap<String, ColumnType>) -> RecordBatch {
+    fn rows_to_record_batch(&self, schema: &Schema, column_types: &BTreeMap<String, ColumnType>) -> RecordBatch {
         let row_count = self.rows.len();
-        let mut columns = HashMap::new();
+        let mut columns = BTreeMap::new();
         for (name, column_type) in column_types {
             match column_type {
                 ColumnType::Bool => columns.insert(name, Builder::Bool(BooleanBuilder::with_capacity(row_count))),
@@ -205,7 +207,7 @@ impl PartitionBuffer {
                 value_added.insert(&f.name);
             }
 
-            for (name, builder) in columns.iter_mut() {
+            for (name, builder) in &mut columns {
                 if !value_added.contains(name) {
                     match builder {
                         Builder::Bool(b) => b.append_null(),
@@ -220,11 +222,14 @@ impl PartitionBuffer {
             }
         }
 
-        let mut cols: Vec<_> = columns.into_iter().collect();
-        cols.sort_by(|a, b| Ord::cmp(&a.0, &b.0));
-        let cols: Vec<ArrayRef> = cols.into_iter().map(|c| c.1.into_arrow()).collect();
+        // ensure the order of the columns matches their order in the Arrow schema definition
+        let mut cols = Vec::with_capacity(columns.len());
+        let schema = schema.as_arrow();
+        for f in &schema.fields {
+            cols.push(columns.remove(f.name()).unwrap().into_arrow());
+        }
 
-        RecordBatch::try_new(schema.as_arrow(), cols).unwrap()
+        RecordBatch::try_new(schema, cols).unwrap()
     }
 }
 
@@ -241,13 +246,13 @@ enum Builder {
 impl Builder {
     fn into_arrow(self) -> ArrayRef {
         match self {
-            Builder::Bool(mut b) => Arc::new(b.finish()),
-            Builder::I64(mut b) => Arc::new(b.finish()),
-            Builder::F64(mut b) => Arc::new(b.finish()),
-            Builder::U64(mut b) => Arc::new(b.finish()),
-            Builder::String(mut b) => Arc::new(b.finish()),
-            Builder::Tag(mut b) => Arc::new(b.finish()),
-            Builder::Time(mut b) => Arc::new(b.finish()),
+            Self::Bool(mut b) => Arc::new(b.finish()),
+            Self::I64(mut b) => Arc::new(b.finish()),
+            Self::F64(mut b) => Arc::new(b.finish()),
+            Self::U64(mut b) => Arc::new(b.finish()),
+            Self::String(mut b) => Arc::new(b.finish()),
+            Self::Tag(mut b) => Arc::new(b.finish()),
+            Self::Time(mut b) => Arc::new(b.finish()),
         }
     }
 }
@@ -418,12 +423,12 @@ fn validate_and_convert_parsed_line(
             }
 
             if !new_cols.is_empty() {
-                let mut t = schema.to_mut().tables.get_mut(table_name).unwrap();
+                let t = schema.to_mut().tables.get_mut(table_name).unwrap();
                 t.add_columns(new_cols);
             }
         },
         None => {
-            let mut columns = HashMap::new();
+            let mut columns = BTreeMap::new();
             if let Some(tag_set) = &line.series.tag_set {
                 for (tag_key, _) in tag_set {
                     columns.insert(tag_key.to_string(), ColumnType::Tag);
@@ -505,6 +510,7 @@ fn validate_and_convert_parsed_line(
 
 #[derive(Debug, Default)]
 pub(crate) struct TableBatch {
+    #[allow(dead_code)]
     pub(crate) name: String,
     // map of partition key to partition batch
     pub(crate) partition_batches: HashMap<String, PartitionBatch>,
@@ -541,6 +547,7 @@ pub(crate) enum FieldData {
 /// Result of the validation. If the NamespaceSchema or PartitionMap were updated, they will be
 /// in the result.
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub(crate) struct ValidationResult {
     /// If the namespace schema is updated with new tables or columns it will be here, which
     /// can be used to update the cache.
@@ -603,7 +610,7 @@ mod tests {
 
         println!("result: {:#?}", result);
         let db = result.schema.unwrap();
-        assert!(false);
+
         assert_eq!(db.tables.len(), 2);
         assert_eq!(db.tables.get("cpu").unwrap().columns().len(), 3);
         assert_eq!(db.tables.get("foo").unwrap().columns().len(), 2);

@@ -1,20 +1,15 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
-use std::any::Any;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
-use datafusion::catalog::CatalogProvider;
-use datafusion::catalog::schema::SchemaProvider;
-use datafusion::datasource::{TableProvider};
-use datafusion::physical_plan::ExecutionPlan;
+use std::fmt;
 use parking_lot::RwLock;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde::de::Visitor;
 use thiserror::Error;
 use data_types::ColumnType;
-use iox_query::{QueryChunk, QueryNamespace};
 use observability_deps::tracing::info;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
-use crate::WriteBuffer;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -27,6 +22,12 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct Catalog {
     inner: RwLock<InnerCatalog>,
+}
+
+impl Default for Catalog {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Catalog {
@@ -78,11 +79,6 @@ impl Catalog {
         info!("db_schema {}", name);
         self.inner.read().databases.get(name).cloned()
     }
-
-
-    pub(crate) fn inner(&self) -> &RwLock<InnerCatalog> {
-        &self.inner
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -121,16 +117,66 @@ impl DatabaseSchema {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Eq, PartialEq, Clone)]
 pub(crate) struct TableDefinition {
     pub(crate) name: String,
     #[serde(skip_serializing, skip_deserializing)]
     pub(crate) schema: Option<Schema>,
-    columns: HashMap<String, ColumnType>,
+    columns: BTreeMap<String, ColumnType>,
+}
+
+struct TableDefinitionVisitor;
+
+impl<'de> Visitor<'de> for TableDefinitionVisitor {
+    type Value = TableDefinition;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("struct TableDefinition")
+    }
+
+    fn visit_map<V>(self, mut map: V) -> Result<TableDefinition, V::Error>
+        where
+            V: serde::de::MapAccess<'de>,
+    {
+        let mut name = None;
+        let mut columns = None;
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "name" => {
+                    if name.is_some() {
+                        return Err(serde::de::Error::duplicate_field("name"));
+                    }
+                    name = Some(map.next_value::<String>()?);
+                },
+                "columns" => {
+                    if columns.is_some() {
+                        return Err(serde::de::Error::duplicate_field("columns"));
+                    }
+                    columns = Some(map.next_value::<BTreeMap<String, ColumnType>>()?);
+                },
+                _ => {
+                    let _ = map.next_value::<serde::de::IgnoredAny>()?;
+                }
+            }
+        }
+        let name = name.ok_or_else(|| serde::de::Error::missing_field("name"))?;
+        let columns = columns.ok_or_else(|| serde::de::Error::missing_field("columns"))?;
+
+        Ok(TableDefinition::new(name, columns))
+    }
+}
+
+impl<'de> Deserialize<'de> for TableDefinition {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        deserializer.deserialize_map(TableDefinitionVisitor)
+    }
 }
 
 impl TableDefinition {
-    pub(crate) fn new(name: impl Into<String>, columns: HashMap<String, ColumnType>) -> Self {
+    pub(crate) fn new(name: impl Into<String>, columns: BTreeMap<String, ColumnType>) -> Self {
         let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
         for (name, column_type) in &columns {
             schema_builder.influx_column(name, column_type_to_influx_column_type(column_type));
@@ -148,8 +194,9 @@ impl TableDefinition {
         self.columns.contains_key(column)
     }
 
-    pub(crate) fn add_columns(&mut self, columns: Vec<(String, ColumnType)>) {
+    pub(crate) fn add_columns(&mut self, mut columns: Vec<(String, ColumnType)>) {
         let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
+        columns.sort_by(|(a, _), (b, _)| a.cmp(b));
         for (name, column_type) in &columns {
             schema_builder.influx_column(name, column_type_to_influx_column_type(column_type));
         }
@@ -161,7 +208,7 @@ impl TableDefinition {
         self.schema = Some(schema);
     }
 
-    pub(crate) fn columns(&self) -> &HashMap<String, ColumnType> {
+    pub(crate) fn columns(&self) -> &BTreeMap<String, ColumnType> {
         &self.columns
     }
 }
@@ -189,13 +236,14 @@ mod tests {
             name: "test".to_string(),
             tables: HashMap::new(),
         };
-        database.tables.insert("test".into(), TableDefinition::new("test", HashMap::from([("test".to_string(), ColumnType::String)])));
+        database.tables.insert("test".into(), TableDefinition::new("test", BTreeMap::from([("test".to_string(), ColumnType::String)])));
         let database = Arc::new(database);
         catalog.replace_database(0, database).unwrap();
-        let inner = catalog.inner().read();
+        let inner = catalog.inner.read();
 
         let serialized = serde_json::to_string(&*inner).unwrap();
         let deserialized: InnerCatalog = serde_json::from_str(&serialized).unwrap();
+
         assert_eq!(*inner, deserialized);
     }
 }
