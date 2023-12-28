@@ -91,11 +91,11 @@ func CreateSource(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.CreateSource(ctx, tt.args.source)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 			defer s.DeleteSource(ctx, tt.args.source.ID)
 
 			sources, _, err := s.FindSources(ctx, platform.FindOptions{})
@@ -174,11 +174,11 @@ func FindSourceByID(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			source, err := s.FindSourceByID(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(source, tt.wants.source, sourceCmpOptions...); diff != "" {
 				t.Errorf("sources are different -got/+want\ndiff %s", diff)
@@ -250,11 +250,11 @@ func FindSources(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			sources, _, err := s.FindSources(ctx, tt.args.opts)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(sources, tt.wants.sources, sourceCmpOptions...); diff != "" {
 				t.Errorf("sources are different -got/+want\ndiff %s", diff)
@@ -339,11 +339,11 @@ func DeleteSource(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteSource(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			sources, _, err := s.FindSources(ctx, platform.FindOptions{})
 			if err != nil {

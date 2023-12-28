@@ -11,7 +11,7 @@ import (
 )
 
 func TestBoltOrganizationService(t *testing.T) {
-	influxdbtesting.OrganizationService(initBoltOrganizationService, t)
+	influxdbtesting.OrganizationService(initBoltOrganizationService, false, t)
 }
 
 func initBoltOrganizationService(f influxdbtesting.OrganizationFields, t *testing.T) (influxdb.OrganizationService, string, func()) {

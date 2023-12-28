@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"go.etcd.io/bbolt"
 )
 
-// Some error code constant, ideally we want define common platform codes here
+// Some error code constant, ideally we want to define common platform codes here
 // projects on use platform's error, should have their own central place like this.
 // Any time this set of constants changes, you must also update the swagger for Error.properties.code.enum.
 const (
@@ -81,6 +83,20 @@ func NewError(options ...func(*Error)) *Error {
 	return err
 }
 
+func (err *Error) Copy() *Error {
+	e := new(Error)
+	*e = *err
+	return e
+}
+
+func (err *Error) Unwrap() error {
+	if err != nil {
+		return err.Err
+	} else {
+		return nil
+	}
+}
+
 // WithErrorErr sets the err on the error.
 func WithErrorErr(err error) func(*Error) {
 	return func(e *Error) {
@@ -111,7 +127,9 @@ func WithErrorOp(op string) func(*Error) {
 
 // Error implements the error interface by writing out the recursive messages.
 func (e *Error) Error() string {
-	if e.Msg != "" && e.Err != nil {
+	if e == nil {
+		return ""
+	} else if e.Msg != "" && e.Err != nil {
 		var b strings.Builder
 		b.WriteString(e.Msg)
 		b.WriteString(": ")
@@ -125,13 +143,22 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("<%s>", e.Code)
 }
 
+func (e *Error) Is(err error) bool {
+	var errError *Error
+
+	return errors.As(err, &errError) &&
+		strings.Contains(e.Error(), err.Error()) &&
+		e.Code == errError.Code
+}
+
 // ErrorCode returns the code of the root error, if available; otherwise returns EINTERNAL.
 func ErrorCode(err error) string {
 	if err == nil {
 		return ""
 	}
 
-	e, ok := err.(*Error)
+	var e *Error
+	ok := errors.As(err, &e)
 	if !ok {
 		return EInternal
 	}
@@ -157,8 +184,8 @@ func ErrorOp(err error) string {
 		return ""
 	}
 
-	e, ok := err.(*Error)
-	if !ok {
+	var e *Error
+	if !errors.As(err, &e) {
 		return ""
 	}
 
@@ -184,8 +211,8 @@ func ErrorMessage(err error) string {
 		return ""
 	}
 
-	e, ok := err.(*Error)
-	if !ok {
+	var e *Error
+	if !errors.As(err, &e) {
 		return "An internal error has occurred."
 	}
 
@@ -193,12 +220,8 @@ func ErrorMessage(err error) string {
 		return ""
 	}
 
-	if e.Msg != "" {
-		return e.Msg
-	}
-
-	if e.Err != nil {
-		return ErrorMessage(e.Err)
+	if msg := e.Error(); msg != "" {
+		return msg
 	}
 
 	return "An internal error has occurred."
@@ -268,4 +291,54 @@ func decodeInternalError(target interface{}) error {
 // HTTPErrorHandler is the interface to handle http error.
 type HTTPErrorHandler interface {
 	HandleHTTPError(ctx context.Context, err error, w http.ResponseWriter)
+}
+
+func BoltToInfluxError(err error) error {
+	var e *Error
+	ok := errors.As(err, &e)
+	switch {
+	case err == nil:
+		return nil
+	case ok:
+		// Already an Influx error, we are good to go.
+		return e
+	case errors.Is(err, bbolt.ErrBucketNameRequired), errors.Is(err, bbolt.ErrKeyRequired):
+		return NewError(WithErrorErr(err), WithErrorCode(EEmptyValue))
+	case errors.Is(err, bbolt.ErrIncompatibleValue):
+		return NewError(WithErrorErr(err), WithErrorCode(EConflict))
+	case errors.Is(err, bbolt.ErrBucketNotFound):
+		return NewError(WithErrorErr(err), WithErrorCode(ENotFound))
+	case errors.Is(err, bbolt.ErrBucketExists):
+		return NewError(WithErrorErr(err), WithErrorCode(EConflict))
+	case errors.Is(err, bbolt.ErrKeyTooLarge), errors.Is(err, bbolt.ErrValueTooLarge):
+		return NewError(WithErrorErr(err), WithErrorCode(ETooLarge))
+	default:
+		return err
+	}
+}
+
+func ErrInternalServiceError(err error, options ...func(*Error)) error {
+	var e *Error
+
+	if err == nil {
+		return nil
+	} else if !errors.As(err, &e) {
+		setters := make([]func(*Error), 0, len(options)+2)
+		// Defaults first, so they can be overridden by arguments.
+		setters = append(setters, WithErrorErr(err), WithErrorCode(EInternal))
+		setters = append(setters, options...)
+		return NewError(setters...)
+	} else {
+		// Copy the Error struct because many are
+		// global variables/pseudo-constants we don't
+		// want to modify
+		e = e.Copy()
+		if e.Code == "" {
+			WithErrorCode(EInternal)(e)
+		}
+		for _, o := range options {
+			o(e)
+		}
+		return e
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -11,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
+	bolt "go.etcd.io/bbolt"
 )
 
 const (
@@ -48,12 +50,11 @@ type UserFields struct {
 }
 
 // UserService tests all the service functions.
-func UserService(
-	init func(UserFields, *testing.T) (influxdb.UserService, string, func()), t *testing.T,
-) {
+func UserService(init func(UserFields, *testing.T) (influxdb.UserService, string, func()), isInMem bool, t *testing.T) {
 	tests := []struct {
 		name string
 		fn   func(init func(UserFields, *testing.T) (influxdb.UserService, string, func()),
+			isInMem bool,
 			t *testing.T)
 	}{
 		{
@@ -89,22 +90,20 @@ func UserService(
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt
 			t.Parallel()
-			tt.fn(init, t)
+			tt.fn(init, isInMem, t)
 		})
 	}
 }
 
 // CreateUser testing
-func CreateUser(
-	init func(UserFields, *testing.T) (influxdb.UserService, string, func()),
-	t *testing.T,
-) {
+func CreateUser(init func(UserFields, *testing.T) (influxdb.UserService, string, func()), isInMem bool, t *testing.T) {
 	type args struct {
 		user *influxdb.User
 	}
 	type wants struct {
-		err   error
-		users []*influxdb.User
+		err          error
+		inMemNoError bool
+		users        []*influxdb.User
 	}
 
 	tests := []struct {
@@ -204,16 +203,54 @@ func CreateUser(
 				},
 			},
 		},
+		{
+			name: "names can't be huge",
+			fields: UserFields{
+				IDGenerator: &mock.IDGenerator{
+					IDFn: func() platform.ID {
+						return MustIDBase16(userOneID)
+					},
+				},
+				Users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: influxdb.Active,
+					},
+				},
+			},
+			args: args{
+				user: &influxdb.User{
+					ID:     MustIDBase16(userTwoID),
+					Name:   strings.Repeat("ATrulyEnormousUserName", 10_000),
+					Status: influxdb.Active,
+				},
+			},
+			wants: wants{
+				users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: influxdb.Active,
+					},
+				},
+				err: &errors.Error{
+					Code: errors.ETooLarge,
+					Op:   influxdb.OpCreateUser,
+					Err:  bolt.ErrKeyTooLarge,
+				},
+				inMemNoError: true,
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			err := s.CreateUser(ctx, tt.args.user)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
-
+			errCreate := s.CreateUser(ctx, tt.args.user)
+			diffPlatformErrors(tt.name, errCreate, tt.wants.err, tt.wants.inMemNoError, isInMem, t)
 			// Delete only created users - ie., having a not nil ID
 			if tt.args.user.ID.Valid() {
 				defer s.DeleteUser(ctx, tt.args.user.ID)
@@ -223,6 +260,13 @@ func CreateUser(
 			if err != nil {
 				t.Fatalf("failed to retrieve users: %v", err)
 			}
+
+			// If the operation succeeded against expectations (because is the inmem store)
+			// our wants list will be wrong, so don't compare it.
+
+			if isInMem && tt.wants.inMemNoError && errCreate == nil {
+				return
+			}
 			if diff := cmp.Diff(users, tt.wants.users, userCmpOptions...); diff != "" {
 				t.Errorf("users are different -got/+want\ndiff %s", diff)
 			}
@@ -231,10 +275,7 @@ func CreateUser(
 }
 
 // FindUserByID testing
-func FindUserByID(
-	init func(UserFields, *testing.T) (influxdb.UserService, string, func()),
-	t *testing.T,
-) {
+func FindUserByID(init func(UserFields, *testing.T) (influxdb.UserService, string, func()), isInMem bool, t *testing.T) {
 	type args struct {
 		id platform.ID
 	}
@@ -307,12 +348,12 @@ func FindUserByID(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			user, err := s.FindUserByID(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, isInMem, t)
 
 			if diff := cmp.Diff(user, tt.wants.user, userCmpOptions...); diff != "" {
 				t.Errorf("user is different -got/+want\ndiff %s", diff)
@@ -322,10 +363,7 @@ func FindUserByID(
 }
 
 // FindUsers testing
-func FindUsers(
-	init func(UserFields, *testing.T) (influxdb.UserService, string, func()),
-	t *testing.T,
-) {
+func FindUsers(init func(UserFields, *testing.T) (influxdb.UserService, string, func()), isInMem bool, t *testing.T) {
 	type args struct {
 		ID          platform.ID
 		name        string
@@ -607,7 +645,7 @@ func FindUsers(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -620,7 +658,7 @@ func FindUsers(
 			}
 
 			users, _, err := s.FindUsers(ctx, filter, tt.args.findOptions)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, isInMem, t)
 
 			if diff := cmp.Diff(users, tt.wants.users, userCmpOptions...); diff != "" {
 				t.Errorf("users are different -got/+want\ndiff %s", diff)
@@ -630,10 +668,7 @@ func FindUsers(
 }
 
 // DeleteUser testing
-func DeleteUser(
-	init func(UserFields, *testing.T) (influxdb.UserService, string, func()),
-	t *testing.T,
-) {
+func DeleteUser(init func(UserFields, *testing.T) (influxdb.UserService, string, func()), isInMem bool, t *testing.T) {
 	type args struct {
 		ID platform.ID
 	}
@@ -720,11 +755,11 @@ func DeleteUser(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteUser(ctx, tt.args.ID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, isInMem, t)
 
 			filter := influxdb.UserFilter{}
 			users, _, err := s.FindUsers(ctx, filter)
@@ -739,10 +774,7 @@ func DeleteUser(
 }
 
 // FindUser testing
-func FindUser(
-	init func(UserFields, *testing.T) (influxdb.UserService, string, func()),
-	t *testing.T,
-) {
+func FindUser(init func(UserFields, *testing.T) (influxdb.UserService, string, func()), isInMem bool, t *testing.T) {
 	type args struct {
 		filter influxdb.UserFilter
 	}
@@ -931,11 +963,11 @@ func FindUser(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			user, err := s.FindUser(ctx, tt.args.filter)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, isInMem, t)
 
 			if diff := cmp.Diff(user, tt.wants.user, userCmpOptions...); diff != "" {
 				t.Errorf("users are different -got/+want\ndiff %s", diff)
@@ -945,10 +977,7 @@ func FindUser(
 }
 
 // UpdateUser testing
-func UpdateUser(
-	init func(UserFields, *testing.T) (influxdb.UserService, string, func()),
-	t *testing.T,
-) {
+func UpdateUser(init func(UserFields, *testing.T) (influxdb.UserService, string, func()), isInMem bool, t *testing.T) {
 	type args struct {
 		name   string
 		id     platform.ID
@@ -1079,7 +1108,7 @@ func UpdateUser(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -1098,7 +1127,7 @@ func UpdateUser(
 			}
 
 			user, err := s.UpdateUser(ctx, tt.args.id, upd)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, isInMem, t)
 
 			if diff := cmp.Diff(user, tt.wants.user, userCmpOptions...); diff != "" {
 				t.Errorf("user is different -got/+want\ndiff %s", diff)
@@ -1107,10 +1136,7 @@ func UpdateUser(
 	}
 }
 
-func UpdateUser_IndexHygiene(
-	init func(UserFields, *testing.T) (influxdb.UserService, string, func()),
-	t *testing.T,
-) {
+func UpdateUser_IndexHygiene(init func(UserFields, *testing.T) (influxdb.UserService, string, func()), isInMem bool, t *testing.T) {
 
 	oldUserName := "user1"
 	users := UserFields{

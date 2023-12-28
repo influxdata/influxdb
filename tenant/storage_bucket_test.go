@@ -2,6 +2,7 @@ package tenant_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -142,7 +143,7 @@ func TestBucket(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, expected, bucket)
 
-				if _, err := store.GetBucket(context.Background(), tx, 11); err != tenant.ErrBucketNotFound {
+				if _, err := store.GetBucket(context.Background(), tx, 11); !errors.Is(err, tenant.ErrBucketNotFound) {
 					t.Fatal("failed to get correct error when looking for non present bucket by id")
 				}
 
@@ -323,7 +324,7 @@ func TestBucket(t *testing.T) {
 			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				bucket5 := "bucket5"
 				_, err := store.UpdateBucket(context.Background(), tx, thirdBucketID, influxdb.BucketUpdate{Name: &bucket5})
-				if err != tenant.ErrBucketNameNotUnique {
+				if !errors.Is(err, tenant.ErrBucketNameNotUnique) {
 					t.Fatal("failed to error on duplicate bucketname")
 				}
 
@@ -355,7 +356,7 @@ func TestBucket(t *testing.T) {
 				require.NoError(t, err)
 
 				err = store.DeleteBucket(context.Background(), tx, firstBucketID)
-				if err != tenant.ErrBucketNotFound {
+				if !errors.Is(err, tenant.ErrBucketNotFound) {
 					t.Fatal("invalid error when deleting bucket that has already been deleted", err)
 				}
 

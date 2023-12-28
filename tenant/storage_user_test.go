@@ -2,6 +2,7 @@ package tenant_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -118,11 +119,11 @@ func TestUser(t *testing.T) {
 					t.Fatalf("expected identical user: \n%+v\n%+v", user, expected)
 				}
 
-				if _, err := store.GetUser(context.Background(), tx, 500); err != tenant.ErrUserNotFound {
+				if _, err := store.GetUser(context.Background(), tx, 500); !errors.Is(err, tenant.ErrUserNotFound) {
 					t.Fatal("failed to get correct error when looking for invalid user by id")
 				}
 
-				if _, err := store.GetUserByName(context.Background(), tx, "notauser"); err != tenant.ErrUserNotFound {
+				if _, err := store.GetUserByName(context.Background(), tx, "notauser"); !errors.Is(err, tenant.ErrUserNotFound) {
 					t.Fatal("failed to get correct error when looking for invalid user by name")
 				}
 
@@ -249,7 +250,7 @@ func TestUser(t *testing.T) {
 				}
 
 				err = store.DeleteUser(context.Background(), tx, 1)
-				if err != tenant.ErrUserNotFound {
+				if !errors.Is(err, tenant.ErrUserNotFound) {
 					t.Fatal("invalid error when deleting user that has already been deleted", err)
 				}
 

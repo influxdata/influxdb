@@ -2,7 +2,6 @@ package influxdb
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -77,13 +76,4 @@ type OrganizationFilter struct {
 	Name   *string
 	ID     *platform.ID
 	UserID *platform.ID
-}
-
-func ErrInternalOrgServiceError(op string, err error) *errors.Error {
-	return &errors.Error{
-		Code: errors.EInternal,
-		Msg:  fmt.Sprintf("unexpected error in organizations; Err: %v", err),
-		Op:   op,
-		Err:  err,
-	}
 }

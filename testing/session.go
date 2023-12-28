@@ -132,11 +132,11 @@ func CreateSession(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			session, err := s.CreateSession(ctx, tt.args.user)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(session, tt.wants.session, sessionCmpOptions...); diff != "" {
 				t.Errorf("sessions are different -got/+want\ndiff %s", diff)
@@ -207,12 +207,12 @@ func FindSession(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			session, err := s.FindSession(ctx, tt.args.key)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			if diff := cmp.Diff(session, tt.wants.session, sessionCmpOptions...); diff != "" {
 				t.Errorf("session is different -got/+want\ndiff %s", diff)
@@ -270,12 +270,12 @@ func ExpireSession(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			err := s.ExpireSession(ctx, tt.args.key)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			session, err := s.FindSession(ctx, tt.args.key)
 			if err.Error() != influxdb.ErrSessionExpired && err.Error() != influxdb.ErrSessionNotFound {
@@ -413,12 +413,12 @@ func RenewSession(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			err := s.RenewSession(ctx, tt.args.session, tt.args.expireAt)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, false, false, t)
 
 			session, err := s.FindSession(ctx, tt.args.key)
 			if err != nil {

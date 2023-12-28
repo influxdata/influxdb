@@ -1,6 +1,7 @@
 package authorization
 
 import (
+	errors2 "errors"
 	"fmt"
 
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -49,18 +50,18 @@ func ErrInvalidAuthIDError(err error) *errors.Error {
 	}
 }
 
-// ErrInternalServiceError is used when the error comes from an internal system.
-func ErrInternalServiceError(err error) *errors.Error {
-	return &errors.Error{
-		Code: errors.EInternal,
-		Err:  err,
-	}
-}
-
 // UnexpectedAuthIndexError is used when the error comes from an internal system.
 func UnexpectedAuthIndexError(err error) *errors.Error {
-	return &errors.Error{
-		Code: errors.EInternal,
-		Msg:  fmt.Sprintf("unexpected error retrieving auth index; Err: %v", err),
+	var e *errors.Error
+	if !errors2.As(err, &e) {
+		e = &errors.Error{
+			Msg:  fmt.Sprintf("unexpected error retrieving auth index; Err: %v", err),
+			Code: errors.EInternal,
+			Err:  err,
+		}
 	}
+	if e.Code == "" {
+		e.Code = errors.EInternal
+	}
+	return e
 }
