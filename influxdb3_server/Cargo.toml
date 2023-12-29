@@ -15,6 +15,7 @@ data_types = { path = "../data_types" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 influxdb-line-protocol = { path = "../influxdb_line_protocol" }
+influxdb3_write = { path = "../influxdb3_write" }
 ingest_structure = { path = "../ingest_structure" }
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }

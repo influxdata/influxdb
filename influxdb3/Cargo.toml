@@ -13,6 +13,7 @@ influxdb3_server = { path = "../influxdb3_server" }
 iox_time = { path = "../iox_time" }
 iox_query = { path = "../iox_query" }
 ioxd_common = { path = "../ioxd_common"}
+influxdb3_write = { path = "../influxdb3_write" }
 metric = { path = "../metric" }
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }

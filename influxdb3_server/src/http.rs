@@ -21,7 +21,8 @@ use serde::Deserialize;
 use authz::http::AuthorizationHeaderExtension;
 use tower::Layer;
 use trace_http::tower::TraceLayer;
-use crate::{CommonServerState, QueryExecutor, write_buffer, WriteBuffer};
+use crate::{CommonServerState, QueryExecutor};
+use influxdb3_write::WriteBuffer;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -112,7 +113,7 @@ pub enum Error {
 
     /// WriteBuffer error
     #[error("write buffer error: {0}")]
-    WriteBuffer(#[from] write_buffer::Error),
+    WriteBuffer(#[from] influxdb3_write::write_buffer::Error),
 }
 
 impl Error {

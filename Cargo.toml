@@ -34,6 +34,7 @@ members = [
     "influxdb2_client",
     "influxdb3",
     "influxdb3_server",
+    "influxdb3_write",
     "influxrpc_parser",
     "ingest_structure",
     "ingester_query_grpc",

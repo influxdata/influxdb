@@ -75,7 +75,7 @@ impl Catalog {
         (sequence, db)
     }
 
-    pub(crate) fn db_schema(&self, name: &str) -> Option<Arc<DatabaseSchema>> {
+    pub fn db_schema(&self, name: &str) -> Option<Arc<DatabaseSchema>> {
         info!("db_schema {}", name);
         self.inner.read().databases.get(name).cloned()
     }
@@ -99,29 +99,37 @@ impl InnerCatalog {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct DatabaseSchema {
-    pub(crate) name: String,
+    pub name: String,
     /// The database is a map of tables
-    pub(crate) tables: HashMap<String, TableDefinition>,
+    pub(crate) tables: BTreeMap<String, TableDefinition>,
 }
 
 impl DatabaseSchema {
-    pub(crate) fn new(name: impl Into<String>) -> Self {
+    pub fn new(name: impl Into<String>) -> Self {
         Self{
             name: name.into(),
-            tables: HashMap::new(),
+            tables: BTreeMap::new(),
         }
     }
 
-    pub(crate) fn get_table_schema(&self, table_name: &str) -> Option<Schema> {
+    pub fn get_table_schema(&self, table_name: &str) -> Option<Schema> {
         self.tables.get(table_name).and_then(|table| table.schema.clone())
+    }
+
+    pub fn table_names(&self) -> Vec<String> {
+        self.tables.keys().cloned().collect()
+    }
+
+    pub fn table_exists(&self, table_name: &str) -> bool {
+        self.tables.contains_key(table_name)
     }
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq, Clone)]
-pub(crate) struct TableDefinition {
-    pub(crate) name: String,
+pub struct TableDefinition {
+    pub name: String,
     #[serde(skip_serializing, skip_deserializing)]
-    pub(crate) schema: Option<Schema>,
+    pub schema: Option<Schema>,
     columns: BTreeMap<String, ColumnType>,
 }
 
@@ -234,7 +242,7 @@ mod tests {
         let catalog = Catalog::new();
         let mut database = DatabaseSchema {
             name: "test".to_string(),
-            tables: HashMap::new(),
+            tables: BTreeMap::new(),
         };
         database.tables.insert("test".into(), TableDefinition::new("test", BTreeMap::from([("test".to_string(), ColumnType::String)])));
         let database = Arc::new(database);

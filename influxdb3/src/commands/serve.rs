@@ -21,7 +21,7 @@ use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use influxdb3_server::{CommonServerState, query_executor::QueryExecutorImpl, serve, Server};
-use influxdb3_server::write_buffer::WriteBufferImpl;
+use influxdb3_write::write_buffer::WriteBufferImpl;
 use panic_logging::SendPanicsToTracing;
 use trace_exporters::TracingConfig;
 use trogging::cli::LoggingConfig;
@@ -222,7 +222,7 @@ pub async fn command(config: Config) -> Result<()> {
         );
 
     let common_state = CommonServerState::new(Arc::clone(&metrics), trace_exporter, trace_header_parser, *config.http_bind_address);
-    let catalog = Arc::new(influxdb3_server::catalog::Catalog::new());
+    let catalog = Arc::new(influxdb3_write::catalog::Catalog::new());
     let write_buffer = Arc::new(WriteBufferImpl::new(Arc::clone(&catalog), Arc::clone(&object_store)));
     let query_executor = QueryExecutorImpl::new(catalog,Arc::clone(&write_buffer), Arc::clone(&exec), Arc::clone(&metrics), Arc::new(config.datafusion_config), 10);
 

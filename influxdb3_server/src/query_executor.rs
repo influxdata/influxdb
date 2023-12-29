@@ -29,8 +29,11 @@ use trace::ctx::SpanContext;
 use trace::span::{Span, SpanExt, SpanRecorder};
 use trace_http::ctx::RequestLogContext;
 use tracker::{AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore};
-use crate::{QueryExecutor, WriteBuffer};
-use crate::catalog::{Catalog, DatabaseSchema};
+use crate::QueryExecutor;
+use influxdb3_write::{
+    catalog::{Catalog, DatabaseSchema},
+    WriteBuffer,
+};
 
 #[derive(Debug)]
 pub struct QueryExecutorImpl<W> {
@@ -189,10 +192,7 @@ impl SchemaProvider for QueryDatabase {
     }
 
     fn table_names(&self) -> Vec<String> {
-        info!("table names");
-        let mut names: Vec<_> = self.db_schema.tables.keys().cloned().collect();
-        names.sort();
-        names
+        self.db_schema.table_names()
     }
 
     async fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
@@ -211,8 +211,7 @@ impl SchemaProvider for QueryDatabase {
     }
 
     fn table_exist(&self, name: &str) -> bool {
-        info!("table exist {}", name);
-        self.db_schema.tables.contains_key(name)
+        self.db_schema.table_exists(name)
     }
 }
 

@@ -12,9 +12,7 @@ clippy::future_not_send
 )]
 
 mod http;
-pub mod write_buffer;
 pub mod query_executor;
-pub mod catalog;
 
 use std::fmt::Debug;
 use std::net::SocketAddr;
@@ -25,12 +23,8 @@ use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 use crate::http::HttpApi;
 use async_trait::async_trait;
-use datafusion::error::DataFusionError;
-use datafusion::execution::context::SessionState;
 use datafusion::execution::SendableRecordBatchStream;
-use datafusion::prelude::Expr;
-use data_types::NamespaceName;
-use iox_query::QueryChunk;
+use influxdb3_write::WriteBuffer;
 use trace::ctx::SpanContext;
 use trace_http::ctx::TraceHeaderParser;
 use trace_http::ctx::RequestLogContext;
@@ -45,9 +39,6 @@ pub enum Error {
 
     #[error("datafusion error: {0}")]
     DataFusion(#[from] datafusion::error::DataFusionError),
-
-    #[error("write buffer error: {0}")]
-    WriteBuffer(#[from] write_buffer::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -92,13 +83,6 @@ impl CommonServerState {
 #[derive(Debug)]
 pub struct Server<W, Q> {
     http: Arc<HttpApi<W, Q>>,
-}
-
-#[async_trait]
-pub trait WriteBuffer: Debug + Send + Sync + 'static {
-    async fn write_lp(&self, database: NamespaceName<'static>, lp: &str) -> Result<(), write_buffer::Error>;
-
-    fn get_table_chunks(&self, database_name: &str, table_name: &str, filters: &[Expr], projection: Option<&Vec<usize>>, ctx: &SessionState) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
 }
 
 #[async_trait]
@@ -166,7 +150,7 @@ mod tests {
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
         let common_state = crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser, addr.clone());
-        let catalog = Arc::new(crate::catalog::Catalog::new());
+        let catalog = Arc::new(influxdb3_write::catalog::Catalog::new());
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store = ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
         let num_threads = NonZeroUsize::new(2).unwrap();
@@ -180,7 +164,7 @@ mod tests {
             metric_registry: Arc::clone(&metrics),
             mem_pool_size: usize::MAX,
         }));
-        let write_buffer = Arc::new(crate::write_buffer::WriteBufferImpl::new(Arc::clone(&catalog), Arc::clone(&object_store)));
+        let write_buffer = Arc::new(influxdb3_write::write_buffer::WriteBufferImpl::new(Arc::clone(&catalog), Arc::clone(&object_store)));
         let query_executor = crate::query_executor::QueryExecutorImpl::new(catalog, Arc::clone(&write_buffer), Arc::clone(&exec), Arc::clone(&metrics), Arc::new(HashMap::new()), 10);
 
         let server = crate::Server::new(common_state, Arc::clone(&write_buffer), Arc::new(query_executor), usize::MAX);
