@@ -31,7 +31,12 @@ type Service struct {
 	// DropShardRef is a function that takes a shard ID and removes the
 	// "reference" to it in the meta data. For OSS, this would be a DropShard
 	// operation. For Enterprise, this would be a RemoveShardOwner operation.
-	DropShardMetaRef func(uint64) error
+	// Also provided is owners, the list of node IDs of the shard owners
+	// according to the meta store. For OSS, owners will always be empty.
+	// Enterprise can use owners to optimize out calls to RemoveShardOwner
+	// if the current node doesn't actually own the shardID. This prevents
+	// a lot of unnecessary RPC calls.
+	DropShardMetaRef func(shardID uint64, owners []uint64) error
 
 	config Config
 
@@ -113,13 +118,21 @@ func (s *Service) DeletionCheck() {
 	defer logEnd()
 
 	type deletionInfo struct {
-		db string
-		rp string
+		db     string
+		rp     string
+		owners []uint64
+	}
+	newDeletionInfo := func(db, rp string, si meta.ShardInfo) deletionInfo {
+		owners := make([]uint64, len(si.Owners))
+		for i, o := range si.Owners {
+			owners[i] = o.NodeID
+		}
+		return deletionInfo{db: db, rp: rp, owners: owners}
 	}
 	deletedShardIDs := make(map[uint64]deletionInfo)
 
 	dropShardMetaRef := func(id uint64, info deletionInfo) error {
-		if err := s.DropShardMetaRef(id); err != nil {
+		if err := s.DropShardMetaRef(id, info.owners); err != nil {
 			log.Error("Failed to drop shard meta reference",
 				logger.Database(info.db),
 				logger.Shard(id),
@@ -141,7 +154,7 @@ func (s *Service) DeletionCheck() {
 			// Build list of already deleted shards.
 			for _, g := range r.DeletedShardGroups() {
 				for _, sh := range g.Shards {
-					deletedShardIDs[sh.ID] = deletionInfo{db: d.Name, rp: r.Name}
+					deletedShardIDs[sh.ID] = newDeletionInfo(d.Name, r.Name, sh)
 				}
 			}
 
@@ -164,7 +177,7 @@ func (s *Service) DeletionCheck() {
 
 				// Store all the shard IDs that may possibly need to be removed locally.
 				for _, sh := range g.Shards {
-					deletedShardIDs[sh.ID] = deletionInfo{db: d.Name, rp: r.Name}
+					deletedShardIDs[sh.ID] = newDeletionInfo(d.Name, r.Name, sh)
 				}
 			}
 		}
