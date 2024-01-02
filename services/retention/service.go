@@ -55,8 +55,8 @@ func NewService(c Config) *Service {
 }
 
 // OSSDropShardMetaRef creates a closure appropriate for OSS to use as DropShardMetaRef.
-func OSSDropShardMetaRef(mc MetaClient) func(uint64) error {
-	return func(shardID uint64) error {
+func OSSDropShardMetaRef(mc MetaClient) func(uint64, []uint64) error {
+	return func(shardID uint64, owners []uint64) error {
 		return mc.DropShard(shardID)
 	}
 }
@@ -194,6 +194,9 @@ func (s *Service) DeletionCheck() {
 					logger.RetentionPolicy(info.rp),
 					zap.Error(err))
 				if errors.Is(err, tsdb.ErrShardNotFound) {
+					// At first you wouldn't think this could happen, we're iterating over shards
+					// in the store. However, if this has been a very long running operation the
+					// shard could have been dropped from the store while we were working on other shards.
 					log.Warn("Shard does not exist in store, continuing retention removal",
 						logger.Database(info.db),
 						logger.Shard(id),
