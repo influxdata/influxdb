@@ -187,6 +187,10 @@ func (s *Service) DeletionCheck() {
 	for _, id := range s.TSDBStore.ShardIDs() {
 		if info, ok := deletedShardIDs[id]; ok {
 			delete(deletedShardIDs, id)
+			log.Info("Attempting deletion of shard from store",
+				logger.Database(info.db),
+				logger.Shard(id),
+				logger.RetentionPolicy(info.rp))
 			if err := s.TSDBStore.DeleteShard(id); err != nil {
 				log.Error("Failed to delete shard",
 					logger.Database(info.db),
