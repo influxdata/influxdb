@@ -117,8 +117,9 @@ func (m *FileMode) UnmarshalText(text []byte) error {
 func (m FileMode) MarshalText() (text []byte, err error) {
 	if m != 0 {
 		return []byte(fmt.Sprintf("%04o", m)), nil
+	} else {
+		return []byte(""), nil
 	}
-	return nil, nil
 }
 
 type Group int
