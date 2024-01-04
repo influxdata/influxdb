@@ -292,8 +292,11 @@ func (data *Data) DropShard(id uint64) {
 					data.Databases[dbidx].RetentionPolicies[rpidx].ShardGroups[sgidx].Shards = append(shards[:found], shards[found+1:]...)
 
 					if len(shards) == 1 {
-						// We just deleted the last shard in the shard group.
-						data.Databases[dbidx].RetentionPolicies[rpidx].ShardGroups[sgidx].DeletedAt = time.Now()
+						// We just deleted the last shard in the shard group, but make sure we don't overwrite the timestamp if it
+						// was already deleted.
+						if !data.Databases[dbidx].RetentionPolicies[rpidx].ShardGroups[sgidx].Deleted() {
+							data.Databases[dbidx].RetentionPolicies[rpidx].ShardGroups[sgidx].DeletedAt = time.Now()
+						}
 					}
 					return
 				}
@@ -455,6 +458,26 @@ func (data *Data) DeleteShardGroup(database, policy string, id uint64) error {
 	}
 
 	return ErrShardGroupNotFound
+}
+
+// PruneShardGroups removes any shards deleted before expiration and that have no remaining owners.
+// Returns true if data is modified.
+func (data *Data) PruneShardGroups(expiration time.Time) bool {
+	var changed bool
+	for i, d := range data.Databases {
+		for j, rp := range d.RetentionPolicies {
+			var remainingShardGroups []ShardGroupInfo
+			for _, sgi := range rp.ShardGroups {
+				if sgi.DeletedAt.IsZero() || !expiration.After(sgi.DeletedAt) || len(sgi.Shards) > 0 {
+					remainingShardGroups = append(remainingShardGroups, sgi)
+					continue
+				}
+				changed = true
+			}
+			data.Databases[i].RetentionPolicies[j].ShardGroups = remainingShardGroups
+		}
+	}
+	return changed
 }
 
 // CreateContinuousQuery adds a named continuous query to a database.
