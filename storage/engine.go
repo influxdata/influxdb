@@ -80,6 +80,7 @@ type MetaClient interface {
 	DropDatabase(name string) error
 	CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 	Database(name string) (di *meta.DatabaseInfo)
+	DropShard(id uint64) error
 	Databases() []meta.DatabaseInfo
 	DeleteShardGroup(database, policy string, id uint64) error
 	PrecreateShardGroups(now, cutoff time.Time) error
@@ -142,6 +143,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e.retentionService = retention.NewService(c.RetentionService)
 	e.retentionService.TSDBStore = e.tsdbStore
 	e.retentionService.MetaClient = e.metaClient
+	e.retentionService.DropShardMetaRef = retention.OSSDropShardMetaRef(e.MetaClient())
 
 	e.precreatorService = precreator.NewService(c.PrecreatorConfig)
 	e.precreatorService.MetaClient = e.metaClient

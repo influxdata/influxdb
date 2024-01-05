@@ -1074,7 +1074,9 @@ func TestMetaClient_PruneShardGroups(t *testing.T) {
 
 	data := c.Data()
 	data.Databases[1].RetentionPolicies[0].ShardGroups[0].DeletedAt = expiration
+	data.Databases[1].RetentionPolicies[0].ShardGroups[0].Shards = nil
 	data.Databases[1].RetentionPolicies[0].ShardGroups[1].DeletedAt = expiration
+	data.Databases[1].RetentionPolicies[0].ShardGroups[1].Shards = nil
 
 	if err := c.SetData(&data); err != nil {
 		t.Fatal(err)
