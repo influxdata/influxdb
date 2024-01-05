@@ -3,6 +3,7 @@ package retention_test
 import (
 	"context"
 	"fmt"
+	"math"
 	"reflect"
 	"sync"
 	"testing"
@@ -10,11 +11,15 @@ import (
 
 	"github.com/influxdata/influxdb/v2/internal"
 	"github.com/influxdata/influxdb/v2/toml"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxdb/v2/v1/services/retention"
+	"github.com/influxdata/influxdb/v2/v1/services/retention/helpers"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+	"golang.org/x/exp/maps"
 )
 
 func TestService_OpenDisabled(t *testing.T) {
@@ -60,6 +65,201 @@ func TestService_OpenClose(t *testing.T) {
 	}
 }
 
+func TestRetention_DeletionCheck(t *testing.T) {
+	cfg := retention.Config{
+		Enabled: true,
+
+		// This test runs DeletionCheck manually for the test cases. It is about checking
+		// the results of DeletionCheck, not if it is run properly on the timer.
+		// Set a long check interval so the deletion check won't run on its own during the test.
+		CheckInterval: toml.Duration(time.Hour * 24),
+	}
+
+	now := time.Now().UTC()
+	shardDuration := time.Hour * 24 * 14
+	shardGroupDuration := time.Hour * 24
+	foreverShard := uint64(1003) // a shard that can't be deleted
+	phantomShard := uint64(1006)
+	dataUT := &meta.Data{
+		Users: []meta.UserInfo{},
+		Databases: []meta.DatabaseInfo{
+			{
+				Name:                   "servers",
+				DefaultRetentionPolicy: "autogen",
+				RetentionPolicies: []meta.RetentionPolicyInfo{
+					{
+						Name:               "autogen",
+						ReplicaN:           2,
+						Duration:           shardDuration,
+						ShardGroupDuration: shardGroupDuration,
+						ShardGroups: []meta.ShardGroupInfo{
+							// Shard group 1 is deleted and expired group with a single shard.
+							{
+								ID:        1,
+								StartTime: now.Truncate(time.Hour * 24).Add(-2*shardDuration + 0*shardGroupDuration).Add(meta.ShardGroupDeletedExpiration),
+								EndTime:   now.Truncate(time.Hour * 24).Add(-2*shardDuration + 1*shardGroupDuration).Add(meta.ShardGroupDeletedExpiration),
+								DeletedAt: now.Truncate(time.Hour * 24).Add(-1 * shardDuration).Add(meta.ShardGroupDeletedExpiration),
+								Shards: []meta.ShardInfo{
+									{
+										ID: 101,
+									},
+								},
+							},
+							// Shard group 2 is deleted and expired with no shards.
+							// Note a shard group with no shards should not exist anyway.
+							{
+								ID:        2,
+								StartTime: now.Truncate(time.Hour * 24).Add(-2*shardDuration + 2*shardGroupDuration).Add(meta.ShardGroupDeletedExpiration),
+								EndTime:   now.Truncate(time.Hour * 24).Add(-2*shardDuration + 1*shardGroupDuration).Add(meta.ShardGroupDeletedExpiration),
+								DeletedAt: now.Truncate(time.Hour * 24).Add(-1 * shardDuration).Add(meta.ShardGroupDeletedExpiration),
+							},
+							// Shard group 3 is deleted and expired, but its shard can not be deleted.
+							{
+								ID:        3,
+								StartTime: now.Truncate(time.Hour * 24).Add(-2*shardDuration + 2*shardGroupDuration).Add(meta.ShardGroupDeletedExpiration),
+								EndTime:   now.Truncate(time.Hour * 24).Add(-2*shardDuration + 1*shardGroupDuration).Add(meta.ShardGroupDeletedExpiration),
+								DeletedAt: now.Truncate(time.Hour * 24).Add(-1 * shardDuration).Add(meta.ShardGroupDeletedExpiration),
+								Shards: []meta.ShardInfo{
+									{
+										ID: foreverShard,
+									},
+								},
+							},
+							// Shard group 4 is deleted, but not expired with a single shard.
+							{
+								ID:        4,
+								StartTime: now.Truncate(time.Hour * 24).Add(-2*shardDuration + 0*shardGroupDuration),
+								EndTime:   now.Truncate(time.Hour * 24).Add(-2*shardDuration + 1*shardGroupDuration),
+								DeletedAt: now.Truncate(time.Hour * 24),
+								Shards: []meta.ShardInfo{
+									{
+										ID: 104,
+									},
+								},
+							},
+							// Shard group 5 is active and should not be touched.
+							{
+								ID:        5,
+								StartTime: now.Truncate(time.Hour * 24).Add(0 * shardGroupDuration),
+								EndTime:   now.Truncate(time.Hour * 24).Add(1 * shardGroupDuration),
+								Shards: []meta.ShardInfo{
+									{
+										ID: 105,
+									},
+								},
+							},
+							// Shard group 6 is a deleted and expired shard group with a phantom shard that doesn't exist in the store.
+							{
+								ID:        6,
+								StartTime: now.Truncate(time.Hour * 24).Add(-2*shardDuration + 0*shardGroupDuration).Add(meta.ShardGroupDeletedExpiration),
+								EndTime:   now.Truncate(time.Hour * 24).Add(-2*shardDuration + 1*shardGroupDuration).Add(meta.ShardGroupDeletedExpiration),
+								DeletedAt: now.Truncate(time.Hour * 24).Add(-1 * shardDuration).Add(meta.ShardGroupDeletedExpiration),
+								Shards: []meta.ShardInfo{
+									{
+										ID: phantomShard,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	expData := dataUT.Clone()
+
+	databasesFn := func() []meta.DatabaseInfo {
+		return dataUT.Databases
+	}
+	deleteShardGroupFn := func(database, policy string, id uint64) error {
+		return helpers.DataDeleteShardGroup(dataUT, now, database, policy, id)
+	}
+	dropShardFn := func(id uint64) error {
+		dataUT.DropShard(id)
+		return nil
+	}
+	pruneShardGroupsFn := func() error {
+		// PruneShardGroups is the core functionality we are testing. We must use meta.Data's version.
+		dataUT.PruneShardGroups(now.Add(meta.ShardGroupDeletedExpiration))
+		return nil
+	}
+	mc := &internal.MetaClientMock{
+		DatabasesFn:        databasesFn,
+		DeleteShardGroupFn: deleteShardGroupFn,
+		DropShardFn:        dropShardFn,
+		PruneShardGroupsFn: pruneShardGroupsFn,
+	}
+
+	collectShards := func(d *meta.Data) map[uint64]struct{} {
+		s := map[uint64]struct{}{}
+		for _, db := range d.Databases {
+			for _, rp := range db.RetentionPolicies {
+				for _, sg := range rp.ShardGroups {
+					for _, sh := range sg.Shards {
+						s[sh.ID] = struct{}{}
+					}
+				}
+			}
+		}
+		return s
+	}
+
+	// All these shards are yours except phantomShard. Attempt no deletion there.
+	shards := collectShards(dataUT)
+	delete(shards, phantomShard)
+
+	shardIDs := func() []uint64 {
+		return maps.Keys(shards)
+	}
+	deleteShard := func(shardID uint64) error {
+		if _, ok := shards[shardID]; !ok {
+			return tsdb.ErrShardNotFound
+		}
+		if shardID == foreverShard {
+			return fmt.Errorf("unknown error deleting shard files for shard %d", shardID)
+		}
+		delete(shards, shardID)
+		return nil
+	}
+	store := &internal.TSDBStoreMock{
+		DeleteShardFn: deleteShard,
+		ShardIDsFn:    shardIDs,
+	}
+
+	s := retention.NewService(cfg)
+	s.MetaClient = mc
+	s.TSDBStore = store
+	s.DropShardMetaRef = retention.OSSDropShardMetaRef(s.MetaClient)
+	require.NoError(t, s.Open(context.Background()))
+	s.DeletionCheck()
+
+	// Adjust expData to make it look like we expect.
+	require.NoError(t, helpers.DataNukeShardGroup(expData, "servers", "autogen", 1))
+	require.NoError(t, helpers.DataNukeShardGroup(expData, "servers", "autogen", 2))
+	expData.DropShard(104)
+	require.NoError(t, helpers.DataNukeShardGroup(expData, "servers", "autogen", 6))
+
+	require.Equal(t, expData, dataUT)
+	require.Equal(t, collectShards(expData), shards)
+
+	// Check that multiple duplicate calls to DeletionCheck don't make further changes.
+	// This is mostly for our friend foreverShard.
+	for i := 0; i < 10; i++ {
+		s.DeletionCheck()
+		require.Equal(t, expData, dataUT)
+		require.Equal(t, collectShards(expData), shards)
+	}
+
+	// Our heroic support team hos fixed the issue with foreverShard.
+	foreverShard = math.MaxUint64
+	s.DeletionCheck()
+	require.NoError(t, helpers.DataNukeShardGroup(expData, "servers", "autogen", 3))
+	require.Equal(t, expData, dataUT)
+	require.Equal(t, collectShards(expData), shards)
+
+	require.NoError(t, s.Close())
+}
+
 func TestService_CheckShards(t *testing.T) {
 	now := time.Now()
 	// Account for any time difference that could cause some of the logic in
@@ -71,43 +271,44 @@ func TestService_CheckShards(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	data := []meta.DatabaseInfo{
-		{
-			Name: "db0",
-
-			DefaultRetentionPolicy: "rp0",
-			RetentionPolicies: []meta.RetentionPolicyInfo{
-				{
-					Name:               "rp0",
-					ReplicaN:           1,
-					Duration:           time.Hour,
-					ShardGroupDuration: time.Hour,
-					ShardGroups: []meta.ShardGroupInfo{
-						{
-							ID:        1,
-							StartTime: now.Truncate(time.Hour).Add(-2 * time.Hour),
-							EndTime:   now.Truncate(time.Hour).Add(-1 * time.Hour),
-							Shards: []meta.ShardInfo{
-								{ID: 2},
-								{ID: 3},
+	data := meta.Data{
+		Databases: []meta.DatabaseInfo{
+			{
+				Name:                   "db0",
+				DefaultRetentionPolicy: "rp0",
+				RetentionPolicies: []meta.RetentionPolicyInfo{
+					{
+						Name:               "rp0",
+						ReplicaN:           1,
+						Duration:           time.Hour,
+						ShardGroupDuration: time.Hour,
+						ShardGroups: []meta.ShardGroupInfo{
+							{
+								ID:        1,
+								StartTime: now.Truncate(time.Hour).Add(-2 * time.Hour),
+								EndTime:   now.Truncate(time.Hour).Add(-1 * time.Hour),
+								Shards: []meta.ShardInfo{
+									{ID: 2},
+									{ID: 3},
+								},
 							},
-						},
-						{
-							ID:        4,
-							StartTime: now.Truncate(time.Hour).Add(-1 * time.Hour),
-							EndTime:   now.Truncate(time.Hour),
-							Shards: []meta.ShardInfo{
-								{ID: 5},
-								{ID: 6},
+							{
+								ID:        4,
+								StartTime: now.Truncate(time.Hour).Add(-1 * time.Hour),
+								EndTime:   now.Truncate(time.Hour),
+								Shards: []meta.ShardInfo{
+									{ID: 5},
+									{ID: 6},
+								},
 							},
-						},
-						{
-							ID:        7,
-							StartTime: now.Truncate(time.Hour),
-							EndTime:   now.Truncate(time.Hour).Add(time.Hour),
-							Shards: []meta.ShardInfo{
-								{ID: 8},
-								{ID: 9},
+							{
+								ID:        7,
+								StartTime: now.Truncate(time.Hour),
+								EndTime:   now.Truncate(time.Hour).Add(time.Hour),
+								Shards: []meta.ShardInfo{
+									{ID: 8},
+									{ID: 9},
+								},
 							},
 						},
 					},
@@ -120,13 +321,13 @@ func TestService_CheckShards(t *testing.T) {
 	config.CheckInterval = toml.Duration(10 * time.Millisecond)
 	s := NewService(t, config)
 	s.MetaClient.DatabasesFn = func() []meta.DatabaseInfo {
-		return data
+		return data.Databases
 	}
 
 	done := make(chan struct{})
 	deletedShardGroups := make(map[string]struct{})
 	s.MetaClient.DeleteShardGroupFn = func(database, policy string, id uint64) error {
-		for _, dbi := range data {
+		for _, dbi := range data.Databases {
 			if dbi.Name == database {
 				for _, rpi := range dbi.RetentionPolicies {
 					if rpi.Name == policy {
@@ -151,6 +352,25 @@ func TestService_CheckShards(t *testing.T) {
 		return nil
 	}
 
+	dropShardDone := make(chan struct{})
+	droppedShards := make(map[uint64]struct{})
+	s.MetaClient.DropShardFn = func(id uint64) error {
+		data.DropShard(id)
+		if _, ok := droppedShards[id]; ok {
+			t.Errorf("duplicate DropShard")
+		}
+		droppedShards[id] = struct{}{}
+		if got, want := droppedShards, map[uint64]struct{}{
+			2: struct{}{},
+			3: struct{}{},
+		}; reflect.DeepEqual(got, want) {
+			close(dropShardDone)
+		} else if len(got) > len(want) {
+			t.Errorf("dropped too many shards")
+		}
+		return nil
+	}
+
 	pruned := false
 	closing := make(chan struct{})
 	s.MetaClient.PruneShardGroupsFn = func() error {
@@ -165,11 +385,21 @@ func TestService_CheckShards(t *testing.T) {
 		return nil
 	}
 
+	activeShards := map[uint64]struct{}{
+		2: struct{}{},
+		3: struct{}{},
+		5: struct{}{},
+		6: struct{}{},
+	}
 	deletedShards := make(map[uint64]struct{})
 	s.TSDBStore.ShardIDsFn = func() []uint64 {
-		return []uint64{2, 3, 5, 6}
+		return maps.Keys(activeShards)
 	}
 	s.TSDBStore.DeleteShardFn = func(shardID uint64) error {
+		if _, ok := activeShards[shardID]; !ok {
+			return tsdb.ErrShardNotFound
+		}
+		delete(activeShards, shardID)
 		deletedShards[shardID] = struct{}{}
 		return nil
 	}
@@ -184,6 +414,14 @@ func TestService_CheckShards(t *testing.T) {
 	}()
 
 	timer := time.NewTimer(100 * time.Millisecond)
+	select {
+	case <-dropShardDone:
+		timer.Stop()
+	case <-timer.C:
+		t.Errorf("timeout waiting for shard to be dropped")
+	}
+
+	timer = time.NewTimer(100 * time.Millisecond)
 	select {
 	case <-done:
 		timer.Stop()
@@ -242,30 +480,32 @@ func testService_8819_repro(t *testing.T) (*Service, chan error, chan struct{}) 
 	var mu sync.Mutex
 	shards := []uint64{3, 5, 8, 9, 11, 12}
 	localShards := []uint64{3, 5, 8, 9, 11, 12}
-	databases := []meta.DatabaseInfo{
-		{
-			Name: "db0",
-			RetentionPolicies: []meta.RetentionPolicyInfo{
-				{
-					Name:               "autogen",
-					Duration:           24 * time.Hour,
-					ShardGroupDuration: 24 * time.Hour,
-					ShardGroups: []meta.ShardGroupInfo{
-						{
-							ID:        1,
-							StartTime: time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC),
-							EndTime:   time.Date(1981, 1, 1, 0, 0, 0, 0, time.UTC),
-							Shards: []meta.ShardInfo{
-								{ID: 3}, {ID: 9},
+	data := meta.Data{
+		Databases: []meta.DatabaseInfo{
+			{
+				Name: "db0",
+				RetentionPolicies: []meta.RetentionPolicyInfo{
+					{
+						Name:               "autogen",
+						Duration:           24 * time.Hour,
+						ShardGroupDuration: 24 * time.Hour,
+						ShardGroups: []meta.ShardGroupInfo{
+							{
+								ID:        1,
+								StartTime: time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC),
+								EndTime:   time.Date(1981, 1, 1, 0, 0, 0, 0, time.UTC),
+								Shards: []meta.ShardInfo{
+									{ID: 3}, {ID: 9},
+								},
 							},
-						},
-						{
-							ID:        2,
-							StartTime: time.Now().Add(-1 * time.Hour),
-							EndTime:   time.Now(),
-							DeletedAt: time.Now(),
-							Shards: []meta.ShardInfo{
-								{ID: 11}, {ID: 12},
+							{
+								ID:        2,
+								StartTime: time.Now().Add(-1 * time.Hour),
+								EndTime:   time.Now(),
+								DeletedAt: time.Now(),
+								Shards: []meta.ShardInfo{
+									{ID: 11}, {ID: 12},
+								},
 							},
 						},
 					},
@@ -284,7 +524,7 @@ func testService_8819_repro(t *testing.T) (*Service, chan error, chan struct{}) 
 	s.MetaClient.DatabasesFn = func() []meta.DatabaseInfo {
 		mu.Lock()
 		defer mu.Unlock()
-		return databases
+		return data.Databases
 	}
 
 	s.MetaClient.DeleteShardGroupFn = func(database string, policy string, id uint64) error {
@@ -308,8 +548,15 @@ func testService_8819_repro(t *testing.T) (*Service, chan error, chan struct{}) 
 			}
 		}
 		shards = newShards
-		databases[0].RetentionPolicies[0].ShardGroups[0].DeletedAt = time.Now().UTC()
+		data.Databases[0].RetentionPolicies[0].ShardGroups[0].DeletedAt = time.Now().UTC()
 		mu.Unlock()
+		return nil
+	}
+
+	s.MetaClient.DropShardFn = func(shardID uint64) error {
+		mu.Lock()
+		defer mu.Unlock()
+		data.DropShard(shardID)
 		return nil
 	}
 
@@ -401,5 +648,6 @@ func NewService(tb testing.TB, c retention.Config) *Service {
 
 	s.Service.MetaClient = s.MetaClient
 	s.Service.TSDBStore = s.TSDBStore
+	s.Service.DropShardMetaRef = retention.OSSDropShardMetaRef(s.Service.MetaClient)
 	return s
 }
