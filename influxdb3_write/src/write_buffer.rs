@@ -19,7 +19,6 @@ use chrono::{TimeZone, Utc};
 use datafusion::common::{DataFusionError, Statistics};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
-use object_store::ObjectStore;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -28,10 +27,10 @@ use influxdb_line_protocol::{FieldValue, parse_lines, ParsedLine};
 use iox_catalog::TIME_COLUMN;
 use iox_query::chunk_statistics::{ColumnRange, create_chunk_statistics};
 use iox_query::{QueryChunk, QueryChunkData};
-use observability_deps::tracing::info;
+use observability_deps::tracing::{debug, info};
 use schema::Schema;
 use schema::sort::SortKey;
-use crate::WriteBuffer;
+use crate::{BufferedWriteRequest, Bufferer, BufferSegment, ChunkContainer, SegmentId, Wal, WriteBuffer};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -52,34 +51,42 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
+pub struct WriteRequest<'a> {
+    pub db_name: NamespaceName<'static>,
+    pub line_protocol: &'a str,
+    pub default_time: u64,
+}
+
+#[derive(Debug)]
 pub struct WriteBufferImpl {
     catalog: Arc<Catalog>,
     buffered_data: RwLock<HashMap<String, DatabaseBuffer>>,
     #[allow(dead_code)]
-    object_store: Arc<dyn ObjectStore>,
+    wal: Option<Arc<dyn Wal>>,
 }
 
 impl WriteBufferImpl {
-    pub fn new(catalog: Arc<Catalog>, object_store: Arc<dyn ObjectStore>) -> Self {
+    pub fn new(catalog: Arc<Catalog>, wal: Option<Arc<dyn Wal>>) -> Self {
         Self {
             catalog,
             buffered_data: RwLock::new(HashMap::new()),
-            object_store,
+            wal,
         }
     }
 
-    async fn write_lp(&self, db_name: NamespaceName<'static>, lp: &str) -> Result<()> {
-        println!("write_lp to {} in writebuffer", db_name);
+    // TODO: write into segments and wal
+    async fn write_lp(&self, db_name: NamespaceName<'static>, lp: &str, default_time: i64) -> Result<BufferedWriteRequest> {
+        debug!("write_lp to {} in writebuffer", db_name);
         let (sequence, db) = self.catalog.db_or_create(db_name.as_str());
         let result = parse_validate_and_update_schema(
             lp,
             &db,
             &Partitioner::new_per_day_partitioner(),
-            Utc::now().timestamp_nanos_opt().unwrap(),
+            default_time,
         )?;
 
         if let Some(schema) = result.schema {
-            println!("replacing schema for {:?}", schema);
+            debug!("replacing schema for {:?}", schema);
             self.catalog.replace_database(sequence, Arc::new(schema)).unwrap();
         }
 
@@ -99,13 +106,19 @@ impl WriteBufferImpl {
             }
         }
 
-        Ok(())
+        Ok(BufferedWriteRequest{
+            db_name,
+            invalid_lines: vec![],
+            line_count: result.line_count,
+            field_count: result.field_count,
+            tag_count: result.tag_count,
+            total_buffer_memory_used: 0,
+            segment_id: SegmentId(0),
+        })
     }
 
     fn get_table_chunks(&self, database_name: &str, table_name: &str, _filters: &[Expr], _projection: Option<&Vec<usize>>, _ctx: &SessionState) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         let db_schema = self.catalog.db_schema(database_name).unwrap();
-        println!("db_schema: {:#?}", db_schema);
-        println!("table_name: {}", table_name);
         let table = db_schema.tables.get(table_name).unwrap();
         let schema = table.schema.as_ref().cloned().unwrap();
 
@@ -143,15 +156,31 @@ impl WriteBufferImpl {
 }
 
 #[async_trait]
-impl WriteBuffer for WriteBufferImpl {
-    async fn write_lp(&self, database: NamespaceName<'static>, lp: &str) -> Result<()> {
-        self.write_lp(database, lp).await
+impl Bufferer for WriteBufferImpl {
+    async fn write_lp(&self, database: NamespaceName<'static>, lp: &str, default_time: i64) -> Result<BufferedWriteRequest> {
+        self.write_lp(database, lp, default_time).await
     }
 
+    async fn close_open_segment(&self) -> crate::Result<Arc<dyn BufferSegment>> {
+        todo!()
+    }
+
+    async fn load_segments_after(&self, _segment_id: SegmentId, _catalog: Catalog) -> crate::Result<Vec<Arc<dyn BufferSegment>>> {
+        todo!()
+    }
+
+    fn wal(&self) -> Option<Arc<dyn Wal>> {
+        self.wal.clone()
+    }
+}
+
+impl ChunkContainer for WriteBufferImpl {
     fn get_table_chunks(&self, database_name: &str, table_name: &str, filters: &[Expr], projection: Option<&Vec<usize>>, ctx: &SessionState) -> crate::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         self.get_table_chunks(database_name, table_name, filters, projection, ctx)
     }
 }
+
+impl WriteBuffer for WriteBufferImpl {}
 
 #[derive(Debug, Default)]
 struct DatabaseBuffer {
@@ -508,7 +537,7 @@ fn validate_and_convert_parsed_line(
     Ok(())
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub(crate) struct TableBatch {
     #[allow(dead_code)]
     pub(crate) name: String,

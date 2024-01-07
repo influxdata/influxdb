@@ -24,10 +24,10 @@ use trace::TraceCollector;
 use crate::http::HttpApi;
 use async_trait::async_trait;
 use datafusion::execution::SendableRecordBatchStream;
-use influxdb3_write::WriteBuffer;
 use trace::ctx::SpanContext;
 use trace_http::ctx::TraceHeaderParser;
 use trace_http::ctx::RequestLogContext;
+use influxdb3_write::{Persister, WriteBuffer};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -91,7 +91,7 @@ pub trait QueryExecutor: Debug + Send + Sync + 'static {
 }
 
 impl<W, Q> Server<W, Q> {
-    pub fn new(common_state: CommonServerState, write_buffer: Arc<W>, query_executor: Arc<Q>, max_http_request_size: usize) -> Self {
+    pub fn new(common_state: CommonServerState, _persister: Arc<dyn Persister>, write_buffer: Arc<W>, query_executor: Arc<Q>, max_http_request_size: usize) -> Self {
         let http = Arc::new(HttpApi::new(common_state.clone(), Arc::<W>::clone(&write_buffer), Arc::<Q>::clone(&query_executor), max_http_request_size));
 
         Self{
@@ -101,6 +101,12 @@ impl<W, Q> Server<W, Q> {
 }
 
 pub async fn serve<W: WriteBuffer, Q: QueryExecutor>(server: Server<W, Q>, shutdown: CancellationToken) -> Result<()> {
+    // TODO:
+    //  1. load the persisted catalog and segments from the persister
+    //  2. load semgments into the buffer
+    //  3. persist any segments from the buffer that are closed and haven't yet been persisted
+    //  4. start serving
+
     http::serve(Arc::clone(&server.http), shutdown).await?;
 
     Ok(())
@@ -138,6 +144,7 @@ mod tests {
     use hyper::{Body, body, Client, Request, Response};
     use object_store::DynObjectStore;
     use tokio_util::sync::CancellationToken;
+    use influxdb3_write::persister::PersisterImpl;
     use iox_query::exec::{Executor, ExecutorConfig};
     use parquet_file::storage::{ParquetStorage, StorageId};
     use crate::serve;
@@ -164,10 +171,12 @@ mod tests {
             metric_registry: Arc::clone(&metrics),
             mem_pool_size: usize::MAX,
         }));
-        let write_buffer = Arc::new(influxdb3_write::write_buffer::WriteBufferImpl::new(Arc::clone(&catalog), Arc::clone(&object_store)));
-        let query_executor = crate::query_executor::QueryExecutorImpl::new(catalog, Arc::clone(&write_buffer), Arc::clone(&exec), Arc::clone(&metrics), Arc::new(HashMap::new()), 10);
 
-        let server = crate::Server::new(common_state, Arc::clone(&write_buffer), Arc::new(query_executor), usize::MAX);
+        let write_buffer = Arc::new(influxdb3_write::write_buffer::WriteBufferImpl::new(Arc::clone(&catalog), None));
+        let query_executor = crate::query_executor::QueryExecutorImpl::new(catalog, Arc::clone(&write_buffer), Arc::clone(&exec), Arc::clone(&metrics), Arc::new(HashMap::new()), 10);
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+
+        let server = crate::Server::new(common_state, persister, Arc::clone(&write_buffer), Arc::new(query_executor), usize::MAX);
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
 

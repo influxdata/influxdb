@@ -82,7 +82,7 @@ impl Catalog {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
-pub(crate) struct InnerCatalog {
+pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
     databases: HashMap<String, Arc<DatabaseSchema>>,
     sequence: u64,

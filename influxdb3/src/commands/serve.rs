@@ -21,6 +21,9 @@ use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use influxdb3_server::{CommonServerState, query_executor::QueryExecutorImpl, serve, Server};
+use influxdb3_write::Wal;
+use influxdb3_write::persister::PersisterImpl;
+use influxdb3_write::wal::WalImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
 use panic_logging::SendPanicsToTracing;
 use trace_exporters::TracingConfig;
@@ -223,10 +226,12 @@ pub async fn command(config: Config) -> Result<()> {
 
     let common_state = CommonServerState::new(Arc::clone(&metrics), trace_exporter, trace_header_parser, *config.http_bind_address);
     let catalog = Arc::new(influxdb3_write::catalog::Catalog::new());
-    let write_buffer = Arc::new(WriteBufferImpl::new(Arc::clone(&catalog), Arc::clone(&object_store)));
+    let wal: Option<Arc<dyn Wal>> = config.wal_directory.map(|dir| Arc::new(WalImpl::new(dir)) as _);
+    let write_buffer = Arc::new(WriteBufferImpl::new(Arc::clone(&catalog), wal));
     let query_executor = QueryExecutorImpl::new(catalog,Arc::clone(&write_buffer), Arc::clone(&exec), Arc::clone(&metrics), Arc::new(config.datafusion_config), 10);
 
-    let server = Server::new(common_state, Arc::clone(&write_buffer), Arc::new(query_executor), config.max_http_request_size);
+    let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+    let server = Server::new(common_state, persister, Arc::clone(&write_buffer), Arc::new(query_executor), config.max_http_request_size);
     serve(server, frontend_shutdown).await?;
 
     Ok(())

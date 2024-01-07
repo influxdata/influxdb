@@ -2620,6 +2620,7 @@ dependencies = [
  "ingest_structure",
  "iox_catalog",
  "iox_query",
+ "iox_time",
  "metric",
  "metric_exporters",
  "object_store",

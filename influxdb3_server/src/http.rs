@@ -23,6 +23,7 @@ use tower::Layer;
 use trace_http::tower::TraceLayer;
 use crate::{CommonServerState, QueryExecutor};
 use influxdb3_write::WriteBuffer;
+use iox_time::{SystemProvider, TimeProvider};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -166,7 +167,10 @@ where
 
         let database = NamespaceName::new(params.db)?;
 
-        self.write_buffer.write_lp(database, body).await?;
+        // TODO: use the time provider
+        let default_time = SystemProvider::new().now().timestamp_nanos();
+
+        self.write_buffer.write_lp(database, body, default_time).await?;
 
         Ok(Response::new(Body::from("{}")))
     }

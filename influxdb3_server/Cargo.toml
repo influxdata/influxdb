@@ -14,6 +14,7 @@ datafusion_util = { path = "../datafusion_util" }
 data_types = { path = "../data_types" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
+iox_time = { path = "../iox_time" }
 influxdb-line-protocol = { path = "../influxdb_line_protocol" }
 influxdb3_write = { path = "../influxdb3_write" }
 ingest_structure = { path = "../ingest_structure" }
