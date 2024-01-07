@@ -1,38 +1,40 @@
 //! module for query executor
+use crate::QueryExecutor;
+use arrow::datatypes::SchemaRef;
+use async_trait::async_trait;
+use data_types::{ChunkId, ChunkOrder, TransitionPartitionId};
+use datafusion::catalog::schema::SchemaProvider;
+use datafusion::catalog::CatalogProvider;
+use datafusion::common::Statistics;
+use datafusion::datasource::{TableProvider, TableType};
+use datafusion::error::DataFusionError;
+use datafusion::execution::context::SessionState;
+use datafusion::execution::SendableRecordBatchStream;
+use datafusion::physical_plan::ExecutionPlan;
+use datafusion::prelude::Expr;
+use datafusion_util::config::DEFAULT_SCHEMA;
+use influxdb3_write::{
+    catalog::{Catalog, DatabaseSchema},
+    WriteBuffer,
+};
+use iox_query::exec::{Executor, ExecutorType, IOxSessionContext};
+use iox_query::provider::ProviderBuilder;
+use iox_query::{QueryChunk, QueryChunkData, QueryCompletedToken, QueryNamespace, QueryText};
+use metric::Registry;
+use observability_deps::tracing::info;
+use schema::sort::SortKey;
+use schema::Schema;
+use service_common::planner::Planner;
+use service_common::QueryNamespaceProvider;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use arrow::datatypes::SchemaRef;
-use async_trait::async_trait;
-use datafusion::catalog::CatalogProvider;
-use datafusion::catalog::schema::SchemaProvider;
-use datafusion::datasource::{TableProvider, TableType};
-use datafusion::error::DataFusionError;
-use datafusion::execution::SendableRecordBatchStream;
-use datafusion::prelude::Expr;
-use datafusion_util::config::DEFAULT_SCHEMA;
-use datafusion::common::Statistics;
-use datafusion::execution::context::SessionState;
-use datafusion::physical_plan::ExecutionPlan;
-use data_types::{ChunkId, ChunkOrder, TransitionPartitionId};
-use iox_query::exec::{Executor, ExecutorType, IOxSessionContext};
-use iox_query::{QueryChunk, QueryChunkData, QueryCompletedToken, QueryNamespace, QueryText};
-use iox_query::provider::ProviderBuilder;
-use metric::Registry;
-use observability_deps::tracing::info;
-use schema::Schema;
-use schema::sort::SortKey;
-use service_common::planner::Planner;
-use service_common::QueryNamespaceProvider;
 use trace::ctx::SpanContext;
 use trace::span::{Span, SpanExt, SpanRecorder};
 use trace_http::ctx::RequestLogContext;
-use tracker::{AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore};
-use crate::QueryExecutor;
-use influxdb3_write::{
-    catalog::{Catalog, DatabaseSchema},
-    WriteBuffer,
+use tracker::{
+    AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
 };
 
 #[derive(Debug)]
@@ -45,9 +47,20 @@ pub struct QueryExecutorImpl<W> {
 }
 
 impl<W: WriteBuffer> QueryExecutorImpl<W> {
-    pub fn new(catalog: Arc<Catalog>, write_buffer: Arc<W>, exec: Arc<Executor>, metrics: Arc<Registry>, datafusion_config: Arc<HashMap<String, String>>, concurrent_query_limit: usize) -> Self {
-        let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(&metrics, &[("semaphore", "query_execution")]));
-        let query_execution_semaphore = Arc::new(semaphore_metrics.new_semaphore(concurrent_query_limit));
+    pub fn new(
+        catalog: Arc<Catalog>,
+        write_buffer: Arc<W>,
+        exec: Arc<Executor>,
+        metrics: Arc<Registry>,
+        datafusion_config: Arc<HashMap<String, String>>,
+        concurrent_query_limit: usize,
+    ) -> Self {
+        let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
+            &metrics,
+            &[("semaphore", "query_execution")],
+        ));
+        let query_execution_semaphore =
+            Arc::new(semaphore_metrics.new_semaphore(concurrent_query_limit));
         Self {
             catalog,
             write_buffer,
@@ -60,13 +73,20 @@ impl<W: WriteBuffer> QueryExecutorImpl<W> {
 
 #[async_trait]
 impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
-    async fn query(&self, database: &str, q: &str, span_ctx: Option<SpanContext>, external_span_ctx: Option<RequestLogContext>) -> crate::Result<SendableRecordBatchStream> {
+    async fn query(
+        &self,
+        database: &str,
+        q: &str,
+        span_ctx: Option<SpanContext>,
+        external_span_ctx: Option<RequestLogContext>,
+    ) -> crate::Result<SendableRecordBatchStream> {
         info!("query in executor {}", database);
-        let db = self.db(database, span_ctx.child_span("get database"), false).await.ok_or_else(|| {
-            crate::Error::DatabaseNotFound {
+        let db = self
+            .db(database, span_ctx.child_span("get database"), false)
+            .await
+            .ok_or_else(|| crate::Error::DatabaseNotFound {
                 db_name: database.to_string(),
-            }
-        })?;
+            })?;
 
         let ctx = db.new_query_context(span_ctx);
         let _token = db.record_query(
@@ -75,14 +95,10 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
             Box::new(q.to_string()),
         );
         info!("plan");
-        let plan = Planner::new(&ctx)
-            .sql(q)
-            .await?;
+        let plan = Planner::new(&ctx).sql(q).await?;
 
         info!("execute_stream");
-        let query_results = ctx
-            .execute_stream(Arc::clone(&plan))
-            .await?;
+        let query_results = ctx.execute_stream(Arc::clone(&plan)).await?;
 
         Ok(query_results)
     }
@@ -93,12 +109,17 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
 impl<W: WriteBuffer> QueryNamespaceProvider for QueryExecutorImpl<W> {
     type Db = QueryDatabase;
 
-    async fn db(&self, name: &str, span: Option<Span>, _include_debug_info_tables: bool) -> Option<Arc<Self::Db>> {
+    async fn db(
+        &self,
+        name: &str,
+        span: Option<Span>,
+        _include_debug_info_tables: bool,
+    ) -> Option<Arc<Self::Db>> {
         let _span_recorder = SpanRecorder::new(span);
 
         let db_schema = self.catalog.db_schema(name)?;
 
-        Some(Arc::new(QueryDatabase{
+        Some(Arc::new(QueryDatabase {
             db_schema,
             write_buffer: Arc::clone(&self.write_buffer) as _,
             exec: Arc::clone(&self.exec),
@@ -123,7 +144,12 @@ pub struct QueryDatabase {
 }
 
 impl QueryDatabase {
-    pub fn new(db_schema: Arc<DatabaseSchema>, write_buffer: Arc<dyn WriteBuffer>, exec: Arc<Executor>, datafusion_config: Arc<HashMap<String, String>>) -> Self {
+    pub fn new(
+        db_schema: Arc<DatabaseSchema>,
+        write_buffer: Arc<dyn WriteBuffer>,
+        exec: Arc<Executor>,
+        datafusion_config: Arc<HashMap<String, String>>,
+    ) -> Self {
         Self {
             db_schema,
             write_buffer,
@@ -135,7 +161,13 @@ impl QueryDatabase {
 
 #[async_trait]
 impl QueryNamespace for QueryDatabase {
-    async fn chunks(&self, _table_name: &str, _filters: &[Expr], _projection: Option<&Vec<usize>>, _ctx: IOxSessionContext) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+    async fn chunks(
+        &self,
+        _table_name: &str,
+        _filters: &[Expr],
+        _projection: Option<&Vec<usize>>,
+        _ctx: IOxSessionContext,
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         info!("called chunks on querydatabase");
         todo!()
     }
@@ -144,7 +176,12 @@ impl QueryNamespace for QueryDatabase {
         None
     }
 
-    fn record_query(&self, span_ctx: Option<&SpanContext>, query_type: &'static str, query_text: QueryText) -> QueryCompletedToken {
+    fn record_query(
+        &self,
+        span_ctx: Option<&SpanContext>,
+        query_type: &'static str,
+        query_text: QueryText,
+    ) -> QueryCompletedToken {
         let trace_id = span_ctx.map(|ctx| ctx.trace_id);
         QueryCompletedToken::new(move |success| {
             info!(?trace_id, %query_type, %query_text, %success, "query completed");
@@ -224,8 +261,20 @@ pub struct QueryTable {
 }
 
 impl QueryTable {
-    fn chunks(&self, ctx: &SessionState, projection: Option<&Vec<usize>>, filters: &[Expr], _limit: Option<usize>) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        self.write_buffer.get_table_chunks(&self.db_schema.name, self.name.as_ref(), filters, projection, ctx)
+    fn chunks(
+        &self,
+        ctx: &SessionState,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        _limit: Option<usize>,
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+        self.write_buffer.get_table_chunks(
+            &self.db_schema.name,
+            self.name.as_ref(),
+            filters,
+            projection,
+            ctx,
+        )
     }
 }
 
@@ -243,11 +292,19 @@ impl TableProvider for QueryTable {
         TableType::Base
     }
 
-    async fn scan(&self, ctx: &SessionState, projection: Option<&Vec<usize>>, filters: &[Expr], limit: Option<usize>) -> service_common::planner::Result<Arc<dyn ExecutionPlan>> {
+    async fn scan(
+        &self,
+        ctx: &SessionState,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        limit: Option<usize>,
+    ) -> service_common::planner::Result<Arc<dyn ExecutionPlan>> {
         let filters = filters.to_vec();
-        info!("TableProvider scan {:?} {:?} {:?}", projection, filters, limit);
-        let mut builder =
-            ProviderBuilder::new(Arc::clone(&self.name), self.schema.clone());
+        info!(
+            "TableProvider scan {:?} {:?} {:?}",
+            projection, filters, limit
+        );
+        let mut builder = ProviderBuilder::new(Arc::clone(&self.name), self.schema.clone());
 
         let chunks = self.chunks(ctx, projection, &filters, limit)?;
         for chunk in chunks {
@@ -264,9 +321,7 @@ impl TableProvider for QueryTable {
 }
 
 #[derive(Debug)]
-pub struct ParquetChunk {
-
-}
+pub struct ParquetChunk {}
 
 impl QueryChunk for ParquetChunk {
     fn stats(&self) -> Arc<Statistics> {

@@ -1,11 +1,11 @@
 //! This is the implementation of the `Persister` used to write data from the buffer to object
 //! storage.
 
-use std::sync::Arc;
+use crate::catalog::Catalog;
+use crate::{PersistedCatalog, PersistedSegment, Persister, SegmentId};
 use async_trait::async_trait;
 use object_store::ObjectStore;
-use crate::{PersistedCatalog, PersistedSegment, Persister, SegmentId};
-use crate::catalog::Catalog;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct PersisterImpl {
@@ -15,9 +15,7 @@ pub struct PersisterImpl {
 
 impl PersisterImpl {
     pub fn new(object_store: Arc<dyn ObjectStore>) -> Self {
-        Self {
-            object_store,
-        }
+        Self { object_store }
     }
 }
 
@@ -31,7 +29,11 @@ impl Persister for PersisterImpl {
         todo!()
     }
 
-    async fn persist_catalog(&self, _segment_id: SegmentId, _catalog: Catalog) -> crate::Result<()> {
+    async fn persist_catalog(
+        &self,
+        _segment_id: SegmentId,
+        _catalog: Catalog,
+    ) -> crate::Result<()> {
         todo!()
     }
 

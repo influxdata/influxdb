@@ -1,44 +1,46 @@
 //! Implementation of an in-memory buffer for writes
 
-use std::any::Any;
-use std::borrow::Cow;
 use crate::catalog::{Catalog, DatabaseSchema, TableDefinition};
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::Arc;
-use arrow::{
-    array::{
-        BooleanBuilder, Float64Builder, Int64Builder, StringBuilder,
-        StringDictionaryBuilder, TimestampNanosecondBuilder, UInt64Builder,
-    },
-    datatypes::Int32Type,
-    record_batch::RecordBatch
+use crate::{
+    BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, SegmentId, Wal, WriteBuffer,
 };
 use arrow::array::ArrayRef;
+use arrow::{
+    array::{
+        BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, StringDictionaryBuilder,
+        TimestampNanosecondBuilder, UInt64Builder,
+    },
+    datatypes::Int32Type,
+    record_batch::RecordBatch,
+};
 use async_trait::async_trait;
 use chrono::{TimeZone, Utc};
+use data_types::{
+    column_type_from_field, ChunkId, ChunkOrder, ColumnType, NamespaceName, PartitionKey, TableId,
+    TimestampMinMax, TransitionPartitionId,
+};
 use datafusion::common::{DataFusionError, Statistics};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
-use parking_lot::RwLock;
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-use data_types::{ChunkId, ChunkOrder, column_type_from_field, ColumnType, NamespaceName, PartitionKey, TableId, TimestampMinMax, TransitionPartitionId};
-use influxdb_line_protocol::{FieldValue, parse_lines, ParsedLine};
+use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
 use iox_catalog::TIME_COLUMN;
-use iox_query::chunk_statistics::{ColumnRange, create_chunk_statistics};
+use iox_query::chunk_statistics::{create_chunk_statistics, ColumnRange};
 use iox_query::{QueryChunk, QueryChunkData};
 use observability_deps::tracing::{debug, info};
-use schema::Schema;
+use parking_lot::RwLock;
 use schema::sort::SortKey;
-use crate::{BufferedWriteRequest, Bufferer, BufferSegment, ChunkContainer, SegmentId, Wal, WriteBuffer};
+use schema::Schema;
+use serde::{Deserialize, Serialize};
+use std::any::Any;
+use std::borrow::Cow;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("error parsing line {line_number}: {message}")]
-    ParseError {
-        line_number: usize,
-        message: String,
-    },
+    ParseError { line_number: usize, message: String },
 
     #[error("column type mismatch for column {name}: existing: {existing:?}, new: {new:?}")]
     ColumnTypeMismatch {
@@ -75,7 +77,12 @@ impl WriteBufferImpl {
     }
 
     // TODO: write into segments and wal
-    async fn write_lp(&self, db_name: NamespaceName<'static>, lp: &str, default_time: i64) -> Result<BufferedWriteRequest> {
+    async fn write_lp(
+        &self,
+        db_name: NamespaceName<'static>,
+        lp: &str,
+        default_time: i64,
+    ) -> Result<BufferedWriteRequest> {
         debug!("write_lp to {} in writebuffer", db_name);
         let (sequence, db) = self.catalog.db_or_create(db_name.as_str());
         let result = parse_validate_and_update_schema(
@@ -87,16 +94,17 @@ impl WriteBufferImpl {
 
         if let Some(schema) = result.schema {
             debug!("replacing schema for {:?}", schema);
-            self.catalog.replace_database(sequence, Arc::new(schema)).unwrap();
+            self.catalog
+                .replace_database(sequence, Arc::new(schema))
+                .unwrap();
         }
 
         let mut buffered_data = self.buffered_data.write();
-        let db_buffer = buffered_data.entry(db_name.as_str().to_string()).or_default();
+        let db_buffer = buffered_data
+            .entry(db_name.as_str().to_string())
+            .or_default();
         for (table_name, table_batch) in result.table_batches {
-            let table_buffer = db_buffer
-                .table_buffers
-                .entry(table_name)
-                .or_default();
+            let table_buffer = db_buffer.table_buffers.entry(table_name).or_default();
             for (partition_key, partition_batch) in table_batch.partition_batches {
                 let partition_buffer = table_buffer
                     .partition_buffers
@@ -106,7 +114,7 @@ impl WriteBufferImpl {
             }
         }
 
-        Ok(BufferedWriteRequest{
+        Ok(BufferedWriteRequest {
             db_name,
             invalid_lines: vec![],
             line_count: result.line_count,
@@ -117,7 +125,14 @@ impl WriteBufferImpl {
         })
     }
 
-    fn get_table_chunks(&self, database_name: &str, table_name: &str, _filters: &[Expr], _projection: Option<&Vec<usize>>, _ctx: &SessionState) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+    fn get_table_chunks(
+        &self,
+        database_name: &str,
+        table_name: &str,
+        _filters: &[Expr],
+        _projection: Option<&Vec<usize>>,
+        _ctx: &SessionState,
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         let db_schema = self.catalog.db_schema(database_name).unwrap();
         let table = db_schema.tables.get(table_name).unwrap();
         let schema = table.schema.as_ref().cloned().unwrap();
@@ -130,9 +145,17 @@ impl WriteBufferImpl {
             let partition_key: PartitionKey = partition_key.into();
             let batch = partition_buffer.rows_to_record_batch(&schema, table.columns());
             let column_ranges = Arc::new(partition_buffer.column_ranges);
-            let batch_stats = create_chunk_statistics(partition_buffer.rows.len() as u64, &schema, Some(TimestampMinMax{min: partition_buffer.timestamp_min, max: partition_buffer.timestamp_max}), &column_ranges);
+            let batch_stats = create_chunk_statistics(
+                partition_buffer.rows.len() as u64,
+                &schema,
+                Some(TimestampMinMax {
+                    min: partition_buffer.timestamp_min,
+                    max: partition_buffer.timestamp_max,
+                }),
+                &column_ranges,
+            );
 
-            let chunk = BufferChunk{
+            let chunk = BufferChunk {
                 batches: vec![batch],
                 schema: schema.clone(),
                 stats: Arc::new(batch_stats),
@@ -157,7 +180,12 @@ impl WriteBufferImpl {
 
 #[async_trait]
 impl Bufferer for WriteBufferImpl {
-    async fn write_lp(&self, database: NamespaceName<'static>, lp: &str, default_time: i64) -> Result<BufferedWriteRequest> {
+    async fn write_lp(
+        &self,
+        database: NamespaceName<'static>,
+        lp: &str,
+        default_time: i64,
+    ) -> Result<BufferedWriteRequest> {
         self.write_lp(database, lp, default_time).await
     }
 
@@ -165,7 +193,11 @@ impl Bufferer for WriteBufferImpl {
         todo!()
     }
 
-    async fn load_segments_after(&self, _segment_id: SegmentId, _catalog: Catalog) -> crate::Result<Vec<Arc<dyn BufferSegment>>> {
+    async fn load_segments_after(
+        &self,
+        _segment_id: SegmentId,
+        _catalog: Catalog,
+    ) -> crate::Result<Vec<Arc<dyn BufferSegment>>> {
         todo!()
     }
 
@@ -175,7 +207,14 @@ impl Bufferer for WriteBufferImpl {
 }
 
 impl ChunkContainer for WriteBufferImpl {
-    fn get_table_chunks(&self, database_name: &str, table_name: &str, filters: &[Expr], projection: Option<&Vec<usize>>, ctx: &SessionState) -> crate::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+    fn get_table_chunks(
+        &self,
+        database_name: &str,
+        table_name: &str,
+        filters: &[Expr],
+        projection: Option<&Vec<usize>>,
+        ctx: &SessionState,
+    ) -> crate::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         self.get_table_chunks(database_name, table_name, filters, projection, ctx)
     }
 }
@@ -201,18 +240,36 @@ struct PartitionBuffer {
 }
 
 impl PartitionBuffer {
-    fn rows_to_record_batch(&self, schema: &Schema, column_types: &BTreeMap<String, ColumnType>) -> RecordBatch {
+    fn rows_to_record_batch(
+        &self,
+        schema: &Schema,
+        column_types: &BTreeMap<String, ColumnType>,
+    ) -> RecordBatch {
         let row_count = self.rows.len();
         let mut columns = BTreeMap::new();
         for (name, column_type) in column_types {
             match column_type {
-                ColumnType::Bool => columns.insert(name, Builder::Bool(BooleanBuilder::with_capacity(row_count))),
-                ColumnType::F64 => columns.insert(name, Builder::F64(Float64Builder::with_capacity(row_count))),
-                ColumnType::I64 => columns.insert(name, Builder::I64(Int64Builder::with_capacity(row_count))),
-                ColumnType::U64 => columns.insert(name, Builder::U64(UInt64Builder::with_capacity(row_count))),
+                ColumnType::Bool => columns.insert(
+                    name,
+                    Builder::Bool(BooleanBuilder::with_capacity(row_count)),
+                ),
+                ColumnType::F64 => {
+                    columns.insert(name, Builder::F64(Float64Builder::with_capacity(row_count)))
+                }
+                ColumnType::I64 => {
+                    columns.insert(name, Builder::I64(Int64Builder::with_capacity(row_count)))
+                }
+                ColumnType::U64 => {
+                    columns.insert(name, Builder::U64(UInt64Builder::with_capacity(row_count)))
+                }
                 ColumnType::String => columns.insert(name, Builder::String(StringBuilder::new())),
-                ColumnType::Tag => columns.insert(name, Builder::Tag(StringDictionaryBuilder::new())),
-                ColumnType::Time => columns.insert(name, Builder::Time(TimestampNanosecondBuilder::with_capacity(row_count))),
+                ColumnType::Tag => {
+                    columns.insert(name, Builder::Tag(StringDictionaryBuilder::new()))
+                }
+                ColumnType::Time => columns.insert(
+                    name,
+                    Builder::Time(TimestampNanosecondBuilder::with_capacity(row_count)),
+                ),
             };
         }
 
@@ -225,7 +282,7 @@ impl PartitionBuffer {
                     (FieldData::Timestamp(v), Builder::Time(b)) => b.append_value(*v),
                     (FieldData::Tag(v), Builder::Tag(b)) => {
                         b.append(v).unwrap();
-                    },
+                    }
                     (FieldData::String(v), Builder::String(b)) => b.append_value(v),
                     (FieldData::Integer(v), Builder::I64(b)) => b.append_value(*v),
                     (FieldData::UInteger(v), Builder::U64(b)) => b.append_value(*v),
@@ -357,16 +414,14 @@ pub(crate) fn parse_validate_and_update_schema(
 ) -> Result<ValidationResult> {
     let mut lines = vec![];
     for (line_idx, maybe_line) in parse_lines(lp).enumerate() {
-        let line = maybe_line.map_err(|e|Error::ParseError {line_number: line_idx + 1, message: e.to_string()})?;
+        let line = maybe_line.map_err(|e| Error::ParseError {
+            line_number: line_idx + 1,
+            message: e.to_string(),
+        })?;
         lines.push(line);
     }
 
-    validate_or_insert_schema_and_partitions(
-        lines,
-        schema,
-        partitioner,
-        default_time,
-    )
+    validate_or_insert_schema_and_partitions(lines, schema, partitioner, default_time)
 }
 
 /// Takes parsed lines, validates their schema. If new tables or columns are defined, they
@@ -444,10 +499,7 @@ fn validate_and_convert_parsed_line(
             }
             for (field_name, value) in &line.field_set {
                 if !t.column_exists(field_name.as_str()) {
-                    new_cols.push((
-                        field_name.to_string(),
-                        column_type_from_field(value),
-                    ));
+                    new_cols.push((field_name.to_string(), column_type_from_field(value)));
                 }
             }
 
@@ -455,7 +507,7 @@ fn validate_and_convert_parsed_line(
                 let t = schema.to_mut().tables.get_mut(table_name).unwrap();
                 t.add_columns(new_cols);
             }
-        },
+        }
         None => {
             let mut columns = BTreeMap::new();
             if let Some(tag_set) = &line.series.tag_set {
@@ -464,11 +516,8 @@ fn validate_and_convert_parsed_line(
                 }
             }
             for (field_name, value) in &line.field_set {
-                columns.insert(
-                    field_name.to_string(),
-                    column_type_from_field(value),
-                );
-            };
+                columns.insert(field_name.to_string(), column_type_from_field(value));
+            }
 
             columns.insert(TIME_COLUMN.to_string(), ColumnType::Time);
 
@@ -491,28 +540,28 @@ fn validate_and_convert_parsed_line(
     // validate tags, collecting any new ones that must be inserted, or adding the values
     if let Some(tagset) = line.series.tag_set {
         for (tag_key, value) in tagset {
-                    let value = Field{
-                        name: tag_key.to_string(),
-                        value: FieldData::Tag(value.to_string()),
-                    };
-                    values.push(value);
-            }
+            let value = Field {
+                name: tag_key.to_string(),
+                value: FieldData::Tag(value.to_string()),
+            };
+            values.push(value);
         }
+    }
 
     // validate fields, collecting any new ones that must be inserted, or adding values
     for (field_name, value) in line.field_set {
-                let field_data = match value {
-                    FieldValue::I64(v) => FieldData::Integer(v),
-                    FieldValue::F64(v) => FieldData::Float(v),
-                    FieldValue::U64(v) => FieldData::UInteger(v),
-                    FieldValue::Boolean(v) => FieldData::Boolean(v),
-                    FieldValue::String(v) => FieldData::String(v.to_string()),
-                };
-                let value = Field{
-                    name: field_name.to_string(),
-                    value: field_data,
-                };
-                values.push(value);
+        let field_data = match value {
+            FieldValue::I64(v) => FieldData::Integer(v),
+            FieldValue::F64(v) => FieldData::Float(v),
+            FieldValue::U64(v) => FieldData::UInteger(v),
+            FieldValue::Boolean(v) => FieldData::Boolean(v),
+            FieldValue::String(v) => FieldData::String(v.to_string()),
+        };
+        let value = Field {
+            name: field_name.to_string(),
+            value: field_data,
+        };
+        values.push(value);
     }
 
     // set the time value
@@ -622,20 +671,15 @@ impl Partitioner {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use super::*;
+    use std::sync::Arc;
 
     #[test]
     fn parse_lp_into_buffer() {
         let db = Arc::new(DatabaseSchema::new("foo"));
         let partitioner = Partitioner::new_per_day_partitioner();
         let lp = "cpu,region=west user=23.2 100\nfoo f1=1i";
-        let result = parse_validate_and_update_schema(
-            lp,
-            &db,
-            &partitioner,
-            0,
-        ).unwrap();
+        let result = parse_validate_and_update_schema(lp, &db, &partitioner, 0).unwrap();
 
         println!("result: {:#?}", result);
         let db = result.schema.unwrap();

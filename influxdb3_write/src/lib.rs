@@ -6,25 +6,24 @@
 //! When the segment reaches a certain size, or a certain amount of time has passed, it will be closed and marked
 //! to be persisted. A new open segment will be created and new writes will be written to that segment.
 
-pub mod write_buffer;
 pub mod catalog;
 pub mod persister;
 pub mod wal;
+pub mod write_buffer;
 
+use crate::catalog::Catalog;
+use async_trait::async_trait;
+use data_types::NamespaceName;
+use datafusion::error::DataFusionError;
+use datafusion::execution::context::SessionState;
+use datafusion::prelude::Expr;
+use iox_query::QueryChunk;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::sync::Arc;
-use iox_query::QueryChunk;
 use thiserror::Error;
-use async_trait::async_trait;
-use datafusion::prelude::Expr;
-use datafusion::error::DataFusionError;
-use datafusion::execution::context::SessionState;
-use serde::{Deserialize, Serialize};
-use data_types::NamespaceName;
-use crate::catalog::Catalog;
-
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -55,7 +54,12 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
     /// and returns the result with any lines that had errors and summary statistics. This writes into the currently
     /// open segment or it will open one. The open segment id and the memory usage of the currently open segment are
     /// returned.
-    async fn write_lp(&self, database: NamespaceName<'static>, lp: &str, default_time: i64) -> write_buffer::Result<BufferedWriteRequest>;
+    async fn write_lp(
+        &self,
+        database: NamespaceName<'static>,
+        lp: &str,
+        default_time: i64,
+    ) -> write_buffer::Result<BufferedWriteRequest>;
 
     /// Closes the open segment and returns it so that it can be persisted or thrown away. A new segment will be opened
     /// with the catalog rolling over.
@@ -64,7 +68,11 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
     /// Once a process opens segments with the Persister, they'll know the last segment that was persisted.
     /// This can be used with a `Bufferer` to pass into this method, which will look for any WAL segments with an
     /// ID greater than the one passed in.
-    async fn load_segments_after(&self, segment_id: SegmentId, catalog: Catalog) -> Result<Vec<Arc<dyn BufferSegment>>>;
+    async fn load_segments_after(
+        &self,
+        segment_id: SegmentId,
+        catalog: Catalog,
+    ) -> Result<Vec<Arc<dyn BufferSegment>>>;
 
     /// Returns the configured WAL, if there is one.
     fn wal(&self) -> Option<Arc<dyn Wal>>;
@@ -89,7 +97,14 @@ pub trait BufferSegment: Debug + Send + Sync + 'static {
 /// `Bufferer` for those in memory from buffered writes or the `Persister` for parquet files that have been persisted
 /// from previously buffered segments.
 pub trait ChunkContainer: Debug + Send + Sync + 'static {
-    fn get_table_chunks(&self, database_name: &str, table_name: &str, filters: &[Expr], projection: Option<&Vec<usize>>, ctx: &SessionState) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
+    fn get_table_chunks(
+        &self,
+        database_name: &str,
+        table_name: &str,
+        filters: &[Expr],
+        projection: Option<&Vec<usize>>,
+        ctx: &SessionState,
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
 }
 
 /// The segment identifier, which will be monotonically increasing.
@@ -110,7 +125,8 @@ pub trait Persister: Debug + Send + Sync + 'static {
 
     /// Persists the catalog with the given segment ID. If this is the highest segment ID, it will
     /// be the catalog that is returned the next time `load_catalog` is called.
-    async fn persist_catalog(&self, segment_id: SegmentId, catalog: catalog::Catalog) -> Result<()>;
+    async fn persist_catalog(&self, segment_id: SegmentId, catalog: catalog::Catalog)
+        -> Result<()>;
 
     /// Writes a single file to object storage that contains the information for the parquet files persisted
     /// for this segment.
@@ -123,10 +139,12 @@ pub trait Persister: Debug + Send + Sync + 'static {
 #[async_trait]
 pub trait Wal: Debug + Send + Sync + 'static {
     /// Opens a writer to a segment, either creating a new file or appending to an existing file.
-    async fn open_segment_writer(&self, segment_id: SegmentId) -> Result<Arc<dyn WalSegmentWriter>>;
+    async fn open_segment_writer(&self, segment_id: SegmentId)
+        -> Result<Arc<dyn WalSegmentWriter>>;
 
     /// Opens a reader to a segment file.
-    async fn open_segment_reader(&self, segment_id: SegmentId) -> Result<Arc<dyn WalSegmentReader>>;
+    async fn open_segment_reader(&self, segment_id: SegmentId)
+        -> Result<Arc<dyn WalSegmentReader>>;
 
     /// Checks the WAL directory for any segment files and returns them.
     async fn segment_files(&self) -> Result<Vec<SegmentFile>>;
@@ -169,7 +187,7 @@ pub struct WalBatch {
 /// 3.0 that supports a different kind of schema.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum WalOp {
-    LpWrite(LpWriteOp)
+    LpWrite(LpWriteOp),
 }
 
 /// A write of 1 or more lines of line protocol to a single database. The default time is set by the server at the

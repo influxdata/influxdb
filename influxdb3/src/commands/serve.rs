@@ -7,25 +7,25 @@ use clap_blocks::{
     object_store::{make_object_store, ObjectStoreConfig},
     socket_addr::SocketAddr,
 };
+use influxdb3_server::{query_executor::QueryExecutorImpl, serve, CommonServerState, Server};
+use influxdb3_write::persister::PersisterImpl;
+use influxdb3_write::wal::WalImpl;
+use influxdb3_write::write_buffer::WriteBufferImpl;
+use influxdb3_write::Wal;
 use iox_query::exec::{Executor, ExecutorConfig};
-use observability_deps::tracing::*;
+use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use object_store::DynObjectStore;
+use observability_deps::tracing::*;
+use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
+use std::collections::HashMap;
 use std::{
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
 };
-use std::collections::HashMap;
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
-use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
-use influxdb3_server::{CommonServerState, query_executor::QueryExecutorImpl, serve, Server};
-use influxdb3_write::Wal;
-use influxdb3_write::persister::PersisterImpl;
-use influxdb3_write::wal::WalImpl;
-use influxdb3_write::write_buffer::WriteBufferImpl;
-use panic_logging::SendPanicsToTracing;
 use trace_exporters::TracingConfig;
 use trogging::cli::LoggingConfig;
 
@@ -140,9 +140,9 @@ fn build_malloc_conf() -> String {
 }
 
 #[cfg(all(
-feature = "heappy",
-feature = "jemalloc_replacing_malloc",
-not(feature = "clippy")
+    feature = "heappy",
+    feature = "jemalloc_replacing_malloc",
+    not(feature = "clippy")
 ))]
 fn build_malloc_conf() -> String {
     compile_error!("must use exactly one memory allocator")
@@ -194,8 +194,7 @@ pub async fn command(config: Config) -> Result<()> {
     let frontend_shutdown = CancellationToken::new();
 
     let object_store: Arc<DynObjectStore> =
-        make_object_store(&config.object_store_config)
-            .map_err(Error::ObjectStoreParsing)?;
+        make_object_store(&config.object_store_config).map_err(Error::ObjectStoreParsing)?;
 
     let trace_exporter = config.tracing_config.build()?;
 
@@ -204,7 +203,8 @@ pub async fn command(config: Config) -> Result<()> {
         NonZeroUsize::new(num_cpus::get()).unwrap_or_else(|| NonZeroUsize::new(1).unwrap());
 
     info!(%num_threads, "Creating shared query executor");
-    let parquet_store = ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
+    let parquet_store =
+        ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
     let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
         num_threads,
         target_query_partitions: num_threads,
@@ -218,20 +218,40 @@ pub async fn command(config: Config) -> Result<()> {
 
     let trace_header_parser = TraceHeaderParser::new()
         .with_jaeger_trace_context_header_name(
-            config.tracing_config.traces_jaeger_trace_context_header_name
+            config
+                .tracing_config
+                .traces_jaeger_trace_context_header_name,
         )
-        .with_jaeger_debug_name(
-            config.tracing_config.traces_jaeger_debug_name
-        );
+        .with_jaeger_debug_name(config.tracing_config.traces_jaeger_debug_name);
 
-    let common_state = CommonServerState::new(Arc::clone(&metrics), trace_exporter, trace_header_parser, *config.http_bind_address);
+    let common_state = CommonServerState::new(
+        Arc::clone(&metrics),
+        trace_exporter,
+        trace_header_parser,
+        *config.http_bind_address,
+    );
     let catalog = Arc::new(influxdb3_write::catalog::Catalog::new());
-    let wal: Option<Arc<dyn Wal>> = config.wal_directory.map(|dir| Arc::new(WalImpl::new(dir)) as _);
+    let wal: Option<Arc<dyn Wal>> = config
+        .wal_directory
+        .map(|dir| Arc::new(WalImpl::new(dir)) as _);
     let write_buffer = Arc::new(WriteBufferImpl::new(Arc::clone(&catalog), wal));
-    let query_executor = QueryExecutorImpl::new(catalog,Arc::clone(&write_buffer), Arc::clone(&exec), Arc::clone(&metrics), Arc::new(config.datafusion_config), 10);
+    let query_executor = QueryExecutorImpl::new(
+        catalog,
+        Arc::clone(&write_buffer),
+        Arc::clone(&exec),
+        Arc::clone(&metrics),
+        Arc::new(config.datafusion_config),
+        10,
+    );
 
     let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
-    let server = Server::new(common_state, persister, Arc::clone(&write_buffer), Arc::new(query_executor), config.max_http_request_size);
+    let server = Server::new(
+        common_state,
+        persister,
+        Arc::clone(&write_buffer),
+        Arc::new(query_executor),
+        config.max_http_request_size,
+    );
     serve(server, frontend_shutdown).await?;
 
     Ok(())

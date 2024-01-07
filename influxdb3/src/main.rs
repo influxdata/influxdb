@@ -13,11 +13,9 @@ clippy::future_not_send
 use dotenvy::dotenv;
 use observability_deps::tracing::warn;
 use process_info::VERSION_STRING;
-use std::{
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
 };
 use tokio::runtime::Runtime;
 use trogging::{
@@ -40,9 +38,9 @@ enum ReturnCode {
 }
 
 #[cfg(all(
-feature = "heappy",
-feature = "jemalloc_replacing_malloc",
-not(feature = "clippy")
+    feature = "heappy",
+    feature = "jemalloc_replacing_malloc",
+    not(feature = "clippy")
 ))]
 compile_error!("heappy and jemalloc_replacing_malloc features are mutually exclusive");
 
@@ -239,7 +237,7 @@ fn init_logs_and_tracing(
     // This spawns a background tokio task to serve the instrumentation data,
     // and hooks the instrumentation into the tracing pipeline.
     #[cfg(feature = "tokio_console")]
-        let layers = {
+    let layers = {
         use console_subscriber::ConsoleLayer;
         let console_layer = ConsoleLayer::builder().with_default_env().spawn();
         layers.and_then(console_layer)

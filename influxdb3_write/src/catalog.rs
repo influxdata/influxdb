@@ -1,15 +1,15 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
-use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
-use std::fmt;
-use parking_lot::RwLock;
-use serde::{Deserialize, Deserializer, Serialize};
-use serde::de::Visitor;
-use thiserror::Error;
 use data_types::ColumnType;
 use observability_deps::tracing::info;
+use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
+use serde::de::Visitor;
+use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::{BTreeMap, HashMap};
+use std::fmt;
+use std::sync::Arc;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -32,12 +32,12 @@ impl Default for Catalog {
 
 impl Catalog {
     pub fn new() -> Self {
-        Self{
+        Self {
             inner: RwLock::new(InnerCatalog::new()),
         }
     }
 
-    pub(crate) fn replace_database(&self, sequence: u64, db: Arc<DatabaseSchema>) -> Result<()>{
+    pub(crate) fn replace_database(&self, sequence: u64, db: Arc<DatabaseSchema>) -> Result<()> {
         let mut inner = self.inner.write();
         if inner.sequence != sequence {
             info!("catalog updated elsewhere");
@@ -62,7 +62,7 @@ impl Catalog {
             Some(db) => {
                 info!("return existing db {}", db_name);
                 db
-            },
+            }
             None => {
                 info!("return new db {}", db_name);
                 let mut inner = self.inner.write();
@@ -90,7 +90,7 @@ pub struct InnerCatalog {
 
 impl InnerCatalog {
     pub(crate) fn new() -> Self {
-        Self{
+        Self {
             databases: HashMap::new(),
             sequence: 0,
         }
@@ -106,14 +106,16 @@ pub struct DatabaseSchema {
 
 impl DatabaseSchema {
     pub fn new(name: impl Into<String>) -> Self {
-        Self{
+        Self {
             name: name.into(),
             tables: BTreeMap::new(),
         }
     }
 
     pub fn get_table_schema(&self, table_name: &str) -> Option<Schema> {
-        self.tables.get(table_name).and_then(|table| table.schema.clone())
+        self.tables
+            .get(table_name)
+            .and_then(|table| table.schema.clone())
     }
 
     pub fn table_names(&self) -> Vec<String> {
@@ -143,8 +145,8 @@ impl<'de> Visitor<'de> for TableDefinitionVisitor {
     }
 
     fn visit_map<V>(self, mut map: V) -> Result<TableDefinition, V::Error>
-        where
-            V: serde::de::MapAccess<'de>,
+    where
+        V: serde::de::MapAccess<'de>,
     {
         let mut name = None;
         let mut columns = None;
@@ -155,13 +157,13 @@ impl<'de> Visitor<'de> for TableDefinitionVisitor {
                         return Err(serde::de::Error::duplicate_field("name"));
                     }
                     name = Some(map.next_value::<String>()?);
-                },
+                }
                 "columns" => {
                     if columns.is_some() {
                         return Err(serde::de::Error::duplicate_field("columns"));
                     }
                     columns = Some(map.next_value::<BTreeMap<String, ColumnType>>()?);
-                },
+                }
                 _ => {
                     let _ = map.next_value::<serde::de::IgnoredAny>()?;
                 }
@@ -176,8 +178,8 @@ impl<'de> Visitor<'de> for TableDefinitionVisitor {
 
 impl<'de> Deserialize<'de> for TableDefinition {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         deserializer.deserialize_map(TableDefinitionVisitor)
     }
@@ -191,7 +193,7 @@ impl TableDefinition {
         }
         let schema = schema_builder.build().unwrap();
 
-        Self{
+        Self {
             name: name.into(),
             schema: Some(schema),
             columns,
@@ -244,7 +246,13 @@ mod tests {
             name: "test".to_string(),
             tables: BTreeMap::new(),
         };
-        database.tables.insert("test".into(), TableDefinition::new("test", BTreeMap::from([("test".to_string(), ColumnType::String)])));
+        database.tables.insert(
+            "test".into(),
+            TableDefinition::new(
+                "test",
+                BTreeMap::from([("test".to_string(), ColumnType::String)]),
+            ),
+        );
         let database = Arc::new(database);
         catalog.replace_database(0, database).unwrap();
         let inner = catalog.inner.read();

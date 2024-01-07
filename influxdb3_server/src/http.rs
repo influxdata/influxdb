@@ -1,29 +1,29 @@
 //! HTTP API service implementations for `server`
 
+use crate::{CommonServerState, QueryExecutor};
+use arrow::record_batch::RecordBatch;
+use arrow::util::pretty;
+use authz::http::AuthorizationHeaderExtension;
+use bytes::{Bytes, BytesMut};
+use data_types::NamespaceName;
+use futures::StreamExt;
+use hyper::header::CONTENT_ENCODING;
+use hyper::http::HeaderValue;
+use hyper::server::conn::{AddrIncoming, AddrStream};
+use hyper::{Body, Method, Request, Response, StatusCode};
+use influxdb3_write::WriteBuffer;
+use iox_time::{SystemProvider, TimeProvider};
+use observability_deps::tracing::{debug, error, info};
+use serde::Deserialize;
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::num::NonZeroI32;
 use std::str::Utf8Error;
 use std::sync::Arc;
-use arrow::record_batch::RecordBatch;
-use arrow::util::pretty;
-use bytes::{Bytes, BytesMut};
-use data_types::NamespaceName;
-use futures::StreamExt;
 use thiserror::Error;
-use hyper::{Body, Method, Request, Response, StatusCode};
-use hyper::header::CONTENT_ENCODING;
-use hyper::http::HeaderValue;
-use hyper::server::conn::{AddrIncoming, AddrStream};
 use tokio_util::sync::CancellationToken;
-use observability_deps::tracing::{debug, error, info};
-use serde::Deserialize;
-use authz::http::AuthorizationHeaderExtension;
 use tower::Layer;
 use trace_http::tower::TraceLayer;
-use crate::{CommonServerState, QueryExecutor};
-use influxdb3_write::WriteBuffer;
-use iox_time::{SystemProvider, TimeProvider};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -140,7 +140,12 @@ pub(crate) struct HttpApi<W, Q> {
 }
 
 impl<W, Q> HttpApi<W, Q> {
-    pub(crate) fn new(common_state: CommonServerState, write_buffer: Arc<W>, query_executor: Arc<Q>, max_request_bytes: usize) -> Self {
+    pub(crate) fn new(
+        common_state: CommonServerState,
+        write_buffer: Arc<W>,
+        query_executor: Arc<Q>,
+        max_request_bytes: usize,
+    ) -> Self {
         Self {
             common_state,
             write_buffer,
@@ -155,12 +160,10 @@ where
     W: WriteBuffer,
     Q: QueryExecutor,
 {
-
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
         info!("write_lp to {}", params.db);
-
 
         let body = self.read_body(req).await?;
         let body = std::str::from_utf8(&body).map_err(Error::NonUtf8Body)?;
@@ -170,7 +173,9 @@ where
         // TODO: use the time provider
         let default_time = SystemProvider::new().now().timestamp_nanos();
 
-        self.write_buffer.write_lp(database, body, default_time).await?;
+        self.write_buffer
+            .write_lp(database, body, default_time)
+            .await?;
 
         Ok(Response::new(Body::from("{}")))
     }
@@ -181,9 +186,18 @@ where
 
         println!("query_sql {:?}", params);
 
-        let result = self.query_executor.query(&params.db, &params.q, None, None).await.unwrap();
+        let result = self
+            .query_executor
+            .query(&params.db, &params.q, None, None)
+            .await
+            .unwrap();
 
-        let batches: Vec<RecordBatch> = result.collect::<Vec<datafusion::common::Result<RecordBatch>>>().await.into_iter().map(|b| b.unwrap()).collect();
+        let batches: Vec<RecordBatch> = result
+            .collect::<Vec<datafusion::common::Result<RecordBatch>>>()
+            .await
+            .into_iter()
+            .map(|b| b.unwrap())
+            .collect();
         let pretty_string = format!("{}", pretty::pretty_format_batches(&batches)?);
 
         // Create a response with the pretty-printed string as the body.
@@ -275,7 +289,10 @@ pub(crate) struct WriteParams {
     pub(crate) db: String,
 }
 
-pub(crate) async fn serve<W: WriteBuffer, Q: QueryExecutor>(http_server: Arc<HttpApi<W, Q>>, shutdown: CancellationToken) -> Result<()> {
+pub(crate) async fn serve<W: WriteBuffer, Q: QueryExecutor>(
+    http_server: Arc<HttpApi<W, Q>>,
+    shutdown: CancellationToken,
+) -> Result<()> {
     let listener = AddrIncoming::bind(&http_server.common_state.http_addr)?;
     println!("binding listener");
     info!(bind_addr=%listener.local_addr(), "bound HTTP listener");
@@ -304,7 +321,10 @@ pub(crate) async fn serve<W: WriteBuffer, Q: QueryExecutor>(http_server: Arc<Htt
     Ok(())
 }
 
-async fn route_request<W: WriteBuffer, Q: QueryExecutor>(http_server: Arc<HttpApi<W, Q>>, mut req: Request<Body>) -> Result<Response<Body>, Infallible> {
+async fn route_request<W: WriteBuffer, Q: QueryExecutor>(
+    http_server: Arc<HttpApi<W, Q>>,
+    mut req: Request<Body>,
+) -> Result<Response<Body>, Infallible> {
     let auth = { req.headers().get(hyper::header::AUTHORIZATION).cloned() };
     req.extensions_mut()
         .insert(AuthorizationHeaderExtension::new(auth));
@@ -319,7 +339,7 @@ async fn route_request<W: WriteBuffer, Q: QueryExecutor>(http_server: Arc<HttpAp
 
     let response = match (method.clone(), uri.path()) {
         (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,
-        (Method::GET|Method::POST, "/api/v3/query_sql") => http_server.query_sql(req).await,
+        (Method::GET | Method::POST, "/api/v3/query_sql") => http_server.query_sql(req).await,
         (Method::GET, "/health") => http_server.health(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
         (Method::GET, "/debug/pprof") => pprof_home(req).await,
@@ -331,7 +351,7 @@ async fn route_request<W: WriteBuffer, Q: QueryExecutor>(http_server: Arc<HttpAp
                 .status(StatusCode::NOT_FOUND)
                 .body(body)
                 .unwrap())
-        },
+        }
     };
 
     // TODO: Move logging to TraceLayer
@@ -472,8 +492,7 @@ async fn pprof_heappy_profile(req: Request<Body>) -> Result<Response<Body>> {
     let query_string = req.uri().query().unwrap_or_default();
     let query: PProfAllocsArgs = serde_urlencoded::from_str(query_string)?;
 
-    let report = self::heappy::dump_heappy_rsprof(query.seconds, query.interval.get())
-        .await?;
+    let report = self::heappy::dump_heappy_rsprof(query.seconds, query.interval.get()).await?;
 
     let mut body: Vec<u8> = Vec::new();
 

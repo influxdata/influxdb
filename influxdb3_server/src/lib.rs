@@ -14,20 +14,20 @@ clippy::future_not_send
 mod http;
 pub mod query_executor;
 
-use std::fmt::Debug;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use observability_deps::tracing::info;
-use thiserror::Error;
-use tokio_util::sync::CancellationToken;
-use trace::TraceCollector;
 use crate::http::HttpApi;
 use async_trait::async_trait;
 use datafusion::execution::SendableRecordBatchStream;
-use trace::ctx::SpanContext;
-use trace_http::ctx::TraceHeaderParser;
-use trace_http::ctx::RequestLogContext;
 use influxdb3_write::{Persister, WriteBuffer};
+use observability_deps::tracing::info;
+use std::fmt::Debug;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use thiserror::Error;
+use tokio_util::sync::CancellationToken;
+use trace::ctx::SpanContext;
+use trace::TraceCollector;
+use trace_http::ctx::RequestLogContext;
+use trace_http::ctx::TraceHeaderParser;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -52,8 +52,13 @@ pub struct CommonServerState {
 }
 
 impl CommonServerState {
-    pub fn new(metrics: Arc<metric::Registry>, trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>, trace_header_parser: TraceHeaderParser, http_addr: SocketAddr) -> Self {
-        Self{
+    pub fn new(
+        metrics: Arc<metric::Registry>,
+        trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
+        trace_header_parser: TraceHeaderParser,
+        http_addr: SocketAddr,
+    ) -> Self {
+        Self {
             metrics,
             trace_exporter,
             trace_header_parser,
@@ -87,20 +92,38 @@ pub struct Server<W, Q> {
 
 #[async_trait]
 pub trait QueryExecutor: Debug + Send + Sync + 'static {
-    async fn query(&self, database: &str, q: &str, span_ctx: Option<SpanContext>, external_span_ctx: Option<RequestLogContext>) -> Result<SendableRecordBatchStream>;
+    async fn query(
+        &self,
+        database: &str,
+        q: &str,
+        span_ctx: Option<SpanContext>,
+        external_span_ctx: Option<RequestLogContext>,
+    ) -> Result<SendableRecordBatchStream>;
 }
 
 impl<W, Q> Server<W, Q> {
-    pub fn new(common_state: CommonServerState, _persister: Arc<dyn Persister>, write_buffer: Arc<W>, query_executor: Arc<Q>, max_http_request_size: usize) -> Self {
-        let http = Arc::new(HttpApi::new(common_state.clone(), Arc::<W>::clone(&write_buffer), Arc::<Q>::clone(&query_executor), max_http_request_size));
+    pub fn new(
+        common_state: CommonServerState,
+        _persister: Arc<dyn Persister>,
+        write_buffer: Arc<W>,
+        query_executor: Arc<Q>,
+        max_http_request_size: usize,
+    ) -> Self {
+        let http = Arc::new(HttpApi::new(
+            common_state.clone(),
+            Arc::<W>::clone(&write_buffer),
+            Arc::<Q>::clone(&query_executor),
+            max_http_request_size,
+        ));
 
-        Self{
-            http,
-        }
+        Self { http }
     }
 }
 
-pub async fn serve<W: WriteBuffer, Q: QueryExecutor>(server: Server<W, Q>, shutdown: CancellationToken) -> Result<()> {
+pub async fn serve<W: WriteBuffer, Q: QueryExecutor>(
+    server: Server<W, Q>,
+    shutdown: CancellationToken,
+) -> Result<()> {
     // TODO:
     //  1. load the persisted catalog and segments from the persister
     //  2. load semgments into the buffer
@@ -135,31 +158,37 @@ pub async fn wait_for_signal() {
 
 #[cfg(test)]
 mod tests {
+    use crate::serve;
+    use datafusion::parquet::data_type::AsBytes;
+    use hyper::{body, Body, Client, Request, Response};
+    use influxdb3_write::persister::PersisterImpl;
+    use iox_query::exec::{Executor, ExecutorConfig};
+    use object_store::DynObjectStore;
+    use parquet_file::storage::{ParquetStorage, StorageId};
     use std::collections::HashMap;
     use std::net::{SocketAddr, SocketAddrV4};
     use std::num::NonZeroUsize;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicU16, Ordering};
-    use datafusion::parquet::data_type::AsBytes;
-    use hyper::{Body, body, Client, Request, Response};
-    use object_store::DynObjectStore;
+    use std::sync::Arc;
     use tokio_util::sync::CancellationToken;
-    use influxdb3_write::persister::PersisterImpl;
-    use iox_query::exec::{Executor, ExecutorConfig};
-    use parquet_file::storage::{ParquetStorage, StorageId};
-    use crate::serve;
 
     static NEXT_PORT: AtomicU16 = AtomicU16::new(8090);
 
-    #[tokio::test(flavor ="multi_thread", worker_threads = 2)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn write_and_query() {
         let addr = get_free_port();
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
-        let common_state = crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser, addr.clone());
+        let common_state = crate::CommonServerState::new(
+            Arc::clone(&metrics),
+            None,
+            trace_header_parser,
+            addr.clone(),
+        );
         let catalog = Arc::new(influxdb3_write::catalog::Catalog::new());
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
-        let parquet_store = ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
+        let parquet_store =
+            ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
         let num_threads = NonZeroUsize::new(2).unwrap();
         let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
             num_threads,
@@ -172,17 +201,31 @@ mod tests {
             mem_pool_size: usize::MAX,
         }));
 
-        let write_buffer = Arc::new(influxdb3_write::write_buffer::WriteBufferImpl::new(Arc::clone(&catalog), None));
-        let query_executor = crate::query_executor::QueryExecutorImpl::new(catalog, Arc::clone(&write_buffer), Arc::clone(&exec), Arc::clone(&metrics), Arc::new(HashMap::new()), 10);
+        let write_buffer = Arc::new(influxdb3_write::write_buffer::WriteBufferImpl::new(
+            Arc::clone(&catalog),
+            None,
+        ));
+        let query_executor = crate::query_executor::QueryExecutorImpl::new(
+            catalog,
+            Arc::clone(&write_buffer),
+            Arc::clone(&exec),
+            Arc::clone(&metrics),
+            Arc::new(HashMap::new()),
+            10,
+        );
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
 
-        let server = crate::Server::new(common_state, persister, Arc::clone(&write_buffer), Arc::new(query_executor), usize::MAX);
+        let server = crate::Server::new(
+            common_state,
+            persister,
+            Arc::clone(&write_buffer),
+            Arc::new(query_executor),
+            usize::MAX,
+        );
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
 
-        tokio::spawn(async move {
-            serve(server, frontend_shutdown).await
-        });
+        tokio::spawn(async move { serve(server, frontend_shutdown).await });
 
         let server = format!("http://{}", addr);
         write_lp(&server, "foo", "cpu,host=a val=1i 123", None).await;
@@ -199,12 +242,20 @@ mod tests {
         ];
         let actual: Vec<_> = body.split("\n").into_iter().collect();
         assert_eq!(
-            expected, actual, "\n\nexpected:\n\n{:#?}\nactual:\n\n{:#?}\n\n", expected, actual);
+            expected, actual,
+            "\n\nexpected:\n\n{:#?}\nactual:\n\n{:#?}\n\n",
+            expected, actual
+        );
 
         shutdown.cancel();
     }
 
-    pub(crate) async fn write_lp(server: impl Into<String>, database: impl Into<String>, lp: impl Into<String>, authorization: Option<&str>) -> Response<Body> {
+    pub(crate) async fn write_lp(
+        server: impl Into<String>,
+        database: impl Into<String>,
+        lp: impl Into<String>,
+        authorization: Option<&str>,
+    ) -> Response<Body> {
         let server = server.into();
         let client = Client::new();
         let url = format!("{}/api/v3/write_lp?db={}", server, database.into());
@@ -224,18 +275,29 @@ mod tests {
             .expect("http error sending write")
     }
 
-    pub(crate) async fn query(server: impl Into<String>, database: impl Into<String>, query: impl Into<String>, authorization: Option<&str>) -> Response<Body> {
+    pub(crate) async fn query(
+        server: impl Into<String>,
+        database: impl Into<String>,
+        query: impl Into<String>,
+        authorization: Option<&str>,
+    ) -> Response<Body> {
         let client = Client::new();
         // query escaped for uri
         let query = urlencoding::encode(&query.into());
-        let url = format!("{}/api/v3/query_sql?db={}&q={}", server.into(), database.into(), query);
+        let url = format!(
+            "{}/api/v3/query_sql?db={}&q={}",
+            server.into(),
+            database.into(),
+            query
+        );
 
         println!("query url: {}", url);
         let mut builder = Request::builder().uri(url).method("GET");
         if let Some(authorization) = authorization {
             builder = builder.header(hyper::header::AUTHORIZATION, authorization);
         };
-        let request = builder.body(Body::empty())
+        let request = builder
+            .body(Body::empty())
             .expect("failed to construct HTTP request");
 
         client
