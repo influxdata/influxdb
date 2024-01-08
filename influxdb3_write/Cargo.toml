@@ -1,0 +1,28 @@
+[package]
+name = "influxdb3_write"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+data_types = { path = "../data_types" }
+influxdb-line-protocol = { path = "../influxdb_line_protocol" }
+iox_catalog = { path = "../iox_catalog" }
+iox_query = { path = "../iox_query" }
+object_store = { workspace = true }
+observability_deps = { path = "../observability_deps" }
+schema = { path = "../schema" }
+
+
+arrow = { workspace = true }
+async-trait = "0.1"
+chrono = "0.4"
+datafusion = { workspace = true }
+parking_lot = "0.11.1"
+thiserror = "1.0"
+serde = { version = "1.0.188", features = ["derive"] }
+serde_json = "1.0.107"
