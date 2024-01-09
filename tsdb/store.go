@@ -811,7 +811,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return ErrShardNotFound
 	}
 
-	// Remove the shard from Store so it's not returned to callers requesting
+	// Remove the shard from Store, so it's not returned to callers requesting
 	// shards. Also mark that this shard is currently being deleted in a separate
 	// map so that we do not have to retain the global store lock while deleting
 	// files.
@@ -851,15 +851,25 @@ func (s *Store) DeleteShard(shardID uint64) error {
 
 	ss := index.SeriesIDSet()
 
-	s.walkShards(shards, func(sh *Shard) error {
+	err = s.walkShards(shards, func(sh *Shard) error {
 		index, err := sh.Index()
 		if err != nil {
-			return err
+			// Do not stop checking series because one shard failed
+			s.Logger.Error("cannot find shard index", zap.Uint64("shard_id", sh.ID()), zap.Error(err))
+			return nil
 		}
 
 		ss.Diff(index.SeriesIDSet())
 		return nil
 	})
+
+	// This should never happen, because walkShards only returns errors
+	//  from the function passed in, and the function above cannot
+	// return an error. But, for safety against new implementations, we
+	// check.
+	if err != nil {
+		s.Logger.Error("error walking shards", zap.Error(err))
+	}
 
 	// Remove any remaining series in the set from the series file, as they don't
 	// exist in any of the database's remaining shards.
@@ -872,7 +882,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 				var keyBuf []byte // Series key buffer.
 				var name []byte
 				var tagsBuf models.Tags // Buffer for tags container.
-				var err error
+				var errs []error
 
 				ss.ForEach(func(id uint64) {
 					skey := sfile.SeriesKey(id) // Series File series key
@@ -881,22 +891,32 @@ func (s *Store) DeleteShard(shardID uint64) error {
 					}
 
 					name, tagsBuf = ParseSeriesKeyInto(skey, tagsBuf)
+					keyBuf = keyBuf[:0]
 					keyBuf = models.AppendMakeKey(keyBuf, name, tagsBuf)
-					if err = index.DropSeriesGlobal(keyBuf); err != nil {
-						return
+					if tmpErr := index.DropSeriesGlobal(keyBuf); tmpErr != nil {
+						sfile.Logger.Error(
+							"cannot drop series",
+							zap.Uint64("series_id", id),
+							zap.String("key", string(keyBuf)),
+							zap.Error(tmpErr))
+						errs = append(errs, tmpErr)
 					}
 				})
-
-				if err != nil {
-					return err
+				if len(errs) != 0 {
+					return errors.Join(errs...)
 				}
 			}
 
 			ss.ForEach(func(id uint64) {
-				sfile.DeleteSeriesID(id)
+				if err := sfile.DeleteSeriesID(id); err != nil {
+					sfile.Logger.Error(
+						"cannot delete series in shard",
+						zap.Uint64("series_id", id),
+						zap.Uint64("shard_id", shardID),
+						zap.Error(err))
+				}
 			})
 		}
-
 	}
 
 	// enter the epoch tracker
