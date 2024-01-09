@@ -5,9 +5,6 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[lints]
-workspace = true
-
 [dependencies]
 data_types = { path = "../data_types" }
 influxdb-line-protocol = { path = "../influxdb_line_protocol" }
