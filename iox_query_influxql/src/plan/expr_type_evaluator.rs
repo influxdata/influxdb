@@ -294,7 +294,8 @@ impl<'a> TypeEvaluator<'a> {
             // These functions require a single numeric as input and return a float
             name @ ("sin" | "cos" | "tan" | "atan" | "exp" | "log" | "ln" | "log2" | "log10"
             | "sqrt") => {
-                match arg_types.first()
+                match arg_types
+                    .first()
                     .ok_or_else(|| error::map::query(format!("{name} expects 1 argument")))?
                 {
                     Some(
@@ -309,7 +310,8 @@ impl<'a> TypeEvaluator<'a> {
 
             // These functions require a single float as input and return a float
             name @ ("asin" | "acos") => {
-                match arg_types.first()
+                match arg_types
+                    .first()
                     .ok_or_else(|| error::map::query(format!("{name} expects 1 argument")))?
                 {
                     Some(VarRefDataType::Float) | None => Ok(Some(VarRefDataType::Float)),
@@ -345,7 +347,8 @@ impl<'a> TypeEvaluator<'a> {
 
             // These functions return the same data type as their input
             name @ ("abs" | "floor" | "ceil" | "round") => {
-                match arg_types.first()
+                match arg_types
+                    .first()
                     .cloned()
                     .ok_or_else(|| error::map::query(format!("{name} expects 1 argument")))?
                 {
