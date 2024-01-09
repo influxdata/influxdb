@@ -260,9 +260,12 @@ mod tests {
 
         assert_eq!(
             capture.to_string(),
-            "level = ERROR; message = Thread panic; panic_type = \"unknown\"; panic_info = panicked at 'it's bananas', panic_logging/src/lib.rs:227:13; \n\
-             level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at 'offset', panic_logging/src/lib.rs:235:13; \n\
-             level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at 'offset overflow', panic_logging/src/lib.rs:244:13; "
+            "level = ERROR; message = Thread panic; panic_type = \"unknown\"; panic_info = panicked at panic_logging/src/lib.rs:227:13:\n\
+            it's bananas; \n\
+            level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at panic_logging/src/lib.rs:235:13:\n\
+            offset; \n\
+            level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at panic_logging/src/lib.rs:244:13:\n\
+            offset overflow; "
         );
     }
 }
