@@ -39,6 +39,7 @@ tikv-jemalloc-sys = { version = "0.5.4", optional = true, features = ["unprefixe
 tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "io-std"] }
 tokio-util = { version = "0.7.9" }
 uuid = { version = "1", features = ["v4"] }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [features]
 default = ["jemalloc_replacing_malloc"]

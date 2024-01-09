@@ -13,6 +13,7 @@ iox_query = { path = "../iox_query" }
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
 schema = { path = "../schema" }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 
 arrow = { workspace = true }
