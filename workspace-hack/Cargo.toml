@@ -83,7 +83,7 @@ strum = { version = "0.25", features = ["derive"] }
 thrift = { version = "0.17" }
 tokio = { version = "1", features = ["full", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net"] }
-tokio-util = { version = "0.7", features = ["codec", "io"] }
+tokio-util = { version = "0.7", features = ["codec", "compat", "io"] }
 tonic = { version = "0.9", features = ["tls-webpki-roots"] }
 tower = { version = "0.4", features = ["balance", "buffer", "limit", "timeout", "util"] }
 tracing = { version = "0.1", features = ["log", "max_level_trace", "release_max_level_trace"] }

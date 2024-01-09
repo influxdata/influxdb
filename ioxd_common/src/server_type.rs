@@ -30,7 +30,7 @@ impl From<tonic::transport::Error> for RpcError {
         let details = source
             .source()
             .map(|e| format!(" ({e})"))
-            .unwrap_or_else(|| "".to_string());
+            .unwrap_or_default();
 
         Self::TransportError { source, details }
     }

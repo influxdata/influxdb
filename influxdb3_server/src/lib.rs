@@ -179,12 +179,8 @@ mod tests {
         let addr = get_free_port();
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
-        let common_state = crate::CommonServerState::new(
-            Arc::clone(&metrics),
-            None,
-            trace_header_parser,
-            addr.clone(),
-        );
+        let common_state =
+            crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser, addr);
         let catalog = Arc::new(influxdb3_write::catalog::Catalog::new());
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
@@ -240,7 +236,7 @@ mod tests {
             "| a    | 1970-01-01T00:00:00.000000123 | 1   |",
             "+------+-------------------------------+-----+",
         ];
-        let actual: Vec<_> = body.split("\n").into_iter().collect();
+        let actual: Vec<_> = body.split('\n').collect();
         assert_eq!(
             expected, actual,
             "\n\nexpected:\n\n{:#?}\nactual:\n\n{:#?}\n\n",
@@ -251,9 +247,9 @@ mod tests {
     }
 
     pub(crate) async fn write_lp(
-        server: impl Into<String>,
-        database: impl Into<String>,
-        lp: impl Into<String>,
+        server: impl Into<String> + Send,
+        database: impl Into<String> + Send,
+        lp: impl Into<String> + Send,
         authorization: Option<&str>,
     ) -> Response<Body> {
         let server = server.into();
@@ -276,9 +272,9 @@ mod tests {
     }
 
     pub(crate) async fn query(
-        server: impl Into<String>,
-        database: impl Into<String>,
-        query: impl Into<String>,
+        server: impl Into<String> + Send,
+        database: impl Into<String> + Send,
+        query: impl Into<String> + Send,
         authorization: Option<&str>,
     ) -> Response<Body> {
         let client = Client::new();

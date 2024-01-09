@@ -71,8 +71,7 @@ impl RemoteExporter {
         // Export the metadata for the table. Since all
         // parquet_files are part of the same table, use the table_id
         // from the first parquet_file
-        let table_id = parquet_files
-            .get(0)
+        let table_id = parquet_files.first()
             .map(|parquet_file| parquet_file.table_id);
         if let Some(table_id) = table_id {
             self.export_table_metadata(&output_directory, table_id)

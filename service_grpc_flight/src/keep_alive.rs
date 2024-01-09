@@ -375,7 +375,7 @@ mod tests {
         } else {
             s
         };
-        let s = panic_on_stream_timeout(s, Duration::from_millis(250));
-        s
+        
+        (panic_on_stream_timeout(s, Duration::from_millis(250))) as _
     }
 }

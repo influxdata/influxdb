@@ -341,7 +341,7 @@ impl GeneratedTagSets {
             let parent_has_ones = self
                 .has_one_values
                 .entry(parent_has_one_key.as_str().to_owned())
-                .or_insert_with(ParentToHasOnes::default);
+                .or_default();
 
             let has_one_values = self.values.get(has_one.as_str()).expect(
                 "add_has_ones should never be called before the values collection is created",
@@ -354,10 +354,7 @@ impl GeneratedTagSets {
                     ones_iter.next().unwrap()
                 });
 
-                let has_one_map = parent_has_ones
-                    .id_to_has_ones
-                    .entry(parent.id)
-                    .or_insert_with(BTreeMap::new);
+                let has_one_map = parent_has_ones.id_to_has_ones.entry(parent.id).or_default();
                 has_one_map.insert(Arc::clone(&parent_has_one_key), Arc::clone(one_val));
             }
         }
@@ -414,7 +411,7 @@ impl GeneratedTagSets {
             let child_vals = self
                 .child_values
                 .entry(child_values_key(belongs_to, &spec.name))
-                .or_insert_with(BTreeMap::new);
+                .or_default();
             child_vals.insert(parent.id, parent_owned);
         }
         self.values.insert(spec.name.to_string(), all_children);
