@@ -13,7 +13,11 @@
     missing_debug_implementations,
     unused_crate_dependencies
 )]
-#![allow(clippy::derive_partial_eq_without_eq, clippy::needless_borrow)]
+#![allow(
+    clippy::derive_partial_eq_without_eq,
+    clippy::needless_borrow,
+    clippy::needless_borrows_for_generic_args
+)]
 
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;

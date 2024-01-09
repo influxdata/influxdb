@@ -281,7 +281,12 @@ mod tests {
     }
 
     fn iter_set_bools(bools: &[bool]) -> impl Iterator<Item = usize> + '_ {
-        bools.iter().enumerate().filter_map(|(x, y)| y.then(|| x))
+        bools
+            .iter()
+            .enumerate()
+            // Filter out all y that are not true and then return only x
+            .filter(|&(_, y)| *y)
+            .map(|(x, _)| x)
     }
 
     #[test]

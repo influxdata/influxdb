@@ -81,9 +81,7 @@ impl TestDatabase {
     /// Add a test chunk to the database
     pub fn add_chunk(&self, partition_key: &str, chunk: Arc<TestChunk>) -> &Self {
         let mut partitions = self.partitions.lock();
-        let chunks = partitions
-            .entry(partition_key.to_string())
-            .or_insert_with(BTreeMap::new);
+        let chunks = partitions.entry(partition_key.to_string()).or_default();
         chunks.insert(chunk.id(), chunk);
         self
     }

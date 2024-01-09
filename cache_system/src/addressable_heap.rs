@@ -478,9 +478,12 @@ mod tests {
         }
 
         fn peek(&self) -> Option<(&u8, &String, &i8)> {
+            #[allow(clippy::map_identity)]
             self.inner
                 .iter()
                 .min_by_key(|(k, _v, o)| (o, k))
+                // This is a false positive as this actually changes
+                // Option<&(u8, String, i8)> -> Option<(&u8, &String, &i8)>
                 .map(|(k, v, o)| (k, v, o))
         }
 

@@ -128,10 +128,7 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> StringDictionary<K> {
 }
 
 fn hash_str(hasher: &ahash::RandomState, value: &str) -> u64 {
-    use std::hash::{BuildHasher, Hash, Hasher};
-    let mut state = hasher.build_hasher();
-    value.hash(&mut state);
-    state.finish()
+    hasher.hash_one(value)
 }
 
 impl StringDictionary<i32> {

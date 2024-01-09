@@ -1,6 +1,6 @@
 mod internal;
 
-pub use internal::{Duration, Window};
+pub use internal::Duration;
 use schema::TIME_DATA_TYPE;
 
 use std::sync::Arc;

@@ -625,6 +625,7 @@ impl PartialEq for SortableSeries {
 impl Eq for SortableSeries {}
 
 impl PartialOrd for SortableSeries {
+    #[allow(clippy::non_canonical_partial_ord_impl)]
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.tag_vals.partial_cmp(&other.tag_vals)
     }

@@ -89,7 +89,7 @@ impl PhysicalOptimizerRule for DedupSortOrder {
                             .iter()
                             .filter(|sort_key| {
                                 match sort_key.get_index_of(col) {
-                                    Some(idx) if idx == 0 => {
+                                    Some(0) => {
                                         // Column next in sort order from this chunks PoV. This is good.
                                         true
                                     }

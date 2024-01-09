@@ -1521,7 +1521,7 @@ impl TableSummary {
     pub fn total_count(&self) -> u64 {
         // Assumes that all tables have the same number of rows, so
         // pick the first one
-        let count = self.columns.get(0).map(|c| c.total_count()).unwrap_or(0);
+        let count = self.columns.first().map(|c| c.total_count()).unwrap_or(0);
 
         // Validate that the counts are consistent across columns
         for c in &self.columns {

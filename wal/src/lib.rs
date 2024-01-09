@@ -863,7 +863,7 @@ mod tests {
         assert_eq!(wal_entries.len(), 2);
         let write_op_entries = wal_entries.into_iter().flatten().collect::<Vec<_>>();
         assert_eq!(write_op_entries.len(), 3);
-        assert_matches!(write_op_entries.get(0), Some(got_op1) => {
+        assert_matches!(write_op_entries.first(), Some(got_op1) => {
             assert_op_shape(got_op1, &w1);
         });
         assert_matches!(write_op_entries.get(1), Some(got_op2) => {
@@ -916,7 +916,7 @@ mod tests {
         // error is thrown
         assert_matches!(decoder.next(), Some(Ok(batch)) => {
             assert_eq!(batch.len(), 1);
-            assert_op_shape(batch.get(0).unwrap(), &good_write);
+            assert_op_shape(batch.first().unwrap(), &good_write);
         });
         assert_matches!(
             decoder.next(),

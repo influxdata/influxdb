@@ -4,7 +4,7 @@ use arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{Result, ScalarValue};
 use datafusion::logical_expr::{PartitionEvaluator, Signature, TypeSignature, Volatility};
 use once_cell::sync::Lazy;
-use std::borrow::Borrow;
+
 use std::sync::Arc;
 
 /// The name of the derivative window function.
@@ -99,7 +99,7 @@ impl PartitionEvaluator for DifferencePartitionEvaluator {
 }
 
 fn delta(curr: &ScalarValue, prev: &ScalarValue) -> Result<f64> {
-    match (curr.borrow(), prev.borrow()) {
+    match (curr, prev) {
         (ScalarValue::Float64(Some(curr)), ScalarValue::Float64(Some(prev))) => Ok(*curr - *prev),
         (ScalarValue::Int64(Some(curr)), ScalarValue::Int64(Some(prev))) => {
             Ok(*curr as f64 - *prev as f64)

@@ -404,8 +404,8 @@ pub fn adjust_sort_key_columns(
     let existing_columns_without_time = catalog_sort_key
         .iter()
         .map(|(col, _opts)| col)
-        .cloned()
-        .filter(|col| TIME_COLUMN_NAME != col.as_ref());
+        .filter(|&col| TIME_COLUMN_NAME != col.as_ref())
+        .cloned();
     let new_columns: Vec<_> = primary_key
         .iter()
         .filter(|col| !catalog_sort_key.contains(col))

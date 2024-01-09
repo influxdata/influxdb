@@ -21,9 +21,10 @@ arrow = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c
 arrow-array = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5", default-features = false, features = ["chrono-tz"] }
 arrow-flight = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5", features = ["flight-sql-experimental"] }
 arrow-string = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5", default-features = false, features = ["dyn_cmp_dict"] }
+bitflags = { version = "2", default-features = false, features = ["std"] }
 byteorder = { version = "1" }
 bytes = { version = "1" }
-chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
+chrono = { version = "0.4", features = ["alloc", "serde"] }
 clap = { version = "4", features = ["derive", "env", "string"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "env", "help", "std", "string", "suggestions", "usage"] }
 crossbeam-utils = { version = "0.8" }
@@ -44,7 +45,6 @@ futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
 hashbrown = { version = "0.14", features = ["raw"] }
 indexmap = { version = "2" }
-itertools = { version = "0.10" }
 libc = { version = "0.2", features = ["extra_traits"] }
 lock_api = { version = "0.4", features = ["arc_lock"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
@@ -58,17 +58,17 @@ parking_lot = { version = "0.12", features = ["arc_lock"] }
 parquet = { git = "https://github.com/alamb/arrow-rs.git", rev = "7c236c06bfb78c0c877055c1617d9373971511a5", features = ["experimental", "object_store"] }
 petgraph = { version = "0.6" }
 phf_shared = { version = "0.11" }
-predicates = { version = "3" }
 proptest = { version = "1", default-features = false, features = ["std"] }
 prost = { version = "0.11" }
 prost-types = { version = "0.11" }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_core = { version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
-regex-automata = { version = "0.3", default-features = false, features = ["dfa-onepass", "dfa-search", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
-regex-syntax = { version = "0.7" }
+regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "dfa-search", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
+regex-syntax-c38e5c1d305a1b54 = { package = "regex-syntax", version = "0.8" }
+regex-syntax-ca01ad9e24f5d932 = { package = "regex-syntax", version = "0.7" }
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls", "stream"] }
-ring = { version = "0.16", features = ["std"] }
+ring = { version = "0.16", default-features = false, features = ["std"] }
 rustls = { version = "0.21", default-features = false, features = ["dangerous_configuration", "logging", "tls12"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }
@@ -79,15 +79,15 @@ sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-rustls", "sqlit
 sqlx-core = { version = "0.7", features = ["_rt-tokio", "_tls-rustls", "any", "json", "migrate", "offline", "uuid"] }
 sqlx-postgres = { version = "0.7", default-features = false, features = ["any", "json", "migrate", "offline", "uuid"] }
 sqlx-sqlite = { version = "0.7", default-features = false, features = ["any", "json", "migrate", "offline", "uuid"] }
+strum = { version = "0.25", features = ["derive"] }
 thrift = { version = "0.17" }
-tokio = { version = "1", features = ["full", "test-util", "tracing"] }
+tokio = { version = "1", features = ["full", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io"] }
 tonic = { version = "0.9", features = ["tls-webpki-roots"] }
 tower = { version = "0.4", features = ["balance", "buffer", "limit", "timeout", "util"] }
 tracing = { version = "0.1", features = ["log", "max_level_trace", "release_max_level_trace"] }
 tracing-core = { version = "0.1" }
-tracing-log = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "parking_lot"] }
 unicode-bidi = { version = "0.3" }
 unicode-normalization = { version = "0.1" }
@@ -96,6 +96,7 @@ uuid = { version = "1", features = ["v4"] }
 
 [build-dependencies]
 ahash = { version = "0.8" }
+bitflags = { version = "2", default-features = false, features = ["std"] }
 byteorder = { version = "1" }
 bytes = { version = "1" }
 cc = { version = "1", default-features = false, features = ["parallel"] }
@@ -116,7 +117,6 @@ hashbrown = { version = "0.14", features = ["raw"] }
 heck = { version = "0.4", features = ["unicode"] }
 indexmap = { version = "2" }
 itertools = { version = "0.10" }
-libc = { version = "0.2", features = ["extra_traits"] }
 lock_api = { version = "0.4", features = ["arc_lock"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
 md-5 = { version = "0.10" }
@@ -132,9 +132,8 @@ prost-types = { version = "0.11" }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_core = { version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
-regex-automata = { version = "0.3", default-features = false, features = ["dfa-onepass", "dfa-search", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
-regex-syntax = { version = "0.7" }
-ring = { version = "0.16", features = ["std"] }
+regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "dfa-search", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
+regex-syntax-c38e5c1d305a1b54 = { package = "regex-syntax", version = "0.8" }
 rustls = { version = "0.21", default-features = false, features = ["dangerous_configuration", "logging", "tls12"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }
@@ -146,7 +145,7 @@ sqlx-postgres = { version = "0.7", default-features = false, features = ["any", 
 sqlx-sqlite = { version = "0.7", default-features = false, features = ["any", "json", "migrate", "offline", "uuid"] }
 syn-dff4ba8e3ae991db = { package = "syn", version = "1", features = ["extra-traits", "full"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "full", "visit", "visit-mut"] }
-tokio = { version = "1", features = ["full", "test-util", "tracing"] }
+tokio = { version = "1", features = ["full", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net"] }
 tracing = { version = "0.1", features = ["log", "max_level_trace", "release_max_level_trace"] }
 tracing-core = { version = "0.1" }
@@ -156,47 +155,49 @@ url = { version = "2" }
 uuid = { version = "1", features = ["v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-bitflags = { version = "2", default-features = false, features = ["std"] }
-once_cell = { version = "1", default-features = false, features = ["unstable"] }
+nix = { version = "0.27", features = ["fs", "signal", "user"] }
 rustls = { version = "0.21" }
+spin = { version = "0.9" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
-bitflags = { version = "2", default-features = false, features = ["std"] }
-once_cell = { version = "1", default-features = false, features = ["unstable"] }
+libc = { version = "0.2", features = ["extra_traits"] }
+nix = { version = "0.27", features = ["fs", "signal", "user"] }
 rustls = { version = "0.21" }
+spin = { version = "0.9" }
 
 [target.x86_64-apple-darwin.dependencies]
-bitflags = { version = "2", default-features = false, features = ["std"] }
-once_cell = { version = "1", default-features = false, features = ["unstable"] }
+nix = { version = "0.27", features = ["fs", "signal", "user"] }
 rustls = { version = "0.21" }
+spin = { version = "0.9" }
 
 [target.x86_64-apple-darwin.build-dependencies]
-bitflags = { version = "2", default-features = false, features = ["std"] }
-once_cell = { version = "1", default-features = false, features = ["unstable"] }
+libc = { version = "0.2", features = ["extra_traits"] }
+nix = { version = "0.27", features = ["fs", "signal", "user"] }
 rustls = { version = "0.21" }
+spin = { version = "0.9" }
 
 [target.aarch64-apple-darwin.dependencies]
-bitflags = { version = "2", default-features = false, features = ["std"] }
-once_cell = { version = "1", default-features = false, features = ["unstable"] }
+nix = { version = "0.27", features = ["fs", "signal", "user"] }
 rustls = { version = "0.21" }
+spin = { version = "0.9" }
 
 [target.aarch64-apple-darwin.build-dependencies]
-bitflags = { version = "2", default-features = false, features = ["std"] }
-once_cell = { version = "1", default-features = false, features = ["unstable"] }
+libc = { version = "0.2", features = ["extra_traits"] }
+nix = { version = "0.27", features = ["fs", "signal", "user"] }
 rustls = { version = "0.21" }
+spin = { version = "0.9" }
 
 [target.x86_64-pc-windows-msvc.dependencies]
-once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustls = { version = "0.21" }
-scopeguard = { version = "1" }
-winapi = { version = "0.3", default-features = false, features = ["basetsd", "cfg", "combaseapi", "consoleapi", "errhandlingapi", "evntrace", "fileapi", "handleapi", "heapapi", "ifdef", "in6addr", "inaddr", "ioapiset", "iphlpapi", "lmaccess", "lmapibuf", "lmcons", "memoryapi", "minwinbase", "minwindef", "netioapi", "ntlsa", "ntsecapi", "objidl", "oleauto", "pdh", "powerbase", "processenv", "psapi", "rpcdce", "sddl", "securitybaseapi", "shellapi", "std", "stringapiset", "synchapi", "sysinfoapi", "wbemcli", "winbase", "wincon", "windef", "winerror", "winioctl", "winnt", "winsock2", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
-windows-sys = { version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_Registry", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_Time", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }
+spin = { version = "0.9" }
+winapi = { version = "0.3", default-features = false, features = ["cfg", "combaseapi", "consoleapi", "errhandlingapi", "evntrace", "fileapi", "handleapi", "heapapi", "ifdef", "in6addr", "inaddr", "ioapiset", "iphlpapi", "lmaccess", "lmapibuf", "lmcons", "memoryapi", "minwinbase", "minwindef", "netioapi", "ntlsa", "ntsecapi", "ntstatus", "objidl", "oleauto", "pdh", "powerbase", "processenv", "psapi", "rpcdce", "sddl", "securitybaseapi", "shellapi", "std", "synchapi", "sysinfoapi", "wbemcli", "winbase", "wincon", "windef", "winerror", "winioctl", "winnt", "winsock2", "wtypesbase"] }
+windows-sys-b21d60becc0929df = { package = "windows-sys", version = "0.52", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
+windows-sys-c8eced492e86ede7 = { package = "windows-sys", version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_Registry", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_Time", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }
 
 [target.x86_64-pc-windows-msvc.build-dependencies]
-once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustls = { version = "0.21" }
-scopeguard = { version = "1" }
-winapi = { version = "0.3", default-features = false, features = ["basetsd", "cfg", "combaseapi", "consoleapi", "errhandlingapi", "evntrace", "fileapi", "handleapi", "heapapi", "ifdef", "in6addr", "inaddr", "ioapiset", "iphlpapi", "lmaccess", "lmapibuf", "lmcons", "memoryapi", "minwinbase", "minwindef", "netioapi", "ntlsa", "ntsecapi", "objidl", "oleauto", "pdh", "powerbase", "processenv", "psapi", "rpcdce", "sddl", "securitybaseapi", "shellapi", "std", "stringapiset", "synchapi", "sysinfoapi", "wbemcli", "winbase", "wincon", "windef", "winerror", "winioctl", "winnt", "winsock2", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
-windows-sys = { version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_Registry", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_Time", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }
+spin = { version = "0.9" }
+windows-sys-b21d60becc0929df = { package = "windows-sys", version = "0.52", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
+windows-sys-c8eced492e86ede7 = { package = "windows-sys", version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_Registry", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_Time", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }
 
 ### END HAKARI SECTION
