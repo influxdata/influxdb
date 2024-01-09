@@ -238,17 +238,11 @@ jobs:
       - checkout
       - rust_components
       - run:
-          name: Download flight-sql-jdbc-driver-10.0.0.jar
-          command: make -C influxdb_iox/tests/jdbc_client flight-sql-jdbc-driver-10.0.0.jar
-      - run:
           name: cargo test -p influxdb2_client
           command: cargo test -p influxdb2_client
       - run:
           name: cargo test -p iox_catalog
           command: cargo test -p iox_catalog
-      - run:
-          name: cargo test --test end_to_end
-          command: cargo test --test end_to_end
 
   # Run all tests (without external dependencies, like a developer would)
   test:
