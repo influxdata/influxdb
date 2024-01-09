@@ -130,7 +130,7 @@ impl Display for RunQuery {
 }
 
 impl IoxGetRequest {
-    const READ_INFO_TYPE_URL: &str = "type.googleapis.com/influxdata.iox.querier.v1.ReadInfo";
+    const READ_INFO_TYPE_URL: &'static str = "type.googleapis.com/influxdata.iox.querier.v1.ReadInfo";
 
     /// Create a new request to run the specified query
     pub fn new(database: impl Into<String>, query: RunQuery, is_debug: bool) -> Self {
