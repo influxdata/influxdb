@@ -22,6 +22,7 @@ import (
 var (
 	ErrSeriesFileClosed         = errors.New("tsdb: series file closed")
 	ErrInvalidSeriesPartitionID = errors.New("tsdb: invalid series partition id")
+	// ErrInvalidMeasurement       = errors.New("tsdb: invalid measurement for series key provided")
 )
 
 // SeriesIDSize is the size in bytes of a series key ID.
@@ -377,6 +378,9 @@ func ReadSeriesKeyLen(data []byte) (sz int, remainder []byte) {
 }
 
 func ReadSeriesKeyMeasurement(data []byte) (name, remainder []byte) {
+	if len(data) < 2 {
+		// return nil, nil, ErrInvalidMeasurement
+	}
 	n, data := binary.BigEndian.Uint16(data), data[2:]
 	return data[:n], data[n:]
 }
