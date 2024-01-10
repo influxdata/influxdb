@@ -13,11 +13,11 @@
 # The CI for every PR and merge to main runs tests, fmt, lints and compiles debug binaries
 #
 # On main if all these checks pass it will then additionally compile in "release" mode and
-# publish a docker image to quay.io/influxdb/iox:$COMMIT_SHA
+# publish a docker image to quay.io/influxdb/influxdb3:$COMMIT_SHA
 #
 # Manually trigger build and push of container image for a branch:
 #
-# Navigate to https://app.circleci.com/pipelines/github/influxdata/influxdb_iox?branch=<branch-name> (<- change this!)
+# Navigate to https://app.circleci.com/pipelines/github/influxdata/influxdb?branch=<branch-name> (<- change this!)
 # Then:
 #
 # - Click "Run Pipeline" in the top-right
@@ -31,18 +31,18 @@
 #
 #   # e.g. using 'xh' (https://github.com/ducaale/xh)
 #   $ xh -a '<your personal circleCI token>:' POST \
-#       https://circleci.com/api/v2/project/github/influxdata/influxdb_iox/pipeline \
+#       https://circleci.com/api/v2/project/github/influxdata/influxdb/pipeline \
 #       parameters:='{"release_branch": true}' branch=chore/ci-tidy-up
 #
 # ...or equivalent with `curl`:
 #   $ curl -XPOST -H "Content-Type: application/json" -H "Circle-Token: <your personal circleCI token>" \
 #       -d '{"parameters": {"release_branch": true}, "branch": "chore/ci-tidy-up"}' \
-#       https://circleci.com/api/v2/project/github/influxdata/influxdb_iox/pipeline
+#       https://circleci.com/api/v2/project/github/influxdata/influxdb/pipeline
 #
 # Manual CI Base Image:
 #
 # It is possible to manually trigger a rebuild of the base image used in CI. To do this, navigate to
-# https://app.circleci.com/pipelines/github/influxdata/influxdb_iox?branch=main (overriding the
+# https://app.circleci.com/pipelines/github/influxdata/influxdb?branch=main (overriding the
 # branch name if desired). Then:
 # - Click "Run Pipeline" in the top-right
 # - Expand "Add Parameters"
@@ -289,7 +289,7 @@ jobs:
 
   # Build a dev binary.
   #
-  # Compiles a binary with the default ("dev") cargo profile from the iox source
+  # Compiles a binary with the default ("dev") cargo profile from the influxdb3 source
   # using the latest ci_image and ensures various targets compile successfully
   build_dev:
     docker:
@@ -329,7 +329,7 @@ jobs:
       - image: bufbuild/buf:0.40.0
     environment:
       # Value to look for to skip breaking changes check
-      SKIP_LABEL: "https://api.github.com/repos/influxdata/influxdb_iox/labels/incompatible%20protobuf"
+      SKIP_LABEL: "https://api.github.com/repos/influxdata/influxdb/labels/incompatible%20protobuf"
     steps:
       - checkout
       - run:
@@ -343,7 +343,7 @@ jobs:
             echo "to the PR, and rerun this test"
             # Check if label is present using github API:
             # Inspired by https://discuss.circleci.com/t/tag-label-filter/11158
-            if wget -O -  https://api.github.com/repos/influxdata/influxdb_iox/issues/$(echo $CIRCLE_PULL_REQUEST | grep -oE "[^/pull]+$") | grep "$SKIP_LABEL" ; then echo "SKIPPING (FOUND LABEL)" && exit ; else echo "CHECKING (NO LABEL FOUND)"; fi
+            if wget -O -  https://api.github.com/repos/influxdata/influxdb/issues/$(echo $CIRCLE_PULL_REQUEST | grep -oE "[^/pull]+$") | grep "$SKIP_LABEL" ; then echo "SKIPPING (FOUND LABEL)" && exit ; else echo "CHECKING (NO LABEL FOUND)"; fi
             git fetch origin main
             # compare against only changes in this branch (not against
             # other stuff that may have been added to main since last merge)
@@ -366,11 +366,11 @@ jobs:
           name: Lint docs
           command: ./scripts/lint_docs.py ./docs
 
-  # Compile cargo "release" profile binaries for iox & data generator
+  # Compile cargo "release" profile binaries for influxdb3 & data generator
   #
   # Uses the latest ci_image (influxdb/rust below) to build a release binary and
   # copies it to a minimal container image based upon `rust:slim-buster`. This
-  # minimal image is then pushed to `quay.io/influxdb/iox:${BRANCH}`.
+  # minimal image is then pushed to `quay.io/influxdb/influxdb3:${BRANCH}`.
   build_release:
     # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
     # kinda small node)
@@ -380,24 +380,22 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Cargo release build with target arch set for CRoaring
+          name: Cargo release build
           command: |
             COMMIT_SHA="$(git rev-parse HEAD)"
 
             .circleci/docker_build_release.bash \
-              "influxdb_iox" \
+              "influxdb3" \
               "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
-              "quay.io/influxdb/iox:$COMMIT_SHA"
+              "quay.io/influxdb/influxdb3:$COMMIT_SHA"
 
             .circleci/docker_build_release.bash \
               "iox_data_generator" \
               "" \
               "quay.io/influxdb/iox_data_generator:$COMMIT_SHA"
 
-            docker run -it --rm quay.io/influxdb/iox:$COMMIT_SHA debug print-cpu
-
             mkdir /tmp/images
-            docker save quay.io/influxdb/iox:"$COMMIT_SHA" | gzip > /tmp/images/iox.tar.gz
+            docker save quay.io/influxdb/influxdb3:"$COMMIT_SHA" | gzip > /tmp/images/influxdb3.tar.gz
             docker save quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" | gzip > /tmp/images/iox_data_generator.tar.gz
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
@@ -433,7 +431,7 @@ jobs:
             COMMIT_SHA="$(git rev-parse HEAD)"
             BRANCH="$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')"
 
-            images=( "iox" "iox_data_generator" )
+            images=( "influxdb3" "iox_data_generator" )
             registries=( "quay.io/influxdb" "us-docker.pkg.dev/influxdb2-artifacts/iox" )
             tags=( "$COMMIT_SHA" "$BRANCH" )
 
