@@ -406,60 +406,6 @@ jobs:
           paths:
             - "*.tar.gz"
 
-  deploy_release:
-    docker:
-      - image: quay.io/influxdb/rust:ci
-    environment:
-        # See https://github.com/containers/skopeo/issues/942
-        XDG_RUNTIME_DIR: /home/rust/.run
-    steps:
-      - checkout
-      - attach_workspace:
-          at: /tmp/images
-      - run:
-          name: set up runtime dir
-          command: |
-            mkdir -p "$XDG_RUNTIME_DIR"
-      - login_to_gcloud
-      - run:
-          name: quay login
-          command: |
-            echo "$QUAY_INFLUXDB_IOX_PASS" | skopeo login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
-      - run:
-          name: Upload images
-          command: |
-            COMMIT_SHA="$(git rev-parse HEAD)"
-            BRANCH="$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')"
-
-            images=( "influxdb3" "iox_data_generator" )
-            registries=( "quay.io/influxdb" "us-docker.pkg.dev/influxdb2-artifacts/iox" )
-            tags=( "$COMMIT_SHA" "$BRANCH" )
-
-            for image in "${images[@]}"; do
-              echo "Image: $image"
-              oci_path="oci-archive:///tmp/images/$image.oci.tar"
-
-              # convert the gzipped docker image into OCI
-              gzip -d "/tmp/images/$image.tar.gz"
-              skopeo copy --format oci --quiet "docker-archive:///tmp/images/$image.tar" "$oci_path"
-
-              for registry in "${registries[@]}"; do
-                echo "  Registry: $registry"
-
-                # upload all tags
-                # Note: Uploading the 2nd tag for the same image (to the same registry) is very cheap since all layers
-                #       exist already (from the previous tag).
-                for tag in "${tags[@]}"; do
-                  echo "    Upload: tag=$tag"
-                  docker_url="docker://$registry/$image:$tag"
-                  skopeo copy --quiet "$oci_path" "$docker_url"
-
-                  # print out digest AFTER upload, see https://github.com/containers/skopeo/issues/469
-                  echo "      Digest: $(skopeo inspect "$docker_url" | jq ".Digest")"
-                done
-              done
-            done
-
   # Prepare the CI image used for other tasks.
   #
   # A nightly job (scheduled below in the `workflows` section) to build the CI
@@ -521,22 +467,6 @@ workflows:
           filters:
             branches:
               only: main
-      - deploy_release:
-          filters:
-            branches:
-              only: main
-          requires: # Only deploy if all tests have passed
-            - fmt
-            - lint
-            - cargo_audit
-            - protobuf-lint
-            - docs-lint
-            - test
-            - test_heappy
-            - test_integration
-            - build_dev
-            - build_release
-            - doc
 
   # Manual build of CI image
   ci_image:
@@ -550,9 +480,6 @@ workflows:
     when: << pipeline.parameters.release_branch >>
     jobs:
       - build_release
-      - deploy_release:
-          requires:
-            - build_release
 
   # Nightly rebuild of the build container
   ci_image_nightly:
