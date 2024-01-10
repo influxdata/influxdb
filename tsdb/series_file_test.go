@@ -50,6 +50,21 @@ func TestParseSeriesKeyInto(t *testing.T) {
 	}
 }
 
+func TestParseSeriesKeyMeasurement(t *testing.T) {
+	tests := []struct {
+		name        string
+		measurement []byte
+	}{
+		{name: "invalid measurement", measurement: []byte{}},
+	}
+
+	for _, tt := range tests {
+		tsdb.ParseSeriesKey(tt.measurement)
+	}
+
+
+}
+
 // Ensure that broken series files are closed
 func TestSeriesFile_Open_WhenFileCorrupt_ShouldReturnErr(t *testing.T) {
 	f := NewBrokenSeriesFile([]byte{0, 0, 0, 0, 0})
