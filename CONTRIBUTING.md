@@ -69,7 +69,7 @@ second to sign our CLA, which can be found
 
 Installing Go
 -------------
-InfluxDB requires Go 1.15.
+InfluxDB requires Go 1.20.
 
 At InfluxDB we find gvm, a Go version manager, useful for installing Go. For instructions
 on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
@@ -77,8 +77,12 @@ on how to install it see [the gvm page on github](https://github.com/moovweb/gvm
 After installing gvm you can install and set the default go version by
 running the following:
 
-    gvm install go1.15
-    gvm use go1.15 --default
+    # Retrieve the version in use from the go.mod file.
+    INFLUXDB_GO_VERSION=$(go mod edit -json | jq -r .Go)
+
+    # Use gvm to install the correct version
+    gvm install go${INFLUXDB_GO_VERSION}
+    gvm use go${INFLUXDB_GO_VERSION} --default
 
 Revision Control Systems
 -------------
