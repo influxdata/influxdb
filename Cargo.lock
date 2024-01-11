@@ -2388,7 +2388,9 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "async-trait",
+ "byteorder",
  "chrono",
+ "crc32fast",
  "data_types",
  "datafusion",
  "influxdb-line-protocol",
@@ -2400,7 +2402,10 @@ dependencies = [
  "schema",
  "serde",
  "serde_json",
+ "snap",
+ "test_helpers",
  "thiserror",
+ "tokio",
  "workspace-hack",
 ]
 
