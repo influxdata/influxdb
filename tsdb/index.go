@@ -2918,6 +2918,9 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.FineAuthorizer, name []byte,
 
 		if auth != nil {
 			name, tags := ParseSeriesKey(buf)
+			if name == nil && tags == nil {
+				continue
+			}
 			if !auth.AuthorizeSeriesRead(database, name, tags) {
 				continue
 			}
