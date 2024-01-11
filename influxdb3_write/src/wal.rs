@@ -186,10 +186,8 @@ impl WalSegmentWriterImpl {
     pub fn new_or_open(root: PathBuf, segment_id: SegmentId) -> Result<Self> {
         let path = build_segment_path(root, segment_id);
 
-        let mut f = OpenOptions::new().write(true).create(true).open(&path)?;
-
         // if there's already a file there, validate its header and pull the sequence number from the last entry
-        if f.len() > 0 {
+        if path.exists() {
             if let Some(file_info) =
                 WalSegmentReaderImpl::read_segment_file_info_if_exists(path.clone(), segment_id)?
             {
@@ -215,6 +213,8 @@ impl WalSegmentWriterImpl {
         }
 
         // it's a new file, initialize it with the header and get ready to start writing
+        let mut f = OpenOptions::new().write(true).create(true).open(&path)?;
+
         f.write_all(FILE_TYPE_IDENTIFIER)?;
         let file_type_bytes_written = FILE_TYPE_IDENTIFIER.len();
 
