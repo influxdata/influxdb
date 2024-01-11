@@ -106,14 +106,14 @@ impl WalImpl {
         Ok(Self { root })
     }
 
-    fn open_segment_writer(&self, segment_id: SegmentId) -> Result<Box<dyn WalSegmentWriter>> {
+    fn open_segment_writer(&self, segment_id: SegmentId) -> Result<impl WalSegmentWriter> {
         let writer = WalSegmentWriterImpl::new_or_open(self.root.clone(), segment_id)?;
-        Ok(Box::new(writer))
+        Ok(writer)
     }
 
-    fn open_segment_reader(&self, segment_id: SegmentId) -> Result<Box<dyn WalSegmentReader>> {
+    fn open_segment_reader(&self, segment_id: SegmentId) -> Result<impl WalSegmentReader> {
         let reader = WalSegmentReaderImpl::new(self.root.clone(), segment_id)?;
-        Ok(Box::new(reader))
+        Ok(reader)
     }
 
     fn segment_files(&self) -> Result<Vec<SegmentFile>> {
@@ -155,11 +155,11 @@ impl WalImpl {
 }
 
 impl Wal for WalImpl {
-    fn open_segment_writer(&self, segment_id: SegmentId) -> Result<Box<dyn WalSegmentWriter>> {
+    fn open_segment_writer(&self, segment_id: SegmentId) -> Result<impl WalSegmentWriter> {
         self.open_segment_writer(segment_id)
     }
 
-    fn open_segment_reader(&self, segment_id: SegmentId) -> Result<Box<dyn WalSegmentReader>> {
+    fn open_segment_reader(&self, segment_id: SegmentId) -> Result<impl WalSegmentReader> {
         self.open_segment_reader(segment_id)
     }
 

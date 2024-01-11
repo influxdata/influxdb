@@ -60,15 +60,15 @@ pub struct WriteRequest<'a> {
 }
 
 #[derive(Debug)]
-pub struct WriteBufferImpl {
+pub struct WriteBufferImpl<W> {
     catalog: Arc<Catalog>,
     buffered_data: RwLock<HashMap<String, DatabaseBuffer>>,
     #[allow(dead_code)]
-    wal: Option<Arc<dyn Wal>>,
+    wal: Option<Arc<W>>,
 }
 
-impl WriteBufferImpl {
-    pub fn new(catalog: Arc<Catalog>, wal: Option<Arc<dyn Wal>>) -> Self {
+impl<W: Wal> WriteBufferImpl<W> {
+    pub fn new(catalog: Arc<Catalog>, wal: Option<Arc<W>>) -> Self {
         Self {
             catalog,
             buffered_data: RwLock::new(HashMap::new()),
@@ -179,7 +179,7 @@ impl WriteBufferImpl {
 }
 
 #[async_trait]
-impl Bufferer for WriteBufferImpl {
+impl<W: Wal> Bufferer<W> for WriteBufferImpl<W> {
     async fn write_lp(
         &self,
         database: NamespaceName<'static>,
@@ -201,12 +201,12 @@ impl Bufferer for WriteBufferImpl {
         todo!()
     }
 
-    fn wal(&self) -> Option<Arc<dyn Wal>> {
+    fn wal(&self) -> Option<Arc<W>> {
         self.wal.clone()
     }
 }
 
-impl ChunkContainer for WriteBufferImpl {
+impl<W: Wal> ChunkContainer for WriteBufferImpl<W> {
     fn get_table_chunks(
         &self,
         database_name: &str,
@@ -219,7 +219,7 @@ impl ChunkContainer for WriteBufferImpl {
     }
 }
 
-impl WriteBuffer for WriteBufferImpl {}
+impl<W: Wal> WriteBuffer<W> for WriteBufferImpl<W> {}
 
 #[derive(Debug, Default)]
 struct DatabaseBuffer {
