@@ -65,9 +65,7 @@ func TestParseSeriesKeyMeasurement(t *testing.T) {
 		if res := bytes.Compare(name, tt.expected); res != 0 {
 			t.Fatalf("invalid series key parse: got %q, expected %q", name, tt.expected)
 		}
-
 	}
-
 }
 
 // Ensure that broken series files are closed
