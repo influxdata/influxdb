@@ -199,7 +199,7 @@ mod tests {
 
         let write_buffer = Arc::new(influxdb3_write::write_buffer::WriteBufferImpl::new(
             Arc::clone(&catalog),
-            None,
+            None::<Arc<influxdb3_write::wal::WalImpl>>,
         ));
         let query_executor = crate::query_executor::QueryExecutorImpl::new(
             catalog,

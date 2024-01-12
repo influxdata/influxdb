@@ -75,7 +75,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
     ) -> Result<Vec<Arc<dyn BufferSegment>>>;
 
     /// Returns the configured WAL, if there is one.
-    fn wal(&self) -> Option<Arc<dyn Wal>>;
+    fn wal(&self) -> Option<Arc<impl Wal>>;
 }
 
 /// A segment in the buffer that corresponds to a single WAL segment file. It contains a catalog with any updates
@@ -109,11 +109,40 @@ pub trait ChunkContainer: Debug + Send + Sync + 'static {
 
 /// The segment identifier, which will be monotonically increasing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct SegmentId(u64);
+pub struct SegmentId(u32);
+pub type SegmentIdBytes = [u8; 4];
+
+impl SegmentId {
+    pub fn new(id: u32) -> Self {
+        Self(id)
+    }
+
+    pub fn as_bytes(&self) -> SegmentIdBytes {
+        self.0.to_be_bytes()
+    }
+
+    pub fn from_bytes(bytes: SegmentIdBytes) -> Self {
+        Self(u32::from_be_bytes(bytes))
+    }
+
+    pub fn next(&self) -> Self {
+        Self(self.0 + 1)
+    }
+}
 
 /// The sequence number of a batch of WAL operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct SequenceNumber(u64);
+pub struct SequenceNumber(u32);
+
+impl SequenceNumber {
+    pub fn new(id: u32) -> Self {
+        Self(id)
+    }
+
+    pub fn next(&self) -> Self {
+        Self(self.0 + 1)
+    }
+}
 
 #[async_trait]
 pub trait Persister: Debug + Send + Sync + 'static {
@@ -136,21 +165,18 @@ pub trait Persister: Debug + Send + Sync + 'static {
     fn object_store(&self) -> Arc<dyn object_store::ObjectStore>;
 }
 
-#[async_trait]
 pub trait Wal: Debug + Send + Sync + 'static {
     /// Opens a writer to a segment, either creating a new file or appending to an existing file.
-    async fn open_segment_writer(&self, segment_id: SegmentId)
-        -> Result<Arc<dyn WalSegmentWriter>>;
+    fn open_segment_writer(&self, segment_id: SegmentId) -> wal::Result<impl WalSegmentWriter>;
 
     /// Opens a reader to a segment file.
-    async fn open_segment_reader(&self, segment_id: SegmentId)
-        -> Result<Arc<dyn WalSegmentReader>>;
+    fn open_segment_reader(&self, segment_id: SegmentId) -> wal::Result<impl WalSegmentReader>;
 
     /// Checks the WAL directory for any segment files and returns them.
-    async fn segment_files(&self) -> Result<Vec<SegmentFile>>;
+    fn segment_files(&self) -> wal::Result<Vec<SegmentFile>>;
 
-    /// Drops the WAL segment file from disk.
-    async fn drop_wal_segment(&self, segment_id: SegmentId) -> Result<()>;
+    /// Deletes the WAL segment file from disk.
+    fn delete_wal_segment(&self, segment_id: SegmentId) -> wal::Result<()>;
 }
 
 #[derive(Debug)]
@@ -161,22 +187,21 @@ pub struct SegmentFile {
     pub segment_id: SegmentId,
 }
 
-#[async_trait]
 pub trait WalSegmentWriter: Debug + Send + Sync + 'static {
     fn id(&self) -> SegmentId;
 
-    async fn write(&self, op: WalOp) -> Result<SequenceNumber>;
+    fn write_batch(&mut self, ops: Vec<WalOp>) -> wal::Result<SequenceNumber>;
 }
 
 pub trait WalSegmentReader: Debug + Send + Sync + 'static {
     fn id(&self) -> SegmentId;
 
-    fn next_batch(&mut self) -> Result<Option<WalBatch>>;
+    fn next_batch(&mut self) -> wal::Result<Option<WalOpBatch>>;
 }
 
 /// Individual WalOps get batched into the WAL asynchronously. The batch is then written to the segment file.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct WalBatch {
+pub struct WalOpBatch {
     pub sequence_number: SequenceNumber,
     pub ops: Vec<WalOp>,
 }
@@ -185,14 +210,14 @@ pub struct WalBatch {
 /// lands in object storage. Things in the WAL are buffered until they are persisted to object storage. The write
 /// is called an `LpWrite` because it is a write of line protocol and we intend to have a new write protocol for
 /// 3.0 that supports a different kind of schema.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum WalOp {
     LpWrite(LpWriteOp),
 }
 
 /// A write of 1 or more lines of line protocol to a single database. The default time is set by the server at the
 /// time the write comes in.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct LpWriteOp {
     pub db_name: String,
     pub lp: String,

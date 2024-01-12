@@ -107,7 +107,7 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
 // This implementation is for the Flight service
 #[async_trait]
 impl<W: WriteBuffer> QueryNamespaceProvider for QueryExecutorImpl<W> {
-    type Db = QueryDatabase;
+    type Db = QueryDatabase<W>;
 
     async fn db(
         &self,
@@ -135,18 +135,18 @@ impl<W: WriteBuffer> QueryNamespaceProvider for QueryExecutorImpl<W> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct QueryDatabase {
+#[derive(Debug)]
+pub struct QueryDatabase<B> {
     db_schema: Arc<DatabaseSchema>,
-    write_buffer: Arc<dyn WriteBuffer>,
+    write_buffer: Arc<B>,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
 }
 
-impl QueryDatabase {
+impl<B: WriteBuffer> QueryDatabase<B> {
     pub fn new(
         db_schema: Arc<DatabaseSchema>,
-        write_buffer: Arc<dyn WriteBuffer>,
+        write_buffer: Arc<B>,
         exec: Arc<Executor>,
         datafusion_config: Arc<HashMap<String, String>>,
     ) -> Self {
@@ -160,7 +160,7 @@ impl QueryDatabase {
 }
 
 #[async_trait]
-impl QueryNamespace for QueryDatabase {
+impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
     async fn chunks(
         &self,
         _table_name: &str,
@@ -189,10 +189,17 @@ impl QueryNamespace for QueryDatabase {
     }
 
     fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext {
+        let qdb = Self::new(
+            Arc::clone(&self.db_schema),
+            Arc::clone(&self.write_buffer),
+            Arc::clone(&self.exec),
+            Arc::clone(&self.datafusion_config),
+        );
+
         let mut cfg = self
             .exec
             .new_execution_config(ExecutorType::Query)
-            .with_default_catalog(Arc::new(self.clone()))
+            .with_default_catalog(Arc::new(qdb))
             .with_span_context(span_ctx);
 
         for (k, v) in self.datafusion_config.as_ref() {
@@ -203,7 +210,7 @@ impl QueryNamespace for QueryDatabase {
     }
 }
 
-impl CatalogProvider for QueryDatabase {
+impl<B: WriteBuffer> CatalogProvider for QueryDatabase<B> {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -215,15 +222,22 @@ impl CatalogProvider for QueryDatabase {
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         info!("CatalogProvider schema {}", name);
+        let qdb = Self::new(
+            Arc::clone(&self.db_schema),
+            Arc::clone(&self.write_buffer),
+            Arc::clone(&self.exec),
+            Arc::clone(&self.datafusion_config),
+        );
+
         match name {
-            DEFAULT_SCHEMA => Some(Arc::new(self.clone())),
+            DEFAULT_SCHEMA => Some(Arc::new(qdb)),
             _ => None,
         }
     }
 }
 
 #[async_trait]
-impl SchemaProvider for QueryDatabase {
+impl<B: WriteBuffer> SchemaProvider for QueryDatabase<B> {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -253,14 +267,14 @@ impl SchemaProvider for QueryDatabase {
 }
 
 #[derive(Debug)]
-pub struct QueryTable {
+pub struct QueryTable<B> {
     db_schema: Arc<DatabaseSchema>,
     name: Arc<str>,
     schema: Schema,
-    write_buffer: Arc<dyn WriteBuffer>,
+    write_buffer: Arc<B>,
 }
 
-impl QueryTable {
+impl<B: WriteBuffer> QueryTable<B> {
     fn chunks(
         &self,
         ctx: &SessionState,
@@ -279,7 +293,7 @@ impl QueryTable {
 }
 
 #[async_trait]
-impl TableProvider for QueryTable {
+impl<B: WriteBuffer> TableProvider for QueryTable<B> {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
