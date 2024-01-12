@@ -61,9 +61,9 @@ func TestParseSeriesKeyMeasurement(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		name, _ := tsdb.ParseSeriesKey(tt.measurement)
-		if res := bytes.Compare(name, tt.expected); res != 0 {
-			t.Fatalf("invalid series key parse: got %q, expected %q", name, tt.expected)
+		keyName, _ := tsdb.ParseSeriesKey(tt.measurement)
+		if res := bytes.Compare(keyName, tt.expected); res != 0 {
+			t.Fatalf("invalid series key parsed for an %s: got %q, expected %q", tt.name, keyName, tt.expected)
 		}
 	}
 }
