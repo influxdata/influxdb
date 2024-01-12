@@ -54,12 +54,18 @@ func TestParseSeriesKeyMeasurement(t *testing.T) {
 	tests := []struct {
 		name        string
 		measurement []byte
+		expected    []byte
 	}{
-		{name: "invalid measurement", measurement: []byte{}},
+		{name: "invalid measurement", measurement: tsdb.AppendSeriesKey(nil, []byte{}, nil), expected: nil},
+		{name: "valid measurement", measurement: tsdb.AppendSeriesKey(nil, []byte("cpu"), nil), expected: []byte("cpu")},
 	}
 
 	for _, tt := range tests {
-		tsdb.ParseSeriesKey(tt.measurement)
+		name, _ := tsdb.ParseSeriesKey(tt.measurement)
+		if res := bytes.Compare(name, tt.expected); res != 0 {
+			t.Fatalf("invalid series key parse: got %q, expected %q", name, tt.expected)
+		}
+
 	}
 
 }
