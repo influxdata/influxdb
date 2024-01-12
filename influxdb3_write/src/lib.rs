@@ -39,7 +39,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub trait WriteBuffer<W: Wal>: Bufferer<W> + ChunkContainer {}
+pub trait WriteBuffer: Bufferer + ChunkContainer {}
 
 /// The buffer is for buffering data in memory before it is persisted to object storage. The buffer is queryable and
 /// aims to use as little memory as possible, converting data into in-memory Parquet data periodically as it arrives
@@ -49,7 +49,7 @@ pub trait WriteBuffer<W: Wal>: Bufferer<W> + ChunkContainer {}
 /// Data in the buffer is organized into monotonically increasing segments, each associated with a single WAL file, if
 /// the WAL is configured. As a segment is closed, it is persisted and then freed from memory.
 #[async_trait]
-pub trait Bufferer<W>: Debug + Send + Sync + 'static {
+pub trait Bufferer: Debug + Send + Sync + 'static {
     /// Validates the line protocol, writes it into the WAL if configured, writes it into the in memory buffer
     /// and returns the result with any lines that had errors and summary statistics. This writes into the currently
     /// open segment or it will open one. The open segment id and the memory usage of the currently open segment are
@@ -75,7 +75,7 @@ pub trait Bufferer<W>: Debug + Send + Sync + 'static {
     ) -> Result<Vec<Arc<dyn BufferSegment>>>;
 
     /// Returns the configured WAL, if there is one.
-    fn wal(&self) -> Option<Arc<W>>;
+    fn wal(&self) -> Option<Arc<impl Wal>>;
 }
 
 /// A segment in the buffer that corresponds to a single WAL segment file. It contains a catalog with any updates

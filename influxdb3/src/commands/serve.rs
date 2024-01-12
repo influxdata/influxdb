@@ -11,7 +11,6 @@ use influxdb3_server::{query_executor::QueryExecutorImpl, serve, CommonServerSta
 use influxdb3_write::persister::PersisterImpl;
 use influxdb3_write::wal::WalImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
-use influxdb3_write::Wal;
 use iox_query::exec::{Executor, ExecutorConfig};
 use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use object_store::DynObjectStore;
@@ -234,9 +233,9 @@ pub async fn command(config: Config) -> Result<()> {
         *config.http_bind_address,
     );
     let catalog = Arc::new(influxdb3_write::catalog::Catalog::new());
-    let wal: Option<Arc<dyn Wal>> = config
+    let wal: Option<Arc<WalImpl>> = config
         .wal_directory
-        .map(|dir| WalImpl::new(dir).map(|w| Arc::new(w) as _))
+        .map(|dir| WalImpl::new(dir).map(Arc::new))
         .transpose()?;
     let write_buffer = Arc::new(WriteBufferImpl::new(Arc::clone(&catalog), wal));
     let query_executor = QueryExecutorImpl::new(

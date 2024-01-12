@@ -179,7 +179,7 @@ impl<W: Wal> WriteBufferImpl<W> {
 }
 
 #[async_trait]
-impl<W: Wal> Bufferer<W> for WriteBufferImpl<W> {
+impl<W: Wal> Bufferer for WriteBufferImpl<W> {
     async fn write_lp(
         &self,
         database: NamespaceName<'static>,
@@ -201,7 +201,7 @@ impl<W: Wal> Bufferer<W> for WriteBufferImpl<W> {
         todo!()
     }
 
-    fn wal(&self) -> Option<Arc<W>> {
+    fn wal(&self) -> Option<Arc<impl Wal>> {
         self.wal.clone()
     }
 }
@@ -219,7 +219,7 @@ impl<W: Wal> ChunkContainer for WriteBufferImpl<W> {
     }
 }
 
-impl<W: Wal> WriteBuffer<W> for WriteBufferImpl<W> {}
+impl<W: Wal> WriteBuffer for WriteBufferImpl<W> {}
 
 #[derive(Debug, Default)]
 struct DatabaseBuffer {
