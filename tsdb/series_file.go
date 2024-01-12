@@ -377,10 +377,6 @@ func ReadSeriesKeyLen(data []byte) (sz int, remainder []byte) {
 }
 
 func ReadSeriesKeyMeasurement(data []byte) (name, remainder []byte) {
-	sz, remainder := ReadSeriesKeyLen(data)
-	if sz == 0 && len(remainder) == 0 {
-		return nil, nil
-	}
 	n, data := binary.BigEndian.Uint16(data), data[2:]
 	return data[:n], data[n:]
 }
@@ -417,10 +413,11 @@ func ParseSeriesKeyInto(data []byte, dstTags models.Tags) ([]byte, models.Tags) 
 // different length and capacity to those provided.
 func parseSeriesKey(data []byte, dst models.Tags) ([]byte, models.Tags) {
 	var name []byte
-	name, data = ReadSeriesKeyMeasurement(data)
-	if name == nil && data == nil {
+	sz, data := ReadSeriesKeyLen(data)
+	if sz == 0 && len(data) == 0 {
 		return nil, nil
 	}
+	name, data = ReadSeriesKeyMeasurement(data)
 	tagN, data := ReadSeriesKeyTagN(data)
 
 	dst = dst[:cap(dst)] // Grow dst to use full capacity
@@ -450,15 +447,16 @@ func CompareSeriesKeys(a, b []byte) int {
 		return 1
 	}
 
+	// Read total size.
+	szA, a := ReadSeriesKeyLen(a)
+	szB, b := ReadSeriesKeyLen(b)
+	if szA == 0 && szB == 0 {
+		return 0
+	}
+
 	// Read names.
 	name0, a := ReadSeriesKeyMeasurement(a)
-	if name0 == nil && a == nil {
-		return -1
-	}
 	name1, b := ReadSeriesKeyMeasurement(b)
-	if name1 == nil && b == nil {
-		return -1
-	}
 
 	// Compare names, return if not equal.
 	if cmp := bytes.Compare(name0, name1); cmp != 0 {
