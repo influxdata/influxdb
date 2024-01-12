@@ -62,7 +62,6 @@ func TestParseSeriesKeyMeasurement(t *testing.T) {
 		tsdb.ParseSeriesKey(tt.measurement)
 	}
 
-
 }
 
 // Ensure that broken series files are closed

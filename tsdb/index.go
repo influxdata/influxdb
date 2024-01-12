@@ -137,6 +137,9 @@ func (itr *seriesIteratorAdapter) Next() (SeriesElem, error) {
 		}
 
 		name, tags := ParseSeriesKey(key)
+		if name == nil && tags == nil {
+			continue
+		}
 		deleted := itr.sfile.IsDeleted(elem.SeriesID)
 		return &seriesElemAdapter{
 			name:    name,
@@ -381,6 +384,9 @@ func (itr *seriesQueryAdapterIterator) Next() (*query.FloatPoint, error) {
 
 		// Convert to a key.
 		name, tags := ParseSeriesKey(seriesKey)
+		if name == nil && tags == nil {
+			continue
+		}
 		key := string(models.MakeKey(name, tags))
 
 		// Write auxiliary fields.
@@ -867,6 +873,9 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 		}
 
 		name, tags := ParseSeriesKey(itr.keys[0])
+		if name == nil && tags == nil {
+			continue
+		}
 		itr.keys = itr.keys[1:]
 
 		// TODO(edd): It seems to me like this authorisation check should be
@@ -2340,6 +2349,9 @@ func (itr *measurementSeriesKeyByExprIterator) Next() ([]byte, error) {
 		}
 
 		name, tags := ParseSeriesKey(seriesKey)
+		if name == nil && tags == nil {
+			continue
+		}
 
 		// Check leftover filters. All fields that might be filtered default to zero values
 		if e.Expr != nil {
@@ -2442,6 +2454,9 @@ func (is IndexSet) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) 
 		}
 
 		name, tags := ParseSeriesKey(seriesKey)
+		if name == nil && tags == nil {
+			continue
+		}
 		keys = append(keys, models.MakeKey(name, tags))
 	}
 
