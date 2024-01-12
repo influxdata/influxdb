@@ -126,17 +126,30 @@ impl WalImpl {
             let meta = child.metadata()?;
             if meta.is_file() {
                 let path = child.path();
-                let file_name = path
-                    .file_stem()
-                    .expect("WAL segment files created by InfluxDB3 should have a file stem");
-                let file_name = file_name.to_str().expect("WAL segment files created by InfluxDB3 should have a file stem that is valid UTF-8");
 
-                if let Ok(segment_id) = segment_id_from_file_name(file_name) {
-                    segment_files.push(SegmentFile { segment_id, path });
+                if let Some(file_name) = path.file_stem() {
+                    match file_name.to_str() {
+                        Some(file_name) => {
+                            if let Ok(segment_id) = segment_id_from_file_name(file_name) {
+                                segment_files.push(SegmentFile { segment_id, path });
+                            } else {
+                                warn!(
+                                    file_name=?file_name,
+                                    "File in wal dir has an invalid file stem that doesn't parse to an integer segment id, ignoring"
+                                );
+                            }
+                        }
+                        None => {
+                            warn!(
+                                file_name=?file_name,
+                                "File in wal dir has an invalid file stem that isn't valid UTF-8, ignoring"
+                            );
+                        }
+                    }
                 } else {
                     warn!(
-                        file_name,
-                        "WAL segment file has an invalid file stem, ignoring"
+                        path=?path,
+                        "File in wal dir doesn't have a file stem, ignoring"
                     );
                 }
             }
