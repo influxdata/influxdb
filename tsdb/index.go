@@ -2926,7 +2926,10 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.FineAuthorizer, name []byte,
 			}
 		}
 
-		_, buf = ReadSeriesKeyLen(buf)
+		sz, buf := ReadSeriesKeyLen(buf)
+		if sz == 0 && len(buf) == 0 {
+			continue
+		}
 		_, buf = ReadSeriesKeyMeasurement(buf)
 		tagN, buf := ReadSeriesKeyTagN(buf)
 		for i := 0; i < tagN; i++ {
