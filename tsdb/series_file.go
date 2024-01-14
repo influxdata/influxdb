@@ -413,8 +413,8 @@ func ParseSeriesKeyInto(data []byte, dstTags models.Tags) ([]byte, models.Tags) 
 // different length and capacity to those provided.
 func parseSeriesKey(data []byte, dst models.Tags) ([]byte, models.Tags) {
 	var name []byte
-	sz, data := ReadSeriesKeyLen(data)
-	if sz == 0 && len(data) == 0 {
+	_, data = ReadSeriesKeyLen(data)
+	if len(data) == 0 {
 		return nil, nil
 	}
 	name, data = ReadSeriesKeyMeasurement(data)

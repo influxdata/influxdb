@@ -2454,7 +2454,7 @@ func (is IndexSet) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) 
 		}
 
 		name, tags := ParseSeriesKey(seriesKey)
-		if name == nil && tags == nil {
+		if name == nil || tags == nil {
 			continue
 		}
 		keys = append(keys, models.MakeKey(name, tags))
@@ -2941,8 +2941,8 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.FineAuthorizer, name []byte,
 			}
 		}
 
-		sz, buf := ReadSeriesKeyLen(buf)
-		if sz == 0 && len(buf) == 0 {
+		_, buf = ReadSeriesKeyLen(buf)
+		if len(buf) == 0 {
 			continue
 		}
 		_, buf = ReadSeriesKeyMeasurement(buf)

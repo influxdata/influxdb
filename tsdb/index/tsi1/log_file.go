@@ -712,8 +712,8 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	deleted := e.Flag == LogEntrySeriesTombstoneFlag
 
 	// Read key size.
-	sz, remainder := tsdb.ReadSeriesKeyLen(seriesKey)
-	if sz == 0 && len(remainder) == 0 {
+	_, remainder := tsdb.ReadSeriesKeyLen(seriesKey)
+	if len(remainder) == 0 {
 		return
 	}
 
