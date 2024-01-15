@@ -41,12 +41,12 @@ All code must adhere to the `rustfmt` format, and pass all of the `clippy` check
 
 ### Finding Issues To Work On
 
-The [good first issue](https://github.com/influxdata/influxdb_iox/labels/good%20first%20issue) and the [help wanted](https://github.com/influxdata/influxdb_iox/labels/help%20wanted) labels are used to identify issues where we encourage community contributions.
+The [good first issue](https://github.com/influxdata/influxdb/issues?q=is%3Aopen+is%3Aissue+label%3Agood-first-issue) and the [help wanted](https://github.com/influxdata/influxdb/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted) labels are used to identify issues where we encourage community contributions.
 They both indicate issues for which we would welcome independent community contributions, but the former indicates a sub-set of these that are especially good for first-time contributors.
 If you want some clarifications or guidance for working on one of these issues, or you simply want to let others know that you're working on one, please leave a comment on the ticket.
 
-[good first issue]: https://github.com/influxdata/influxdb_iox/labels/good%20first%20issue
-[help wanted]: https://github.com/influxdata/influxdb_iox/labels/help%20wanted
+[good first issue]: https://github.com/influxdata/influxdb/issues?q=is%3Aopen+is%3Aissue+label%3Agood-first-issue
+[help wanted]: https://github.com/influxdata/influxdb/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted
 
 ### Bigger Changes
 
