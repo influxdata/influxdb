@@ -28,8 +28,8 @@ As well as bug reports we also welcome feature requests (there is a dedicated is
 Typically, the maintainers will periodically review community feature requests and make decisions about if we want to add them.
 For features we don't plan to support we will close the feature request ticket (so, again, please check closed tickets for feature requests before submitting them).
 
-[issue]: https://github.com/influxdata/influxdb_iox/issues/new
-[New Issue]: https://github.com/influxdata/influxdb_iox/issues/new
+[issue]: https://github.com/influxdata/influxdb/issues/new
+[New Issue]: https://github.com/influxdata/influxdb/issues/new
 [How to Report Bugs Effectively]: https://www.chiark.greenend.org.uk/~sgtatham/bugs.html
 
 ## Contributing Changes
@@ -67,7 +67,7 @@ Further, please don't expect us to accept significant changes without new test c
 ### Making a PR
 
 To open a PR you will need to have a Github account.
-Fork the `influxdb_iox` repo and work on a branch on your fork.
+Fork the `influxdb` repo and work on a branch on your fork.
 When you have completed your changes, or you want some incremental feedback make a Pull Request to InfluxDB IOx [here].
 
 If you want to discuss some work in progress then please prefix `[WIP]` to the
@@ -88,7 +88,7 @@ There are some tips on verifying the above in the [next section](#running-tests)
 * ask for help on the PR if any of the status checks are 🔴, and you don't know why;
 * wait patiently for one of the team to review your PR, which could take a few days.
 
-[here]: https://github.com/influxdata/influxdb_iox/compare
+[here]: https://github.com/influxdata/influxdb/compare
 [Conventional Commits]: https://www.conventionalcommits.org/en/v1.0.0/
 
 ## Running Tests
