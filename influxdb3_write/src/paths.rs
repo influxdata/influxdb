@@ -10,8 +10,11 @@ const CATALOG_FILE_EXTENSION: &str = "json";
 /// File extension for parquet files
 const PARQUET_FILE_EXTENSION: &str = "parquet";
 
-/// File extension for segment files
-const SEGMENT_FILE_EXTENSION: &str = "wal";
+/// File extension for segment info files
+const SEGMENT_INFO_FILE_EXTENSION: &str = "info.json";
+
+/// File extension for segment wal files
+const SEGMENT_WAL_FILE_EXTENSION: &str = "wal";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogFilePath(PathBuf);
@@ -79,19 +82,19 @@ impl AsRef<Path> for ParquetFilePath {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SegmentFilePath(PathBuf);
+pub struct SegmentWalFilePath(PathBuf);
 
-impl SegmentFilePath {
-    pub fn new(prefix: impl Into<PathBuf>, segment_id: SegmentId) -> Self {
-        let mut path = prefix.into();
+impl SegmentWalFilePath {
+    pub fn new(dir: impl Into<PathBuf>, segment_id: SegmentId) -> Self {
+        let mut path = dir.into();
         path.push("segments");
         path.push(format!("{:010}", segment_id.0));
-        path.set_extension(SEGMENT_FILE_EXTENSION);
+        path.set_extension(SEGMENT_WAL_FILE_EXTENSION);
         Self(path)
     }
 }
 
-impl Deref for SegmentFilePath {
+impl Deref for SegmentWalFilePath {
     type Target = Path;
 
     fn deref(&self) -> &Self::Target {
@@ -99,7 +102,34 @@ impl Deref for SegmentFilePath {
     }
 }
 
-impl AsRef<Path> for SegmentFilePath {
+impl AsRef<Path> for SegmentWalFilePath {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl SegmentInfoFilePath {
+    pub fn new(prefix: impl Into<PathBuf>, segment_id: SegmentId) -> Self {
+        let mut path = prefix.into();
+        path.push("segments");
+        path.push(format!("{:010}", segment_id.0));
+        path.set_extension(SEGMENT_INFO_FILE_EXTENSION);
+        Self(path)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SegmentInfoFilePath(PathBuf);
+
+impl Deref for SegmentInfoFilePath {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for SegmentInfoFilePath {
     fn as_ref(&self) -> &Path {
         &self.0
     }
@@ -112,6 +142,7 @@ fn catalog_file_path_new() {
         PathBuf::from("prefix/dir/catalogs/0000000000.json").as_ref()
     );
 }
+
 #[test]
 fn parquet_file_path_new() {
     assert_eq!(
@@ -119,10 +150,19 @@ fn parquet_file_path_new() {
         PathBuf::from("prefix/dir/dbs/my_db/my_table/2038-01-19/0000000000.parquet").as_ref()
     );
 }
+
 #[test]
-fn segment_file_path_new() {
+fn segment_info_file_path_new() {
     assert_eq!(
-        *SegmentFilePath::new("prefix/dir", SegmentId::new(0)),
+        *SegmentInfoFilePath::new("prefix/dir", SegmentId::new(0)),
+        PathBuf::from("prefix/dir/segments/0000000000.info.json").as_ref()
+    );
+}
+
+#[test]
+fn segment_wal_file_path_new() {
+    assert_eq!(
+        *SegmentWalFilePath::new("prefix/dir", SegmentId::new(0)),
         PathBuf::from("prefix/dir/segments/0000000000.wal").as_ref()
     );
 }

@@ -1,7 +1,7 @@
 //! This is the implementation of the `Wal` that the buffer uses to make buffered data durable
 //! on disk.
 
-use crate::paths::SegmentFilePath;
+use crate::paths::SegmentWalFilePath;
 use crate::{
     SegmentFile, SegmentId, SegmentIdBytes, SequenceNumber, Wal, WalOp, WalOpBatch,
     WalSegmentReader, WalSegmentWriter,
@@ -47,7 +47,7 @@ pub enum Error {
     #[error("invalid segment file {segment_id:?} at {path:?}: {reason}")]
     InvalidSegmentFile {
         segment_id: SegmentId,
-        path: SegmentFilePath,
+        path: SegmentWalFilePath,
         reason: String,
     },
 
@@ -92,7 +92,7 @@ impl WalImpl {
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
         let root = path.into();
         info!(wal_dir=?root, "Ensuring WAL directory exists");
-        std::fs::create_dir_all(&root.join("segments"))?;
+        std::fs::create_dir_all(root.join("segments"))?;
 
         // ensure the directory creation is actually fsync'd so that when we create files there
         // we don't lose them (see: https://www.usenix.org/system/files/conference/osdi14/osdi14-paper-pillai.pdf)
@@ -115,7 +115,7 @@ impl WalImpl {
     }
 
     fn segment_files(&self) -> Result<Vec<SegmentFile>> {
-        let dir = std::fs::read_dir(&self.root.join("segments"))?;
+        let dir = std::fs::read_dir(self.root.join("segments"))?;
 
         let mut segment_files = Vec::new();
 
@@ -159,7 +159,7 @@ impl WalImpl {
     }
 
     fn delete_wal_segment(&self, segment_id: SegmentId) -> Result<()> {
-        let path = SegmentFilePath::new(self.root.clone(), segment_id);
+        let path = SegmentWalFilePath::new(self.root.clone(), segment_id);
         std::fs::remove_file(path)?;
         Ok(())
     }
@@ -195,7 +195,7 @@ pub struct WalSegmentWriterImpl {
 
 impl WalSegmentWriterImpl {
     pub fn new_or_open(root: PathBuf, segment_id: SegmentId) -> Result<Self> {
-        let path = SegmentFilePath::new(root, segment_id);
+        let path = SegmentWalFilePath::new(root, segment_id);
 
         // if there's already a file there, validate its header and pull the sequence number from the last entry
         if path.exists() {
@@ -225,7 +225,7 @@ impl WalSegmentWriterImpl {
 
         let parent = path
             .parent()
-            .expect("A SegmentFilePath should have a parent directory");
+            .expect("A SegmentWalFilePath should have a parent directory");
 
         // Make sure that the segments directory with the prefix exists
         if !parent.exists() {
@@ -332,7 +332,7 @@ pub struct WalSegmentReaderImpl {
 
 impl WalSegmentReaderImpl {
     pub fn new(root: impl Into<PathBuf>, segment_id: SegmentId) -> Result<Self> {
-        let path = SegmentFilePath::new(root, segment_id);
+        let path = SegmentWalFilePath::new(root, segment_id);
         let f = BufReader::new(File::open(path.clone())?);
 
         let mut reader = Self { f, segment_id };
@@ -366,7 +366,7 @@ impl WalSegmentReaderImpl {
     }
 
     fn read_segment_file_info_if_exists(
-        path: SegmentFilePath,
+        path: SegmentWalFilePath,
         segment_id: SegmentId,
     ) -> Result<Option<ExistingSegmentFileInfo>> {
         let f = match File::open(path.clone()) {
