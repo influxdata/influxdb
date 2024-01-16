@@ -5,10 +5,10 @@ about: Create a report to help us improve
 
 <!--
 
-Thank you for reporting a bug in InfluxDB IOx. 
+Thank you for reporting a bug in InfluxDB IOx.
 
 Have you read the contributing section of the README? Please do if you haven't.
-https://github.com/influxdata/influxdb_iox/blob/main/README.md
+https://github.com/influxdata/influxdb/blob/main/README.md
 
 * Please ask usage questions in the Influx Slack (there is an #influxdb-iox channel).
     * https://influxdata.com/slack

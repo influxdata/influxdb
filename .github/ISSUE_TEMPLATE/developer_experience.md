@@ -7,7 +7,7 @@ about: Tell us about slow builds, tests, and code editing
 Thank you for sharing your development experience concerns with the InfluxDB IOx team.
 
 Have your read the contributing guide?
-https://github.com/influxdata/influxdb_iox/blob/main/CONTRIBUTING.md
+https://github.com/influxdata/influxdb/blob/main/CONTRIBUTING.md
 
 We welcome your thoughts and feedback on the IOx developer experience.
 
