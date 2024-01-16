@@ -92,7 +92,7 @@ impl WalImpl {
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
         let root = path.into();
         info!(wal_dir=?root, "Ensuring WAL directory exists");
-        std::fs::create_dir_all(root.join("segments"))?;
+        std::fs::create_dir_all(&root)?;
 
         // ensure the directory creation is actually fsync'd so that when we create files there
         // we don't lose them (see: https://www.usenix.org/system/files/conference/osdi14/osdi14-paper-pillai.pdf)
@@ -115,7 +115,7 @@ impl WalImpl {
     }
 
     fn segment_files(&self) -> Result<Vec<SegmentFile>> {
-        let dir = std::fs::read_dir(self.root.join("segments"))?;
+        let dir = std::fs::read_dir(&self.root)?;
 
         let mut segment_files = Vec::new();
 
@@ -221,15 +221,6 @@ impl WalSegmentWriterImpl {
                     reason: "file exists but is invalid".to_string(),
                 });
             }
-        }
-
-        let parent = path
-            .parent()
-            .expect("A SegmentWalFilePath should have a parent directory");
-
-        // Make sure that the segments directory with the prefix exists
-        if !parent.exists() {
-            std::fs::create_dir_all(parent)?;
         }
 
         // it's a new file, initialize it with the header and get ready to start writing

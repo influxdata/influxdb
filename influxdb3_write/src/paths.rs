@@ -87,7 +87,6 @@ pub struct SegmentWalFilePath(PathBuf);
 impl SegmentWalFilePath {
     pub fn new(dir: impl Into<PathBuf>, segment_id: SegmentId) -> Self {
         let mut path = dir.into();
-        path.push("segments");
         path.push(format!("{:010}", segment_id.0));
         path.set_extension(SEGMENT_WAL_FILE_EXTENSION);
         Self(path)
@@ -162,7 +161,7 @@ fn segment_info_file_path_new() {
 #[test]
 fn segment_wal_file_path_new() {
     assert_eq!(
-        *SegmentWalFilePath::new("prefix/dir", SegmentId::new(0)),
-        PathBuf::from("prefix/dir/segments/0000000000.wal").as_ref()
+        *SegmentWalFilePath::new("dir", SegmentId::new(0)),
+        PathBuf::from("dir/0000000000.wal").as_ref()
     );
 }
