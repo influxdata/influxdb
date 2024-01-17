@@ -439,23 +439,27 @@ func parseSeriesKey(data []byte, dst models.Tags) ([]byte, models.Tags) {
 
 func CompareSeriesKeys(a, b []byte) int {
 	// Handle 'nil' keys.
-	if len(a) == 0 && len(b) == 0 {
-		return 0
-	} else if len(a) == 0 {
-		return -1
-	} else if len(b) == 0 {
-		return 1
+	nilKeyHandler := func(a, b int) int {
+		if a == 0 && b == 0 {
+			return 0
+		} else if a == 0 {
+			return -1
+		} else {
+			return 1
+		}
+	}
+
+	keyValidity := nilKeyHandler(len(a), len(b))
+	if keyValidity <= 0 || keyValidity == 1 {
+		return keyValidity
 	}
 
 	// Read total size.
 	szA, a := ReadSeriesKeyLen(a)
 	szB, b := ReadSeriesKeyLen(b)
-	if szA == 0 && szB == 0 {
-		return 0
-	} else if szA == 0 {
-		return -1
-	} else if szB == 0 {
-		return 1
+	keySizeValidity := nilKeyHandler(szA, szB)
+	if keySizeValidity <= 0 || keySizeValidity == 1 {
+		return keySizeValidity
 	}
 
 	// Read names.
