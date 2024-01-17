@@ -10,7 +10,7 @@ data_types = { path = "../data_types" }
 influxdb-line-protocol = { path = "../influxdb_line_protocol" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
-object_store = { workspace = true }
+object_store.workspace = true
 observability_deps = { path = "../observability_deps" }
 schema = { path = "../schema" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
@@ -28,6 +28,8 @@ tokio = { version = "1.35", features = ["macros", "fs", "io-util", "parking_lot"
 serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0.107"
 snap = "1.0.0"
+bytes = "1.5.0"
+futures-util = "0.3.30"
 
 [dev-dependencies]
 test_helpers = { path = "../test_helpers" }

@@ -39,6 +39,15 @@ pub enum Error {
 
     #[error("write buffer error: {0}")]
     WriteBuffer(#[from] write_buffer::Error),
+
+    #[error("serde_json error: {0}")]
+    SerdeJson(#[from] serde_json::Error),
+
+    #[error("object_store error: {0}")]
+    ObjectStore(#[from] object_store::Error),
+
+    #[error("parse int error: {0}")]
+    ParseInt(#[from] std::num::ParseIntError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

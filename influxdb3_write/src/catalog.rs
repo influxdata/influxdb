@@ -79,6 +79,10 @@ impl Catalog {
         info!("db_schema {}", name);
         self.inner.read().databases.get(name).cloned()
     }
+
+    pub fn into_inner(self) -> InnerCatalog {
+        self.inner.into_inner()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -94,6 +98,11 @@ impl InnerCatalog {
             databases: HashMap::new(),
             sequence: 0,
         }
+    }
+
+    #[cfg(test)]
+    pub fn db_exists(&self, db_name: &str) -> bool {
+        self.databases.get(db_name).is_some()
     }
 }
 
