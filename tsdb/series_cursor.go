@@ -113,7 +113,7 @@ func (cur *seriesCursor) Next() (*SeriesCursorRow, error) {
 		}
 
 		cur.row.Name, cur.row.Tags = ParseSeriesKey(cur.keys[cur.ofs])
-		if cur.row.Name == nil && cur.row.Tags == nil {
+		if cur.row.Name == nil {
 			return nil, fmt.Errorf("series key was not valid: %+v", cur.keys[cur.ofs])
 		}
 		cur.ofs++

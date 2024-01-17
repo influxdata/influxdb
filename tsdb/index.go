@@ -137,7 +137,7 @@ func (itr *seriesIteratorAdapter) Next() (SeriesElem, error) {
 		}
 
 		name, tags := ParseSeriesKey(key)
-		if name == nil && tags == nil {
+		if name == nil {
 			continue
 		}
 		deleted := itr.sfile.IsDeleted(elem.SeriesID)
@@ -384,7 +384,7 @@ func (itr *seriesQueryAdapterIterator) Next() (*query.FloatPoint, error) {
 
 		// Convert to a key.
 		name, tags := ParseSeriesKey(seriesKey)
-		if name == nil && tags == nil {
+		if name == nil {
 			continue
 		}
 		key := string(models.MakeKey(name, tags))
@@ -873,7 +873,7 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 		}
 
 		name, tags := ParseSeriesKey(itr.keys[0])
-		if name == nil && tags == nil {
+		if name == nil {
 			continue
 		}
 		itr.keys = itr.keys[1:]
@@ -2349,7 +2349,7 @@ func (itr *measurementSeriesKeyByExprIterator) Next() ([]byte, error) {
 		}
 
 		name, tags := ParseSeriesKey(seriesKey)
-		if name == nil && tags == nil {
+		if name == nil {
 			continue
 		}
 
