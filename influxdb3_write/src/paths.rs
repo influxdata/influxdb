@@ -1,4 +1,5 @@
 use crate::SegmentId;
+use chrono::prelude::*;
 use std::convert::AsRef;
 use std::ops::Deref;
 use std::path::Path;
@@ -20,10 +21,10 @@ const SEGMENT_WAL_FILE_EXTENSION: &str = "wal";
 pub struct CatalogFilePath(PathBuf);
 
 impl CatalogFilePath {
-    pub fn new(prefix: impl Into<PathBuf>, sequence_number: u64) -> Self {
+    pub fn new(prefix: impl Into<PathBuf>, sequence_number: u32) -> Self {
         let mut path = prefix.into();
         path.push("catalogs");
-        path.push(format!("{sequence_number:010}"));
+        path.push(format!("{:010}", u32::MAX - sequence_number));
         path.set_extension(CATALOG_FILE_EXTENSION);
         Self(path)
     }
@@ -51,17 +52,15 @@ impl ParquetFilePath {
         prefix: impl Into<PathBuf>,
         db_name: &str,
         table_name: &str,
-        year: u16,
-        month: u8,
-        day: u8,
-        file_number: usize,
+        date: DateTime<Utc>,
+        file_number: u32,
     ) -> Self {
         let mut path = prefix.into();
         path.push("dbs");
         path.push(db_name);
         path.push(table_name);
-        path.push(format!("{year}-{month:02}-{day:02}"));
-        path.push(format!("{file_number:010}"));
+        path.push(format!("{}", date.format("%Y-%m-%d")));
+        path.push(format!("{:010}", u32::MAX - file_number));
         path.set_extension(PARQUET_FILE_EXTENSION);
         Self(path)
     }
@@ -111,7 +110,7 @@ impl SegmentInfoFilePath {
     pub fn new(prefix: impl Into<PathBuf>, segment_id: SegmentId) -> Self {
         let mut path = prefix.into();
         path.push("segments");
-        path.push(format!("{:010}", segment_id.0));
+        path.push(format!("{:010}", u32::MAX - segment_id.0));
         path.set_extension(SEGMENT_INFO_FILE_EXTENSION);
         Self(path)
     }
@@ -138,15 +137,21 @@ impl AsRef<Path> for SegmentInfoFilePath {
 fn catalog_file_path_new() {
     assert_eq!(
         *CatalogFilePath::new("prefix/dir", 0),
-        PathBuf::from("prefix/dir/catalogs/0000000000.json").as_ref()
+        PathBuf::from("prefix/dir/catalogs/4294967295.json").as_ref()
     );
 }
 
 #[test]
 fn parquet_file_path_new() {
     assert_eq!(
-        *ParquetFilePath::new("prefix/dir", "my_db", "my_table", 2038, 1, 19, 0),
-        PathBuf::from("prefix/dir/dbs/my_db/my_table/2038-01-19/0000000000.parquet").as_ref()
+        *ParquetFilePath::new(
+            "prefix/dir",
+            "my_db",
+            "my_table",
+            Utc.with_ymd_and_hms(2038, 01, 19, 3, 14, 7).unwrap(),
+            0
+        ),
+        PathBuf::from("prefix/dir/dbs/my_db/my_table/2038-01-19/4294967295.parquet").as_ref()
     );
 }
 
@@ -154,7 +159,7 @@ fn parquet_file_path_new() {
 fn segment_info_file_path_new() {
     assert_eq!(
         *SegmentInfoFilePath::new("prefix/dir", SegmentId::new(0)),
-        PathBuf::from("prefix/dir/segments/0000000000.info.json").as_ref()
+        PathBuf::from("prefix/dir/segments/4294967295.info.json").as_ref()
     );
 }
 
