@@ -50,20 +50,33 @@ func TestParseSeriesKeyInto(t *testing.T) {
 	}
 }
 
-func TestParseSeriesKeyMeasurement(t *testing.T) {
+func TestParseSeriesKey(t *testing.T) {
 	tests := []struct {
 		name        string
-		measurement []byte
-		expected    []byte
+		seriesKey   []byte
+		expectedKey []byte
 	}{
-		{name: "invalid measurement", measurement: tsdb.AppendSeriesKey(nil, []byte{}, nil), expected: nil},
-		{name: "valid measurement", measurement: tsdb.AppendSeriesKey(nil, []byte("cpu"), nil), expected: []byte("cpu")},
+		{
+			name:        "invalid zero length series key",
+			seriesKey:   tsdb.AppendSeriesKey(nil, []byte{}, nil),
+			expectedKey: nil,
+		},
+		{
+			name:        "valid series key with tags",
+			seriesKey:   tsdb.AppendSeriesKey(nil, []byte("foo"), models.NewTags(map[string]string{"tag1": "foo"})),
+			expectedKey: []byte("foo"),
+		},
+		{
+			name:        "valid series key with no tags",
+			seriesKey:   tsdb.AppendSeriesKey(nil, []byte("foo"), nil),
+			expectedKey: []byte("foo"),
+		},
 	}
 
 	for _, tt := range tests {
-		keyName, _ := tsdb.ParseSeriesKey(tt.measurement)
-		if res := bytes.Compare(keyName, tt.expected); res != 0 {
-			t.Fatalf("invalid series key parsed for an %s: got %q, expected %q", tt.name, keyName, tt.expected)
+		keyName, _ := tsdb.ParseSeriesKey(tt.seriesKey)
+		if res := bytes.Compare(keyName, tt.expectedKey); res != 0 {
+			t.Fatalf("invalid series key parsed for an %s: got %q, expected %q", tt.name, keyName, tt.expectedKey)
 		}
 	}
 }
