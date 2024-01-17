@@ -439,18 +439,20 @@ func parseSeriesKey(data []byte, dst models.Tags) ([]byte, models.Tags) {
 
 func CompareSeriesKeys(a, b []byte) int {
 	// Handle 'nil' keys.
+	// Values below and equal to 1 are considered invalid for key comparisons.
 	nilKeyHandler := func(a, b int) int {
 		if a == 0 && b == 0 {
 			return 0
 		} else if a == 0 {
 			return -1
-		} else {
+		} else if b == 0 {
 			return 1
 		}
+		return a + b
 	}
 
 	keyValidity := nilKeyHandler(len(a), len(b))
-	if keyValidity <= 0 || keyValidity == 1 {
+	if keyValidity <= 1 {
 		return keyValidity
 	}
 
@@ -458,7 +460,7 @@ func CompareSeriesKeys(a, b []byte) int {
 	szA, a := ReadSeriesKeyLen(a)
 	szB, b := ReadSeriesKeyLen(b)
 	keySizeValidity := nilKeyHandler(szA, szB)
-	if keySizeValidity <= 0 || keySizeValidity == 1 {
+	if keySizeValidity <= 1 {
 		return keySizeValidity
 	}
 
