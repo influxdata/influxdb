@@ -2454,7 +2454,9 @@ func (is IndexSet) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) 
 		}
 
 		name, tags := ParseSeriesKey(seriesKey)
-		if name == nil || tags == nil {
+		// An invalid series key of 0 length should have been caught by the
+		// above check, but for extra safety we can pass over it here too.
+		if name == nil {
 			continue
 		}
 		keys = append(keys, models.MakeKey(name, tags))
@@ -2933,7 +2935,7 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.FineAuthorizer, name []byte,
 
 		if auth != nil {
 			name, tags := ParseSeriesKey(buf)
-			if name == nil && tags == nil {
+			if name == nil {
 				continue
 			}
 			if !auth.AuthorizeSeriesRead(database, name, tags) {
