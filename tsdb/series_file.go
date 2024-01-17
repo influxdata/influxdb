@@ -452,6 +452,10 @@ func CompareSeriesKeys(a, b []byte) int {
 	szB, b := ReadSeriesKeyLen(b)
 	if szA == 0 && szB == 0 {
 		return 0
+	} else if szA == 0 {
+		return -1
+	} else if szB == 0 {
+		return 1
 	}
 
 	// Read names.
