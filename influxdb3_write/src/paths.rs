@@ -18,6 +18,10 @@ pub const SEGMENT_INFO_FILE_EXTENSION: &str = "info.json";
 /// File extension for segment wal files
 pub const SEGMENT_WAL_FILE_EXTENSION: &str = "wal";
 
+fn object_store_file_stem(n: u32) -> u32 {
+    u32::MAX - n
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogFilePath(ObjPath);
 
@@ -25,7 +29,7 @@ impl CatalogFilePath {
     pub fn new(segment_id: SegmentId) -> Self {
         let path = ObjPath::from(format!(
             "catalogs/{:010}.{}",
-            u32::MAX - segment_id.0,
+            object_store_file_stem(segment_id.0),
             CATALOG_FILE_EXTENSION
         ));
         Self(path)
@@ -54,14 +58,19 @@ impl AsRef<ObjPath> for CatalogFilePath {
 pub struct ParquetFilePath(ObjPath);
 
 impl ParquetFilePath {
-    pub fn new(db_name: &str, table_name: &str, date: DateTime<Utc>, file_number: u32) -> Self {
-        let path = ObjPath::from(format!(
+    pub fn new(
+        db_name: &str,
+        table_name: &str,
+        date: DateTime<Utc>,
+        file_number: u32,
+    ) -> crate::Result<Self> {
+        let path = ObjPath::parse(format!(
             "dbs/{db_name}/{table_name}/{}/{:010}.{}",
             date.format("%Y-%m-%d"),
-            u32::MAX - file_number,
+            object_store_file_stem(file_number),
             PARQUET_FILE_EXTENSION
-        ));
-        Self(path)
+        ))?;
+        Ok(Self(path))
     }
 }
 
@@ -112,7 +121,7 @@ impl SegmentInfoFilePath {
     pub fn new(segment_id: SegmentId) -> Self {
         let path = ObjPath::from(format!(
             "segments/{:010}.{}",
-            u32::MAX - segment_id.0,
+            object_store_file_stem(segment_id.0),
             SEGMENT_INFO_FILE_EXTENSION
         ));
         Self(path)
@@ -147,9 +156,10 @@ fn parquet_file_path_new() {
         *ParquetFilePath::new(
             "my_db",
             "my_table",
-            Utc.with_ymd_and_hms(2038, 01, 19, 3, 14, 7).unwrap(),
+            Utc.with_ymd_and_hms(2038, 1, 19, 3, 14, 7).unwrap(),
             0
-        ),
+        )
+        .unwrap(),
         ObjPath::from("dbs/my_db/my_table/2038-01-19/4294967295.parquet")
     );
 }

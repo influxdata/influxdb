@@ -34,6 +34,9 @@ pub enum Error {
     #[error("datafusion error: {0}")]
     DataFusion(#[from] DataFusionError),
 
+    #[error("object store path error: {0}")]
+    ObjStorePath(#[from] object_store::path::Error),
+
     #[error("write buffer error: {0}")]
     WriteBuffer(#[from] write_buffer::Error),
 }
