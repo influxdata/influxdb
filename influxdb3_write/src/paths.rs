@@ -121,6 +121,10 @@ impl SegmentInfoFilePath {
         ));
         Self(path)
     }
+
+    pub fn dir() -> Self {
+        Self(ObjPath::from("segments"))
+    }
 }
 
 impl Deref for SegmentInfoFilePath {
