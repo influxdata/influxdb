@@ -1,6 +1,7 @@
 //! This is the implementation of the `Wal` that the buffer uses to make buffered data durable
 //! on disk.
 
+use crate::paths::SegmentWalFilePath;
 use crate::{
     SegmentFile, SegmentId, SegmentIdBytes, SequenceNumber, Wal, WalOp, WalOpBatch,
     WalSegmentReader, WalSegmentWriter,
@@ -24,9 +25,6 @@ use thiserror::Error;
 type FileTypeIdentifier = [u8; 8];
 const FILE_TYPE_IDENTIFIER: &[u8] = b"idb3.001";
 
-/// File extension for segment files
-const SEGMENT_FILE_EXTENSION: &str = "wal";
-
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("io error: {source}")]
@@ -49,7 +47,7 @@ pub enum Error {
     #[error("invalid segment file {segment_id:?} at {path:?}: {reason}")]
     InvalidSegmentFile {
         segment_id: SegmentId,
-        path: PathBuf,
+        path: SegmentWalFilePath,
         reason: String,
     },
 
@@ -161,7 +159,7 @@ impl WalImpl {
     }
 
     fn delete_wal_segment(&self, segment_id: SegmentId) -> Result<()> {
-        let path = build_segment_path(self.root.clone(), segment_id);
+        let path = SegmentWalFilePath::new(self.root.clone(), segment_id);
         std::fs::remove_file(path)?;
         Ok(())
     }
@@ -197,7 +195,7 @@ pub struct WalSegmentWriterImpl {
 
 impl WalSegmentWriterImpl {
     pub fn new_or_open(root: PathBuf, segment_id: SegmentId) -> Result<Self> {
-        let path = build_segment_path(root, segment_id);
+        let path = SegmentWalFilePath::new(root, segment_id);
 
         // if there's already a file there, validate its header and pull the sequence number from the last entry
         if path.exists() {
@@ -325,7 +323,7 @@ pub struct WalSegmentReaderImpl {
 
 impl WalSegmentReaderImpl {
     pub fn new(root: impl Into<PathBuf>, segment_id: SegmentId) -> Result<Self> {
-        let path = build_segment_path(root, segment_id);
+        let path = SegmentWalFilePath::new(root, segment_id);
         let f = BufReader::new(File::open(path.clone())?);
 
         let mut reader = Self { f, segment_id };
@@ -359,7 +357,7 @@ impl WalSegmentReaderImpl {
     }
 
     fn read_segment_file_info_if_exists(
-        path: PathBuf,
+        path: SegmentWalFilePath,
         segment_id: SegmentId,
     ) -> Result<Option<ExistingSegmentFileInfo>> {
         let f = match File::open(path.clone()) {
@@ -547,13 +545,6 @@ where
     fn flush(&mut self) -> io::Result<()> {
         self.inner.flush()
     }
-}
-
-fn build_segment_path(dir: impl Into<PathBuf>, id: SegmentId) -> PathBuf {
-    let mut path = dir.into();
-    path.push(format!("{:010}", id.0));
-    path.set_extension(SEGMENT_FILE_EXTENSION);
-    path
 }
 
 fn segment_id_from_file_name(name: &str) -> Result<SegmentId> {

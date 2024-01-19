@@ -7,6 +7,7 @@
 //! to be persisted. A new open segment will be created and new writes will be written to that segment.
 
 pub mod catalog;
+pub mod paths;
 pub mod persister;
 pub mod wal;
 pub mod write_buffer;
@@ -32,6 +33,9 @@ pub enum Error {
 
     #[error("datafusion error: {0}")]
     DataFusion(#[from] DataFusionError),
+
+    #[error("object store path error: {0}")]
+    ObjStorePath(#[from] object_store::path::Error),
 
     #[error("write buffer error: {0}")]
     WriteBuffer(#[from] write_buffer::Error),
