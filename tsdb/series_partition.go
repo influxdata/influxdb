@@ -517,7 +517,7 @@ func (p *SeriesPartition) seriesKeyByOffset(offset int64) []byte {
 			continue
 		}
 
-		key, _ := ReadSeriesKey(segment.Slice(pos + SeriesEntryHeaderSize))
+		key := ReadSeriesKey(segment.Slice(pos + SeriesEntryHeaderSize))
 		return key
 	}
 
