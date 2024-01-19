@@ -678,24 +678,11 @@ func (c *Client) TruncateShardGroups(t time.Time) error {
 
 // PruneShardGroups remove deleted shard groups from the data store.
 func (c *Client) PruneShardGroups() error {
-	var changed bool
 	expiration := time.Now().Add(ShardGroupDeletedExpiration)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	data := c.cacheData.Clone()
-	for i, d := range data.Databases {
-		for j, rp := range d.RetentionPolicies {
-			var remainingShardGroups []ShardGroupInfo
-			for _, sgi := range rp.ShardGroups {
-				if sgi.DeletedAt.IsZero() || !expiration.After(sgi.DeletedAt) {
-					remainingShardGroups = append(remainingShardGroups, sgi)
-					continue
-				}
-				changed = true
-			}
-			data.Databases[i].RetentionPolicies[j].ShardGroups = remainingShardGroups
-		}
-	}
+	changed := data.PruneShardGroups(expiration)
 	if changed {
 		return c.commit(data)
 	}
