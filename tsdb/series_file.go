@@ -415,7 +415,7 @@ func parseSeriesKey(data []byte, dst models.Tags) ([]byte, models.Tags) {
 	var name []byte
 	_, data = ReadSeriesKeyLen(data)
 	if len(data) == 0 {
-		return nil, nil
+		return nil, dst
 	}
 	name, data = ReadSeriesKeyMeasurement(data)
 	tagN, data := ReadSeriesKeyTagN(data)
