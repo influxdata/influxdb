@@ -23,6 +23,7 @@ chrono = "0.4"
 crc32fast = "1.2.0"
 datafusion = { workspace = true }
 parking_lot = "0.11.1"
+parquet = { workspace = true }
 thiserror = "1.0"
 tokio = { version = "1.35", features = ["macros", "fs", "io-util", "parking_lot", "rt-multi-thread", "sync", "time"] }
 serde = { version = "1.0.188", features = ["derive"] }

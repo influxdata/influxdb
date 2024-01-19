@@ -4,29 +4,85 @@
 use crate::catalog::Catalog;
 use crate::catalog::InnerCatalog;
 use crate::paths::CatalogFilePath;
+use crate::paths::ParquetFilePath;
 use crate::paths::SegmentInfoFilePath;
+use crate::Error;
+use crate::Result;
 use crate::{PersistedCatalog, PersistedSegment, Persister, SegmentId};
+use arrow::datatypes::SchemaRef;
+use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use bytes::Bytes;
+use datafusion::execution::memory_pool::MemoryConsumer;
+use datafusion::execution::memory_pool::MemoryPool;
+use datafusion::execution::memory_pool::MemoryReservation;
+use datafusion::execution::memory_pool::UnboundedMemoryPool;
+use datafusion::physical_plan::SendableRecordBatchStream;
+use futures_util::pin_mut;
 use futures_util::stream::StreamExt;
+use futures_util::stream::TryStreamExt;
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
+use parquet::arrow::ArrowWriter;
+use parquet::basic::Compression;
+use parquet::file::properties::WriterProperties;
+use parquet::format::FileMetaData;
+use std::io::Write;
 use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct PersisterImpl {
     object_store: Arc<dyn ObjectStore>,
+    mem_pool: Arc<dyn MemoryPool>,
 }
 
 impl PersisterImpl {
     pub fn new(object_store: Arc<dyn ObjectStore>) -> Self {
-        Self { object_store }
+        Self {
+            object_store,
+            mem_pool: Arc::new(UnboundedMemoryPool::default()),
+        }
+    }
+
+    async fn serialize_to_parquet(
+        &self,
+        batches: SendableRecordBatchStream,
+    ) -> Result<ParquetBytes> {
+        // The ArrowWriter::write() call will return an error if any subsequent
+        // batch does not match this schema, enforcing schema uniformity.
+        let schema = batches.schema();
+
+        let stream = batches;
+        let mut bytes = Vec::new();
+        pin_mut!(stream);
+
+        // Construct the arrow serializer with the metadata as part of the parquet
+        // file properties.
+        let mut writer = TrackedMemoryArrowWriter::try_new(
+            &mut bytes,
+            Arc::clone(&schema),
+            self.mem_pool.clone(),
+        )?;
+
+        while let Some(batch) = stream.try_next().await? {
+            writer.write(batch)?;
+        }
+
+        let writer_meta = writer.close()?;
+        if writer_meta.num_rows == 0 {
+            return Err(Error::NoRows);
+        }
+
+        Ok(ParquetBytes {
+            meta_data: writer_meta,
+            bytes: Bytes::from(bytes),
+        })
     }
 }
 
 #[async_trait]
 impl Persister for PersisterImpl {
-    async fn load_catalog(&self) -> crate::Result<Option<PersistedCatalog>> {
+    async fn load_catalog(&self) -> Result<Option<PersistedCatalog>> {
         let mut list = self
             .object_store
             .list(Some(&CatalogFilePath::dir()))
@@ -75,7 +131,7 @@ impl Persister for PersisterImpl {
         }
     }
 
-    async fn load_segments(&self, most_recent_n: usize) -> crate::Result<Vec<PersistedSegment>> {
+    async fn load_segments(&self, most_recent_n: usize) -> Result<Vec<PersistedSegment>> {
         let segment_list = self
             .object_store
             .list(Some(&SegmentInfoFilePath::dir()))
@@ -114,7 +170,11 @@ impl Persister for PersisterImpl {
         Ok(output)
     }
 
-    async fn persist_catalog(&self, segment_id: SegmentId, catalog: Catalog) -> crate::Result<()> {
+    async fn load_parquet_file(&self, path: ParquetFilePath) -> Result<Bytes> {
+        Ok(self.object_store.get(&path).await?.bytes().await?)
+    }
+
+    async fn persist_catalog(&self, segment_id: SegmentId, catalog: Catalog) -> Result<()> {
         let catalog_path = CatalogFilePath::new(segment_id);
         let json = serde_json::to_vec_pretty(&catalog.into_inner())?;
         self.object_store
@@ -123,7 +183,7 @@ impl Persister for PersisterImpl {
         Ok(())
     }
 
-    async fn persist_segment(&self, persisted_segment: PersistedSegment) -> crate::Result<()> {
+    async fn persist_segment(&self, persisted_segment: PersistedSegment) -> Result<()> {
         let segment_file_path = SegmentInfoFilePath::new(persisted_segment.segment_id);
         let json = serde_json::to_vec_pretty(&persisted_segment)?;
         self.object_store
@@ -132,13 +192,86 @@ impl Persister for PersisterImpl {
         Ok(())
     }
 
+    async fn persist_parquet_file(
+        &self,
+        path: ParquetFilePath,
+        record_batch: SendableRecordBatchStream,
+    ) -> Result<FileMetaData> {
+        let parquet = self.serialize_to_parquet(record_batch).await?;
+        self.object_store.put(path.as_ref(), parquet.bytes).await?;
+
+        Ok(parquet.meta_data)
+    }
+
     fn object_store(&self) -> Arc<dyn ObjectStore> {
         self.object_store.clone()
     }
 }
 
+pub struct ParquetBytes {
+    pub bytes: Bytes,
+    pub meta_data: FileMetaData,
+}
+
+/// Wraps an [`ArrowWriter`] to track its buffered memory in a
+/// DataFusion [`MemoryPool`]
+#[derive(Debug)]
+pub struct TrackedMemoryArrowWriter<W: Write + Send> {
+    /// The inner ArrowWriter
+    inner: ArrowWriter<W>,
+    /// DataFusion memory reservation with
+    reservation: MemoryReservation,
+}
+
+/// Parquet row group write size
+pub const ROW_GROUP_WRITE_SIZE: usize = 1024 * 1024;
+
+impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
+    /// create a new `TrackedMemoryArrowWriter<`
+    pub fn try_new(sink: W, schema: SchemaRef, mem_pool: Arc<dyn MemoryPool>) -> Result<Self> {
+        let props = WriterProperties::builder()
+            .set_compression(Compression::ZSTD(Default::default()))
+            .set_max_row_group_size(ROW_GROUP_WRITE_SIZE)
+            .build();
+        let inner = ArrowWriter::try_new(sink, schema, Some(props))?;
+        let consumer = MemoryConsumer::new("InfluxDB3 ParquetWriter (TrackedMemoryArrowWriter)");
+        let reservation = consumer.register(&mem_pool);
+
+        Ok(Self { inner, reservation })
+    }
+
+    /// Push a `RecordBatch` into the underlying writer, updating the
+    /// tracked allocation
+    pub fn write(&mut self, batch: RecordBatch) -> Result<()> {
+        // writer encodes the batch into its internal buffers
+        self.inner.write(&batch)?;
+
+        // In progress memory, in bytes
+        let in_progress_size = self.inner.in_progress_size();
+
+        // update the allocation with the pool.
+        self.reservation.try_resize(in_progress_size)?;
+
+        Ok(())
+    }
+
+    /// closes the writer, flushing any remaining data and returning
+    /// the written [`FileMetaData`]
+    ///
+    /// [`FileMetaData`]: parquet::format::FileMetaData
+    pub fn close(self) -> Result<parquet::format::FileMetaData> {
+        // reservation is returned on drop
+        Ok(self.inner.close()?)
+    }
+}
+
 #[cfg(test)]
-use {object_store::local::LocalFileSystem, std::collections::HashMap};
+use {
+    arrow::array::Int32Array, arrow::datatypes::DataType, arrow::datatypes::Field,
+    arrow::datatypes::Schema, chrono::Utc,
+    datafusion::physical_plan::stream::RecordBatchReceiverStreamBuilder,
+    object_store::local::LocalFileSystem, std::collections::HashMap,
+};
 
 #[tokio::test]
 async fn persist_catalog() {
@@ -262,4 +395,62 @@ async fn persist_and_load_segment_info_files_with_fewer_than_requested() {
     // We asked for the most recent 2 but there should only be 1
     assert_eq!(segments.len(), 1);
     assert_eq!(segments[0].segment_id.0, 0);
+}
+
+#[tokio::test]
+async fn get_parquet_bytes() {
+    let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+    let persister = PersisterImpl::new(Arc::new(local_disk));
+
+    let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
+    let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
+
+    let id_array = Int32Array::from(vec![1, 2, 3, 4, 5]);
+    let batch1 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
+
+    let id_array = Int32Array::from(vec![6, 7, 8, 9, 10]);
+    let batch2 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
+
+    stream_builder.tx().send(Ok(batch1)).await.unwrap();
+    stream_builder.tx().send(Ok(batch2)).await.unwrap();
+
+    let parquet = persister
+        .serialize_to_parquet(stream_builder.build())
+        .await
+        .unwrap();
+
+    // Assert we've written all the expected rows
+    assert_eq!(parquet.meta_data.num_rows, 10);
+}
+
+#[tokio::test]
+async fn persist_and_load_parquet_bytes() {
+    let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+    let persister = PersisterImpl::new(Arc::new(local_disk));
+
+    let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
+    let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
+
+    let id_array = Int32Array::from(vec![1, 2, 3, 4, 5]);
+    let batch1 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
+
+    let id_array = Int32Array::from(vec![6, 7, 8, 9, 10]);
+    let batch2 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
+
+    stream_builder.tx().send(Ok(batch1)).await.unwrap();
+    stream_builder.tx().send(Ok(batch2)).await.unwrap();
+
+    let path = ParquetFilePath::new("db_one", "table_one", Utc::now(), 1);
+    let meta = persister
+        .persist_parquet_file(path.clone(), stream_builder.build())
+        .await
+        .unwrap();
+
+    // Assert we've written all the expected rows
+    assert_eq!(meta.num_rows, 10);
+
+    let bytes = persister.load_parquet_file(path).await.unwrap();
+
+    // Assert that we have a file of bytes > 0
+    assert!(!bytes.is_empty())
 }

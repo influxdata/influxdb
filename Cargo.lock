@@ -2401,6 +2401,7 @@ dependencies = [
  "object_store",
  "observability_deps",
  "parking_lot 0.11.2",
+ "parquet",
  "schema",
  "serde",
  "serde_json",
