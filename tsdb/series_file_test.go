@@ -62,6 +62,11 @@ func TestParseSeriesKey(t *testing.T) {
 			expectedKey: nil,
 		},
 		{
+			name:        "invalid blank series key",
+			seriesKey:   tsdb.AppendSeriesKey(nil, []byte(""), nil),
+			expectedKey: nil,
+		},
+		{
 			name:        "invalid series key with tags",
 			seriesKey:   tsdb.AppendSeriesKey(nil, []byte{}, models.NewTags(map[string]string{"tag1": "foo"})),
 			expectedKey: nil,
