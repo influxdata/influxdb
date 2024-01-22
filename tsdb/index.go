@@ -137,7 +137,7 @@ func (itr *seriesIteratorAdapter) Next() (SeriesElem, error) {
 		}
 
 		name, tags := ParseSeriesKey(key)
-		if name == nil {
+		if len(name) == 0 {
 			continue
 		}
 		deleted := itr.sfile.IsDeleted(elem.SeriesID)
@@ -384,7 +384,7 @@ func (itr *seriesQueryAdapterIterator) Next() (*query.FloatPoint, error) {
 
 		// Convert to a key.
 		name, tags := ParseSeriesKey(seriesKey)
-		if name == nil {
+		if len(name) == 0 {
 			continue
 		}
 		key := string(models.MakeKey(name, tags))
@@ -873,7 +873,7 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 		}
 
 		name, tags := ParseSeriesKey(itr.keys[0])
-		if name == nil {
+		if len(name) == 0 {
 			continue
 		}
 		itr.keys = itr.keys[1:]
@@ -2349,7 +2349,7 @@ func (itr *measurementSeriesKeyByExprIterator) Next() ([]byte, error) {
 		}
 
 		name, tags := ParseSeriesKey(seriesKey)
-		if name == nil {
+		if len(name) == 0 {
 			continue
 		}
 
@@ -2456,7 +2456,7 @@ func (is IndexSet) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) 
 		name, tags := ParseSeriesKey(seriesKey)
 		// An invalid series key of 0 length should have been caught by the
 		// above check, but for extra safety we can pass over it here too.
-		if name == nil {
+		if len(name) == 0 {
 			continue
 		}
 		keys = append(keys, models.MakeKey(name, tags))
@@ -2935,7 +2935,7 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.FineAuthorizer, name []byte,
 
 		if auth != nil {
 			name, tags := ParseSeriesKey(buf)
-			if name == nil {
+			if len(name) == 0 {
 				continue
 			}
 			if !auth.AuthorizeSeriesRead(database, name, tags) {
