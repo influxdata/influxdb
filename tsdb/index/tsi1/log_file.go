@@ -693,6 +693,9 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 
 	// Read key size.
 	_, remainder := tsdb.ReadSeriesKeyLen(seriesKey)
+	if len(remainder) == 0 {
+		return
+	}
 
 	// Read measurement name.
 	name, remainder := tsdb.ReadSeriesKeyMeasurement(remainder)
