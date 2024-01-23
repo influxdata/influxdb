@@ -264,7 +264,13 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 		newKeyRanges = append(newKeyRanges, keyRange{id, offset})
 		if tracker.AddedMeasurementSeries != nil {
 			_, remainder := ReadSeriesKeyLen(key)
+			if len(remainder) == 0 {
+				continue
+			}
 			measurement, _ := ReadSeriesKeyMeasurement(remainder)
+			if len(measurement) == 0 {
+				continue
+			}
 			tracker.AddedMeasurementSeries(measurement, 1)
 		}
 	}
