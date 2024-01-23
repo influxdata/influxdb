@@ -51,6 +51,57 @@ func TestParseSeriesKeyInto(t *testing.T) {
 	}
 }
 
+func TestParseSeriesKey(t *testing.T) {
+	tests := []struct {
+		name        string
+		seriesKey   []byte
+		expectedKey []byte
+	}{
+		{
+			name:        "invalid zero length series key",
+			seriesKey:   tsdb.AppendSeriesKey(nil, []byte{}, nil),
+			expectedKey: nil,
+		},
+		{
+			name:        "invalid blank series key",
+			seriesKey:   tsdb.AppendSeriesKey(nil, []byte(""), nil),
+			expectedKey: nil,
+		},
+		{
+			name:        "invalid series key with tags",
+			seriesKey:   tsdb.AppendSeriesKey(nil, []byte{}, models.NewTags(map[string]string{"tag1": "foo"})),
+			expectedKey: nil,
+		},
+		{
+			name:        "valid series key with tags",
+			seriesKey:   tsdb.AppendSeriesKey(nil, []byte("foo"), models.NewTags(map[string]string{"tag1": "foo"})),
+			expectedKey: []byte("foo"),
+		},
+		{
+			name:        "valid series key with empty tags",
+			seriesKey:   tsdb.AppendSeriesKey(nil, []byte("foo"), models.NewTags(map[string]string{})),
+			expectedKey: []byte("foo"),
+		},
+		{
+			name:        "valid series key with nil tags",
+			seriesKey:   tsdb.AppendSeriesKey(nil, []byte("foo"), models.NewTags(nil)),
+			expectedKey: []byte("foo"),
+		},
+		{
+			name:        "valid series key with no tags",
+			seriesKey:   tsdb.AppendSeriesKey(nil, []byte("foo"), nil),
+			expectedKey: []byte("foo"),
+		},
+	}
+
+	for _, tt := range tests {
+		keyName, _ := tsdb.ParseSeriesKey(tt.seriesKey)
+		if res := bytes.Compare(keyName, tt.expectedKey); res != 0 {
+			t.Fatalf("invalid series key parsed for an %s: got %q, expected %q", tt.name, keyName, tt.expectedKey)
+		}
+	}
+}
+
 // Ensure that broken series files are closed
 func TestSeriesFile_Open_WhenFileCorrupt_ShouldReturnErr(t *testing.T) {
 	f := NewBrokenSeriesFile(t, []byte{0, 0, 0, 0, 0})
