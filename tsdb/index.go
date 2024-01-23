@@ -126,6 +126,9 @@ func (itr *seriesIteratorAdapter) Next() (SeriesElem, error) {
 		}
 
 		name, tags := ParseSeriesKey(key)
+		if len(name) == 0 {
+			continue
+		}
 		deleted := itr.sfile.IsDeleted(elem.SeriesID)
 		return &seriesElemAdapter{
 			name:    name,
@@ -390,6 +393,9 @@ func (itr *seriesQueryAdapterIterator) Next() (*query.FloatPoint, error) {
 
 		// Convert to a key.
 		name, tags := ParseSeriesKey(seriesKey)
+		if len(name) == 0 {
+			continue
+		}
 		key := string(models.MakeKey(name, tags))
 
 		// Write auxiliary fields.
@@ -886,6 +892,9 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 		}
 
 		name, tags := ParseSeriesKey(itr.keys[0])
+		if len(name) == 0 {
+			continue
+		}
 		itr.keys = itr.keys[1:]
 
 		// TODO(edd): It seems to me like this authorisation check should be
@@ -2327,6 +2336,9 @@ func (itr *measurementSeriesKeyByExprIterator) Next() ([]byte, error) {
 		}
 
 		name, tags := ParseSeriesKey(seriesKey)
+		if len(name) == 0 {
+			continue
+		}
 
 		// Check leftover filters. All fields that might be filtered default to zero values
 		if e.Expr != nil {
@@ -2428,6 +2440,11 @@ func (is IndexSet) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) 
 		}
 
 		name, tags := ParseSeriesKey(seriesKey)
+		// An invalid series key of 0 length should have been caught by the
+		// above check, but for extra safety we can pass over it here too.
+		if len(name) == 0 {
+			continue
+		}
 		keys = append(keys, models.MakeKey(name, tags))
 	}
 
@@ -2904,12 +2921,18 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, key
 
 		if auth != nil {
 			name, tags := ParseSeriesKey(buf)
+			if len(name) == 0 {
+				continue
+			}
 			if !auth.AuthorizeSeriesRead(database, name, tags) {
 				continue
 			}
 		}
 
 		_, buf = ReadSeriesKeyLen(buf)
+		if len(buf) == 0 {
+			continue
+		}
 		_, buf = ReadSeriesKeyMeasurement(buf)
 		tagN, buf := ReadSeriesKeyTagN(buf)
 		for i := 0; i < tagN; i++ {
