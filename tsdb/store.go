@@ -869,6 +869,9 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	// check.
 	if err != nil {
 		s.Logger.Error("error walking shards", zap.Error(err))
+		// TODO(DSB): Should we give up on deleting the shard here, to avoid
+		// removing series from the series file that may exist in the shard
+		// whose index we could not load?
 	}
 
 	// Remove any remaining series in the set from the series file, as they don't
