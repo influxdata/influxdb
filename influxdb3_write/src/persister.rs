@@ -92,13 +92,17 @@ impl Persister for PersisterImpl {
             let item = item?;
             catalog_path = match catalog_path {
                 Some(old_path) => {
-                    let new_catalog_name = item
-                        .location
-                        .filename()
-                        .expect("catalog names are utf-8 encoded");
+                    let Some(new_catalog_name) = item.location.filename() else {
+                        // Skip this iteration as this listed file has no
+                        // filename
+                        catalog_path = Some(old_path);
+                        continue;
+                    };
                     let old_catalog_name = old_path
                         .filename()
-                        .expect("catalog names are utf-8 encoded");
+                        // NOTE: this holds so long as CatalogFilePath is used
+                        // from crate::paths
+                        .expect("catalog file paths are guaranteed to have a filename");
 
                     // We order catalogs by number starting with u32::MAX and
                     // then decrease it, therefore if the new catalog file name
@@ -118,7 +122,11 @@ impl Persister for PersisterImpl {
             Some(path) => {
                 let bytes = self.object_store.get(&path).await?.bytes().await?;
                 let catalog: InnerCatalog = serde_json::from_slice(&bytes)?;
-                let file_name = path.filename().expect("catalog names are utf-8 encoded");
+                let file_name = path
+                    .filename()
+                    // NOTE: this holds so long as CatalogFilePath is used
+                    // from crate::paths
+                    .expect("catalog file paths are guaranteed to have a filename");
                 let parsed_number = file_name
                     .trim_end_matches(format!(".{}", crate::paths::CATALOG_FILE_EXTENSION).as_str())
                     .parse::<u32>()?;
