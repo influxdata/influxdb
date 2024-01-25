@@ -13,12 +13,16 @@ pub mod wal;
 pub mod write_buffer;
 
 use crate::catalog::Catalog;
+use crate::paths::ParquetFilePath;
 use async_trait::async_trait;
+use bytes::Bytes;
 use data_types::NamespaceName;
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
+use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::Expr;
 use iox_query::QueryChunk;
+use parquet::format::FileMetaData;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -39,6 +43,21 @@ pub enum Error {
 
     #[error("write buffer error: {0}")]
     WriteBuffer(#[from] write_buffer::Error),
+
+    #[error("serde_json error: {0}")]
+    SerdeJson(#[from] serde_json::Error),
+
+    #[error("object_store error: {0}")]
+    ObjectStore(#[from] object_store::Error),
+
+    #[error("parse int error: {0}")]
+    ParseInt(#[from] std::num::ParseIntError),
+
+    #[error("parquet error: {0}")]
+    ParquetError(#[from] parquet::errors::ParquetError),
+
+    #[error("tried to serialize a parquet file with no rows")]
+    NoRows,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -156,6 +175,9 @@ pub trait Persister: Debug + Send + Sync + 'static {
     /// Loads the most recently persisted N segment parquet file lists from object storage.
     async fn load_segments(&self, most_recent_n: usize) -> Result<Vec<PersistedSegment>>;
 
+    // Loads a Parquet file from ObjectStore
+    async fn load_parquet_file(&self, path: ParquetFilePath) -> crate::Result<Bytes>;
+
     /// Persists the catalog with the given segment ID. If this is the highest segment ID, it will
     /// be the catalog that is returned the next time `load_catalog` is called.
     async fn persist_catalog(&self, segment_id: SegmentId, catalog: catalog::Catalog)
@@ -164,6 +186,14 @@ pub trait Persister: Debug + Send + Sync + 'static {
     /// Writes a single file to object storage that contains the information for the parquet files persisted
     /// for this segment.
     async fn persist_segment(&self, persisted_segment: PersistedSegment) -> Result<()>;
+
+    // Writes a SendableRecorgBatchStream to the Parquet format and perists it
+    // to Object Store at the given path
+    async fn persist_parquet_file(
+        &self,
+        path: ParquetFilePath,
+        record_batch: SendableRecordBatchStream,
+    ) -> crate::Result<FileMetaData>;
 
     /// Returns the configured `ObjectStore` that data is loaded from and persisted to.
     fn object_store(&self) -> Arc<dyn object_store::ObjectStore>;

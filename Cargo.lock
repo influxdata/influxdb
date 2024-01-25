@@ -2389,16 +2389,19 @@ dependencies = [
  "arrow",
  "async-trait",
  "byteorder",
+ "bytes",
  "chrono",
  "crc32fast",
  "data_types",
  "datafusion",
+ "futures-util",
  "influxdb-line-protocol",
  "iox_catalog",
  "iox_query",
  "object_store",
  "observability_deps",
  "parking_lot 0.11.2",
+ "parquet",
  "schema",
  "serde",
  "serde_json",
@@ -4736,9 +4739,9 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "1.13.0"
+version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b187f0231d56fe41bfb12034819dd2bf336422a5866de41bc3fec4b2e3883e8"
+checksum = "e6ecd384b10a64542d77071bd64bd7b231f4ed5940fba55e98c3de13824cf3d7"
 
 [[package]]
 name = "snafu"
