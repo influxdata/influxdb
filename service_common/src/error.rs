@@ -26,8 +26,8 @@ pub fn datafusion_error_to_tonic_code(e: &DataFusionError) -> tonic::Code {
     match e {
         DataFusionError::ResourcesExhausted(_) => tonic::Code::ResourceExhausted,
         // Map as many as possible back into user visible (non internal) errors
-        DataFusionError::SQL(_)
-        | DataFusionError::SchemaError(_)
+        DataFusionError::SQL(_, _)
+        | DataFusionError::SchemaError(_, _)
         // Execution, ArrowError and ParquetError might be due to an
         // internal error (e.g. some sort of IO error or bug) or due
         // to a user input error (e.g. you can get an Arrow error if
@@ -37,7 +37,7 @@ pub fn datafusion_error_to_tonic_code(e: &DataFusionError) -> tonic::Code {
         // classify them as InvalidArgument so the user has a chance
         // to see them
         | DataFusionError::Execution(_)
-        | DataFusionError::ArrowError(_)
+        | DataFusionError::ArrowError(_, _)
         | DataFusionError::ParquetError(_)
         // DataFusion most often returns "NotImplemented" when a
         // particular SQL feature is not implemented. This
@@ -99,7 +99,7 @@ mod test {
         );
 
         let e = ParserError::ParserError(s.clone());
-        do_transl_test(DataFusionError::SQL(e), tonic::Code::InvalidArgument);
+        do_transl_test(DataFusionError::SQL(e, None), tonic::Code::InvalidArgument);
 
         do_transl_test(
             DataFusionError::NotImplemented(s.clone()),

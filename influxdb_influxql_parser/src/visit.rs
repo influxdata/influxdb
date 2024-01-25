@@ -53,6 +53,7 @@ use crate::simple_from_clause::{DeleteFromClause, ShowFromClause};
 use crate::statement::Statement;
 
 /// Controls how the visitor recursion should proceed.
+#[derive(Debug)]
 pub enum Recursion<V: Visitor> {
     /// Attempt to visit all the children, recursively, of this expression.
     Continue(V),
@@ -719,7 +720,7 @@ impl Visitable for ExplainStatement {
             Stop(visitor) => return Ok(visitor),
         };
 
-        let visitor = self.select.accept(visitor)?;
+        let visitor = self.statement.accept(visitor)?;
 
         visitor.post_visit_explain_statement(self)
     }
@@ -1475,6 +1476,15 @@ mod test {
     #[test]
     fn test_explain_statement() {
         insta::assert_yaml_snapshot!(visit_statement!("EXPLAIN SELECT * FROM cpu"));
+        insta::assert_yaml_snapshot!(visit_statement!("EXPLAIN SHOW MEASUREMENTS"));
+        insta::assert_yaml_snapshot!(visit_statement!("EXPLAIN SHOW TAG KEYS"));
+        insta::assert_yaml_snapshot!(visit_statement!(
+            "EXPLAIN SHOW TAG VALUES WITH KEY = \"Key\""
+        ));
+        insta::assert_yaml_snapshot!(visit_statement!("EXPLAIN SHOW FIELD KEYS"));
+        insta::assert_yaml_snapshot!(visit_statement!("EXPLAIN SHOW RETENTION POLICIES"));
+        insta::assert_yaml_snapshot!(visit_statement!("EXPLAIN SHOW DATABASES"));
+        insta::assert_yaml_snapshot!(visit_statement!("EXPLAIN EXPLAIN SELECT * from cpu"));
     }
 
     #[test]

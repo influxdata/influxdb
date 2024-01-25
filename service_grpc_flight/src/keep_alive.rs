@@ -136,23 +136,29 @@ use arrow::{
     ipc::writer::{DictionaryTracker, IpcDataGenerator, IpcWriteOptions},
     record_batch::RecordBatch,
 };
-use arrow_flight::{error::FlightError, FlightData};
+use arrow_flight::FlightData;
 use futures::{stream::BoxStream, Stream, StreamExt};
 use observability_deps::tracing::{info, warn};
 use tokio::time::{Interval, MissedTickBehavior};
 
 /// Keep alive underlying response stream by sending regular empty [`RecordBatch`]es.
-pub struct KeepAliveStream {
-    inner: BoxStream<'static, Result<FlightData, FlightError>>,
+pub(crate) struct KeepAliveStream<E>
+where
+    E: 'static,
+{
+    inner: BoxStream<'static, Result<FlightData, E>>,
 }
 
-impl KeepAliveStream {
+impl<E> KeepAliveStream<E>
+where
+    E: 'static,
+{
     /// Create new keep-alive wrapper from the underlying stream and the given interval.
     ///
     /// The interval is measured from the last message -- which can either be a "real" message or a keep-alive.
-    pub fn new<S>(s: S, interval: Duration) -> Self
+    pub(crate) fn new<S>(s: S, interval: Duration) -> Self
     where
-        S: Stream<Item = Result<FlightData, FlightError>> + Send + 'static,
+        S: Stream<Item = Result<FlightData, E>> + Send + 'static,
     {
         let mut ticker = tokio::time::interval(interval);
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -194,8 +200,11 @@ impl KeepAliveStream {
     }
 }
 
-impl Stream for KeepAliveStream {
-    type Item = Result<FlightData, FlightError>;
+impl<E> Stream for KeepAliveStream<E>
+where
+    E: 'static,
+{
+    type Item = Result<FlightData, E>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.inner.poll_next_unpin(cx)
@@ -203,9 +212,12 @@ impl Stream for KeepAliveStream {
 }
 
 /// Inner state of [`KeepAliveStream`]
-struct State {
+struct State<E>
+where
+    E: 'static,
+{
     /// The underlying stream that is kept alive.
-    inner: BoxStream<'static, Result<FlightData, FlightError>>,
+    inner: BoxStream<'static, Result<FlightData, E>>,
 
     /// A [`Schema`] that was already received from the stream.
     ///
@@ -274,13 +286,13 @@ fn build_empty_batch_msg(schema: Option<&SchemaRef>) -> Option<FlightData> {
 }
 
 #[cfg(test)]
-pub mod test_util {
+pub(crate) mod test_util {
     use std::time::Duration;
 
     use futures::{stream::BoxStream, Stream, StreamExt};
 
     /// Ensure that there is a delay between steam responses.
-    pub fn make_stream_slow<S>(s: S, delay: Duration) -> BoxStream<'static, S::Item>
+    pub(crate) fn make_stream_slow<S>(s: S, delay: Duration) -> BoxStream<'static, S::Item>
     where
         S: Send + Stream + Unpin + 'static,
     {
@@ -296,7 +308,9 @@ pub mod test_util {
 #[cfg(test)]
 mod tests {
     use arrow::{array::Int64Array, datatypes::Field};
-    use arrow_flight::{decode::FlightRecordBatchStream, encode::FlightDataEncoderBuilder};
+    use arrow_flight::{
+        decode::FlightRecordBatchStream, encode::FlightDataEncoderBuilder, error::FlightError,
+    };
     use datafusion::assert_batches_eq;
     use futures::TryStreamExt;
     use test_helpers::maybe_start_logging;
@@ -376,6 +390,6 @@ mod tests {
             s
         };
 
-        (panic_on_stream_timeout(s, Duration::from_millis(250))) as _
+        panic_on_stream_timeout(s, Duration::from_millis(250))
     }
 }

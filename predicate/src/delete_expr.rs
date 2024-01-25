@@ -126,9 +126,9 @@ pub(crate) fn df_to_scalar(
 
 #[cfg(test)]
 mod tests {
-    use std::{ops::Not, sync::Arc};
+    use std::ops::Not;
 
-    use arrow::datatypes::Field;
+    use arrow::datatypes::DataType;
     use test_helpers::assert_contains;
 
     use super::*;
@@ -194,24 +194,17 @@ mod tests {
 
     #[test]
     fn test_unsupported_scalar_value() {
-        let scalar = datafusion::scalar::ScalarValue::List(
-            Some(vec![]),
-            Arc::new(Field::new(
-                "field",
-                arrow::datatypes::DataType::Float64,
-                true,
-            )),
-        );
+        let array = datafusion::scalar::ScalarValue::new_list(&[], &DataType::Float64);
+        let scalar = datafusion::scalar::ScalarValue::List(array);
         let res = df_to_scalar(scalar);
         assert_contains!(res.unwrap_err().to_string(), "unsupported scalar value:");
     }
 
     #[test]
     fn test_unsupported_scalar_value_in_expr() {
-        let expr = col("foo").eq(lit(datafusion::scalar::ScalarValue::new_list(
-            Some(vec![]),
-            arrow::datatypes::DataType::Float64,
-        )));
+        let arr =
+            datafusion::scalar::ScalarValue::new_list(&[], &arrow::datatypes::DataType::Float64);
+        let expr = col("foo").eq(lit(datafusion::scalar::ScalarValue::List(arr)));
         let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported scalar value:");
     }

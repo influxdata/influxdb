@@ -1456,8 +1456,8 @@ impl TryFrom<TestRecords> for Vec<RecordBatch> {
             )));
         }
 
-        let one_batch =
-            RecordBatch::try_new(value.schema(), arrs).map_err(DataFusionError::ArrowError)?;
+        let one_batch = RecordBatch::try_new(value.schema(), arrs)
+            .map_err(|err| DataFusionError::ArrowError(err, None))?;
         let mut batches = vec![];
         let mut offset = 0;
         while offset < one_batch.num_rows() {
@@ -1479,7 +1479,7 @@ struct TestCase {
 impl TestCase {
     fn run(self) -> Result<Vec<RecordBatch>> {
         block_on(async {
-            let session_ctx = SessionContext::with_config(
+            let session_ctx = SessionContext::new_with_config(
                 SessionConfig::default().with_batch_size(self.output_batch_size),
             )
             .into();
@@ -1489,7 +1489,7 @@ impl TestCase {
 
     fn run_with_memory_limit(self, limit: usize) -> Result<Vec<RecordBatch>> {
         block_on(async {
-            let session_ctx = SessionContext::with_config_rt(
+            let session_ctx = SessionContext::new_with_config_rt(
                 SessionConfig::default().with_batch_size(self.output_batch_size),
                 RuntimeEnv::new(RuntimeConfig::default().with_memory_limit(limit, 1.0))?.into(),
             )
@@ -1560,10 +1560,7 @@ fn phys_fill_strategies(
     let end = start + records.agg_cols.len() + records.struct_cols.len();
     let mut v = Vec::with_capacity(records.agg_cols.len());
     for f in &records.schema().fields()[start..end] {
-        v.push((
-            phys_col(f.name(), &records.schema())?,
-            fill_strategy.clone(),
-        ));
+        v.push((phys_col(f.name(), &records.schema())?, fill_strategy));
     }
     Ok(v)
 }

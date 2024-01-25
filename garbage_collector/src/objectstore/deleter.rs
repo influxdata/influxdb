@@ -1,4 +1,4 @@
-use futures::{StreamExt, TryStreamExt};
+use futures::{FutureExt, StreamExt, TryStreamExt};
 use object_store::{DynObjectStore, ObjectMeta};
 use observability_deps::tracing::info;
 use snafu::prelude::*;
@@ -10,29 +10,39 @@ pub(crate) async fn perform(
     shutdown: CancellationToken,
     object_store: Arc<DynObjectStore>,
     dry_run: bool,
-    concurrent_deletes: usize,
     items: mpsc::Receiver<ObjectMeta>,
 ) -> Result<()> {
-    let stream_fu = tokio_stream::wrappers::ReceiverStream::new(items)
-        .map(|item| {
-            let object_store = Arc::clone(&object_store);
+    let locations = tokio_stream::wrappers::ReceiverStream::new(items).map(|item| item.location);
 
-            async move {
-                let path = item.location;
-                if dry_run {
+    let stream_fu = if dry_run {
+        async move {
+            locations
+                .map(|path| {
                     info!(?path, "Not deleting due to dry run");
-                    Ok(())
-                } else {
-                    info!("Deleting {path}");
-                    object_store
-                        .delete(&path)
-                        .await
-                        .context(DeletingSnafu { path })
-                }
-            }
-        })
-        .buffer_unordered(concurrent_deletes)
-        .try_collect();
+                })
+                .collect::<()>()
+                .await;
+            Ok(())
+        }
+        .boxed()
+    } else {
+        async move {
+            object_store
+                .delete_stream(
+                    locations
+                        .map(|path| {
+                            info!(%path, "Deleting");
+                            Ok(path)
+                        })
+                        .boxed(),
+                )
+                .map_ok(|_| ())
+                .map_err(|e: object_store::Error| Error::Deleting { source: e })
+                .try_collect()
+                .await
+        }
+        .boxed()
+    };
 
     tokio::select! {
         _ = shutdown.cancelled() => {
@@ -50,11 +60,8 @@ pub(crate) async fn perform(
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display("{path} could not be deleted"))]
-    Deleting {
-        source: object_store::Error,
-        path: object_store::path::Path,
-    },
+    #[snafu(display("could not be delete: {source}"))]
+    Deleting { source: object_store::Error },
 }
 
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
@@ -64,11 +71,10 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use chrono::Utc;
-    use data_types::{NamespaceId, PartitionId, TableId, TransitionPartitionId};
+    use data_types::{NamespaceId, ObjectStoreId, PartitionId, TableId, TransitionPartitionId};
     use object_store::path::Path;
     use parquet_file::ParquetFilePath;
     use std::time::Duration;
-    use uuid::Uuid;
 
     #[tokio::test]
     async fn perform_shutdown_gracefully() {
@@ -80,7 +86,6 @@ mod tests {
         assert_eq!(count_os_element(&object_store).await, nitems);
 
         let dry_run = false;
-        let concurrent_deletes = 2;
         let (tx, rx) = mpsc::channel(1000);
 
         tokio::spawn({
@@ -106,13 +111,7 @@ mod tests {
         // nothing can be said about the number of elements in object store.
         // The processing stream may or may not have chance to process the
         // items for deletion.
-        let perform_fu = perform(
-            shutdown,
-            Arc::clone(&object_store),
-            dry_run,
-            concurrent_deletes,
-            rx,
-        );
+        let perform_fu = perform(shutdown, Arc::clone(&object_store), dry_run, rx);
         // Unusual test because there is no assertion but the call below should
         // not panic which verifies that the deleter task shutdown gracefully.
         tokio::time::timeout(Duration::from_secs(3), perform_fu)
@@ -122,7 +121,7 @@ mod tests {
     }
 
     async fn count_os_element(os: &Arc<DynObjectStore>) -> usize {
-        let objects = os.list(None).await.unwrap();
+        let objects = os.list(None);
         objects.fold(0, |acc, _| async move { acc + 1 }).await
     }
 
@@ -134,6 +133,7 @@ mod tests {
                 last_modified: Utc::now(),
                 size: 0,
                 e_tag: None,
+                version: None,
             };
             os.put(&object_meta.location, Bytes::from(i.to_string()))
                 .await
@@ -148,7 +148,7 @@ mod tests {
             NamespaceId::new(1),
             TableId::new(2),
             &TransitionPartitionId::Deprecated(PartitionId::new(4)),
-            Uuid::new_v4(),
+            ObjectStoreId::new(),
         )
         .object_store_path()
     }

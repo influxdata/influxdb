@@ -5,7 +5,7 @@ use tonic::{metadata::MetadataValue, Request, Response, Status};
 use grpc_binary_logger_test_proto::{test_server, TestRequest, TestResponse};
 
 #[derive(Debug, Clone, Copy)]
-pub struct TestService;
+pub(crate) struct TestService;
 
 type PinnedStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send>>;
 

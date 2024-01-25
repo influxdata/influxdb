@@ -44,7 +44,7 @@ impl From<Error> for DataFusionError {
     fn from(value: Error) -> Self {
         match value {
             Error::DataFusion { source } => source,
-            Error::Arrow { source } => Self::ArrowError(source),
+            Error::Arrow { source } => Self::ArrowError(source, None),
             value => Self::External(Box::new(value)),
         }
     }

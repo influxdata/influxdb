@@ -29,15 +29,9 @@ impl Client {
         &mut self,
         partition_id: i64,
     ) -> Result<Vec<ParquetFile>, Error> {
-        let partition_identifier = PartitionIdentifier {
-            id: Some(partition_identifier::Id::CatalogId(partition_id)),
-        };
-
         let response = self
             .inner
-            .get_parquet_files_by_partition_id(GetParquetFilesByPartitionIdRequest {
-                partition_identifier: Some(partition_identifier),
-            })
+            .get_parquet_files_by_partition_id(GetParquetFilesByPartitionIdRequest { partition_id })
             .await?;
 
         Ok(response.into_inner().parquet_files)

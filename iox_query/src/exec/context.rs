@@ -6,6 +6,7 @@ use super::{
     gapfill::{plan_gap_fill, GapFill},
     non_null_checker::NonNullCheckerNode,
     seriesset::{series::Either, SeriesSet},
+    sleep::SleepNode,
     split::StreamSplitNode,
 };
 use crate::{
@@ -34,6 +35,7 @@ use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use datafusion::{
     catalog::CatalogProvider,
+    common::ParamValues,
     execution::{
         context::{QueryPlanner, SessionState, TaskContext},
         memory_pool::MemoryPool,
@@ -55,7 +57,7 @@ use query_functions::{register_scalar_functions, selectors::register_selector_ag
 use std::{fmt, num::NonZeroUsize, sync::Arc};
 use trace::{
     ctx::SpanContext,
-    span::{MetaValue, Span, SpanExt, SpanRecorder},
+    span::{MetaValue, Span, SpanEvent, SpanExt, SpanRecorder},
 };
 
 // Reuse DataFusion error and Result types for this module
@@ -150,6 +152,9 @@ impl ExtensionPlanner for IOxExtensionPlanner {
                 physical_inputs,
             )?;
             Some(Arc::new(gap_fill_exec) as Arc<dyn ExecutionPlan>)
+        } else if let Some(sleep) = any.downcast_ref::<SleepNode>() {
+            let sleep = sleep.plan(planner, logical_inputs, physical_inputs, session_state)?;
+            Some(Arc::new(sleep) as _)
         } else {
             None
         };
@@ -252,12 +257,12 @@ impl IOxSessionConfig {
             .session_config
             .with_extension(Arc::new(recorder.span().cloned()));
 
-        let state = SessionState::with_config_rt(session_config, self.runtime)
+        let state = SessionState::new_with_config_rt(session_config, self.runtime)
             .with_query_planner(Arc::new(IOxQueryPlanner {}));
         let state = register_iox_physical_optimizers(state);
         let state = register_iox_logical_optimizers(state);
 
-        let inner = SessionContext::with_state(state);
+        let inner = SessionContext::new_with_state(state);
         register_selector_aggregates(&inner);
         register_scalar_functions(&inner);
         if let Some(default_catalog) = self.default_catalog {
@@ -340,9 +345,27 @@ impl IOxSessionContext {
     /// in the SQL have been registered with this context. Use
     /// `create_physical_plan` to actually execute the query.
     pub async fn sql_to_logical_plan(&self, sql: &str) -> Result<LogicalPlan> {
+        Self::sql_to_logical_plan_with_params(self, sql, ParamValues::List(vec![])).await
+    }
+
+    /// Plan a SQL statement, providing a list of parameter values
+    /// to supply to `$placeholder` variables. This assumes that
+    /// any tables referenced in the SQL have been registered with
+    /// this context. Use `create_physical_plan` to actually execute
+    /// the query.
+    pub async fn sql_to_logical_plan_with_params(
+        &self,
+        sql: &str,
+        params: impl Into<ParamValues> + Send,
+    ) -> Result<LogicalPlan> {
         let ctx = self.child_ctx("sql_to_logical_plan");
         debug!(text=%sql, "planning SQL query");
-        let plan = ctx.inner.state().create_logical_plan(sql).await?;
+        let plan = ctx
+            .inner
+            .state()
+            .create_logical_plan(sql)
+            .await?
+            .with_param_values(params.into())?;
         // ensure the plan does not contain unwanted statements
         let verifier = SQLOptions::new()
             .with_allow_ddl(false) // no CREATE ...
@@ -363,9 +386,20 @@ impl IOxSessionContext {
     /// Plan a SQL statement and convert it to an execution plan. This assumes that any
     /// tables referenced in the SQL have been registered with this context
     pub async fn sql_to_physical_plan(&self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
-        let logical_plan = self.sql_to_logical_plan(sql).await?;
+        Self::sql_to_physical_plan_with_params(self, sql, ParamValues::List(vec![])).await
+    }
 
+    /// Plan a SQL statement and convert it to an execution plan, providing a list of
+    /// parameter values to supply to `$placeholder` variables. This assumes that any
+    /// tables referenced in the SQL have been registered with this context
+    pub async fn sql_to_physical_plan_with_params(
+        &self,
+        sql: &str,
+        params: impl Into<ParamValues> + Send,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
         let ctx = self.child_ctx("sql_to_physical_plan");
+
+        let logical_plan = ctx.sql_to_logical_plan_with_params(sql, params).await?;
         ctx.create_physical_plan(&logical_plan).await
     }
 
@@ -378,7 +412,7 @@ impl IOxSessionContext {
         debug!(text=%logical_plan.display_indent_schema(), "create_physical_plan: initial plan");
         let physical_plan = ctx.inner.state().create_physical_plan(logical_plan).await?;
 
-        ctx.recorder.event("physical plan");
+        ctx.recorder.event(SpanEvent::new("physical plan"));
         debug!(text=%displayable(physical_plan.as_ref()).indent(false), "create_physical_plan: plan to run");
         Ok(physical_plan)
     }
@@ -671,7 +705,7 @@ impl IOxSessionContext {
 
     /// Record an event on the span recorder
     pub fn record_event(&mut self, name: &'static str) {
-        self.recorder.event(name);
+        self.recorder.event(SpanEvent::new(name));
     }
 
     /// Record an event on the span recorder

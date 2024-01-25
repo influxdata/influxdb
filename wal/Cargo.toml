@@ -5,8 +5,11 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies] # In alphabetical order
-byteorder = "1.3.4"
+byteorder = "1.5.0"
 crc32fast = "1.2.0"
 data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
@@ -15,10 +18,10 @@ mutable_batch = { version = "0.1.0", path = "../mutable_batch" }
 mutable_batch_pb = { version = "0.1.0", path = "../mutable_batch_pb" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
-prost = "0.11"
-snafu = "0.7"
-snap = "1.0.0"
-tokio = { version = "1.32", features = ["macros", "fs", "io-util", "parking_lot", "rt-multi-thread", "sync", "time"] }
+prost = { workspace = true }
+snafu = "0.8"
+snap = "1.1.1"
+tokio = { version = "1.35", features = ["macros", "fs", "io-util", "parking_lot", "rt-multi-thread", "sync", "time"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order

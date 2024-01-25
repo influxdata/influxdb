@@ -1,0 +1,29 @@
+syntax = "proto3";
+package influxdata.iox.skipped_compaction.v1;
+option go_package = "github.com/influxdata/iox/skipped_compaction/v1";
+
+message SkippedCompaction {
+  // the partition
+  int64 partition_id = 1;
+
+  // the reason compaction was skipped
+  string reason = 2;
+
+  // when compaction was skipped
+  int64 skipped_at = 3;
+
+  // estimated memory budget
+  int64 estimated_bytes = 4;
+
+  // limit on memory budget
+  int64 limit_bytes = 5;
+
+  // num files selected to compact
+  int64 num_files = 6;
+
+  // limit on num files
+  int64 limit_num_files = 7;
+
+  // limit on num files for the first file in a partition
+  int64 limit_num_files_first_in_partition = 8;
+}

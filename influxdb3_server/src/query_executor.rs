@@ -2,9 +2,11 @@
 use crate::QueryExecutor;
 use arrow::datatypes::SchemaRef;
 use async_trait::async_trait;
+use data_types::NamespaceId;
 use data_types::{ChunkId, ChunkOrder, TransitionPartitionId};
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::catalog::CatalogProvider;
+use datafusion::common::ParamValues;
 use datafusion::common::Statistics;
 use datafusion::datasource::{TableProvider, TableType};
 use datafusion::error::DataFusionError;
@@ -18,14 +20,18 @@ use influxdb3_write::{
     WriteBuffer,
 };
 use iox_query::exec::{Executor, ExecutorType, IOxSessionContext};
+use iox_query::frontend::sql::SqlQueryPlanner;
 use iox_query::provider::ProviderBuilder;
-use iox_query::{QueryChunk, QueryChunkData, QueryCompletedToken, QueryNamespace, QueryText};
+use iox_query::query_log::QueryCompletedToken;
+use iox_query::query_log::QueryLog;
+use iox_query::query_log::QueryText;
+use iox_query::query_log::StateReceived;
+use iox_query::QueryNamespaceProvider;
+use iox_query::{QueryChunk, QueryChunkData, QueryNamespace};
 use metric::Registry;
 use observability_deps::tracing::info;
 use schema::sort::SortKey;
 use schema::Schema;
-use service_common::planner::Planner;
-use service_common::QueryNamespaceProvider;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -89,42 +95,57 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
             })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let _token = db.record_query(
+
+        let token = db.record_query(
             external_span_ctx.as_ref().map(RequestLogContext::ctx),
             "sql",
             Box::new(q.to_string()),
         );
+
         info!("plan");
-        let plan = Planner::new(&ctx).sql(q).await?;
+        let planner = SqlQueryPlanner::new();
+        // TODO: Figure out if we want to support parameter values in SQL
+        // queries
+        let params = ParamValues::List(Vec::new());
+        let plan = planner.query(q, params, &ctx).await?;
+        let token = token.planned(Arc::clone(&plan));
+
+        // TODO: Enforce concurrency limit here
+        let token = token.permit();
 
         info!("execute_stream");
-        let query_results = ctx.execute_stream(Arc::clone(&plan)).await?;
-
-        Ok(query_results)
+        match ctx.execute_stream(Arc::clone(&plan)).await {
+            Ok(query_results) => {
+                token.success();
+                Ok(query_results)
+            }
+            Err(err) => {
+                token.fail();
+                Err(err.into())
+            }
+        }
     }
 }
 
 // This implementation is for the Flight service
 #[async_trait]
 impl<W: WriteBuffer> QueryNamespaceProvider for QueryExecutorImpl<W> {
-    type Db = QueryDatabase<W>;
-
     async fn db(
         &self,
         name: &str,
         span: Option<Span>,
         _include_debug_info_tables: bool,
-    ) -> Option<Arc<Self::Db>> {
+    ) -> Option<Arc<dyn QueryNamespace>> {
         let _span_recorder = SpanRecorder::new(span);
 
         let db_schema = self.catalog.db_schema(name)?;
 
-        Some(Arc::new(QueryDatabase {
+        Some(Arc::new(QueryDatabase::new(
             db_schema,
-            write_buffer: Arc::clone(&self.write_buffer) as _,
-            exec: Arc::clone(&self.exec),
-            datafusion_config: Arc::clone(&self.datafusion_config),
-        }))
+            Arc::clone(&self.write_buffer) as _,
+            Arc::clone(&self.exec),
+            Arc::clone(&self.datafusion_config),
+        )))
     }
 
     async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
@@ -141,6 +162,7 @@ pub struct QueryDatabase<B> {
     write_buffer: Arc<B>,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
+    query_log: Arc<QueryLog>,
 }
 
 impl<B: WriteBuffer> QueryDatabase<B> {
@@ -150,11 +172,19 @@ impl<B: WriteBuffer> QueryDatabase<B> {
         exec: Arc<Executor>,
         datafusion_config: Arc<HashMap<String, String>>,
     ) -> Self {
+        // TODO Fine tune this number
+        const QUERY_LOG_LIMIT: usize = 10;
+
+        let query_log = Arc::new(QueryLog::new(
+            QUERY_LOG_LIMIT,
+            Arc::new(iox_time::SystemProvider::new()),
+        ));
         Self {
             db_schema,
             write_buffer,
             exec,
             datafusion_config,
+            query_log,
         }
     }
 }
@@ -181,11 +211,16 @@ impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
         span_ctx: Option<&SpanContext>,
         query_type: &'static str,
         query_text: QueryText,
-    ) -> QueryCompletedToken {
+    ) -> QueryCompletedToken<StateReceived> {
         let trace_id = span_ctx.map(|ctx| ctx.trace_id);
-        QueryCompletedToken::new(move |success| {
-            info!(?trace_id, %query_type, %query_text, %success, "query completed");
-        })
+        let namespace_name: Arc<str> = Arc::from("influxdb3 edge");
+        self.query_log.push(
+            NamespaceId::new(0),
+            namespace_name,
+            query_type,
+            query_text,
+            trace_id,
+        )
     }
 
     fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext {
@@ -312,7 +347,7 @@ impl<B: WriteBuffer> TableProvider for QueryTable<B> {
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
         limit: Option<usize>,
-    ) -> service_common::planner::Result<Arc<dyn ExecutionPlan>> {
+    ) -> datafusion::common::Result<Arc<dyn ExecutionPlan>> {
         let filters = filters.to_vec();
         info!(
             "TableProvider scan {:?} {:?} {:?}",

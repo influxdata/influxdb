@@ -75,13 +75,13 @@ impl TryFrom<proto::Permission> for Permission {
         match value.permission_one_of {
             Some(proto::permission::PermissionOneOf::ResourceAction(ra)) => {
                 let r = Resource::try_from_proto(
-                    proto::resource_action_permission::ResourceType::from_i32(ra.resource_type)
-                        .ok_or(IncompatiblePermissionError {})?,
+                    proto::resource_action_permission::ResourceType::try_from(ra.resource_type)
+                        .map_err(|_| IncompatiblePermissionError {})?,
                     ra.resource_id,
                 )?;
                 let a = Action::try_from(
-                    proto::resource_action_permission::Action::from_i32(ra.action)
-                        .ok_or(IncompatiblePermissionError {})?,
+                    proto::resource_action_permission::Action::try_from(ra.action)
+                        .map_err(|_| IncompatiblePermissionError {})?,
                 )?;
                 Ok(Self::ResourceAction(r, a))
             }

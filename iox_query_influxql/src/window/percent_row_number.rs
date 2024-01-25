@@ -2,33 +2,50 @@ use crate::error;
 use arrow::array::{Array, ArrayRef, Float64Array, Int64Array, UInt64Array};
 use arrow::datatypes::DataType;
 use datafusion::common::{downcast_value, DataFusionError, Result};
-use datafusion::logical_expr::{PartitionEvaluator, Signature, TypeSignature, Volatility};
-use once_cell::sync::Lazy;
+use datafusion::logical_expr::{
+    PartitionEvaluator, Signature, TypeSignature, Volatility, WindowUDFImpl,
+};
 use std::sync::Arc;
 
-/// The name of the percent_row_number window function.
-pub(super) const NAME: &str = "percent_row_number";
-
-/// Valid signatures for the percent_row_number window function.
-pub(super) static SIGNATURE: Lazy<Signature> = Lazy::new(|| {
-    Signature::one_of(
-        vec![
-            TypeSignature::Exact(vec![DataType::Int64]),
-            TypeSignature::Exact(vec![DataType::Float64]),
-        ],
-        Volatility::Immutable,
-    )
-});
-
-/// Calculate the return type given the function signature. Percent_row_number
-/// always returns a UInt64.
-pub(super) fn return_type(_: &[DataType]) -> Result<Arc<DataType>> {
-    Ok(Arc::new(DataType::UInt64))
+#[derive(Debug)]
+pub(super) struct PercentRowNumberUDWF {
+    signature: Signature,
 }
 
-/// Create a new partition_evaluator_factory.
-pub(super) fn partition_evaluator_factory() -> Result<Box<dyn PartitionEvaluator>> {
-    Ok(Box::new(PercentRowNumberPartitionEvaluator {}))
+impl PercentRowNumberUDWF {
+    pub(super) fn new() -> Self {
+        Self {
+            signature: Signature::one_of(
+                vec![
+                    TypeSignature::Exact(vec![DataType::Int64]),
+                    TypeSignature::Exact(vec![DataType::Float64]),
+                ],
+                Volatility::Immutable,
+            ),
+        }
+    }
+}
+
+impl WindowUDFImpl for PercentRowNumberUDWF {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        "percent_row_number"
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
+        Ok(DataType::UInt64)
+    }
+
+    fn partition_evaluator(&self) -> Result<Box<dyn PartitionEvaluator>> {
+        Ok(Box::new(PercentRowNumberPartitionEvaluator {}))
+    }
 }
 
 /// PartitionEvaluator which returns the row number at which the nth

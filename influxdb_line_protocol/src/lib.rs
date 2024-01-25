@@ -88,14 +88,19 @@ use nom::{
 };
 use smallvec::SmallVec;
 use snafu::{ResultExt, Snafu};
-use std::cmp::Ordering;
 use std::{
     borrow::Cow,
     char,
+    cmp::Ordering,
     collections::{btree_map::Entry, BTreeMap},
     fmt,
+    hash::{Hash, Hasher},
     ops::Deref,
 };
+
+/// String fields are limited to 64K per
+/// <https://docs.influxdata.com/influxdb/v2/reference/syntax/line-protocol/#string>
+const STRING_LENGTH_LIMIT_IN_BYTES: usize = 65536;
 
 /// Parsing errors that describe how a particular line is invalid line protocol.
 #[derive(Debug, Snafu)]
@@ -155,6 +160,9 @@ pub enum Error {
         kind: nom::error::ErrorKind,
         trace: Vec<Error>,
     },
+
+    #[snafu(display(r#"String is greater than 64KB"#))]
+    FieldStringValueTooLarge,
 }
 
 /// A specialized [`Result`] type with a default error type of [`Error`].
@@ -421,7 +429,7 @@ impl<'a> Display for FieldValue<'a> {
 /// For example, the 8-character string `Foo\\Bar` (note the double
 /// `\\`) is parsed into the logical 7-character string `Foo\Bar`
 /// (note the single `\`)
-#[derive(Debug, Clone, Eq, Hash)]
+#[derive(Debug, Clone, Eq)]
 pub enum EscapedStr<'a> {
     SingleSlice(&'a str),
     CopiedValue(String),
@@ -469,6 +477,12 @@ impl<'a> Deref for EscapedStr<'a> {
             EscapedStr::SingleSlice(s) => s,
             EscapedStr::CopiedValue(s) => s,
         }
+    }
+}
+
+impl<'a> Hash for EscapedStr<'a> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state);
     }
 }
 
@@ -817,7 +831,14 @@ fn field_string_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
         empty_str,
     ));
 
-    map(quoted_str, |vec| EscapedStr::from_slices(&vec))(i)
+    map_fail(quoted_str, |value| {
+        let size = value.iter().map(|s| s.len()).sum::<usize>();
+        if STRING_LENGTH_LIMIT_IN_BYTES >= size {
+            Ok(EscapedStr::from_slices(&value))
+        } else {
+            Err(Error::FieldStringValueTooLarge)
+        }
+    })(i)
 }
 
 fn field_bool_value(i: &str) -> IResult<&str, bool> {
@@ -899,6 +920,10 @@ fn escape_or_fallback<'a>(
 
         if s.ends_with('\\') {
             EndsWithBackslashSnafu.fail().map_err(nom::Err::Failure)
+        } else if s.len() > STRING_LENGTH_LIMIT_IN_BYTES {
+            FieldStringValueTooLargeSnafu
+                .fail()
+                .map_err(nom::Err::Failure)
         } else {
             Ok((remaining, s))
         }
@@ -1227,6 +1252,29 @@ mod test {
         assert!(es != "Fo");
         assert!(es != "F");
         assert!(es != "");
+    }
+
+    #[test]
+    fn optionally_escaped_strs_are_equal_and_hash_the_same() {
+        let (_remaining, field_name_without_escaping) = field_key("foo,bar").unwrap();
+        assert!(field_name_without_escaping == "foo,bar");
+        assert!(!field_name_without_escaping.is_escaped());
+
+        let (_remaining, field_name_with_escaping) = field_key("foo\\,bar").unwrap();
+        assert!(field_name_with_escaping == "foo,bar");
+        assert!(field_name_with_escaping.is_escaped());
+
+        assert_eq!(field_name_without_escaping, field_name_with_escaping);
+        assert_eq!(
+            calculate_hash(&field_name_without_escaping),
+            calculate_hash(&field_name_with_escaping)
+        );
+    }
+
+    fn calculate_hash<T: std::hash::Hash>(t: &T) -> u64 {
+        let mut s = std::collections::hash_map::DefaultHasher::new();
+        t.hash(&mut s);
+        s.finish()
     }
 
     #[test]
@@ -2401,6 +2449,178 @@ her"#,
                 .is_same_type(&FieldValue::U64(42))
         );
         assert!(!FieldValue::Boolean(true).is_same_type(&FieldValue::U64(42)));
+    }
+
+    #[test]
+    fn test_large_tag_value() {
+        let input = format!(
+            r#"foo,tag1=normal,tag={} value=1i 123"#,
+            "a".repeat(STRING_LENGTH_LIMIT_IN_BYTES + 1)
+        );
+        let parsed = parse(&input);
+        assert!(parsed.is_err());
+        assert!(matches!(parsed, Err(Error::FieldStringValueTooLarge)));
+    }
+
+    #[test]
+    fn test_large_tag_value_with_exact_maximum() {
+        let tag_value = "a".repeat(STRING_LENGTH_LIMIT_IN_BYTES);
+        let input = format!(r#"foo,tag1=normal,tag={} value=1i 123"#, tag_value);
+        let parsed = parse(&input);
+        assert!(parsed.is_ok());
+        let vals = parsed.unwrap();
+
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(123));
+        assert_eq!(*vals[0].tag_value("tag1").unwrap(), "normal");
+        assert_eq!(*vals[0].tag_value("tag").unwrap(), tag_value);
+        assert_eq!(vals[0].field_set[0].1.unwrap_i64(), 1);
+    }
+
+    #[test]
+    fn test_large_tag_value_in_one_line_of_multiple_line_protocol() {
+        let input = format!(
+            "foo,tag1=very_long_value_is_okay,tag2=bar value=1i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=2i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=3i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=4i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=5i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=6i 123\n\
+                     foo,tag1={}, tag2=bar value=7i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=8i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=9i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=10i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=11i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=12i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=13i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=14i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=15i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=16i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=17i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=18i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=19i 123\n\
+                     foo,tag1=very_long_value_is_okay,tag2=bar value=20i",
+            "a".repeat(STRING_LENGTH_LIMIT_IN_BYTES + 2)
+        );
+
+        let parsed = parse(&input);
+
+        assert!(parsed.is_err());
+        assert!(matches!(parsed, Err(Error::FieldStringValueTooLarge)));
+    }
+
+    #[test]
+    fn test_large_field_value() {
+        let input = format!(
+            "foo,tag1=bar value=\"{}\" 123",
+            "a".repeat(STRING_LENGTH_LIMIT_IN_BYTES + 1)
+        );
+
+        let parsed = parse(&input);
+
+        assert!(parsed.is_err());
+        assert!(matches!(parsed, Err(Error::FieldStringValueTooLarge)));
+    }
+
+    #[test]
+    fn test_large_field_value_with_exact_maximum() {
+        let value = "a".repeat(STRING_LENGTH_LIMIT_IN_BYTES);
+        let input = format!("foo,tag1=bar value=\"{}\" 123", value);
+
+        let parsed = parse(&input);
+
+        assert!(parsed.is_ok());
+        let vals = parsed.unwrap();
+
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(123));
+        assert_eq!(*vals[0].tag_value("tag1").unwrap(), "bar");
+        assert_eq!(vals[0].field_set[0].1.unwrap_string(), value);
+    }
+
+    #[test]
+    fn test_large_field_value_in_one_line_of_multiple_line_protocol() {
+        let input = format!(
+            "foo,tag1=very_long_value_is_okay,tag2=bar value=2i 123\n\
+        foo,tag1=very_long_value_is_okay,tag2=bar value=2i 123\n\
+        foo,tag1=bar value=\"{}\" 123",
+            "a".repeat(STRING_LENGTH_LIMIT_IN_BYTES + 1)
+        );
+
+        let parsed = parse(&input);
+
+        assert!(parsed.is_err());
+        assert!(matches!(parsed, Err(Error::FieldStringValueTooLarge)));
+    }
+
+    #[test]
+    fn test_large_measurement_name() {
+        let measurement = "a".repeat(STRING_LENGTH_LIMIT_IN_BYTES + 1);
+        let input = format!("{},tag1=bar value=1i 123", measurement);
+
+        let parsed = parse(&input);
+
+        assert!(parsed.is_err());
+        assert!(matches!(parsed, Err(Error::FieldStringValueTooLarge)));
+    }
+
+    #[test]
+    fn test_large_measurement_name_exact_maximum_length() {
+        let measurement = "a".repeat(STRING_LENGTH_LIMIT_IN_BYTES);
+        let input = format!("{},tag1=bar value=1i 123", measurement);
+
+        let parsed = parse(&input);
+        assert!(parsed.is_ok());
+        let vals = parsed.unwrap();
+
+        assert_eq!(vals[0].series.measurement, measurement);
+    }
+
+    #[test]
+    fn test_large_tag_name() {
+        let tag_name = "a".repeat(STRING_LENGTH_LIMIT_IN_BYTES + 1);
+        let input = format!("foo,{}=bar value=1i 123", tag_name);
+
+        let parsed = parse(&input);
+
+        assert!(parsed.is_err());
+        assert!(matches!(parsed, Err(Error::FieldStringValueTooLarge)));
+    }
+
+    #[test]
+    fn test_large_tag_name_exact_maximum_length() {
+        let tag_name = "a".repeat(STRING_LENGTH_LIMIT_IN_BYTES);
+        let input = format!("foo,{}=bar value=1i 123", tag_name);
+
+        let parsed = parse(&input);
+        assert!(parsed.is_ok());
+        let vals = parsed.unwrap();
+
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(*vals[0].tag_value(&tag_name).unwrap(), "bar");
+    }
+
+    #[test]
+    fn test_large_value_name() {
+        let value_name = "a".repeat(STRING_LENGTH_LIMIT_IN_BYTES + 1);
+        let input = format!("foo,tag1=bar {}=1i 123", value_name);
+
+        let parsed = parse(&input);
+
+        assert!(parsed.is_err());
+        assert!(matches!(parsed, Err(Error::FieldStringValueTooLarge)));
+    }
+
+    #[test]
+    fn test_large_value_name_exact_maximum_length() {
+        let value_name = "a".repeat(STRING_LENGTH_LIMIT_IN_BYTES);
+        let input = format!("foo,tag1=bar {}=1i 123", value_name);
+
+        let parsed = parse(&input);
+        assert!(parsed.is_ok());
+        let vals = parsed.unwrap();
+
+        assert_eq!(vals[0].field_value(&value_name).unwrap().unwrap_i64(), 1);
     }
 
     /// Assert that the field named `field_name` has a float value

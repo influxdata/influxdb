@@ -190,7 +190,7 @@ mod tests {
         array::{Int64Array, StringArray},
         datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema},
     };
-    use schema::TIME_DATA_TYPE;
+    use schema::{TIME_DATA_TIMEZONE, TIME_DATA_TYPE};
 
     #[test]
     fn test_convert_single_batch() {
@@ -200,9 +200,10 @@ mod tests {
         ]));
 
         let string_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz", "foo"]));
-        let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_iter_values(vec![
-            1000, 2000, 3000, 4000,
-        ]));
+        let timestamp_array: ArrayRef = Arc::new(
+            TimestampNanosecondArray::from_iter_values(vec![1000, 2000, 3000, 4000])
+                .with_timezone_opt(TIME_DATA_TIMEZONE()),
+        );
 
         let actual = do_conversion(
             Arc::clone(&schema),
@@ -226,9 +227,10 @@ mod tests {
         // expect same even if the timestamp order is different
 
         let string_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz", "foo"]));
-        let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_iter_values(vec![
-            1000, 4000, 2000, 3000,
-        ]));
+        let timestamp_array: ArrayRef = Arc::new(
+            TimestampNanosecondArray::from_iter_values(vec![1000, 4000, 2000, 3000])
+                .with_timezone_opt(TIME_DATA_TIMEZONE()),
+        );
 
         let actual = do_conversion(schema, vec![vec![string_array, timestamp_array]])
             .expect("convert correctly");
@@ -247,12 +249,16 @@ mod tests {
         ]));
 
         let string_array1: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar"]));
-        let timestamp_array1: ArrayRef =
-            Arc::new(TimestampNanosecondArray::from_iter_values(vec![1000, 3000]));
+        let timestamp_array1: ArrayRef = Arc::new(
+            TimestampNanosecondArray::from_iter_values(vec![1000, 3000])
+                .with_timezone_opt(TIME_DATA_TIMEZONE()),
+        );
 
         let string_array2: ArrayRef = Arc::new(StringArray::from(vec!["foo", "foo"]));
-        let timestamp_array2: ArrayRef =
-            Arc::new(TimestampNanosecondArray::from_iter_values(vec![1000, 4000]));
+        let timestamp_array2: ArrayRef = Arc::new(
+            TimestampNanosecondArray::from_iter_values(vec![1000, 4000])
+                .with_timezone_opt(TIME_DATA_TIMEZONE()),
+        );
 
         let actual = do_conversion(
             schema,
@@ -287,9 +293,10 @@ mod tests {
         // string array has no actual values, so should not be returned as a field
         let string_array: ArrayRef =
             Arc::new(StringArray::from(vec![None::<&str>, None, None, None]));
-        let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_iter_values(vec![
-            1000, 2000, 3000, 4000,
-        ]));
+        let timestamp_array: ArrayRef = Arc::new(
+            TimestampNanosecondArray::from_iter_values(vec![1000, 2000, 3000, 4000])
+                .with_timezone_opt(TIME_DATA_TIMEZONE()),
+        );
 
         let actual = do_conversion(schema, vec![vec![string_array, timestamp_array]])
             .expect("convert correctly");
@@ -314,9 +321,10 @@ mod tests {
         let string_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz", "foo"]));
         let int_array: ArrayRef =
             Arc::new(Int64Array::from(vec![Some(10), Some(20), Some(30), None]));
-        let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_iter_values(vec![
-            1000, 2000, 3000, 4000,
-        ]));
+        let timestamp_array: ArrayRef = Arc::new(
+            TimestampNanosecondArray::from_iter_values(vec![1000, 2000, 3000, 4000])
+                .with_timezone_opt(TIME_DATA_TIMEZONE()),
+        );
 
         let expected = FieldList {
             fields: vec![

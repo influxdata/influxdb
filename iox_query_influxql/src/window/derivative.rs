@@ -2,39 +2,66 @@ use crate::{error, NUMERICS};
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{Result, ScalarValue};
-use datafusion::logical_expr::{PartitionEvaluator, Signature, TypeSignature, Volatility};
-use once_cell::sync::Lazy;
-
+use datafusion::logical_expr::{
+    PartitionEvaluator, Signature, TypeSignature, Volatility, WindowUDFImpl, TIMEZONE_WILDCARD,
+};
 use std::sync::Arc;
 
-/// The name of the derivative window function.
-pub(super) const NAME: &str = "derivative";
-
-/// Valid signatures for the derivative window function.
-pub(super) static SIGNATURE: Lazy<Signature> = Lazy::new(|| {
-    Signature::one_of(
-        NUMERICS
-            .iter()
-            .map(|dt| {
-                TypeSignature::Exact(vec![
-                    dt.clone(),
-                    DataType::Duration(TimeUnit::Nanosecond),
-                    DataType::Timestamp(TimeUnit::Nanosecond, None),
-                ])
-            })
-            .collect(),
-        Volatility::Immutable,
-    )
-});
-
-/// Calculate the return type given the function signature.
-pub(super) fn return_type(_: &[DataType]) -> Result<Arc<DataType>> {
-    Ok(Arc::new(DataType::Float64))
+#[derive(Debug)]
+pub(super) struct DerivativeUDWF {
+    signature: Signature,
 }
 
-/// Create a new partition_evaluator_factory.
-pub(super) fn partition_evaluator_factory() -> Result<Box<dyn PartitionEvaluator>> {
-    Ok(Box::new(DifferencePartitionEvaluator {}))
+impl DerivativeUDWF {
+    pub(super) fn new() -> Self {
+        Self {
+            signature: Signature::one_of(
+                NUMERICS
+                    .iter()
+                    .flat_map(|dt| {
+                        [
+                            TypeSignature::Exact(vec![
+                                dt.clone(),
+                                DataType::Duration(TimeUnit::Nanosecond),
+                                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                            ]),
+                            TypeSignature::Exact(vec![
+                                dt.clone(),
+                                DataType::Duration(TimeUnit::Nanosecond),
+                                DataType::Timestamp(
+                                    TimeUnit::Nanosecond,
+                                    Some(TIMEZONE_WILDCARD.into()),
+                                ),
+                            ]),
+                        ]
+                    })
+                    .collect(),
+                Volatility::Immutable,
+            ),
+        }
+    }
+}
+
+impl WindowUDFImpl for DerivativeUDWF {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        "derivative"
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
+        Ok(DataType::Float64)
+    }
+
+    fn partition_evaluator(&self) -> Result<Box<dyn PartitionEvaluator>> {
+        Ok(Box::new(DifferencePartitionEvaluator {}))
+    }
 }
 
 /// PartitionEvaluator which returns the derivative between input values,

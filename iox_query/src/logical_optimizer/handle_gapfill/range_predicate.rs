@@ -1,5 +1,8 @@
 //! Find the time range from the filters in a logical plan.
-use std::ops::{Bound, Range};
+use std::{
+    ops::{Bound, Range},
+    sync::Arc,
+};
 
 use datafusion::{
     common::{
@@ -7,8 +10,9 @@ use datafusion::{
         DFSchema,
     },
     error::Result,
-    logical_expr::{Between, BinaryExpr, LogicalPlan, Operator},
-    optimizer::utils::split_conjunction,
+    logical_expr::{
+        utils::split_conjunction, Between, BinaryExpr, LogicalPlan, LogicalPlanBuilder, Operator,
+    },
     prelude::{Column, Expr},
 };
 
@@ -57,12 +61,23 @@ impl TreeNodeVisitor for TimeRangeVisitor {
             }
             LogicalPlan::TableScan(t) => {
                 let range = self.range.clone();
+
+                // filters may use columns that are NOT part of a projection, so we need the underlying schema. Because
+                // that's a bit of a mess in DF, we reconstruct the schema using the plan builder.
+                let unprojected_scan = LogicalPlanBuilder::scan_with_filters(
+                    t.table_name.to_owned(),
+                    Arc::clone(&t.source),
+                    None,
+                    t.filters.clone(),
+                )
+                .map_err(|e| e.context("reconstruct unprojected scheam"))?;
+                let unprojected_schema = unprojected_scan.schema();
                 let range = t
                     .filters
                     .iter()
                     .flat_map(split_conjunction)
                     .try_fold(range, |range, expr| {
-                        range.with_expr(&t.projected_schema, &self.col, expr)
+                        range.with_expr(unprojected_schema, &self.col, expr)
                     })?;
                 self.range = range;
                 Ok(VisitRecursion::Continue)
@@ -166,9 +181,10 @@ mod tests {
             logical_plan::{self, builder::LogicalTableSource},
             Between, LogicalPlan, LogicalPlanBuilder,
         },
-        prelude::{col, lit, lit_timestamp_nano, Column, Expr, Partitioning},
+        prelude::{col, lit, Column, Expr, Partitioning},
         sql::TableReference,
     };
+    use datafusion_util::lit_timestamptz_nano;
 
     use super::find_time_range;
 
@@ -225,88 +241,88 @@ mod tests {
             ),
             (
                 "time_gt_val",
-                col("time").gt(lit_timestamp_nano(1000)),
+                col("time").gt(lit_timestamptz_nano(1000)),
                 Range {
-                    start: Bound::Excluded(lit_timestamp_nano(1000)),
+                    start: Bound::Excluded(lit_timestamptz_nano(1000)),
                     end: Bound::Unbounded,
                 },
             ),
             (
                 "time_gt_eq_val",
-                col("time").gt_eq(lit_timestamp_nano(1000)),
+                col("time").gt_eq(lit_timestamptz_nano(1000)),
                 Range {
-                    start: Bound::Included(lit_timestamp_nano(1000)),
+                    start: Bound::Included(lit_timestamptz_nano(1000)),
                     end: Bound::Unbounded,
                 },
             ),
             (
                 "time_lt_val",
-                col("time").lt(lit_timestamp_nano(1000)),
+                col("time").lt(lit_timestamptz_nano(1000)),
                 Range {
                     start: Bound::Unbounded,
-                    end: Bound::Excluded(lit_timestamp_nano(1000)),
+                    end: Bound::Excluded(lit_timestamptz_nano(1000)),
                 },
             ),
             (
                 "time_lt_eq_val",
-                col("time").lt_eq(lit_timestamp_nano(1000)),
+                col("time").lt_eq(lit_timestamptz_nano(1000)),
                 Range {
                     start: Bound::Unbounded,
-                    end: Bound::Included(lit_timestamp_nano(1000)),
+                    end: Bound::Included(lit_timestamptz_nano(1000)),
                 },
             ),
             (
                 "val_gt_time",
-                lit_timestamp_nano(1000).gt(col("time")),
+                lit_timestamptz_nano(1000).gt(col("time")),
                 Range {
                     start: Bound::Unbounded,
-                    end: Bound::Excluded(lit_timestamp_nano(1000)),
+                    end: Bound::Excluded(lit_timestamptz_nano(1000)),
                 },
             ),
             (
                 "val_gt_eq_time",
-                lit_timestamp_nano(1000).gt_eq(col("time")),
+                lit_timestamptz_nano(1000).gt_eq(col("time")),
                 Range {
                     start: Bound::Unbounded,
-                    end: Bound::Included(lit_timestamp_nano(1000)),
+                    end: Bound::Included(lit_timestamptz_nano(1000)),
                 },
             ),
             (
                 "val_lt_time",
-                lit_timestamp_nano(1000).lt(col("time")),
+                lit_timestamptz_nano(1000).lt(col("time")),
                 Range {
-                    start: Bound::Excluded(lit_timestamp_nano(1000)),
+                    start: Bound::Excluded(lit_timestamptz_nano(1000)),
                     end: Bound::Unbounded,
                 },
             ),
             (
                 "val_lt_eq_time",
-                lit_timestamp_nano(1000).lt_eq(col("time")),
+                lit_timestamptz_nano(1000).lt_eq(col("time")),
                 Range {
-                    start: Bound::Included(lit_timestamp_nano(1000)),
+                    start: Bound::Included(lit_timestamptz_nano(1000)),
                     end: Bound::Unbounded,
                 },
             ),
             (
                 "and",
                 col("time")
-                    .gt_eq(lit_timestamp_nano(1000))
-                    .and(col("time").lt(lit_timestamp_nano(2000))),
+                    .gt_eq(lit_timestamptz_nano(1000))
+                    .and(col("time").lt(lit_timestamptz_nano(2000))),
                 Range {
-                    start: Bound::Included(lit_timestamp_nano(1000)),
-                    end: Bound::Excluded(lit_timestamp_nano(2000)),
+                    start: Bound::Included(lit_timestamptz_nano(1000)),
+                    end: Bound::Excluded(lit_timestamptz_nano(2000)),
                 },
             ),
             (
                 "between",
                 between(
                     col("time"),
-                    lit_timestamp_nano(1000),
-                    lit_timestamp_nano(2000),
+                    lit_timestamptz_nano(1000),
+                    lit_timestamptz_nano(2000),
                 ),
                 Range {
-                    start: Bound::Included(lit_timestamp_nano(1000)),
-                    end: Bound::Included(lit_timestamp_nano(2000)),
+                    start: Bound::Included(lit_timestamptz_nano(1000)),
+                    end: Bound::Included(lit_timestamptz_nano(2000)),
                 },
             ),
         ];
@@ -330,11 +346,11 @@ mod tests {
         // - even when predicates are in different filter nodes
         // - through projections that alias columns
         let plan = LogicalPlanBuilder::from(table_scan()?)
-            .filter(col("time").gt_eq(lit_timestamp_nano(1000)))?
+            .filter(col("time").gt_eq(lit_timestamptz_nano(1000)))?
             .sort(vec![col("time")])?
             .limit(0, Some(10))?
             .project(vec![col("time").alias("other_time")])?
-            .filter(col("other_time").lt(lit_timestamp_nano(2000)))?
+            .filter(col("other_time").lt(lit_timestamptz_nano(2000)))?
             .distinct()?
             .repartition(Partitioning::RoundRobinBatch(1))?
             .project(vec![col("other_time").alias("my_time")])?
@@ -342,8 +358,8 @@ mod tests {
         let time_col = Column::from_name("my_time");
         let actual = find_time_range(&plan, &time_col)?;
         let expected = Range {
-            start: Bound::Included(lit_timestamp_nano(1000)),
-            end: Bound::Excluded(lit_timestamp_nano(2000)),
+            start: Bound::Included(lit_timestamptz_nano(1000)),
+            end: Bound::Excluded(lit_timestamptz_nano(2000)),
         };
         assert_eq!(expected, actual);
         Ok(())

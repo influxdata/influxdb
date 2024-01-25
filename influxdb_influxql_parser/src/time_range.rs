@@ -299,6 +299,11 @@ pub fn split_cond(
                 }) => {
                     stack.push(Some(node.clone()));
                 }
+                node @ CE::Expr(expr)
+                    if matches!(expr.as_ref(), Expr::Literal(Literal::Boolean(_))) =>
+                {
+                    stack.push(Some(node.clone()));
+                }
                 CE::Binary(ConditionalBinary {
                     op: op @ (And | Or),
                     ..
@@ -895,8 +900,13 @@ mod test {
         assert!(cond.is_none());
         assert_eq!(tr, range!(lower ex = 1672531200000000000, upper = 1000));
 
-        // fallible
+        // boolean constant
+        // see https://github.com/influxdata/influxdb_iox/issues/9175
+        let (cond, tr) = split_exprs("true OR time > 0").unwrap();
+        assert_eq!(cond.unwrap().to_string(), "true");
+        assert_eq!(tr, range!(lower = 1));
 
+        // fallible
         assert_error!(split_exprs("time > '2004-04-09T'"), ExprError::Expression(ref s) if s == "invalid expression \"'2004-04-09T'\": '2004-04-09T' is not a valid timestamp");
     }
 

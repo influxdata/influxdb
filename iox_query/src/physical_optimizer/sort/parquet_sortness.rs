@@ -180,8 +180,8 @@ mod tests {
         datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
         physical_expr::PhysicalSortExpr,
         physical_plan::{
-            empty::EmptyExec, expressions::Column, sorts::sort::SortExec, union::UnionExec,
-            Statistics,
+            expressions::Column, placeholder_row::PlaceholderRowExec, sorts::sort::SortExec,
+            union::UnionExec, Statistics,
         },
     };
     use object_store::{path::Path, ObjectMeta};
@@ -202,12 +202,11 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![vec![file(1), file(2)]],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![ordering(["col2", "col1"], &schema)],
-            infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
@@ -220,11 +219,11 @@ mod tests {
             @r###"
         ---
         input:
-          - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+          - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
           - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         output:
           Ok:
-            - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+            - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
             - "   ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         "###
         );
@@ -237,12 +236,11 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![vec![file(1), file(2)]],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![ordering(["col2", "col1", CHUNK_ORDER_COLUMN_NAME], &schema)],
-            infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(DeduplicateExec::new(
@@ -273,12 +271,11 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![vec![file(1), file(2)], vec![file(3)]],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![ordering(["col2", "col1"], &schema)],
-            infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
@@ -296,11 +293,11 @@ mod tests {
             @r###"
         ---
         input:
-          - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+          - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
           - "   ParquetExec: file_groups={2 groups: [[1.parquet, 2.parquet], [3.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         output:
           Ok:
-            - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+            - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
             - "   ParquetExec: file_groups={3 groups: [[1.parquet], [2.parquet], [3.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         "###
         );
@@ -315,12 +312,11 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![vec![file(1)], vec![file(2)]],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![ordering(["col2", "col1"], &schema)],
-            infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
@@ -333,11 +329,11 @@ mod tests {
             @r###"
         ---
         input:
-          - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+          - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
           - "   ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         output:
           Ok:
-            - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+            - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
             - "   ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         "###
         );
@@ -350,12 +346,11 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![vec![file(1), file(2)]],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![ordering(["col1", "col2"], &schema)],
-            infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
@@ -368,11 +363,11 @@ mod tests {
             @r###"
         ---
         input:
-          - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+          - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
           - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col1@0 ASC, col2@1 ASC]"
         output:
           Ok:
-            - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+            - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
             - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col1@0 ASC, col2@1 ASC]"
         "###
         );
@@ -385,12 +380,11 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![vec![file(1), file(2)]],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![],
-            infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
@@ -403,11 +397,11 @@ mod tests {
             @r###"
         ---
         input:
-          - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+          - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
           - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3]"
         output:
           Ok:
-            - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+            - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
             - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3]"
         "###
         );
@@ -420,12 +414,11 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![vec![file(1), file(2), file(3)]],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![ordering(["col2", "col1"], &schema)],
-            infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
@@ -443,11 +436,11 @@ mod tests {
             @r###"
         ---
         input:
-          - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+          - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
           - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet, 3.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         output:
           Ok:
-            - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+            - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
             - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet, 3.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         "###
         );
@@ -456,7 +449,7 @@ mod tests {
     #[test]
     fn test_other_node() {
         let schema = schema();
-        let inner = EmptyExec::new(true, Arc::clone(&schema));
+        let inner = PlaceholderRowExec::new(Arc::clone(&schema));
         let plan = Arc::new(
             SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
                 .with_fetch(Some(42)),
@@ -467,12 +460,12 @@ mod tests {
             @r###"
         ---
         input:
-          - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-          - "   EmptyExec: produce_one_row=true"
+          - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
+          - "   PlaceholderRowExec"
         output:
           Ok:
-            - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-            - "   EmptyExec: produce_one_row=true"
+            - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
+            - "   PlaceholderRowExec"
         "###
         );
     }
@@ -484,12 +477,11 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![vec![file(1), file(2)]],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![ordering(["col2", "col1"], &schema)],
-            infinite_source: false,
         };
         let plan = Arc::new(ParquetExec::new(base_config, None, None));
         let opt = ParquetSortness;
@@ -513,12 +505,11 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![vec![file(1), file(2)]],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![ordering(["col1", "col2"], &schema)],
-            infinite_source: false,
         };
         let plan = Arc::new(ParquetExec::new(base_config, None, None));
         let plan =
@@ -531,13 +522,13 @@ mod tests {
             @r###"
         ---
         input:
-          - " SortExec: fetch=42, expr=[col1@0 ASC,col2@1 ASC]"
-          - "   SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+          - " SortExec: TopK(fetch=42), expr=[col1@0 ASC,col2@1 ASC]"
+          - "   SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
           - "     ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col1@0 ASC, col2@1 ASC]"
         output:
           Ok:
-            - " SortExec: fetch=42, expr=[col1@0 ASC,col2@1 ASC]"
-            - "   SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+            - " SortExec: TopK(fetch=42), expr=[col1@0 ASC,col2@1 ASC]"
+            - "   SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
             - "     ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col1@0 ASC, col2@1 ASC]"
         "###
         );
@@ -550,12 +541,11 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![vec![file(1), file(2)]],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![ordering(["col1", "col2"], &schema)],
-            infinite_source: false,
         };
         let plan = Arc::new(ParquetExec::new(base_config, None, None));
         let plan =
@@ -568,13 +558,13 @@ mod tests {
             @r###"
         ---
         input:
-          - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-          - "   SortExec: fetch=42, expr=[col1@0 ASC,col2@1 ASC]"
+          - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
+          - "   SortExec: TopK(fetch=42), expr=[col1@0 ASC,col2@1 ASC]"
           - "     ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col1@0 ASC, col2@1 ASC]"
         output:
           Ok:
-            - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-            - "   SortExec: fetch=42, expr=[col1@0 ASC,col2@1 ASC]"
+            - " SortExec: TopK(fetch=42), expr=[col2@1 ASC,col1@0 ASC]"
+            - "   SortExec: TopK(fetch=42), expr=[col1@0 ASC,col2@1 ASC]"
             - "     ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col1@0 ASC, col2@1 ASC]"
         "###
         );
@@ -588,12 +578,11 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![vec![file(1), file(2)]],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![ordering(["col2", "col1", CHUNK_ORDER_COLUMN_NAME], &schema)],
-            infinite_source: false,
         };
         let plan_parquet = Arc::new(ParquetExec::new(base_config, None, None));
         let plan_batches = Arc::new(RecordBatchesExec::new(vec![], Arc::clone(&schema), None));
@@ -612,13 +601,13 @@ mod tests {
         input:
           - " DeduplicateExec: [col2@1 ASC,col1@0 ASC]"
           - "   UnionExec"
-          - "     RecordBatchesExec: chunks=0"
+          - "     RecordBatchesExec: chunks=0, projection=[col1, col2, col3, __chunk_order]"
           - "     ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, __chunk_order@3 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [col2@1 ASC,col1@0 ASC]"
             - "   UnionExec"
-            - "     RecordBatchesExec: chunks=0"
+            - "     RecordBatchesExec: chunks=0, projection=[col1, col2, col3, __chunk_order]"
             - "     ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, col3, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, __chunk_order@3 ASC]"
         "###
         );
@@ -650,6 +639,7 @@ mod tests {
                 last_modified: Default::default(),
                 size: 0,
                 e_tag: None,
+                version: None,
             },
             partition_values: vec![],
             range: None,

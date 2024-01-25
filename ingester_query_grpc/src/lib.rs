@@ -26,7 +26,8 @@ use crate::influxdata::iox::ingester::v1 as proto;
 use crate::influxdata::iox::ingester::v2 as proto2;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use data_types::{
-    NamespaceId, PartitionHashId, PartitionId, TableId, TimestampRange, TransitionPartitionId,
+    NamespaceId, PartitionHashId, PartitionId, TableId, TimestampMinMax, TimestampRange,
+    TransitionPartitionId,
 };
 use datafusion::{common::DataFusionError, prelude::Expr};
 use datafusion_proto::bytes::Serializeable;
@@ -37,7 +38,7 @@ use snafu::{ResultExt, Snafu};
 /// This module imports the generated protobuf code into a Rust module
 /// hierarchy that matches the namespace hierarchy of the protobuf
 /// definitions
-#[allow(clippy::use_self)]
+#[allow(clippy::use_self, missing_copy_implementations, unreachable_pub)]
 pub mod influxdata {
     pub mod iox {
         pub mod ingester {
@@ -209,6 +210,10 @@ pub struct IngesterQueryRequest2 {
 
     /// Predicate for filtering
     pub filters: Vec<Expr>,
+
+    /// Time interval specified by the filters. This will be used by the
+    /// ingestor for cheap early filtering.
+    pub t_min_max: TimestampMinMax,
 }
 
 impl IngesterQueryRequest2 {
@@ -218,12 +223,14 @@ impl IngesterQueryRequest2 {
         table_id: TableId,
         columns: Vec<String>,
         filters: Vec<Expr>,
+        t_min_max: TimestampMinMax,
     ) -> Self {
         Self {
             namespace_id,
             table_id,
             columns,
             filters,
+            t_min_max,
         }
     }
 }
@@ -237,6 +244,8 @@ impl TryFrom<proto2::QueryRequest> for IngesterQueryRequest2 {
             table_id,
             columns,
             filters,
+            t_min,
+            t_max,
         } = proto;
 
         let namespace_id = NamespaceId::new(namespace_id);
@@ -246,7 +255,13 @@ impl TryFrom<proto2::QueryRequest> for IngesterQueryRequest2 {
             .transpose()?
             .unwrap_or_default();
 
-        Ok(Self::new(namespace_id, table_id, columns, filters))
+        Ok(Self::new(
+            namespace_id,
+            table_id,
+            columns,
+            filters,
+            TimestampMinMax::new(t_min, t_max),
+        ))
     }
 }
 
@@ -259,6 +274,7 @@ impl TryFrom<IngesterQueryRequest2> for proto2::QueryRequest {
             table_id,
             columns,
             filters,
+            t_min_max,
         } = query;
 
         Ok(Self {
@@ -266,6 +282,8 @@ impl TryFrom<IngesterQueryRequest2> for proto2::QueryRequest {
             table_id: table_id.get(),
             columns,
             filters: Some(filters.try_into()?),
+            t_min: t_min_max.min,
+            t_max: t_min_max.max,
         })
     }
 }
@@ -408,7 +426,7 @@ impl TryFrom<proto2::Filters> for Vec<Expr> {
     }
 }
 
-#[derive(Debug, Snafu)]
+#[derive(Debug, Snafu, Copy, Clone)]
 pub enum EncodeProtoPredicateFromBase64Error {
     #[snafu(display("Cannot encode protobuf: {source}"))]
     ProtobufEncode { source: prost::EncodeError },
@@ -536,6 +554,7 @@ mod tests {
             TableId::new(1337),
             vec!["usage".into(), "time".into()],
             vec![col("foo").eq(lit(1i64))],
+            TimestampMinMax::new(1000, 2000),
         );
 
         let proto_query: proto2::QueryRequest = rust_query.clone().try_into().unwrap();
@@ -550,7 +569,7 @@ mod tests {
         let predicate = Predicate {
             field_columns: Some(BTreeSet::from([String::from("foo"), String::from("bar")])),
             range: Some(TimestampRange::new(13, 42)),
-            exprs: vec![Expr::Wildcard],
+            exprs: vec![Expr::Wildcard { qualifier: None }],
             value_expr: vec![col("_value").eq(lit("bar")).try_into().unwrap()],
         };
         let predicate: proto::Predicate = predicate.try_into().unwrap();

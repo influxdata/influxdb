@@ -288,7 +288,7 @@ impl<'a> Selector<'a> {
             ));
         }
         Ok(Self::First {
-            field_key: Self::identifier(call.args.first().unwrap())?,
+            field_key: Self::identifier(&call.args[0])?,
         })
     }
 
@@ -300,7 +300,7 @@ impl<'a> Selector<'a> {
             ));
         }
         Ok(Self::Last {
-            field_key: Self::identifier(call.args.first().unwrap())?,
+            field_key: Self::identifier(&call.args[0])?,
         })
     }
 
@@ -312,7 +312,7 @@ impl<'a> Selector<'a> {
             ));
         }
         Ok(Self::Max {
-            field_key: Self::identifier(call.args.first().unwrap())?,
+            field_key: Self::identifier(&call.args[0])?,
         })
     }
 
@@ -324,7 +324,7 @@ impl<'a> Selector<'a> {
             ));
         }
         Ok(Self::Min {
-            field_key: Self::identifier(call.args.first().unwrap())?,
+            field_key: Self::identifier(&call.args[0])?,
         })
     }
 
@@ -336,8 +336,8 @@ impl<'a> Selector<'a> {
             ));
         }
         Ok(Self::Percentile {
-            field_key: Self::identifier(call.args.first().unwrap())?,
-            n: Self::literal_num(call.args.get(1).unwrap())?,
+            field_key: Self::identifier(&call.args[0])?,
+            n: Self::literal_num(&call.args[1])?,
         })
     }
 
@@ -349,8 +349,8 @@ impl<'a> Selector<'a> {
             ));
         }
         Ok(Self::Sample {
-            field_key: Self::identifier(call.args.first().unwrap())?,
-            n: Self::literal_int(call.args.get(1).unwrap())?,
+            field_key: Self::identifier(&call.args[0])?,
+            n: Self::literal_int(&call.args[1])?,
         })
     }
 

@@ -97,7 +97,7 @@ where
 }
 
 fn benchmark_scenario<T>(
-    group: &mut BenchmarkGroup<WallTime>,
+    group: &mut BenchmarkGroup<'_, WallTime>,
     bench_name: &str,
     table: &str,
     namespace: &NamespaceName<'_>,

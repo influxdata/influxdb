@@ -7,7 +7,7 @@ use datafusion::{
 };
 use once_cell::sync::Lazy;
 
-use crate::{gapfill, regex, window};
+use crate::{gapfill, regex, sleep, to_timestamp, window};
 
 static REGISTRY: Lazy<IOxFunctionRegistry> = Lazy::new(IOxFunctionRegistry::new);
 
@@ -24,11 +24,13 @@ impl IOxFunctionRegistry {
 impl FunctionRegistry for IOxFunctionRegistry {
     fn udfs(&self) -> HashSet<String> {
         [
+            to_timestamp::TO_TIMESTAMP_FUNCTION_NAME,
             gapfill::DATE_BIN_GAPFILL_UDF_NAME,
             gapfill::LOCF_UDF_NAME,
             gapfill::INTERPOLATE_UDF_NAME,
             regex::REGEX_MATCH_UDF_NAME,
             regex::REGEX_NOT_MATCH_UDF_NAME,
+            sleep::SLEEP_UDF_NAME,
             window::WINDOW_BOUNDS_UDF_NAME,
         ]
         .into_iter()
@@ -38,11 +40,13 @@ impl FunctionRegistry for IOxFunctionRegistry {
 
     fn udf(&self, name: &str) -> DataFusionResult<Arc<ScalarUDF>> {
         match name {
+            to_timestamp::TO_TIMESTAMP_FUNCTION_NAME => Ok(to_timestamp::TO_TIMESTAMP_UDF.clone()),
             gapfill::DATE_BIN_GAPFILL_UDF_NAME => Ok(gapfill::DATE_BIN_GAPFILL.clone()),
             gapfill::LOCF_UDF_NAME => Ok(gapfill::LOCF.clone()),
             gapfill::INTERPOLATE_UDF_NAME => Ok(gapfill::INTERPOLATE.clone()),
             regex::REGEX_MATCH_UDF_NAME => Ok(regex::REGEX_MATCH_UDF.clone()),
             regex::REGEX_NOT_MATCH_UDF_NAME => Ok(regex::REGEX_NOT_MATCH_UDF.clone()),
+            sleep::SLEEP_UDF_NAME => Ok(sleep::SLEEP_UDF.clone()),
             window::WINDOW_BOUNDS_UDF_NAME => Ok(window::WINDOW_BOUNDS_UDF.clone()),
             _ => Err(DataFusionError::Plan(format!(
                 "IOx FunctionRegistry does not contain function '{name}'"

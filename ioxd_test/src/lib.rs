@@ -44,7 +44,7 @@ impl HttpApiErrorSource for ApplicationError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Debug, Clone, PartialEq, Eq, clap::ValueEnum, Copy)]
 pub enum TestAction {
     None,
     EarlyReturnFromGrpcWorker,

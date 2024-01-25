@@ -5,11 +5,12 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lints]
+workspace = true
 
 [dependencies]
-arrow = { workspace = true, features = ["prettyprint"] }
-arrow-flight = { workspace = true, features = ["flight-sql-experimental"] }
+arrow = { workspace = true }
+arrow-flight = { workspace = true }
 arrow_util = { path = "../arrow_util" }
 datafusion = { workspace = true }
 observability_deps = { path = "../observability_deps" }
@@ -17,7 +18,7 @@ iox_query = { path = "../iox_query" }
 
 # Crates.io dependencies, in alphabetical order
 bytes = "1.5"
-snafu = "0.7"
+snafu = "0.8"
 once_cell = { version = "1", default-features = false }
-prost = "0.11"
+prost = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

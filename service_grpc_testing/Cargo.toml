@@ -5,6 +5,9 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }

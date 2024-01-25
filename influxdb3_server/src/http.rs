@@ -23,6 +23,8 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use tower::Layer;
+use trace_http::metrics::MetricFamily;
+use trace_http::metrics::RequestMetrics;
 use trace_http::tower::TraceLayer;
 
 #[derive(Debug, Error)]
@@ -297,11 +299,14 @@ pub(crate) async fn serve<W: WriteBuffer, Q: QueryExecutor>(
     println!("binding listener");
     info!(bind_addr=%listener.local_addr(), "bound HTTP listener");
 
+    let req_metrics = RequestMetrics::new(
+        Arc::clone(&http_server.common_state.metrics),
+        MetricFamily::HttpServer,
+    );
     let trace_layer = TraceLayer::new(
         http_server.common_state.trace_header_parser.clone(),
-        Arc::<metric::Registry>::clone(&http_server.common_state.metrics),
+        Arc::new(req_metrics),
         http_server.common_state.trace_collector().clone(),
-        false,
         TRACE_SERVER_NAME,
     );
 

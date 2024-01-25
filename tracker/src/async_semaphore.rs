@@ -1,5 +1,12 @@
 //! Tooling to track/instrument [`tokio::sync::Semaphore`]s.
-use std::{future::Future, marker::PhantomData, sync::Arc, task::Poll, time::Instant};
+use std::{
+    future::Future,
+    marker::PhantomData,
+    ops::Deref,
+    sync::Arc,
+    task::Poll,
+    time::{Duration, Instant},
+};
 
 use futures::{future::BoxFuture, FutureExt};
 use metric::{Attributes, DurationHistogram, MakeMetricObserver, U64Counter, U64Gauge};
@@ -284,8 +291,8 @@ impl<'a> Future for InstrumentedAsyncSemaphoreAcquire<'a> {
                     this.metrics.permits_acquired.inc(*this.n as u64);
                     this.metrics.holders_acquired.inc(1);
 
-                    let elapsed = this.t_start.elapsed();
-                    this.metrics.acquire_duration.record(elapsed);
+                    let acquire_duration = this.t_start.elapsed();
+                    this.metrics.acquire_duration.record(acquire_duration);
 
                     // reset "pending" metrics if we've reported any
                     if *this.reported_pending {
@@ -308,6 +315,7 @@ impl<'a> Future for InstrumentedAsyncSemaphoreAcquire<'a> {
                         inner: permit,
                         n: *this.n,
                         metrics: Arc::clone(this.metrics),
+                        acquire_duration,
                         span_recorder,
                     }))
                 }
@@ -380,11 +388,21 @@ pub struct InstrumentedAsyncOwnedSemaphorePermit {
     /// Metrics.
     metrics: Arc<AsyncSemaphoreMetrics>,
 
+    /// The time it took to acquire this permit.
+    acquire_duration: Duration,
+
     /// Span recorder for the entire semaphore interaction.
     ///
     /// No direct interaction, will be exported during drop (aka the end of the span will be set).
     #[allow(dead_code)]
     span_recorder: SpanRecorder,
+}
+
+impl InstrumentedAsyncOwnedSemaphorePermit {
+    /// The time it took to acquire this permit.
+    pub fn acquire_duration(&self) -> Duration {
+        self.acquire_duration
+    }
 }
 
 impl Drop for InstrumentedAsyncOwnedSemaphorePermit {
@@ -404,6 +422,14 @@ pub struct InstrumentedAsyncSemaphorePermit<'a> {
     /// Phantom data to track the livetime.
     #[allow(dead_code)]
     phantom: PhantomData<&'a ()>,
+}
+
+impl<'a> Deref for InstrumentedAsyncSemaphorePermit<'a> {
+    type Target = InstrumentedAsyncOwnedSemaphorePermit;
+
+    fn deref(&self) -> &Self::Target {
+        &self.owned_permit
+    }
 }
 
 #[cfg(test)]
@@ -611,6 +637,7 @@ mod tests {
         );
 
         let p1 = semaphore.acquire_many(5, None).await.unwrap();
+        let p1_duration = p1.acquire_duration();
 
         let fut = semaphore.acquire_many(6, None);
         pin!(fut);
@@ -619,9 +646,12 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         drop(p1);
-        fut.await.unwrap();
+        let p2 = fut.await.unwrap();
+        let acquire_duration_method = p1_duration + p2.acquire_duration();
+        let acquire_duration_metric = metrics.acquire_duration.fetch().total;
 
-        assert!(metrics.acquire_duration.fetch().total >= Duration::from_millis(10));
+        assert_eq!(acquire_duration_method, acquire_duration_metric);
+        assert!(acquire_duration_method >= Duration::from_millis(10));
     }
 
     #[tokio::test]

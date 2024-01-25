@@ -16,8 +16,6 @@ use datafusion::physical_plan::{
 };
 use observability_deps::tracing::{debug, trace};
 
-use crate::provider::deduplicate::key_ranges::key_ranges;
-
 // Handles the deduplication across potentially multiple
 // [`RecordBatch`]es which are already sorted on a primary key,
 // including primary keys which straddle RecordBatch boundaries
@@ -240,12 +238,7 @@ impl RecordBatchDeduplicator {
 
                 is_sort_key[index] = true;
 
-                let array = batch.column(index);
-
-                arrow::compute::SortColumn {
-                    values: Arc::clone(array),
-                    options: Some(skey.options),
-                }
+                Arc::clone(batch.column(index))
             })
             .collect();
         //
@@ -256,19 +249,18 @@ impl RecordBatchDeduplicator {
         // the column with the highest cardinality
         let len = columns.len();
         if len > 1 {
-            if let DataType::Timestamp(TimeUnit::Nanosecond, _) =
-                columns[len - 1].values.data_type()
-            {
+            if let DataType::Timestamp(TimeUnit::Nanosecond, _) = columns[len - 1].data_type() {
                 columns.swap(len - 2, len - 1);
             }
         }
         // Reverse the list
-        let columns: Vec<_> = columns.into_iter().rev().collect();
+        columns.reverse();
 
         // Compute partitions (aka breakpoints between the ranges)
         // Each range (or partition) includes a unique sort key value which is
         // a unique combination of PK columns. PK columns consist of all tags and the time col.
-        let ranges = key_ranges(&columns)?.collect();
+        let partitions = arrow::compute::partition(&columns)?;
+        let ranges = partitions.ranges();
 
         Ok(DuplicateRanges {
             is_sort_key,
@@ -410,8 +402,6 @@ mod test {
     use arrow_util::assert_batches_eq;
     use datafusion::physical_plan::expressions::col;
     use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricBuilder};
-
-    use crate::provider::deduplicate::key_ranges::range;
 
     use super::*;
 
@@ -843,5 +833,9 @@ mod test {
     fn make_counter() -> metrics::Count {
         let metrics = ExecutionPlanMetricsSet::new();
         MetricBuilder::new(&metrics).counter("num_dupes", 0)
+    }
+
+    fn range(start: usize, end: usize) -> Range<usize> {
+        Range { start, end }
     }
 }

@@ -127,7 +127,7 @@ use crate::plan::util::IQLSchema;
 use arrow::datatypes::DataType;
 use datafusion::common::tree_node::{Transformed, TreeNode, TreeNodeRewriter};
 use datafusion::common::{Result, ScalarValue};
-use datafusion::logical_expr::expr::{AggregateFunction, AggregateUDF, WindowFunction};
+use datafusion::logical_expr::expr::{AggregateFunction, WindowFunction};
 use datafusion::logical_expr::{
     binary_expr, cast, coalesce, lit, BinaryExpr, Expr, ExprSchemable, GetIndexedField, Operator,
 };
@@ -424,7 +424,6 @@ fn rewrite_expr(expr: Expr, schema: &IQLSchema<'_>) -> Result<Expr> {
             // Invoking an aggregate or window function on a tag column should return `NULL`
             // to be consistent with OG.
             Expr::AggregateFunction(AggregateFunction { ref args, .. } )
-            | Expr::AggregateUDF(AggregateUDF { ref args, .. } )
             | Expr::WindowFunction(WindowFunction { ref args, .. } ) => match &args[0] {
                Expr::Column(Column { ref name, ..  }) if schema.is_tag_field(name) => yes(lit(ScalarValue::Null)),
                _ => no(expr),
@@ -546,9 +545,8 @@ mod test {
     use crate::plan::ir::DataSourceSchema;
 
     use super::*;
-    use datafusion::logical_expr::lit_timestamp_nano;
     use datafusion::prelude::col;
-    use datafusion_util::AsExpr;
+    use datafusion_util::{lit_timestamptz_nano, AsExpr};
 
     use chrono::{DateTime, NaiveDate, Utc};
     use datafusion::common::{DFSchemaRef, ToDFSchema};
@@ -796,15 +794,15 @@ mod test {
         let schemas = new_schema();
         let rewrite = |expr| rewrite_expr(expr, &schemas).unwrap().to_string();
 
-        let expr = "time".as_expr().gt_eq(lit_timestamp_nano(1000));
+        let expr = "time".as_expr().gt_eq(lit_timestamptz_nano(1000));
         assert_eq!(rewrite(expr), "time >= TimestampNanosecond(1000, None)");
 
-        let expr = lit_timestamp_nano(1000).lt_eq("time".as_expr());
+        let expr = lit_timestamptz_nano(1000).lt_eq("time".as_expr());
         assert_eq!(rewrite(expr), "TimestampNanosecond(1000, None) <= time");
 
         let expr = "time"
             .as_expr()
-            .gt_eq(lit_timestamp_nano(1000))
+            .gt_eq(lit_timestamptz_nano(1000))
             .and("tag0".as_expr().eq(lit("foo")));
         assert_eq!(
             rewrite(expr),
@@ -813,7 +811,7 @@ mod test {
 
         let expr = "time"
             .as_expr()
-            .gt_eq(lit_timestamp_nano(1000))
+            .gt_eq(lit_timestamptz_nano(1000))
             .and("float_field".as_expr().eq(lit(false)));
         assert_eq!(
             rewrite(expr),

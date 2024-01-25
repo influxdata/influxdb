@@ -182,14 +182,15 @@ impl GapFillStream {
         let old_size = batches.iter().map(|rb| rb.get_array_memory_size()).sum();
 
         let mut batch = arrow::compute::concat_batches(&self.schema, &batches)
-            .map_err(DataFusionError::ArrowError)?;
+            .map_err(|err| DataFusionError::ArrowError(err, None))?;
         self.reservation.try_grow(batch.get_array_memory_size())?;
 
         if batches.len() > 1 {
             // Optimize the dictionaries. The output of this operator uses the take kernel to produce
             // its output. Since the input batches will usually be smaller than the output, it should
             // be less work to optimize here vs optimizing the output.
-            batch = optimize_dictionaries(&batch).map_err(DataFusionError::ArrowError)?;
+            batch = optimize_dictionaries(&batch)
+                .map_err(|err| DataFusionError::ArrowError(err, None))?;
         }
 
         self.reservation.shrink(old_size);
@@ -205,7 +206,7 @@ impl GapFillStream {
         let input_time_array = self
             .time_expr
             .evaluate(&input_batch)?
-            .into_array(input_batch.num_rows());
+            .into_array(input_batch.num_rows())?;
         let input_time_array: &TimestampNanosecondArray = input_time_array
             .as_any()
             .downcast_ref()
@@ -247,7 +248,8 @@ impl GapFillStream {
             .map(|e| {
                 Ok((
                     expr_to_index(e),
-                    e.evaluate(input_batch)?.into_array(input_batch.num_rows()),
+                    e.evaluate(input_batch)?
+                        .into_array(input_batch.num_rows())?,
                 ))
             })
             .collect::<Result<Vec<_>>>()
@@ -261,7 +263,8 @@ impl GapFillStream {
             .map(|e| {
                 Ok((
                     expr_to_index(e),
-                    e.evaluate(input_batch)?.into_array(input_batch.num_rows()),
+                    e.evaluate(input_batch)?
+                        .into_array(input_batch.num_rows())?,
                 ))
             })
             .collect::<Result<Vec<_>>>()

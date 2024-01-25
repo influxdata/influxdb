@@ -1,4 +1,3 @@
-use backoff::*;
 use futures::prelude::*;
 use object_store::{DynObjectStore, ObjectMeta};
 use observability_deps::tracing::*;
@@ -23,14 +22,9 @@ pub(crate) async fn perform(
     info!("beginning object store listing");
 
     loop {
-        let mut backoff = Backoff::new(&BackoffConfig::default());
-
         // there are issues with the service immediately hitting the os api (credentials, etc) on
         // startup. Retry as needed.
-        let items = backoff
-            .retry_all_errors("list_os_files", || object_store.list(None))
-            .await
-            .expect("backoff retries forever");
+        let items = object_store.list(None);
 
         let mut chunked_items = items.chunks(MAX_ITEMS_PROCESSED_PER_LOOP);
 

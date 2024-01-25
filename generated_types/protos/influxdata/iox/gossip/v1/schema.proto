@@ -2,6 +2,7 @@ syntax = "proto3";
 package influxdata.iox.gossip.v1;
 option go_package = "github.com/influxdata/iox/gossip/v1";
 
+import "google/protobuf/timestamp.proto";
 import "influxdata/iox/partition_template/v1/template.proto";
 
 // A message exchanged via the IOx gossip mechanism describing schema changes.
@@ -16,6 +17,13 @@ message SchemaMessage {
     // One or more new columns were added to an existing table.
     TableUpdated table_updated = 3;
   }
+
+  // Wall-clock time when this consistency probe was enqueued for broadcast
+  // by the sending node.
+  //
+  // Clock-skew yada yada applies to any calculations done by nodes in receipt
+  // of the message.
+  google.protobuf.Timestamp sent_at = 15;
 }
 
 // Initialisation of a new namespace occured.

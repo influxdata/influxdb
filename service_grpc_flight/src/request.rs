@@ -2,13 +2,17 @@
 
 use arrow_flight::Ticket;
 use bytes::Bytes;
+
 use flightsql::FlightSQLCommand;
 use generated_types::google::protobuf::Any;
 use generated_types::influxdata::iox::querier::v1 as proto;
 use generated_types::influxdata::iox::querier::v1::read_info::QueryType;
+
+use iox_query_params::StatementParams;
 use observability_deps::tracing::trace;
 use prost::Message;
 use serde::Deserialize;
+
 use snafu::{ResultExt, Snafu};
 use std::fmt::{Debug, Display, Formatter};
 
@@ -18,12 +22,18 @@ pub enum Error {
     Invalid,
     #[snafu(display("Invalid ticket content: {}", msg))]
     InvalidContent { msg: String },
+    #[snafu(display("Unknown query type. Expected 'sql' or 'influxql', got {}", query_type))]
+    InvalidQueryType { query_type: String },
     #[snafu(display("Invalid Flight SQL ticket: {}", source))]
     FlightSQL { source: flightsql::Error },
-    #[snafu(display("Invalid Protobuf: {}", source))]
-    Decode { source: prost::DecodeError },
+    #[snafu(display("Protobuf decoding error: {}", source))]
+    DecodeProtobuf { source: prost::DecodeError },
+    #[snafu(display("JSON parse error: {}", source))]
+    DecodeJson { source: serde_json::Error },
+    #[snafu(display("Invalid params: {}", source))]
+    DecodeParams { source: iox_query_params::Error },
 }
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// AnyError is an internal error that contains the result of attempting
 /// to decode a protobuf "Any" message. This is separate from Error so
@@ -90,15 +100,34 @@ enum AnyError {
 ///   "query_type": "influxql"
 /// }
 /// ```
+///
+/// ## Query parameters
+///
+/// You can bind parameters to the query by using `$placeholder` syntax within the query and
+/// supplying the parameter values via the `params` object. For example:
+///
+/// ```json
+/// {
+///     "database": "my_db",
+///     "sql_query": "SELECT a, b, c FROM my_table WHERE id = $id AND name = $name",
+///     "query_type": "sql",
+///     "params": {
+///         "id": 1234,
+///         "name": "alice"
+///     }
+/// }
+/// ```
+///
 #[derive(Debug, PartialEq, Clone)]
-pub struct IoxGetRequest {
-    database: String,
-    query: RunQuery,
-    is_debug: bool,
+pub(crate) struct IoxGetRequest {
+    pub(crate) database: String,
+    pub(crate) query: RunQuery,
+    pub(crate) params: StatementParams,
+    pub(crate) is_debug: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum RunQuery {
+pub(crate) enum RunQuery {
     /// Unparameterized SQL query
     Sql(String),
     /// InfluxQL
@@ -110,7 +139,7 @@ pub enum RunQuery {
 }
 
 impl RunQuery {
-    pub fn variant(&self) -> &'static str {
+    pub(crate) fn variant(&self) -> &'static str {
         match self {
             Self::Sql(_) => "sql",
             Self::InfluxQL(_) => "influxql",
@@ -134,16 +163,23 @@ impl IoxGetRequest {
         "type.googleapis.com/influxdata.iox.querier.v1.ReadInfo";
 
     /// Create a new request to run the specified query
-    pub fn new(database: impl Into<String>, query: RunQuery, is_debug: bool) -> Self {
+    pub(crate) fn new(database: impl Into<String>, query: RunQuery, is_debug: bool) -> Self {
         Self {
             database: database.into(),
             query,
+            params: StatementParams::default(),
             is_debug,
         }
     }
 
+    /// Merges result of the gRPC debug header into the is_debug field of this request using boolean or logic
+    pub(crate) fn add_debug_header(mut self, debug_header: bool) -> Self {
+        self.is_debug |= debug_header;
+        self
+    }
+
     /// try to decode a ReadInfo structure from a Token
-    pub fn try_decode(ticket: Ticket) -> Result<Self> {
+    pub(crate) fn try_decode(ticket: Ticket) -> Result<Self> {
         // decode ticket
         IoxGetRequest::decode_protobuf_any(ticket.ticket.clone())
             .or_else(|e| {
@@ -170,12 +206,15 @@ impl IoxGetRequest {
     }
 
     /// Encode the request as a protobuf Ticket
-    pub fn try_encode(self) -> Result<Ticket> {
+    pub(crate) fn try_encode(self) -> Result<Ticket> {
         let Self {
             database,
             query,
+            params,
             is_debug,
         } = self;
+
+        let params: Vec<proto::read_info::QueryParam> = params.into();
 
         let read_info = match query {
             RunQuery::Sql(sql_query) => proto::ReadInfo {
@@ -183,6 +222,7 @@ impl IoxGetRequest {
                 sql_query,
                 query_type: QueryType::Sql.into(),
                 flightsql_command: vec![],
+                params,
                 is_debug,
             },
             RunQuery::InfluxQL(influxql) => proto::ReadInfo {
@@ -191,6 +231,7 @@ impl IoxGetRequest {
                 sql_query: influxql,
                 query_type: QueryType::InfluxQl.into(),
                 flightsql_command: vec![],
+                params,
                 is_debug,
             },
             RunQuery::FlightSQL(flightsql_command) => proto::ReadInfo {
@@ -201,6 +242,7 @@ impl IoxGetRequest {
                     .try_encode()
                     .context(FlightSQLSnafu)?
                     .into(),
+                params,
                 is_debug,
             },
         };
@@ -217,8 +259,10 @@ impl IoxGetRequest {
     }
 
     /// See comments on [`IoxGetRequest`] for details of this format
-    fn decode_json(ticket: Bytes) -> Result<Self, String> {
-        let json_str = String::from_utf8(ticket.to_vec()).map_err(|_| "Not UTF8".to_string())?;
+    fn decode_json(ticket: Bytes) -> Result<Self> {
+        let json_str = String::from_utf8(ticket.to_vec()).map_err(|_| Error::InvalidContent {
+            msg: "Not UTF8".to_string(),
+        })?;
 
         /// This represents ths JSON fields
         #[derive(Deserialize, Debug)]
@@ -229,6 +273,8 @@ impl IoxGetRequest {
             // If query type is not supplied, defaults to SQL
             query_type: Option<String>,
             #[serde(default = "Default::default")]
+            params: StatementParams,
+            #[serde(default = "Default::default")]
             is_debug: bool,
         }
 
@@ -236,18 +282,15 @@ impl IoxGetRequest {
             database,
             sql_query,
             query_type,
+            params,
             is_debug,
-        } = serde_json::from_str(&json_str).map_err(|e| format!("JSON parse error: {e}"))?;
+        } = serde_json::from_str(&json_str).context(DecodeJsonSnafu)?;
 
         let query = if let Some(query_type) = query_type {
             match query_type.as_str() {
                 "sql" => RunQuery::Sql(sql_query),
                 "influxql" => RunQuery::InfluxQL(sql_query),
-                _ => {
-                    return Err(format!(
-                        "unknown query type. Expected 'sql' or 'influxql', got {query_type}'"
-                    ))
-                }
+                _ => return InvalidQueryTypeSnafu { query_type }.fail(),
             }
         } else {
             // default to SQL
@@ -257,6 +300,7 @@ impl IoxGetRequest {
         Ok(Self {
             database,
             query,
+            params,
             is_debug,
         })
     }
@@ -276,7 +320,7 @@ impl IoxGetRequest {
 
     /// See comments on [`IoxGetRequest`] for details of this format
     fn decode_protobuf(ticket: Bytes) -> Result<Self, Error> {
-        let read_info = proto::ReadInfo::decode(ticket).context(DecodeSnafu)?;
+        let read_info = proto::ReadInfo::decode(ticket).context(DecodeProtobufSnafu)?;
 
         let query_type = read_info.query_type();
         let proto::ReadInfo {
@@ -285,6 +329,7 @@ impl IoxGetRequest {
             query_type: _,
             flightsql_command,
             is_debug,
+            params,
         } = read_info;
 
         Ok(Self {
@@ -320,30 +365,26 @@ impl IoxGetRequest {
                     RunQuery::FlightSQL(cmd)
                 }
             },
+            params: params.try_into().context(DecodeParamsSnafu)?,
             is_debug,
         })
     }
 
-    pub fn database(&self) -> &str {
+    pub(crate) fn database(&self) -> &str {
         self.database.as_ref()
     }
 
-    pub fn query(&self) -> &RunQuery {
+    pub(crate) fn query(&self) -> &RunQuery {
         &self.query
     }
-
-    pub fn is_debug(&self) -> bool {
-        self.is_debug
-    }
 }
-
 #[cfg(test)]
 mod tests {
+    use super::*;
     use arrow_flight::sql::CommandStatementQuery;
     use assert_matches::assert_matches;
     use generated_types::influxdata::iox::querier::v1::read_info::QueryType;
-
-    use super::*;
+    use iox_query_params::{params, StatementParams};
 
     #[test]
     fn json_ticket_decoding_compatibility() {
@@ -369,22 +410,52 @@ mod tests {
 
         impl TestCase {
             fn new_sql(json: &'static str, expected_database: &str, query: &str) -> Self {
+                Self::new_sql_with_params(
+                    json,
+                    expected_database,
+                    query,
+                    StatementParams::default(),
+                )
+            }
+
+            fn new_sql_with_params(
+                json: &'static str,
+                expected_database: &str,
+                query: &str,
+                params: impl Into<StatementParams>,
+            ) -> Self {
                 Self {
                     json,
                     expected: IoxGetRequest {
                         database: String::from(expected_database),
                         query: RunQuery::Sql(String::from(query)),
+                        params: params.into(),
                         is_debug: false,
                     },
                 }
             }
 
             fn new_influxql(json: &'static str, expected_database: &str, query: &str) -> Self {
+                Self::new_influxql_with_params(
+                    json,
+                    expected_database,
+                    query,
+                    StatementParams::default(),
+                )
+            }
+
+            fn new_influxql_with_params(
+                json: &'static str,
+                expected_database: &str,
+                query: &str,
+                params: impl Into<StatementParams>,
+            ) -> Self {
                 Self {
                     json,
                     expected: IoxGetRequest {
                         database: String::from(expected_database),
                         query: RunQuery::InfluxQL(String::from(query)),
+                        params: params.into(),
                         is_debug: false,
                     },
                 }
@@ -518,6 +589,55 @@ mod tests {
                 "my_otherdb",
                 "SHOW DATABASES;",
             ),
+            // query parameter cases
+            TestCase::new_sql_with_params(
+                r#"
+                {
+                    "bucket": "my_db",
+                    "sql_query": "SELECT $1, $2, $3, $4, $5;",
+                    "query_type": "sql",
+                    "params": {
+                        "1": null,
+                        "2": true,
+                        "3": "string",
+                        "4": 1234,
+                        "5": 12.34
+                    }
+                }"#,
+                "my_db",
+                "SELECT $1, $2, $3, $4, $5;",
+                params! {
+                    "1" => (),
+                    "2" => true,
+                    "3" => "string",
+                    "4" => 1234_u32,
+                    "5" => 12.34
+                },
+            ),
+            TestCase::new_influxql_with_params(
+                r#"
+                {
+                    "bucket": "my_db",
+                    "sql_query": "SELECT $1, $2, $3, $4, $5;",
+                    "query_type": "influxql",
+                    "params": {
+                        "1": null,
+                        "2": true,
+                        "3": "string",
+                        "4": 1234,
+                        "5": 12.34
+                    }
+                }"#,
+                "my_db",
+                "SELECT $1, $2, $3, $4, $5;",
+                params! {
+                    "1" => (),
+                    "2" => true,
+                    "3" => "string",
+                    "4" => 1234_u32,
+                    "5" => 12.34
+                },
+            ),
         ];
 
         for TestCase { json, expected } in cases {
@@ -558,12 +678,39 @@ mod tests {
     }
 
     #[test]
+    fn json_ticket_decoding_invalid_params() {
+        let ticket = make_json_ticket(
+            r#"
+        {
+            "bucket": "my_db",
+            "sql_query": "SELECT $1, $2, $3, $4, $5;",
+            "query_type": "influxql",
+            "params": ["foo", "bar"]
+        }"#,
+        );
+        let e = IoxGetRequest::try_decode(ticket).unwrap_err();
+        assert_matches!(e, Error::Invalid);
+
+        let ticket = make_json_ticket(
+            r#"
+        {
+            "bucket": "my_db",
+            "sql_query": "SELECT $1, $2, $3, $4, $5;",
+            "query_type": "influxql",
+            "params": null
+        }"#,
+        );
+        let e = IoxGetRequest::try_decode(ticket).unwrap_err();
+        assert_matches!(e, Error::Invalid)
+    }
+    #[test]
     fn proto_ticket_decoding_unspecified() {
         let ticket = make_proto_ticket(&proto::ReadInfo {
             database: "<foo>_<bar>".to_string(),
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::Unspecified.into(),
             flightsql_command: vec![],
+            params: vec![],
             is_debug: false,
         });
 
@@ -580,6 +727,7 @@ mod tests {
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::Sql.into(),
             flightsql_command: vec![],
+            params: vec![],
             is_debug: false,
         });
 
@@ -595,6 +743,7 @@ mod tests {
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::InfluxQl.into(),
             flightsql_command: vec![],
+            params: vec![],
             is_debug: false,
         });
 
@@ -610,6 +759,7 @@ mod tests {
             sql_query: "SELECT 1".into(),
             query_type: 42, // not a known query type
             flightsql_command: vec![],
+            params: vec![],
             is_debug: false,
         });
 
@@ -627,6 +777,7 @@ mod tests {
             query_type: QueryType::Sql.into(),
             // can't have both sql_query and flightsql
             flightsql_command: vec![1, 2, 3],
+            params: vec![],
             is_debug: false,
         });
 
@@ -642,6 +793,7 @@ mod tests {
             query_type: QueryType::InfluxQl.into(),
             // can't have both sql_query and flightsql
             flightsql_command: vec![1, 2, 3],
+            params: vec![],
             is_debug: false,
         });
 
@@ -657,6 +809,7 @@ mod tests {
             query_type: QueryType::FlightSqlMessage.into(),
             // can't have both sql_query and flightsql
             flightsql_command: vec![1, 2, 3],
+            params: vec![],
             is_debug: false,
         });
 
@@ -682,6 +835,7 @@ mod tests {
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::Unspecified.into(),
             flightsql_command: vec![],
+            params: vec![],
             is_debug: false,
         });
 
@@ -698,6 +852,7 @@ mod tests {
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::Sql.into(),
             flightsql_command: vec![],
+            params: vec![],
             is_debug: false,
         });
 
@@ -713,6 +868,7 @@ mod tests {
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::InfluxQl.into(),
             flightsql_command: vec![],
+            params: vec![],
             is_debug: false,
         });
 
@@ -728,6 +884,7 @@ mod tests {
             sql_query: "SELECT 1".into(),
             query_type: 42, // not a known query type
             flightsql_command: vec![],
+            params: vec![],
             is_debug: false,
         });
 
@@ -745,6 +902,7 @@ mod tests {
             query_type: QueryType::Sql.into(),
             // can't have both sql_query and flightsql
             flightsql_command: vec![1, 2, 3],
+            params: vec![],
             is_debug: false,
         });
 
@@ -760,6 +918,7 @@ mod tests {
             query_type: QueryType::InfluxQl.into(),
             // can't have both sql_query and flightsql
             flightsql_command: vec![1, 2, 3],
+            params: vec![],
             is_debug: false,
         });
 
@@ -775,6 +934,7 @@ mod tests {
             query_type: QueryType::FlightSqlMessage.into(),
             // can't have both sql_query and flightsql
             flightsql_command: vec![1, 2, 3],
+            params: vec![],
             is_debug: false,
         });
 
@@ -797,6 +957,7 @@ mod tests {
         let request = IoxGetRequest {
             database: "foo_blarg".into(),
             query: RunQuery::Sql("select * from bar".into()),
+            params: StatementParams::default(),
             is_debug: false,
         };
 
@@ -812,6 +973,7 @@ mod tests {
         let request = IoxGetRequest {
             database: "foo_blarg".into(),
             query: RunQuery::Sql("select * from bar".into()),
+            params: StatementParams::default(),
             is_debug: true,
         };
 
@@ -827,6 +989,7 @@ mod tests {
         let request = IoxGetRequest {
             database: "foo_blarg".into(),
             query: RunQuery::InfluxQL("select * from bar".into()),
+            params: StatementParams::default(),
             is_debug: false,
         };
 
@@ -847,6 +1010,7 @@ mod tests {
         let request = IoxGetRequest {
             database: "foo_blarg".into(),
             query: RunQuery::FlightSQL(cmd),
+            params: StatementParams::default(),
             is_debug: false,
         };
 

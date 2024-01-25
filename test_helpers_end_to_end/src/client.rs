@@ -9,6 +9,7 @@ use influxdb_iox_client::{
     connection::Connection,
     ingester::generated_types::{write_service_client::WriteServiceClient, WriteRequest},
 };
+use iox_query_params::StatementParam;
 use mutable_batch_lp::lines_to_batches;
 use mutable_batch_pb::encode::encode_write;
 use std::fmt::Display;
@@ -16,10 +17,10 @@ use tonic::IntoRequest;
 
 /// Writes the line protocol to the write_base/api/v2/write endpoint (typically on the router)
 pub async fn write_to_router(
-    line_protocol: impl Into<String>,
-    org: impl AsRef<str>,
-    bucket: impl AsRef<str>,
-    write_base: impl AsRef<str>,
+    line_protocol: impl Into<String> + Send,
+    org: impl AsRef<str> + Send,
+    bucket: impl AsRef<str> + Send,
+    write_base: impl AsRef<str> + Send,
     authorization: Option<&str>,
 ) -> Response<Body> {
     let client = Client::new();
@@ -46,7 +47,7 @@ pub async fn write_to_router(
 
 /// Writes the line protocol to the WriteService endpoint (typically on the ingester)
 pub async fn write_to_ingester(
-    line_protocol: impl Into<String>,
+    line_protocol: impl Into<String> + Send,
     namespace_id: NamespaceId,
     table_id: TableId,
     ingester_connection: Connection,
@@ -80,8 +81,28 @@ pub async fn write_to_ingester(
 
 /// Runs a SQL query using the flight API on the specified connection.
 pub async fn try_run_sql(
-    sql_query: impl Into<String>,
-    namespace: impl Into<String>,
+    sql_query: impl Into<String> + Send,
+    namespace: impl Into<String> + Send,
+    querier_connection: Connection,
+    authorization: Option<&str>,
+    with_debug: bool,
+) -> Result<(Vec<RecordBatch>, SchemaRef), influxdb_iox_client::flight::Error> {
+    try_run_sql_with_params(
+        sql_query,
+        namespace,
+        [],
+        querier_connection,
+        authorization,
+        with_debug,
+    )
+    .await
+}
+
+/// Runs a SQL query using the flight API on the specified connection.
+pub async fn try_run_sql_with_params(
+    sql_query: impl Into<String> + Send,
+    namespace: impl Into<String> + Send,
+    params: impl IntoIterator<Item = (String, StatementParam)> + Send,
     querier_connection: Connection,
     authorization: Option<&str>,
     with_debug: bool,
@@ -98,7 +119,12 @@ pub async fn try_run_sql(
     // Normally this would be done one per connection, not per query
     client.handshake().await?;
 
-    let mut stream = client.sql(namespace.into(), sql_query.into()).await?;
+    let mut stream = client
+        .query(namespace)
+        .sql(sql_query.into())
+        .with_params(params)
+        .run()
+        .await?;
 
     let batches = (&mut stream).try_collect().await?;
 
@@ -114,8 +140,25 @@ pub async fn try_run_sql(
 
 /// Runs a InfluxQL query using the flight API on the specified connection.
 pub async fn try_run_influxql(
-    influxql_query: impl Into<String>,
-    namespace: impl Into<String>,
+    influxql_query: impl Into<String> + Send,
+    namespace: impl Into<String> + Send,
+    querier_connection: Connection,
+    authorization: Option<&str>,
+) -> Result<(Vec<RecordBatch>, SchemaRef), influxdb_iox_client::flight::Error> {
+    try_run_influxql_with_params(
+        influxql_query,
+        namespace,
+        [],
+        querier_connection,
+        authorization,
+    )
+    .await
+}
+
+pub async fn try_run_influxql_with_params(
+    influxql_query: impl Into<String> + Send,
+    namespace: impl Into<String> + Send,
+    params: impl IntoIterator<Item = (String, StatementParam)> + Send,
     querier_connection: Connection,
     authorization: Option<&str>,
 ) -> Result<(Vec<RecordBatch>, SchemaRef), influxdb_iox_client::flight::Error> {
@@ -129,7 +172,10 @@ pub async fn try_run_influxql(
     client.handshake().await?;
 
     let mut stream = client
-        .influxql(namespace.into(), influxql_query.into())
+        .query(namespace)
+        .influxql(influxql_query.into())
+        .with_params(params)
+        .run()
         .await?;
 
     let batches = (&mut stream).try_collect().await?;
@@ -148,8 +194,8 @@ pub async fn try_run_influxql(
 ///
 /// Use [`try_run_sql`] if you want to check the error manually.
 pub async fn run_sql(
-    sql: impl Into<String>,
-    namespace: impl Into<String>,
+    sql: impl Into<String> + Send,
+    namespace: impl Into<String> + Send,
     querier_connection: Connection,
     authorization: Option<&str>,
     with_debug: bool,
@@ -165,18 +211,62 @@ pub async fn run_sql(
     .expect("Error executing sql query")
 }
 
+/// Runs a SQL query using the flight API on the specified connection.
+///
+/// Use [`try_run_sql`] if you want to check the error manually.
+pub async fn run_sql_with_params(
+    sql: impl Into<String> + Send,
+    namespace: impl Into<String> + Send,
+    params: impl IntoIterator<Item = (String, StatementParam)> + Send,
+    querier_connection: Connection,
+    authorization: Option<&str>,
+    with_debug: bool,
+) -> (Vec<RecordBatch>, SchemaRef) {
+    try_run_sql_with_params(
+        sql,
+        namespace,
+        params,
+        querier_connection,
+        authorization,
+        with_debug,
+    )
+    .await
+    .expect("Error executing sql query")
+}
+
 /// Runs an InfluxQL query using the flight API on the specified connection.
 ///
 /// Use [`try_run_influxql`] if you want to check the error manually.
 pub async fn run_influxql(
-    influxql: impl Into<String> + Clone + Display,
-    namespace: impl Into<String>,
+    influxql: impl Into<String> + Clone + Display + Send,
+    namespace: impl Into<String> + Send,
     querier_connection: Connection,
     authorization: Option<&str>,
 ) -> (Vec<RecordBatch>, SchemaRef) {
     try_run_influxql(
         influxql.clone(),
         namespace,
+        querier_connection,
+        authorization,
+    )
+    .await
+    .unwrap_or_else(|_| panic!("Error executing InfluxQL query: {influxql}"))
+}
+
+/// Runs an InfluxQL query using the flight API on the specified connection.
+///
+/// Use [`try_run_influxql`] if you want to check the error manually.
+pub async fn run_influxql_with_params(
+    influxql: impl Into<String> + Clone + Display + Send,
+    namespace: impl Into<String> + Send,
+    params: impl IntoIterator<Item = (String, StatementParam)> + Send,
+    querier_connection: Connection,
+    authorization: Option<&str>,
+) -> (Vec<RecordBatch>, SchemaRef) {
+    try_run_influxql_with_params(
+        influxql.clone(),
+        namespace,
+        params,
         querier_connection,
         authorization,
     )

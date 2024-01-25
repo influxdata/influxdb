@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use metric::{Attributes, DurationCounter, Metric, U64Counter};
 
-type RawRwLock = InstrumentedRawRwLock<parking_lot::RawRwLock>;
+type RawRwLock = InstrumentedRawLock<parking_lot::RawRwLock>;
+type RawMutex = InstrumentedRawLock<parking_lot::RawMutex>;
 
 /// An instrumented Read-Write Lock
 pub type RwLock<T> = lock_api::RwLock<RawRwLock, T>;
@@ -11,6 +12,11 @@ pub type RwLockWriteGuard<'a, T> = lock_api::RwLockWriteGuard<'a, RawRwLock, T>;
 pub type MappedRwLockReadGuard<'a, T> = lock_api::MappedRwLockReadGuard<'a, RawRwLock, T>;
 pub type MappedRwLockWriteGuard<'a, T> = lock_api::MappedRwLockWriteGuard<'a, RawRwLock, T>;
 pub type RwLockUpgradableReadGuard<'a, T> = lock_api::RwLockUpgradableReadGuard<'a, RawRwLock, T>;
+
+/// An instrumented mutex
+pub type Mutex<T> = lock_api::Mutex<RawMutex, T>;
+pub type MutexGuard<'a, T> = lock_api::MutexGuard<'a, RawMutex, T>;
+pub type MappedMutexGuard<'a, T> = lock_api::MappedMutexGuard<'a, RawMutex, T>;
 
 #[derive(Debug)]
 pub struct LockMetrics {
@@ -86,9 +92,26 @@ impl LockMetrics {
     pub fn new_lock_raw<R: lock_api::RawRwLock, T: Sized>(
         self: &Arc<Self>,
         t: T,
-    ) -> lock_api::RwLock<InstrumentedRawRwLock<R>, T> {
+    ) -> lock_api::RwLock<InstrumentedRawLock<R>, T> {
         lock_api::RwLock::const_new(
-            InstrumentedRawRwLock {
+            InstrumentedRawLock {
+                inner: R::INIT,
+                metrics: Some(Arc::clone(self)),
+            },
+            t,
+        )
+    }
+
+    pub fn new_mutex<T: Sized>(self: &Arc<Self>, t: T) -> Mutex<T> {
+        self.new_mutex_raw(t)
+    }
+
+    pub fn new_mutex_raw<R: lock_api::RawMutex, T: Sized>(
+        self: &Arc<Self>,
+        t: T,
+    ) -> lock_api::Mutex<InstrumentedRawLock<R>, T> {
+        lock_api::Mutex::const_new(
+            InstrumentedRawLock {
                 inner: R::INIT,
                 metrics: Some(Arc::clone(self)),
             },
@@ -102,7 +125,7 @@ impl LockMetrics {
 ///
 /// This is a raw lock implementation that wraps another and instruments it
 #[derive(Debug)]
-pub struct InstrumentedRawRwLock<R: Sized> {
+pub struct InstrumentedRawLock<R: Sized> {
     inner: R,
 
     /// Stores the tracking data if any
@@ -126,7 +149,7 @@ pub struct InstrumentedRawRwLock<R: Sized> {
 /// exists.
 ///
 /// This is done by delegating to the wrapped RawRwLock implementation
-unsafe impl<R: lock_api::RawRwLock + Sized> lock_api::RawRwLock for InstrumentedRawRwLock<R> {
+unsafe impl<R: lock_api::RawRwLock + Sized> lock_api::RawRwLock for InstrumentedRawLock<R> {
     const INIT: Self = Self {
         inner: R::INIT,
         metrics: None,
@@ -229,7 +252,7 @@ unsafe impl<R: lock_api::RawRwLock + Sized> lock_api::RawRwLock for Instrumented
 ///
 /// This is done by delegating to the wrapped RawRwLock implementation
 unsafe impl<R: lock_api::RawRwLockUpgrade + Sized> lock_api::RawRwLockUpgrade
-    for InstrumentedRawRwLock<R>
+    for InstrumentedRawLock<R>
 {
     fn lock_upgradable(&self) {
         match &self.metrics {
@@ -292,6 +315,54 @@ unsafe impl<R: lock_api::RawRwLockUpgrade + Sized> lock_api::RawRwLockUpgrade
     }
 }
 
+/// # Safety
+///
+/// Implementations of this trait must ensure that the `Mutex` is actually
+/// exclusive: an exclusive lock can't be acquired while another exclusive
+/// lock exists.
+///
+/// This is done by delegating to the wrapped RawMutex implementation
+unsafe impl<R: lock_api::RawMutex + Sized> lock_api::RawMutex for InstrumentedRawLock<R> {
+    const INIT: Self = Self {
+        inner: R::INIT,
+        metrics: None,
+    };
+
+    type GuardMarker = R::GuardMarker;
+
+    fn lock(&self) {
+        match &self.metrics {
+            Some(shared) => {
+                // Early return if possible - Instant::now is not necessarily cheap
+                if self.try_lock() {
+                    return;
+                }
+
+                let now = std::time::Instant::now();
+                self.inner.lock();
+                let elapsed = now.elapsed();
+                shared.exclusive_count.inc(1);
+                shared.exclusive_wait.inc(elapsed);
+            }
+            None => self.inner.lock(),
+        }
+    }
+
+    fn try_lock(&self) -> bool {
+        let ret = self.inner.try_lock();
+        if let Some(shared) = &self.metrics {
+            if ret {
+                shared.exclusive_count.inc(1);
+            }
+        }
+        ret
+    }
+
+    unsafe fn unlock(&self) {
+        self.inner.unlock()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     // Clippy isn't recognizing the explicit drops; none of these locks are actually being held
@@ -302,7 +373,7 @@ mod tests {
     use std::time::Duration;
 
     #[test]
-    fn test_counts() {
+    fn test_rwlock_counts() {
         let metrics = Arc::new(LockMetrics::new_unregistered());
         let lock = metrics.new_lock(32);
 
@@ -317,6 +388,21 @@ mod tests {
 
         assert_eq!(metrics.exclusive_count.fetch(), 1);
         assert_eq!(metrics.shared_count.fetch(), 2);
+    }
+
+    #[test]
+    fn test_mutex_counts() {
+        let metrics = Arc::new(LockMetrics::new_unregistered());
+        let mutex = metrics.new_mutex(32);
+
+        let g = mutex.lock();
+        drop(g);
+
+        let g = mutex.lock();
+        drop(g);
+
+        assert_eq!(metrics.exclusive_count.fetch(), 2);
+        assert_eq!(metrics.shared_count.fetch(), 0);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -362,6 +448,29 @@ mod tests {
         assert_eq!(metrics.exclusive_count.fetch(), 1);
         assert_eq!(metrics.shared_count.fetch(), 1);
         assert!(metrics.shared_wait.fetch() < Duration::from_micros(100));
+        assert!(metrics.exclusive_wait.fetch() > Duration::from_millis(80));
+        assert!(metrics.exclusive_wait.fetch() < Duration::from_millis(200));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mutex_wait_time() {
+        let metrics = Arc::new(LockMetrics::new_unregistered());
+        let l1 = Arc::new(metrics.new_mutex(32));
+        let l2 = Arc::clone(&l1);
+
+        let g = l1.lock();
+        let join = tokio::spawn(async move {
+            let _g = l2.lock();
+        });
+
+        std::thread::sleep(Duration::from_millis(100));
+        std::mem::drop(g);
+
+        join.await.unwrap();
+
+        assert_eq!(metrics.exclusive_count.fetch(), 2);
+        assert_eq!(metrics.shared_count.fetch(), 0);
+        assert_eq!(metrics.shared_wait.fetch(), Duration::ZERO);
         assert!(metrics.exclusive_wait.fetch() > Duration::from_millis(80));
         assert!(metrics.exclusive_wait.fetch() < Duration::from_millis(200));
     }

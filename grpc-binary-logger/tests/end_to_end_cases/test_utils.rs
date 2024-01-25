@@ -13,16 +13,15 @@ use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::{Channel, Server};
 
 #[derive(Debug)]
-pub struct Fixture {
-    pub local_addr: String,
-    pub client: TestClient<Channel>,
+pub(crate) struct Fixture {
+    pub(crate) client: TestClient<Channel>,
     shutdown_tx: tokio::sync::oneshot::Sender<()>,
 }
 
 impl Fixture {
     /// Start up a grpc server listening on `port`, returning
     /// a fixture with the server and client.
-    pub async fn new<T, K>(svc: T, sink: K) -> Result<Self, Box<dyn std::error::Error>>
+    pub(crate) async fn new<T, K>(svc: T, sink: K) -> Result<Self, Box<dyn std::error::Error>>
     where
         T: test_server::Test,
         K: Sink + 'static,
@@ -54,7 +53,6 @@ impl Fixture {
             .expect("connect");
 
         Ok(Self {
-            local_addr,
             client,
             shutdown_tx,
         })
@@ -72,19 +70,19 @@ impl Drop for Fixture {
 }
 
 #[derive(Clone, Debug)]
-pub struct RecordingSink {
+pub(crate) struct RecordingSink {
     log: Arc<Mutex<Vec<GrpcLogEntry>>>,
 }
 
 impl RecordingSink {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             log: Default::default(),
         }
     }
 
     /// Return a copy of the recorded log entries.
-    pub fn entries(&self) -> Vec<GrpcLogEntry> {
+    pub(crate) fn entries(&self) -> Vec<GrpcLogEntry> {
         self.log.lock().unwrap().clone()
     }
 }

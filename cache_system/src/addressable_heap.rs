@@ -171,6 +171,7 @@ fn project_tuple<A, B>(t: &(A, B)) -> (&A, &B) {
 }
 
 /// Iterator of [`AddressableHeap::iter`].
+#[derive(Debug)]
 pub struct AddressableHeapIter<'a, K, V, O>
 where
     K: Clone + Eq + Hash + Ord,
@@ -477,13 +478,11 @@ mod tests {
             res
         }
 
+        #[allow(clippy::map_identity)] // https://github.com/rust-lang/rust-clippy/issues/11764
         fn peek(&self) -> Option<(&u8, &String, &i8)> {
-            #[allow(clippy::map_identity)]
             self.inner
                 .iter()
                 .min_by_key(|(k, _v, o)| (o, k))
-                // This is a false positive as this actually changes
-                // Option<&(u8, String, i8)> -> Option<(&u8, &String, &i8)>
                 .map(|(k, v, o)| (k, v, o))
         }
 

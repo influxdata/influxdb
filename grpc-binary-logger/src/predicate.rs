@@ -10,7 +10,7 @@ pub trait Predicate: Clone {
 }
 
 #[derive(Default, Clone, Debug)]
-pub struct LogAll;
+pub(crate) struct LogAll;
 
 impl Predicate for LogAll {
     fn should_log<B>(&self, _req: &hyper::Request<B>) -> bool

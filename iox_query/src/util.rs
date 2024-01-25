@@ -6,31 +6,34 @@ use std::{
 };
 
 use arrow::{
-    array::TimestampNanosecondArray, compute::SortOptions, datatypes::Schema as ArrowSchema,
+    array::TimestampNanosecondArray,
+    compute::SortOptions,
+    datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef},
     record_batch::RecordBatch,
 };
 
 use data_types::TimestampMinMax;
+use datafusion::common::stats::Precision;
+use datafusion::physical_expr::{analyze, AnalysisContext, ExprBoundaries};
 use datafusion::{
     self,
     common::ToDFSchema,
     datasource::{provider_as_source, MemTable},
     error::DataFusionError,
     execution::context::ExecutionProps,
-    logical_expr::{LogicalPlan, LogicalPlanBuilder},
+    logical_expr::{interval_arithmetic::Interval, LogicalPlan, LogicalPlanBuilder},
     optimizer::simplify_expressions::{ExprSimplifier, SimplifyContext},
     physical_expr::create_physical_expr,
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},
-        ColumnStatistics, ExecutionPlan, PhysicalExpr, Statistics,
+        PhysicalExpr,
     },
     prelude::{Column, Expr},
-    scalar::ScalarValue,
 };
 
 use itertools::Itertools;
 use observability_deps::tracing::trace;
-use schema::{sort::SortKey, InfluxColumnType, Schema, TIME_COLUMN_NAME};
+use schema::{sort::SortKey, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -68,26 +71,6 @@ pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, Da
     LogicalPlanBuilder::scan("memtable", source, projection)?.build()
 }
 
-/// Returns the pk in arrow's expression used for data sorting
-pub fn arrow_pk_sort_exprs(
-    key_columns: Vec<&str>,
-    input_schema: &ArrowSchema,
-) -> Vec<PhysicalSortExpr> {
-    let mut sort_exprs = vec![];
-    for key in key_columns {
-        let expr = physical_col(key, input_schema).expect("pk in schema");
-        sort_exprs.push(PhysicalSortExpr {
-            expr,
-            options: SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        });
-    }
-
-    sort_exprs
-}
-
 pub fn logical_sort_key_exprs(sort_key: &SortKey) -> Vec<Expr> {
     sort_key
         .iter()
@@ -120,11 +103,9 @@ pub fn arrow_sort_key_exprs(
 
 /// Build a datafusion physical expression from a logical one
 pub fn df_physical_expr(
-    input: &dyn ExecutionPlan,
+    schema: ArrowSchemaRef,
     expr: Expr,
 ) -> std::result::Result<Arc<dyn PhysicalExpr>, DataFusionError> {
-    let schema = input.schema();
-
     let df_schema = Arc::clone(&schema).to_dfschema_ref()?;
 
     let props = ExecutionProps::new();
@@ -139,7 +120,8 @@ pub fn df_physical_expr(
     create_physical_expr(&expr, df_schema.as_ref(), schema.as_ref(), &props)
 }
 
-/// Return min and max for column `time` of the given set of record batches
+/// Return min and max for column `time` of the given set of record batches by
+/// performing an `O(n)` scan of all provided batches.
 pub fn compute_timenanosecond_min_max<'a, I>(batches: I) -> Result<TimestampMinMax>
 where
     I: IntoIterator<Item = &'a RecordBatch>,
@@ -157,7 +139,8 @@ where
     })
 }
 
-/// Return min and max for column `time` in the given record batch
+/// Return min and max for column `time` in the given record batch by performing
+/// an `O(n)` scan of `batch`.
 pub fn compute_timenanosecond_min_max_for_one_record_batch(
     batch: &RecordBatch,
 ) -> Result<(i64, i64)> {
@@ -188,136 +171,155 @@ pub fn compute_timenanosecond_min_max_for_one_record_batch(
     Ok((min, max))
 }
 
-/// Create basic table summary.
-///
-/// This contains:
-/// - correct column types
-/// - [total count](Statistics::num_rows)
-/// - [min](ColumnStatistics::min_value)/[max](ColumnStatistics::max_value) for the timestamp column
-pub fn create_basic_summary(
-    row_count: u64,
-    schema: &Schema,
-    ts_min_max: Option<TimestampMinMax>,
-) -> Statistics {
-    let mut columns = Vec::with_capacity(schema.len());
+/// Determine the possible maximum range for each of the fields in a
+/// ['ArrowSchema'] once the ['Expr'] has been applied. The returned
+/// Vec includes an Interval for every field in the schema in the same
+/// order. Any fileds that are not constrained by the expression will
+/// have an unbounded interval.
+pub fn calculate_field_intervals(
+    schema: ArrowSchemaRef,
+    expr: Expr,
+) -> Result<Vec<Interval>, DataFusionError> {
+    // make unknown boundaries for each column
+    // TODO use upstream code when https://github.com/apache/arrow-datafusion/pull/8377 is merged
+    let fields = schema.fields();
+    let boundaries = fields
+        .iter()
+        .enumerate()
+        .map(|(i, field)| {
+            let column = datafusion::physical_expr::expressions::Column::new(field.name(), i);
+            let interval = Interval::make_unbounded(field.data_type())?;
+            Ok(ExprBoundaries {
+                column,
+                interval,
+                distinct_count: Precision::Absent,
+            })
+        })
+        .collect::<Result<Vec<_>, DataFusionError>>()?;
 
-    for (t, _field) in schema.iter() {
-        let stats = match t {
-            InfluxColumnType::Timestamp => ColumnStatistics {
-                null_count: Some(0),
-                max_value: Some(ScalarValue::TimestampNanosecond(
-                    ts_min_max.map(|v| v.max),
-                    None,
-                )),
-                min_value: Some(ScalarValue::TimestampNanosecond(
-                    ts_min_max.map(|v| v.min),
-                    None,
-                )),
-                distinct_count: None,
-            },
-            _ => ColumnStatistics::default(),
-        };
-        columns.push(stats)
-    }
+    let context = AnalysisContext::new(boundaries);
+    let analysis_result = analyze(
+        &df_physical_expr(Arc::clone(&schema), expr)?,
+        context,
+        &schema,
+    )?;
 
-    Statistics {
-        num_rows: Some(row_count as usize),
-        total_byte_size: None,
-        column_statistics: Some(columns),
-        is_exact: true,
-    }
+    let intervals = analysis_result
+        .boundaries
+        .into_iter()
+        .map(|b| b.interval)
+        .collect::<Vec<_>>();
+
+    Ok(intervals)
+}
+
+/// Determine the possible maximum range for the named field in the
+/// ['ArrowSchema'] once the ['Expr'] has been applied.
+pub fn calculate_field_interval(
+    schema: ArrowSchemaRef,
+    expr: Expr,
+    name: &str,
+) -> Result<Interval, DataFusionError> {
+    let idx = schema.index_of(name)?;
+    let mut intervals = calculate_field_intervals(Arc::clone(&schema), expr)?;
+    Ok(intervals.swap_remove(idx))
 }
 
 #[cfg(test)]
 mod tests {
-    use datafusion::scalar::ScalarValue;
-    use schema::{builder::SchemaBuilder, InfluxFieldType};
+    use datafusion::common::rounding::next_down;
+    use datafusion::common::ScalarValue;
+    use datafusion::logical_expr::{col, lit};
+    use schema::{builder::SchemaBuilder, InfluxFieldType, TIME_DATA_TIMEZONE};
 
     use super::*;
 
-    #[test]
-    fn test_create_basic_summary_no_columns_no_rows() {
-        let schema = SchemaBuilder::new().build().unwrap();
-        let row_count = 0;
+    fn time_interval(lower: Option<i64>, upper: Option<i64>) -> Interval {
+        let lower = ScalarValue::TimestampNanosecond(lower, TIME_DATA_TIMEZONE());
+        let upper = ScalarValue::TimestampNanosecond(upper, TIME_DATA_TIMEZONE());
+        Interval::try_new(lower, upper).unwrap()
+    }
 
-        let actual = create_basic_summary(row_count, &schema, None);
-        let expected = Statistics {
-            num_rows: Some(row_count as usize),
-            total_byte_size: None,
-            column_statistics: Some(vec![]),
-            is_exact: true,
-        };
-        assert_eq!(actual, expected);
+    fn f64_interval(lower: Option<f64>, upper: Option<f64>) -> Interval {
+        let lower = ScalarValue::Float64(lower);
+        let upper = ScalarValue::Float64(upper);
+        Interval::try_new(lower, upper).unwrap()
     }
 
     #[test]
-    fn test_create_basic_summary_no_rows() {
-        let schema = full_schema();
-        let row_count = 0;
-        let ts_min_max = TimestampMinMax { min: 10, max: 20 };
-
-        let actual = create_basic_summary(row_count, &schema, Some(ts_min_max));
-        let expected = Statistics {
-            num_rows: Some(0),
-            total_byte_size: None,
-            column_statistics: Some(vec![
-                ColumnStatistics::default(),
-                ColumnStatistics::default(),
-                ColumnStatistics::default(),
-                ColumnStatistics::default(),
-                ColumnStatistics::default(),
-                ColumnStatistics::default(),
-                ColumnStatistics {
-                    null_count: Some(0),
-                    min_value: Some(ScalarValue::TimestampNanosecond(Some(10), None)),
-                    max_value: Some(ScalarValue::TimestampNanosecond(Some(20), None)),
-                    distinct_count: None,
-                },
-            ]),
-            is_exact: true,
-        };
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_create_basic_summary() {
-        let schema = full_schema();
-        let row_count = 3;
-        let ts_min_max = TimestampMinMax { min: 42, max: 42 };
-
-        let actual = create_basic_summary(row_count, &schema, Some(ts_min_max));
-        let expected = Statistics {
-            num_rows: Some(3),
-            total_byte_size: None,
-            column_statistics: Some(vec![
-                ColumnStatistics::default(),
-                ColumnStatistics::default(),
-                ColumnStatistics::default(),
-                ColumnStatistics::default(),
-                ColumnStatistics::default(),
-                ColumnStatistics::default(),
-                ColumnStatistics {
-                    null_count: Some(0),
-                    min_value: Some(ScalarValue::TimestampNanosecond(Some(42), None)),
-                    max_value: Some(ScalarValue::TimestampNanosecond(Some(42), None)),
-                    distinct_count: None,
-                },
-            ]),
-            is_exact: true,
-        };
-        assert_eq!(actual, expected);
-    }
-
-    fn full_schema() -> Schema {
-        SchemaBuilder::new()
-            .tag("tag")
-            .influx_field("field_bool", InfluxFieldType::Boolean)
-            .influx_field("field_float", InfluxFieldType::Float)
-            .influx_field("field_integer", InfluxFieldType::Integer)
-            .influx_field("field_string", InfluxFieldType::String)
-            .influx_field("field_uinteger", InfluxFieldType::UInteger)
+    fn test_calculate_field_intervals() {
+        let schema = SchemaBuilder::new()
             .timestamp()
+            .influx_field("a", InfluxFieldType::Float)
             .build()
             .unwrap()
+            .as_arrow();
+        let expr = col("time")
+            .gt_eq(lit("2020-01-01T00:00:00Z"))
+            .and(col("time").lt(lit("2020-01-02T00:00:00Z")))
+            .and(col("a").gt_eq(lit(1000000.0)))
+            .and(col("a").lt(lit(2000000.0)));
+        let intervals = calculate_field_intervals(schema, expr).unwrap();
+        // 2020-01-01T00:00:00Z == 1577836800000000000
+        // 2020-01-02T00:00:00Z == 1577923200000000000
+        assert_eq!(
+            vec![
+                time_interval(Some(1577836800000000000), Some(1577923200000000000i64 - 1),),
+                f64_interval(Some(1000000.0), Some(next_down(2000000.0)))
+            ],
+            intervals
+        );
+    }
+
+    #[test]
+    fn test_calculate_field_intervals_no_constraints() {
+        let schema = SchemaBuilder::new()
+            .timestamp()
+            .influx_field("a", InfluxFieldType::Float)
+            .build()
+            .unwrap()
+            .as_arrow();
+        // must be a predicate (boolean expression)
+        let expr = lit("test").eq(lit("foo"));
+        let intervals = calculate_field_intervals(schema, expr).unwrap();
+        assert_eq!(
+            vec![time_interval(None, None), f64_interval(None, None)],
+            intervals
+        );
+    }
+
+    #[test]
+    fn test_calculate_field_interval() {
+        let schema = SchemaBuilder::new()
+            .timestamp()
+            .influx_field("a", InfluxFieldType::Float)
+            .build()
+            .unwrap()
+            .as_arrow();
+        let expr = col("time")
+            .gt_eq(lit("2020-01-01T00:00:00Z"))
+            .and(col("time").lt(lit("2020-01-02T00:00:00Z")))
+            .and(col("a").gt_eq(lit(1000000.0)))
+            .and(col("a").lt(lit(2000000.0)));
+
+        // Note
+        // 2020-01-01T00:00:00Z == 1577836800000000000
+        // 2020-01-02T00:00:00Z == 1577923200000000000
+        let interval = calculate_field_interval(Arc::clone(&schema), expr.clone(), "time").unwrap();
+        assert_eq!(
+            time_interval(Some(1577836800000000000), Some(1577923200000000000 - 1),),
+            interval
+        );
+
+        let interval = calculate_field_interval(Arc::clone(&schema), expr.clone(), "a").unwrap();
+        assert_eq!(
+            f64_interval(Some(1000000.0), Some(next_down(2000000.0))),
+            interval
+        );
+
+        assert_eq!(
+            "Arrow error: Schema error: Unable to get field named \"b\". Valid fields: [\"time\", \"a\"]",
+            calculate_field_interval(Arc::clone(&schema), expr.clone(), "b").unwrap_err().to_string(),
+        );
     }
 }

@@ -40,7 +40,7 @@
 //!   d: {a: 2, b: 3},
 //! }
 //! ```
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
 
 use arrow::{
     array::{Array, StructArray},
@@ -49,10 +49,8 @@ use arrow::{
 };
 use datafusion::{
     common::cast::as_struct_array,
-    error::DataFusionError,
-    logical_expr::{
-        ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF, Signature, Volatility,
-    },
+    error::{DataFusionError, Result},
+    logical_expr::{ScalarUDF, ScalarUDFImpl, Signature, Volatility},
     physical_plan::ColumnarValue,
     prelude::Expr,
     scalar::ScalarValue,
@@ -62,11 +60,25 @@ use once_cell::sync::Lazy;
 /// The name of the `coalesce_struct` UDF given to DataFusion.
 pub const COALESCE_STRUCT_UDF_NAME: &str = "coalesce_struct";
 
-/// Implementation of `coalesce_struct`.
-///
-/// See [module-level docs](self) for more information.
-pub static COALESCE_STRUCT_UDF: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
-    let return_type: ReturnTypeFunction = Arc::new(move |arg_types| {
+#[derive(Debug)]
+struct CoalesceStructUDF {
+    signature: Signature,
+}
+
+impl ScalarUDFImpl for CoalesceStructUDF {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        COALESCE_STRUCT_UDF_NAME
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
         if arg_types.is_empty() {
             return Err(DataFusionError::Plan(format!(
                 "{COALESCE_STRUCT_UDF_NAME} expects at least 1 argument"
@@ -83,10 +95,10 @@ pub static COALESCE_STRUCT_UDF: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
             }
         }
 
-        Ok(Arc::new(first_dt.clone()))
-    });
+        Ok(first_dt.clone())
+    }
 
-    let fun: ScalarFunctionImplementation = Arc::new(move |args: &[ColumnarValue]| {
+    fn invoke(&self, args: &[ColumnarValue]) -> Result<ColumnarValue> {
         #[allow(clippy::manual_try_fold)]
         args.iter().enumerate().fold(Ok(None), |accu, (pos, arg)| {
             let Some(accu) = accu? else {return Ok(Some(arg.clone()))};
@@ -106,11 +118,11 @@ pub static COALESCE_STRUCT_UDF: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
                     return Ok(Some(ColumnarValue::Scalar(scalar_coalesce_struct(scalar1, scalar2))));
                 }
                 (ColumnarValue::Scalar(s), ColumnarValue::Array(array2)) => {
-                    let array1 = s.to_array_of_size(array2.len());
+                    let array1 = s.to_array_of_size(array2.len())?;
                     (array1, Arc::clone(array2))
                 }
                 (ColumnarValue::Array(array1), ColumnarValue::Scalar(s)) => {
-                    let array2 = s.to_array_of_size(array1.len());
+                    let array2 = s.to_array_of_size(array1.len())?;
                     (array1, array2)
                 }
                 (ColumnarValue::Array(array1), ColumnarValue::Array(array2)) => {
@@ -123,14 +135,16 @@ pub static COALESCE_STRUCT_UDF: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
         })?.ok_or_else(|| DataFusionError::Plan(format!(
                 "{COALESCE_STRUCT_UDF_NAME} expects at least 1 argument"
             )))
-    });
+    }
+}
 
-    Arc::new(ScalarUDF::new(
-        COALESCE_STRUCT_UDF_NAME,
-        &Signature::variadic_any(Volatility::Immutable),
-        &return_type,
-        &fun,
-    ))
+/// Implementation of `coalesce_struct`.
+///
+/// See [module-level docs](self) for more information.
+pub static COALESCE_STRUCT_UDF: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
+    Arc::new(ScalarUDF::from(CoalesceStructUDF {
+        signature: Signature::variadic_any(Volatility::Immutable),
+    }))
 });
 
 /// Recursively fold [`Array`]s.
@@ -181,10 +195,7 @@ fn scalar_coalesce_struct(scalar1: ScalarValue, scalar2: &ScalarValue) -> Scalar
 ///
 /// See [module-level docs](self) for more information.
 pub fn coalesce_struct(args: Vec<Expr>) -> Expr {
-    Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF {
-        fun: Arc::clone(&COALESCE_STRUCT_UDF),
-        args,
-    })
+    COALESCE_STRUCT_UDF.call(args)
 }
 
 #[cfg(test)]
@@ -193,13 +204,13 @@ mod tests {
         datatypes::{Field, Fields, Schema},
         record_batch::RecordBatch,
     };
+    use datafusion::prelude::SessionContext;
     use datafusion::{
         assert_batches_eq,
         common::assert_contains,
         prelude::{col, lit},
         scalar::ScalarValue,
     };
-    use datafusion_util::context_with_table;
 
     use super::*;
 
@@ -217,9 +228,9 @@ mod tests {
 
         assert_case_ok(
             [
-                ColumnarValue::Array(ScalarValue::UInt64(None).to_array()),
-                ColumnarValue::Array(ScalarValue::UInt64(Some(1)).to_array()),
-                ColumnarValue::Array(ScalarValue::UInt64(Some(2)).to_array()),
+                ColumnarValue::Array(ScalarValue::UInt64(None).to_array().unwrap()),
+                ColumnarValue::Array(ScalarValue::UInt64(Some(1)).to_array().unwrap()),
+                ColumnarValue::Array(ScalarValue::UInt64(Some(2)).to_array().unwrap()),
             ],
             &DataType::UInt64,
             ["+-----+", "| out |", "+-----+", "| 1   |", "+-----+"],
@@ -228,7 +239,9 @@ mod tests {
 
         assert_case_ok(
             [ColumnarValue::Array(
-                ScalarValue::Struct(None, fields.clone()).to_array(),
+                ScalarValue::Struct(None, fields.clone())
+                    .to_array()
+                    .unwrap(),
             )],
             &dt,
             ["+-----+", "| out |", "+-----+", "|     |", "+-----+"],
@@ -237,7 +250,11 @@ mod tests {
 
         assert_case_ok(
             [
-                ColumnarValue::Array(ScalarValue::Struct(None, fields.clone()).to_array()),
+                ColumnarValue::Array(
+                    ScalarValue::Struct(None, fields.clone())
+                        .to_array()
+                        .unwrap(),
+                ),
                 ColumnarValue::Array(
                     ScalarValue::Struct(
                         Some(vec![
@@ -246,9 +263,14 @@ mod tests {
                         ]),
                         fields.clone(),
                     )
-                    .to_array(),
+                    .to_array()
+                    .unwrap(),
                 ),
-                ColumnarValue::Array(ScalarValue::Struct(None, fields.clone()).to_array()),
+                ColumnarValue::Array(
+                    ScalarValue::Struct(None, fields.clone())
+                        .to_array()
+                        .unwrap(),
+                ),
                 ColumnarValue::Array(
                     ScalarValue::Struct(
                         Some(vec![
@@ -263,7 +285,8 @@ mod tests {
                         ]),
                         fields.clone(),
                     )
-                    .to_array(),
+                    .to_array()
+                    .unwrap(),
                 ),
             ],
             &dt,
@@ -302,7 +325,11 @@ mod tests {
                     ]),
                     fields.clone(),
                 )),
-                ColumnarValue::Array(ScalarValue::Struct(None, fields.clone()).to_array()),
+                ColumnarValue::Array(
+                    ScalarValue::Struct(None, fields.clone())
+                        .to_array()
+                        .unwrap(),
+                ),
             ],
             &dt,
             [
@@ -323,21 +350,21 @@ mod tests {
         .await;
 
         assert_case_err(
-            [ColumnarValue::Array(ScalarValue::Struct(None, fields.clone()).to_array()), ColumnarValue::Array(ScalarValue::Struct(None, fields_b.clone()).to_array())],
+            [ColumnarValue::Array(ScalarValue::Struct(None, fields.clone()).to_array().unwrap()), ColumnarValue::Array(ScalarValue::Struct(None, fields_b.clone()).to_array().unwrap())],
             &dt,
             "Error during planning: coalesce_struct expects all arguments to have the same type, but first arg is"
         )
         .await;
 
         assert_case_err(
-            [ColumnarValue::Array(ScalarValue::Struct(None, fields.clone()).to_array()), ColumnarValue::Scalar(ScalarValue::Struct(None, fields_b.clone()))],
+            [ColumnarValue::Array(ScalarValue::Struct(None, fields.clone()).to_array().unwrap()), ColumnarValue::Scalar(ScalarValue::Struct(None, fields_b.clone()))],
             &dt,
             "Error during planning: coalesce_struct expects all arguments to have the same type, but first arg is"
         )
         .await;
 
         assert_case_err(
-            [ColumnarValue::Scalar(ScalarValue::Struct(None, fields.clone())), ColumnarValue::Array(ScalarValue::Struct(None, fields_b.clone()).to_array())],
+            [ColumnarValue::Scalar(ScalarValue::Struct(None, fields.clone())), ColumnarValue::Array(ScalarValue::Struct(None, fields_b.clone()).to_array().unwrap())],
             &dt,
             "Error during planning: coalesce_struct expects all arguments to have the same type, but first arg is"
         )
@@ -391,7 +418,8 @@ mod tests {
             RecordBatch::try_from_iter(cols.into_iter())?
         };
 
-        let ctx = context_with_table(rb);
+        let ctx = SessionContext::new();
+        ctx.register_batch("t", rb).unwrap();
         let df = ctx.table("t").await?;
         let df = df.select(vec![coalesce_struct(
             vals.iter()

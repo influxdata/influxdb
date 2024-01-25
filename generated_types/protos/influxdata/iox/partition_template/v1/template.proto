@@ -39,5 +39,17 @@ message TemplatePart {
     // A time format matcher accepts a "strftime"-like format string and
     // evaluates it against the "time" column.
     string time_format = 2;
+
+    // A bucketing matcher that sorts data through a hash on the value of
+    // the specified tag.
+    Bucket bucket = 3;
   }
+}
+
+// A hash-bucketing sub-part of a PartitionTemplate. 
+message Bucket {
+  // The tag name used for derivation of the bucket the data belongs in.
+  string tag_name = 1;
+  // The number of number of buckets tag values are distributed across.
+  uint32 num_buckets = 2;
 }

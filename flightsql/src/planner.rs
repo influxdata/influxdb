@@ -20,6 +20,7 @@ use arrow_flight::{
 use arrow_util::flight::prepare_schema_for_flight;
 use bytes::Bytes;
 use datafusion::{
+    common::ParamValues,
     logical_expr::{LogicalPlan, TableType},
     physical_plan::ExecutionPlan,
     sql::TableReference,
@@ -33,7 +34,7 @@ use crate::{error::*, sql_info::iox_sql_info_data, xdbc_type_info::xdbc_type_inf
 use crate::{FlightSQLCommand, PreparedStatementHandle};
 
 /// Logic for creating plans for various Flight messages against a query database
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct FlightSQLPlanner {}
 
 impl FlightSQLPlanner {
@@ -92,23 +93,24 @@ impl FlightSQLPlanner {
 
     /// Returns a plan that computes results requested in msg
     pub async fn do_get(
-        namespace_name: impl Into<String> + Send,
+        namespace_name: impl AsRef<str> + Send,
         _database: Arc<dyn QueryNamespace>,
         cmd: FlightSQLCommand,
+        params: impl Into<ParamValues> + Send,
         ctx: &IOxSessionContext,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let namespace_name = namespace_name.into();
+        let namespace_name = namespace_name.as_ref();
         debug!(%namespace_name, %cmd, "Handling flightsql do_get");
 
         match cmd {
             FlightSQLCommand::CommandStatementQuery(CommandStatementQuery { query, .. }) => {
                 debug!(%query, "Planning FlightSQL query");
-                Ok(ctx.sql_to_physical_plan(&query).await?)
+                Ok(ctx.sql_to_physical_plan_with_params(&query, params).await?)
             }
             FlightSQLCommand::CommandPreparedStatementQuery(handle) => {
                 let query = handle.query();
                 debug!(%query, "Planning FlightSQL prepared query");
-                Ok(ctx.sql_to_physical_plan(query).await?)
+                Ok(ctx.sql_to_physical_plan_with_params(query, params).await?)
             }
             FlightSQLCommand::CommandGetSqlInfo(cmd) => {
                 debug!(?cmd, "Planning GetSqlInfo query");

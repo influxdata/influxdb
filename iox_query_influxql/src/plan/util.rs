@@ -61,7 +61,7 @@ impl<'a> IQLSchema<'a> {
     }
 
     /// Returns `true` if the schema contains a tag column with the specified name.
-    pub fn is_tag_field(&self, name: &str) -> bool {
+    pub(crate) fn is_tag_field(&self, name: &str) -> bool {
         match self.tag_info {
             TagInfo::DataSourceSchema(ref ds_schema) => ds_schema.is_tag_field(name),
             TagInfo::FieldList(fields) => fields
@@ -73,7 +73,7 @@ impl<'a> IQLSchema<'a> {
     /// Returns `true` if the schema contains a tag column with the specified name.
     /// If the underlying data source is a subquery, it will apply any aliases in the
     /// projection that represents the SELECT list.
-    pub fn is_projected_tag_field(&self, name: &str) -> bool {
+    pub(crate) fn is_projected_tag_field(&self, name: &str) -> bool {
         match self.tag_info {
             TagInfo::DataSourceSchema(ref ds_schema) => ds_schema.is_projected_tag_field(name),
             _ => self.is_tag_field(name),

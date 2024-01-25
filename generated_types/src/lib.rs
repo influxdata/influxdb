@@ -4,8 +4,11 @@
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls)]
 #![allow(
     clippy::derive_partial_eq_without_eq,
+    clippy::future_not_send,
     clippy::needless_borrow,
-    clippy::needless_borrows_for_generic_args
+    clippy::needless_borrows_for_generic_args,
+    missing_copy_implementations,
+    unreachable_pub
 )]
 #![warn(unused_crate_dependencies)]
 
@@ -66,12 +69,71 @@ pub mod influxdata {
             }
         }
 
+        pub mod bulk_ingest {
+            pub mod v1 {
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.bulk_ingest.v1.rs"
+                ));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.bulk_ingest.v1.serde.rs"
+                ));
+            }
+        }
+
         pub mod catalog {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.catalog.v1.rs"));
                 include!(concat!(
                     env!("OUT_DIR"),
                     "/influxdata.iox.catalog.v1.serde.rs"
+                ));
+            }
+            pub mod v2 {
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.catalog.v2.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.catalog.v2.serde.rs"
+                ));
+            }
+        }
+
+        pub mod catalog_cache {
+            pub mod v1 {
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.catalog_cache.v1.rs"
+                ));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.catalog_cache.v1.serde.rs"
+                ));
+            }
+
+            impl From<uuid::Uuid> for v1::Uuid {
+                fn from(value: uuid::Uuid) -> Self {
+                    let (high, low) = value.as_u64_pair();
+                    Self { high, low }
+                }
+            }
+
+            impl From<v1::Uuid> for uuid::Uuid {
+                fn from(value: v1::Uuid) -> Self {
+                    uuid::Uuid::from_u64_pair(value.high, value.low)
+                }
+            }
+        }
+
+        pub mod column_type {
+            pub mod v1 {
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.column_type.v1.rs"
+                ));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.column_type.v1.serde.rs"
                 ));
             }
         }
@@ -120,6 +182,9 @@ pub mod influxdata {
                 /// Schema cache consistency check / sync / convergence
                 /// messages.
                 SchemaCacheConsistency = 4,
+
+                /// Partition sort key update notifications.
+                PartitionSortKeyUpdates = 5,
             }
 
             impl TryFrom<u64> for Topic {
@@ -132,6 +197,9 @@ pub mod influxdata {
                         v if v == Self::CompactionEvents as u64 => Self::CompactionEvents,
                         v if v == Self::SchemaCacheConsistency as u64 => {
                             Self::SchemaCacheConsistency
+                        }
+                        v if v == Self::PartitionSortKeyUpdates as u64 => {
+                            Self::PartitionSortKeyUpdates
                         }
                         _ => return Err(format!("unknown topic id {}", v).into()),
                     })
@@ -217,6 +285,19 @@ pub mod influxdata {
                 include!(concat!(
                     env!("OUT_DIR"),
                     "/influxdata.iox.schema.v1.serde.rs"
+                ));
+            }
+        }
+
+        pub mod skipped_compaction {
+            pub mod v1 {
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.skipped_compaction.v1.rs"
+                ));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.skipped_compaction.v1.serde.rs"
                 ));
             }
         }
@@ -334,6 +415,7 @@ mod tests {
             Topic::NewParquetFiles,
             Topic::CompactionEvents,
             Topic::SchemaCacheConsistency,
+            Topic::PartitionSortKeyUpdates,
         ];
 
         for topic in topics {
@@ -350,6 +432,7 @@ mod tests {
             Topic::NewParquetFiles => {}
             Topic::CompactionEvents => {}
             Topic::SchemaCacheConsistency => {}
+            Topic::PartitionSortKeyUpdates => {}
         }
     }
 }

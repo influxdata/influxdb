@@ -146,7 +146,7 @@ pub(crate) fn sql_keyword(i: &str) -> ParseResult<&str, &str> {
 
 /// Recognizes a case-insensitive `keyword`, ensuring it is followed by
 /// a valid separator.
-pub fn keyword<'a>(keyword: &'static str) -> impl FnMut(&'a str) -> ParseResult<&str, &str> {
+pub(crate) fn keyword<'a>(keyword: &'static str) -> impl FnMut(&'a str) -> ParseResult<&str, &str> {
     terminated(tag_no_case(keyword), keyword_follow_char)
 }
 

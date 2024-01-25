@@ -18,6 +18,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use bytes::Buf;
 use futures::ready;
 use http::{HeaderValue, Request, Response};
 use http_body::SizeHint;
@@ -25,11 +26,12 @@ use pin_project::{pin_project, pinned_drop};
 use tower::{Layer, Service};
 
 use observability_deps::tracing::{error, warn};
+use trace::span::{SpanEvent, SpanStatus};
 use trace::{span::SpanRecorder, TraceCollector};
 
 use crate::classify::{classify_headers, classify_response, Classification};
 use crate::ctx::{RequestLogContext, RequestLogContextExt, TraceHeaderParser};
-use crate::metrics::{MetricsCollection, MetricsRecorder};
+use crate::metrics::{MetricsRecorder, RequestMetrics};
 
 /// `TraceLayer` implements `tower::Layer` and can be used to decorate a
 /// `tower::Service` to collect information about requests flowing through it
@@ -43,7 +45,7 @@ use crate::metrics::{MetricsCollection, MetricsRecorder};
 #[derive(Debug, Clone)]
 pub struct TraceLayer {
     trace_header_parser: TraceHeaderParser,
-    metrics: Arc<MetricsCollection>,
+    metrics: Arc<RequestMetrics>,
     collector: Option<Arc<dyn TraceCollector>>,
     name: Arc<str>,
 }
@@ -52,14 +54,13 @@ impl TraceLayer {
     /// Create a new tower [`Layer`] for tracing
     pub fn new(
         trace_header_parser: TraceHeaderParser,
-        metric_registry: Arc<metric::Registry>,
+        metrics: Arc<RequestMetrics>,
         collector: Option<Arc<dyn TraceCollector>>,
-        is_grpc: bool,
         name: &str,
     ) -> Self {
         Self {
             trace_header_parser,
-            metrics: Arc::new(MetricsCollection::new(metric_registry, is_grpc)),
+            metrics,
             collector,
             name: name.into(),
         }
@@ -74,7 +75,7 @@ impl<S> Layer<S> for TraceLayer {
             service,
             collector: self.collector.clone(),
             metrics: Arc::clone(&self.metrics),
-            trace_header_parser: self.trace_header_parser.clone(),
+            trace_header_parser: Some(self.trace_header_parser.clone()),
             name: Arc::clone(&self.name),
         }
     }
@@ -84,10 +85,28 @@ impl<S> Layer<S> for TraceLayer {
 #[derive(Debug, Clone)]
 pub struct TraceService<S> {
     service: S,
-    trace_header_parser: TraceHeaderParser,
+    trace_header_parser: Option<TraceHeaderParser>,
     collector: Option<Arc<dyn TraceCollector>>,
-    metrics: Arc<MetricsCollection>,
+    metrics: Arc<RequestMetrics>,
     name: Arc<str>,
+}
+
+impl<S> TraceService<S> {
+    /// Create a new [`TraceService`] for instrumenting a client
+    pub fn new_client(
+        service: S,
+        metrics: Arc<RequestMetrics>,
+        collector: Option<Arc<dyn TraceCollector>>,
+        name: &str,
+    ) -> Self {
+        Self {
+            service,
+            trace_header_parser: None,
+            metrics,
+            collector,
+            name: name.into(),
+        }
+    }
 }
 
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for TraceService<S>
@@ -106,23 +125,22 @@ where
     fn call(&mut self, mut request: Request<ReqBody>) -> Self::Future {
         let metrics_recorder = Some(self.metrics.recorder(&request));
 
-        let request_ctx = match self
-            .trace_header_parser
-            .parse(self.collector.as_ref(), request.headers())
-        {
-            Ok(Some(ctx)) => {
-                let ctx = RequestLogContext::new(ctx);
+        let request_ctx = self.trace_header_parser.as_ref().and_then(|parser| {
+            match parser.parse(self.collector.as_ref(), request.headers()) {
+                Ok(Some(ctx)) => {
+                    let ctx = RequestLogContext::new(ctx);
 
-                request.extensions_mut().insert(ctx.clone());
+                    request.extensions_mut().insert(ctx.clone());
 
-                Some(ctx)
+                    Some(ctx)
+                }
+                Ok(None) => None,
+                Err(e) => {
+                    error!(%e, "error extracting trace context from request");
+                    None
+                }
             }
-            Ok(None) => None,
-            Err(e) => {
-                error!(%e, "error extracting trace context from request");
-                None
-            }
-        };
+        });
 
         let span = request_ctx.as_ref().and_then(|ctx| {
             let ctx = ctx.ctx();
@@ -196,7 +214,7 @@ where
                         metrics_recorder.set_classification(Classification::Ok);
                         span_recorder.ok("request processed with empty response")
                     }
-                    false => span_recorder.event("request processed"),
+                    false => span_recorder.event(SpanEvent::new("request processed")),
                 },
                 (error, c) => {
                     metrics_recorder.set_classification(c);
@@ -292,16 +310,29 @@ impl<B: http_body::Body> http_body::Body for TracedBody<B> {
         let projected = self.as_mut().project();
         let span_recorder = projected.span_recorder;
         let metrics_recorder = projected.metrics_recorder;
+
         match &result {
-            Ok(_) => match projected.inner.is_end_stream() {
-                true => {
-                    metrics_recorder.set_classification(Classification::Ok);
-                    span_recorder.ok("returned body data and no trailers");
-                    projected.was_done_data.store(true, Ordering::SeqCst);
-                    projected.was_ready_trailers.store(true, Ordering::SeqCst);
+            Ok(body) => {
+                let size = body.remaining() as i64;
+                match projected.inner.is_end_stream() {
+                    true => {
+                        metrics_recorder.set_classification(Classification::Ok);
+
+                        let mut evt = SpanEvent::new("returned body data and no trailers");
+                        evt.set_metadata("size", size);
+                        span_recorder.event(evt);
+                        span_recorder.status(SpanStatus::Ok);
+
+                        projected.was_done_data.store(true, Ordering::SeqCst);
+                        projected.was_ready_trailers.store(true, Ordering::SeqCst);
+                    }
+                    false => {
+                        let mut evt = SpanEvent::new("returned body data");
+                        evt.set_metadata("size", size);
+                        span_recorder.event(evt);
+                    }
                 }
-                false => span_recorder.event("returned body data"),
-            },
+            }
             Err(_) => {
                 metrics_recorder.set_classification(Classification::ServerErr);
                 span_recorder.error("error getting body");
@@ -309,6 +340,7 @@ impl<B: http_body::Body> http_body::Body for TracedBody<B> {
                 projected.was_ready_trailers.store(true, Ordering::SeqCst);
             }
         }
+
         Poll::Ready(Some(result))
     }
 

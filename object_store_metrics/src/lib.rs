@@ -14,7 +14,7 @@
     unused_crate_dependencies
 )]
 
-use object_store::{GetOptions, GetResultPayload};
+use object_store::{GetOptions, GetResultPayload, PutOptions, PutResult};
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -40,6 +40,118 @@ use tokio::io::AsyncWrite;
 
 #[cfg(test)]
 mod dummy;
+
+#[derive(Debug, Clone)]
+struct Metrics {
+    success_duration: DurationHistogram,
+    error_duration: DurationHistogram,
+}
+
+impl Metrics {
+    fn new(registry: &metric::Registry, op: &'static str) -> Self {
+        // Call durations broken down by op & result
+        let duration: Metric<DurationHistogram> = registry.register_metric(
+            "object_store_op_duration",
+            "object store operation duration",
+        );
+
+        Self {
+            success_duration: duration.recorder(&[("op", op), ("result", "success")]),
+            error_duration: duration.recorder(&[("op", op), ("result", "error")]),
+        }
+    }
+
+    fn record(&self, t_begin: Time, t_end: Time, success: bool) {
+        // Avoid exploding if time goes backwards - simply drop the measurement
+        // if it happens.
+        let Some(delta) = t_end.checked_duration_since(t_begin) else {
+            return;
+        };
+
+        if success {
+            self.success_duration.record(delta);
+        } else {
+            self.error_duration.record(delta);
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct MetricsWithBytes {
+    inner: Metrics,
+    success_bytes: U64Counter,
+    error_bytes: U64Counter,
+}
+
+impl MetricsWithBytes {
+    fn new(registry: &metric::Registry, op: &'static str) -> Self {
+        // Byte counts up/down
+        let bytes = registry.register_metric::<U64Counter>(
+            "object_store_transfer_bytes",
+            "cumulative count of file content bytes transferred to/from the object store",
+        );
+
+        Self {
+            inner: Metrics::new(registry, op),
+            success_bytes: bytes.recorder(&[("op", op), ("result", "success")]),
+            error_bytes: bytes.recorder(&[("op", op), ("result", "error")]),
+        }
+    }
+
+    fn record_bytes_only(&self, success: bool, bytes: u64) {
+        if success {
+            self.success_bytes.inc(bytes);
+        } else {
+            self.error_bytes.inc(bytes);
+        }
+    }
+
+    fn record(&self, t_begin: Time, t_end: Time, success: bool, bytes: Option<u64>) {
+        if let Some(bytes) = bytes {
+            self.record_bytes_only(success, bytes);
+        }
+
+        self.inner.record(t_begin, t_end, success);
+    }
+}
+
+#[derive(Debug, Clone)]
+struct MetricsWithCount {
+    inner: Metrics,
+    success_count: U64Counter,
+    error_count: U64Counter,
+}
+
+impl MetricsWithCount {
+    fn new(registry: &metric::Registry, op: &'static str) -> Self {
+        let count = registry.register_metric::<U64Counter>(
+            "object_store_transfer_objects",
+            "cumulative count of objects transferred to/from the object store",
+        );
+
+        Self {
+            inner: Metrics::new(registry, op),
+            success_count: count.recorder(&[("op", op), ("result", "success")]),
+            error_count: count.recorder(&[("op", op), ("result", "error")]),
+        }
+    }
+
+    fn record_count_only(&self, success: bool, count: u64) {
+        if success {
+            self.success_count.inc(count);
+        } else {
+            self.error_count.inc(count);
+        }
+    }
+
+    fn record(&self, t_begin: Time, t_end: Time, success: bool, count: Option<u64>) {
+        if let Some(count) = count {
+            self.record_count_only(success, count);
+        }
+
+        self.inner.record(t_begin, t_end, success);
+    }
+}
 
 /// An instrumentation decorator, wrapping an underlying [`ObjectStore`]
 /// implementation and recording bytes transferred and call latency.
@@ -92,26 +204,20 @@ pub struct ObjectStoreMetrics {
     inner: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
 
-    put_success_duration: DurationHistogram,
-    put_error_duration: DurationHistogram,
-    put_bytes: U64Counter,
-
-    get_success_duration: DurationHistogram,
-    get_error_duration: DurationHistogram,
-    get_bytes: U64Counter,
-
-    get_range_success_duration: DurationHistogram,
-    get_range_error_duration: DurationHistogram,
-    get_range_bytes: U64Counter,
-
-    head_success_duration: DurationHistogram,
-    head_error_duration: DurationHistogram,
-
-    delete_success_duration: DurationHistogram,
-    delete_error_duration: DurationHistogram,
-
-    list_success_duration: DurationHistogram,
-    list_error_duration: DurationHistogram,
+    put: MetricsWithBytes,
+    get: MetricsWithBytes,
+    get_range: MetricsWithBytes,
+    get_ranges: MetricsWithBytes,
+    head: Metrics,
+    delete: Metrics,
+    delete_stream: MetricsWithCount,
+    list: MetricsWithCount,
+    list_with_offset: MetricsWithCount,
+    list_with_delimiter: MetricsWithCount,
+    copy: Metrics,
+    rename: Metrics,
+    copy_if_not_exists: Metrics,
+    rename_if_not_exists: Metrics,
 }
 
 impl ObjectStoreMetrics {
@@ -121,65 +227,24 @@ impl ObjectStoreMetrics {
         time_provider: Arc<dyn TimeProvider>,
         registry: &metric::Registry,
     ) -> Self {
-        // Byte counts up/down
-        let bytes = registry.register_metric::<U64Counter>(
-            "object_store_transfer_bytes",
-            "cumulative count of file content bytes transferred to/from the object store",
-        );
-        let put_bytes = bytes.recorder(&[("op", "put")]);
-        let get_bytes = bytes.recorder(&[("op", "get")]);
-        let get_range_bytes = bytes.recorder(&[("op", "get_range")]);
-
-        // Call durations broken down by op & result
-        let duration: Metric<DurationHistogram> = registry.register_metric(
-            "object_store_op_duration",
-            "object store operation duration",
-        );
-
-        let put_success_duration = duration.recorder(&[("op", "put"), ("result", "success")]);
-        let put_error_duration = duration.recorder(&[("op", "put"), ("result", "error")]);
-
-        let get_success_duration = duration.recorder(&[("op", "get"), ("result", "success")]);
-        let get_error_duration = duration.recorder(&[("op", "get"), ("result", "error")]);
-
-        let get_range_success_duration =
-            duration.recorder(&[("op", "get_range"), ("result", "success")]);
-        let get_range_error_duration =
-            duration.recorder(&[("op", "get_range"), ("result", "error")]);
-
-        let head_success_duration = duration.recorder(&[("op", "head"), ("result", "success")]);
-        let head_error_duration = duration.recorder(&[("op", "head"), ("result", "error")]);
-
-        let delete_success_duration = duration.recorder(&[("op", "delete"), ("result", "success")]);
-        let delete_error_duration = duration.recorder(&[("op", "delete"), ("result", "error")]);
-
-        let list_success_duration = duration.recorder(&[("op", "list"), ("result", "success")]);
-        let list_error_duration = duration.recorder(&[("op", "list"), ("result", "error")]);
-
         Self {
             inner,
             time_provider,
 
-            put_success_duration,
-            put_error_duration,
-            put_bytes,
-
-            get_bytes,
-            get_success_duration,
-            get_error_duration,
-
-            get_range_bytes,
-            get_range_success_duration,
-            get_range_error_duration,
-
-            head_success_duration,
-            head_error_duration,
-
-            delete_success_duration,
-            delete_error_duration,
-
-            list_success_duration,
-            list_error_duration,
+            put: MetricsWithBytes::new(registry, "put"),
+            get: MetricsWithBytes::new(registry, "get"),
+            get_range: MetricsWithBytes::new(registry, "get_range"),
+            get_ranges: MetricsWithBytes::new(registry, "get_ranges"),
+            head: Metrics::new(registry, "head"),
+            delete: Metrics::new(registry, "delete"),
+            delete_stream: MetricsWithCount::new(registry, "delete_stream"),
+            list: MetricsWithCount::new(registry, "list"),
+            list_with_offset: MetricsWithCount::new(registry, "list_with_offset"),
+            list_with_delimiter: MetricsWithCount::new(registry, "list_with_delimiter"),
+            copy: Metrics::new(registry, "copy"),
+            rename: Metrics::new(registry, "rename"),
+            copy_if_not_exists: Metrics::new(registry, "copy_if_not_exists"),
+            rename_if_not_exists: Metrics::new(registry, "rename_if_not_exists"),
         }
     }
 }
@@ -192,22 +257,12 @@ impl std::fmt::Display for ObjectStoreMetrics {
 
 #[async_trait]
 impl ObjectStore for ObjectStoreMetrics {
-    async fn put(&self, location: &Path, bytes: Bytes) -> Result<()> {
+    async fn put_opts(&self, location: &Path, bytes: Bytes, opts: PutOptions) -> Result<PutResult> {
         let t = self.time_provider.now();
-
         let size = bytes.len();
-        let res = self.inner.put(location, bytes).await;
-        self.put_bytes.inc(size as _);
-
-        // Avoid exploding if time goes backwards - simply drop the measurement
-        // if it happens.
-        if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
-            match &res {
-                Ok(_) => self.put_success_duration.record(delta),
-                Err(_) => self.put_error_duration.record(delta),
-            };
-        }
-
+        let res = self.inner.put_opts(location, bytes, opts).await;
+        self.put
+            .record(t, self.time_provider.now(), res.is_ok(), Some(size as _));
         res
     }
 
@@ -231,15 +286,12 @@ impl ObjectStore for ObjectStoreMetrics {
             Ok(mut res) => {
                 res.payload = match res.payload {
                     GetResultPayload::File(file, path) => {
-                        // Record the file size in bytes and time the inner call took.
-                        if let Ok(m) = file.metadata() {
-                            self.get_bytes.inc(m.len());
-                            if let Some(d) =
-                                self.time_provider.now().checked_duration_since(started_at)
-                            {
-                                self.get_success_duration.record(d)
-                            }
-                        }
+                        self.get.record(
+                            started_at,
+                            self.time_provider.now(),
+                            true,
+                            file.metadata().ok().map(|m| m.len()),
+                        );
                         GetResultPayload::File(file, path)
                     }
                     GetResultPayload::Stream(s) => {
@@ -249,9 +301,7 @@ impl ObjectStore for ObjectStoreMetrics {
                             StreamMetricRecorder::new(
                                 s,
                                 started_at,
-                                self.get_success_duration.clone(),
-                                self.get_error_duration.clone(),
-                                BytesStreamDelegate(self.get_bytes.clone()),
+                                BytesStreamDelegate::new(self.get.clone()),
                             )
                             .fuse(),
                         )))
@@ -260,10 +310,8 @@ impl ObjectStore for ObjectStoreMetrics {
                 Ok(res)
             }
             Err(e) => {
-                // Record the call duration in the error histogram.
-                if let Some(delta) = self.time_provider.now().checked_duration_since(started_at) {
-                    self.get_error_duration.record(delta);
-                }
+                self.get
+                    .record(started_at, self.time_provider.now(), false, None);
                 Err(e)
             }
         }
@@ -271,113 +319,135 @@ impl ObjectStore for ObjectStoreMetrics {
 
     async fn get_range(&self, location: &Path, range: Range<usize>) -> Result<Bytes> {
         let t = self.time_provider.now();
-
         let res = self.inner.get_range(location, range).await;
+        self.get_range.record(
+            t,
+            self.time_provider.now(),
+            res.is_ok(),
+            res.as_ref().ok().map(|b| b.len() as _),
+        );
+        res
+    }
 
-        // Avoid exploding if time goes backwards - simply drop the measurement
-        // if it happens.
-        if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
-            match &res {
-                Ok(data) => {
-                    self.get_range_success_duration.record(delta);
-                    self.get_range_bytes.inc(data.len() as _);
-                }
-                Err(_) => self.get_range_error_duration.record(delta),
-            };
-        }
-
+    async fn get_ranges(&self, location: &Path, ranges: &[Range<usize>]) -> Result<Vec<Bytes>> {
+        let t = self.time_provider.now();
+        let res = self.inner.get_ranges(location, ranges).await;
+        self.get_ranges.record(
+            t,
+            self.time_provider.now(),
+            res.is_ok(),
+            res.as_ref()
+                .ok()
+                .map(|b| b.iter().map(|b| b.len() as u64).sum()),
+        );
         res
     }
 
     async fn head(&self, location: &Path) -> Result<ObjectMeta> {
         let t = self.time_provider.now();
-
         let res = self.inner.head(location).await;
-
-        // Avoid exploding if time goes backwards - simply drop the measurement
-        // if it happens.
-        if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
-            match &res {
-                Ok(_) => self.head_success_duration.record(delta),
-                Err(_) => self.head_error_duration.record(delta),
-            };
-        }
-
+        self.head.record(t, self.time_provider.now(), res.is_ok());
         res
     }
 
     async fn delete(&self, location: &Path) -> Result<()> {
         let t = self.time_provider.now();
-
         let res = self.inner.delete(location).await;
-
-        // Avoid exploding if time goes backwards - simply drop the measurement
-        // if it happens.
-        if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
-            match &res {
-                Ok(_) => self.delete_success_duration.record(delta),
-                Err(_) => self.delete_error_duration.record(delta),
-            };
-        }
-
+        self.delete.record(t, self.time_provider.now(), res.is_ok());
         res
     }
 
-    async fn list(&self, prefix: Option<&Path>) -> Result<BoxStream<'_, Result<ObjectMeta>>> {
+    fn delete_stream<'a>(
+        &'a self,
+        locations: BoxStream<'a, Result<Path>>,
+    ) -> BoxStream<'a, Result<Path>> {
         let started_at = self.time_provider.now();
 
-        let res = self.inner.list(prefix).await;
+        let s = self.inner.delete_stream(locations);
 
-        match res {
-            Ok(s) => {
-                // Wrap the object store data stream in a decorator to track the
-                // yielded data / wall clock, inclusive of the inner call above.
-                Ok(Box::pin(Box::new(
-                    StreamMetricRecorder::new(
-                        s,
-                        started_at,
-                        self.list_success_duration.clone(),
-                        self.list_error_duration.clone(),
-                        NopStreamDelegate::default(),
-                    )
-                    .fuse(),
-                )))
-            }
-            Err(e) => {
-                // Record the call duration in the error histogram.
-                if let Some(delta) = self.time_provider.now().checked_duration_since(started_at) {
-                    self.list_error_duration.record(delta);
-                }
-                Err(e)
-            }
-        }
+        // Wrap the object store data stream in a decorator to track the
+        // yielded data / wall clock, inclusive of the inner call above.
+        StreamMetricRecorder::new(
+            s,
+            started_at,
+            CountStreamDelegate::new(self.delete_stream.clone()),
+        )
+        .fuse()
+        .boxed()
+    }
+
+    fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, Result<ObjectMeta>> {
+        let started_at = self.time_provider.now();
+
+        let s = self.inner.list(prefix);
+
+        // Wrap the object store data stream in a decorator to track the
+        // yielded data / wall clock, inclusive of the inner call above.
+        StreamMetricRecorder::new(s, started_at, CountStreamDelegate::new(self.list.clone()))
+            .fuse()
+            .boxed()
+    }
+
+    fn list_with_offset(
+        &self,
+        prefix: Option<&Path>,
+        offset: &Path,
+    ) -> BoxStream<'_, Result<ObjectMeta>> {
+        let started_at = self.time_provider.now();
+
+        let s = self.inner.list_with_offset(prefix, offset);
+
+        // Wrap the object store data stream in a decorator to track the
+        // yielded data / wall clock, inclusive of the inner call above.
+        StreamMetricRecorder::new(
+            s,
+            started_at,
+            CountStreamDelegate::new(self.list_with_offset.clone()),
+        )
+        .fuse()
+        .boxed()
     }
 
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> Result<ListResult> {
         let t = self.time_provider.now();
-
         let res = self.inner.list_with_delimiter(prefix).await;
-
-        // Avoid exploding if time goes backwards - simply drop the measurement
-        // if it happens.
-        if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
-            match &res {
-                Ok(_) => self.list_success_duration.record(delta),
-                Err(_) => self.list_error_duration.record(delta),
-            };
-        }
-
+        self.list_with_delimiter.record(
+            t,
+            self.time_provider.now(),
+            res.is_ok(),
+            res.as_ref().ok().map(|res| res.objects.len() as _),
+        );
         res
     }
 
     async fn copy(&self, from: &Path, to: &Path) -> Result<()> {
-        // TODO: Instrument me
-        self.inner.copy(from, to).await
+        let t = self.time_provider.now();
+        let res = self.inner.copy(from, to).await;
+        self.copy.record(t, self.time_provider.now(), res.is_ok());
+        res
+    }
+
+    async fn rename(&self, from: &Path, to: &Path) -> Result<()> {
+        let t = self.time_provider.now();
+        let res = self.inner.rename(from, to).await;
+        self.rename.record(t, self.time_provider.now(), res.is_ok());
+        res
     }
 
     async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> Result<()> {
-        // TODO: Instrument me
-        self.inner.copy_if_not_exists(from, to).await
+        let t = self.time_provider.now();
+        let res = self.inner.copy_if_not_exists(from, to).await;
+        self.copy_if_not_exists
+            .record(t, self.time_provider.now(), res.is_ok());
+        res
+    }
+
+    async fn rename_if_not_exists(&self, from: &Path, to: &Path) -> Result<()> {
+        let t = self.time_provider.now();
+        let res = self.inner.rename_if_not_exists(from, to).await;
+        self.rename_if_not_exists
+            .record(t, self.time_provider.now(), res.is_ok());
+        res
     }
 }
 
@@ -386,8 +456,12 @@ impl ObjectStore for ObjectStoreMetrics {
 trait MetricDelegate {
     /// The type this delegate observes.
     type Item;
+
     /// Invoked when the stream yields an `Ok(Item)`.
     fn observe_ok(&self, value: &Self::Item);
+
+    /// Finish stream.
+    fn finish(&self, t_begin: Time, t_end: Time, success: bool);
 }
 
 /// A [`MetricDelegate`] for instrumented streams of [`Bytes`].
@@ -395,30 +469,44 @@ trait MetricDelegate {
 /// This impl is used to record the number of bytes yielded for
 /// [`ObjectStore::get()`] calls.
 #[derive(Debug)]
-struct BytesStreamDelegate(U64Counter);
+struct BytesStreamDelegate(MetricsWithBytes);
+
+impl BytesStreamDelegate {
+    fn new(metrics: MetricsWithBytes) -> Self {
+        Self(metrics)
+    }
+}
 
 impl MetricDelegate for BytesStreamDelegate {
     type Item = Bytes;
 
     fn observe_ok(&self, bytes: &Self::Item) {
-        self.0.inc(bytes.len() as _);
+        self.0.record_bytes_only(true, bytes.len() as _);
+    }
+
+    fn finish(&self, t_begin: Time, t_end: Time, success: bool) {
+        self.0.record(t_begin, t_end, success, None);
     }
 }
 
 #[derive(Debug)]
-struct NopStreamDelegate<T>(PhantomData<T>);
+struct CountStreamDelegate<T>(MetricsWithCount, PhantomData<T>);
 
-impl<T> Default for NopStreamDelegate<T> {
-    fn default() -> Self {
-        Self(Default::default())
+impl<T> CountStreamDelegate<T> {
+    fn new(metrics: MetricsWithCount) -> Self {
+        Self(metrics, Default::default())
     }
 }
 
-impl<T> MetricDelegate for NopStreamDelegate<T> {
+impl<T> MetricDelegate for CountStreamDelegate<T> {
     type Item = T;
 
     fn observe_ok(&self, _value: &Self::Item) {
-        // it does nothing!
+        self.0.record_count_only(true, 1);
+    }
+
+    fn finish(&self, t_begin: Time, t_end: Time, success: bool) {
+        self.0.record(t_begin, t_end, success, None);
     }
 }
 
@@ -472,9 +560,6 @@ where
     // Called when the stream yields an `Ok(T)` to allow the delegate to inspect
     // the `T`.
     metric_delegate: D,
-
-    success_duration: DurationHistogram,
-    error_duration: DurationHistogram,
 }
 
 impl<S, D> StreamMetricRecorder<S, D>
@@ -482,13 +567,7 @@ where
     S: Stream,
     D: MetricDelegate,
 {
-    fn new(
-        stream: S,
-        started_at: Time,
-        success_duration: DurationHistogram,
-        error_duration: DurationHistogram,
-        metric_delegate: D,
-    ) -> Self {
+    fn new(stream: S, started_at: Time, metric_delegate: D) -> Self {
         let time_provider = SystemProvider::default();
         Self {
             inner: stream,
@@ -504,8 +583,6 @@ where
             started_at,
             time_provider,
 
-            success_duration,
-            error_duration,
             metric_delegate,
         }
     }
@@ -542,21 +619,13 @@ where
             Poll::Ready(None) => {
                 // The stream has terminated - record the wall clock duration
                 // immediately.
-                let hist = match this.last_call_ok {
-                    true => this.success_duration,
-                    false => this.error_duration,
-                };
-
-                // Take the last_yielded_at option, marking metrics as emitted
-                // so the drop impl does not duplicate them.
-                if let Some(d) = this
-                    .last_yielded_at
-                    .take()
-                    .expect("no last_yielded_at value for fused stream")
-                    .checked_duration_since(*this.started_at)
-                {
-                    hist.record(d)
-                }
+                this.metric_delegate.finish(
+                    *this.started_at,
+                    this.last_yielded_at
+                        .take()
+                        .expect("no last_yielded_at value for fused stream"),
+                    *this.last_call_ok,
+                );
 
                 Poll::Ready(None)
             }
@@ -581,14 +650,8 @@ where
         // Only emit metrics if the end of the stream was not observed (and
         // therefore last_yielded_at is still Some).
         if let Some(last) = self.last_yielded_at {
-            let hist = match self.last_call_ok {
-                true => &self.success_duration,
-                false => &self.error_duration,
-            };
-
-            if let Some(d) = last.checked_duration_since(self.started_at) {
-                hist.record(d)
-            }
+            self.metric_delegate
+                .finish(self.started_at, last, self.last_call_ok);
         }
     }
 }
@@ -601,7 +664,7 @@ mod tests {
         time::Duration,
     };
 
-    use futures::stream;
+    use futures::{stream, TryStreamExt};
     use metric::Attributes;
     use std::io::Read;
 
@@ -610,6 +673,7 @@ mod tests {
 
     use super::*;
 
+    #[track_caller]
     fn assert_histogram_hit<const N: usize>(
         metrics: &metric::Registry,
         name: &'static str,
@@ -626,6 +690,24 @@ mod tests {
         assert!(hit_count > 0, "metric {name} did not record any calls");
     }
 
+    #[track_caller]
+    fn assert_histogram_not_hit<const N: usize>(
+        metrics: &metric::Registry,
+        name: &'static str,
+        attr: [(&'static str, &'static str); N],
+    ) {
+        let histogram = metrics
+            .get_instrument::<Metric<DurationHistogram>>(name)
+            .expect("failed to read histogram")
+            .get_observer(&Attributes::from(&attr))
+            .expect("failed to get observer")
+            .fetch();
+
+        let hit_count = histogram.sample_count();
+        assert!(hit_count == 0, "metric {name} did record {hit_count} calls");
+    }
+
+    #[track_caller]
     fn assert_counter_value<const N: usize>(
         metrics: &metric::Registry,
         name: &'static str,
@@ -656,7 +738,12 @@ mod tests {
             .await
             .expect("put should succeed");
 
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [("op", "put")], 5);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "put"), ("result", "success")],
+            5,
+        );
         assert_histogram_hit(
             &metrics,
             "object_store_op_duration",
@@ -679,7 +766,12 @@ mod tests {
             .await
             .expect_err("put should error");
 
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [("op", "put")], 5);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "put"), ("result", "error")],
+            5,
+        );
         assert_histogram_hit(
             &metrics,
             "object_store_op_duration",
@@ -691,12 +783,71 @@ mod tests {
     async fn test_list() {
         let metrics = Arc::new(metric::Registry::default());
         let store = Arc::new(InMemory::new());
+        store
+            .put(&Path::from("foo"), Bytes::default())
+            .await
+            .unwrap();
+        store
+            .put(&Path::from("bar"), Bytes::default())
+            .await
+            .unwrap();
         let time = Arc::new(SystemProvider::new());
         let store = ObjectStoreMetrics::new(store, time, &metrics);
 
-        store.list(None).await.expect("list should succeed");
+        store.list(None).try_collect::<Vec<_>>().await.unwrap();
 
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_objects",
+            [("op", "list"), ("result", "success")],
+            2,
+        );
         assert_histogram_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "list"), ("result", "success")],
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_with_offset() {
+        let metrics = Arc::new(metric::Registry::default());
+        let store = Arc::new(InMemory::new());
+        store
+            .put(&Path::from("foo"), Bytes::default())
+            .await
+            .unwrap();
+        store
+            .put(&Path::from("bar"), Bytes::default())
+            .await
+            .unwrap();
+        store
+            .put(&Path::from("baz"), Bytes::default())
+            .await
+            .unwrap();
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
+
+        store
+            .list_with_offset(None, &Path::from("bar"))
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_objects",
+            [("op", "list_with_offset"), ("result", "success")],
+            2,
+        );
+        assert_histogram_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "list_with_offset"), ("result", "success")],
+        );
+
+        // NOT raw `list` call
+        assert_histogram_not_hit(
             &metrics,
             "object_store_op_duration",
             [("op", "list"), ("result", "success")],
@@ -710,7 +861,10 @@ mod tests {
         let time = Arc::new(SystemProvider::new());
         let store = ObjectStoreMetrics::new(store, time, &metrics);
 
-        assert!(store.list(None).await.is_err(), "mock configured to fail");
+        assert!(
+            store.list(None).try_collect::<Vec<_>>().await.is_err(),
+            "mock configured to fail"
+        );
 
         assert_histogram_hit(
             &metrics,
@@ -734,7 +888,7 @@ mod tests {
         assert_histogram_hit(
             &metrics,
             "object_store_op_duration",
-            [("op", "list"), ("result", "success")],
+            [("op", "list_with_delimiter"), ("result", "success")],
         );
     }
 
@@ -756,7 +910,7 @@ mod tests {
         assert_histogram_hit(
             &metrics,
             "object_store_op_duration",
-            [("op", "list"), ("result", "error")],
+            [("op", "list_with_delimiter"), ("result", "error")],
         );
     }
 
@@ -818,6 +972,212 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_getranges() {
+        let metrics = Arc::new(metric::Registry::default());
+        let store = Arc::new(InMemory::new());
+        store
+            .put(&Path::from("foo"), Bytes::from_static(b"bar"))
+            .await
+            .unwrap();
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
+
+        store
+            .get_ranges(&Path::from("foo"), &[0..2, 1..2, 0..1])
+            .await
+            .unwrap();
+
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "get_ranges"), ("result", "success")],
+            4,
+        );
+        assert_histogram_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "get_ranges"), ("result", "success")],
+        );
+
+        // NO `get_range` used!
+        assert_histogram_not_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "get_range"), ("result", "success")],
+        );
+    }
+
+    #[tokio::test]
+    async fn test_copy() {
+        let metrics = Arc::new(metric::Registry::default());
+        let store = Arc::new(InMemory::new());
+        store
+            .put(&Path::from("foo"), Bytes::default())
+            .await
+            .unwrap();
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
+
+        store
+            .copy(&Path::from("foo"), &Path::from("bar"))
+            .await
+            .unwrap();
+
+        assert_histogram_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "copy"), ("result", "success")],
+        );
+    }
+
+    #[tokio::test]
+    async fn test_copy_if_not_exists() {
+        let metrics = Arc::new(metric::Registry::default());
+        let store = Arc::new(InMemory::new());
+        store
+            .put(&Path::from("foo"), Bytes::default())
+            .await
+            .unwrap();
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
+
+        store
+            .copy_if_not_exists(&Path::from("foo"), &Path::from("bar"))
+            .await
+            .unwrap();
+
+        assert_histogram_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "copy_if_not_exists"), ("result", "success")],
+        );
+    }
+
+    #[tokio::test]
+    async fn test_rename() {
+        let metrics = Arc::new(metric::Registry::default());
+        let store = Arc::new(InMemory::new());
+        store
+            .put(&Path::from("foo"), Bytes::default())
+            .await
+            .unwrap();
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
+
+        store
+            .rename(&Path::from("foo"), &Path::from("bar"))
+            .await
+            .unwrap();
+
+        assert_histogram_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "rename"), ("result", "success")],
+        );
+
+        // NO `copy`/`delete` used!
+        assert_histogram_not_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "copy"), ("result", "success")],
+        );
+        assert_histogram_not_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "delete"), ("result", "success")],
+        );
+    }
+
+    #[tokio::test]
+    async fn test_rename_if_not_exists() {
+        let metrics = Arc::new(metric::Registry::default());
+        let store = Arc::new(InMemory::new());
+        store
+            .put(&Path::from("foo"), Bytes::default())
+            .await
+            .unwrap();
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
+
+        store
+            .rename_if_not_exists(&Path::from("foo"), &Path::from("bar"))
+            .await
+            .unwrap();
+
+        assert_histogram_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "rename_if_not_exists"), ("result", "success")],
+        );
+
+        // NO `copy`/`copy_if_not_exists`/`delete` used!
+        assert_histogram_not_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "copy"), ("result", "success")],
+        );
+        assert_histogram_not_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "copy_if_not_exists"), ("result", "success")],
+        );
+        assert_histogram_not_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "delete"), ("result", "success")],
+        );
+    }
+
+    #[tokio::test]
+    async fn test_delete_stream() {
+        let metrics = Arc::new(metric::Registry::default());
+        let store = Arc::new(InMemory::new());
+        store
+            .put(&Path::from("foo"), Bytes::default())
+            .await
+            .unwrap();
+        store
+            .put(&Path::from("bar"), Bytes::default())
+            .await
+            .unwrap();
+        store
+            .put(&Path::from("baz"), Bytes::default())
+            .await
+            .unwrap();
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
+
+        store
+            .delete_stream(
+                stream::iter(["foo", "baz"])
+                    .map(|s| Ok(Path::from(s)))
+                    .boxed(),
+            )
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_objects",
+            [("op", "delete_stream"), ("result", "success")],
+            2,
+        );
+        assert_histogram_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "delete_stream"), ("result", "success")],
+        );
+
+        // NOT raw `delete` call
+        assert_histogram_not_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "delete"), ("result", "success")],
+        );
+    }
+
+    #[tokio::test]
     async fn test_put_get_getrange_head_delete_file() {
         let metrics = Arc::new(metric::Registry::default());
         // Temporary workaround for https://github.com/apache/arrow-rs/issues/2370
@@ -844,7 +1204,12 @@ mod tests {
             v => panic!("not a file: {v:?}"),
         }
 
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [("op", "get")], 5);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "get"), ("result", "success")],
+            5,
+        );
         assert_histogram_hit(
             &metrics,
             "object_store_op_duration",
@@ -858,7 +1223,7 @@ mod tests {
         assert_counter_value(
             &metrics,
             "object_store_transfer_bytes",
-            [("op", "get_range")],
+            [("op", "get_range"), ("result", "success")],
             3,
         );
         assert_histogram_hit(
@@ -905,7 +1270,12 @@ mod tests {
             v => panic!("not a stream: {v:?}"),
         }
 
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [("op", "get")], 5);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "get"), ("result", "success")],
+            5,
+        );
         assert_histogram_hit(
             &metrics,
             "object_store_op_duration",
@@ -930,21 +1300,12 @@ mod tests {
         let time_provider = SystemProvider::default();
 
         let metrics = Arc::new(metric::Registry::default());
-        let hist: Metric<DurationHistogram> = metrics.register_metric("wall_clock", "");
-
-        let bytes = metrics
-            .register_metric::<U64Counter>(
-                "object_store_transfer_bytes",
-                "cumulative count of file content bytes transferred to/from the object store",
-            )
-            .recorder(&[]);
+        let m = MetricsWithBytes::new(&metrics, "test");
 
         let mut stream = StreamMetricRecorder::new(
             inner,
             time_provider.now(),
-            hist.recorder(&[("result", "success")]),
-            hist.recorder(&[("result", "error")]),
-            BytesStreamDelegate(bytes),
+            BytesStreamDelegate::new(m.clone()),
         );
 
         let got = stream
@@ -953,7 +1314,12 @@ mod tests {
             .expect("should yield data")
             .expect("should succeed");
         assert_eq!(got.len(), 1);
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [], 1);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "success")],
+            1,
+        );
 
         // Sleep at least 10ms to assert the recorder to captures the wall clock
         // time.
@@ -966,11 +1332,14 @@ mod tests {
             .expect("should yield data")
             .expect("should succeed");
         assert_eq!(got.len(), 3);
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [], 4);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "success")],
+            4,
+        );
 
-        let success_hist = hist
-            .get_observer(&metric::Attributes::from(&[("result", "success")]))
-            .expect("failed to get observer");
+        let success_hist = &m.inner.success_duration;
 
         // Until the stream is fully consumed, there should be no wall clock
         // metrics emitted.
@@ -983,7 +1352,12 @@ mod tests {
         // recorded.
         let hit_count = success_hist.fetch().sample_count();
         assert_eq!(hit_count, 1, "wall clock duration recorded incorrectly");
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [], 4);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "success")],
+            4,
+        );
 
         // And it must be in a SLEEP or higher bucket.
         let hit_count: u64 = success_hist
@@ -1002,7 +1376,12 @@ mod tests {
         drop(stream);
         let hit_count = success_hist.fetch().sample_count();
         assert_eq!(hit_count, 1, "wall clock duration duplicated");
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [], 4);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "success")],
+            4,
+        );
     }
 
     // Ensures the stream decorator correctly records the wall clock duration
@@ -1022,21 +1401,12 @@ mod tests {
         let time_provider = SystemProvider::default();
 
         let metrics = Arc::new(metric::Registry::default());
-        let hist: Metric<DurationHistogram> = metrics.register_metric("wall_clock", "");
-
-        let bytes = metrics
-            .register_metric::<U64Counter>(
-                "object_store_transfer_bytes",
-                "cumulative count of file content bytes transferred to/from the object store",
-            )
-            .recorder(&[]);
+        let m = MetricsWithBytes::new(&metrics, "test");
 
         let mut stream = StreamMetricRecorder::new(
             inner,
             time_provider.now(),
-            hist.recorder(&[("result", "success")]),
-            hist.recorder(&[("result", "error")]),
-            BytesStreamDelegate(bytes),
+            BytesStreamDelegate::new(m.clone()),
         );
 
         let got = stream
@@ -1045,7 +1415,12 @@ mod tests {
             .expect("should yield data")
             .expect("should succeed");
         assert_eq!(got.len(), 1);
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [], 1);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "success")],
+            1,
+        );
 
         // Sleep at least 10ms to assert the recorder to captures the wall clock
         // time.
@@ -1057,15 +1432,16 @@ mod tests {
 
         // Now the stream is complete, the wall clock duration must have been
         // recorded.
-        let hit_count = hist
-            .get_observer(&metric::Attributes::from(&[("result", "success")]))
-            .expect("failed to get observer")
-            .fetch()
-            .sample_count();
+        let hit_count = m.inner.success_duration.fetch().sample_count();
         assert_eq!(hit_count, 1, "wall clock duration recorded incorrectly");
 
         // And the number of bytes read must match the pre-drop value.
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [], 1);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "success")],
+            1,
+        );
     }
 
     // Ensures the stream decorator records the wall clock duration into the
@@ -1085,21 +1461,12 @@ mod tests {
         let time_provider = SystemProvider::default();
 
         let metrics = Arc::new(metric::Registry::default());
-        let hist: Metric<DurationHistogram> = metrics.register_metric("wall_clock", "");
-
-        let bytes = metrics
-            .register_metric::<U64Counter>(
-                "object_store_transfer_bytes",
-                "cumulative count of file content bytes transferred to/from the object store",
-            )
-            .recorder(&[]);
+        let m = MetricsWithBytes::new(&metrics, "test");
 
         let mut stream = StreamMetricRecorder::new(
             inner,
             time_provider.now(),
-            hist.recorder(&[("result", "success")]),
-            hist.recorder(&[("result", "error")]),
-            BytesStreamDelegate(bytes),
+            BytesStreamDelegate::new(m.clone()),
         );
 
         let got = stream
@@ -1108,7 +1475,18 @@ mod tests {
             .expect("should yield data")
             .expect("should succeed");
         assert_eq!(got.len(), 1);
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [], 1);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "success")],
+            1,
+        );
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "error")],
+            0,
+        );
 
         let _err = stream
             .next()
@@ -1120,15 +1498,22 @@ mod tests {
         drop(stream);
 
         // Ensure the wall clock was added to the "error" histogram.
-        let hit_count = hist
-            .get_observer(&metric::Attributes::from(&[("result", "error")]))
-            .expect("failed to get observer")
-            .fetch()
-            .sample_count();
+        let hit_count = m.inner.error_duration.fetch().sample_count();
         assert_eq!(hit_count, 1, "wall clock duration recorded incorrectly");
 
         // And the number of bytes read must match
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [], 1);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "success")],
+            1,
+        );
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "error")],
+            0,
+        );
     }
 
     // Ensures the stream decorator records the wall clock duration into the
@@ -1148,21 +1533,12 @@ mod tests {
         let time_provider = SystemProvider::default();
 
         let metrics = Arc::new(metric::Registry::default());
-        let hist: Metric<DurationHistogram> = metrics.register_metric("wall_clock", "");
-
-        let bytes = metrics
-            .register_metric::<U64Counter>(
-                "object_store_transfer_bytes",
-                "cumulative count of file content bytes transferred to/from the object store",
-            )
-            .recorder(&[]);
+        let m = MetricsWithBytes::new(&metrics, "test");
 
         let mut stream = StreamMetricRecorder::new(
             inner,
             time_provider.now(),
-            hist.recorder(&[("result", "success")]),
-            hist.recorder(&[("result", "error")]),
-            BytesStreamDelegate(bytes),
+            BytesStreamDelegate::new(m.clone()),
         );
 
         let got = stream
@@ -1171,7 +1547,12 @@ mod tests {
             .expect("should yield data")
             .expect("should succeed");
         assert_eq!(got.len(), 1);
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [], 1);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "success")],
+            1,
+        );
 
         let _err = stream
             .next()
@@ -1185,22 +1566,28 @@ mod tests {
             .expect("should yield data")
             .expect("should succeed");
         assert_eq!(got.len(), 3);
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [], 4);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "success")],
+            4,
+        );
 
         // Drop after observing an error
         drop(stream);
 
         // Ensure the wall clock was added to the "success" histogram after
         // progressing past the transient error.
-        let hit_count = hist
-            .get_observer(&metric::Attributes::from(&[("result", "success")]))
-            .expect("failed to get observer")
-            .fetch()
-            .sample_count();
+        let hit_count = m.inner.success_duration.fetch().sample_count();
         assert_eq!(hit_count, 1, "wall clock duration recorded incorrectly");
 
         // And the number of bytes read must match
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [], 4);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "success")],
+            4,
+        );
     }
 
     // Ensures the wall clock time recorded by the stream decorator includes the
@@ -1216,36 +1603,28 @@ mod tests {
         let time_provider = SystemProvider::default();
 
         let metrics = Arc::new(metric::Registry::default());
-        let hist: Metric<DurationHistogram> = metrics.register_metric("wall_clock", "");
-
-        let bytes = metrics
-            .register_metric::<U64Counter>(
-                "object_store_transfer_bytes",
-                "cumulative count of file content bytes transferred to/from the object store",
-            )
-            .recorder(&[]);
+        let m = MetricsWithBytes::new(&metrics, "test");
 
         let stream = StreamMetricRecorder::new(
             inner,
             time_provider.now(),
-            hist.recorder(&[("result", "success")]),
-            hist.recorder(&[("result", "error")]),
-            BytesStreamDelegate(bytes),
+            BytesStreamDelegate::new(m.clone()),
         );
 
         // Drop immediately
         drop(stream);
 
         // Ensure the wall clock was added to the "success" histogram
-        let hit_count = hist
-            .get_observer(&metric::Attributes::from(&[("result", "success")]))
-            .expect("failed to get observer")
-            .fetch()
-            .sample_count();
+        let hit_count = m.inner.success_duration.fetch().sample_count();
         assert_eq!(hit_count, 1, "wall clock duration recorded incorrectly");
 
         // And the number of bytes read must match
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [], 0);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "success")],
+            0,
+        );
     }
 
     // Ensures the wall clock time recorded by the stream decorator emits a wall
@@ -1260,35 +1639,27 @@ mod tests {
         let time_provider = SystemProvider::default();
 
         let metrics = Arc::new(metric::Registry::default());
-        let hist: Metric<DurationHistogram> = metrics.register_metric("wall_clock", "");
-
-        let bytes = metrics
-            .register_metric::<U64Counter>(
-                "object_store_transfer_bytes",
-                "cumulative count of file content bytes transferred to/from the object store",
-            )
-            .recorder(&[]);
+        let m = MetricsWithBytes::new(&metrics, "test");
 
         let mut stream = StreamMetricRecorder::new(
             inner,
             time_provider.now(),
-            hist.recorder(&[("result", "success")]),
-            hist.recorder(&[("result", "error")]),
-            BytesStreamDelegate(bytes),
+            BytesStreamDelegate::new(m.clone()),
         );
 
         assert!(stream.next().await.is_none());
 
         // Ensure the wall clock was added to the "success" histogram even
         // though it yielded no data.
-        let hit_count = hist
-            .get_observer(&metric::Attributes::from(&[("result", "success")]))
-            .expect("failed to get observer")
-            .fetch()
-            .sample_count();
+        let hit_count = m.inner.success_duration.fetch().sample_count();
         assert_eq!(hit_count, 1, "wall clock duration recorded incorrectly");
 
         // And the number of bytes read must match
-        assert_counter_value(&metrics, "object_store_transfer_bytes", [], 0);
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "test"), ("result", "success")],
+            0,
+        );
     }
 }

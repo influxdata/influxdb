@@ -163,6 +163,7 @@ impl Backoff {
         F1: std::future::Future<Output = ControlFlow<B, E>> + Send,
         E: std::error::Error + Send + 'static,
     {
+        let mut fail_count = 0_usize;
         loop {
             // first execute `F` and then use it, so we can avoid `F: Sync`.
             let do_stuff = do_stuff();
@@ -182,10 +183,13 @@ impl Backoff {
                 }
             };
 
+            fail_count += 1;
+
             warn!(
                 error=%e,
                 task_name,
                 backoff_secs = backoff.as_secs(),
+                fail_count,
                 "request encountered non-fatal error - backing off",
             );
             tokio::time::sleep(backoff).await;

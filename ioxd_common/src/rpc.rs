@@ -34,6 +34,9 @@ pub struct RpcBuilder<T> {
 #[macro_export]
 macro_rules! add_service {
     ($builder:ident, $svc:expr) => {
+        $crate::add_service!($builder, $svc, Serving)
+    };
+    ($builder:ident, $svc:expr, $status:ident) => {
         let $builder = {
             // `inner` might be required to be `mut` or not depending if we're acting on:
             // - a `Server`, no service added yet, no `mut` required
@@ -50,7 +53,7 @@ macro_rules! add_service {
                 } = $builder;
                 let service = $svc;
 
-                let status = $crate::reexport::tonic_health::ServingStatus::Serving;
+                let status = $crate::reexport::tonic_health::ServingStatus::$status;
                 health_reporter
                     .set_service_status(service_name(&service), status)
                     .await;
@@ -97,16 +100,19 @@ macro_rules! setup_builder {
         let builder = builder
             .layer($crate::reexport::trace_http::tower::TraceLayer::new(
                 trace_header_parser,
-                $server_type.metric_registry(),
+                Arc::new($crate::reexport::trace_http::metrics::RequestMetrics::new(
+                    $server_type.metric_registry(),
+                    $crate::reexport::trace_http::metrics::MetricFamily::GrpcServer,
+                )),
                 $server_type.trace_collector(),
-                true,
                 $server_type.name(),
             ))
             .layer(
                 $crate::reexport::tower_http::catch_panic::CatchPanicLayer::custom(
                     $crate::rpc::handle_panic,
                 ),
-            );
+            )
+            .layer($crate::reexport::tower_trailer::TrailerLayer::default());
 
         let builder = RpcBuilder {
             inner: builder,

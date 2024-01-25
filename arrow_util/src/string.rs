@@ -154,6 +154,37 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> PackedStringArray<K> {
     pub fn into_inner(self) -> (Vec<K>, String) {
         (self.offsets, self.storage)
     }
+
+    /// Split this [`PackedStringArray`] at `n`, such that `self`` contains the
+    /// elements `[0, n)` and the returned [`PackedStringArray`] contains
+    /// elements `[n, len)`.
+    pub fn split_off(&mut self, n: usize) -> Self {
+        if n > self.len() {
+            return Default::default();
+        }
+
+        let offsets = self.offsets.split_off(n + 1);
+
+        // Figure out where to split the string storage.
+        let split_point = self.offsets.last().map(|v| v.as_()).unwrap();
+
+        // Split the storage at the split point, such that the first N values
+        // appear in self.
+        let storage = self.storage.split_off(split_point);
+
+        // The new "offsets" now needs remapping such that the first offset
+        // starts at 0, so that indexing into the new storage string will hit
+        // the right start point.
+        let offsets = std::iter::once(K::zero())
+            .chain(
+                offsets
+                    .into_iter()
+                    .map(|v| K::from_usize(v.as_() - split_point).unwrap()),
+            )
+            .collect::<Vec<_>>();
+
+        Self { offsets, storage }
+    }
 }
 
 impl PackedStringArray<i32> {
@@ -200,6 +231,8 @@ impl<'a, K: AsPrimitive<usize> + FromPrimitive + Zero> Iterator for PackedString
 #[cfg(test)]
 mod tests {
     use crate::string::PackedStringArray;
+
+    use proptest::prelude::*;
 
     #[test]
     fn test_storage() {
@@ -315,5 +348,37 @@ mod tests {
             a_content,
             vec!["hello", "world", "cupcake", "", "bar", "", "foo", "bar", "", "fiz"]
         );
+    }
+
+    proptest! {
+        #[test]
+        fn prop_split_off(
+            a in prop::collection::vec(any::<String>(), 0..20),
+            b in prop::collection::vec(any::<String>(), 0..20),
+        ) {
+            let mut p = PackedStringArray::<i32>::new();
+
+            // Add all the elements in "a" and "b" to the string array.
+            for v in a.iter().chain(b.iter()) {
+                p.append(v);
+            }
+
+            // Split the packed string array at the boundary of "a".
+            let p2 = p.split_off(a.len());
+
+            assert_eq!(p.iter().collect::<Vec<_>>(), a, "parent");
+            assert_eq!(p2.iter().collect::<Vec<_>>(), b, "child");
+        }
+    }
+
+    #[test]
+    fn test_split_off_oob() {
+        let mut p = PackedStringArray::<i32>::new();
+
+        p.append("bananas");
+
+        let got = p.split_off(42);
+        assert_eq!(p.len(), 1);
+        assert_eq!(got.len(), 0);
     }
 }

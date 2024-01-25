@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
 pub use common_state::{CommonServerState, CommonServerStateError};
+use trace_http::metrics::{MetricFamily, RequestMetrics};
 
 use crate::{http::error::HttpApiErrorSource, rpc::RpcBuilderInput};
 
@@ -20,6 +21,9 @@ pub enum RpcError {
         source: tonic::transport::Error,
         details: String,
     },
+
+    #[snafu(display("gRPC endpoint is not implemented"))]
+    UnImplemented,
 }
 
 // Custom impl to include underlying source (not included in tonic
@@ -47,6 +51,11 @@ pub trait ServerType: std::fmt::Debug + Send + Sync + 'static {
     /// Trace collector associated with the server, if any.
     fn trace_collector(&self) -> Option<Arc<dyn TraceCollector>>;
 
+    /// Returns the `RequestMetrics` for instrumenting HTTP requests
+    fn http_request_metrics(&self) -> RequestMetrics {
+        RequestMetrics::new(self.metric_registry(), MetricFamily::HttpServer)
+    }
+
     /// Route given HTTP request.
     ///
     /// Note that this is only called if none of the shared, common routes (e.g. `/health`) match.
@@ -69,4 +78,9 @@ pub trait ServerType: std::fmt::Debug + Send + Sync + 'static {
     /// to shutdown the "frontend" (HTTP & RPC servers) when appropriate - this
     /// should happen before [`Self::join()`] returns.
     fn shutdown(&self, frontend: CancellationToken);
+
+    /// Return `true` if the service is healthy
+    fn is_healthy(&self) -> bool {
+        true
+    }
 }

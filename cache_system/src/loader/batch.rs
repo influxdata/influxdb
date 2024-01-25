@@ -464,7 +464,12 @@ mod tests {
     #[tokio::test]
     async fn test_auto_flush_integration_with_cache_driver() {
         let (inner, batch) = setup();
-        let cache = CacheDriver::new(Arc::clone(&batch), HashMap::new());
+        let cache = CacheDriver::new(
+            Arc::clone(&batch),
+            HashMap::new(),
+            &metric::Registry::default(),
+            "test",
+        );
 
         inner.mock_next(vec![1, 2], vec![String::from("foo"), String::from("bar")]);
         inner.mock_next(vec![3], vec![String::from("baz")]);

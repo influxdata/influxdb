@@ -1,6 +1,7 @@
 use std::time::SystemTime;
 
 /// Manages a dataset for writing / reading
+#[derive(Debug)]
 pub struct DataGenerator {
     ns_since_epoch: i64,
     line_protocol: String,

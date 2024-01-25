@@ -201,11 +201,11 @@ mod test {
         record_batch::RecordBatch,
         util::pretty::pretty_format_batches,
     };
+    use datafusion::prelude::SessionContext;
     use datafusion::{
         error::DataFusionError,
         prelude::{col, lit, Expr},
     };
-    use datafusion_util::context_with_table;
     use std::sync::Arc;
 
     use super::*;
@@ -338,7 +338,8 @@ mod test {
         ])
         .unwrap();
 
-        let ctx = context_with_table(rb);
+        let ctx = SessionContext::new();
+        ctx.register_batch("t", rb).unwrap();
         let df = ctx.table("t").await.unwrap();
         let df = df.filter(op).unwrap();
 

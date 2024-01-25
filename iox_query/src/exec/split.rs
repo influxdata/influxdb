@@ -271,10 +271,10 @@ impl ExecutionPlan for StreamSplitExec {
         Some(self.metrics.clone_inner())
     }
 
-    fn statistics(&self) -> Statistics {
+    fn statistics(&self) -> Result<Statistics> {
         // For now, don't return any statistics (in the future we
         // could potentially estimate the output cardinalities)
-        Statistics::default()
+        Ok(Statistics::new_unknown(&self.schema()))
     }
 }
 
@@ -567,7 +567,7 @@ mod tests {
 
         let input = make_input(vec![vec![batch0, batch1]]);
         // int_col < 3
-        let split_expr = df_physical_expr(input.as_ref(), col("int_col").lt(lit(3))).unwrap();
+        let split_expr = df_physical_expr(input.schema(), col("int_col").lt(lit(3))).unwrap();
         let split_exec: Arc<dyn ExecutionPlan> =
             Arc::new(StreamSplitExec::new(input, vec![split_expr]));
 
@@ -625,12 +625,12 @@ mod tests {
         let input = make_input(vec![vec![batch0, batch1]]);
         // int_col < 2
         let split_expr1 =
-            df_physical_expr(input.as_ref(), col("int_col").lt(lit::<i16>(2))).unwrap();
+            df_physical_expr(input.schema(), col("int_col").lt(lit::<i16>(2))).unwrap();
         // 2 <= int_col < 3
         let expr = col("int_col")
             .gt_eq(lit::<i16>(2))
             .and(col("int_col").lt(lit::<i16>(3)));
-        let split_expr2 = df_physical_expr(input.as_ref(), expr).unwrap();
+        let split_expr2 = df_physical_expr(input.schema(), expr).unwrap();
         let split_exec: Arc<dyn ExecutionPlan> =
             Arc::new(StreamSplitExec::new(input, vec![split_expr1, split_expr2]));
 
@@ -679,7 +679,7 @@ mod tests {
 
         let input = make_input(vec![vec![batch0]]);
         // use `false` to send all outputs to second stream
-        let split_expr = df_physical_expr(input.as_ref(), lit(false)).unwrap();
+        let split_expr = df_physical_expr(input.schema(), lit(false)).unwrap();
         let split_exec: Arc<dyn ExecutionPlan> =
             Arc::new(StreamSplitExec::new(input, vec![split_expr]));
 
@@ -713,8 +713,8 @@ mod tests {
         // Test 1: 3 streams but all data is sent to the second one
         let input = make_input(vec![vec![batch0.clone()]]);
         // use `false` & `true` to send all outputs to second stream
-        let split_expr1 = df_physical_expr(input.as_ref(), lit(false)).unwrap();
-        let split_expr2 = df_physical_expr(input.as_ref(), lit(true)).unwrap();
+        let split_expr1 = df_physical_expr(input.schema(), lit(false)).unwrap();
+        let split_expr2 = df_physical_expr(input.schema(), lit(true)).unwrap();
         let split_exec: Arc<dyn ExecutionPlan> =
             Arc::new(StreamSplitExec::new(input, vec![split_expr1, split_expr2]));
 
@@ -743,8 +743,8 @@ mod tests {
         let input = make_input(vec![vec![batch0.clone()]]);
 
         // use `false` & `false` to send all outputs to third stream
-        let split_expr1 = df_physical_expr(input.as_ref(), lit(false)).unwrap();
-        let split_expr2 = df_physical_expr(input.as_ref(), lit(false)).unwrap();
+        let split_expr1 = df_physical_expr(input.schema(), lit(false)).unwrap();
+        let split_expr2 = df_physical_expr(input.schema(), lit(false)).unwrap();
         let split_exec: Arc<dyn ExecutionPlan> =
             Arc::new(StreamSplitExec::new(input, vec![split_expr1, split_expr2]));
 
@@ -773,8 +773,8 @@ mod tests {
         let input = make_input(vec![vec![batch0]]);
 
         // use `true` & `false` to send all outputs to first stream
-        let split_expr1 = df_physical_expr(input.as_ref(), lit(true)).unwrap();
-        let split_expr2 = df_physical_expr(input.as_ref(), lit(false)).unwrap();
+        let split_expr1 = df_physical_expr(input.schema(), lit(true)).unwrap();
+        let split_expr2 = df_physical_expr(input.schema(), lit(false)).unwrap();
         let split_exec: Arc<dyn ExecutionPlan> =
             Arc::new(StreamSplitExec::new(input, vec![split_expr1, split_expr2]));
 
@@ -812,7 +812,7 @@ mod tests {
 
         let input = make_input(vec![vec![batch0]]);
         // int_col < 3
-        let split_expr = df_physical_expr(input.as_ref(), col("int_col").lt(lit(3))).unwrap();
+        let split_expr = df_physical_expr(input.schema(), col("int_col").lt(lit(3))).unwrap();
         let split_exec: Arc<dyn ExecutionPlan> =
             Arc::new(StreamSplitExec::new(input, vec![split_expr]));
 
@@ -853,12 +853,12 @@ mod tests {
         let input = make_input(vec![vec![batch0]]);
         // int_col < 2
         let split_expr1 =
-            df_physical_expr(input.as_ref(), col("int_col").lt(lit::<i16>(2))).unwrap();
+            df_physical_expr(input.schema(), col("int_col").lt(lit::<i16>(2))).unwrap();
         // 2 <= int_col < 3
         let expr = col("int_col")
             .gt_eq(lit::<i16>(2))
             .and(col("int_col").lt(lit::<i16>(3)));
-        let split_expr2 = df_physical_expr(input.as_ref(), expr).unwrap();
+        let split_expr2 = df_physical_expr(input.schema(), expr).unwrap();
         let split_exec: Arc<dyn ExecutionPlan> =
             Arc::new(StreamSplitExec::new(input, vec![split_expr1, split_expr2]));
 
@@ -908,7 +908,7 @@ mod tests {
 
         let input = make_input(vec![vec![batch0]]);
         // int_col (not a boolean)
-        let split_expr = df_physical_expr(input.as_ref(), col("int_col")).unwrap();
+        let split_expr = df_physical_expr(input.schema(), col("int_col")).unwrap();
         let split_exec: Arc<dyn ExecutionPlan> =
             Arc::new(StreamSplitExec::new(input, vec![split_expr]));
 

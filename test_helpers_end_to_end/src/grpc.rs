@@ -491,7 +491,7 @@ impl GrpcRequestBuilder {
     }
 }
 
-pub fn field_ref_node(field_name: impl Into<String>) -> Node {
+pub(crate) fn field_ref_node(field_name: impl Into<String>) -> Node {
     Node {
         node_type: NodeType::FieldRef.into(),
         children: vec![],
@@ -499,7 +499,7 @@ pub fn field_ref_node(field_name: impl Into<String>) -> Node {
     }
 }
 
-pub fn tag_ref_node(tag_name: impl Into<Vec<u8>>) -> Node {
+pub(crate) fn tag_ref_node(tag_name: impl Into<Vec<u8>>) -> Node {
     Node {
         node_type: NodeType::TagRef as i32,
         children: vec![],
@@ -507,7 +507,7 @@ pub fn tag_ref_node(tag_name: impl Into<Vec<u8>>) -> Node {
     }
 }
 
-pub fn string_value_node(value: impl Into<String>) -> Node {
+pub(crate) fn string_value_node(value: impl Into<String>) -> Node {
     Node {
         node_type: NodeType::Literal as i32,
         children: vec![],
@@ -515,7 +515,7 @@ pub fn string_value_node(value: impl Into<String>) -> Node {
     }
 }
 
-pub fn comparison_expression_node(lhs: Node, comparison: Comparison, rhs: Node) -> Node {
+pub(crate) fn comparison_expression_node(lhs: Node, comparison: Comparison, rhs: Node) -> Node {
     Node {
         node_type: NodeType::ComparisonExpression as i32,
         children: vec![lhs, rhs],

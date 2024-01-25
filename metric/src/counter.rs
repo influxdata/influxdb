@@ -2,7 +2,10 @@ use crate::{MetricKind, MetricObserver, Observation};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-/// A monotonic counter
+/// A monotonic counter.
+///
+/// A [`U64Counter`]` is an internally reference counted type, and all mutations
+/// to cloned instances mutate the same underlying counter.
 #[derive(Debug, Clone, Default)]
 pub struct U64Counter {
     state: Arc<AtomicU64>,

@@ -6,7 +6,7 @@ use influxdb_iox_client::{
         generated_types::{partition_identifier, ParquetFile, PartitionIdentifier},
     },
     connection::Connection,
-    store,
+    store, table,
 };
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -38,13 +38,15 @@ type Result<T, E = ExportError> = std::result::Result<T, E>;
 pub struct RemoteExporter {
     catalog_client: catalog::Client,
     store_client: store::Client,
+    table_client: table::Client,
 }
 
 impl RemoteExporter {
     pub fn new(connection: Connection) -> Self {
         Self {
             catalog_client: catalog::Client::new(connection.clone()),
-            store_client: store::Client::new(connection),
+            store_client: store::Client::new(connection.clone()),
+            table_client: table::Client::new(connection),
         }
     }
 
@@ -65,7 +67,7 @@ impl RemoteExporter {
 
         let parquet_files = self
             .catalog_client
-            .get_parquet_files_by_namespace_table(namespace_name, table_name)
+            .get_parquet_files_by_namespace_table(&namespace_name, &table_name)
             .await?;
 
         // Export the metadata for the table. Since all
@@ -75,7 +77,7 @@ impl RemoteExporter {
             .first()
             .map(|parquet_file| parquet_file.table_id);
         if let Some(table_id) = table_id {
-            self.export_table_metadata(&output_directory, table_id)
+            self.export_table_metadata(&output_directory, table_id, &table_name, &namespace_name)
                 .await?;
         }
 
@@ -105,15 +107,18 @@ impl RemoteExporter {
         &mut self,
         output_directory: &Path,
         table_id: i64,
+        table_name: &str,
+        namespace_name: &str,
     ) -> Result<()> {
         // write table metadata
-        //
-        // (Note that since there is way to get table metadata via
-        // catalog API yet, make an empty object)
-        let table_json = "{}";
+        let table = self
+            .table_client
+            .get_table(namespace_name, table_name)
+            .await?;
+        let table_json = serde_json::to_string_pretty(&table)?;
         let filename = format!("table.{table_id}.json");
         let file_path = output_directory.join(&filename);
-        write_string_to_file(table_json, &file_path).await?;
+        write_string_to_file(&table_json, &file_path).await?;
 
         // write partition metadata for the table
         let partitions = self
@@ -147,18 +152,16 @@ impl RemoteExporter {
         let uuid = &parquet_file.object_store_id;
         let file_size_bytes = parquet_file.file_size_bytes as u64;
 
-        let partition_id = to_partition_id(parquet_file.partition_identifier.as_ref());
-
         // copy out the metadata as pbjson encoded data always (to
         // ensure we have the most up to date version)
         {
-            let filename = format!("{uuid}.{partition_id}.parquet.json");
+            let filename = format!("{uuid}.parquet.json");
             let file_path = output_directory.join(&filename);
             let json = serde_json::to_string_pretty(&parquet_file)?;
             write_string_to_file(&json, &file_path).await?;
         }
 
-        let filename = format!("{uuid}.{partition_id}.parquet");
+        let filename = format!("{uuid}.parquet");
         let file_path = output_directory.join(&filename);
 
         if fs::metadata(&file_path)

@@ -5,24 +5,33 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 clap = { version = "4", features = ["derive", "env"] }
+ed25519-dalek = { version = "2", features = ["pem"] }
 futures = "0.3"
-http = "0.2.9"
+http = "0.2.11"
 humantime = "2.1.0"
 iox_catalog = { path = "../iox_catalog" }
+iox_time = { path = "../iox_time" }
+itertools = "0.12.0"
 metric = { path = "../metric" }
+non-empty-string = "0.2.4"
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
-snafu = "0.7"
-sysinfo = "0.29.10"
+parquet_cache = { path = "../parquet_cache" }
+snafu = "0.8"
+sysinfo = "0.30.5"
 trace_exporters = { path = "../trace_exporters" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
+url = "2.4"
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
-tempfile = "3.8.0"
+tempfile = "3.9.0"
 test_helpers = { path = "../test_helpers" }
 
 [features]

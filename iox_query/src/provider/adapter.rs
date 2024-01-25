@@ -204,11 +204,13 @@ impl SchemaAdapterStream {
             .mappings
             .iter()
             .map(|mapping| match mapping {
-                ColumnMapping::FromInput(input_index) => Arc::clone(batch.column(*input_index)),
-                ColumnMapping::MakeNull(data_type) => new_null_array(data_type, batch.num_rows()),
+                ColumnMapping::FromInput(input_index) => Ok(Arc::clone(batch.column(*input_index))),
+                ColumnMapping::MakeNull(data_type) => {
+                    Ok(new_null_array(data_type, batch.num_rows()))
+                }
                 ColumnMapping::Virtual(value) => value.to_array_of_size(batch.num_rows()),
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, DataFusionError>>()?;
 
         Ok(RecordBatch::try_new(
             Arc::clone(&self.output_schema),

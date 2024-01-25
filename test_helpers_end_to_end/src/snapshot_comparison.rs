@@ -9,12 +9,11 @@ use arrow_util::test_util::{sort_record_batch, Normalizer, REGEX_UUID};
 use influxdb_iox_client::format::influxql::{write_columnar, Options, TableBorders};
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, Snafu};
 use sqlx::types::Uuid;
 use std::collections::HashMap;
 use std::{
     fmt::{Display, Formatter},
-    fs,
     path::{Path, PathBuf},
 };
 use tonic::Code;
@@ -31,28 +30,6 @@ pub enum Error {
 
     #[snafu(context(false))]
     MakingOutputPath { source: OutputPathError },
-
-    #[snafu(display("Could not write to output file '{:?}': {}", output_path, source))]
-    WritingToOutputFile {
-        output_path: PathBuf,
-        source: std::io::Error,
-    },
-
-    #[snafu(display("Could not read expected file '{:?}': {}", path, source))]
-    ReadingExpectedFile {
-        path: PathBuf,
-        source: std::io::Error,
-    },
-
-    #[snafu(display(
-        "Contents of output '{:?}' does not match contents of expected '{:?}'",
-        output_path,
-        expected_path,
-    ))]
-    OutputMismatch {
-        output_path: PathBuf,
-        expected_path: PathBuf,
-    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -146,96 +123,51 @@ impl Display for Language {
 
 pub async fn run(
     cluster: &mut MiniCluster,
-    input_path: PathBuf,
+    input_file_path: PathBuf,
     setup_name: String,
     contents: String,
     language: Language,
 ) -> Result<()> {
     // create output and expected output
-    let output_path = make_output_path(&input_path)?;
-    let expected_path = {
-        let mut p = input_path.clone();
-        let ext = p
-            .extension()
-            .expect("input path missing extension")
-            .to_str()
-            .expect("input path extension is not valid UTF-8");
-        p.set_extension(format!("{ext}.expected"));
-        p
-    };
+    let test_name = input_file_path
+        .file_name()
+        .expect("input path missing file path")
+        .to_str()
+        .expect("input path file path is not valid UTF-8");
 
-    println!("Running case in {input_path:?}");
-    println!("  writing output to {output_path:?}");
-    println!("  expected output in {expected_path:?}");
+    let output_path = input_file_path.parent().context(NoParentSnafu {
+        path: &input_file_path,
+    })?;
+    let output_path = make_absolute(output_path);
+
+    println!("Running case in {input_file_path:?}");
+    println!("Producing output in {output_path:?}");
     println!("Processing contents:\n{contents}");
 
     let queries = TestQueries::from_lines(contents.lines(), language);
 
+    //Build up the test output line by line
     let mut output = vec![];
     output.push(format!("-- Test Setup: {setup_name}"));
 
     for q in queries.iter() {
+        q.add_comments(&mut output);
         output.push(format!("-- {}: {}", language, q.text()));
         q.add_description(&mut output);
         let results = run_query(cluster, q).await?;
         output.extend(results);
     }
 
-    fs::write(&output_path, output.join("\n")).context(WritingToOutputFileSnafu {
-        output_path: &output_path,
-    })?;
+    // Configure insta to send the results to query_tests/out/<test_name>.sql.snap
+    let mut settings = insta::Settings::clone_current();
+    settings.set_snapshot_path(output_path);
+    settings.set_prepend_module_to_snapshot(false);
+    settings.bind(|| {
+        let test_output = output.join("\n");
+        insta::assert_snapshot!(test_name, test_output); // panic on failure
+    });
 
-    // Now, compare to expected results
-    let expected_data = fs::read_to_string(&expected_path).context(ReadingExpectedFileSnafu {
-        path: &expected_path,
-    })?;
-    let expected_contents: Vec<_> = expected_data.lines().map(|s| s.to_string()).collect();
-
-    if expected_contents != output {
-        let expected_path = make_absolute(&expected_path);
-        let output_path = make_absolute(&output_path);
-
-        if std::env::var("CI")
-            .map(|value| value == "true")
-            .unwrap_or(false)
-        {
-            // In CI, print out the contents because it's inconvenient to access the files and
-            // you're not going to update the files there.
-            println!("Expected output does not match actual output");
-            println!(
-                "Diff: \n\n{}",
-                String::from_utf8(
-                    std::process::Command::new("diff")
-                        .arg("-du")
-                        .arg(&expected_path)
-                        .arg(&output_path)
-                        .output()
-                        .unwrap()
-                        .stdout
-                )
-                .unwrap()
-            );
-        } else {
-            // When you're not in CI, print out instructions for analyzing the content or updating
-            // the snapshot.
-            println!("Expected output does not match actual output");
-            println!("  expected output in {expected_path:?}");
-            println!("  actual output in {output_path:?}");
-            println!("Possibly helpful commands:");
-            println!("  # See diff");
-            println!("  diff -du {expected_path:?} {output_path:?}");
-            println!("  # Update expected");
-            println!("  cp -f {output_path:?} {expected_path:?}");
-        }
-
-        OutputMismatchSnafu {
-            output_path,
-            expected_path,
-        }
-        .fail()
-    } else {
-        Ok(())
-    }
+    Ok(())
 }
 
 #[derive(Debug, Snafu)]
@@ -248,41 +180,6 @@ pub enum OutputPathError {
 
     #[snafu(display("Input path has no parent?!: '{:?}'", path))]
     NoParent { path: PathBuf },
-}
-
-/// Return output path for input path.
-///
-/// This converts `some/prefix/in/foo.sql` (or other file extensions) to `some/prefix/out/foo.sql.out`.
-fn make_output_path(input: &Path) -> Result<PathBuf, OutputPathError> {
-    let stem = input.file_stem().context(NoFileStemSnafu { path: input })?;
-    let ext = input
-        .extension()
-        .context(MissingFileExtSnafu { path: input })?;
-
-    // go two levels up (from file to dir, from dir to parent dir)
-    let parent = input.parent().context(NoParentSnafu { path: input })?;
-    let parent = parent.parent().context(NoParentSnafu { path: parent })?;
-    let mut out = parent.to_path_buf();
-
-    // go one level down (from parent dir to out-dir)
-    out.push("out");
-
-    // make best effort attempt to create output directory if it
-    // doesn't exist (it does not on a fresh checkout)
-    if !out.exists() {
-        if let Err(e) = std::fs::create_dir(&out) {
-            panic!("Could not create output directory {out:?}: {e}");
-        }
-    }
-
-    // set file name and ext
-    out.push(stem);
-    out.set_extension(format!(
-        "{}.out",
-        ext.to_str().expect("extension is not valid UTF-8")
-    ));
-
-    Ok(out)
 }
 
 /// Return the absolute path to `path`, regardless of if it exists on the local filesystem

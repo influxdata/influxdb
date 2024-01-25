@@ -1,6 +1,8 @@
 use crate::{
-    dump_log_to_stdout, log_command, rand_id, server_type::AddAddrEnv, write_to_ingester,
-    write_to_router, ServerFixture, TestConfig, TestServer,
+    dump_log_to_stdout, log_command, rand_id,
+    server_type::AddAddrEnv,
+    service_link::{link_services, LinkableService},
+    write_to_ingester, write_to_router, HttpReverseProxy, ServerFixture, TestConfig, TestServer,
 };
 use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
 use arrow_flight::{
@@ -50,6 +52,12 @@ pub struct MiniCluster {
     /// Standard optional compactor configuration, to be used on-demand
     compactor_config: Option<TestConfig>,
 
+    /// Catalog reverse proxy.
+    catalog_reverse_proxy: Option<Arc<HttpReverseProxy>>,
+
+    /// Catalog cache servers.
+    catalog: Vec<ServerFixture>,
+
     // Potentially helpful data
     org_id: String,
     bucket_id: String,
@@ -97,6 +105,8 @@ impl MiniCluster {
         ingesters: Vec<ServerFixture>,
         querier: Option<ServerFixture>,
         compactor_config: Option<TestConfig>,
+        catalog: Vec<ServerFixture>,
+        catalog_reverse_proxy: Option<Arc<HttpReverseProxy>>,
     ) -> Self {
         let org_id = rand_id();
         let bucket_id = rand_id();
@@ -107,6 +117,8 @@ impl MiniCluster {
             ingesters,
             querier,
             compactor_config,
+            catalog,
+            catalog_reverse_proxy,
 
             org_id,
             bucket_id,
@@ -202,13 +214,24 @@ impl MiniCluster {
     /// querier. Save config for a compactor, but the compactor service should be run on-demand in
     /// tests using `compactor run-once` rather than using `run compactor`.
     pub async fn create_non_shared(database_url: String) -> Self {
-        let ingester_config = TestConfig::new_ingester(&database_url);
+        let catalog_configs = TestConfig::catalog_nodes(&database_url);
+        let catalog_reverse_proxy = Arc::new(HttpReverseProxy::new(
+            catalog_configs
+                .iter()
+                .map(|cfg| cfg.addrs().catalog_grpc_api().client_base()),
+        ));
+
+        let ingester_config =
+            TestConfig::new_ingester(format!("http://{}", catalog_reverse_proxy.addr()));
         let router_config = TestConfig::new_router(&ingester_config);
         let querier_config = TestConfig::new_querier(&ingester_config);
         let compactor_config = TestConfig::new_compactor(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new()
+            .with_catalog(catalog_configs)
+            .await
+            .with_catalog_reverse_proxy(catalog_reverse_proxy)
             .with_ingester(ingester_config)
             .await
             .with_router(router_config)
@@ -223,13 +246,26 @@ impl MiniCluster {
     /// compactor service should be run on-demand in tests using `compactor run-once` rather than
     /// using `run compactor`.
     pub async fn create_non_shared_never_persist(database_url: String) -> Self {
-        let ingester_config = TestConfig::new_ingester_never_persist(&database_url);
+        let catalog_configs = TestConfig::catalog_nodes(&database_url);
+        let catalog_reverse_proxy = Arc::new(HttpReverseProxy::new(
+            catalog_configs
+                .iter()
+                .map(|cfg| cfg.addrs().catalog_grpc_api().client_base()),
+        ));
+
+        let ingester_config = TestConfig::new_ingester_never_persist(format!(
+            "http://{}",
+            catalog_reverse_proxy.addr()
+        ));
         let router_config = TestConfig::new_router(&ingester_config);
         let querier_config = TestConfig::new_querier(&ingester_config);
         let compactor_config = TestConfig::new_compactor(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new()
+            .with_catalog(catalog_configs)
+            .await
+            .with_catalog_reverse_proxy(catalog_reverse_proxy)
             .with_ingester(ingester_config)
             .await
             .with_router(router_config)
@@ -247,9 +283,17 @@ impl MiniCluster {
     /// than using `run compactor`.
     pub async fn create_non_shared_with_authz(
         database_url: String,
-        authz_addr: impl Into<String> + Clone,
+        authz_addr: impl Into<String> + Clone + Send,
     ) -> Self {
-        let ingester_config = TestConfig::new_ingester(&database_url);
+        let catalog_configs = TestConfig::catalog_nodes(&database_url);
+        let catalog_reverse_proxy = Arc::new(HttpReverseProxy::new(
+            catalog_configs
+                .iter()
+                .map(|cfg| cfg.addrs().catalog_grpc_api().client_base()),
+        ));
+
+        let ingester_config =
+            TestConfig::new_ingester(format!("http://{}", catalog_reverse_proxy.addr()));
         let router_config =
             TestConfig::new_router(&ingester_config).with_single_tenancy(authz_addr.clone());
         let querier_config =
@@ -258,6 +302,9 @@ impl MiniCluster {
 
         // Set up the cluster  ====================================
         Self::new_based_on_tenancy(true)
+            .with_catalog(catalog_configs)
+            .await
+            .with_catalog_reverse_proxy(catalog_reverse_proxy)
             .with_ingester(ingester_config)
             .await
             .with_router(router_config)
@@ -280,26 +327,70 @@ impl MiniCluster {
 
     /// create a router with the specified configuration
     pub async fn with_router(mut self, router_config: TestConfig) -> Self {
-        self.router = Some(ServerFixture::create(router_config).await);
+        assert!(self.router.is_none());
+        let fixture = ServerFixture::create(router_config).await;
+        self.add_catalog_reverse_proxy_client(fixture.strong());
+        self.add_ingester_client(fixture.strong());
+        self.router = Some(fixture);
         self
     }
 
     /// create an ingester with the specified configuration;
     pub async fn with_ingester(mut self, ingester_config: TestConfig) -> Self {
-        self.ingesters
-            .push(ServerFixture::create(ingester_config).await);
+        let fixture = ServerFixture::create(ingester_config).await;
+        self.add_catalog_reverse_proxy_client(fixture.strong());
+        self.ingesters.push(fixture);
         self
+    }
+
+    fn add_ingester_client(&self, client: Arc<dyn LinkableService>) {
+        for ingester in &self.ingesters {
+            let ingester = ingester.strong();
+            link_services(ingester, Arc::clone(&client));
+        }
     }
 
     /// create a querier with the specified configuration;
     pub async fn with_querier(mut self, querier_config: TestConfig) -> Self {
-        self.querier = Some(ServerFixture::create(querier_config).await);
+        assert!(self.querier.is_none());
+        let fixture = ServerFixture::create(querier_config).await;
+        self.add_catalog_reverse_proxy_client(fixture.strong());
+        self.add_ingester_client(fixture.strong());
+        self.querier = Some(fixture);
         self
     }
 
     pub fn with_compactor_config(mut self, compactor_config: TestConfig) -> Self {
         self.compactor_config = Some(compactor_config);
         self
+    }
+
+    /// create an catalog with the specified configuration;
+    pub async fn with_catalog(mut self, catalog_configs: [TestConfig; 3]) -> Self {
+        assert!(self.catalog.is_empty());
+        self.catalog = ServerFixture::create_multiple(catalog_configs).await;
+        self
+    }
+
+    fn add_catalog_client(&self, client: Arc<dyn LinkableService>) {
+        for catalog in &self.catalog {
+            let catalog = catalog.strong();
+            link_services(catalog, Arc::clone(&client));
+        }
+    }
+
+    /// Register catalog reverse proxy.
+    pub fn with_catalog_reverse_proxy(mut self, proxy: Arc<HttpReverseProxy>) -> Self {
+        assert!(self.catalog_reverse_proxy.is_none());
+        self.add_catalog_client(Arc::clone(&proxy) as _);
+        self.catalog_reverse_proxy = Some(proxy);
+        self
+    }
+
+    fn add_catalog_reverse_proxy_client(&self, client: Arc<dyn LinkableService>) {
+        if let Some(proxy) = &self.catalog_reverse_proxy {
+            link_services(Arc::clone(proxy) as _, client);
+        }
     }
 
     /// Retrieve the underlying router server, if set
@@ -344,8 +435,10 @@ impl MiniCluster {
     ///
     /// [`GRACEFUL_SERVER_STOP_TIMEOUT`]:
     ///     crate::server_fixture::GRACEFUL_SERVER_STOP_TIMEOUT
-    pub fn gracefully_stop_ingesters(&mut self) {
-        self.ingesters = vec![];
+    pub async fn gracefully_stop_ingesters(&mut self) {
+        for ingester in self.ingesters.drain(..) {
+            ingester.shutdown().await;
+        }
     }
 
     /// Restart querier.
@@ -485,7 +578,7 @@ impl MiniCluster {
     /// org/bucket
     pub async fn write_to_router(
         &self,
-        line_protocol: impl Into<String>,
+        line_protocol: impl Into<String> + Send,
         authorization: Option<&str>,
     ) -> Response<Body> {
         write_to_router(
@@ -499,7 +592,11 @@ impl MiniCluster {
     }
 
     /// Write to the ingester using the gRPC interface directly, rather than through a router.
-    pub async fn write_to_ingester(&self, line_protocol: impl Into<String>, table_name: &str) {
+    pub async fn write_to_ingester(
+        &self,
+        line_protocol: impl Into<String> + Send,
+        table_name: &str,
+    ) {
         write_to_ingester(
             line_protocol,
             self.namespace_id().await,
@@ -675,6 +772,8 @@ struct SharedServers {
     ingesters: Vec<Weak<TestServer>>,
     querier: Option<Weak<TestServer>>,
     compactor_config: Option<TestConfig>,
+    catalog: Vec<Weak<TestServer>>,
+    catalog_reverse_proxy: Option<Weak<HttpReverseProxy>>,
 }
 
 /// Deferred creation of a mini cluster
@@ -683,6 +782,8 @@ struct CreatableMiniCluster {
     ingesters: Vec<Arc<TestServer>>,
     querier: Option<Arc<TestServer>>,
     compactor_config: Option<TestConfig>,
+    catalog: Vec<Arc<TestServer>>,
+    catalog_reverse_proxy: Option<Arc<HttpReverseProxy>>,
 }
 
 async fn create_if_needed(server: Option<Arc<TestServer>>) -> Option<ServerFixture> {
@@ -693,6 +794,17 @@ async fn create_if_needed(server: Option<Arc<TestServer>>) -> Option<ServerFixtu
     }
 }
 
+async fn create_if_needed_many(
+    servers: impl IntoIterator<Item = Arc<TestServer>> + Send,
+) -> Vec<ServerFixture> {
+    servers
+        .into_iter()
+        .map(|server| async move { ServerFixture::create_from_existing(server).await })
+        .collect::<FuturesOrdered<_>>()
+        .collect::<Vec<_>>()
+        .await
+}
+
 impl CreatableMiniCluster {
     async fn create(self) -> MiniCluster {
         let Self {
@@ -700,37 +812,36 @@ impl CreatableMiniCluster {
             ingesters,
             querier,
             compactor_config,
+            catalog,
+            catalog_reverse_proxy,
         } = self;
 
         let router_fixture = create_if_needed(router).await;
-        let ingester_fixtures = ingesters
-            .into_iter()
-            .map(|ingester| create_if_needed(Some(ingester)))
-            .collect::<FuturesOrdered<_>>()
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .flatten()
-            .collect();
+        let ingester_fixtures = create_if_needed_many(ingesters).await;
         let querier_fixture = create_if_needed(querier).await;
+        let catalog_fixtures = create_if_needed_many(catalog).await;
 
         MiniCluster::new_from_fixtures(
             router_fixture,
             ingester_fixtures,
             querier_fixture,
             compactor_config,
+            catalog_fixtures,
+            catalog_reverse_proxy,
         )
     }
 }
 
 impl SharedServers {
     /// Save the server processes in this shared servers as weak references
-    pub fn new(cluster: &MiniCluster) -> Self {
+    pub(crate) fn new(cluster: &MiniCluster) -> Self {
         Self {
             router: cluster.router.as_ref().map(|c| c.weak()),
             ingesters: cluster.ingesters.iter().map(|c| c.weak()).collect(),
             querier: cluster.querier.as_ref().map(|c| c.weak()),
             compactor_config: cluster.compactor_config.clone(),
+            catalog: cluster.catalog.iter().map(|c| c.weak()).collect(),
+            catalog_reverse_proxy: cluster.catalog_reverse_proxy.as_ref().map(Arc::downgrade),
         }
     }
 
@@ -742,13 +853,11 @@ impl SharedServers {
         // aren't present so that the cluster is recreated correctly
         Some(CreatableMiniCluster {
             router: server_from_weak(self.router.as_ref())?,
-            ingesters: self
-                .ingesters
-                .iter()
-                .flat_map(|ingester| server_from_weak(Some(ingester)).unwrap())
-                .collect(),
+            ingesters: servers_from_weak(&self.ingesters)?,
             querier: server_from_weak(self.querier.as_ref())?,
             compactor_config: self.compactor_config.clone(),
+            catalog: servers_from_weak(&self.catalog)?,
+            catalog_reverse_proxy: server_from_weak(self.catalog_reverse_proxy.as_ref())?,
         })
     }
 }
@@ -756,7 +865,7 @@ impl SharedServers {
 /// Returns None if there was a weak server but we couldn't upgrade.
 /// Returns Some(None) if there was no weak server
 /// Returns Some(Some(fixture)) if there was a weak server that we can upgrade and make a fixture from
-fn server_from_weak(server: Option<&Weak<TestServer>>) -> Option<Option<Arc<TestServer>>> {
+fn server_from_weak<T>(server: Option<&Weak<T>>) -> Option<Option<Arc<T>>> {
     if let Some(server) = server.as_ref() {
         // return None if can't upgrade
         let server = server.upgrade()?;
@@ -765,6 +874,20 @@ fn server_from_weak(server: Option<&Weak<TestServer>>) -> Option<Option<Arc<Test
     } else {
         Some(None)
     }
+}
+
+/// See [`server_from_weak`].
+fn servers_from_weak<'a, T>(servers: impl IntoIterator<Item = &'a Weak<T>>) -> Option<Vec<Arc<T>>>
+where
+    T: 'a,
+{
+    let mut out = vec![];
+
+    for server in servers {
+        out.push(server.upgrade()?);
+    }
+
+    Some(out)
 }
 
 static GLOBAL_SHARED_SERVERS: Lazy<Mutex<Option<SharedServers>>> = Lazy::new(|| Mutex::new(None));

@@ -12,6 +12,7 @@
     clippy::dbg_macro,
     unused_crate_dependencies
 )]
+#![allow(unreachable_pub)]
 
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
@@ -34,6 +35,9 @@ mod regex;
 /// Selector Functions
 pub mod selectors;
 
+/// Sleep function.
+mod sleep;
+
 /// window_bounds expressions
 mod window;
 
@@ -41,10 +45,12 @@ pub mod gapfill;
 
 /// Function registry
 mod registry;
+mod to_timestamp;
 
 pub use crate::regex::clean_non_meta_escapes;
 pub use crate::regex::REGEX_MATCH_UDF_NAME;
 pub use crate::regex::REGEX_NOT_MATCH_UDF_NAME;
+pub use crate::sleep::SLEEP_UDF_NAME;
 
 /// Return an Expr that invokes a InfluxRPC compatible regex match to
 /// determine which values satisfy the pattern. Equivalent to:
@@ -117,7 +123,7 @@ mod test {
         record_batch::RecordBatch,
     };
     use datafusion::{assert_batches_eq, prelude::col};
-    use datafusion_util::context_with_table;
+    use schema::TIME_DATA_TIMEZONE;
     use std::sync::Arc;
 
     use super::*;
@@ -132,7 +138,8 @@ mod test {
         )])
         .unwrap();
 
-        let ctx = context_with_table(batch);
+        let ctx = SessionContext::new();
+        ctx.register_batch("t", batch).unwrap();
         let result = ctx
             .table("t")
             .await
@@ -165,7 +172,8 @@ mod test {
         )])
         .unwrap();
 
-        let ctx = context_with_table(batch);
+        let ctx = SessionContext::new();
+        ctx.register_batch("t", batch).unwrap();
         let result = ctx
             .table("t")
             .await
@@ -187,14 +195,18 @@ mod test {
     async fn test_make_window_bound_expr() {
         let batch = RecordBatch::try_from_iter(vec![(
             "time",
-            Arc::new(TimestampNanosecondArray::from(vec![Some(1000), Some(2000)])) as ArrayRef,
+            Arc::new(
+                TimestampNanosecondArray::from(vec![Some(1000), Some(2000)])
+                    .with_timezone_opt(TIME_DATA_TIMEZONE()),
+            ) as ArrayRef,
         )])
         .unwrap();
 
         let each = WindowDuration::Fixed { nanoseconds: 100 };
         let every = WindowDuration::Fixed { nanoseconds: 200 };
 
-        let ctx = context_with_table(batch);
+        let ctx = SessionContext::new();
+        ctx.register_batch("t", batch).unwrap();
         let result = ctx
             .table("t")
             .await

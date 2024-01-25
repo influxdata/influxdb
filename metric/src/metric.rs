@@ -265,6 +265,7 @@ pub struct ResultMetric<T> {
     pub ok: T,
     pub client_error: T,
     pub server_error: T,
+    pub unexpected_response: T,
 }
 
 impl<T> ResultMetric<T>
@@ -279,12 +280,16 @@ where
         let client_error = metric.recorder(attributes.clone());
 
         attributes.insert("status", "server_error");
-        let server_error = metric.recorder(attributes);
+        let server_error = metric.recorder(attributes.clone());
+
+        attributes.insert("status", "unexpected_response");
+        let unexpected_response = metric.recorder(attributes);
 
         Self {
             ok,
             client_error,
             server_error,
+            unexpected_response,
         }
     }
 }

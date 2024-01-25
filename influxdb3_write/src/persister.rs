@@ -83,10 +83,7 @@ impl PersisterImpl {
 #[async_trait]
 impl Persister for PersisterImpl {
     async fn load_catalog(&self) -> Result<Option<PersistedCatalog>> {
-        let mut list = self
-            .object_store
-            .list(Some(&CatalogFilePath::dir()))
-            .await?;
+        let mut list = self.object_store.list(Some(&CatalogFilePath::dir()));
         let mut catalog_path: Option<ObjPath> = None;
         while let Some(item) = list.next().await {
             let item = item?;
@@ -152,18 +149,11 @@ impl Persister for PersisterImpl {
                 count
             };
 
-            let segment_list = if let Some(offset) = offset {
+            let mut segment_list = if let Some(offset) = offset {
                 self.object_store
                     .list_with_offset(Some(&SegmentInfoFilePath::dir()), &offset)
-                    .await?
-                    .collect::<Vec<_>>()
-                    .await
             } else {
-                self.object_store
-                    .list(Some(&SegmentInfoFilePath::dir()))
-                    .await?
-                    .collect::<Vec<_>>()
-                    .await
+                self.object_store.list(Some(&SegmentInfoFilePath::dir()))
             };
 
             // Why not collect into a Result<Vec<ObjectMeta>, object_store::Error>>
@@ -175,8 +165,8 @@ impl Persister for PersisterImpl {
             // on the n most recent segments that we want and is returned in order
             // of the moste recent to least.
             let mut list = Vec::new();
-            for segment in segment_list {
-                list.push(segment?);
+            while let Some(item) = segment_list.next().await {
+                list.push(item?);
             }
 
             list.sort_unstable_by(|a, b| a.location.cmp(&b.location));

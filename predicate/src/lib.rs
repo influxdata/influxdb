@@ -24,9 +24,9 @@ use datafusion::{
     common::tree_node::{TreeNodeVisitor, VisitRecursion},
     error::DataFusionError,
     logical_expr::{binary_expr, BinaryExpr},
-    prelude::{col, lit_timestamp_nano, Expr},
+    prelude::{col, Expr},
 };
-use datafusion_util::{make_range_expr, AsExpr};
+use datafusion_util::{lit_timestamptz_nano, make_range_expr, AsExpr};
 use observability_deps::tracing::debug;
 use rpc_predicate::VALUE_COLUMN_NAME;
 use schema::TIME_COLUMN_NAME;
@@ -188,8 +188,8 @@ impl Predicate {
                 // time_expr =  NOT(start <= time_range <= end)
                 // Equivalent to: (time < start OR time > end)
                 let time_expr = col(TIME_COLUMN_NAME)
-                    .lt(lit_timestamp_nano(range.start()))
-                    .or(col(TIME_COLUMN_NAME).gt(lit_timestamp_nano(range.end())));
+                    .lt(lit_timestamptz_nano(range.start()))
+                    .or(col(TIME_COLUMN_NAME).gt(lit_timestamptz_nano(range.end())));
 
                 match expr {
                     None => expr = Some(time_expr),
@@ -301,7 +301,7 @@ impl Predicate {
 
     /// Add an  exprestion "time > retention_time"
     pub fn with_retention(mut self, retention_time: i64) -> Self {
-        let expr = col(TIME_COLUMN_NAME).gt(lit_timestamp_nano(retention_time));
+        let expr = col(TIME_COLUMN_NAME).gt(lit_timestamptz_nano(retention_time));
         self.exprs.push(expr);
         self
     }
@@ -458,19 +458,14 @@ impl TreeNodeVisitor for RowBasedVisitor {
             | Expr::Not(_)
             | Expr::OuterReferenceColumn(_, _)
             | Expr::Placeholder { .. }
-            | Expr::QualifiedWildcard { .. }
             | Expr::ScalarFunction { .. }
             | Expr::ScalarSubquery(_)
-            | Expr::ScalarUDF { .. }
             | Expr::ScalarVariable(_, _)
             | Expr::SimilarTo { .. }
             | Expr::Sort { .. }
             | Expr::TryCast { .. }
-            | Expr::Wildcard => Ok(VisitRecursion::Continue),
-            Expr::AggregateFunction { .. }
-            | Expr::AggregateUDF { .. }
-            | Expr::GroupingSet(_)
-            | Expr::WindowFunction { .. } => {
+            | Expr::Wildcard { .. } => Ok(VisitRecursion::Continue),
+            Expr::AggregateFunction { .. } | Expr::GroupingSet(_) | Expr::WindowFunction { .. } => {
                 self.row_based = false;
                 Ok(VisitRecursion::Stop)
             }

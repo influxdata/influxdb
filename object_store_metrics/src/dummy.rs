@@ -3,11 +3,13 @@
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use futures::StreamExt;
 use snafu::Snafu;
 use std::ops::Range;
 
 use object_store::{
-    path::Path, GetOptions, GetResult, ListResult, MultipartId, ObjectMeta, ObjectStore, Result,
+    path::Path, Error as ObjectStoreError, GetOptions, GetResult, ListResult, MultipartId,
+    ObjectMeta, ObjectStore, PutOptions, PutResult, Result,
 };
 use tokio::io::AsyncWrite;
 
@@ -36,13 +38,13 @@ impl From<Error> for object_store::Error {
 #[derive(Debug, Clone)]
 #[allow(missing_copy_implementations)]
 /// An object store that always generates an error
-pub struct DummyObjectStore {
+pub(crate) struct DummyObjectStore {
     name: &'static str,
 }
 
 impl DummyObjectStore {
     /// Create a new [`DummyObjectStore`] that always fails
-    pub fn new(name: &'static str) -> Self {
+    pub(crate) fn new(name: &'static str) -> Self {
         Self { name }
     }
 }
@@ -55,7 +57,12 @@ impl std::fmt::Display for DummyObjectStore {
 
 #[async_trait]
 impl ObjectStore for DummyObjectStore {
-    async fn put(&self, _location: &Path, _bytes: Bytes) -> Result<()> {
+    async fn put_opts(
+        &self,
+        _location: &Path,
+        _bytes: Bytes,
+        _opts: PutOptions,
+    ) -> Result<PutResult> {
         Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
 
@@ -90,11 +97,16 @@ impl ObjectStore for DummyObjectStore {
         Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
 
-    async fn list(
-        &self,
-        _prefix: Option<&Path>,
-    ) -> Result<futures::stream::BoxStream<'_, Result<ObjectMeta>>> {
-        Ok(NotSupportedSnafu { name: self.name }.fail()?)
+    fn list(&self, _prefix: Option<&Path>) -> futures::stream::BoxStream<'_, Result<ObjectMeta>> {
+        futures::stream::once(async move {
+            NotSupportedSnafu { name: self.name }
+                .fail()
+                .map_err(|e| ObjectStoreError::Generic {
+                    store: self.name,
+                    source: Box::new(e),
+                })
+        })
+        .boxed()
     }
 
     async fn list_with_delimiter(&self, _prefix: Option<&Path>) -> Result<ListResult> {

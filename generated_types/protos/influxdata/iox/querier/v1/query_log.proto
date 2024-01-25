@@ -1,0 +1,73 @@
+syntax = "proto3";
+package influxdata.iox.querier.v1;
+option go_package = "github.com/influxdata/iox/querier/v1";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+service QueryLogService {
+    // Get the process-local query log.
+    rpc GetLog(GetLogRequest) returns (GetLogResponse);
+}
+
+message GetLogRequest {}
+
+// Describe a single query.
+message LogEntry {
+  // Unique entry ID.
+  string id = 1;
+
+  // Namespace ID.
+  int64 namespace_id = 2;
+
+  // Namespace name.
+  string namespace_name = 3;
+
+  // Query type, e.g. `sql`.
+  string query_type = 4;
+
+  // Query text.
+  string query_text = 5;
+
+  // Trace ID.
+  string trace_id = 6;
+
+  // Start timestamp.
+  google.protobuf.Timestamp issue_time = 7;
+
+  reserved 8;
+  reserved 'query_completed_duration';
+
+  // Duration it took to acquire a semaphore permit, relative to `issue_time`.
+  google.protobuf.Duration permit_duration = 10;
+
+  // Duration it took to plan the query, relative to `issue_time` + `permit_duration`.
+  google.protobuf.Duration plan_duration = 11;
+
+  // Duration it took to execute the query, relative to `issue_time` +
+  // `permit_duration` + `plan_duration`.
+  google.protobuf.Duration execute_duration = 12;
+
+  // Duration from `issue_time` til the query ended somehow.
+  google.protobuf.Duration end2end_duration = 13;
+
+  // CPU duration spend for computation.
+  google.protobuf.Duration compute_duration = 15;
+
+  // If the query completed successfully.
+  bool success = 9;
+
+  // If the query is currently running (in any state).
+  bool running = 14;
+}
+
+message GetLogResponse {
+  // Current entries.
+  repeated LogEntry entries = 1;
+
+  // Maximum size of the query log.
+  uint64 max_size = 2;
+
+  // Number of evicted entries due to the "max size" constraint.
+  uint64 evicted = 3;
+}

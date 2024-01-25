@@ -4,12 +4,15 @@ use arrow_util::test_util::Normalizer;
 
 /// A query to run with optional annotations
 #[derive(Debug, PartialEq, Eq, Default)]
-pub struct Query {
+pub(crate) struct Query {
     /// Describes how query text should be normalized
     normalizer: Normalizer,
 
     /// Specifies the query language of `text`.
     language: Language,
+
+    /// Comments that precede the query
+    comments: Vec<String>,
 
     /// The query string
     text: String,
@@ -22,58 +25,75 @@ impl Query {
         Self {
             normalizer: Normalizer::new(),
             language: Language::Sql,
+            comments: vec![],
             text,
         }
     }
 
-    pub fn text(&self) -> &str {
+    pub(crate) fn text(&self) -> &str {
         &self.text
     }
 
-    pub fn language(&self) -> Language {
+    pub(crate) fn language(&self) -> Language {
         self.language
     }
 
-    pub fn with_sorted_compare(mut self) -> Self {
+    /// Add a comment to the query
+    #[cfg(test)]
+    pub(crate) fn with_comment(mut self, comment: impl Into<String>) -> Self {
+        self.comments.push(comment.into());
+        self
+    }
+
+    pub(crate) fn with_sorted_compare(mut self) -> Self {
         self.normalizer.sorted_compare = true;
         self
     }
 
-    pub fn with_normalized_uuids(mut self) -> Self {
+    pub(crate) fn with_normalized_uuids(mut self) -> Self {
         self.normalizer.normalized_uuids = true;
         self
     }
 
-    pub fn with_normalize_metrics(mut self) -> Self {
+    pub(crate) fn with_normalize_metrics(mut self) -> Self {
         self.normalizer.normalized_metrics = true;
         self
     }
 
-    pub fn with_normalize_filters(mut self) -> Self {
+    pub(crate) fn with_normalize_filters(mut self) -> Self {
         self.normalizer.normalized_filters = true;
         self
     }
 
-    pub fn with_no_table_borders(mut self) -> Self {
+    pub(crate) fn with_no_table_borders(mut self) -> Self {
         self.normalizer.no_table_borders = true;
         self
     }
 
     /// Take the output of running the query and apply the specified normalizations to them
-    pub fn normalize_results(&self, results: Vec<RecordBatch>, language: Language) -> Vec<String> {
+    pub(crate) fn normalize_results(
+        &self,
+        results: Vec<RecordBatch>,
+        language: Language,
+    ) -> Vec<String> {
         language.normalize_results(&self.normalizer, results)
     }
 
-    /// Adds information on what normalizations were applied to the input
-    pub fn add_description(&self, output: &mut Vec<String>) {
+    /// Adds any comments from the input to the output
+    pub(crate) fn add_comments(&self, output: &mut Vec<String>) {
+        output.extend_from_slice(&self.comments);
+    }
+
+    /// Adds information to the output about what normalizations were applied
+    pub(crate) fn add_description(&self, output: &mut Vec<String>) {
         self.normalizer.add_description(output)
     }
 }
 
 #[derive(Debug, Default)]
 struct QueryBuilder {
-    pub language: Language,
-    pub query: Query,
+    pub(crate) language: Language,
+    pub(crate) query: Query,
 }
 
 impl QueryBuilder {
@@ -82,6 +102,9 @@ impl QueryBuilder {
             language,
             ..Default::default()
         }
+    }
+    fn push_comment(&mut self, s: &str) {
+        self.query.comments.push(s.to_string())
     }
 
     fn push_str(&mut self, s: &str) {
@@ -108,13 +131,13 @@ impl QueryBuilder {
 
 /// Poor man's parser to find all the SQL queries in an input file
 #[derive(Debug, PartialEq, Eq)]
-pub struct TestQueries {
+pub(crate) struct TestQueries {
     queries: Vec<Query>,
 }
 
 impl TestQueries {
     /// find all queries (more or less a fancy split on `;`
-    pub fn from_lines<I, S>(lines: I, language: Language) -> Self
+    pub(crate) fn from_lines<I, S>(lines: I, language: Language) -> Self
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
@@ -150,6 +173,10 @@ impl TestQueries {
                                 _ => {}
                             }
                         }
+                    } else if line.starts_with("-- IOX_SETUP: ") {
+                        // ignore setup lines
+                    } else if line.starts_with("--") {
+                        builder.push_comment(line);
                     }
 
                     if line.starts_with("--") {
@@ -183,7 +210,7 @@ impl TestQueries {
     }
 
     // Get an iterator over the queries
-    pub fn iter(&self) -> impl Iterator<Item = &Query> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Query> {
         self.queries.iter()
     }
 }
@@ -208,8 +235,8 @@ select * from bar;
             queries,
             TestQueries {
                 queries: vec![
-                    Query::new("select * from foo;"),
-                    Query::new("select * from bar;"),
+                    Query::new("select * from foo;").with_comment("-- This is a test"),
+                    Query::new("select * from bar;").with_comment("-- another comment"),
                 ]
             }
         )
@@ -228,7 +255,7 @@ select * from bar
             TestQueries {
                 queries: vec![
                     Query::new("select * from foo;"),
-                    Query::new("select * from bar")
+                    Query::new("select * from bar").with_comment("-- no ending semi colon"),
                 ]
             }
         )
@@ -290,8 +317,14 @@ select * from waz;
             TestQueries {
                 queries: vec![
                     Query::new("select * from foo;"),
-                    Query::new("select * from bar;").with_sorted_compare(),
-                    Query::new("select * from baz;"),
+                    Query::new("select * from bar;")
+                        .with_comment(
+                            "-- The second query should be compared to expected after sorting"
+                        )
+                        .with_sorted_compare(),
+                    Query::new("select * from baz;").with_comment(
+                        "-- Since this query is not annotated, it should not use exected sorted"
+                    ),
                     Query::new("select * from baz2;"),
                     Query::new("select * from waz;").with_sorted_compare(),
                 ]
@@ -324,7 +357,10 @@ select * from foo;
         assert_eq!(
             queries,
             TestQueries {
-                queries: vec![Query::new("select * from foo;")]
+                queries: vec![
+                    // Note the --IOX_COMPARE is not treated as a comment
+                    Query::new("select * from foo;")
+                ]
             }
         )
     }

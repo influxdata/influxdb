@@ -98,7 +98,7 @@ impl GapFillParams {
                         "fill strategy aggr expr was not a column: {e:?}",
                     )))?
                     .index();
-                Ok((idx, fs.clone()))
+                Ok((idx, *fs))
             })
             .collect::<Result<HashMap<usize, FillStrategy>>>()?;
 

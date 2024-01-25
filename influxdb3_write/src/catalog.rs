@@ -141,7 +141,7 @@ pub struct TableDefinition {
     pub name: String,
     #[serde(skip_serializing, skip_deserializing)]
     pub schema: Option<Schema>,
-    columns: BTreeMap<String, ColumnType>,
+    columns: BTreeMap<String, i16>,
 }
 
 struct TableDefinitionVisitor;
@@ -171,7 +171,7 @@ impl<'de> Visitor<'de> for TableDefinitionVisitor {
                     if columns.is_some() {
                         return Err(serde::de::Error::duplicate_field("columns"));
                     }
-                    columns = Some(map.next_value::<BTreeMap<String, ColumnType>>()?);
+                    columns = Some(map.next_value::<BTreeMap<String, i16>>()?);
                 }
                 _ => {
                     let _ = map.next_value::<serde::de::IgnoredAny>()?;
@@ -195,10 +195,13 @@ impl<'de> Deserialize<'de> for TableDefinition {
 }
 
 impl TableDefinition {
-    pub(crate) fn new(name: impl Into<String>, columns: BTreeMap<String, ColumnType>) -> Self {
+    pub(crate) fn new(name: impl Into<String>, columns: BTreeMap<String, i16>) -> Self {
         let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
         for (name, column_type) in &columns {
-            schema_builder.influx_column(name, column_type_to_influx_column_type(column_type));
+            schema_builder.influx_column(
+                name,
+                column_type_to_influx_column_type(&ColumnType::try_from(*column_type).unwrap()),
+            );
         }
         let schema = schema_builder.build().unwrap();
 
@@ -213,11 +216,14 @@ impl TableDefinition {
         self.columns.contains_key(column)
     }
 
-    pub(crate) fn add_columns(&mut self, mut columns: Vec<(String, ColumnType)>) {
+    pub(crate) fn add_columns(&mut self, mut columns: Vec<(String, i16)>) {
         let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
         columns.sort_by(|(a, _), (b, _)| a.cmp(b));
         for (name, column_type) in &columns {
-            schema_builder.influx_column(name, column_type_to_influx_column_type(column_type));
+            schema_builder.influx_column(
+                name,
+                column_type_to_influx_column_type(&ColumnType::try_from(*column_type).unwrap()),
+            );
         }
         let schema = schema_builder.build().unwrap();
 
@@ -227,7 +233,7 @@ impl TableDefinition {
         self.schema = Some(schema);
     }
 
-    pub(crate) fn columns(&self) -> &BTreeMap<String, ColumnType> {
+    pub(crate) fn columns(&self) -> &BTreeMap<String, i16> {
         &self.columns
     }
 }
@@ -259,7 +265,7 @@ mod tests {
             "test".into(),
             TableDefinition::new(
                 "test",
-                BTreeMap::from([("test".to_string(), ColumnType::String)]),
+                BTreeMap::from([("test".to_string(), ColumnType::String as i16)]),
             ),
         );
         let database = Arc::new(database);

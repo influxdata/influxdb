@@ -7,7 +7,7 @@ use std::fmt::{Display, Formatter};
 
 /// This trait must be implemented in order to use the [`map_fail`] and
 /// [`expect`] functions for generating user-friendly error messages.
-pub trait ParseError<'a>: NomParseError<&'a str> + Sized {
+pub(crate) trait ParseError<'a>: NomParseError<&'a str> + Sized {
     fn from_message(input: &'a str, message: &'static str) -> Self;
 }
 
@@ -38,7 +38,7 @@ impl<'a> ParseError<'a> for Error<&'a str> {
 /// Applies a function returning a [`ParseResult`] over the result of the `parser`.
 /// If the parser returns an error, the result will be mapped to an unrecoverable
 /// [`nom::Err::Failure`] with the specified `message` for additional context.
-pub fn map_fail<'a, O1, O2, E: ParseError<'a>, E2, F, G>(
+pub(crate) fn map_fail<'a, O1, O2, E: ParseError<'a>, E2, F, G>(
     message: &'static str,
     mut parser: F,
     mut f: G,
@@ -59,7 +59,7 @@ where
 /// Applies a function returning a [`ParseResult`] over the result of the `parser`.
 /// If the parser returns an error, the result will be mapped to a recoverable
 /// [`nom::Err::Error`] with the specified `message` for additional context.
-pub fn map_error<'a, O1, O2, E: ParseError<'a>, E2, F, G>(
+pub(crate) fn map_error<'a, O1, O2, E: ParseError<'a>, E2, F, G>(
     message: &'static str,
     mut parser: F,
     mut f: G,
@@ -79,7 +79,7 @@ where
 
 /// Transforms a [`nom::Err::Error`] to a [`nom::Err::Failure`] using `message` for additional
 /// context.
-pub fn expect<'a, E: ParseError<'a>, F, O>(
+pub(crate) fn expect<'a, E: ParseError<'a>, F, O>(
     message: &'static str,
     mut f: F,
 ) -> impl FnMut(&'a str) -> ParseResult<&'a str, O, E>
@@ -96,7 +96,7 @@ where
 
 /// Returns the result of `f` if it satisfies `is_valid`; otherwise,
 /// returns an error using the specified `message`.
-pub fn verify<'a, O1, O2, E: ParseError<'a>, F, G>(
+pub(crate) fn verify<'a, O1, O2, E: ParseError<'a>, F, G>(
     message: &'static str,
     mut f: F,
     is_valid: G,

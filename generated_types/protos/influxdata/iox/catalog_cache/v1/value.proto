@@ -1,0 +1,158 @@
+syntax = "proto3";
+package influxdata.iox.catalog_cache.v1;
+option go_package = "github.com/influxdata/iox/catalog_cache/v1";
+
+import "influxdata/iox/column_type/v1/type.proto";
+import "influxdata/iox/partition_template/v1/template.proto";
+import "influxdata/iox/skipped_compaction/v1/skipped_compaction.proto";
+
+// A list of Message supporting efficient random access
+// See data_types::snapshot::list::MessageList
+message MessageList {
+  // Int32 offsets denoting slices into values
+  // See https://arrow.apache.org/docs/format/Columnar.html#variable-size-list-layout
+  bytes offsets = 1;
+  // Raw value data
+  bytes values = 2;
+}
+
+message SipHash24 {
+  fixed64 key0 = 1;
+  fixed64 key1 = 2;
+}
+
+// A list of hash buckets supporting linear probing
+// See data_types::snapshot::hash::HashBuckets
+message HashBuckets {
+  bytes buckets = 1;
+  oneof hash_function {
+    SipHash24 sip_hash_24 = 2;
+  }
+}
+
+// A packed bitmask
+// See data_types::snapshot::mask::BitMask
+message BitMask {
+  bytes mask = 1;
+  uint64 len = 2;
+}
+
+/// A UUID encoded as two unsigned 64-bit integers
+message UUID {
+  fixed64 low = 1;
+  fixed64 high = 2;
+}
+
+message Partition {
+  // The namespace id
+  int64 namespace_id = 1;
+
+  // The table id
+  int64 table_id = 2;
+
+  // The partition id
+  int64 partition_id = 3;
+
+  // True if this partition has a partition_hash_id
+  bool partition_hash_id = 4;
+
+  // The partition key of this partition
+  bytes key = 6;
+
+  // A MessageList of PartitionFile
+  MessageList files = 7;
+
+  // The column ids
+  repeated int64 column_ids = 8;
+
+  // The sort keys ids
+  repeated int64 sort_key_ids = 9;
+
+  // The time of a new file
+  optional int64 new_file_at = 10;
+
+  // Skipped compaction registered for this partition.
+  influxdata.iox.skipped_compaction.v1.SkippedCompaction skipped_compaction = 11;
+}
+
+message PartitionFile {
+  // The identifier for a file
+  UUID object_store_uuid = 1;
+
+  // A min timestamp in nanoseconds from epoch
+  int64 min_time = 2;
+
+  // A max timestamp in nanoseconds from epoch
+  int64 max_time = 3;
+
+  // The size of this file in bytes
+  int64 file_size_bytes = 4;
+
+  // The number of rows in this file
+  int64 row_count = 5;
+
+  // The compaction level
+  int32 compaction_level = 6;
+
+  // The creation time of this file in nanoseconds
+  int64 created_at = 7;
+
+  // The maximum created_at of the l0 files used to produce this file
+  int64 max_l0_created_at = 8;
+
+  // A mask of Partition.column_ids
+  BitMask column_mask = 9;
+
+  // Legacy sequential id
+  int64 id = 10;
+}
+
+message Table {
+  // A MessageList of TablePartition
+  MessageList partitions = 1;
+
+  // A MessageList of TableColumn
+  MessageList columns = 2;
+
+  // The partition template of this table
+  influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 3;
+
+  // The namespace this table belongs to
+  int64 namespace_id = 4;
+
+  // The id of this table
+  int64 table_id = 5;
+
+  // The name of the table
+  bytes table_name = 6;
+}
+
+message TablePartition {
+  // The id of this partition
+  int64 id = 1;
+  // The partition key
+  bytes key = 2;
+}
+
+message TableColumn {
+  // The id of this column
+  int64 id = 1;
+  // The name of this column
+  bytes name = 2;
+  // The type of this column
+  influxdata.iox.column_type.v1.ColumnType column_type = 3;
+}
+
+message Namespace {
+  // A MessageList of NamespaceTable
+  MessageList tables = 1;
+  // A HashBuckets of NamespaceTable.table_name
+  HashBuckets table_names = 2;
+}
+
+message NamespaceTable {
+  // The id of this table
+  int64 id = 1;
+  // The name of this table
+  bytes name = 2;
+}

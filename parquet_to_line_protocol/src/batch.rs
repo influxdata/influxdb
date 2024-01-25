@@ -192,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "Error parsing line protocol: LineProtocol { source: FieldSetMissing, line: 1 }"]
+    #[should_panic = "Error parsing line protocol: PerLine { lines: [LineProtocol { source: FieldSetMissing, line: 1 }] }"]
     fn no_fields() {
         round_trip("my_no_tag_measurement_name,tag=4 1000");
     }

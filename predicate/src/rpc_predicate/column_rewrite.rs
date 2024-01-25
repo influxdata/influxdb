@@ -6,7 +6,10 @@ use schema::{InfluxColumnType, Schema};
 
 /// Logic for rewriting expressions from influxrpc that reference non
 /// existent columns, or columns that are not tags, to NULL.
-pub fn missing_tag_to_null(schema: &Schema, expr: Expr) -> DataFusionResult<Transformed<Expr>> {
+pub(crate) fn missing_tag_to_null(
+    schema: &Schema,
+    expr: Expr,
+) -> DataFusionResult<Transformed<Expr>> {
     Ok(match expr {
         Expr::Column(col) if !tag_column_exists(schema, &col)? => Transformed::Yes(lit_null()),
         expr => Transformed::No(expr),

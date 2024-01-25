@@ -1,8 +1,6 @@
 //! Types having to do with partitions.
 
-use crate::SortedColumnSet;
-
-use super::{TableId, Timestamp};
+use super::{ColumnsByName, SortKeyIds, TableId, Timestamp};
 
 use schema::sort::SortKey;
 use sha2::Digest;
@@ -22,6 +20,14 @@ pub enum TransitionPartitionId {
 }
 
 impl TransitionPartitionId {
+    /// Create a [`TransitionPartitionId`] from a [`PartitionId`] and optional [`PartitionHashId`]
+    pub fn from_parts(id: PartitionId, hash_id: Option<PartitionHashId>) -> Self {
+        match hash_id {
+            Some(x) => Self::Deterministic(x),
+            None => Self::Deprecated(id),
+        }
+    }
+
     /// Size in bytes including `self`.
     pub fn size(&self) -> usize {
         match self {
@@ -63,15 +69,12 @@ where
 
 impl From<(PartitionId, Option<&PartitionHashId>)> for TransitionPartitionId {
     fn from((partition_id, partition_hash_id): (PartitionId, Option<&PartitionHashId>)) -> Self {
-        partition_hash_id
-            .cloned()
-            .map(TransitionPartitionId::Deterministic)
-            .unwrap_or_else(|| TransitionPartitionId::Deprecated(partition_id))
+        Self::from_parts(partition_id, partition_hash_id.cloned())
     }
 }
 
 impl std::fmt::Display for TransitionPartitionId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Deprecated(old_partition_id) => write!(f, "{}", old_partition_id.0),
             Self::Deterministic(partition_hash_id) => write!(f, "{}", partition_hash_id),
@@ -169,7 +172,7 @@ impl PartitionId {
 }
 
 impl std::fmt::Display for PartitionId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -279,7 +282,7 @@ const PARTITION_HASH_ID_SIZE_BYTES: usize = 32;
 pub struct PartitionHashId(Arc<[u8; PARTITION_HASH_ID_SIZE_BYTES]>);
 
 impl std::fmt::Display for PartitionHashId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for byte in &*self.0 {
             write!(f, "{:02x}", byte)?;
         }
@@ -340,6 +343,11 @@ impl TryFrom<&[u8]> for PartitionHashId {
 impl PartitionHashId {
     /// Create a new `PartitionHashId`.
     pub fn new(table_id: TableId, partition_key: &PartitionKey) -> Self {
+        Self::from_raw(table_id, partition_key.as_bytes())
+    }
+
+    /// Create a new `PartitionHashId`
+    pub fn from_raw(table_id: TableId, key: &[u8]) -> Self {
         // The hash ID of a partition is the SHA-256 of the `TableId` then the `PartitionKey`. This
         // particular hash format was chosen so that there won't be collisions and this value can
         // be used to uniquely identify a Partition without needing to go to the catalog to get a
@@ -357,7 +365,7 @@ impl PartitionHashId {
         assert_eq!(table_bytes.len(), 8);
         inner.update(table_bytes);
 
-        inner.update(partition_key.as_bytes());
+        inner.update(key);
         Self(Arc::new(inner.finalize().into()))
     }
 
@@ -440,37 +448,32 @@ pub struct Partition {
     /// the string key of the partition
     pub partition_key: PartitionKey,
 
-    // TODO: remove this field once the sort_key_ids is fully imlemented
-    /// vector of column names that describes how *every* parquet file
-    /// in this [`Partition`] is sorted.
-    pub sort_key: Vec<String>,
-
-    /// vector of column ids that describes how *every* parquet file
-    /// in this [`Partition`] is sorted. The sort_key contains all the
+    /// Vector of column IDs that describes how *every* parquet file
+    /// in this [`Partition`] is sorted. The sort key contains all the
     /// primary key (PK) columns that have been persisted, and nothing
     /// else. The PK columns are all `tag` columns and the `time`
     /// column.
     ///
     /// Even though it is possible for both the unpersisted data
     /// and/or multiple parquet files to contain different subsets of
-    /// columns, the partition's sort_key is guaranteed to be
+    /// columns, the partition's sort key is guaranteed to be
     /// "compatible" across all files. Compatible means that the
     /// parquet file is sorted in the same order as the partition
-    /// sort_key after removing any missing columns.
+    /// sort key after removing any missing columns.
     ///
     /// Partitions are initially created before any data is persisted
-    /// with an empty sort_key. The partition sort_key is updated as
+    /// with an empty sort key. The partition sort key is updated as
     /// needed when data is persisted to parquet files: both on the
     /// first persist when the sort key is empty, as on subsequent
     /// persist operations when new tags occur in newly inserted data.
     ///
-    /// Updating inserts new column into the existing order. The order
+    /// Updating inserts new columns into the existing sort key. The order
     /// of the existing columns relative to each other is NOT changed.
     ///
     /// For example, updating `A,B,C` to either `A,D,B,C` or `A,B,C,D`
     /// is legal. However, updating to `A,C,D,B` is not because the
-    /// relative order of B and C have been reversed.
-    pub sort_key_ids: SortedColumnSet,
+    /// relative order of B and C has been reversed.
+    sort_key_ids: SortKeyIds,
 
     /// The time at which the newest file of the partition is created
     pub new_file_at: Option<Timestamp>,
@@ -480,40 +483,13 @@ impl Partition {
     /// Create a new Partition data object from the given attributes. This constructor will take
     /// care of computing the [`PartitionHashId`].
     ///
-    /// This is only appropriate to use in the in-memory catalog or in tests.
-    pub fn new_in_memory_only(
-        id: PartitionId,
-        table_id: TableId,
-        partition_key: PartitionKey,
-        sort_key: Vec<String>,
-        sort_key_ids: SortedColumnSet,
-        new_file_at: Option<Timestamp>,
-    ) -> Self {
-        let hash_id = PartitionHashId::new(table_id, &partition_key);
-        Self {
-            id,
-            hash_id: Some(hash_id),
-            table_id,
-            partition_key,
-            sort_key,
-            sort_key_ids,
-            new_file_at,
-        }
-    }
-
-    /// The sqlite catalog has to define a `PartitionPod` type that's slightly different than
-    /// `Partition` because of what sqlite serialization is supported. This function is for
-    /// conversion between the `PartitionPod` type and `Partition` and should not be used anywhere
-    /// else.
-    ///
-    /// The in-memory catalog also creates the `Partition` directly from w
-    pub fn new_with_hash_id_from_sqlite_catalog_only(
+    /// This is only appropriate to use in the catalog or in tests.
+    pub fn new_catalog_only(
         id: PartitionId,
         hash_id: Option<PartitionHashId>,
         table_id: TableId,
         partition_key: PartitionKey,
-        sort_key: Vec<String>,
-        sort_key_ids: SortedColumnSet,
+        sort_key_ids: SortKeyIds,
         new_file_at: Option<Timestamp>,
     ) -> Self {
         Self {
@@ -521,7 +497,6 @@ impl Partition {
             hash_id,
             table_id,
             partition_key,
-            sort_key,
             sort_key_ids,
             new_file_at,
         }
@@ -538,29 +513,30 @@ impl Partition {
         self.hash_id.as_ref()
     }
 
-    // TODO: remove this function after all PRs that teach compactor, ingester,
-    // and querier to use sort_key_ids are merged.
-    /// The sort key for the partition, if present, structured as a `SortKey`
-    pub fn sort_key(&self) -> Option<SortKey> {
-        if self.sort_key.is_empty() {
-            return None;
-        }
-
-        Some(SortKey::from_columns(self.sort_key.iter().map(|s| &**s)))
-    }
-
-    /// The sort_key_ids if present
-    pub fn sort_key_ids(&self) -> &SortedColumnSet {
-        &self.sort_key_ids
-    }
-
-    /// The sort_key_ids if not empty and None if empty
-    pub fn sort_key_ids_none_if_empty(&self) -> Option<&SortedColumnSet> {
+    /// The sort key IDs, if the sort key has been set
+    pub fn sort_key_ids(&self) -> Option<&SortKeyIds> {
         if self.sort_key_ids.is_empty() {
             None
         } else {
             Some(&self.sort_key_ids)
         }
+    }
+
+    /// The sort key containing the column names found in the specified column map.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if an ID isn't found in the column map.
+    pub fn sort_key(&self, columns_by_name: &ColumnsByName) -> Option<SortKey> {
+        self.sort_key_ids()
+            .map(|sort_key_ids| sort_key_ids.to_sort_key(columns_by_name))
+    }
+
+    /// Change the sort key IDs to the given sort key IDs. This should only be used in the
+    /// in-memory catalog or in tests; all other sort key updates should go through the catalog
+    /// functions.
+    pub fn set_sort_key_ids(&mut self, sort_key_ids: &SortKeyIds) {
+        self.sort_key_ids = sort_key_ids.clone();
     }
 }
 

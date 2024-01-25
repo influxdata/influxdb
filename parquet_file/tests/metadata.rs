@@ -5,8 +5,8 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    ColumnId, CompactionLevel, NamespaceId, PartitionId, PartitionKey, TableId, Timestamp,
-    TransitionPartitionId,
+    ColumnId, CompactionLevel, NamespaceId, ObjectStoreId, PartitionHashId, PartitionId,
+    PartitionKey, TableId, Timestamp, TransitionPartitionId,
 };
 use datafusion_util::{unbounded_memory_pool, MemoryStream};
 use iox_time::Time;
@@ -18,6 +18,7 @@ use parquet_file::{
 };
 use schema::{
     builder::SchemaBuilder, sort::SortKey, InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME,
+    TIME_DATA_TIMEZONE,
 };
 
 #[tokio::test]
@@ -52,7 +53,7 @@ async fn test_decoded_iox_metadata() {
     // And the metadata the batch would be encoded with if it came through the
     // IOx write path.
     let meta = IoxMetadata {
-        object_store_id: Default::default(),
+        object_store_id: ObjectStoreId::new(),
         creation_timestamp: Time::from_timestamp_nanos(42),
         namespace_id: NamespaceId::new(1),
         namespace_name: "bananas".into(),
@@ -193,7 +194,7 @@ async fn test_empty_parquet_file_panic() {
     // And the metadata the batch would be encoded with if it came through the
     // IOx write path.
     let meta = IoxMetadata {
-        object_store_id: Default::default(),
+        object_store_id: ObjectStoreId::new(),
         creation_timestamp: Time::from_timestamp_nanos(42),
         namespace_id: NamespaceId::new(1),
         namespace_name: "bananas".into(),
@@ -285,7 +286,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     let sort_key = SortKey::from_columns(sort_key_data);
     let partition_id = TransitionPartitionId::Deprecated(PartitionId::new(4));
     let meta = IoxMetadata {
-        object_store_id: Default::default(),
+        object_store_id: ObjectStoreId::new(),
         creation_timestamp: Time::from_timestamp_nanos(42),
         namespace_id: NamespaceId::new(1),
         namespace_name: "bananas".into(),
@@ -371,10 +372,11 @@ async fn test_derive_parquet_file_params() {
     // IOx write path.
     let table_id = TableId::new(3);
     let partition_key = PartitionKey::from("potato");
-    let partition_id = TransitionPartitionId::new(table_id, &partition_key);
+    let partition_hash_id = PartitionHashId::new(table_id, &partition_key);
+    let partition_id = TransitionPartitionId::Deterministic(partition_hash_id.clone());
 
     let meta = IoxMetadata {
-        object_store_id: Default::default(),
+        object_store_id: ObjectStoreId::new(),
         creation_timestamp: Time::from_timestamp_nanos(1234),
         namespace_id: NamespaceId::new(1),
         namespace_name: "bananas".into(),
@@ -412,9 +414,14 @@ async fn test_derive_parquet_file_params() {
         ("some_field".into(), ColumnId::new(1)),
         ("time".into(), ColumnId::new(2)),
     ]);
-    let catalog_data = meta.to_parquet_file(partition_id, file_size, &iox_parquet_meta, |name| {
-        *column_id_map.get(name).unwrap()
-    });
+    let partition_id = PartitionId::new(1);
+    let catalog_data = meta.to_parquet_file(
+        partition_id,
+        Some(partition_hash_id),
+        file_size,
+        &iox_parquet_meta,
+        |name| *column_id_map.get(name).unwrap(),
+    );
 
     // And verify the resulting statistics used in the catalog.
     //
@@ -438,7 +445,11 @@ fn to_string_array(strs: &[&str]) -> ArrayRef {
 }
 
 fn to_timestamp_array(timestamps: &[i64]) -> ArrayRef {
-    let array: TimestampNanosecondArray = timestamps.iter().map(|v| Some(*v)).collect();
+    let array = timestamps
+        .iter()
+        .map(|v| Some(*v))
+        .collect::<TimestampNanosecondArray>()
+        .with_timezone_opt(TIME_DATA_TIMEZONE());
     Arc::new(array)
 }
 

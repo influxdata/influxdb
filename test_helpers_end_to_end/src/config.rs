@@ -34,6 +34,9 @@ pub struct TestConfig {
 
     /// Which ports this server should use
     addrs: Arc<BindAddresses>,
+
+    /// Wait for server to be ready during creation.
+    wait_for_ready: bool,
 }
 
 impl TestConfig {
@@ -58,6 +61,7 @@ impl TestConfig {
             wal_dir: None,
             catalog_dir,
             addrs: Arc::new(BindAddresses::default()),
+            wait_for_ready: true,
         }
     }
 
@@ -71,6 +75,45 @@ impl TestConfig {
         // also copy a reference to the temp dir, if any, so it isn't
         // deleted too soon
         .with_catalog_dir(other.catalog_dir.as_ref().map(Arc::clone))
+    }
+
+    /// Create new catalog node w/o peers
+    fn new_catalog(dsn: Option<String>, catalog_schema_name: String) -> Self {
+        Self::new(ServerType::Catalog, dsn, catalog_schema_name)
+            .with_env("INFLUXDB_IOX_CATALOG_CACHE_WARMUP_DELAY", "100ms")
+    }
+
+    /// Create a triplet of catalog cache nodes.
+    pub fn catalog_nodes(dsn: impl Into<String>) -> [Self; 3] {
+        let dsn = Some(dsn.into());
+        let catalog_schema_name = random_catalog_schema_name();
+
+        let n0 = Self::new_catalog(dsn.clone(), catalog_schema_name.clone());
+        let n1 = Self::new_catalog(dsn.clone(), catalog_schema_name.clone());
+        let n2 = Self::new_catalog(dsn.clone(), catalog_schema_name.clone());
+
+        let n0 = n0.with_catalog_peers([
+            n1.addrs().catalog_http_api().client_base(),
+            n2.addrs().catalog_http_api().client_base(),
+        ]);
+        let n1 = n1.with_catalog_peers([
+            n0.addrs().catalog_http_api().client_base(),
+            n2.addrs().catalog_http_api().client_base(),
+        ]);
+        let n2 = n2.with_catalog_peers([
+            n0.addrs().catalog_http_api().client_base(),
+            n1.addrs().catalog_http_api().client_base(),
+        ]);
+
+        [n0, n1, n2]
+    }
+
+    /// Create a minimal router configuration that doesn't connect to an ingester. If you need a
+    /// router that connects to an ingester, call `new_ingester` first and then pass the resulting
+    /// `TestConfig` to `new_router`.
+    pub fn router_only(dsn: impl Into<String>) -> Self {
+        let dsn = Some(dsn.into());
+        Self::new(ServerType::Router, dsn, random_catalog_schema_name()).with_new_object_store()
     }
 
     /// Create a minimal router2 configuration sharing configuration with the ingester2 config
@@ -117,6 +160,7 @@ impl TestConfig {
             wal_dir: None,
             catalog_dir: ingester_config.catalog_dir.as_ref().map(Arc::clone),
             addrs: Arc::new(BindAddresses::default()),
+            wait_for_ready: ingester_config.wait_for_ready,
         }
         .with_existing_object_store(ingester_config)
         .with_new_wal()
@@ -224,6 +268,11 @@ impl TestConfig {
             .with_env("INFLUXDB_IOX_SINGLE_TENANCY", "true")
     }
 
+    /// Enable partial writes.
+    pub fn with_partial_writes(self) -> Self {
+        self.with_env("INFLUXDB_IOX_PARTIAL_WRITES_ENABLED", "true")
+    }
+
     // Get the catalog DSN URL if set.
     pub fn dsn(&self) -> &Option<String> {
         &self.dsn
@@ -323,6 +372,46 @@ impl TestConfig {
             .with_env("INFLUXDB_IOX_COMPACTION_SHARD_ID", shard_id.to_string())
     }
 
+    /// Limit the number of concurrent queries.
+    pub fn with_max_concurrent_queries(self, n: usize) -> Self {
+        self.with_env("INFLUXDB_IOX_MAX_CONCURRENT_QUERIES", n.to_string())
+    }
+
+    /// Set up a metadata signing key for bulk ingest.
+    pub fn with_bulk_ingest_metadata_signing_key(self, metadata_signing_key_file: &str) -> Self {
+        self.with_env(
+            "INFLUXDB_IOX_BULK_INGEST_METADATA_SIGNING_KEY_FILE",
+            metadata_signing_key_file,
+        )
+    }
+
+    /// Use a mock presigned URL generator rather than whatever object store may have been
+    /// configured. Allows for testing bulk ingest without needing S3.
+    pub fn with_mock_presigned_url_signer(self) -> Self {
+        self.with_env(
+            "INFLUXDB_IOX_BULK_INGEST_USE_MOCK_PRESIGNED_URL_SIGNER",
+            "true",
+        )
+    }
+
+    /// Register catalog peers.
+    pub fn with_catalog_peers<I, S>(self, peers: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: std::fmt::Display,
+    {
+        let peers = peers.into_iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        self.with_env("INFLUXDB_IOX_CATALOG_CACHE_PEERS", peers.join(","))
+    }
+
+    /// Set [`wait_for_ready`](Self::wait_for_ready).
+    pub fn with_wait_for_ready(self, wait_for_ready: bool) -> Self {
+        Self {
+            wait_for_ready,
+            ..self
+        }
+    }
+
     /// Get the test config's server type.
     #[must_use]
     pub fn server_type(&self) -> ServerType {
@@ -350,6 +439,28 @@ impl TestConfig {
     /// `http://localhost:8082/`
     pub fn ingester_base(&self) -> Arc<str> {
         self.addrs().ingester_grpc_api().client_base()
+    }
+
+    /// Return a HTTP base that is usable for health and metrics.
+    ///
+    /// This depends on the [server type](Self::server_type).
+    #[must_use]
+    pub fn http_base(&self) -> Arc<str> {
+        let addr = match self.server_type {
+            ServerType::AllInOne => self.addrs.router_http_api(),
+            ServerType::Ingester => self.addrs.ingester_http_api(),
+            ServerType::Router => self.addrs.router_http_api(),
+            ServerType::Querier => self.addrs.querier_http_api(),
+            ServerType::Compactor => self.addrs.compactor_http_api(),
+            ServerType::Catalog => self.addrs.catalog_http_api(),
+            ServerType::ParquetCache => self.addrs.parquet_cache_http_api(),
+        };
+        addr.client_base()
+    }
+
+    /// Wait for server to be ready during creation.
+    pub fn wait_for_ready(&self) -> bool {
+        self.wait_for_ready
     }
 }
 

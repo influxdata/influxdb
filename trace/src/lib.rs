@@ -35,7 +35,7 @@ pub trait TraceCollector: std::fmt::Debug + Send + Sync {
 }
 
 /// A basic trace collector that prints to stdout
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct LogTraceCollector {}
 
 impl LogTraceCollector {

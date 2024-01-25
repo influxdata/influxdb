@@ -29,10 +29,13 @@ pub mod partition;
 pub use partition::*;
 pub mod sequence_number_set;
 pub mod service_limits;
+pub mod snapshot;
+
 pub use service_limits::*;
 
 use observability_deps::tracing::warn;
 use schema::TIME_COLUMN_NAME;
+use snafu::Snafu;
 use std::{
     borrow::Borrow,
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -41,8 +44,15 @@ use std::{
     mem::{self, size_of_val},
     num::{FpCategory, NonZeroU64},
     ops::{Add, Deref, Sub},
+    sync::Arc,
 };
 use uuid::Uuid;
+
+/// Errors deserialising a protobuf serialised [`ParquetFile`].
+#[derive(Debug, Snafu)]
+#[snafu(display("invalid compaction level value"))]
+#[allow(missing_copy_implementations)]
+pub struct CompactionLevelProtoError {}
 
 /// Compaction levels
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, sqlx::Type)]
@@ -68,14 +78,14 @@ impl Display for CompactionLevel {
 }
 
 impl TryFrom<i32> for CompactionLevel {
-    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Error = CompactionLevelProtoError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         match value {
             x if x == Self::Initial as i32 => Ok(Self::Initial),
             x if x == Self::FileNonOverlapped as i32 => Ok(Self::FileNonOverlapped),
             x if x == Self::Final as i32 => Ok(Self::Final),
-            _ => Err("invalid compaction level value".into()),
+            _ => Err(CompactionLevelProtoError {}),
         }
     }
 }
@@ -131,7 +141,7 @@ impl NamespaceId {
 }
 
 impl std::fmt::Display for NamespaceId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -157,7 +167,7 @@ impl TableId {
 }
 
 impl std::fmt::Display for TableId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -268,9 +278,45 @@ impl ParquetFileId {
 }
 
 impl std::fmt::Display for ParquetFileId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Use `self.number` to refer to each positional data point.
         write!(f, "{}", self.0)
+    }
+}
+
+/// Unique store UUID for a [`ParquetFile`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct ObjectStoreId(Uuid);
+
+#[allow(missing_docs)]
+impl ObjectStoreId {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self::from_uuid(Uuid::new_v4())
+    }
+
+    pub fn from_uuid(uuid: Uuid) -> Self {
+        Self(uuid)
+    }
+
+    pub fn get_uuid(&self) -> Uuid {
+        self.0
+    }
+}
+
+impl std::fmt::Display for ObjectStoreId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for ObjectStoreId {
+    type Err = uuid::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let uuid = Uuid::parse_str(s)?;
+        Ok(Self::from_uuid(uuid))
     }
 }
 
@@ -352,35 +398,23 @@ impl NamespaceSchema {
 
 impl From<&NamespaceSchema> for generated_types::influxdata::iox::schema::v1::NamespaceSchema {
     fn from(schema: &NamespaceSchema) -> Self {
-        use generated_types::influxdata::iox::schema::v1 as proto;
-        Self {
-            id: schema.id.get(),
-            tables: schema
-                .tables
-                .iter()
-                .map(|(name, t)| {
-                    (
-                        name.clone(),
-                        proto::TableSchema {
-                            id: t.id.get(),
-                            columns: t
-                                .columns
-                                .iter()
-                                .map(|(name, c)| {
-                                    (
-                                        name.clone(),
-                                        proto::ColumnSchema {
-                                            id: c.id.get(),
-                                            column_type: c.column_type as i32,
-                                        },
-                                    )
-                                })
-                                .collect(),
-                        },
-                    )
-                })
-                .collect(),
-        }
+        namespace_schema_proto(schema.id, schema.tables.iter())
+    }
+}
+
+/// Generate [`NamespaceSchema`] protobuf from a `NamespaceId` and a list of tables. Useful to
+/// filter the tables returned from an API request to a particular table without needing to clone
+/// the whole `NamespaceSchema` to use the `From` impl.
+pub fn namespace_schema_proto<'a>(
+    id: NamespaceId,
+    tables: impl Iterator<Item = (&'a String, &'a TableSchema)>,
+) -> generated_types::influxdata::iox::schema::v1::NamespaceSchema {
+    use generated_types::influxdata::iox::schema::v1 as proto;
+    proto::NamespaceSchema {
+        id: id.get(),
+        tables: tables
+            .map(|(name, t)| (name.clone(), proto::TableSchema::from(t)))
+            .collect(),
     }
 }
 
@@ -428,7 +462,7 @@ impl TableSchema {
         Self {
             id: table.id,
             partition_template: table.partition_template.clone(),
-            columns: ColumnsByName::new([]),
+            columns: ColumnsByName::default(),
         }
     }
 
@@ -458,7 +492,11 @@ impl TableSchema {
     ///
     /// This method panics if a column of the same name already exists in
     /// `self`.
-    pub fn add_column_schema(&mut self, column_name: String, column_schema: ColumnSchema) {
+    pub fn add_column_schema(
+        &mut self,
+        column_name: impl Into<Arc<str>>,
+        column_schema: ColumnSchema,
+    ) {
         self.columns.add_column(column_name, column_schema);
     }
 
@@ -468,12 +506,12 @@ impl TableSchema {
             + self
                 .columns
                 .iter()
-                .map(|(k, v)| size_of_val(k) + k.capacity() + size_of_val(v))
+                .map(|(k, v)| size_of_val(k) + k.as_ref().len() + size_of_val(v))
                 .sum::<usize>()
     }
 
     /// Create `ID->name` map for columns.
-    pub fn column_id_map(&self) -> HashMap<ColumnId, &str> {
+    pub fn column_id_map(&self) -> HashMap<ColumnId, Arc<str>> {
         self.columns.id_map()
     }
 
@@ -491,6 +529,29 @@ impl TableSchema {
     /// Return number of columns of the table
     pub fn column_count(&self) -> usize {
         self.columns.column_count()
+    }
+}
+
+impl From<&TableSchema> for generated_types::influxdata::iox::schema::v1::TableSchema {
+    fn from(table_schema: &TableSchema) -> Self {
+        use generated_types::influxdata::iox::schema::v1 as proto;
+
+        Self {
+            id: table_schema.id.get(),
+            columns: table_schema
+                .columns
+                .iter()
+                .map(|(name, c)| {
+                    (
+                        name.to_string(),
+                        proto::ColumnSchema {
+                            id: c.id.get(),
+                            column_type: c.column_type as i32,
+                        },
+                    )
+                })
+                .collect(),
+        }
     }
 }
 
@@ -515,8 +576,9 @@ pub struct SkippedCompaction {
     pub limit_num_files_first_in_partition: i64,
 }
 
-use generated_types::influxdata::iox::compactor::v1 as compactor_proto;
-impl From<SkippedCompaction> for compactor_proto::SkippedCompaction {
+impl From<SkippedCompaction>
+    for generated_types::influxdata::iox::skipped_compaction::v1::SkippedCompaction
+{
     fn from(skipped_compaction: SkippedCompaction) -> Self {
         let SkippedCompaction {
             partition_id,
@@ -537,7 +599,27 @@ impl From<SkippedCompaction> for compactor_proto::SkippedCompaction {
             limit_bytes,
             num_files,
             limit_num_files,
-            limit_num_files_first_in_partition: Some(limit_num_files_first_in_partition),
+            limit_num_files_first_in_partition,
+        }
+    }
+}
+
+impl From<generated_types::influxdata::iox::skipped_compaction::v1::SkippedCompaction>
+    for SkippedCompaction
+{
+    fn from(
+        skipped_compaction: generated_types::influxdata::iox::skipped_compaction::v1::SkippedCompaction,
+    ) -> Self {
+        Self {
+            partition_id: PartitionId::new(skipped_compaction.partition_id),
+            reason: skipped_compaction.reason,
+            skipped_at: Timestamp::new(skipped_compaction.skipped_at),
+            estimated_bytes: skipped_compaction.estimated_bytes,
+            limit_bytes: skipped_compaction.limit_bytes,
+            num_files: skipped_compaction.num_files,
+            limit_num_files: skipped_compaction.limit_num_files,
+            limit_num_files_first_in_partition: skipped_compaction
+                .limit_num_files_first_in_partition,
         }
     }
 }
@@ -552,10 +634,11 @@ pub struct ParquetFile {
     /// the table
     pub table_id: TableId,
     /// the partition identifier
-    #[sqlx(flatten)]
-    pub partition_id: TransitionPartitionId,
+    pub partition_id: PartitionId,
+    /// the optional partition hash id
+    pub partition_hash_id: Option<PartitionHashId>,
     /// the uuid used in the object store path for this file
-    pub object_store_id: Uuid,
+    pub object_store_id: ObjectStoreId,
     /// the min timestamp of data in this file
     pub min_time: Timestamp,
     /// the max timestamp of data in this file
@@ -608,9 +691,10 @@ impl ParquetFile {
     pub fn from_params(params: ParquetFileParams, id: ParquetFileId) -> Self {
         Self {
             id,
+            partition_id: params.partition_id,
+            partition_hash_id: params.partition_hash_id,
             namespace_id: params.namespace_id,
             table_id: params.table_id,
-            partition_id: params.partition_id,
             object_store_id: params.object_store_id,
             min_time: params.min_time,
             max_time: params.max_time,
@@ -626,7 +710,13 @@ impl ParquetFile {
 
     /// Estimate the memory consumption of this object and its contents
     pub fn size(&self) -> usize {
-        std::mem::size_of_val(self) + self.partition_id.size() + self.column_set.size()
+        let hash_id = self
+            .partition_hash_id
+            .as_ref()
+            .map(|x| x.size())
+            .unwrap_or_default();
+
+        std::mem::size_of_val(self) + hash_id + self.column_set.size()
             - std::mem::size_of_val(&self.column_set)
     }
 
@@ -661,6 +751,11 @@ impl ParquetFile {
         }
         false
     }
+
+    /// Temporary to aid incremental migration
+    pub fn transition_partition_id(&self) -> TransitionPartitionId {
+        TransitionPartitionId::from_parts(self.partition_id, self.partition_hash_id.clone())
+    }
 }
 
 impl From<ParquetFile> for generated_types::influxdata::iox::catalog::v1::ParquetFile {
@@ -669,7 +764,11 @@ impl From<ParquetFile> for generated_types::influxdata::iox::catalog::v1::Parque
             id: v.id.get(),
             namespace_id: v.namespace_id.get(),
             table_id: v.table_id.get(),
-            partition_identifier: Some(v.partition_id.into()),
+            partition_id: v.partition_id.get(),
+            partition_hash_id: v
+                .partition_hash_id
+                .map(|x| x.as_bytes().to_vec())
+                .unwrap_or_default(),
             object_store_id: v.object_store_id.to_string(),
             min_time: v.min_time.get(),
             max_time: v.max_time.get(),
@@ -700,40 +799,8 @@ pub enum ParquetFileProtoError {
     InvalidObjectStoreId(uuid::Error),
 
     /// The specified compaction level value is invalid.
-    #[error("invalid compaction level: {0}")]
-    InvalidCompactionLevel(Box<dyn std::error::Error + Send + Sync + 'static>),
-}
-
-impl TryFrom<generated_types::influxdata::iox::catalog::v1::ParquetFile> for ParquetFile {
-    type Error = ParquetFileProtoError;
-
-    fn try_from(
-        v: generated_types::influxdata::iox::catalog::v1::ParquetFile,
-    ) -> Result<Self, Self::Error> {
-        Ok(Self {
-            id: ParquetFileId::new(v.id),
-            namespace_id: NamespaceId::new(v.namespace_id),
-            table_id: TableId::new(v.table_id),
-            partition_id: TransitionPartitionId::try_from(
-                v.partition_identifier
-                    .ok_or(ParquetFileProtoError::NoPartitionId)?,
-            )?,
-            object_store_id: v
-                .object_store_id
-                .parse()
-                .map_err(ParquetFileProtoError::InvalidObjectStoreId)?,
-            min_time: Timestamp::new(v.min_time),
-            max_time: Timestamp::new(v.max_time),
-            to_delete: v.to_delete.map(Timestamp::new),
-            file_size_bytes: v.file_size_bytes,
-            row_count: v.row_count,
-            compaction_level: CompactionLevel::try_from(v.compaction_level)
-                .map_err(ParquetFileProtoError::InvalidCompactionLevel)?,
-            created_at: Timestamp::new(v.created_at),
-            column_set: ColumnSet::new(v.column_set.into_iter().map(ColumnId::new)),
-            max_l0_created_at: Timestamp::new(v.max_l0_created_at),
-        })
-    }
+    #[error(transparent)]
+    InvalidCompactionLevel(#[from] CompactionLevelProtoError),
 }
 
 /// Data for a parquet file to be inserted into the catalog.
@@ -744,9 +811,11 @@ pub struct ParquetFileParams {
     /// the table
     pub table_id: TableId,
     /// the partition identifier
-    pub partition_id: TransitionPartitionId,
+    pub partition_id: PartitionId,
+    /// the partition hash ID
+    pub partition_hash_id: Option<PartitionHashId>,
     /// the uuid used in the object store path for this file
-    pub object_store_id: Uuid,
+    pub object_store_id: ObjectStoreId,
     /// the min timestamp of data in this file
     pub min_time: Timestamp,
     /// the max timestamp of data in this file
@@ -763,25 +832,6 @@ pub struct ParquetFileParams {
     pub column_set: ColumnSet,
     /// the max of created_at of all L0 files
     pub max_l0_created_at: Timestamp,
-}
-
-impl From<ParquetFile> for ParquetFileParams {
-    fn from(value: ParquetFile) -> Self {
-        Self {
-            namespace_id: value.namespace_id,
-            table_id: value.table_id,
-            partition_id: value.partition_id,
-            object_store_id: value.object_store_id,
-            min_time: value.min_time,
-            max_time: value.max_time,
-            file_size_bytes: value.file_size_bytes,
-            row_count: value.row_count,
-            compaction_level: value.compaction_level,
-            created_at: value.created_at,
-            column_set: value.column_set,
-            max_l0_created_at: value.max_l0_created_at,
-        }
-    }
 }
 
 /// ID of a chunk.
@@ -835,9 +885,9 @@ impl std::fmt::Display for ChunkId {
     }
 }
 
-impl From<Uuid> for ChunkId {
-    fn from(uuid: Uuid) -> Self {
-        Self(uuid)
+impl From<ObjectStoreId> for ChunkId {
+    fn from(id: ObjectStoreId) -> Self {
+        Self(id.get_uuid())
     }
 }
 
@@ -1405,9 +1455,12 @@ impl IsNan for f64 {
 pub enum Statistics {
     I64(StatValues<i64>),
     U64(StatValues<u64>),
-    F64(StatValues<f64>),
     Bool(StatValues<bool>),
     String(StatValues<String>),
+
+    /// For the purposes of min/max values of floats, NaN values are ignored (no
+    /// ordering is applied to NaNs).
+    F64(StatValues<f64>),
 }
 
 impl Statistics {
@@ -1706,6 +1759,16 @@ impl TimestampMinMax {
             || range.contains(self.max)
             || (self.min <= range.start && self.max >= range.end)
     }
+
+    /// Returns the union of this range with `other` with the minimum of the `min`s
+    /// and the maximum of the `max`es
+
+    pub fn union(&self, other: &Self) -> Self {
+        Self {
+            min: self.min.min(other.min),
+            max: self.max.max(other.max),
+        }
+    }
 }
 
 /// FileRange describes a range of files by the min/max time and the sum of their capacities.
@@ -1726,7 +1789,6 @@ mod tests {
     use std::borrow::Cow;
 
     use ordered_float::OrderedFloat;
-    use proptest::{prelude::*, proptest};
 
     #[test]
     fn test_chunk_id_new() {
@@ -2661,7 +2723,7 @@ mod tests {
         let schema1 = TableSchema {
             id: TableId::new(1),
             partition_template: Default::default(),
-            columns: ColumnsByName::new([]),
+            columns: ColumnsByName::default(),
         };
         let schema2 = TableSchema {
             id: TableId::new(2),
@@ -2681,8 +2743,8 @@ mod tests {
         let schema1 = NamespaceSchema {
             id: NamespaceId::new(1),
             tables: BTreeMap::from([]),
-            max_tables: MaxTables::new(42),
-            max_columns_per_table: MaxColumnsPerTable::new(4),
+            max_tables: MaxTables::try_from(42).unwrap(),
+            max_columns_per_table: MaxColumnsPerTable::try_from(4).unwrap(),
             retention_period_ns: None,
             partition_template: Default::default(),
         };
@@ -2692,12 +2754,12 @@ mod tests {
                 String::from("foo"),
                 TableSchema {
                     id: TableId::new(1),
-                    columns: ColumnsByName::new([]),
+                    columns: ColumnsByName::default(),
                     partition_template: Default::default(),
                 },
             )]),
-            max_tables: MaxTables::new(42),
-            max_columns_per_table: MaxColumnsPerTable::new(4),
+            max_tables: MaxTables::try_from(42).unwrap(),
+            max_columns_per_table: MaxColumnsPerTable::try_from(4).unwrap(),
             retention_period_ns: None,
             partition_template: Default::default(),
         };
@@ -2733,78 +2795,5 @@ mod tests {
         let tr = TimestampRange::new(2, 1);
         assert_eq!(tr.start(), 1);
         assert_eq!(tr.end(), 1);
-    }
-
-    use crate::partition::tests::arbitrary_partition_id;
-
-    prop_compose! {
-        /// Return an arbitrary [`Timestamp`].
-        pub fn arbitrary_timestamp()(value in any::<i64>()) -> Timestamp {
-            Timestamp::new(value)
-        }
-    }
-
-    fn arbitrary_compaction_level() -> impl prop::strategy::Strategy<Value = CompactionLevel> {
-        prop_oneof![
-            Just(CompactionLevel::Initial),
-            Just(CompactionLevel::FileNonOverlapped),
-            Just(CompactionLevel::Final),
-        ]
-    }
-
-    prop_compose! {
-        /// Return an arbitrary [`ParquetFile`] with a randomised values.
-        fn arbitrary_parquet_file()(
-            partition_id in arbitrary_partition_id(),
-            parquet_file_id in any::<i64>(),
-            namespace_id in any::<i64>(),
-            table_id in any::<i64>(),
-            min_time in arbitrary_timestamp(),
-            max_time in arbitrary_timestamp(),
-            to_delete in prop::option::of(arbitrary_timestamp()),
-            file_size_bytes in any::<i64>(),
-            row_count in any::<i64>(),
-            compaction_level in arbitrary_compaction_level(),
-            created_at in arbitrary_timestamp(),
-            column_set in prop::collection::vec(any::<i64>(), 0..10),
-            max_l0_created_at in arbitrary_timestamp(),
-        ) -> ParquetFile {
-            let column_set = ColumnSet::new(column_set.into_iter().map(ColumnId::new));
-
-            ParquetFile {
-                id: ParquetFileId::new(parquet_file_id),
-                namespace_id: NamespaceId::new(namespace_id),
-                table_id: TableId::new(table_id),
-                partition_id,
-                object_store_id: Uuid::new_v4(),
-                min_time,
-                max_time,
-                to_delete,
-                file_size_bytes,
-                row_count,
-                compaction_level,
-                created_at,
-                column_set,
-                max_l0_created_at,
-            }
-        }
-    }
-
-    proptest! {
-        /// Assert a [`ParquetFile`] is round-trippable through proto
-        /// serialisation.
-        #[test]
-        fn prop_parquet_file_proto_round_trip(file in arbitrary_parquet_file()) {
-            use generated_types::influxdata::iox::catalog::v1 as proto;
-
-            // Encoding is infallible
-            let encoded = proto::ParquetFile::from(file.clone());
-
-            // Decoding a valid proto ParquetFile is infallible.
-            let decoded = ParquetFile::try_from(encoded).unwrap();
-
-            // The deserialised value must match the input (round trippable)
-            assert_eq!(decoded, file);
-        }
     }
 }

@@ -214,7 +214,7 @@ impl Selector {
             let time_arr = arrow::compute::nullif(
                 time_arr,
                 &arrow::compute::kernels::cmp::neq(
-                    &self.value.to_array_of_size(time_arr.len()),
+                    &self.value.to_array_of_size(time_arr.len())?,
                     &value_arr,
                 )?,
             )?;

@@ -96,7 +96,11 @@ fn build_node(expr: &Expr, strings_are_regex: bool) -> Result<RPCNode> {
             vec![build_node(expr, strings_are_regex)?],
             None,
         ),
-        Expr::Cast { expr, data_type } => match data_type {
+        Expr::Cast {
+            expr,
+            data_type,
+            format: None,
+        } => match data_type {
             sqlparser::ast::DataType::Custom(ident, _modifiers) => {
                 if let Some(Ident { value, .. }) = ident.0.first() {
                     // See https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#syntax

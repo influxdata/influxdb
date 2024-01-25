@@ -1602,7 +1602,7 @@ fn filtered_fields_iter<'a>(
 impl AggExprs {
     /// Create the appropriate aggregate expressions, based on the type of the
     /// field for a `read_group` plan.
-    pub fn try_new_for_read_group(
+    pub(crate) fn try_new_for_read_group(
         agg: Aggregate,
         schema: &Schema,
         predicate: &Predicate,
@@ -1620,7 +1620,7 @@ impl AggExprs {
 
     /// Create the appropriate aggregate expressions, based on the type of the
     /// field for a `read_window_aggregate` plan.
-    pub fn try_new_for_read_window_aggregate(
+    pub(crate) fn try_new_for_read_window_aggregate(
         agg: Aggregate,
         schema: &Schema,
         predicate: &Predicate,
@@ -1816,7 +1816,7 @@ fn prune_chunks(
 }
 
 fn chunk_column_names(
-    chunk: &dyn QueryChunk,
+    chunk: &Arc<dyn QueryChunk>,
     predicate: &Predicate,
     columns: Projection<'_>,
 ) -> Option<StringSet> {
@@ -2575,6 +2575,7 @@ mod tests {
             TestChunk::new("h2o")
                 .with_id(0)
                 .with_tag_column("foo")
+                .with_f64_field_column("my_field")
                 .with_time_column(),
         );
 

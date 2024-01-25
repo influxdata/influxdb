@@ -191,11 +191,11 @@ mod tests {
         ---
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
-          - "   EmptyExec: produce_one_row=false"
+          - "   EmptyExec"
         output:
           Ok:
             - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
-            - "   EmptyExec: produce_one_row=false"
+            - "   EmptyExec"
         "###
         );
     }

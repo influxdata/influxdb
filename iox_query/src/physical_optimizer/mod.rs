@@ -10,7 +10,7 @@ use self::{
     },
     predicate_pushdown::PredicatePushdown,
     projection_pushdown::ProjectionPushdown,
-    sort::parquet_sortness::ParquetSortness,
+    sort::{order_union_sorted_inputs::OrderUnionSortedInputs, parquet_sortness::ParquetSortness},
     union::{nested_union::NestedUnion, one_union::OneUnion},
 };
 
@@ -24,6 +24,9 @@ mod union;
 
 #[cfg(test)]
 mod test_util;
+
+#[cfg(test)]
+mod tests;
 
 /// Register IOx-specific [`PhysicalOptimizerRule`]s with the SessionContext
 pub fn register_iox_physical_optimizers(state: SessionState) -> SessionState {
@@ -42,7 +45,12 @@ pub fn register_iox_physical_optimizers(state: SessionState) -> SessionState {
         Arc::new(NestedUnion),
         Arc::new(OneUnion),
     ];
+
+    // Append DataFUsion physical rules to the IOx-specific rules
     optimizers.append(&mut state.physical_optimizers().to_vec());
+
+    // Add a rule to optimize plan with limit
+    optimizers.push(Arc::new(OrderUnionSortedInputs));
 
     state.with_physical_optimizer_rules(optimizers)
 }

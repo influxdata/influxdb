@@ -76,6 +76,19 @@ pub struct IngesterConfig {
     )]
     pub persist_hot_partition_cost: usize,
 
+    /// An optional lower bound byte size limit that buffered data within a
+    /// partition must reach in order to be converted into an incremental
+    /// snapshot at query time.
+    ///
+    /// Snapshots improve query performance by amortising response generation at
+    /// the expense of a small memory overhead. Snapshots are retained until the
+    /// buffer is persisted.
+    #[clap(
+        long = "min-partition-snapshot-size",
+        env = "INFLUXDB_IOX_MIN_PARTITION_SNAPSHOT_SIZE"
+    )]
+    pub min_partition_snapshot_size: Option<NonZeroUsize>,
+
     /// Limit the number of partitions that may be buffered in a single
     /// namespace (across all tables) at any one time.
     ///

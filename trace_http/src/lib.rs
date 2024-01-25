@@ -16,5 +16,5 @@ use workspace_hack as _;
 
 mod classify;
 pub mod ctx;
-mod metrics;
+pub mod metrics;
 pub mod tower;

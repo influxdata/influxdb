@@ -38,10 +38,8 @@ impl PhysicalOptimizerRule for PredicatePushdown {
                 let child = children.remove(0);
 
                 let child_any = child.as_any();
-                if let Some(child_empty) = child_any.downcast_ref::<EmptyExec>() {
-                    if !child_empty.produce_one_row() {
-                        return Ok(Transformed::Yes(child));
-                    }
+                if child_any.downcast_ref::<EmptyExec>().is_some() {
+                    return Ok(Transformed::Yes(child));
                 } else if let Some(child_union) = child_any.downcast_ref::<UnionExec>() {
                     let new_inputs = child_union
                         .inputs()
@@ -170,6 +168,7 @@ mod tests {
         physical_expr::PhysicalSortExpr,
         physical_plan::{
             expressions::{BinaryExpr, Column, Literal},
+            placeholder_row::PlaceholderRowExec,
             PhysicalExpr, Statistics,
         },
         scalar::ScalarValue,
@@ -184,11 +183,7 @@ mod tests {
     fn test_empty_no_rows() {
         let schema = schema();
         let plan = Arc::new(
-            FilterExec::try_new(
-                predicate_tag(&schema),
-                Arc::new(EmptyExec::new(false, schema)),
-            )
-            .unwrap(),
+            FilterExec::try_new(predicate_tag(&schema), Arc::new(EmptyExec::new(schema))).unwrap(),
         );
         let opt = PredicatePushdown;
         insta::assert_yaml_snapshot!(
@@ -197,10 +192,10 @@ mod tests {
         ---
         input:
           - " FilterExec: tag1@0 = foo"
-          - "   EmptyExec: produce_one_row=false"
+          - "   EmptyExec"
         output:
           Ok:
-            - " EmptyExec: produce_one_row=false"
+            - " EmptyExec"
         "###
         );
     }
@@ -211,7 +206,7 @@ mod tests {
         let plan = Arc::new(
             FilterExec::try_new(
                 predicate_tag(&schema),
-                Arc::new(EmptyExec::new(true, schema)),
+                Arc::new(PlaceholderRowExec::new(schema)),
             )
             .unwrap(),
         );
@@ -222,11 +217,11 @@ mod tests {
         ---
         input:
           - " FilterExec: tag1@0 = foo"
-          - "   EmptyExec: produce_one_row=true"
+          - "   PlaceholderRowExec"
         output:
           Ok:
             - " FilterExec: tag1@0 = foo"
-            - "   EmptyExec: produce_one_row=true"
+            - "   PlaceholderRowExec"
         "###
         );
     }
@@ -239,7 +234,7 @@ mod tests {
                 predicate_tag(&schema),
                 Arc::new(UnionExec::new(
                     (0..2)
-                        .map(|_| Arc::new(EmptyExec::new(true, Arc::clone(&schema))) as _)
+                        .map(|_| Arc::new(PlaceholderRowExec::new(Arc::clone(&schema))) as _)
                         .collect(),
                 )),
             )
@@ -253,15 +248,15 @@ mod tests {
         input:
           - " FilterExec: tag1@0 = foo"
           - "   UnionExec"
-          - "     EmptyExec: produce_one_row=true"
-          - "     EmptyExec: produce_one_row=true"
+          - "     PlaceholderRowExec"
+          - "     PlaceholderRowExec"
         output:
           Ok:
             - " UnionExec"
             - "   FilterExec: tag1@0 = foo"
-            - "     EmptyExec: produce_one_row=true"
+            - "     PlaceholderRowExec"
             - "   FilterExec: tag1@0 = foo"
-            - "     EmptyExec: produce_one_row=true"
+            - "     PlaceholderRowExec"
         "###
         );
     }
@@ -274,7 +269,7 @@ mod tests {
                 predicate_tag(&schema),
                 Arc::new(UnionExec::new(vec![Arc::new(UnionExec::new(
                     (0..2)
-                        .map(|_| Arc::new(EmptyExec::new(true, Arc::clone(&schema))) as _)
+                        .map(|_| Arc::new(PlaceholderRowExec::new(Arc::clone(&schema))) as _)
                         .collect(),
                 ))])),
             )
@@ -289,16 +284,16 @@ mod tests {
           - " FilterExec: tag1@0 = foo"
           - "   UnionExec"
           - "     UnionExec"
-          - "       EmptyExec: produce_one_row=true"
-          - "       EmptyExec: produce_one_row=true"
+          - "       PlaceholderRowExec"
+          - "       PlaceholderRowExec"
         output:
           Ok:
             - " UnionExec"
             - "   UnionExec"
             - "     FilterExec: tag1@0 = foo"
-            - "       EmptyExec: produce_one_row=true"
+            - "       PlaceholderRowExec"
             - "     FilterExec: tag1@0 = foo"
-            - "       EmptyExec: produce_one_row=true"
+            - "       PlaceholderRowExec"
         "###
         );
     }
@@ -310,12 +305,11 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![],
-            infinite_source: false,
         };
         let plan = Arc::new(
             FilterExec::try_new(
@@ -351,7 +345,7 @@ mod tests {
             FilterExec::try_new(
                 predicate_field(&schema),
                 Arc::new(DeduplicateExec::new(
-                    Arc::new(EmptyExec::new(true, Arc::clone(&schema))),
+                    Arc::new(PlaceholderRowExec::new(Arc::clone(&schema))),
                     sort_expr(&schema),
                     false,
                 )),
@@ -366,12 +360,12 @@ mod tests {
         input:
           - " FilterExec: field@2 = val"
           - "   DeduplicateExec: [tag1@0 ASC,tag2@1 ASC]"
-          - "     EmptyExec: produce_one_row=true"
+          - "     PlaceholderRowExec"
         output:
           Ok:
             - " FilterExec: field@2 = val"
             - "   DeduplicateExec: [tag1@0 ASC,tag2@1 ASC]"
-            - "     EmptyExec: produce_one_row=true"
+            - "     PlaceholderRowExec"
         "###
         );
     }
@@ -383,7 +377,7 @@ mod tests {
             FilterExec::try_new(
                 predicate_tag(&schema),
                 Arc::new(DeduplicateExec::new(
-                    Arc::new(EmptyExec::new(true, Arc::clone(&schema))),
+                    Arc::new(PlaceholderRowExec::new(Arc::clone(&schema))),
                     sort_expr(&schema),
                     false,
                 )),
@@ -398,12 +392,12 @@ mod tests {
         input:
           - " FilterExec: tag1@0 = foo"
           - "   DeduplicateExec: [tag1@0 ASC,tag2@1 ASC]"
-          - "     EmptyExec: produce_one_row=true"
+          - "     PlaceholderRowExec"
         output:
           Ok:
             - " DeduplicateExec: [tag1@0 ASC,tag2@1 ASC]"
             - "   FilterExec: tag1@0 = foo"
-            - "     EmptyExec: produce_one_row=true"
+            - "     PlaceholderRowExec"
         "###
         );
     }
@@ -422,7 +416,7 @@ mod tests {
                 ])
                 .expect("not empty"),
                 Arc::new(DeduplicateExec::new(
-                    Arc::new(EmptyExec::new(true, Arc::clone(&schema))),
+                    Arc::new(PlaceholderRowExec::new(Arc::clone(&schema))),
                     sort_expr(&schema),
                     false,
                 )),
@@ -437,13 +431,13 @@ mod tests {
         input:
           - " FilterExec: tag1@0 = foo AND tag1@0 = tag2@1 AND field@2 = val AND tag1@0 = field@2 AND true"
           - "   DeduplicateExec: [tag1@0 ASC,tag2@1 ASC]"
-          - "     EmptyExec: produce_one_row=true"
+          - "     PlaceholderRowExec"
         output:
           Ok:
             - " FilterExec: field@2 = val AND tag1@0 = field@2"
             - "   DeduplicateExec: [tag1@0 ASC,tag2@1 ASC]"
             - "     FilterExec: tag1@0 = foo AND tag1@0 = tag2@1 AND true"
-            - "       EmptyExec: produce_one_row=true"
+            - "       PlaceholderRowExec"
         "###
         );
     }

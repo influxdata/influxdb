@@ -65,6 +65,41 @@ impl U64Histogram {
             state.total = state.total.wrapping_add(value * count);
         }
     }
+
+    pub fn reset(&self) {
+        let mut state = self.shared.lock();
+        for bucket in &mut state.buckets {
+            bucket.count = 0;
+        }
+        state.total = 0;
+    }
+
+    /// percentile returns the bucket threshold for the given percentile.
+    /// For example, if you want the median value, percentile(50) will return the 'le' threshold
+    /// for the histogram bucket that contains the median sample.
+    ///
+    /// A use case for for this function is:
+    ///     Use a histogram tracks the load placed on a system.
+    ///     Set the buckets so they represent load levels of idle/low/medium/high/overloaded.
+    ///     Then use percentile to determine how much of the time is spent at various load levels.
+    ///  e.g. if percentile(50) comes come back with the low load threshold, the median load on the system is low
+    pub fn percentile(&self, percentile: u64) -> u64 {
+        let state = self.shared.lock();
+
+        // we need the total quantity of samples, not the sum of samples.
+        let total: u64 = state.buckets.iter().map(|bucket| bucket.count).sum();
+
+        let target = total * percentile / 100;
+
+        let mut sum = 0;
+        for bucket in &state.buckets {
+            sum += bucket.count;
+            if sum >= target {
+                return bucket.le;
+            }
+        }
+        0
+    }
 }
 
 impl MakeMetricObserver for U64Histogram {
@@ -162,5 +197,61 @@ mod tests {
         histogram.record(0);
 
         assert_eq!(histogram.observe(), buckets(&[2, 1, 1], 80));
+
+        // Now test the percentile reporting function
+        let options = U64HistogramOptions::new(vec![0, 1, 2, 4, 8, 16, 32, u64::MAX]);
+        let histogram = U64Histogram::create(&options);
+
+        histogram.record(0); // bucket 0, le 0
+        histogram.record(2); // bucket 2, le 2
+        histogram.record(3); // bucket 3, le 4
+        histogram.record(3); // bucket 3, le 4
+        histogram.record(20); // bucket 6, le 32
+        histogram.record(20000); // bucket 7, le u64::MAX
+        histogram.record(20000); // bucket 7, le u64::MAX
+        histogram.record(20000); // bucket 7, le u64::MAX
+        histogram.record(20000); // bucket 7, le u64::MAX
+        histogram.record(20000); // bucket 7, le u64::MAX
+
+        // Of the 10 samples above:
+        // 1 (10%) is in bucket 0, le 0
+        // 1 (10%) is in bucket 2, le 2
+        // 2 (20%) are in bucket 3, le 4
+        // 1 (10%) is in bucket 6, le 32
+        // 5 (50%) are in bucket 7, le u64::MAX
+
+        // request percentiles falling in bucket 0, le 0
+        assert_eq!(histogram.percentile(3), 0);
+        assert_eq!(histogram.percentile(10), 0);
+        assert_eq!(histogram.percentile(19), 0);
+
+        // request percentiles falling in bucket 2, le 2
+        assert_eq!(histogram.percentile(20), 2);
+        assert_eq!(histogram.percentile(29), 2);
+
+        // requests percentiles falling in bucket 3, le 4
+        assert_eq!(histogram.percentile(30), 4);
+        assert_eq!(histogram.percentile(49), 4);
+
+        // requests percentiles falling in bucket 6, le 32
+        assert_eq!(histogram.percentile(50), 32);
+        assert_eq!(histogram.percentile(59), 32);
+
+        // requests percentiles falling in bucket 6, le 32
+        assert_eq!(histogram.percentile(60), u64::MAX);
+        assert_eq!(histogram.percentile(80), u64::MAX);
+        assert_eq!(histogram.percentile(100), u64::MAX);
+
+        // test reset
+        histogram.reset();
+        assert_eq!(histogram.percentile(100), 0);
+        histogram.record(1); // bucket 1, le 1
+        histogram.record(2); // bucket 2, le 2
+        histogram.record(3); // bucket 3, le 4
+        histogram.record(3); // bucket 3, le 4
+        assert_eq!(histogram.percentile(0), 0);
+        assert_eq!(histogram.percentile(25), 1);
+        assert_eq!(histogram.percentile(49), 1);
+        assert_eq!(histogram.percentile(50), 2);
     }
 }

@@ -23,7 +23,7 @@ use datafusion::common::{DataFusionError, Statistics};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
-use iox_catalog::TIME_COLUMN;
+use iox_catalog::constants::TIME_COLUMN;
 use iox_query::chunk_statistics::{create_chunk_statistics, ColumnRange};
 use iox_query::{QueryChunk, QueryChunkData};
 use observability_deps::tracing::{debug, info};
@@ -146,13 +146,13 @@ impl<W: Wal> WriteBufferImpl<W> {
             let batch = partition_buffer.rows_to_record_batch(&schema, table.columns());
             let column_ranges = Arc::new(partition_buffer.column_ranges);
             let batch_stats = create_chunk_statistics(
-                partition_buffer.rows.len() as u64,
+                Some(partition_buffer.rows.len()),
                 &schema,
                 Some(TimestampMinMax {
                     min: partition_buffer.timestamp_min,
                     max: partition_buffer.timestamp_max,
                 }),
-                &column_ranges,
+                Some(&column_ranges),
             );
 
             let chunk = BufferChunk {
@@ -243,12 +243,12 @@ impl PartitionBuffer {
     fn rows_to_record_batch(
         &self,
         schema: &Schema,
-        column_types: &BTreeMap<String, ColumnType>,
+        column_types: &BTreeMap<String, i16>,
     ) -> RecordBatch {
         let row_count = self.rows.len();
         let mut columns = BTreeMap::new();
         for (name, column_type) in column_types {
-            match column_type {
+            match ColumnType::try_from(*column_type).unwrap() {
                 ColumnType::Bool => columns.insert(
                     name,
                     Builder::Bool(BooleanBuilder::with_capacity(row_count)),
@@ -493,13 +493,13 @@ fn validate_and_convert_parsed_line(
             if let Some(tagset) = &line.series.tag_set {
                 for (tag_key, _) in tagset {
                     if !t.column_exists(tag_key.as_str()) {
-                        new_cols.push((tag_key.to_string(), ColumnType::Tag));
+                        new_cols.push((tag_key.to_string(), ColumnType::Tag as i16));
                     }
                 }
             }
             for (field_name, value) in &line.field_set {
                 if !t.column_exists(field_name.as_str()) {
-                    new_cols.push((field_name.to_string(), column_type_from_field(value)));
+                    new_cols.push((field_name.to_string(), column_type_from_field(value) as i16));
                 }
             }
 
@@ -512,14 +512,14 @@ fn validate_and_convert_parsed_line(
             let mut columns = BTreeMap::new();
             if let Some(tag_set) = &line.series.tag_set {
                 for (tag_key, _) in tag_set {
-                    columns.insert(tag_key.to_string(), ColumnType::Tag);
+                    columns.insert(tag_key.to_string(), ColumnType::Tag as i16);
                 }
             }
             for (field_name, value) in &line.field_set {
-                columns.insert(field_name.to_string(), column_type_from_field(value));
+                columns.insert(field_name.to_string(), column_type_from_field(value) as i16);
             }
 
-            columns.insert(TIME_COLUMN.to_string(), ColumnType::Time);
+            columns.insert(TIME_COLUMN.to_string(), ColumnType::Time as i16);
 
             let table = TableDefinition::new(table_name, columns);
 

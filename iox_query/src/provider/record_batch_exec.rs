@@ -1,17 +1,19 @@
 //! Implementation of a DataFusion PhysicalPlan node across partition chunks
 
-use crate::{statistics::DFStatsAggregator, QueryChunk, CHUNK_ORDER_COLUMN_NAME};
+use crate::statistics::build_statistics_for_chunks;
+use crate::{QueryChunk, CHUNK_ORDER_COLUMN_NAME};
 
 use super::adapter::SchemaAdapterStream;
-use arrow::datatypes::{Schema, SchemaRef};
+use arrow::datatypes::SchemaRef;
+use datafusion::physical_plan::display::ProjectSchemaDisplay;
 use datafusion::{
     error::DataFusionError,
     execution::context::TaskContext,
     physical_plan::{
         expressions::{Column, PhysicalSortExpr},
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
-        ColumnStatistics, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-        SendableRecordBatchStream, Statistics,
+        DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+        Statistics,
     },
     scalar::ScalarValue,
 };
@@ -55,40 +57,10 @@ impl RecordBatchesExec {
         schema: SchemaRef,
         output_sort_key_memo: Option<SortKey>,
     ) -> Self {
-        let chunk_order_field = schema.field_with_name(CHUNK_ORDER_COLUMN_NAME).ok();
-        let chunk_order_only_schema =
-            chunk_order_field.map(|field| Schema::new(vec![field.clone()]));
-
         let chunks: Vec<_> = chunks.into_iter().collect();
+        let statistics = build_statistics_for_chunks(&chunks, Arc::clone(&schema));
 
-        let statistics = chunks
-            .iter()
-            .fold(DFStatsAggregator::new(&schema), |mut agg, chunk| {
-                agg.update(&chunk.stats(), chunk.schema().as_arrow().as_ref());
-
-                if let Some(schema) = chunk_order_only_schema.as_ref() {
-                    let order = chunk.order().get();
-                    let order = ScalarValue::from(order);
-                    agg.update(
-                        &Statistics {
-                            num_rows: Some(0),
-                            total_byte_size: Some(0),
-                            column_statistics: Some(vec![ColumnStatistics {
-                                null_count: Some(0),
-                                max_value: Some(order.clone()),
-                                min_value: Some(order),
-                                distinct_count: Some(1),
-                            }]),
-                            is_exact: true,
-                        },
-                        schema,
-                    );
-                }
-
-                agg
-            })
-            .build();
-
+        let chunk_order_field = schema.field_with_name(CHUNK_ORDER_COLUMN_NAME).ok();
         let output_ordering = if chunk_order_field.is_some() {
             Some(vec![
                 // every chunk gets its own partition, so we can claim that the output is ordered
@@ -199,8 +171,8 @@ impl ExecutionPlan for RecordBatchesExec {
         Some(self.metrics.clone_inner())
     }
 
-    fn statistics(&self) -> Statistics {
-        self.statistics.clone()
+    fn statistics(&self) -> Result<Statistics, DataFusionError> {
+        Ok(self.statistics.clone())
     }
 }
 
@@ -208,7 +180,11 @@ impl DisplayAs for RecordBatchesExec {
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match t {
             DisplayFormatType::Default | DisplayFormatType::Verbose => {
-                write!(f, "RecordBatchesExec: chunks={}", self.chunks.len(),)
+                write!(f, "RecordBatchesExec: chunks={}", self.chunks.len(),)?;
+                if !self.schema.fields().is_empty() {
+                    write!(f, ", projection={}", ProjectSchemaDisplay(&self.schema))?;
+                }
+                Ok(())
             }
         }
     }

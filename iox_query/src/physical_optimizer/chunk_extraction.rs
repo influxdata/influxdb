@@ -5,8 +5,8 @@ use datafusion::{
     datasource::physical_plan::ParquetExec,
     error::DataFusionError,
     physical_plan::{
-        empty::EmptyExec, union::UnionExec, visit_execution_plan, ExecutionPlan,
-        ExecutionPlanVisitor,
+        empty::EmptyExec, placeholder_row::PlaceholderRowExec, union::UnionExec,
+        visit_execution_plan, ExecutionPlan, ExecutionPlanVisitor,
     },
 };
 use observability_deps::tracing::debug;
@@ -141,14 +141,12 @@ impl ExecutionPlanVisitor for ExtractChunksVisitor {
                     self.add_chunk(Arc::clone(&ext.chunk));
                 }
             }
-        } else if let Some(empty_exec) = plan_any.downcast_ref::<EmptyExec>() {
+        } else if plan_any.downcast_ref::<PlaceholderRowExec>().is_some() {
             // should not produce dummy data
-            if empty_exec.produce_one_row() {
-                return Err(DataFusionError::External(
-                    String::from("EmptyExec produces row").into(),
-                ));
-            }
-
+            return Err(DataFusionError::External(
+                String::from("EmptyExec produces row").into(),
+            ));
+        } else if let Some(empty_exec) = plan_any.downcast_ref::<EmptyExec>() {
             self.add_schema_from_exec(empty_exec).map_err(|e| {
                 DataFusionError::Context("add schema from EmptyExec".to_owned(), Box::new(e))
             })?;
@@ -228,8 +226,8 @@ mod tests {
         let schema1 = iox_schema.as_arrow();
         let schema2 = iox_schema.select_by_indices(&[]).as_arrow();
         let plan = UnionExec::new(vec![
-            Arc::new(EmptyExec::new(false, schema1)),
-            Arc::new(EmptyExec::new(false, schema2)),
+            Arc::new(EmptyExec::new(schema1)),
+            Arc::new(EmptyExec::new(schema2)),
         ]);
         assert!(extract_chunks(&plan).is_none());
     }
@@ -237,7 +235,7 @@ mod tests {
     #[test]
     fn test_empty_exec_with_rows() {
         let schema = chunk(1).schema().as_arrow();
-        let plan = EmptyExec::new(true, schema);
+        let plan = PlaceholderRowExec::new(schema);
         assert!(extract_chunks(&plan).is_none());
     }
 
@@ -248,7 +246,7 @@ mod tests {
             DataType::Float64,
             true,
         )]));
-        let plan = EmptyExec::new(false, Arc::clone(&schema));
+        let plan = EmptyExec::new(Arc::clone(&schema));
         let (schema2, chunks, sort_key) = extract_chunks(&plan).unwrap();
         assert_eq!(schema, schema2);
         assert!(chunks.is_empty());
@@ -274,7 +272,7 @@ mod tests {
         let schema = chunk1.schema().as_arrow();
         let plan = chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk1)], 2);
         let plan = FilterExec::try_new(
-            df_physical_expr(plan.as_ref(), col("tag1").eq(lit("foo"))).unwrap(),
+            df_physical_expr(plan.schema(), col("tag1").eq(lit("foo"))).unwrap(),
             plan,
         )
         .unwrap();

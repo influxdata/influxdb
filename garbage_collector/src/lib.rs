@@ -80,10 +80,10 @@ impl GarbageCollector {
 
         let dry_run = sub_config.dry_run;
         info!(
-            objectstore_cutoff_days = %format_duration(sub_config.objectstore_cutoff).to_string(),
-            parquetfile_cutoff_days = %format_duration(sub_config.parquetfile_cutoff).to_string(),
+            objectstore_cutoff = %format_duration(sub_config.objectstore_cutoff),
+            parquetfile_cutoff = %format_duration(sub_config.parquetfile_cutoff),
+            parquetfile_sleep_interval = %format_duration(sub_config.parquetfile_sleep_interval()),
             objectstore_sleep_interval_minutes = %sub_config.objectstore_sleep_interval_minutes,
-            parquetfile_sleep_interval_minutes = %sub_config.parquetfile_sleep_interval_minutes,
             retention_sleep_interval_minutes = %sub_config.retention_sleep_interval_minutes,
             "GarbageCollector starting"
         );
@@ -149,7 +149,6 @@ impl GarbageCollector {
             shutdown.clone(),
             object_store,
             dry_run,
-            sub_config.objectstore_concurrent_deletes,
             rx2,
         ));
 
@@ -159,7 +158,7 @@ impl GarbageCollector {
             shutdown.clone(),
             Arc::clone(&catalog),
             sub_config.parquetfile_cutoff,
-            sub_config.parquetfile_sleep_interval_minutes,
+            sub_config.parquetfile_sleep_interval(),
         ));
 
         // Initialise the retention code, which is just one thread that calls
@@ -287,6 +286,7 @@ mod tests {
         object_store::{make_object_store, ObjectStoreConfig},
     };
     use filetime::FileTime;
+    use iox_time::SystemProvider;
     use std::{fs, iter, path::PathBuf, time::Duration};
     use tempfile::TempDir;
     use tokio::time::sleep;
@@ -369,8 +369,11 @@ mod tests {
         ]);
 
         let metrics = metric::Registry::default().into();
+        let time_provider = Arc::new(SystemProvider::new());
 
-        cfg.get_catalog("garbage_collector", metrics).await.unwrap()
+        cfg.get_catalog("garbage_collector", metrics, time_provider)
+            .await
+            .unwrap()
     }
 
     struct OldFileSetup {

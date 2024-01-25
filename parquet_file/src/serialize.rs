@@ -213,7 +213,7 @@ mod tests {
         record_batch::RecordBatch,
     };
     use bytes::Bytes;
-    use data_types::{CompactionLevel, NamespaceId, TableId};
+    use data_types::{CompactionLevel, NamespaceId, ObjectStoreId, TableId};
     use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
     use datafusion_util::{unbounded_memory_pool, MemoryStream};
     use iox_time::Time;
@@ -222,7 +222,7 @@ mod tests {
     #[tokio::test]
     async fn test_encode_stream() {
         let meta = IoxMetadata {
-            object_store_id: Default::default(),
+            object_store_id: ObjectStoreId::new(),
             creation_timestamp: Time::from_timestamp_nanos(42),
             namespace_id: NamespaceId::new(1),
             namespace_name: "bananas".into(),

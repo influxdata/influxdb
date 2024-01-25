@@ -11,11 +11,14 @@
     clippy::dbg_macro,
     unused_crate_dependencies
 )]
+#![allow(unreachable_pub)]
 
 use datafusion_util::MemoryStream;
 use futures::TryStreamExt;
-use trace::ctx::SpanContext;
+use query_log::{QueryCompletedToken, QueryText, StateReceived};
+use trace::{ctx::SpanContext, span::Span};
 
+use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -45,6 +48,7 @@ pub mod physical_optimizer;
 pub mod plan;
 pub mod provider;
 pub mod pruning;
+pub mod query_log;
 pub mod statistics;
 pub mod util;
 
@@ -98,54 +102,6 @@ pub trait QueryChunk: Debug + Send + Sync + 'static {
     fn as_any(&self) -> &dyn Any;
 }
 
-/// A `QueryCompletedToken` is returned by `record_query` implementations of
-/// a `QueryNamespace`. It is used to trigger side-effects (such as query timing)
-/// on query completion.
-///
-pub struct QueryCompletedToken {
-    /// If this query completed successfully
-    success: bool,
-
-    /// Function invoked when the token is dropped. It is passed the
-    /// vaue of `self.success`
-    f: Option<Box<dyn FnOnce(bool) + Send>>,
-}
-
-impl Debug for QueryCompletedToken {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("QueryCompletedToken")
-            .field("success", &self.success)
-            .finish()
-    }
-}
-
-impl QueryCompletedToken {
-    pub fn new(f: impl FnOnce(bool) + Send + 'static) -> Self {
-        Self {
-            success: false,
-            f: Some(Box::new(f)),
-        }
-    }
-
-    /// Record that this query completed successfully
-    pub fn set_success(&mut self) {
-        self.success = true;
-    }
-}
-
-impl Drop for QueryCompletedToken {
-    fn drop(&mut self) {
-        if let Some(f) = self.f.take() {
-            (f)(self.success)
-        }
-    }
-}
-
-/// Boxed description of a query that knows how to render to a string
-///
-/// This avoids storing potentially large strings
-pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
-
 /// `QueryNamespace` is the main trait implemented by the IOx subsystems that store actual data.
 ///
 /// Namespaces store data organized by partitions and each partition stores data in Chunks.
@@ -186,10 +142,31 @@ pub trait QueryNamespace: Debug + Send + Sync {
         span_ctx: Option<&SpanContext>,
         query_type: &'static str,
         query_text: QueryText,
-    ) -> QueryCompletedToken;
+    ) -> QueryCompletedToken<StateReceived>;
 
     /// Returns a new execution context suitable for running queries
     fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext;
+}
+
+/// Trait that allows the query engine (which includes flight and storage/InfluxRPC) to access a
+/// virtual set of namespaces.
+///
+/// This is the only entry point for the query engine. This trait and the traits reachable by it (e.g.
+/// [`QueryNamespace`]) are the only wait to access the catalog and payload data.
+#[async_trait]
+pub trait QueryNamespaceProvider: std::fmt::Debug + Send + Sync + 'static {
+    /// Get namespace if it exists.
+    ///
+    /// System tables may contain debug information depending on `include_debug_info_tables`.
+    async fn db(
+        &self,
+        name: &str,
+        span: Option<Span>,
+        include_debug_info_tables: bool,
+    ) -> Option<Arc<dyn QueryNamespace>>;
+
+    /// Acquire concurrency-limiting sempahore
+    async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit;
 }
 
 /// Raw data of a [`QueryChunk`].
@@ -234,110 +211,6 @@ impl std::fmt::Debug for QueryChunkData {
             Self::Parquet(input) => f.debug_tuple("Parquet").field(input).finish(),
         }
     }
-}
-
-impl<P> QueryChunk for Arc<P>
-where
-    P: QueryChunk,
-{
-    fn stats(&self) -> Arc<Statistics> {
-        self.as_ref().stats()
-    }
-
-    fn schema(&self) -> &Schema {
-        self.as_ref().schema()
-    }
-
-    fn partition_id(&self) -> &TransitionPartitionId {
-        self.as_ref().partition_id()
-    }
-
-    fn sort_key(&self) -> Option<&SortKey> {
-        self.as_ref().sort_key()
-    }
-
-    fn id(&self) -> ChunkId {
-        self.as_ref().id()
-    }
-
-    fn may_contain_pk_duplicates(&self) -> bool {
-        self.as_ref().may_contain_pk_duplicates()
-    }
-
-    fn data(&self) -> QueryChunkData {
-        self.as_ref().data()
-    }
-
-    fn chunk_type(&self) -> &str {
-        self.as_ref().chunk_type()
-    }
-
-    fn order(&self) -> ChunkOrder {
-        self.as_ref().order()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        // present the underlying implementation, not the wrapper
-        self.as_ref().as_any()
-    }
-}
-
-impl QueryChunk for Arc<dyn QueryChunk> {
-    fn stats(&self) -> Arc<Statistics> {
-        self.as_ref().stats()
-    }
-
-    fn schema(&self) -> &Schema {
-        self.as_ref().schema()
-    }
-
-    fn partition_id(&self) -> &TransitionPartitionId {
-        self.as_ref().partition_id()
-    }
-
-    fn sort_key(&self) -> Option<&SortKey> {
-        self.as_ref().sort_key()
-    }
-
-    fn id(&self) -> ChunkId {
-        self.as_ref().id()
-    }
-
-    fn may_contain_pk_duplicates(&self) -> bool {
-        self.as_ref().may_contain_pk_duplicates()
-    }
-
-    fn data(&self) -> QueryChunkData {
-        self.as_ref().data()
-    }
-
-    fn chunk_type(&self) -> &str {
-        self.as_ref().chunk_type()
-    }
-
-    fn order(&self) -> ChunkOrder {
-        self.as_ref().order()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        // present the underlying implementation, not the wrapper
-        self.as_ref().as_any()
-    }
-}
-
-/// return true if all the chunks include distinct counts for all columns.
-pub fn chunks_have_distinct_counts<'a>(
-    chunks: impl IntoIterator<Item = &'a Arc<dyn QueryChunk>>,
-) -> bool {
-    // If at least one of the provided chunk cannot provide stats,
-    // do not need to compute potential duplicates. We will treat
-    // as all of them have duplicates
-    chunks.into_iter().all(|chunk| {
-        let Some(col_stats) = &chunk.stats().column_statistics else {
-            return false;
-        };
-        col_stats.iter().all(|col| col.distinct_count.is_some())
-    })
 }
 
 // Note: I would like to compile this module only in the 'test' cfg,

@@ -46,6 +46,8 @@ serde_urlencoded = "0.7.0"
 tower = "0.4.13"
 flate2 = "1.0.27"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
+arrow-json = "49.0.0"
+arrow-schema = "49.0.0"
 
 [dev-dependencies]
 parquet_file = { path = "../parquet_file" }

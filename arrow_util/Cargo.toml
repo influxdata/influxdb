@@ -6,22 +6,24 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 ahash = { version = "0.8", default-features = false, features = ["runtime-rng"] }
-# need dyn_cmp_dict feature for comparing dictionary arrays
-arrow = { workspace = true, features = ["prettyprint", "dyn_cmp_dict"] }
+arrow = { workspace = true }
 # used by arrow anyway (needed for printing workaround)
 chrono = { version = "0.4", default-features = false }
-comfy-table = { version = "7.0", default-features = false }
+comfy-table = { version = "7.1", default-features = false }
 hashbrown = { workspace = true }
 num-traits = "0.2"
-once_cell = { version = "1.18", features = ["parking_lot"] }
-regex = "1.9.5"
-snafu = "0.7"
+once_cell = { version = "1.19", features = ["parking_lot"] }
+regex = "1.10.2"
+snafu = "0.8"
 uuid = "1"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
-
 [dev-dependencies]
 datafusion = { workspace = true }
+proptest = { version = "1.4.0", default-features = false, features = ["std"] }
 rand = "0.8.3"

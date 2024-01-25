@@ -56,12 +56,15 @@ impl TryFrom<Span> for jaeger::Span {
 
         let tags = match s.metadata.is_empty() {
             true => None,
-            false => Some(
-                s.metadata
-                    .into_iter()
-                    .map(|(name, value)| tag_from_meta(name.to_string(), value))
-                    .collect(),
-            ),
+            false => {
+                let mut md = s.metadata.into_iter().collect::<Vec<_>>();
+                md.sort_by(|(k1, _v1), (k2, _v2)| k1.cmp(k2));
+                Some(
+                    md.into_iter()
+                        .map(|(name, value)| tag_from_meta(name.to_string(), value))
+                        .collect(),
+                )
+            }
         };
 
         let logs = match s.events.is_empty() {
@@ -115,11 +118,14 @@ impl TryFrom<SpanEvent> for jaeger::Log {
     type Error = String;
 
     fn try_from(event: SpanEvent) -> Result<Self, Self::Error> {
+        let mut md = event.metadata.into_iter().collect::<Vec<_>>();
+        md.sort_by(|(k1, _v1), (k2, _v2)| k1.cmp(k2));
+
         Ok(Self {
             timestamp: event.time.timestamp_nanos_opt().ok_or_else(|| {
                 format!("timestamp cannot be represented as nanos: {}", event.time)
             })? / 1000,
-            fields: vec![jaeger::Tag {
+            fields: std::iter::once(jaeger::Tag {
                 key: "event".to_string(),
                 v_type: jaeger::TagType::String,
                 v_str: Some(event.msg.to_string()),
@@ -127,7 +133,9 @@ impl TryFrom<SpanEvent> for jaeger::Log {
                 v_bool: None,
                 v_long: None,
                 v_binary: None,
-            }],
+            })
+            .chain(md.into_iter().map(|(k, v)| tag_from_meta(k.to_string(), v)))
+            .collect(),
         })
     }
 }

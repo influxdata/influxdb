@@ -19,7 +19,8 @@ use data_types::{
     IsNan, StatValues, Statistics,
 };
 use hashbrown::HashSet;
-use mutable_batch::{writer::Writer, MutableBatch, PartitionWrite, WritePayload};
+use mutable_batch::{writer::Writer, MutableBatch, WritePayload};
+use partition::PartitionWrite;
 use rand::prelude::*;
 use schema::Projection;
 use std::{collections::BTreeMap, num::NonZeroU64, ops::Range, sync::Arc};
@@ -416,7 +417,7 @@ fn test_partition_write() {
     let mut batch = MutableBatch::new();
     let expected = extend_batch(&mut rng, &mut batch);
 
-    let w = PartitionWrite::new(&batch);
+    let w = PartitionWrite::new(&batch).unwrap();
     assert_eq!(w.rows().get(), expected.tag_expected.len());
 
     let verify_write = |write: &PartitionWrite<'_>| {

@@ -19,6 +19,7 @@ fn main() -> Result<()> {
 /// Creates:
 ///
 /// - `influxdata.iox.authz.v1.rs`
+/// - `influxdata.iox.bulk_ingest.v1.rs`
 /// - `influxdata.iox.catalog.v1.rs`
 /// - `influxdata.iox.compactor.v1.rs`
 /// - `influxdata.iox.delete.v1.rs`
@@ -34,7 +35,11 @@ fn main() -> Result<()> {
 /// - `influxdata.platform.storage.rs`
 fn generate_grpc_types(root: &Path) -> Result<()> {
     let authz_path = root.join("influxdata/iox/authz/v1");
-    let catalog_path = root.join("influxdata/iox/catalog/v1");
+    let bulk_ingest_path = root.join("influxdata/iox/bulk_ingest/v1");
+    let catalog_cache_path = root.join("influxdata/iox/catalog_cache/v1");
+    let catalog_v1_path = root.join("influxdata/iox/catalog/v1");
+    let catalog_v2_path = root.join("influxdata/iox/catalog/v2");
+    let column_type = root.join("influxdata/iox/column_type/v1");
     let compactor_path = root.join("influxdata/iox/compactor/v1");
     let delete_path = root.join("influxdata/iox/delete/v1");
     let gossip_path = root.join("influxdata/iox/gossip/v1");
@@ -45,6 +50,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let predicate_path = root.join("influxdata/iox/predicate/v1");
     let querier_path = root.join("influxdata/iox/querier/v1");
     let schema_path = root.join("influxdata/iox/schema/v1");
+    let skipped_compaction_path = root.join("influxdata/iox/skipped_compaction/v1");
     let storage_errors_path = root.join("influxdata/platform/errors");
     let storage_path = root.join("influxdata/platform/storage");
     let table_path = root.join("influxdata/iox/table/v1");
@@ -52,15 +58,20 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
 
     let proto_files = vec![
         authz_path.join("authz.proto"),
-        catalog_path.join("parquet_file.proto"),
-        catalog_path.join("partition_identifier.proto"),
-        catalog_path.join("service.proto"),
+        bulk_ingest_path.join("service.proto"),
+        catalog_cache_path.join("value.proto"),
+        catalog_v1_path.join("parquet_file.proto"),
+        catalog_v1_path.join("partition_identifier.proto"),
+        catalog_v1_path.join("service.proto"),
+        catalog_v2_path.join("service.proto"),
+        column_type.join("type.proto"),
         compactor_path.join("service.proto"),
         delete_path.join("service.proto"),
         gossip_path.join("compaction.proto"),
         gossip_path.join("parquet_file.proto"),
         gossip_path.join("schema.proto"),
         gossip_path.join("schema_sync.proto"),
+        gossip_path.join("sort_keys.proto"),
         ingester_path.join("parquet_metadata.proto"),
         ingester_path.join("persist.proto"),
         ingester_path.join("write.proto"),
@@ -69,12 +80,14 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         partition_template_path.join("template.proto"),
         predicate_path.join("predicate.proto"),
         querier_path.join("flight.proto"),
+        querier_path.join("query_log.proto"),
         root.join("google/longrunning/operations.proto"),
         root.join("google/rpc/error_details.proto"),
         root.join("google/rpc/status.proto"),
         root.join("grpc/health/v1/service.proto"),
         root.join("influxdata/pbdata/v1/influxdb_pb_data_protocol.proto"),
         schema_path.join("service.proto"),
+        skipped_compaction_path.join("skipped_compaction.proto"),
         storage_errors_path.join("errors.proto"),
         storage_path.join("predicate.proto"),
         storage_path.join("service.proto"),
@@ -98,8 +111,10 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         .extern_path(".google.protobuf", "::pbjson_types")
         .btree_map([
             ".influxdata.iox.ingester.v1.IngesterQueryResponseMetadata.unpersisted_partitions",
+            ".influxdata.iox.schema.v1.UpsertSchemaRequest.columns",
         ])
-        .type_attribute(".influxdata.iox.partition_template", "#[derive(Hash)]");
+        .type_attribute(".influxdata.iox.partition_template", "#[derive(Hash)]")
+        .bytes([".influxdata.iox.catalog_cache.v1"]);
 
     let descriptor_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("proto_descriptor.bin");
     tonic_build::configure()

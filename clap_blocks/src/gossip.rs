@@ -1,6 +1,7 @@
 //! CLI config for cluster gossip communication.
 
 use crate::socket_addr::SocketAddr;
+use std::str::FromStr;
 
 /// Configuration parameters for the cluster gossip communication mechanism.
 #[derive(Debug, Clone, clap::Parser)]
@@ -32,18 +33,20 @@ pub struct GossipConfig {
     #[clap(
         long = "gossip-bind-address",
         env = "INFLUXDB_IOX_GOSSIP_BIND_ADDR",
-        requires = "seed_list", // Field name, not flag
+        default_value = "0.0.0.0:4242",
+        required = false,
         action
     )]
-    pub gossip_bind_address: Option<SocketAddr>,
+    pub gossip_bind_address: SocketAddr,
 }
 
 impl GossipConfig {
-    /// Initialise the gossip config to be disabled.
-    pub fn disabled() -> Self {
+    /// constructor for GossipConfig
+    ///
+    pub fn new(bind_address: &str, seed_list: Vec<String>) -> Self {
         Self {
-            seed_list: vec![],
-            gossip_bind_address: None,
+            seed_list,
+            gossip_bind_address: SocketAddr::from_str(bind_address).unwrap(),
         }
     }
 }

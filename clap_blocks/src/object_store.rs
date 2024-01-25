@@ -1,15 +1,19 @@
 //! CLI handling for object store config (via CLI arguments and environment variables).
 
 use futures::TryStreamExt;
-use object_store::memory::InMemory;
-use object_store::path::Path;
-use object_store::throttle::ThrottledStore;
-use object_store::{throttle::ThrottleConfig, DynObjectStore};
+use non_empty_string::NonEmptyString;
+use object_store::{
+    memory::InMemory,
+    path::Path,
+    throttle::{ThrottleConfig, ThrottledStore},
+    DynObjectStore,
+};
 use observability_deps::tracing::{info, warn};
 use snafu::{ResultExt, Snafu};
-use std::sync::Arc;
-use std::{fs, num::NonZeroUsize, path::PathBuf, time::Duration};
+use std::{convert::Infallible, fs, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 use uuid::Uuid;
+
+use crate::parquet_cache::ParquetCacheClientConfig;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
@@ -53,6 +57,12 @@ pub enum ParseError {
 /// specified.
 pub const FALLBACK_AWS_REGION: &str = "us-east-1";
 
+/// A `clap` `value_parser` which returns `None` when given an empty string and
+/// `Some(NonEmptyString)` otherwise.
+fn parse_optional_string(s: &str) -> Result<Option<NonEmptyString>, Infallible> {
+    Ok(NonEmptyString::new(s.to_string()).ok())
+}
+
 /// CLI config for object stores.
 #[derive(Debug, Clone, clap::Parser)]
 pub struct ObjectStoreConfig {
@@ -74,7 +84,8 @@ pub struct ObjectStoreConfig {
         long = "object-store",
         env = "INFLUXDB_IOX_OBJECT_STORE",
         ignore_case = true,
-        action
+        action,
+        verbatim_doc_comment
     )]
     pub object_store: Option<ObjectStoreType>,
 
@@ -108,8 +119,11 @@ pub struct ObjectStoreConfig {
     ///
     /// Prefer the environment variable over the command line flag in shared
     /// environments.
-    #[clap(long = "aws-access-key-id", env = "AWS_ACCESS_KEY_ID", action)]
-    pub aws_access_key_id: Option<String>,
+    ///
+    /// An empty string value is equivalent to omitting the flag.
+    /// Note: must refer to std::option::Option explicitly, see <https://github.com/clap-rs/clap/issues/4626>
+    #[clap(long = "aws-access-key-id", env = "AWS_ACCESS_KEY_ID", value_parser = parse_optional_string, default_value="", action)]
+    pub aws_access_key_id: std::option::Option<NonEmptyString>,
 
     /// When using Amazon S3 as the object store, set this to the secret access
     /// key that goes with the specified access key ID.
@@ -119,8 +133,11 @@ pub struct ObjectStoreConfig {
     ///
     /// Prefer the environment variable over the command line flag in shared
     /// environments.
-    #[clap(long = "aws-secret-access-key", env = "AWS_SECRET_ACCESS_KEY", action)]
-    pub aws_secret_access_key: Option<String>,
+    ///
+    /// An empty string value is equivalent to omitting the flag.
+    /// Note: must refer to std::option::Option explicitly, see <https://github.com/clap-rs/clap/issues/4626>
+    #[clap(long = "aws-secret-access-key", env = "AWS_SECRET_ACCESS_KEY", value_parser = parse_optional_string, default_value = "", action)]
+    pub aws_secret_access_key: std::option::Option<NonEmptyString>,
 
     /// When using Amazon S3 as the object store, set this to the region
     /// that goes with the specified bucket if different from the fallback
@@ -203,6 +220,10 @@ pub struct ObjectStoreConfig {
         action
     )]
     pub object_store_connection_limit: NonZeroUsize,
+
+    /// Optional config for the cache client.
+    #[clap(flatten)]
+    pub cache_config: Option<ParquetCacheClientConfig>,
 }
 
 impl ObjectStoreConfig {
@@ -229,6 +250,7 @@ impl ObjectStoreConfig {
             google_service_account: Default::default(),
             object_store,
             object_store_connection_limit: NonZeroUsize::new(16).unwrap(),
+            cache_config: Default::default(),
         }
     }
 }
@@ -284,10 +306,24 @@ fn new_gcs(_: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
 
 #[cfg(feature = "aws")]
 fn new_s3(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
-    use object_store::aws::AmazonS3Builder;
     use object_store::limit::LimitStore;
 
-    info!(bucket=?config.bucket, endpoint=?config.aws_endpoint, object_store_type="S3", "Object Store");
+    info!(
+        bucket=?config.bucket,
+        endpoint=?config.aws_endpoint,
+        object_store_type="S3",
+        "Object Store"
+    );
+
+    Ok(Arc::new(LimitStore::new(
+        build_s3(config)?,
+        config.object_store_connection_limit.get(),
+    )))
+}
+
+#[cfg(feature = "aws")]
+fn build_s3(config: &ObjectStoreConfig) -> Result<object_store::aws::AmazonS3, ParseError> {
+    use object_store::aws::AmazonS3Builder;
 
     let mut builder = AmazonS3Builder::new()
         .with_allow_http(config.aws_allow_http)
@@ -298,22 +334,19 @@ fn new_s3(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError>
         builder = builder.with_bucket_name(bucket);
     }
     if let Some(key_id) = &config.aws_access_key_id {
-        builder = builder.with_access_key_id(key_id);
+        builder = builder.with_access_key_id(key_id.get());
     }
     if let Some(token) = &config.aws_session_token {
         builder = builder.with_token(token);
     }
     if let Some(secret) = &config.aws_secret_access_key {
-        builder = builder.with_secret_access_key(secret);
+        builder = builder.with_secret_access_key(secret.get());
     }
     if let Some(endpoint) = &config.aws_endpoint {
         builder = builder.with_endpoint(endpoint);
     }
 
-    Ok(Arc::new(LimitStore::new(
-        builder.build().context(InvalidS3ConfigSnafu)?,
-        config.object_store_connection_limit.get(),
-    )))
+    builder.build().context(InvalidS3ConfigSnafu)
 }
 
 #[cfg(not(feature = "aws"))]
@@ -361,10 +394,10 @@ pub fn make_object_store(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStor
         }
     }
 
-    match &config.object_store {
+    let remote_store: Arc<DynObjectStore> = match &config.object_store {
         Some(ObjectStoreType::Memory) | None => {
             info!(object_store_type = "Memory", "Object Store");
-            Ok(Arc::new(InMemory::new()))
+            Arc::new(InMemory::new())
         }
         Some(ObjectStoreType::MemoryThrottled) => {
             let config = ThrottleConfig {
@@ -384,12 +417,12 @@ pub fn make_object_store(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStor
             };
 
             info!(?config, object_store_type = "Memory", "Object Store");
-            Ok(Arc::new(ThrottledStore::new(InMemory::new(), config)))
+            Arc::new(ThrottledStore::new(InMemory::new(), config))
         }
 
-        Some(ObjectStoreType::Google) => new_gcs(config),
-        Some(ObjectStoreType::S3) => new_s3(config),
-        Some(ObjectStoreType::Azure) => new_azure(config),
+        Some(ObjectStoreType::Google) => new_gcs(config)?,
+        Some(ObjectStoreType::S3) => new_s3(config)?,
+        Some(ObjectStoreType::Azure) => new_azure(config)?,
         Some(ObjectStoreType::File) => match config.database_directory.as_ref() {
             Some(db_dir) => {
                 info!(?db_dir, object_store_type = "Directory", "Object Store");
@@ -398,15 +431,47 @@ pub fn make_object_store(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStor
 
                 let store = object_store::local::LocalFileSystem::new_with_prefix(db_dir)
                     .context(CreateLocalFileSystemSnafu { path: db_dir })?;
-                Ok(Arc::new(store))
+                Arc::new(store)
             }
             None => MissingObjectStoreConfigSnafu {
                 object_store: ObjectStoreType::File,
                 missing: "data-dir",
             }
-            .fail(),
+            .fail()?,
         },
+    };
+
+    if let Some(cache_config) = &config.cache_config {
+        let cache = parquet_cache::make_client(
+            cache_config.namespace_addr.clone(),
+            Arc::clone(&remote_store),
+        );
+        info!(?cache_config, "Parquet cache enabled");
+        Ok(cache)
+    } else {
+        Ok(remote_store)
     }
+}
+
+/// The `object_store::signer::Signer` trait is only implemented for AWS currently, so when the AWS
+/// feature is enabled and the configured object store is S3, return a signer.
+#[cfg(feature = "aws")]
+pub fn make_presigned_url_signer(
+    config: &ObjectStoreConfig,
+) -> Result<Option<Arc<dyn object_store::signer::Signer>>, ParseError> {
+    match &config.object_store {
+        Some(ObjectStoreType::S3) => Ok(Some(Arc::new(build_s3(config)?))),
+        _ => Ok(None),
+    }
+}
+
+/// The `object_store::signer::Signer` trait is only implemented for AWS currently, so if the AWS
+/// feature isn't enabled, don't return a signer.
+#[cfg(not(feature = "aws"))]
+pub fn make_presigned_url_signer(
+    _config: &ObjectStoreConfig,
+) -> Result<Option<Arc<dyn object_store::signer::Signer>>, ParseError> {
+    Ok(None)
 }
 
 #[derive(Debug, Snafu)]
@@ -425,10 +490,7 @@ pub async fn check_object_store(object_store: &DynObjectStore) -> Result<(), Che
     let prefix = Path::from_iter([uuid]);
 
     // create stream (this might fail if the store is not readable)
-    let mut stream = object_store
-        .list(Some(&prefix))
-        .await
-        .context(CannotReadObjectStoreSnafu)?;
+    let mut stream = object_store.list(Some(&prefix));
 
     // ... but sometimes it fails only if we use the resulting stream, so try that once
     stream
@@ -465,6 +527,14 @@ mod tests {
     }
 
     #[test]
+    fn default_url_signer_is_none() {
+        let config = ObjectStoreConfig::try_parse_from(["server"]).unwrap();
+
+        let signer = make_presigned_url_signer(&config).unwrap();
+        assert!(signer.is_none(), "Expected None, got {signer:?}");
+    }
+
+    #[test]
     #[cfg(feature = "aws")]
     fn valid_s3_config() {
         let config = ObjectStoreConfig::try_parse_from([
@@ -481,7 +551,10 @@ mod tests {
         .unwrap();
 
         let object_store = make_object_store(&config).unwrap();
-        assert_eq!(&object_store.to_string(), "AmazonS3(mybucket)")
+        assert_eq!(
+            &object_store.to_string(),
+            "LimitStore(16, AmazonS3(mybucket))"
+        )
     }
 
     #[test]
@@ -497,13 +570,73 @@ mod tests {
 
         assert_eq!(
             err,
-            "Specified S3 for the object store, required configuration missing for bucket"
+            "Error configuring Amazon S3: Generic S3 error: Missing bucket name"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "aws")]
+    fn valid_s3_url_signer() {
+        let config = ObjectStoreConfig::try_parse_from([
+            "server",
+            "--object-store",
+            "s3",
+            "--bucket",
+            "mybucket",
+            "--aws-access-key-id",
+            "NotARealAWSAccessKey",
+            "--aws-secret-access-key",
+            "NotARealAWSSecretAccessKey",
+        ])
+        .unwrap();
+
+        assert!(make_presigned_url_signer(&config).unwrap().is_some());
+
+        // Even with the aws feature on, any other object store shouldn't create a signer.
+        let root = TempDir::new().unwrap();
+        let root_path = root.path().to_str().unwrap();
+
+        let config = ObjectStoreConfig::try_parse_from([
+            "server",
+            "--object-store",
+            "file",
+            "--data-dir",
+            root_path,
+        ])
+        .unwrap();
+
+        let signer = make_presigned_url_signer(&config).unwrap();
+        assert!(signer.is_none(), "Expected None, got {signer:?}");
+    }
+
+    #[test]
+    #[cfg(feature = "aws")]
+    fn s3_url_signer_config_missing_params() {
+        let mut config =
+            ObjectStoreConfig::try_parse_from(["server", "--object-store", "s3"]).unwrap();
+
+        // clean out eventual leaks via env variables
+        config.bucket = None;
+
+        let err = make_presigned_url_signer(&config).unwrap_err().to_string();
+
+        assert_eq!(
+            err,
+            "Error configuring Amazon S3: Generic S3 error: Missing bucket name"
         );
     }
 
     #[test]
     #[cfg(feature = "gcp")]
     fn valid_google_config() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        let mut file = NamedTempFile::new().expect("tempfile should be created");
+        const FAKE_KEY: &str = r#"{"private_key": "private_key", "private_key_id": "private_key_id", "client_email":"client_email", "disable_oauth":true}"#;
+        writeln!(file, "{FAKE_KEY}").unwrap();
+        let path = file.path().to_str().expect("file path should exist");
+
         let config = ObjectStoreConfig::try_parse_from([
             "server",
             "--object-store",
@@ -511,12 +644,15 @@ mod tests {
             "--bucket",
             "mybucket",
             "--google-service-account",
-            "~/Not/A/Real/path.json",
+            path,
         ])
         .unwrap();
 
         let object_store = make_object_store(&config).unwrap();
-        assert_eq!(&object_store.to_string(), "GoogleCloudStorage(mybucket)")
+        assert_eq!(
+            &object_store.to_string(),
+            "LimitStore(16, GoogleCloudStorage(mybucket))"
+        )
     }
 
     #[test]
@@ -532,8 +668,7 @@ mod tests {
 
         assert_eq!(
             err,
-            "Specified Google for the object store, required configuration missing for \
-            bucket, google-service-account"
+            "Error configuring GCS: Generic GCS error: Missing bucket name"
         );
     }
 
@@ -549,12 +684,12 @@ mod tests {
             "--azure-storage-account",
             "NotARealStorageAccount",
             "--azure-storage-access-key",
-            "NotARealKey",
+            "Zm9vYmFy", // base64 encoded "foobar"
         ])
         .unwrap();
 
         let object_store = make_object_store(&config).unwrap();
-        assert_eq!(&object_store.to_string(), "MicrosoftAzure(mybucket)")
+        assert_eq!(&object_store.to_string(), "LimitStore(16, MicrosoftAzure { account: NotARealStorageAccount, container: mybucket })")
     }
 
     #[test]
@@ -570,8 +705,7 @@ mod tests {
 
         assert_eq!(
             err,
-            "Specified Azure for the object store, required configuration missing for \
-            bucket, azure-storage-account, azure-storage-access-key"
+            "Error configuring Microsoft Azure: Generic MicrosoftAzure error: Container name must be specified"
         );
     }
 
@@ -613,5 +747,29 @@ mod tests {
             "Specified File for the object store, required configuration missing for \
             data-dir"
         );
+    }
+
+    #[test]
+    fn valid_cache_config() {
+        let root = TempDir::new().unwrap();
+        let root_path = root.path().to_str().unwrap();
+
+        let config = ObjectStoreConfig::try_parse_from([
+            "server",
+            "--object-store",
+            "file",
+            "--data-dir",
+            root_path,
+            "--parquet-cache-namespace-addr",
+            "http://k8s-noninstance-general-service-route:8080",
+        ])
+        .unwrap();
+
+        let object_store = make_object_store(&config).unwrap().to_string();
+        assert!(
+            object_store.starts_with("DataCacheObjectStore"),
+            "{}",
+            object_store
+        )
     }
 }

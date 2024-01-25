@@ -2,10 +2,8 @@
 
 use std::sync::Arc;
 
-use datafusion::{
-    logical_expr::LogicalPlan,
-    prelude::{col, lit_timestamp_nano},
-};
+use datafusion::{logical_expr::LogicalPlan, prelude::col};
+use datafusion_util::lit_timestamptz_nano;
 use observability_deps::tracing::debug;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
@@ -44,7 +42,7 @@ impl From<datafusion::error::DataFusionError> for Error {
 
 /// Planner for physically rearranging chunk data. This planner
 /// creates COMPACT and SPLIT plans for use in the database lifecycle manager
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct ReorgPlanner {}
 
 impl ReorgPlanner {
@@ -203,7 +201,7 @@ impl ReorgPlanner {
 
         let mut split_exprs = Vec::with_capacity(split_times.len());
         // time <= split_times[0]
-        split_exprs.push(col(TIME_COLUMN_NAME).lt_eq(lit_timestamp_nano(split_times[0])));
+        split_exprs.push(col(TIME_COLUMN_NAME).lt_eq(lit_timestamptz_nano(split_times[0])));
         // split_times[i-1] , time <= split_time[i]
         for i in 1..split_times.len() {
             if split_times[i - 1] >= split_times[i] {
@@ -217,8 +215,8 @@ impl ReorgPlanner {
             }
             split_exprs.push(
                 col(TIME_COLUMN_NAME)
-                    .gt(lit_timestamp_nano(split_times[i - 1]))
-                    .and(col(TIME_COLUMN_NAME).lt_eq(lit_timestamp_nano(split_times[i]))),
+                    .gt(lit_timestamptz_nano(split_times[i - 1]))
+                    .and(col(TIME_COLUMN_NAME).lt_eq(lit_timestamptz_nano(split_times[i]))),
             );
         }
         let plan = make_stream_split(plan, split_exprs);
@@ -389,12 +387,79 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_compact_plan() {
+    async fn test_compact_plan_default_sort() {
         test_helpers::maybe_start_logging();
 
         let (schema, chunks) = get_test_chunks().await;
 
         let sort_key = SortKeyBuilder::with_capacity(2)
+            .with_col("tag1")
+            .with_col(TIME_COLUMN_NAME)
+            .build();
+
+        let compact_plan = ReorgPlanner::new()
+            .compact_plan(Arc::from("t"), &schema, chunks, sort_key)
+            .expect("created compact plan");
+
+        let executor = Executor::new_testing();
+        let physical_plan = executor
+            .new_context(ExecutorType::Reorg)
+            .create_physical_plan(&compact_plan)
+            .await
+            .unwrap();
+
+        // It is critical that the plan only sorts the inputs and is not resorted after the UnionExec.
+        insta::assert_yaml_snapshot!(
+            format_execution_plan(&physical_plan),
+            @r###"
+        ---
+        - " SortPreservingMergeExec: [tag1@2 ASC,time@3 ASC]"
+        - "   UnionExec"
+        - "     SortExec: expr=[tag1@2 ASC,time@3 ASC]"
+        - "       RecordBatchesExec: chunks=1, projection=[field_int, field_int2, tag1, time]"
+        - "     ProjectionExec: expr=[field_int@1 as field_int, field_int2@2 as field_int2, tag1@3 as tag1, time@4 as time]"
+        - "       DeduplicateExec: [tag1@3 ASC,time@4 ASC]"
+        - "         SortExec: expr=[tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
+        - "           RecordBatchesExec: chunks=1, projection=[__chunk_order, field_int, field_int2, tag1, time]"
+        "###
+        );
+
+        assert_eq!(
+            physical_plan.output_partitioning().partition_count(),
+            1,
+            "{:?}",
+            physical_plan.output_partitioning()
+        );
+
+        let batches = test_collect(physical_plan).await;
+
+        // sorted on state ASC and time ASC (defaults)
+        let expected = vec![
+            "+-----------+------------+------+--------------------------------+",
+            "| field_int | field_int2 | tag1 | time                           |",
+            "+-----------+------------+------+--------------------------------+",
+            "| 100       |            | AL   | 1970-01-01T00:00:00.000000050Z |",
+            "| 70        |            | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 1000      |            | MT   | 1970-01-01T00:00:00.000001Z    |",
+            "| 5         |            | MT   | 1970-01-01T00:00:00.000005Z    |",
+            "| 10        |            | MT   | 1970-01-01T00:00:00.000007Z    |",
+            "| 70        | 70         | UT   | 1970-01-01T00:00:00.000220Z    |",
+            "| 50        | 50         | VT   | 1970-01-01T00:00:00.000210Z    |",
+            "| 1000      | 1000       | WA   | 1970-01-01T00:00:00.000028Z    |",
+            "+-----------+------------+------+--------------------------------+",
+        ];
+
+        assert_batches_eq!(&expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn test_compact_plan_alternate_sort() {
+        test_helpers::maybe_start_logging();
+
+        let (schema, chunks) = get_test_chunks().await;
+
+        let sort_key = SortKeyBuilder::with_capacity(2)
+            // use something other than the default sort
             .with_col_opts("tag1", true, true)
             .with_col_opts(TIME_COLUMN_NAME, false, false)
             .build();
@@ -417,12 +482,12 @@ mod test {
         - " SortPreservingMergeExec: [tag1@2 DESC,time@3 ASC NULLS LAST]"
         - "   UnionExec"
         - "     SortExec: expr=[tag1@2 DESC,time@3 ASC NULLS LAST]"
-        - "       RecordBatchesExec: chunks=1"
+        - "       RecordBatchesExec: chunks=1, projection=[field_int, field_int2, tag1, time]"
         - "     SortExec: expr=[tag1@2 DESC,time@3 ASC NULLS LAST]"
         - "       ProjectionExec: expr=[field_int@1 as field_int, field_int2@2 as field_int2, tag1@3 as tag1, time@4 as time]"
         - "         DeduplicateExec: [tag1@3 ASC,time@4 ASC]"
         - "           SortExec: expr=[tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
-        - "             RecordBatchesExec: chunks=1"
+        - "             RecordBatchesExec: chunks=1, projection=[__chunk_order, field_int, field_int2, tag1, time]"
         "###
         );
 
@@ -435,7 +500,7 @@ mod test {
 
         let batches = test_collect(physical_plan).await;
 
-        // sorted on state ASC and time
+        // sorted on state DESC and time ASC
         let expected = vec![
             "+-----------+------------+------+--------------------------------+",
             "| field_int | field_int2 | tag1 | time                           |",
@@ -486,12 +551,12 @@ mod test {
         - "   SortPreservingMergeExec: [time@3 ASC NULLS LAST,tag1@2 ASC]"
         - "     UnionExec"
         - "       SortExec: expr=[time@3 ASC NULLS LAST,tag1@2 ASC]"
-        - "         RecordBatchesExec: chunks=1"
+        - "         RecordBatchesExec: chunks=1, projection=[field_int, field_int2, tag1, time]"
         - "       SortExec: expr=[time@3 ASC NULLS LAST,tag1@2 ASC]"
         - "         ProjectionExec: expr=[field_int@1 as field_int, field_int2@2 as field_int2, tag1@3 as tag1, time@4 as time]"
         - "           DeduplicateExec: [tag1@3 ASC,time@4 ASC]"
         - "             SortExec: expr=[tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
-        - "               RecordBatchesExec: chunks=1"
+        - "               RecordBatchesExec: chunks=1, projection=[__chunk_order, field_int, field_int2, tag1, time]"
         "###
         );
 
@@ -567,12 +632,12 @@ mod test {
         - "   SortPreservingMergeExec: [time@3 ASC NULLS LAST,tag1@2 ASC]"
         - "     UnionExec"
         - "       SortExec: expr=[time@3 ASC NULLS LAST,tag1@2 ASC]"
-        - "         RecordBatchesExec: chunks=1"
+        - "         RecordBatchesExec: chunks=1, projection=[field_int, field_int2, tag1, time]"
         - "       SortExec: expr=[time@3 ASC NULLS LAST,tag1@2 ASC]"
         - "         ProjectionExec: expr=[field_int@1 as field_int, field_int2@2 as field_int2, tag1@3 as tag1, time@4 as time]"
         - "           DeduplicateExec: [tag1@3 ASC,time@4 ASC]"
         - "             SortExec: expr=[tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
-        - "               RecordBatchesExec: chunks=1"
+        - "               RecordBatchesExec: chunks=1, projection=[__chunk_order, field_int, field_int2, tag1, time]"
         "###
         );
 

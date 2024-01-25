@@ -29,7 +29,7 @@ use once_cell::sync::Lazy;
 
 use meta::{
     SQL_INFO_DATE_TIME_FUNCTIONS, SQL_INFO_NUMERIC_FUNCTIONS, SQL_INFO_SQL_KEYWORDS,
-    SQL_INFO_STRING_FUNCTIONS, SQL_INFO_SYSTEM_FUNCTIONS,
+    SQL_INFO_STRING_FUNCTIONS, SQL_INFO_SUPPORTS_CONVERT, SQL_INFO_SYSTEM_FUNCTIONS,
 };
 
 #[allow(non_snake_case)]
@@ -94,9 +94,10 @@ static INSTANCE: Lazy<SqlInfoData> = Lazy::new(|| {
     builder.append(SqlInfo::SqlExtraNameCharacters, "");
     builder.append(SqlInfo::SqlSupportsColumnAliasing, true);
     builder.append(SqlInfo::SqlNullPlusNullIsNull, true);
-    // Skip SqlSupportsConvert (which is the map of the conversions that are supported);
-    // .with_sql_info(SqlInfo::SqlSupportsConvert, TBD);
-    // https://github.com/influxdata/influxdb_iox/issues/7253
+    builder.append(
+        SqlInfo::SqlSupportsConvert,
+        &SQL_INFO_SUPPORTS_CONVERT.clone(),
+    );
     builder.append(SqlInfo::SqlSupportsTableCorrelationNames, false);
     builder.append(SqlInfo::SqlSupportsDifferentTableCorrelationNames, false);
     builder.append(SqlInfo::SqlSupportsExpressionsInOrderBy, true);
@@ -178,6 +179,6 @@ static INSTANCE: Lazy<SqlInfoData> = Lazy::new(|| {
 });
 
 /// Return a [`SqlInfoData`] that describes IOx's capablities
-pub fn iox_sql_info_data() -> &'static SqlInfoData {
+pub(crate) fn iox_sql_info_data() -> &'static SqlInfoData {
     &INSTANCE
 }

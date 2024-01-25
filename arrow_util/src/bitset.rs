@@ -22,6 +22,15 @@ impl BitSet {
         Self::default()
     }
 
+    /// Construct an empty [`BitSet`] with a pre-allocated capacity for `n`
+    /// bits.
+    pub fn with_capacity(n: usize) -> Self {
+        Self {
+            buffer: Vec::with_capacity((n + 7) / 8),
+            len: 0,
+        }
+    }
+
     /// Creates a new BitSet with `count` unset bits.
     pub fn with_size(count: usize) -> Self {
         let mut bitset = Self::default();
@@ -31,30 +40,30 @@ impl BitSet {
 
     /// Reserve space for `count` further bits
     pub fn reserve(&mut self, count: usize) {
-        let new_buf_len = (self.len + count + 7) >> 3;
+        let new_buf_len = (self.len + count + 7) / 8;
         self.buffer.reserve(new_buf_len);
     }
 
     /// Appends `count` unset bits
     pub fn append_unset(&mut self, count: usize) {
         self.len += count;
-        let new_buf_len = (self.len + 7) >> 3;
+        let new_buf_len = (self.len + 7) / 8;
         self.buffer.resize(new_buf_len, 0);
     }
 
     /// Appends `count` set bits
     pub fn append_set(&mut self, count: usize) {
         let new_len = self.len + count;
-        let new_buf_len = (new_len + 7) >> 3;
+        let new_buf_len = (new_len + 7) / 8;
 
-        let skew = self.len & 7;
+        let skew = self.len % 8;
         if skew != 0 {
             *self.buffer.last_mut().unwrap() |= 0xFF << skew;
         }
 
         self.buffer.resize(new_buf_len, 0xFF);
 
-        let rem = new_len & 7;
+        let rem = new_len % 8;
         if rem != 0 {
             *self.buffer.last_mut().unwrap() &= (1 << rem) - 1;
         }
@@ -64,13 +73,25 @@ impl BitSet {
 
     /// Truncates the bitset to the provided length
     pub fn truncate(&mut self, len: usize) {
-        let new_buf_len = (len + 7) >> 3;
+        let new_buf_len = (len + 7) / 8;
         self.buffer.truncate(new_buf_len);
-        let overrun = len & 7;
+        let overrun = len % 8;
         if overrun > 0 {
             *self.buffer.last_mut().unwrap() &= (1 << overrun) - 1;
         }
         self.len = len;
+    }
+
+    /// Split this bitmap at the specified bit boundary, such that after this
+    /// call, `self` contains the range `[0, n)` and the returned value contains
+    /// `[n, len)`.
+    pub fn split_off(&mut self, n: usize) -> Self {
+        let mut right = Self::with_capacity(self.len - n);
+        right.extend_from_range(self, n..self.len);
+
+        self.truncate(n);
+
+        right
     }
 
     /// Extends this [`BitSet`] by the context of `other`
@@ -85,9 +106,9 @@ impl BitSet {
             return;
         }
 
-        let start_byte = range.start >> 3;
-        let end_byte = (range.end + 7) >> 3;
-        let skew = range.start & 7;
+        let start_byte = range.start / 8;
+        let end_byte = (range.end + 7) / 8;
+        let skew = range.start % 8;
 
         // `append_bits` requires the provided `to_set` to be byte aligned, therefore
         // if the range being copied is not byte aligned we must first append
@@ -109,16 +130,16 @@ impl BitSet {
 
     /// Appends `count` boolean values from the slice of packed bits
     pub fn append_bits(&mut self, count: usize, to_set: &[u8]) {
-        assert_eq!((count + 7) >> 3, to_set.len());
+        assert_eq!((count + 7) / 8, to_set.len());
 
         let new_len = self.len + count;
-        let new_buf_len = (new_len + 7) >> 3;
+        let new_buf_len = (new_len + 7) / 8;
         self.buffer.reserve(new_buf_len - self.buffer.len());
 
-        let whole_bytes = count >> 3;
-        let overrun = count & 7;
+        let whole_bytes = count / 8;
+        let overrun = count % 8;
 
-        let skew = self.len & 7;
+        let skew = self.len % 8;
         if skew == 0 {
             self.buffer.extend_from_slice(&to_set[..whole_bytes]);
             if overrun > 0 {
@@ -158,8 +179,8 @@ impl BitSet {
     pub fn set(&mut self, idx: usize) {
         assert!(idx <= self.len);
 
-        let byte_idx = idx >> 3;
-        let bit_idx = idx & 7;
+        let byte_idx = idx / 8;
+        let bit_idx = idx % 8;
         self.buffer[byte_idx] |= 1 << bit_idx;
     }
 
@@ -167,8 +188,8 @@ impl BitSet {
     pub fn get(&self, idx: usize) -> bool {
         assert!(idx <= self.len);
 
-        let byte_idx = idx >> 3;
-        let bit_idx = idx & 7;
+        let byte_idx = idx / 8;
+        let bit_idx = idx % 8;
         (self.buffer[byte_idx] >> bit_idx) & 1 != 0
     }
 
@@ -227,7 +248,96 @@ impl BitSet {
     pub fn is_all_unset(&self) -> bool {
         self.buffer.iter().all(|&v| v == 0)
     }
+
+    /// Returns the number of set bits in this bitmap.
+    pub fn count_ones(&self) -> usize {
+        // Invariant: the bits outside of [0, self.len) are always 0
+        self.buffer.iter().map(|v| v.count_ones() as usize).sum()
+    }
+
+    /// Returns the number of unset bits in this bitmap.
+    pub fn count_zeros(&self) -> usize {
+        self.len() - self.count_ones()
+    }
+
+    /// Returns true if any bit is set (short circuiting).
+    pub fn is_any_set(&self) -> bool {
+        self.buffer.iter().any(|&v| v != 0)
+    }
+
+    /// Returns a value [`Iterator`] that yields boolean values encoded in the
+    /// bitmap.
+    pub fn iter(&self) -> Iter<'_> {
+        Iter::new(self)
+    }
+
+    /// Returns the bitwise AND between the two [`BitSet`] instances.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the two sets have differing lengths.
+    pub fn and(&self, other: &Self) -> Self {
+        assert_eq!(self.len, other.len);
+
+        Self {
+            buffer: self
+                .buffer
+                .iter()
+                .zip(other.buffer.iter())
+                .map(|(a, b)| a & b)
+                .collect(),
+            len: self.len,
+        }
+    }
 }
+
+/// A value iterator yielding the boolean values encoded in the bitmap.
+#[derive(Debug)]
+pub struct Iter<'a> {
+    /// A reference to the bitmap buffer.
+    buffer: &'a [u8],
+    /// The index of the next yielded bit in `buffer`.
+    idx: usize,
+    /// The number of bits stored in buffer.
+    len: usize,
+}
+
+impl<'a> Iter<'a> {
+    fn new(b: &'a BitSet) -> Self {
+        Self {
+            buffer: &b.buffer,
+            idx: 0,
+            len: b.len(),
+        }
+    }
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = bool;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.len {
+            return None;
+        }
+
+        let byte_idx = self.idx / 8;
+        let shift = self.idx % 8;
+
+        self.idx += 1;
+
+        let byte = self.buffer[byte_idx];
+        let byte = byte >> shift;
+
+        Some(byte & 1 == 1)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let v = self.len - self.idx;
+        (v, Some(v))
+    }
+}
+
+impl<'a> ExactSizeIterator for Iter<'a> {}
 
 /// Returns an iterator over set bit positions in increasing order
 pub fn iter_set_positions(bytes: &[u8]) -> impl Iterator<Item = usize> + '_ {
@@ -240,17 +350,17 @@ pub fn iter_set_positions_with_offset(
     bytes: &[u8],
     offset: usize,
 ) -> impl Iterator<Item = usize> + '_ {
-    let mut byte_idx = offset >> 3;
+    let mut byte_idx = offset / 8;
     let mut in_progress = bytes.get(byte_idx).cloned().unwrap_or(0);
 
-    let skew = offset & 7;
+    let skew = offset % 8;
     in_progress &= 0xFF << skew;
 
     std::iter::from_fn(move || loop {
         if in_progress != 0 {
             let bit_pos = in_progress.trailing_zeros();
             in_progress ^= 1 << bit_pos;
-            return Some((byte_idx << 3) + (bit_pos as usize));
+            return Some((byte_idx * 8) + (bit_pos as usize));
         }
         byte_idx += 1;
         in_progress = *bytes.get(byte_idx)?;
@@ -259,10 +369,12 @@ pub fn iter_set_positions_with_offset(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use arrow::array::BooleanBufferBuilder;
+    use proptest::prelude::*;
     use rand::prelude::*;
     use rand::rngs::OsRng;
+
+    use super::*;
 
     /// Computes a compacted representation of a given bool array
     fn compact_bools(bools: &[bool]) -> Vec<u8> {
@@ -284,9 +396,8 @@ mod tests {
         bools
             .iter()
             .enumerate()
-            // Filter out all y that are not true and then return only x
-            .filter(|&(_, y)| *y)
-            .map(|(x, _)| x)
+            .filter(|&(_x, y)| *y)
+            .map(|(x, _y)| x)
     }
 
     #[test]
@@ -304,8 +415,11 @@ mod tests {
     fn test_bit_mask() {
         let mut mask = BitSet::new();
 
+        assert!(!mask.is_any_set());
+
         mask.append_bits(8, &[0b11111111]);
         let d1 = mask.buffer.clone();
+        assert!(mask.is_any_set());
 
         mask.append_bits(3, &[0b01010010]);
         let d2 = mask.buffer.clone();
@@ -522,9 +636,17 @@ mod tests {
     fn test_all_set_unset() {
         for i in 1..100 {
             let mut v = BitSet::new();
+            assert!(!v.is_any_set());
             v.append_set(i);
             assert!(v.is_all_set());
             assert!(!v.is_all_unset());
+            assert!(v.is_any_set());
+
+            let mut v = BitSet::new();
+            v.append_unset(i);
+            assert!(!v.is_any_set());
+            v.append_set(1);
+            assert!(v.is_any_set());
         }
     }
 
@@ -589,5 +711,169 @@ mod tests {
         let v = BitSet::new();
         assert!(!v.is_all_set());
         assert!(v.is_all_unset());
+    }
+
+    #[test]
+    fn test_split_byte_boundary() {
+        let mut a = BitSet::new();
+
+        a.append_set(16);
+        a.append_unset(8);
+        a.append_set(8);
+
+        let b = a.split_off(16);
+
+        assert_eq!(a.len(), 16);
+        assert_eq!(b.len(), 16);
+
+        // All the bits in A are set.
+        assert!(a.is_all_set());
+        for i in 0..16 {
+            assert!(a.get(i));
+        }
+
+        // The first 8 bits in b are unset, and the next 8 bits are set.
+        for i in 0..8 {
+            assert!(!b.get(i));
+        }
+        for i in 8..16 {
+            assert!(b.get(i));
+        }
+    }
+
+    #[test]
+    fn test_split_sub_byte_boundary() {
+        let mut a = BitSet::new();
+
+        a.append_set(3);
+        a.append_unset(3);
+        a.append_set(1);
+
+        assert_eq!(a.bytes(), &[0b01000111]);
+
+        let b = a.split_off(5);
+
+        assert_eq!(a.len(), 5);
+        assert_eq!(b.len(), 2);
+
+        // A contains 3 set bits & 2 unset bits, with the rest masked out.
+        assert_eq!(a.bytes(), &[0b00000111]);
+
+        // B contains 1 unset bit, and then 1 set bit
+        assert_eq!(b.bytes(), &[0b0000010]);
+    }
+
+    #[test]
+    fn test_split_multi_byte_unclean_boundary() {
+        let mut a = BitSet::new();
+
+        a.append_set(8);
+        a.append_unset(1);
+        a.append_set(1);
+        a.append_unset(1);
+        a.append_set(1);
+
+        assert_eq!(a.bytes(), &[0b11111111, 0b00001010]);
+
+        let b = a.split_off(10);
+
+        assert_eq!(a.len(), 10);
+        assert_eq!(b.len(), 2);
+
+        assert_eq!(a.bytes(), &[0b11111111, 0b00000010]);
+        assert_eq!(b.bytes(), &[0b0000010]);
+    }
+
+    #[test]
+    fn test_count_ones_with_truncate() {
+        // For varying sizes of bitmaps.
+        for i in 1..150 {
+            let mut b = BitSet::new();
+
+            // Set "i" number of bits in 2*i values.
+            for _ in 0..i {
+                b.append_unset(1);
+                b.append_set(1);
+            }
+
+            assert_eq!(b.len(), 2 * i);
+            assert_eq!(b.count_ones(), i);
+            assert_eq!(b.count_zeros(), i);
+
+            // Split it such that the last bit is removed.
+            let other = b.split_off((2 * i) - 1);
+            assert_eq!(other.len(), 1);
+            assert_eq!(other.count_ones(), 1);
+            assert_eq!(other.count_zeros(), 0);
+
+            // Which means the original bitmap must now have 1 less 1 bit.
+            assert_eq!(b.len(), (2 * i) - 1);
+            assert_eq!(b.count_ones(), i - 1);
+            assert_eq!(b.count_zeros(), i);
+        }
+    }
+
+    prop_compose! {
+        /// Returns a [`BitSet`] of random length and content.
+        fn arbitrary_bitset()(
+            values in prop::collection::vec(any::<bool>(), 0..20)
+        ) -> BitSet {
+            let mut b = BitSet::new();
+
+            for v in &values {
+                match v {
+                    true => b.append_set(1),
+                    false => b.append_unset(1),
+                }
+            }
+
+            b
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn prop_iter(
+            values in prop::collection::vec(any::<bool>(), 0..20),
+        ) {
+            let mut b = BitSet::new();
+
+            for v in &values {
+                match v {
+                    true => b.append_set(1),
+                    false => b.append_unset(1),
+                }
+            }
+
+            assert_eq!(values.len(), b.len());
+
+            let got = b.iter().collect::<Vec<_>>();
+            assert_eq!(values, got);
+
+            // Exact size iter
+            assert_eq!(b.iter().len(), values.len());
+        }
+
+        #[test]
+        fn prop_and(
+            mut a in arbitrary_bitset(),
+            mut b in arbitrary_bitset(),
+        ) {
+            let min_len = a.len().min(b.len());
+            // Truncate a and b to the same length.
+            a.truncate(min_len);
+            b.truncate(min_len);
+
+            let want = a
+                .iter()
+                .zip(b.iter())
+                .map(|(a, b)| a & b)
+                .collect::<Vec<_>>();
+
+            let c = a.and(&b);
+            let got = c.iter().collect::<Vec<_>>();
+
+            assert_eq!(got, want);
+        }
     }
 }

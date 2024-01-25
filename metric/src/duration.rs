@@ -126,6 +126,14 @@ impl DurationHistogram {
             count,
         )
     }
+
+    pub fn reset(&self) {
+        self.inner.reset();
+    }
+
+    pub fn percentile(&self, percentile: u64) -> Duration {
+        Duration::from_nanos(self.inner.percentile(percentile))
+    }
 }
 
 /// `DurationHistogramOptions` allows configuring the buckets used by `DurationHistogram`
