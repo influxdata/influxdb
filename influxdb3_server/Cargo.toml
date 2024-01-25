@@ -48,8 +48,10 @@ flate2 = "1.0.27"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 arrow-json = "49.0.0"
 arrow-schema = "49.0.0"
+arrow-csv = "49.0.0"
 
 [dev-dependencies]
+parquet.workspace = true
 parquet_file = { path = "../parquet_file" }
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }
