@@ -840,7 +840,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		defer s.mu.Unlock()
 		delete(s.epochs, shardID)
 		delete(s.pendingShardDeletes, shardID)
-		s.databases[db].removeIndexType(sh.IndexType())
 	}()
 
 	// Get the shard's local bitset of series IDs.
@@ -854,24 +853,18 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	err = s.walkShards(shards, func(sh *Shard) error {
 		index, err := sh.Index()
 		if err != nil {
-			// Do not stop checking series because one shard failed
 			s.Logger.Error("cannot find shard index", zap.Uint64("shard_id", sh.ID()), zap.Error(err))
-			return nil
+			return err
 		}
 
 		ss.Diff(index.SeriesIDSet())
 		return nil
 	})
 
-	// This should never happen, because walkShards only returns errors
-	//  from the function passed in, and the function above cannot
-	// return an error. But, for safety against new implementations, we
-	// check.
 	if err != nil {
-		s.Logger.Error("error walking shards", zap.Error(err))
-		// TODO(DSB): Should we give up on deleting the shard here, to avoid
-		// removing series from the series file that may exist in the shard
-		// whose index we could not load?
+		// We couldn't get the index for a shard. Rather than deleting series which may
+		// exist in that shard as well as in the current shard, we stop the current deletion
+		return err
 	}
 
 	// Remove any remaining series in the set from the series file, as they don't
@@ -939,9 +932,13 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	// Remove the on-disk shard data.
 	if err := os.RemoveAll(sh.path); err != nil {
 		return err
+	} else if err = os.RemoveAll(sh.walPath); err != nil {
+		return err
+	} else {
+		// Remove index type from the database on success
+		s.databases[db].removeIndexType(sh.IndexType())
+		return nil
 	}
-
-	return os.RemoveAll(sh.walPath)
 }
 
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
