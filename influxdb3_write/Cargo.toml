@@ -8,7 +8,6 @@ license.workspace = true
 [dependencies]
 data_types = { path = "../data_types" }
 influxdb-line-protocol = { path = "../influxdb_line_protocol" }
-iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 object_store.workspace = true
 observability_deps = { path = "../observability_deps" }
@@ -33,5 +32,6 @@ bytes = "1.5.0"
 futures-util = "0.3.30"
 
 [dev-dependencies]
+arrow_util = { path = "../arrow_util" }
 test_helpers = { path = "../test_helpers" }
 

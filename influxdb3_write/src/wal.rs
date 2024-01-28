@@ -104,14 +104,14 @@ impl WalImpl {
         Ok(Self { root })
     }
 
-    fn open_segment_writer(&self, segment_id: SegmentId) -> Result<impl WalSegmentWriter> {
+    fn open_segment_writer(&self, segment_id: SegmentId) -> Result<Box<dyn WalSegmentWriter>> {
         let writer = WalSegmentWriterImpl::new_or_open(self.root.clone(), segment_id)?;
-        Ok(writer)
+        Ok(Box::new(writer))
     }
 
-    fn open_segment_reader(&self, segment_id: SegmentId) -> Result<impl WalSegmentReader> {
+    fn open_segment_reader(&self, segment_id: SegmentId) -> Result<Box<dyn WalSegmentReader>> {
         let reader = WalSegmentReaderImpl::new(self.root.clone(), segment_id)?;
-        Ok(reader)
+        Ok(Box::new(reader))
     }
 
     fn segment_files(&self) -> Result<Vec<SegmentFile>> {
@@ -166,11 +166,11 @@ impl WalImpl {
 }
 
 impl Wal for WalImpl {
-    fn open_segment_writer(&self, segment_id: SegmentId) -> Result<impl WalSegmentWriter> {
+    fn open_segment_writer(&self, segment_id: SegmentId) -> Result<Box<dyn WalSegmentWriter>> {
         self.open_segment_writer(segment_id)
     }
 
-    fn open_segment_reader(&self, segment_id: SegmentId) -> Result<impl WalSegmentReader> {
+    fn open_segment_reader(&self, segment_id: SegmentId) -> Result<Box<dyn WalSegmentReader>> {
         self.open_segment_reader(segment_id)
     }
 
@@ -247,18 +247,28 @@ impl WalSegmentWriterImpl {
     }
 
     fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<SequenceNumber> {
+        println!("write batch in impl");
         // Ensure the write buffer is always empty before using it.
         self.buffer.clear();
 
-        self.sequence_number = self.sequence_number.next();
+        let sequence_number = self.sequence_number.next();
 
         let batch = WalOpBatch {
-            sequence_number: self.sequence_number,
+            sequence_number,
             ops,
         };
 
         let data = serde_json::to_vec(&batch)?;
 
+        let bytes_written = self.write_bytes(data)?;
+
+        self.bytes_written += bytes_written;
+        self.sequence_number = sequence_number;
+
+        Ok(self.sequence_number)
+    }
+
+    fn write_bytes(&mut self, data: Vec<u8>) -> Result<usize> {
         // Only designed to support chunks up to `u32::max` bytes long.
         let uncompressed_len = data.len();
         u32::try_from(uncompressed_len)?;
@@ -270,7 +280,7 @@ impl WalSegmentWriterImpl {
             .expect("cannot fail to write to buffer");
 
         // Compress the payload into the reused buffer, recording the crc hash
-        // as it is wrote.
+        // as it is written.
         let mut encoder = snap::write::FrameEncoder::new(HasherWrapper::new(&mut self.buffer));
         encoder.write_all(&data)?;
         let (checksum, buf) = encoder
@@ -298,9 +308,7 @@ impl WalSegmentWriterImpl {
         // fsync the fd
         self.f.sync_all().expect("fsync failure");
 
-        self.bytes_written += bytes_written;
-
-        Ok(self.sequence_number)
+        Ok(bytes_written)
     }
 }
 
@@ -312,6 +320,41 @@ impl WalSegmentWriter for WalSegmentWriterImpl {
 
     fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<SequenceNumber> {
         self.write_batch(ops)
+    }
+
+    fn last_sequence_number(&self) -> SequenceNumber {
+        self.sequence_number
+    }
+}
+
+#[derive(Debug)]
+pub struct WalSegmentWriterNoopImpl {
+    segment_id: SegmentId,
+    sequence_number: SequenceNumber,
+}
+
+impl WalSegmentWriterNoopImpl {
+    pub fn new(segment_id: SegmentId) -> Self {
+        Self {
+            segment_id,
+            sequence_number: SequenceNumber::new(0),
+        }
+    }
+}
+
+impl WalSegmentWriter for WalSegmentWriterNoopImpl {
+    fn id(&self) -> SegmentId {
+        self.segment_id
+    }
+
+    fn write_batch(&mut self, _ops: Vec<WalOp>) -> Result<SequenceNumber> {
+        let sequence_number = self.sequence_number.next();
+        self.sequence_number = sequence_number;
+        Ok(sequence_number)
+    }
+
+    fn last_sequence_number(&self) -> SequenceNumber {
+        self.sequence_number
     }
 }
 
