@@ -162,6 +162,7 @@ mod tests {
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response};
     use influxdb3_write::persister::PersisterImpl;
+    use influxdb3_write::SegmentId;
     use iox_query::exec::{Executor, ExecutorConfig};
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
@@ -197,10 +198,14 @@ mod tests {
             mem_pool_size: usize::MAX,
         }));
 
-        let write_buffer = Arc::new(influxdb3_write::write_buffer::WriteBufferImpl::new(
-            Arc::clone(&catalog),
-            None::<Arc<influxdb3_write::wal::WalImpl>>,
-        ));
+        let write_buffer = Arc::new(
+            influxdb3_write::write_buffer::WriteBufferImpl::new(
+                Arc::clone(&catalog),
+                None::<Arc<influxdb3_write::wal::WalImpl>>,
+                SegmentId::new(0),
+            )
+            .unwrap(),
+        );
         let query_executor = crate::query_executor::QueryExecutorImpl::new(
             catalog,
             Arc::clone(&write_buffer),

@@ -201,10 +201,10 @@ pub trait Persister: Debug + Send + Sync + 'static {
 
 pub trait Wal: Debug + Send + Sync + 'static {
     /// Opens a writer to a segment, either creating a new file or appending to an existing file.
-    fn open_segment_writer(&self, segment_id: SegmentId) -> wal::Result<impl WalSegmentWriter>;
+    fn open_segment_writer(&self, segment_id: SegmentId) -> wal::Result<Box<dyn WalSegmentWriter>>;
 
     /// Opens a reader to a segment file.
-    fn open_segment_reader(&self, segment_id: SegmentId) -> wal::Result<impl WalSegmentReader>;
+    fn open_segment_reader(&self, segment_id: SegmentId) -> wal::Result<Box<dyn WalSegmentReader>>;
 
     /// Checks the WAL directory for any segment files and returns them.
     fn segment_files(&self) -> wal::Result<Vec<SegmentFile>>;
@@ -225,6 +225,8 @@ pub trait WalSegmentWriter: Debug + Send + Sync + 'static {
     fn id(&self) -> SegmentId;
 
     fn write_batch(&mut self, ops: Vec<WalOp>) -> wal::Result<SequenceNumber>;
+
+    fn last_sequence_number(&self) -> SequenceNumber;
 }
 
 pub trait WalSegmentReader: Debug + Send + Sync + 'static {
@@ -234,7 +236,7 @@ pub trait WalSegmentReader: Debug + Send + Sync + 'static {
 }
 
 /// Individual WalOps get batched into the WAL asynchronously. The batch is then written to the segment file.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct WalOpBatch {
     pub sequence_number: SequenceNumber,
     pub ops: Vec<WalOp>,
@@ -255,7 +257,7 @@ pub enum WalOp {
 pub struct LpWriteOp {
     pub db_name: String,
     pub lp: String,
-    pub default_time: u64,
+    pub default_time: i64,
 }
 
 /// A single write request can have many lines in it. A writer can request to accept all lines that are valid, while
@@ -278,6 +280,7 @@ pub struct BufferedWriteRequest {
     pub tag_count: usize,
     pub total_buffer_memory_used: usize,
     pub segment_id: SegmentId,
+    pub sequence_number: SequenceNumber,
 }
 
 /// A persisted Catalog that contains the database, table, and column schemas.

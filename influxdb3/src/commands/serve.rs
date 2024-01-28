@@ -11,6 +11,7 @@ use influxdb3_server::{query_executor::QueryExecutorImpl, serve, CommonServerSta
 use influxdb3_write::persister::PersisterImpl;
 use influxdb3_write::wal::WalImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
+use influxdb3_write::SegmentId;
 use iox_query::exec::{Executor, ExecutorConfig};
 use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use object_store::DynObjectStore;
@@ -48,6 +49,9 @@ pub enum Error {
 
     #[error("Wal error: {0}")]
     Wal(#[from] influxdb3_write::wal::Error),
+
+    #[error("Write buffer error: {0}")]
+    WriteBuffer(#[from] influxdb3_write::write_buffer::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -237,7 +241,12 @@ pub async fn command(config: Config) -> Result<()> {
         .wal_directory
         .map(|dir| WalImpl::new(dir).map(Arc::new))
         .transpose()?;
-    let write_buffer = Arc::new(WriteBufferImpl::new(Arc::clone(&catalog), wal));
+    // TODO: the next segment ID should be loaded from the persister
+    let write_buffer = Arc::new(WriteBufferImpl::new(
+        Arc::clone(&catalog),
+        wal,
+        SegmentId::new(0),
+    )?);
     let query_executor = QueryExecutorImpl::new(
         catalog,
         Arc::clone(&write_buffer),
