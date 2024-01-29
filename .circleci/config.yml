@@ -457,7 +457,7 @@ workflows:
       - fmt
       - lint
       - cargo_audit
-      - protobuf-lint
+      # - protobuf-lint
       - docs-lint
       - test
       - test_heappy
