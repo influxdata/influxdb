@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
+	"github.com/hashicorp/go-multierror"
 	"github.com/influxdata/influxdb/v2/pkg/limiter"
 	"github.com/influxdata/influxdb/v2/pkg/pool"
 	"github.com/influxdata/influxdb/v2/tsdb"
@@ -431,24 +432,28 @@ func (l *WAL) ClosedSegments() ([]string, error) {
 }
 
 // Remove deletes the given segment file paths from disk and cleans up any associated objects.
+// Instead of returning on the first error, errors are accumulated so that all files are attempted to be removed and
+// the WAL file size stats are updated while ignoring errors.
 func (l *WAL) Remove(files []string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	var result *multierror.Error
 	for _, fn := range files {
-		_ = l.WALDisposer.Dispose(fn)
+		result = multierror.Append(result, l.WALDisposer.Dispose(fn))
 	}
 
 	// Refresh the on-disk size stats
 	segments, err := segmentFileNames(l.path)
 	if err != nil {
-		return err
+		result = multierror.Append(result, err)
 	}
 
 	var totalSize int64
 	for _, seg := range segments {
 		stat, err := os.Stat(seg)
 		if err != nil {
-			return err
+			result = multierror.Append(result, err)
+			continue
 		}
 
 		totalSize += stat.Size()
@@ -456,7 +461,7 @@ func (l *WAL) Remove(files []string) error {
 
 	l.stats.SetSize(totalSize)
 
-	return nil
+	return result.ErrorOrNil()
 }
 
 // LastWriteTime is the last time anything was written to the WAL.
