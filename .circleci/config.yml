@@ -326,7 +326,7 @@ jobs:
   # Lint protobufs.
   protobuf-lint:
     docker:
-      - image: bufbuild/buf:1.29.1-dev
+      - image: bufbuild/buf:0.40.0
     environment:
       # Value to look for to skip breaking changes check
       - SKIP_LABEL_INFLUX_IOX: "https://api.github.com/repos/influxdata/influxdb_iox/labels/incompatible%20protobuf"
