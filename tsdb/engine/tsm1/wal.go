@@ -73,6 +73,21 @@ var (
 	bytesPool = pool.NewLimitedBytes(256, walEncodeBufSize*2)
 )
 
+// FileDisposer encapsulates what to do with WAL files when they are no longer needed by the engine.
+type FileDisposer interface {
+	Dispose(filePath string) error
+}
+
+// WALDeleter deletes the WAL file from the file system.
+type WALDeleter struct {
+	traceLogger *zap.Logger
+}
+
+func (wd *WALDeleter) Dispose(filePath string) error {
+	wd.traceLogger.Info("Removing WAL file", zap.String("path", filePath))
+	return os.RemoveAll(filePath)
+}
+
 // WAL represents the write-ahead log used for writing TSM files.
 type WAL struct {
 	// goroutines waiting for the next fsync
@@ -114,6 +129,9 @@ type WAL struct {
 	// maxWriteWait sets the max duration the WAL will wait when limiter has no available
 	// values to take.
 	maxWriteWait time.Duration
+
+	// WALDisposer is an extension point to choose what to do with WAL files at the end of their life.
+	WALDisposer FileDisposer
 }
 
 // NewWAL initializes a new WAL at the given directory.
@@ -135,6 +153,9 @@ func NewWAL(path string, maxConcurrentWrites int, maxWriteDelay time.Duration, t
 		maxWriteWait: maxWriteDelay,
 		logger:       logger,
 		traceLogger:  logger,
+		WALDisposer: &WALDeleter{
+			traceLogger: logger,
+		},
 	}
 }
 
@@ -414,8 +435,7 @@ func (l *WAL) Remove(files []string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for _, fn := range files {
-		l.traceLogger.Info("Removing WAL file", zap.String("path", fn))
-		os.RemoveAll(fn)
+		_ = l.WALDisposer.Dispose(fn)
 	}
 
 	// Refresh the on-disk size stats
