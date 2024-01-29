@@ -326,9 +326,10 @@ jobs:
   # Lint protobufs.
   protobuf-lint:
     docker:
-      - image: bufbuild/buf:0.40.0
+      - image: bufbuild/buf:1.29.1-dev
     environment:
       # Value to look for to skip breaking changes check
+      SKIP_LABEL: "https://api.github.com/repos/influxdata/influxdb_iox/labels/incompatible%20protobuf"
       SKIP_LABEL: "https://api.github.com/repos/influxdata/influxdb/labels/incompatible%20protobuf"
     steps:
       - checkout
@@ -344,6 +345,7 @@ jobs:
             # Check if label is present using github API:
             # Inspired by https://discuss.circleci.com/t/tag-label-filter/11158
             if wget -O -  https://api.github.com/repos/influxdata/influxdb/issues/$(echo $CIRCLE_PULL_REQUEST | grep -oE "[^/pull]+$") | grep "$SKIP_LABEL" ; then echo "SKIPPING (FOUND LABEL)" && exit ; else echo "CHECKING (NO LABEL FOUND)"; fi
+            if wget -O -  https://api.github.com/repos/influxdata/influxdb_iox/issues/$(echo $CIRCLE_PULL_REQUEST | grep -oE "[^/pull]+$") | grep "$SKIP_LABEL" ; then echo "SKIPPING (FOUND LABEL)" && exit ; else echo "CHECKING (NO LABEL FOUND)"; fi
             git fetch origin main
             # compare against only changes in this branch (not against
             # other stuff that may have been added to main since last merge)
