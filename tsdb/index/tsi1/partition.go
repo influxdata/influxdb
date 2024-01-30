@@ -40,7 +40,8 @@ const ManifestFileName = "MANIFEST"
 
 // Partition represents a collection of layered index files and WAL.
 type Partition struct {
-	mu     sync.RWMutex
+	// exported for tests
+	Mu     sync.RWMutex
 	opened bool
 
 	sfile         *tsdb.SeriesFile // series lookup file
