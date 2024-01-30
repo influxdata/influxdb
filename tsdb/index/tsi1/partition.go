@@ -151,8 +151,8 @@ var ErrIncompatibleVersion = errors.New("incompatible tsi1 index MANIFEST")
 
 // Open opens the partition.
 func (p *Partition) Open() (rErr error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.Mu.Lock()
+	defer p.Mu.Unlock()
 
 	p.closing = make(chan struct{})
 
@@ -340,8 +340,8 @@ func (p *Partition) buildSeriesSet() error {
 
 // CurrentCompactionN returns the number of compactions currently running.
 func (p *Partition) CurrentCompactionN() int {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	p.Mu.RLock()
+	defer p.Mu.RUnlock()
 	return p.currentCompactionN
 }
 
@@ -368,8 +368,8 @@ func (p *Partition) Close() error {
 	p.Wait()
 
 	// Lock index and close remaining
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.Mu.Lock()
+	defer p.Mu.Unlock()
 
 	if p.fileSet == nil {
 		return nil
@@ -406,8 +406,8 @@ func (p *Partition) SeriesFile() *tsdb.SeriesFile { return p.sfile }
 
 // NextSequence returns the next file identifier.
 func (p *Partition) NextSequence() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.Mu.Lock()
+	defer p.Mu.Unlock()
 	return p.nextSequence()
 }
 
@@ -449,8 +449,8 @@ func (p *Partition) manifest(newFileSet *FileSet) *Manifest {
 
 // SetManifestPathForTest is only to force a bad path in testing
 func (p *Partition) SetManifestPathForTest(path string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.Mu.Lock()
+	defer p.Mu.Unlock()
 	p.manifestPathFn = func() string { return path }
 }
 
@@ -461,16 +461,16 @@ func (p *Partition) WithLogger(logger *zap.Logger) {
 
 // SetFieldSet sets a shared field set from the engine.
 func (p *Partition) SetFieldSet(fs *tsdb.MeasurementFieldSet) {
-	p.mu.Lock()
+	p.Mu.Lock()
 	p.fieldset = fs
-	p.mu.Unlock()
+	p.Mu.Unlock()
 }
 
 // FieldSet returns the fieldset.
 func (p *Partition) FieldSet() *tsdb.MeasurementFieldSet {
-	p.mu.Lock()
+	p.Mu.Lock()
 	fs := p.fieldset
-	p.mu.Unlock()
+	p.Mu.Unlock()
 	return fs
 }
 
@@ -480,8 +480,8 @@ func (p *Partition) RetainFileSet() (*FileSet, error) {
 	case <-p.closing:
 		return nil, tsdb.ErrIndexClosing
 	default:
-		p.mu.RLock()
-		defer p.mu.RUnlock()
+		p.Mu.RLock()
+		defer p.Mu.RUnlock()
 		return p.retainFileSet(), nil
 	}
 }
@@ -494,8 +494,8 @@ func (p *Partition) retainFileSet() *FileSet {
 
 // FileN returns the active files in the file set.
 func (p *Partition) FileN() int {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	p.Mu.RLock()
+	defer p.Mu.RUnlock()
 	return len(p.fileSet.files)
 }
 
@@ -641,8 +641,8 @@ func (p *Partition) DropMeasurement(name []byte) error {
 			// Delete key if not already deleted.
 			if !k.Deleted() {
 				if err := func() error {
-					p.mu.RLock()
-					defer p.mu.RUnlock()
+					p.Mu.RLock()
+					defer p.Mu.RUnlock()
 					return p.activeLogFile.DeleteTagKey(name, k.Key())
 				}(); err != nil {
 					return err
@@ -654,8 +654,8 @@ func (p *Partition) DropMeasurement(name []byte) error {
 				for v := vitr.Next(); v != nil; v = vitr.Next() {
 					if !v.Deleted() {
 						if err := func() error {
-							p.mu.RLock()
-							defer p.mu.RUnlock()
+							p.Mu.RLock()
+							defer p.Mu.RUnlock()
 							return p.activeLogFile.DeleteTagValue(name, k.Key(), v.Value())
 						}(); err != nil {
 							return err
@@ -677,8 +677,8 @@ func (p *Partition) DropMeasurement(name []byte) error {
 				break
 			}
 			if err := func() error {
-				p.mu.RLock()
-				defer p.mu.RUnlock()
+				p.Mu.RLock()
+				defer p.Mu.RUnlock()
 				return p.activeLogFile.DeleteSeriesID(elem.SeriesID)
 			}(); err != nil {
 				return err
@@ -691,8 +691,8 @@ func (p *Partition) DropMeasurement(name []byte) error {
 
 	// Mark measurement as deleted.
 	if err := func() error {
-		p.mu.RLock()
-		defer p.mu.RUnlock()
+		p.Mu.RLock()
+		defer p.Mu.RUnlock()
 		return p.activeLogFile.DeleteMeasurement(name)
 	}(); err != nil {
 		return err
@@ -724,14 +724,14 @@ func (p *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []mode
 	defer fs.Release()
 
 	// Ensure fileset cannot change during insert.
-	p.mu.RLock()
+	p.Mu.RLock()
 	// Insert series into log file.
 	ids, err := p.activeLogFile.AddSeriesList(p.seriesIDSet, names, tagsSlice)
 	if err != nil {
-		p.mu.RUnlock()
+		p.Mu.RUnlock()
 		return nil, err
 	}
-	p.mu.RUnlock()
+	p.Mu.RUnlock()
 
 	if err := p.CheckLogFile(); err != nil {
 		return nil, err
@@ -742,8 +742,8 @@ func (p *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []mode
 func (p *Partition) DropSeries(seriesID uint64) error {
 	// Delete series from index.
 	if err := func() error {
-		p.mu.RLock()
-		defer p.mu.RUnlock()
+		p.Mu.RLock()
+		defer p.Mu.RUnlock()
 		return p.activeLogFile.DeleteSeriesID(seriesID)
 	}(); err != nil {
 		return err
@@ -908,14 +908,14 @@ func (p *Partition) AssignShard(k string, shardID uint64)         {}
 
 // Compact requests a compaction of log files.
 func (p *Partition) Compact() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.Mu.Lock()
+	defer p.Mu.Unlock()
 	p.compact()
 }
 
 func (p *Partition) DisableCompactions() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.Mu.Lock()
+	defer p.Mu.Unlock()
 	p.compactionsDisabled++
 
 	select {
@@ -931,8 +931,8 @@ func (p *Partition) DisableCompactions() {
 }
 
 func (p *Partition) EnableCompactions() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.Mu.Lock()
+	defer p.Mu.Unlock()
 
 	// Already enabled?
 	if p.compactionsEnabled() {
@@ -950,9 +950,9 @@ func (p *Partition) runPeriodicCompaction() {
 	p.Compact()
 
 	// Avoid a race when using Reopen in tests
-	p.mu.RLock()
+	p.Mu.RLock()
 	closing := p.closing
-	p.mu.RUnlock()
+	p.Mu.RUnlock()
 
 	// check for compactions once an hour (usually not necessary but a nice safety check)
 	t := time.NewTicker(1 * time.Hour)
@@ -975,8 +975,8 @@ func (p *Partition) runPeriodicCompaction() {
 // If checkRunning = true, only count as needing a compaction if there is not a compaction already
 // in progress for the level that would be compacted
 func (p *Partition) NeedsCompaction(checkRunning bool) bool {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	p.Mu.RLock()
+	defer p.Mu.RUnlock()
 	if p.needsLogCompaction() {
 		return true
 	}
@@ -1029,10 +1029,10 @@ func (p *Partition) compact() {
 			p.currentCompactionN++
 			go func() {
 				p.compactLogFile(logFile)
-				p.mu.Lock()
+				p.Mu.Lock()
 				p.currentCompactionN--
 				p.levelCompacting[0] = false
-				p.mu.Unlock()
+				p.Mu.Unlock()
 				p.Compact()
 			}()
 		}
@@ -1072,10 +1072,10 @@ func (p *Partition) compact() {
 				p.compactToLevel(files, level+1, interrupt)
 
 				// Ensure compaction lock for the level is released.
-				p.mu.Lock()
+				p.Mu.Lock()
 				p.levelCompacting[level] = false
 				p.currentCompactionN--
-				p.mu.Unlock()
+				p.Mu.Unlock()
 
 				// Check for new compactions
 				p.Compact()
@@ -1153,8 +1153,8 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 
 	// Obtain lock to swap in index file and write manifest.
 	if err := func() (rErr error) {
-		p.mu.Lock()
-		defer p.mu.Unlock()
+		p.Mu.Lock()
+		defer p.Mu.Unlock()
 
 		// Replace previous files with new index file.
 		newFileSet := p.fileSet.MustReplace(IndexFiles(files).Files(), file)
@@ -1218,8 +1218,8 @@ func (p *Partition) needsLogCompaction() bool {
 func (p *Partition) CheckLogFile() error {
 	// Check log file under read lock.
 	needsCompaction := func() bool {
-		p.mu.RLock()
-		defer p.mu.RUnlock()
+		p.Mu.RLock()
+		defer p.Mu.RUnlock()
 		return p.needsLogCompaction()
 	}()
 	if !needsCompaction {
@@ -1227,8 +1227,8 @@ func (p *Partition) CheckLogFile() error {
 	}
 
 	// If file size exceeded then recheck under write lock and swap files.
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.Mu.Lock()
+	defer p.Mu.Unlock()
 	return p.checkLogFile()
 }
 
@@ -1258,9 +1258,9 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 		return
 	}
 
-	p.mu.Lock()
+	p.Mu.Lock()
 	interrupt := p.compactionInterrupt
-	p.mu.Unlock()
+	p.Mu.Unlock()
 
 	start := time.Now()
 
@@ -1310,8 +1310,8 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 
 	// Obtain lock to swap in index file and write manifest.
 	if err := func() (rErr error) {
-		p.mu.Lock()
-		defer p.mu.Unlock()
+		p.Mu.Lock()
+		defer p.Mu.Unlock()
 
 		// Replace previous log file with index file.
 		newFileSet := p.fileSet.MustReplace([]File{logFile}, file)
