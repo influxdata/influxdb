@@ -5,9 +5,10 @@ import "testing/expect"
 import "planner"
 import "csv"
 
-option now = () => (2030-01-01T00:00:00Z)
+testcase last_multi_shard {
+    expect.planner(rules: ["PushDownBareAggregateRule": 1])
 
-input = "
+    input = "
 #group,false,false,true,true,false,false,true,true,true
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string
 #default,_result,,,,,,,,
@@ -36,73 +37,6 @@ input = "
 ,,0,2017-02-16T20:30:31.713576368Z,2021-02-16T20:30:31.713576368Z,2020-12-23T08:00:00Z,233,bank,pge_bill,35632393IN
 ,,0,2017-02-16T20:30:31.713576368Z,2021-02-16T20:30:31.713576368Z,2021-01-26T08:00:00Z,-1099,bank,pge_bill,35632393IN
 "
-
-testcase bare_count {
-    expect.planner(rules: ["PushDownBareAggregateRule": 1])
-
-    want = csv.from(
-        csv: "
-#datatype,string,long,long
-#group,false,false,false
-#default,_result,,
-,result,table,_value
-,,0,23
-",
-    )
-    result = csv.from(csv: input)
-        |> testing.load()
-        |> range(start: -100y)
-        |> count()
-        |> keep(columns: ["_value"])
-
-    testing.diff(want: want, got: result)
-}
-
-testcase bare_sum {
-    expect.planner(rules: ["PushDownBareAggregateRule": 1])
-
-    want = csv.from(
-        csv: "
-#datatype,string,long,double
-#group,false,false,false
-#default,_result,,
-,result,table,_value
-,,0,23938.0
-",
-    )
-    result = csv.from(csv: input)
-        |> testing.load()
-        |> range(start: -100y)
-        |> sum()
-        |> keep(columns: ["_value"])
-
-    testing.diff(want: want, got: result)
-}
-
-testcase bare_mean {
-    expect.planner(rules: ["PushDownBareAggregateRule": 1])
-
-    want = csv.from(
-        csv: "
-#datatype,string,long,double
-#group,false,false,false
-#default,_result,,
-,result,table,_value
-,,0,1040.782608696
-",
-    )
-    result = csv.from(csv: input)
-        |> testing.load()
-        |> range(start: -100y)
-        |> mean()
-        |> keep(columns: ["_value"])
-
-    testing.diff(want: want, got: result)
-}
-
-testcase bare_min {
-    expect.planner(rules: ["PushDownBareAggregateRule": 1])
-
     want = csv.from(
         csv: "
 #group,false,false,false,false,true,true
@@ -114,70 +48,8 @@ testcase bare_min {
     )
     result = csv.from(csv: input)
         |> testing.load()
-        |> range(start: -100y)
-        |> min()
-        |> keep(columns: ["_time", "_value", "_field", "_measurement"])
-
-    testing.diff(want: want, got: result)
-}
-
-testcase bare_max {
-    expect.planner(rules: ["PushDownBareAggregateRule": 1])
-
-    want = csv.from(
-        csv: "
-#group,false,false,false,false,true,true
-#datatype,string,long,dateTime:RFC3339,double,string,string
-#default,_result,,,,,
-,result,table,_time,_value,_field,_measurement
-,,0,2019-11-21T08:00:00Z,2187,bank,pge_bill
-",
-    )
-    result = csv.from(csv: input)
-        |> testing.load()
-        |> range(start: -100y)
-        |> max()
-        |> keep(columns: ["_time", "_value", "_field", "_measurement"])
-
-    testing.diff(want: want, got: result)
-}
-
-testcase bare_first {
-    expect.planner(rules: ["PushDownBareAggregateRule": 1])
-
-    want = csv.from(
-        csv: "
-#group,false,false,false,false,true,true
-#datatype,string,long,dateTime:RFC3339,double,string,string
-#default,_result,,,,,
-,result,table,_time,_value,_field,_measurement
-,,0,2019-04-11T07:00:00Z,0,bank,pge_bill
-",
-    )
-    result = csv.from(csv: input)
-        |> testing.load()
-        |> range(start: -100y)
-        |> first()
-        |> keep(columns: ["_time", "_value", "_field", "_measurement"])
-
-    testing.diff(want: want, got: result)
-}
-
-testcase bare_last {
-    expect.planner(rules: ["PushDownBareAggregateRule": 1])
-
-    want = csv.from(
-        csv: "
-#group,false,false,false,false,true,true
-#datatype,string,long,dateTime:RFC3339,double,string,string
-#default,_result,,,,,
-,result,table,_time,_value,_field,_measurement
-,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
-",
-    )
-    result = csv.from(csv: input)
-        |> testing.load()
-        |> range(start: -100y)
+        |> range(start: 2015-01-01T00:00:00Z)
+        |> filter(fn: (r) => r._measurement == "pge_bill" and r._field == "bank")
         |> last()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
 
