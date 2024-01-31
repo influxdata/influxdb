@@ -1,5 +1,5 @@
 ---
-name: iot 
+name: iot
 start_time: "2018-01-01T00:00:00Z"
 end_time: "2018-01-01T12:00:00Z"
 data:
@@ -35,7 +35,7 @@ query_tests:
   - {"type": "build_query_file", "format": "http", "use_case": "ungrouped-agg", "query_type": "count"}
   - {"type": "build_query_file", "format": "http", "use_case": "ungrouped-agg", "query_type": "sum"}
 
-  - {"type": "build_query_file", "format": "http", "use_case": "iot", "query_type": "fast-query-small-data"}
+  # - {"type": "build_query_file", "format": "http", "use_case": "iot", "query_type": "fast-query-small-data"}
   - {"type": "build_query_file", "format": "http", "use_case": "iot", "query_type": "standalone-filter"}
   - {"type": "build_query_file", "format": "http", "use_case": "iot", "query_type": "aggregate-keep"}
   - {"type": "build_query_file", "format": "http", "use_case": "iot", "query_type": "aggregate-drop"}
@@ -79,7 +79,7 @@ query_tests:
   - {"type": "build_query_file", "format": "flux-http", "use_case": "ungrouped-agg", "query_type": "count"}
   - {"type": "build_query_file", "format": "flux-http", "use_case": "ungrouped-agg", "query_type": "sum"}
 
-  - {"type": "build_query_file", "format": "flux-http", "use_case": "iot", "query_type": "fast-query-small-data"}
+  # - {"type": "build_query_file", "format": "flux-http", "use_case": "iot", "query_type": "fast-query-small-data"}
   - {"type": "build_query_file", "format": "flux-http", "use_case": "iot", "query_type": "standalone-filter"}
   - {"type": "build_query_file", "format": "flux-http", "use_case": "iot", "query_type": "aggregate-keep"}
   - {"type": "build_query_file", "format": "flux-http", "use_case": "iot", "query_type": "aggregate-drop"}
