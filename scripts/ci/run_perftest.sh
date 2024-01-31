@@ -27,7 +27,7 @@ install_influxdb() {
 
 install_telegraf() {
   # Install Telegraf
-  wget -qO- https://repos.influxdata.com/influxdata-archive_compat.key
+  curl -fLO https://repos.influxdata.com/influxdata-archive_compat.key
   echo '393e8779c89ac8d958f81f942f9ad7fb82a25e133faddaf92e15b16e6ac9ce4c influxdata-archive_compat.key' | sha256sum -c && cat influxdata-archive_compat.key | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg > /dev/null
   echo 'deb [signed-by=/etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg] https://repos.influxdata.com/debian stable main' | sudo tee /etc/apt/sources.list.d/influxdata.list
 
@@ -101,7 +101,7 @@ EOF
 
 install_go() {
   # install golang latest version
-  go_endpoint="go1.17.3.linux-amd64.tar.gz"
+  go_endpoint="go1.17.11.linux-amd64.tar.gz"
 
   wget "https://dl.google.com/go/$go_endpoint" -O "$working_dir/$go_endpoint"
   rm -rf /usr/local/go
@@ -119,13 +119,12 @@ install_go() {
 
 install_go_bins() {
   # install influxdb-comparisons cmds
-  go get \
-    github.com/influxdata/influxdb-comparisons/cmd/bulk_data_gen \
-    github.com/influxdata/influxdb-comparisons/cmd/bulk_load_influx \
-    github.com/influxdata/influxdb-comparisons/cmd/bulk_query_gen \
-    github.com/influxdata/influxdb-comparisons/cmd/query_benchmarker_influxdb
+  go install github.com/influxdata/influxdb-comparisons/cmd/bulk_data_gen@latest
+  go install github.com/influxdata/influxdb-comparisons/cmd/bulk_load_influx@latest
+  go install github.com/influxdata/influxdb-comparisons/cmd/bulk_query_gen@latest
+  go install github.com/influxdata/influxdb-comparisons/cmd/query_benchmarker_influxdb@latest
   # install yq
-  go get github.com/mikefarah/yq/v4
+  go install github.com/mikefarah/yq/v4@v4.23.1
 }
 
 # Helper functions containing common logic
