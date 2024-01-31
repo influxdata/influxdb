@@ -101,7 +101,7 @@ EOF
 
 install_go() {
   # install golang latest version
-  go_endpoint="go1.17.3.linux-amd64.tar.gz"
+  go_endpoint="go1.17.11.linux-amd64.tar.gz"
 
   wget "https://dl.google.com/go/$go_endpoint" -O "$working_dir/$go_endpoint"
   rm -rf /usr/local/go
@@ -119,13 +119,12 @@ install_go() {
 
 install_go_bins() {
   # install influxdb-comparisons cmds
-  go get \
-    github.com/influxdata/influxdb-comparisons/cmd/bulk_data_gen \
-    github.com/influxdata/influxdb-comparisons/cmd/bulk_load_influx \
-    github.com/influxdata/influxdb-comparisons/cmd/bulk_query_gen \
-    github.com/influxdata/influxdb-comparisons/cmd/query_benchmarker_influxdb
+  go install github.com/influxdata/influxdb-comparisons/cmd/bulk_data_gen@latest
+  go install github.com/influxdata/influxdb-comparisons/cmd/bulk_load_influx@latest
+  go install github.com/influxdata/influxdb-comparisons/cmd/bulk_query_gen@latest
+  go install github.com/influxdata/influxdb-comparisons/cmd/query_benchmarker_influxdb@latest
   # install yq
-  go get github.com/mikefarah/yq/v4
+  go install github.com/mikefarah/yq/v4@v4.23.1
 }
 
 # Helper functions containing common logic
