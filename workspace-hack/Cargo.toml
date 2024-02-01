@@ -44,7 +44,7 @@ getrandom = { version = "0.2", default-features = false, features = ["std"] }
 hashbrown = { version = "0.14", features = ["raw"] }
 hyper = { version = "0.14", features = ["full"] }
 indexmap = { version = "2" }
-itertools = { version = "0.11" }
+itertools = { version = "0.12" }
 k8s-openapi = { version = "0.20", default-features = false, features = ["earliest", "schemars"] }
 kube-core = { version = "0.87", default-features = false, features = ["jsonpatch", "schema"] }
 libc = { version = "0.2", features = ["extra_traits"] }
@@ -119,7 +119,7 @@ getrandom = { version = "0.2", default-features = false, features = ["std"] }
 hashbrown = { version = "0.14", features = ["raw"] }
 heck = { version = "0.4", features = ["unicode"] }
 indexmap = { version = "2" }
-itertools = { version = "0.11" }
+itertools = { version = "0.12" }
 lock_api = { version = "0.4", features = ["arc_lock"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
 md-5 = { version = "0.10" }
