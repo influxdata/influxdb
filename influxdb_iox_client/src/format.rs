@@ -136,7 +136,7 @@ fn batches_to_csv(batches: &[RecordBatch]) -> Result<String> {
     let mut bytes = vec![];
 
     {
-        let mut writer = WriterBuilder::new().has_headers(true).build(&mut bytes);
+        let mut writer = WriterBuilder::new().with_header(true).build(&mut bytes);
 
         for batch in batches {
             writer.write(batch).map_err(Error::CsvArrow)?;

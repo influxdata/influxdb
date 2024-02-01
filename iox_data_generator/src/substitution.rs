@@ -4,13 +4,13 @@
 use crate::specification;
 use chrono::prelude::*;
 use handlebars::{
-    Context, Handlebars, Helper, HelperDef, HelperResult, Output, RenderContext, RenderError,
+    Context, Handlebars, Helper, HelperDef, HelperResult, Output, RenderContext, RenderErrorReason,
 };
 use rand::rngs::SmallRng;
 use rand::{distributions::Alphanumeric, seq::SliceRandom, Rng, RngCore};
 use serde_json::Value;
 use snafu::{ResultExt, Snafu};
-use std::{collections::BTreeMap, convert::TryInto};
+use std::collections::BTreeMap;
 
 /// Substitution-specific Results
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -76,7 +76,7 @@ pub(crate) struct RandomHelper;
 impl HelperDef for RandomHelper {
     fn call<'reg: 'rc, 'rc>(
         &self,
-        h: &Helper<'_, '_>,
+        h: &Helper<'_>,
         _: &Handlebars<'_>,
         _: &Context,
         _: &mut RenderContext<'_, '_>,
@@ -84,12 +84,20 @@ impl HelperDef for RandomHelper {
     ) -> HelperResult {
         let param = h
             .param(0)
-            .ok_or_else(|| RenderError::new("`random` requires a parameter"))?
+            .ok_or(RenderErrorReason::ParamNotFoundForIndex("random", 0))?
             .value()
             .as_u64()
-            .ok_or_else(|| RenderError::new("`random`'s parameter must be an unsigned integer"))?
+            .ok_or_else(|| {
+                RenderErrorReason::ParamTypeMismatchForName(
+                    "random",
+                    "0".to_string(),
+                    "unsigned integer".to_string(),
+                )
+            })?
             .try_into()
-            .map_err(|_| RenderError::new("`random`'s parameter must fit in a usize"))?;
+            .map_err(|_| {
+                RenderErrorReason::Other("`random`'s parameter must fit in a usize".to_string())
+            })?;
 
         let mut rng = rand::thread_rng();
 
@@ -111,7 +119,7 @@ pub(crate) struct FormatNowHelper;
 impl HelperDef for FormatNowHelper {
     fn call<'reg: 'rc, 'rc>(
         &self,
-        h: &Helper<'_, '_>,
+        h: &Helper<'_>,
         _: &Handlebars<'_>,
         c: &Context,
         _: &mut RenderContext<'_, '_>,
@@ -119,7 +127,7 @@ impl HelperDef for FormatNowHelper {
     ) -> HelperResult {
         let format = h
             .param(0)
-            .ok_or_else(|| RenderError::new("`format-time` requires a parameter"))?
+            .ok_or(RenderErrorReason::ParamNotFoundForIndex("format-time", 0))?
             .render();
 
         let timestamp = c
@@ -142,7 +150,7 @@ pub(crate) struct GuidHelper;
 impl HelperDef for GuidHelper {
     fn call<'reg: 'rc, 'rc>(
         &self,
-        _h: &Helper<'_, '_>,
+        _h: &Helper<'_>,
         _: &Handlebars<'_>,
         _: &Context,
         _: &mut RenderContext<'_, '_>,

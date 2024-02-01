@@ -537,11 +537,11 @@ impl TryFrom<&Migrator> for IOxMigrator {
     }
 }
 
-/// Validate an already-applied migration.
+/// Validate already-applied migrations
 ///
 /// Checks that:
 ///
-/// - applied migration is known
+/// - all applied migrations are known or all known migrations are applied
 /// - checksum of applied migration and known migration match
 /// - new migrations are newer than both the successfully applied and the dirty version
 /// - there is at most one dirty migration (bug check)
@@ -552,9 +552,18 @@ fn validate_applied_migrations(
 ) -> Result<(), MigrateError> {
     let migrations: HashMap<_, _> = migrator.migrations.iter().map(|m| (m.version, m)).collect();
 
-    for applied_migration in applied_migrations {
+    let mut dirty_version = None;
+    for (idx, applied_migration) in applied_migrations.iter().enumerate() {
         match migrations.get(&applied_migration.version) {
             None => {
+                if idx == migrations.len() && dirty_version.is_none() {
+                    // All migrations in `migrator` have been applied
+                    // We therefore continue as this should not prevent startup
+                    // if there are no local migrations to apply
+                    warn!("found applied migrations not present locally, but all local migrations applied - continuing");
+                    return Ok(());
+                }
+
                 return Err(MigrateError::VersionMissing(applied_migration.version));
             }
             Some(migration) => {
@@ -564,7 +573,15 @@ fn validate_applied_migrations(
                 {
                     return Err(MigrateError::VersionMismatch(migration.version));
                 }
+
                 if applied_migration.dirty {
+                    if let Some(first) = dirty_version {
+                        return Err(MigrateError::Source(format!(
+                            "there are multiple dirty versions, this should not happen and is considered a bug: {:?}",
+                            &[first, migration.version],
+                        ).into()));
+                    }
+                    dirty_version = Some(migration.version);
                     warn!(
                         version = migration.version,
                         "found dirty migration, trying to recover"
@@ -573,19 +590,6 @@ fn validate_applied_migrations(
             }
         }
     }
-
-    let dirty_versions = applied_migrations
-        .iter()
-        .filter(|m| m.dirty)
-        .map(|m| m.version)
-        .collect::<Vec<_>>();
-    if dirty_versions.len() > 1 {
-        return Err(MigrateError::Source(format!(
-            "there are multiple dirty versions, this should not happen and is considered a bug: {:?}",
-            dirty_versions,
-        ).into()));
-    }
-    let dirty_version = dirty_versions.into_iter().next();
 
     let applied_last = applied_migrations
         .iter()
@@ -2271,6 +2275,42 @@ mod tests {
                 err.to_string(),
                 "while resolving migrations: dirty version (1) is not the last applied version (2), this is a bug",
             );
+        }
+
+        #[tokio::test]
+        async fn test_migrator_allows_unknown_migrations_if_they_are_clean() {
+            maybe_skip_integration!();
+            let mut conn = setup().await;
+            let conn = &mut *conn;
+
+            let migrator_1 = IOxMigrator::try_new([
+                IOxMigration {
+                    version: 1,
+                    description: "".into(),
+                    steps: [].into(),
+                    checksum: [1, 2, 3].into(),
+                    other_compatible_checksums: [].into(),
+                },
+                IOxMigration {
+                    version: 2,
+                    description: "".into(),
+                    steps: [].into(),
+                    checksum: [4, 5, 6].into(),
+                    other_compatible_checksums: [].into(),
+                },
+            ])
+            .unwrap();
+            let migrator_2 = IOxMigrator::try_new([IOxMigration {
+                version: 1,
+                description: "".into(),
+                steps: [].into(),
+                checksum: [1, 2, 3].into(),
+                other_compatible_checksums: [].into(),
+            }])
+            .unwrap();
+
+            migrator_1.run_direct(conn).await.unwrap();
+            migrator_2.run_direct(conn).await.unwrap();
         }
 
         #[tokio::test]

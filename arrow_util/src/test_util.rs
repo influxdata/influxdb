@@ -240,7 +240,7 @@ static REGEX_FILTER: Lazy<Regex> = Lazy::new(|| {
 
 /// Matches things like `time@3 < -9223372036854775808` and `time_min@2 > 1641031200399937022`
 static REGEX_TIME_OP: Lazy<Regex> = Lazy::new(|| {
-    Regex::new("(?P<prefix>time((_min)|(_max))?@[0-9]+ [<>=]=? )(?P<value>-?[0-9]+)")
+    Regex::new("(?P<prefix>time((_min)|(_max))?@[0-9]+ [<>=]=? (CAST\\()?)(?P<value>-?[0-9]+)(?P<suffix> AS Timestamp\\(Nanosecond, \"[^\"]\"\\)\\))?")
         .expect("time opt regex")
 });
 
@@ -258,7 +258,8 @@ fn normalize_time_ops(s: &str) -> String {
     REGEX_TIME_OP
         .replace_all(s, |c: &Captures<'_>| {
             let prefix = c.name("prefix").expect("always captures").as_str();
-            format!("{prefix}<REDACTED>")
+            let suffix = c.name("suffix").map_or("", |m| m.as_str());
+            format!("{prefix}<REDACTED>{suffix}")
         })
         .to_string()
 }

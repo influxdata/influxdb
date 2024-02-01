@@ -672,8 +672,10 @@ mod tests {
             unimplemented!()
         }
 
-        fn statistics(&self) -> datafusion::physical_plan::Statistics {
-            unimplemented!()
+        fn statistics(&self) -> Result<datafusion::physical_plan::Statistics, DataFusionError> {
+            Ok(datafusion::physical_plan::Statistics::new_unknown(
+                &self.schema(),
+            ))
         }
 
         fn metrics(&self) -> Option<MetricsSet> {

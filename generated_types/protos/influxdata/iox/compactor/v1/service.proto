@@ -2,6 +2,8 @@ syntax = "proto3";
 package influxdata.iox.compactor.v1;
 option go_package = "github.com/influxdata/iox/compactor/v1";
 
+import "influxdata/iox/skipped_compaction/v1/skipped_compaction.proto";
+
 service CompactionService {
   // List all skipped compactions in the catalog
   rpc ListSkippedCompactions(ListSkippedCompactionsRequest) returns (ListSkippedCompactionsResponse);
@@ -14,38 +16,7 @@ message ListSkippedCompactionsRequest {}
 
 message ListSkippedCompactionsResponse {
   // A list of skipped compactions
-  repeated SkippedCompaction skipped_compactions = 1;
-}
-
-message SkippedCompaction {
-  // The ID of the partition for which compaction was skipped; this can be used to uniquely
-  // identify the skipped compaction record and remove it.
-  int64 partition_id = 1;
-
-  // Free text describing why compaction was skipped for this partition.
-  string reason = 2;
-
-  // Timestamp in nanoseconds since the epoch of when compaction was skipped.
-  int64 skipped_at = 3;
-
-  // The number of Parquet files selected to be compacted for this partition.
-  int64 num_files = 4;
-
-  // The compactor's limit on the number of files in a compaction operation at the time this
-  // compaction was skipped.
-  int64 limit_num_files = 5;
-
-  // The compactor's limit on the number of files at the beginning of a partition at the time
-  // this copmaction was skipped
-  optional int64 limit_num_files_first_in_partition = 8;
-
-  // The number of bytes of memory estimated to be needed to compact this partition at the time
-  // this compaction was skipped.
-  int64 estimated_bytes = 6;
-
-  // The compactor's limit on the number of bytes of memory that can be used for a compaction
-  // operation at the time this compaction was skipped.
-  int64 limit_bytes = 7;
+  repeated influxdata.iox.skipped_compaction.v1.SkippedCompaction skipped_compactions = 1;
 }
 
 message DeleteSkippedCompactionsRequest {
@@ -54,5 +25,5 @@ message DeleteSkippedCompactionsRequest {
 
 message DeleteSkippedCompactionsResponse {
   // The deleted skipped compaction
-  optional SkippedCompaction skipped_compaction = 1;
+  optional influxdata.iox.skipped_compaction.v1.SkippedCompaction skipped_compaction = 1;
 }

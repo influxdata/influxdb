@@ -129,36 +129,43 @@
 //!      [
 //!          TemplatePart::TimeFormat("%Y"),
 //!          TemplatePart::TagValue("a"),
-//!          TemplatePart::TagValue("b")
+//!          TemplatePart::TagValue("b"),
+//!          TemplatePart::Bucket("c", 10)
 //!      ]
 //! ```
 //!
 //! The following partition keys are derived:
 //!
-//!   * `time=2023-01-01, a=bananas, b=plátanos`   -> `2023|bananas|plátanos`
-//!   * `time=2023-01-01, b=plátanos`              -> `2023|!|plátanos`
-//!   * `time=2023-01-01, another=cat, b=plátanos` -> `2023|!|plátanos`
-//!   * `time=2023-01-01`                          -> `2023|!|!`
-//!   * `time=2023-01-01, a=cat|dog, b=!`          -> `2023|cat%7Cdog|%21`
-//!   * `time=2023-01-01, a=%50`                   -> `2023|%2550|!`
-//!   * `time=2023-01-01, a=`                      -> `2023|^|!`
-//!   * `time=2023-01-01, a=<long string>`         -> `2023|<long string>#|!`
+//!   * `time=2023-01-01, a=bananas, b=plátanos, c=ananas`   -> `2023|bananas|plátanos|5`
+//!   * `time=2023-01-01, b=plátanos`                        -> `2023|!|plátanos|!`
+//!   * `time=2023-01-01, another=cat, b=plátanos`           -> `2023|!|plátanos|!`
+//!   * `time=2023-01-01`                                    -> `2023|!|!|!`
+//!   * `time=2023-01-01, a=cat|dog, b=!, c=!`               -> `2023|cat%7Cdog|%21|8`
+//!   * `time=2023-01-01, a=%50, c=%50`                      -> `2023|%2550|!|9`
+//!   * `time=2023-01-01, a=, c=`                            -> `2023|^|!|0`
+//!   * `time=2023-01-01, a=<long string>`                   -> `2023|<long string>#|!|!`
 //!
 //! When using the default partitioning template (YYYY-MM-DD) there is no
 //! encoding necessary, as the derived partition key contains a single part, and
 //! no reserved characters.
 //!
 //! [percent encoded]: https://url.spec.whatwg.org/#percent-encoded-bytes
+use std::{
+    borrow::Cow,
+    fmt::{Display, Formatter},
+    ops::Range,
+    sync::Arc,
+};
 
 use chrono::{
     format::{Numeric, StrftimeItems},
     DateTime, Days, Months, Utc,
 };
 use generated_types::influxdata::iox::partition_template::v1 as proto;
+use murmur3::murmur3_32;
 use once_cell::sync::Lazy;
 use percent_encoding::{percent_decode_str, AsciiSet, CONTROLS};
 use schema::TIME_COLUMN_NAME;
-use std::{borrow::Cow, sync::Arc};
 use thiserror::Error;
 
 /// Reasons a user-specified partition template isn't valid.
@@ -187,12 +194,32 @@ pub enum ValidationError {
     #[error("invalid strftime format in partition template: {0}")]
     InvalidStrftime(String),
 
-    /// The partition template defines a [`TagValue`] part, but the provided
-    /// value is invalid.
+    /// The partition template defines a [`TagValue`] part or [`Bucket`] part,
+    /// but the provided tag name value is invalid.
     ///
     /// [`TagValue`]: [`proto::template_part::Part::TagValue`]
-    #[error("invalid tag value in partition template: {0}")]
+    /// [`Bucket`]: [`proto::template_part::Part::Bucket`]
+    #[error("invalid tag name value in partition template: {0}")]
     InvalidTagValue(String),
+
+    /// The partition template defines a [`Bucket`] part, but the provided
+    /// number of buckets is invalid.
+    ///
+    /// [`Bucket`]: [`proto::template_part::Part::Bucket`]
+    #[error(
+        "number of buckets in partition template must be in range \
+        [{ALLOWED_BUCKET_QUANTITIES:?}), number specified: {0}"
+    )]
+    InvalidNumberOfBuckets(u32),
+
+    /// The partition template defines a [`TagValue`] or [`Bucket`] part
+    /// which repeats a tag name used in another [`TagValue`] or [`Bucket`] part.
+    /// This is not allowed
+    ///
+    /// [`TagValue`]: [`proto::template_part::Part::TagValue`]
+    /// [`Bucket`]: [`proto::template_part::Part::Bucket`]
+    #[error("tag name value cannot be repeated in partition template: {0}")]
+    RepeatedTagValue(String),
 }
 
 /// The maximum number of template parts a custom partition template may specify, to limit the
@@ -234,6 +261,14 @@ pub const PARTITION_KEY_PART_TRUNCATED: char = '#';
 /// data point.
 pub const TAG_VALUE_KEY_TIME: &str = "time";
 
+/// The range of bucket quantities allowed for [`Bucket`] template parts.
+///    
+/// [`Bucket`]: [`proto::template_part::Part::Bucket`]
+pub const ALLOWED_BUCKET_QUANTITIES: Range<u32> = Range {
+    start: 1,
+    end: 100_000,
+};
+
 /// The minimal set of characters that must be encoded during partition key
 /// generation when they form part of a partition key part, in order to be
 /// unambiguously reversible.
@@ -249,10 +284,23 @@ pub const ENCODED_PARTITION_KEY_CHARS: AsciiSet = CONTROLS
 /// Allocationless and protobufless access to the parts of a template needed to
 /// actually do partitioning.
 #[derive(Debug, Clone)]
-#[allow(missing_docs)]
 pub enum TemplatePart<'a> {
+    /// A tag-value partition part.
+    ///
+    /// Specifies the name of the tag column.
     TagValue(&'a str),
+
+    /// A strftime formatter.
+    ///
+    /// Specifies the formatter spec applied to the [`TIME_COLUMN_NAME`] column.
     TimeFormat(&'a str),
+
+    /// A bucketing partition part.
+    ///
+    /// Specifies the name of the tag column used to derive which of the `n`
+    /// buckets the data belongs in, through the mechanism implemented by the
+    /// [`bucket_for_tag_value`] function.
+    Bucket(&'a str, u32),
 }
 
 /// The default partitioning scheme is by each day according to the "time" column.
@@ -265,6 +313,37 @@ pub static PARTITION_BY_DAY_PROTO: Lazy<Arc<proto::PartitionTemplate>> = Lazy::n
         }],
     })
 });
+
+// This applies murmur3 32 bit hashing to the tag value string, as Iceberg would.
+//
+// * <https://iceberg.apache.org/spec/#appendix-b-32-bit-hash-requirements>
+fn iceberg_hash(tag_value: &str) -> u32 {
+    murmur3_32(&mut tag_value.as_bytes(), 0).expect("read of tag value string must never error")
+}
+
+/// Hash bucket the provided tag value to a bucket ID in the range `[0,num_buckets)`.
+///
+/// This applies murmur3 32 bit hashing to the tag value string, zero-ing the sign bit
+/// then modulo assigning it to a bucket as Iceberg would.
+///
+/// * <https://iceberg.apache.org/spec/#appendix-b-32-bit-hash-requirements>
+/// * <https://iceberg.apache.org/spec/#bucket-transform-details>
+///
+///
+/// # Panics
+///
+/// If `num_buckets` is zero, this will panic. Validation MUST prevent
+/// [`TemplatePart::Bucket`] from being constructed with a zero bucket count. It just
+/// makes no sense and shouldn't need to be checked here.
+#[inline(always)]
+pub fn bucket_for_tag_value(tag_value: &str, num_buckets: u32) -> u32 {
+    // Hash the tag value as iceberg would.
+    let hash = iceberg_hash(tag_value);
+    // Then bucket it as iceberg would, by removing the sign bit from the
+    // 32 bit murmur hash and modulo by the number of buckets to assign
+    // across.
+    (hash & i32::MAX as u32) % num_buckets
+}
 
 /// A partition template specified by a namespace record.
 ///
@@ -344,6 +423,10 @@ impl TablePartitionTemplateOverride {
             .map(|part| match part {
                 proto::template_part::Part::TagValue(value) => TemplatePart::TagValue(value),
                 proto::template_part::Part::TimeFormat(fmt) => TemplatePart::TimeFormat(fmt),
+                proto::template_part::Part::Bucket(proto::Bucket {
+                    tag_name,
+                    num_buckets,
+                }) => TemplatePart::Bucket(tag_name, *num_buckets),
             })
     }
 
@@ -370,6 +453,10 @@ impl TablePartitionTemplateOverride {
                                     .map(|part| match part {
                                         proto::template_part::Part::TagValue(s) => s.capacity(),
                                         proto::template_part::Part::TimeFormat(s) => s.capacity(),
+                                        proto::template_part::Part::Bucket(proto::Bucket {
+                                            tag_name,
+                                            num_buckets: _,
+                                        }) => tag_name.capacity() + std::mem::size_of::<u32>(),
                                     })
                                     .unwrap_or_default()
                             })
@@ -384,15 +471,42 @@ impl TablePartitionTemplateOverride {
     }
 }
 
+/// Display the serde_json representation so that the output
+/// can be copy/pasted into CLI tools, etc as the partition
+/// template is specified as JSON
+impl Display for TablePartitionTemplateOverride {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.as_proto()
+                .map(|proto| serde_json::to_string(proto)
+                    .expect("serialization should be infallible"))
+                .unwrap_or_default()
+        )
+    }
+}
+
+impl TryFrom<Option<proto::PartitionTemplate>> for TablePartitionTemplateOverride {
+    type Error = ValidationError;
+
+    fn try_from(p: Option<proto::PartitionTemplate>) -> Result<Self, Self::Error> {
+        Ok(Self(p.map(serialization::Wrapper::try_from).transpose()?))
+    }
+}
+
 /// This manages the serialization/deserialization of the `proto::PartitionTemplate` type to and
 /// from the database through `sqlx` for the `NamespacePartitionTemplateOverride` and
 /// `TablePartitionTemplateOverride` types. It's an internal implementation detail to minimize code
 /// duplication.
 mod serialization {
-    use super::{ValidationError, MAXIMUM_NUMBER_OF_TEMPLATE_PARTS, TAG_VALUE_KEY_TIME};
+    use super::{
+        ValidationError, ALLOWED_BUCKET_QUANTITIES, MAXIMUM_NUMBER_OF_TEMPLATE_PARTS,
+        TAG_VALUE_KEY_TIME,
+    };
     use chrono::{format::StrftimeItems, Utc};
     use generated_types::influxdata::iox::partition_template::v1 as proto;
-    use std::{fmt::Write, sync::Arc};
+    use std::{collections::HashSet, fmt::Write, sync::Arc};
 
     #[derive(Debug, Clone, PartialEq, Hash)]
     pub struct Wrapper(Arc<proto::PartitionTemplate>);
@@ -437,6 +551,8 @@ mod serialization {
                 return Err(ValidationError::TooManyParts { specified });
             }
 
+            let mut seen_tags: HashSet<&str> = HashSet::with_capacity(specified);
+
             // All time formats must be valid and tag values may not specify any
             // restricted values.
             for part in &partition_template.parts {
@@ -478,6 +594,32 @@ mod serialization {
                             return Err(ValidationError::InvalidTagValue(format!(
                                 "{TAG_VALUE_KEY_TIME} cannot be used"
                             )));
+                        }
+
+                        if !seen_tags.insert(value.as_str()) {
+                            return Err(ValidationError::RepeatedTagValue(value.into()));
+                        }
+                    }
+                    Some(proto::template_part::Part::Bucket(proto::Bucket {
+                        tag_name,
+                        num_buckets,
+                    })) => {
+                        if tag_name.is_empty() {
+                            return Err(ValidationError::InvalidTagValue(tag_name.into()));
+                        }
+
+                        if tag_name.contains(TAG_VALUE_KEY_TIME) {
+                            return Err(ValidationError::InvalidTagValue(format!(
+                                "{TAG_VALUE_KEY_TIME} cannot be used"
+                            )));
+                        }
+
+                        if !seen_tags.insert(tag_name.as_str()) {
+                            return Err(ValidationError::RepeatedTagValue(tag_name.into()));
+                        }
+
+                        if !ALLOWED_BUCKET_QUANTITIES.contains(num_buckets) {
+                            return Err(ValidationError::InvalidNumberOfBuckets(*num_buckets));
                         }
                     }
                     None => {}
@@ -558,6 +700,10 @@ pub enum ColumnValue<'a> {
         /// Exclusive end of the datatime partition range.
         end: DateTime<Utc>,
     },
+
+    /// The inner value is the ID of the bucket selected through a modulo hash
+    /// of the input column value.
+    Bucket(u32),
 }
 
 impl<'a> ColumnValue<'a> {
@@ -572,7 +718,7 @@ impl<'a> ColumnValue<'a> {
         let this = match self {
             ColumnValue::Identity(v) => v.as_bytes(),
             ColumnValue::Prefix(v) => v.as_bytes(),
-            ColumnValue::Datetime { .. } => {
+            ColumnValue::Datetime { .. } | ColumnValue::Bucket(..) => {
                 return false;
             }
         };
@@ -590,6 +736,7 @@ where
             ColumnValue::Identity(v) => other.as_ref().eq(v.as_ref()),
             ColumnValue::Prefix(_) => false,
             ColumnValue::Datetime { .. } => false,
+            ColumnValue::Bucket(..) => false,
         }
     }
 }
@@ -605,7 +752,9 @@ where
 ///
 /// # Panics
 ///
-/// This method panics if a column value is not valid UTF8 after decoding.
+/// This method panics if a column value is not valid UTF8 after decoding, or
+/// when a bucket ID is not valid (not a u32 or within the expected number of
+/// buckets).
 pub fn build_column_values<'a>(
     template: &'a TablePartitionTemplateOverride,
     partition_key: &'a str,
@@ -629,10 +778,21 @@ pub fn build_column_values<'a>(
     // Produce an iterator of (template_part, template_value)
     template_parts
         .zip(key_parts)
-        .filter_map(|(template, value)| match template {
-            TemplatePart::TagValue(col_name) => Some((col_name, parse_part_tag_value(value)?)),
-            TemplatePart::TimeFormat(format) => {
-                Some((TIME_COLUMN_NAME, parse_part_time_format(value, format)?))
+        .filter_map(|(template, value)| {
+            if value == PARTITION_KEY_VALUE_NULL_STR {
+                None
+            } else {
+                match template {
+                    TemplatePart::TagValue(col_name) => {
+                        Some((col_name, parse_part_tag_value(value)?))
+                    }
+                    TemplatePart::TimeFormat(format) => {
+                        Some((TIME_COLUMN_NAME, parse_part_time_format(value, format)?))
+                    }
+                    TemplatePart::Bucket(col_name, num_buckets) => {
+                        Some((col_name, parse_part_bucket(value, num_buckets)?))
+                    }
+                }
             }
         })
 }
@@ -640,11 +800,6 @@ pub fn build_column_values<'a>(
 fn parse_part_tag_value(value: &str) -> Option<ColumnValue<'_>> {
     // Perform re-mapping of sentinel values.
     let value = match value {
-        PARTITION_KEY_VALUE_NULL_STR => {
-            // Skip null or empty partition key parts, indicated by the
-            // presence of a single "!" character as the part value.
-            return None;
-        }
         PARTITION_KEY_VALUE_EMPTY_STR => {
             // Re-map the empty string sentinel "^"" to an empty string
             // value.
@@ -736,6 +891,18 @@ fn parse_part_time_format(value: &str, format: &str) -> Option<ColumnValue<'stat
     end.map(|end| ColumnValue::Datetime { begin, end })
 }
 
+fn parse_part_bucket(value: &str, num_buckets: u32) -> Option<ColumnValue<'_>> {
+    // Parse the bucket ID from the given value string.
+    let bucket_id = value
+        .parse::<u32>()
+        .expect("invalid partition key bucket encoding");
+    // Invariant: If the bucket ID (0 indexed) is greater than the number of
+    // buckets to spread data across the partition key is invalid.
+    assert!(bucket_id < num_buckets);
+
+    Some(ColumnValue::Bucket(bucket_id))
+}
+
 fn parsed_implicit_defaults(mut parsed: chrono::format::Parsed) -> Option<chrono::format::Parsed> {
     parsed.year?;
 
@@ -800,6 +967,12 @@ pub fn test_table_partition_override(
             let part = match part {
                 TemplatePart::TagValue(value) => proto::template_part::Part::TagValue(value.into()),
                 TemplatePart::TimeFormat(fmt) => proto::template_part::Part::TimeFormat(fmt.into()),
+                TemplatePart::Bucket(value, num_buckets) => {
+                    proto::template_part::Part::Bucket(proto::Bucket {
+                        tag_name: value.into(),
+                        num_buckets,
+                    })
+                }
             };
 
             proto::TemplatePart { part: Some(part) }
@@ -814,11 +987,31 @@ pub fn test_table_partition_override(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use assert_matches::assert_matches;
     use chrono::TimeZone;
+    use proptest::prelude::*;
     use sqlx::Encode;
     use test_helpers::assert_error;
+
+    use super::*;
+
+    #[test]
+    fn test_partition_template_to_string() {
+        let template_empty: TablePartitionTemplateOverride =
+            TablePartitionTemplateOverride::default();
+
+        let template: Vec<TemplatePart<'_>> =
+            [TemplatePart::TimeFormat("%Y"), TemplatePart::TagValue("a")]
+                .into_iter()
+                .collect::<Vec<_>>();
+        let template: TablePartitionTemplateOverride = test_table_partition_override(template);
+
+        assert_eq!(template_empty.to_string(), "");
+        assert_eq!(
+            template.to_string(),
+            "{\"parts\":[{\"timeFormat\":\"%Y\"},{\"tagValue\":\"a\"}]}"
+        );
+    }
 
     #[test]
     fn test_max_partition_key_len() {
@@ -877,6 +1070,60 @@ mod tests {
         });
 
         assert_error!(err, ValidationError::TooManyParts { specified } if specified == 9);
+    }
+
+    #[test]
+    fn repeated_tag_name_value_is_invalid() {
+        // Test [`TagValue`]
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("bananas".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("bananas".into())),
+                },
+            ],
+        });
+
+        assert_error!(err, ValidationError::RepeatedTagValue ( ref specified ) if specified == "bananas");
+
+        // Test [`Bucket`]
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::Bucket(proto::Bucket {
+                        tag_name: "bananas".into(),
+                        num_buckets: 42,
+                    })),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::Bucket(proto::Bucket {
+                        tag_name: "bananas".into(),
+                        num_buckets: 42,
+                    })),
+                },
+            ],
+        });
+
+        assert_error!(err, ValidationError::RepeatedTagValue ( ref specified ) if specified == "bananas");
+
+        // Test a combination of [`TagValue`] and [`Bucket`]
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("bananas".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::Bucket(proto::Bucket {
+                        tag_name: "bananas".into(),
+                        num_buckets: 42,
+                    })),
+                },
+            ],
+        });
+
+        assert_error!(err, ValidationError::RepeatedTagValue ( ref specified ) if specified == "bananas");
     }
 
     /// Chrono will panic when formatting a timestamp if the "%#z" formatting
@@ -947,8 +1194,72 @@ mod tests {
         assert_error!(err, ValidationError::InvalidTagValue(ref value) if value.is_empty());
     }
 
+    /// "time" is a special column already covered by strftime, being a time
+    /// series database and all.
+    #[test]
+    fn bucket_time_tag_name_is_invalid() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::Bucket(proto::Bucket {
+                    tag_name: "time".into(),
+                    num_buckets: 42,
+                })),
+            }],
+        });
+
+        assert_error!(err, ValidationError::InvalidTagValue(_));
+    }
+
+    #[test]
+    fn bucket_empty_tag_name_is_invalid() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::Bucket(proto::Bucket {
+                    tag_name: "".into(),
+                    num_buckets: 42,
+                })),
+            }],
+        });
+
+        assert_error!(err, ValidationError::InvalidTagValue(ref value) if value.is_empty());
+    }
+
+    #[test]
+    fn bucket_zero_num_buckets_is_invalid() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::Bucket(proto::Bucket {
+                    tag_name: "arán".into(),
+                    num_buckets: 0,
+                })),
+            }],
+        });
+
+        assert_error!(err, ValidationError::InvalidNumberOfBuckets(0));
+    }
+
+    #[test]
+    fn bucket_too_high_num_buckets_is_invalid() {
+        const TOO_HIGH: u32 = 100_000;
+
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::Bucket(proto::Bucket {
+                    tag_name: "arán".into(),
+                    num_buckets: TOO_HIGH,
+                })),
+            }],
+        });
+
+        assert_error!(err, ValidationError::InvalidNumberOfBuckets(TOO_HIGH));
+    }
+
     fn identity(s: &str) -> ColumnValue<'_> {
         ColumnValue::Identity(s.into())
+    }
+
+    fn bucket(bucket_id: u32) -> ColumnValue<'static> {
+        ColumnValue::Bucket(bucket_id)
     }
 
     fn prefix<'a, T>(s: T) -> ColumnValue<'a>
@@ -965,14 +1276,76 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_iceberg_string_hash() {
+        assert_eq!(iceberg_hash("iceberg"), 1210000089);
+    }
+
+    // This is a test fixture designed to catch accidental changes to the
+    // Iceberg-like hash-bucket partitioning behaviour.
+    //
+    // You shouldn't be changing this!
+    #[test]
+    fn test_hash_bucket_fixture() {
+        // These are values lifted from the iceberg spark test suite for
+        // `BucketString`, sadly not provided in the reference/spec:
+        //
+        // https://github.com/apache/iceberg/blob/31e31fd819c846f49d2bd459b8bfadfdc3c2bc3a/spark/v3.5/spark/src/test/java/org/apache/iceberg/spark/sql/TestSparkBucketFunction.java#L151-L169
+        //
+        assert_eq!(bucket_for_tag_value("abcdefg", 5), 4);
+        assert_eq!(bucket_for_tag_value("abc", 128), 122);
+        assert_eq!(bucket_for_tag_value("abcde", 64), 54);
+        assert_eq!(bucket_for_tag_value("测试", 12), 8);
+        assert_eq!(bucket_for_tag_value("测试raul试测", 16), 1);
+        assert_eq!(bucket_for_tag_value("", 16), 0);
+
+        // These are pre-existing arbitrary fixture values
+        assert_eq!(bucket_for_tag_value("bananas", 10), 1);
+        assert_eq!(bucket_for_tag_value("plátanos", 100), 98);
+        assert_eq!(bucket_for_tag_value("crobhaing bananaí", 1000), 166);
+        assert_eq!(bucket_for_tag_value("bread", 42), 9);
+        assert_eq!(bucket_for_tag_value("arán", 76), 72);
+        assert_eq!(bucket_for_tag_value("banana arán", 1337), 1284);
+        assert_eq!(
+            bucket_for_tag_value("uasmhéid bananaí", u32::MAX),
+            1109892861
+        );
+    }
+
+    /// Test to approximate and show how the tag value maps to the partition key
+    /// for the example cases in the mod-doc. The behaviour that renders the key
+    /// itself is a combination of this bucket assignment and the render logic.
+    #[test]
+    fn test_bucket_for_mod_doc() {
+        assert_eq!(bucket_for_tag_value("ananas", 10), 5);
+        assert_eq!(bucket_for_tag_value("!", 10), 8);
+        assert_eq!(bucket_for_tag_value("%50", 10), 9);
+        assert_eq!(bucket_for_tag_value("", 10), 0);
+    }
+
+    proptest! {
+        #[test]
+        fn prop_consistent_bucketing_within_limits(tag_values in proptest::collection::vec(any::<String>(), (1, 10)), num_buckets in any::<u32>()) {
+            for value in tag_values {
+                // First pass assign
+                let want_bucket = bucket_for_tag_value(&value, num_buckets);
+                // The assigned bucket must fit within the domain given to the bucketer.
+                assert!(want_bucket < num_buckets);
+                // Feed in the same tag value, expect the same result.
+                let got_bucket = bucket_for_tag_value(&value, num_buckets);
+                assert_eq!(want_bucket, got_bucket);
+            }
+        }
+    }
+
     /// Generate a test that asserts "partition_key" is reversible, yielding
     /// "want" assuming the partition "template" was used.
     macro_rules! test_build_column_values {
         (
             $name:ident,
-            template = $template:expr,              // Array/vec of TemplatePart
-            partition_key = $partition_key:expr,    // String derived partition key
-            want = $want:expr                       // Expected build_column_values() output
+            template = $template:expr,                 // Array/vec of TemplatePart
+            partition_key = $partition_key:expr,       // String derived partition key
+            want = $want:expr                          // Expected build_column_values() output
         ) => {
             paste::paste! {
                 #[test]
@@ -1001,23 +1374,26 @@ mod tests {
             TemplatePart::TimeFormat("%Y"),
             TemplatePart::TagValue("a"),
             TemplatePart::TagValue("b"),
+            TemplatePart::Bucket("c", 10),
         ],
-        partition_key = "2023|bananas|plátanos",
+        partition_key = "2023|bananas|plátanos|5",
         want = [
             (TIME_COLUMN_NAME, year(2023)),
             ("a", identity("bananas")),
             ("b", identity("plátanos")),
+            ("c", bucket(5)),
         ]
     );
 
     test_build_column_values!(
-        module_doc_example_2,
+        module_doc_example_2, // Examples 2 and 3 are the same partition key
         template = [
             TemplatePart::TimeFormat("%Y"),
             TemplatePart::TagValue("a"),
             TemplatePart::TagValue("b"),
+            TemplatePart::Bucket("c", 10),
         ],
-        partition_key = "2023|!|plátanos",
+        partition_key = "2023|!|plátanos|!",
         want = [(TIME_COLUMN_NAME, year(2023)), ("b", identity("plátanos")),]
     );
 
@@ -1027,8 +1403,9 @@ mod tests {
             TemplatePart::TimeFormat("%Y"),
             TemplatePart::TagValue("a"),
             TemplatePart::TagValue("b"),
+            TemplatePart::Bucket("c", 10),
         ],
-        partition_key = "2023|!|!",
+        partition_key = "2023|!|!|!",
         want = [(TIME_COLUMN_NAME, year(2023)),]
     );
 
@@ -1038,12 +1415,14 @@ mod tests {
             TemplatePart::TimeFormat("%Y"),
             TemplatePart::TagValue("a"),
             TemplatePart::TagValue("b"),
+            TemplatePart::Bucket("c", 10),
         ],
-        partition_key = "2023|cat%7Cdog|%21",
+        partition_key = "2023|cat%7Cdog|%21|8",
         want = [
             (TIME_COLUMN_NAME, year(2023)),
             ("a", identity("cat|dog")),
             ("b", identity("!")),
+            ("c", bucket(8)),
         ]
     );
 
@@ -1053,9 +1432,14 @@ mod tests {
             TemplatePart::TimeFormat("%Y"),
             TemplatePart::TagValue("a"),
             TemplatePart::TagValue("b"),
+            TemplatePart::Bucket("c", 10),
         ],
-        partition_key = "2023|%2550|!",
-        want = [(TIME_COLUMN_NAME, year(2023)), ("a", identity("%50")),]
+        partition_key = "2023|%2550|!|9",
+        want = [
+            (TIME_COLUMN_NAME, year(2023)),
+            ("a", identity("%50")),
+            ("c", bucket(9)),
+        ]
     );
 
     test_build_column_values!(
@@ -1064,8 +1448,25 @@ mod tests {
             TemplatePart::TimeFormat("%Y"),
             TemplatePart::TagValue("a"),
             TemplatePart::TagValue("b"),
+            TemplatePart::Bucket("c", 10),
         ],
-        partition_key = "2023|BANANAS#|!",
+        partition_key = "2023|^|!|0",
+        want = [
+            (TIME_COLUMN_NAME, year(2023)),
+            ("a", identity("")),
+            ("c", bucket(0)),
+        ]
+    );
+
+    test_build_column_values!(
+        module_doc_example_8,
+        template = [
+            TemplatePart::TimeFormat("%Y"),
+            TemplatePart::TagValue("a"),
+            TemplatePart::TagValue("b"),
+            TemplatePart::Bucket("c", 10),
+        ],
+        partition_key = "2023|BANANAS#|!|!|!",
         want = [(TIME_COLUMN_NAME, year(2023)), ("a", prefix("BANANAS")),]
     );
 
@@ -1075,8 +1476,9 @@ mod tests {
             TemplatePart::TimeFormat("%Y"),
             TemplatePart::TagValue("a"),
             TemplatePart::TagValue("b"),
+            TemplatePart::Bucket("c", 10),
         ],
-        partition_key = "2023|%28%E3%83%8E%E0%B2%A0%E7%9B%8A%E0%B2%A0%29%E3%83%8E%E5%BD%A1%E2%94%BB%E2%94%81%E2%94%BB#|!",
+        partition_key = "2023|%28%E3%83%8E%E0%B2%A0%E7%9B%8A%E0%B2%A0%29%E3%83%8E%E5%BD%A1%E2%94%BB%E2%94%81%E2%94%BB#|!|!",
         want = [
             (TIME_COLUMN_NAME, year(2023)),
             ("a", prefix("(ノಠ益ಠ)ノ彡┻━┻")),
@@ -1112,6 +1514,13 @@ mod tests {
         datetime_fixed,
         template = [TemplatePart::TimeFormat("foo"),],
         partition_key = "foo",
+        want = []
+    );
+
+    test_build_column_values!(
+        datetime_null,
+        template = [TemplatePart::TimeFormat("%Y"),],
+        partition_key = "!",
         want = []
     );
 
@@ -1205,6 +1614,51 @@ mod tests {
             },
         )]
     );
+
+    test_build_column_values!(
+        bucket_part_fixture,
+        template = [
+            TemplatePart::Bucket("a", 41),
+            TemplatePart::Bucket("b", 91),
+            TemplatePart::Bucket("c", 144)
+        ],
+        partition_key = "1|2|3",
+        want = [("a", bucket(1)), ("b", bucket(2)), ("c", bucket(3)),]
+    );
+
+    #[test]
+    #[should_panic]
+    fn test_build_column_values_bucket_part_out_of_range_panics() {
+        let template = [
+            TemplatePart::Bucket("a", 42),
+            TemplatePart::Bucket("b", 42),
+            TemplatePart::Bucket("c", 42),
+        ]
+        .into_iter()
+        .collect::<Vec<_>>();
+        let template = test_table_partition_override(template);
+
+        // normalise the values into a (str, ColumnValue) for the comparison
+        let input = String::from("1|1|43");
+        let _ = build_column_values(&template, input.as_str()).collect::<Vec<_>>();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_build_column_values_bucket_part_not_u32_panics() {
+        let template = [
+            TemplatePart::Bucket("a", 42),
+            TemplatePart::Bucket("b", 42),
+            TemplatePart::Bucket("c", 42),
+        ]
+        .into_iter()
+        .collect::<Vec<_>>();
+        let template = test_table_partition_override(template);
+
+        // normalise the values into a (str, ColumnValue) for the comparison
+        let input = String::from("1|1|bananas");
+        let _ = build_column_values(&template, input.as_str()).collect::<Vec<_>>();
+    }
 
     test_build_column_values!(
         datetime_not_compact_y_d,
@@ -1369,11 +1823,18 @@ mod tests {
                 proto::TemplatePart {
                     part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
                 },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::Bucket(proto::Bucket {
+                        tag_name: "bananas".into(),
+                        num_buckets: 42,
+                    })),
+                },
             ],
         };
         let expected_json_str = "{\"parts\":[\
             {\"tagValue\":\"region\"},\
-            {\"timeFormat\":\"year-%Y\"}\
+            {\"timeFormat\":\"year-%Y\"},\
+            {\"bucket\":{\"tagName\":\"bananas\",\"numBuckets\":42}}\
         ]}";
 
         let namespace = NamespacePartitionTemplateOverride::try_from(custom_template).unwrap();
@@ -1383,7 +1844,7 @@ mod tests {
         );
 
         fn extract_sqlite_argument_text(
-            argument_value: &sqlx::sqlite::SqliteArgumentValue,
+            argument_value: &sqlx::sqlite::SqliteArgumentValue<'_>,
         ) -> String {
             match argument_value {
                 sqlx::sqlite::SqliteArgumentValue::Text(cow) => cow.to_string(),
@@ -1401,6 +1862,88 @@ mod tests {
         );
         let table_json_str: String = buf.iter().map(extract_sqlite_argument_text).collect();
         assert_eq!(table_json_str, expected_json_str);
-        assert_eq!(table.len(), 2);
+        assert_eq!(table.len(), 3);
+    }
+
+    #[test]
+    fn test_template_size_reporting() {
+        const BASE_SIZE: usize = std::mem::size_of::<TablePartitionTemplateOverride>()
+            + std::mem::size_of::<proto::PartitionTemplate>();
+
+        let first_string = "^";
+        let template = TablePartitionTemplateOverride::try_new(
+            Some(proto::PartitionTemplate {
+                parts: vec![proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue(first_string.into())),
+                }],
+            }),
+            &NamespacePartitionTemplateOverride::default(),
+        )
+        .expect("failed to create table partition template ");
+
+        assert_eq!(
+            template.size(),
+            BASE_SIZE + std::mem::size_of::<proto::TemplatePart>() + first_string.len()
+        );
+
+        let second_string = "region";
+        let template = TablePartitionTemplateOverride::try_new(
+            Some(proto::PartitionTemplate {
+                parts: vec![proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue(second_string.into())),
+                }],
+            }),
+            &NamespacePartitionTemplateOverride::default(),
+        )
+        .expect("failed to create table partition template ");
+
+        assert_eq!(
+            template.size(),
+            BASE_SIZE + std::mem::size_of::<proto::TemplatePart>() + second_string.len()
+        );
+
+        let time_string = "year-%Y";
+        let template = TablePartitionTemplateOverride::try_new(
+            Some(proto::PartitionTemplate {
+                parts: vec![
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TagValue(second_string.into())),
+                    },
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TimeFormat(time_string.into())),
+                    },
+                ],
+            }),
+            &NamespacePartitionTemplateOverride::default(),
+        )
+        .expect("failed to create table partition template ");
+        assert_eq!(
+            template.size(),
+            BASE_SIZE
+                + std::mem::size_of::<proto::TemplatePart>()
+                + second_string.len()
+                + std::mem::size_of::<proto::TemplatePart>()
+                + time_string.len()
+        );
+
+        let template = TablePartitionTemplateOverride::try_new(
+            Some(proto::PartitionTemplate {
+                parts: vec![proto::TemplatePart {
+                    part: Some(proto::template_part::Part::Bucket(proto::Bucket {
+                        tag_name: second_string.into(),
+                        num_buckets: 42,
+                    })),
+                }],
+            }),
+            &NamespacePartitionTemplateOverride::default(),
+        )
+        .expect("failed to create table partition template");
+        assert_eq!(
+            template.size(),
+            BASE_SIZE
+                + std::mem::size_of::<proto::TemplatePart>()
+                + second_string.len()
+                + std::mem::size_of::<u32>()
+        );
     }
 }

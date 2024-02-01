@@ -77,10 +77,10 @@ mod tests {
         ---
         input:
           - " UnionExec"
-          - "   EmptyExec: produce_one_row=false"
+          - "   EmptyExec"
         output:
           Ok:
-            - " EmptyExec: produce_one_row=false"
+            - " EmptyExec"
         "###
         );
     }
@@ -95,13 +95,13 @@ mod tests {
         ---
         input:
           - " UnionExec"
-          - "   EmptyExec: produce_one_row=false"
-          - "   EmptyExec: produce_one_row=false"
+          - "   EmptyExec"
+          - "   EmptyExec"
         output:
           Ok:
             - " UnionExec"
-            - "   EmptyExec: produce_one_row=false"
-            - "   EmptyExec: produce_one_row=false"
+            - "   EmptyExec"
+            - "   EmptyExec"
         "###
         );
     }
@@ -115,16 +115,16 @@ mod tests {
             @r###"
         ---
         input:
-          - " EmptyExec: produce_one_row=false"
+          - " EmptyExec"
         output:
           Ok:
-            - " EmptyExec: produce_one_row=false"
+            - " EmptyExec"
         "###
         );
     }
 
     fn other_node() -> Arc<dyn ExecutionPlan> {
-        Arc::new(EmptyExec::new(false, schema()))
+        Arc::new(EmptyExec::new(schema()))
     }
 
     fn schema() -> SchemaRef {

@@ -6,6 +6,9 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 async-trait = "0.1"
 datafusion = { workspace = true }
@@ -13,10 +16,8 @@ futures = "0.3"
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
 pin-project = "1.1"
-tokio = { version = "1.32", features = ["parking_lot", "sync"] }
-tokio-stream = "0.1"
-url = "2.4"
-workspace-hack = { version = "0.1", path = "../workspace-hack" }
-
-[dev-dependencies]
 schema = { path = "../schema" }
+tokio = { version = "1.35", features = ["parking_lot", "sync"] }
+tokio-stream = "0.1"
+url = "2.5"
+workspace-hack = { version = "0.1", path = "../workspace-hack" }

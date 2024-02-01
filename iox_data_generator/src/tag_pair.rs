@@ -9,7 +9,7 @@ use std::fmt::Formatter;
 use std::sync::{Arc, Mutex};
 
 /// Results specific to the tag_pair module
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Errors that may happen while creating or regenerating tag pairs
 #[derive(Snafu, Debug)]

@@ -20,6 +20,7 @@
 //! for expression manipulation functions.
 
 use datafusion::execution::memory_pool::{MemoryPool, UnboundedMemoryPool};
+use std::collections::HashSet;
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -33,10 +34,11 @@ use std::task::{Context, Poll};
 use datafusion::arrow::array::BooleanArray;
 use datafusion::arrow::compute::filter_record_batch;
 use datafusion::arrow::datatypes::{DataType, Fields};
+use datafusion::common::stats::Precision;
 use datafusion::common::{DataFusionError, ToDFSchema};
-use datafusion::datasource::MemTable;
 use datafusion::execution::context::TaskContext;
 use datafusion::logical_expr::expr::Sort;
+use datafusion::logical_expr::utils::inspect_expr_pre;
 use datafusion::physical_expr::execution_props::ExecutionProps;
 use datafusion::physical_expr::{create_physical_expr, PhysicalExpr};
 use datafusion::physical_optimizer::pruning::PruningPredicate;
@@ -51,6 +53,7 @@ use datafusion::{
     scalar::ScalarValue,
 };
 use futures::{Stream, StreamExt};
+use schema::TIME_DATA_TIMEZONE;
 use tokio::sync::mpsc::{Receiver, UnboundedReceiver};
 use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
 use watch::WatchedTask;
@@ -113,14 +116,53 @@ pub fn lit_dict(value: &str) -> Expr {
 pub fn make_range_expr(start: i64, end: i64, time: impl AsRef<str>) -> Expr {
     // We need to cast the start and end values to timestamps
     // the equivalent of:
-    let ts_start = ScalarValue::TimestampNanosecond(Some(start), None);
-    let ts_end = ScalarValue::TimestampNanosecond(Some(end), None);
+    let ts_start = timestamptz_nano(start);
+    let ts_end = timestamptz_nano(end);
 
     let time_col = time.as_ref().as_expr();
     let ts_low = lit(ts_start).lt_eq(time_col.clone());
     let ts_high = time_col.lt(lit(ts_end));
 
     ts_low.and(ts_high)
+}
+
+/// Ensures all columns referred to in `filters` are in the `projection`, if
+/// any, adding them if necessary.
+pub fn extend_projection_for_filters(
+    schema: &Schema,
+    filters: &[Expr],
+    projection: Option<&Vec<usize>>,
+) -> Result<Option<Vec<usize>>, DataFusionError> {
+    let Some(mut projection) = projection.cloned() else {
+        return Ok(None);
+    };
+
+    let mut seen_cols: HashSet<usize> = projection.iter().cloned().collect();
+    for filter in filters {
+        inspect_expr_pre(filter, |expr| {
+            if let Expr::Column(c) = expr {
+                let idx = schema.index_of(&c.name)?;
+                // if haven't seen this column before, add it to the list
+                if seen_cols.insert(idx) {
+                    projection.push(idx);
+                }
+            }
+            Ok(()) as Result<(), DataFusionError>
+        })?;
+    }
+    Ok(Some(projection))
+}
+
+// TODO port this upstream to datafusion (maybe as From<Option> for Precision)
+/// Maps `Option::Some(T)` to `Precision::Exact(T)` and `Option::None` to
+/// `Precision::Absent`
+pub fn option_to_precision<T: std::fmt::Debug + Clone + PartialEq + Eq + PartialOrd>(
+    option: Option<T>,
+) -> Precision<T> {
+    match option {
+        Some(value) => Precision::Exact(value),
+        None => Precision::Absent,
+    }
 }
 
 /// A RecordBatchStream created from in-memory RecordBatches.
@@ -324,7 +366,7 @@ pub fn batch_filter(
 ) -> Result<RecordBatch, DataFusionError> {
     predicate
         .evaluate(batch)
-        .map(|v| v.into_array(batch.num_rows()))
+        .and_then(|v| v.into_array(batch.num_rows()))
         .and_then(|array| {
             array
                 .as_any()
@@ -336,18 +378,10 @@ pub fn batch_filter(
                 })
                 // apply filter array to record batch
                 .and_then(|filter_array| {
-                    filter_record_batch(batch, filter_array).map_err(DataFusionError::ArrowError)
+                    filter_record_batch(batch, filter_array)
+                        .map_err(|err| DataFusionError::ArrowError(err, None))
                 })
         })
-}
-
-/// Return a DataFusion [`SessionContext`] that has the passed RecordBatch available as a table
-pub fn context_with_table(batch: RecordBatch) -> SessionContext {
-    let schema = batch.schema();
-    let provider = MemTable::try_new(schema, vec![vec![batch]]).unwrap();
-    let ctx = SessionContext::new();
-    ctx.register_table("t", Arc::new(provider)).unwrap();
-    ctx
 }
 
 /// Returns a new schema where all the fields are nullable
@@ -398,6 +432,21 @@ pub fn unbounded_memory_pool() -> Arc<dyn MemoryPool> {
     Arc::new(UnboundedMemoryPool::default())
 }
 
+/// Create a timestamp literal for the given UTC nanosecond offset in
+/// the timezone specified by [TIME_DATA_TIMEZONE].
+///
+/// N.B. If [TIME_DATA_TIMEZONE] specifies the None timezone then this
+/// function behaves identially to [datafusion::prelude::lit_timestamp_nano].
+pub fn lit_timestamptz_nano(ns: i64) -> Expr {
+    lit(timestamptz_nano(ns))
+}
+
+/// Create a scalar timestamp value for the given UTC nanosecond offset
+/// in the timezone specified by [TIME_DATA_TIMEZONE].
+pub fn timestamptz_nano(ns: i64) -> ScalarValue {
+    ScalarValue::TimestampNanosecond(Some(ns), TIME_DATA_TIMEZONE())
+}
+
 #[cfg(test)]
 mod tests {
     use datafusion::arrow::datatypes::{DataType, Field};
@@ -410,8 +459,12 @@ mod tests {
         // Test that the generated predicate is correct
 
         let ts_predicate_expr = make_range_expr(101, 202, "time");
+        let expected_timezone = match TIME_DATA_TIMEZONE() {
+            Some(tz) => format!("Some(\"{tz}\")"),
+            None => "None".into(),
+        };
         let expected_string =
-            "TimestampNanosecond(101, None) <= time AND time < TimestampNanosecond(202, None)";
+            format!("TimestampNanosecond(101, {expected_timezone}) <= time AND time < TimestampNanosecond(202, {expected_timezone})");
         let actual_string = format!("{ts_predicate_expr}");
 
         assert_eq!(actual_string, expected_string);

@@ -2,7 +2,7 @@
 
 ## Step 1: Update `README.md` file
 
-Update the `README.md` file (copies the rustdoc comments) using the [`cargo rdme`](https://crates.io/crates/cargo-rdme) tool (install via `cargo install cargo-rdme`):
+Update the `README.md` file (copies the rustdoc comments) using the [`cargo rmde`](https://crates.io/crates/cargo-rdme) tool (install via `cargo install cargo-rdme`):
 
 ```shell
 cargo rdme

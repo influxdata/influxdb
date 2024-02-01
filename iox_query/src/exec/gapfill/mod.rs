@@ -70,7 +70,7 @@ pub struct GapFillParams {
 }
 
 /// Describes how to fill gaps in an aggregate column.
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Copy)]
 pub enum FillStrategy {
     /// Fill with null values.
     /// This is the InfluxQL behavior for `FILL(NULL)` or `FILL(NONE)`.
@@ -318,7 +318,7 @@ pub(crate) fn plan_gap_fill(
         .map(|(e, fs)| {
             Ok((
                 create_physical_expr(e, input_dfschema, input_schema, execution_props)?,
-                fs.clone(),
+                *fs,
             ))
         })
         .collect::<Result<Vec<(Arc<dyn PhysicalExpr>, FillStrategy)>>>()?;
@@ -534,8 +534,8 @@ impl ExecutionPlan for GapFillExec {
         )?))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> Result<Statistics> {
+        Ok(Statistics::new_unknown(&self.schema()))
     }
 }
 
@@ -589,9 +589,10 @@ mod test {
         datasource::empty::EmptyTable,
         error::Result,
         logical_expr::{logical_plan, Extension, UserDefinedLogicalNode},
-        prelude::{col, lit, lit_timestamp_nano},
+        prelude::{col, lit},
         scalar::ScalarValue,
     };
+    use datafusion_util::lit_timestamptz_nano;
 
     use test_helpers::assert_error;
 
@@ -628,7 +629,7 @@ mod test {
                 time_column: col("time"),
                 origin: None,
                 time_range: Range {
-                    start: Bound::Included(lit_timestamp_nano(1000)),
+                    start: Bound::Included(lit_timestamptz_nano(1000)),
                     end: Bound::Unbounded,
                 },
                 fill_strategy: fill_strategy_null(vec![col("temp")]),
@@ -669,7 +670,7 @@ mod test {
                 origin: None,
                 time_range: Range {
                     start: Bound::Unbounded,
-                    end: Bound::Excluded(lit_timestamp_nano(2000)),
+                    end: Bound::Excluded(lit_timestamptz_nano(2000)),
                 },
                 fill_strategy: fill_strategy_null(vec![col("temp")]),
             },
@@ -679,8 +680,8 @@ mod test {
                 time_column: col("time"),
                 origin: None,
                 time_range: Range {
-                    start: Bound::Included(lit_timestamp_nano(1000)),
-                    end: Bound::Excluded(lit_timestamp_nano(2000)),
+                    start: Bound::Included(lit_timestamptz_nano(1000)),
+                    end: Bound::Excluded(lit_timestamptz_nano(2000)),
                 },
                 fill_strategy: fill_strategy_null(vec![col("temp")]),
             },
@@ -688,10 +689,10 @@ mod test {
             GapFillParams {
                 stride: lit(ScalarValue::IntervalDayTime(Some(60_000))),
                 time_column: col("time"),
-                origin: Some(lit_timestamp_nano(1_000_000_000)),
+                origin: Some(lit_timestamptz_nano(1_000_000_000)),
                 time_range: Range {
                     start: Bound::Unbounded,
-                    end: Bound::Excluded(lit_timestamp_nano(2000)),
+                    end: Bound::Excluded(lit_timestamptz_nano(2000)),
                 },
                 fill_strategy: fill_strategy_null(vec![col("temp")]),
             },
@@ -699,10 +700,10 @@ mod test {
             GapFillParams {
                 stride: lit(ScalarValue::IntervalDayTime(Some(60_000))),
                 time_column: col("time"),
-                origin: Some(lit_timestamp_nano(1_000_000_000)),
+                origin: Some(lit_timestamptz_nano(1_000_000_000)),
                 time_range: Range {
-                    start: Bound::Included(lit_timestamp_nano(1000)),
-                    end: Bound::Excluded(lit_timestamp_nano(2000)),
+                    start: Bound::Included(lit_timestamptz_nano(1000)),
+                    end: Bound::Excluded(lit_timestamptz_nano(2000)),
                 },
                 fill_strategy: fill_strategy_null(vec![col("temp")]),
             },
@@ -734,8 +735,8 @@ mod test {
                 time_column: col("time"),
                 origin: None,
                 time_range: Range {
-                    start: Bound::Included(lit_timestamp_nano(1000)),
-                    end: Bound::Excluded(lit_timestamp_nano(2000)),
+                    start: Bound::Included(lit_timestamptz_nano(1000)),
+                    end: Bound::Excluded(lit_timestamptz_nano(2000)),
                 },
                 fill_strategy: fill_strategy_null(vec![col("temp")]),
             },
@@ -784,7 +785,7 @@ mod test {
         - "     SortExec: expr=[date_bin_gapfill(IntervalMonthDayNano(\"60000000000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))@0 ASC]"
         - "       AggregateExec: mode=Final, gby=[date_bin_gapfill(IntervalMonthDayNano(\"60000000000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))@0 as date_bin_gapfill(IntervalMonthDayNano(\"60000000000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))], aggr=[AVG(temps.temp)]"
         - "         AggregateExec: mode=Partial, gby=[date_bin(60000000000, time@0, 0) as date_bin_gapfill(IntervalMonthDayNano(\"60000000000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))], aggr=[AVG(temps.temp)]"
-        - "           EmptyExec: produce_one_row=false"
+        - "           EmptyExec"
         "###
         );
         Ok(())
@@ -814,7 +815,7 @@ mod test {
         - "     SortExec: expr=[loc@0 ASC,concat(Utf8(\"zz\"),temps.loc)@2 ASC,date_bin_gapfill(IntervalMonthDayNano(\"60000000000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))@1 ASC]"
         - "       AggregateExec: mode=Final, gby=[loc@0 as loc, date_bin_gapfill(IntervalMonthDayNano(\"60000000000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))@1 as date_bin_gapfill(IntervalMonthDayNano(\"60000000000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\")), concat(Utf8(\"zz\"),temps.loc)@2 as concat(Utf8(\"zz\"),temps.loc)], aggr=[AVG(temps.temp)]"
         - "         AggregateExec: mode=Partial, gby=[loc@1 as loc, date_bin(60000000000, time@0, 0) as date_bin_gapfill(IntervalMonthDayNano(\"60000000000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\")), concat(zz, loc@1) as concat(Utf8(\"zz\"),temps.loc)], aggr=[AVG(temps.temp)]"
-        - "           EmptyExec: produce_one_row=false"
+        - "           EmptyExec"
         "###
         );
         Ok(())

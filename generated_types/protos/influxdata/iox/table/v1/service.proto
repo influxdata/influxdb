@@ -8,6 +8,9 @@ service TableService {
   // Get tables within a namespace
   rpc GetTables(GetTablesRequest) returns (GetTablesResponse);
 
+  // Get a table within a namespace
+  rpc GetTable(GetTableRequest) returns (GetTableResponse); 
+
   // Create a table in a namespace
   rpc CreateTable(CreateTableRequest) returns (CreateTableResponse);
 }
@@ -50,7 +53,20 @@ message GetTablesRequest {
   string namespace_name = 1;
 }
 
+message GetTableRequest {
+  // Name of the namespace to  table for.
+  string namespace_name = 1;
+
+  // Name of the table to get from namespace
+  string table_name = 2;
+}
+
 message GetTablesResponse {
   // Tables contained within the namespace.
   repeated Table tables = 1;
+}
+
+message GetTableResponse {
+  // Table contained within a namespace
+  Table table = 1;
 }

@@ -27,13 +27,13 @@ use schema::Schema;
 /// parts of the predicate make sense.
 /// See comments on 'is_null_column'
 #[derive(Debug)]
-pub struct MissingColumnsToNull<'a> {
+pub(crate) struct MissingColumnsToNull<'a> {
     schema: &'a Schema,
     df_schema: DFSchema,
 }
 
 impl<'a> MissingColumnsToNull<'a> {
-    pub fn new(schema: &'a Schema) -> Self {
+    pub(crate) fn new(schema: &'a Schema) -> Self {
         let df_schema: DFSchema = schema
             .as_arrow()
             .as_ref()

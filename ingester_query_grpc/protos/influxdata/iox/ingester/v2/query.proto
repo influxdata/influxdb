@@ -66,6 +66,14 @@ message QueryRequest {
 
   // Predicate for filtering.
   Filters filters = 4;
+
+  // Minimum timestamp (inclusive) that should be queried. If the query
+  // is unbounded then this will have the value of i64::MIN.
+  int64 t_min = 5;
+
+  // Maximum timestamp (inclusive) that should be queried. If the query
+  // is unbounded then this will have the value of i64::MAX.
+  int64 t_max = 6;
 }
 
 message IngesterQueryResponseMetadata {
@@ -84,13 +92,16 @@ message IngesterQueryResponseMetadata {
     // The projection is represented as a SORTED set of column indices. The indices are 0-based and point to the table schema
     // transmitted in this metadata message. They MUST NOT contain any duplicates.
     repeated uint64 projection = 4;
+
+    // Number of persisted parquet files for this ingester partition.
+    int64 persist_counter = 5;
   }
 
   // Ingester UUID
   string ingester_uuid = 1;
 
-  // Number of persisted parquet files for this ingester.
-  int64 persist_counter = 2;
+  reserved "persist_counter";
+  reserved 2;
 
   // Serialized table schema.
   bytes table_schema = 3;

@@ -44,9 +44,9 @@ pub enum Error {
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Represents scanning one or more [`QueryChunk`]s.
-pub struct ScanPlan {
-    pub plan_builder: LogicalPlanBuilder,
-    pub provider: Arc<ChunkTableProvider>,
+pub(crate) struct ScanPlan {
+    pub(crate) plan_builder: LogicalPlanBuilder,
+    pub(crate) provider: Arc<ChunkTableProvider>,
 }
 
 impl std::fmt::Debug for ScanPlan {
@@ -60,7 +60,7 @@ impl std::fmt::Debug for ScanPlan {
 
 impl ScanPlan {
     /// Return the schema of the source (the merged schema across all tables)
-    pub fn schema(&self) -> &Schema {
+    pub(crate) fn schema(&self) -> &Schema {
         self.provider.iox_schema()
     }
 }
@@ -82,7 +82,7 @@ impl ScanPlan {
 /// (and thus prune) their own chunklist.
 
 #[derive(Debug)]
-pub struct ScanPlanBuilder<'a> {
+pub(crate) struct ScanPlanBuilder<'a> {
     table_name: Arc<str>,
     /// The schema of the resulting table (any chunks that don't have
     /// all the necessary columns will be extended appropriately)
@@ -92,7 +92,7 @@ pub struct ScanPlanBuilder<'a> {
 }
 
 impl<'a> ScanPlanBuilder<'a> {
-    pub fn new(table_name: Arc<str>, table_schema: &'a Schema) -> Self {
+    pub(crate) fn new(table_name: Arc<str>, table_schema: &'a Schema) -> Self {
         Self {
             table_name,
             table_schema,
@@ -102,20 +102,23 @@ impl<'a> ScanPlanBuilder<'a> {
     }
 
     /// Adds `chunks` to the list of Chunks to scan
-    pub fn with_chunks(mut self, chunks: impl IntoIterator<Item = Arc<dyn QueryChunk>>) -> Self {
+    pub(crate) fn with_chunks(
+        mut self,
+        chunks: impl IntoIterator<Item = Arc<dyn QueryChunk>>,
+    ) -> Self {
         self.chunks.extend(chunks);
         self
     }
 
     /// Sets the predicate
-    pub fn with_predicate(mut self, predicate: &'a Predicate) -> Self {
+    pub(crate) fn with_predicate(mut self, predicate: &'a Predicate) -> Self {
         assert!(self.predicate.is_none());
         self.predicate = Some(predicate);
         self
     }
 
     /// Creates a `ScanPlan` from the specified chunks
-    pub fn build(self) -> Result<ScanPlan> {
+    pub(crate) fn build(self) -> Result<ScanPlan> {
         let Self {
             table_name,
             chunks,
@@ -212,7 +215,7 @@ mod tests {
         - "   DeduplicateExec: [tag1@3 ASC,time@4 ASC]"
         - "     SortPreservingMergeExec: [tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
         - "       SortExec: expr=[tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
-        - "         RecordBatchesExec: chunks=2"
+        - "         RecordBatchesExec: chunks=2, projection=[__chunk_order, field_int, field_int2, tag1, time]"
         "###
         );
 

@@ -21,10 +21,10 @@ service CatalogService {
 
 message GetParquetFilesByPartitionIdRequest {
     // Was the catalog-assigned partition ID.
-    reserved 1;
-    reserved "partition_id";
+    int64 partition_id = 1;
 
-    PartitionIdentifier partition_identifier = 2;
+    reserved 2;
+    reserved "partition_identifier";
 }
 
 message GetParquetFilesByPartitionIdResponse {
@@ -41,13 +41,15 @@ message Partition {
     reserved "shard_id";
     reserved 1;
     reserved "id";
+    reserved 6;
+    reserved "array_sort_key";
+    reserved 10;
+    reserved "optional_sort_key";
 
     // the table id the partition is in
     int64 table_id = 3;
     // the partition key
     string key = 4;
-    // the sort key for data in parquet files in the partition
-    repeated string array_sort_key = 6;
 
     PartitionIdentifier identifier = 8;
 

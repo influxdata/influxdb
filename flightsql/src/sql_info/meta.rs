@@ -4,6 +4,18 @@
 //!
 //! [queryrouterd]: https://github.com/influxdata/idpe/blob/85aa7a52b40f173cc4d79ac02b3a4a13e82333c4/queryrouter/internal/server/flightsql_info.go#L4
 
+use arrow::{
+    compute::can_cast_types,
+    datatypes::{
+        DataType,
+        IntervalUnit::{DayTime, YearMonth},
+        TimeUnit::Nanosecond,
+    },
+};
+use arrow_flight::sql::SqlSupportsConvert;
+use once_cell::sync::Lazy;
+use std::collections::HashMap;
+
 pub(crate) const SQL_INFO_SQL_KEYWORDS: &[&str] = &[
     // SQL-92 Reserved Words
     "absolute",
@@ -301,3 +313,78 @@ pub(crate) const SQL_INFO_DATE_TIME_FUNCTIONS: &[&str] = &[
 ];
 
 pub(crate) const SQL_INFO_SYSTEM_FUNCTIONS: &[&str] = &["array", "arrow_typeof", "struct"];
+
+static SQL_DATA_TYPE_TO_ARROW_DATA_TYPE: Lazy<HashMap<SqlSupportsConvert, DataType>> =
+    Lazy::new(|| {
+        [
+            // Referenced from DataFusion data types
+            // https://arrow.apache.org/datafusion/user-guide/sql/data_types.html
+            // Some SQL types are not supported by DataFusion
+            // https://arrow.apache.org/datafusion/user-guide/sql/data_types.html#unsupported-sql-types
+            (SqlSupportsConvert::SqlConvertBigint, DataType::Int64),
+            // SqlSupportsConvert::SqlConvertBinary is not supported
+            (SqlSupportsConvert::SqlConvertBit, DataType::Boolean),
+            (SqlSupportsConvert::SqlConvertChar, DataType::Utf8),
+            (SqlSupportsConvert::SqlConvertDate, DataType::Date32),
+            (
+                SqlSupportsConvert::SqlConvertDecimal,
+                // Use the max precision 38
+                // https://docs.rs/arrow-schema/47.0.0/arrow_schema/constant.DECIMAL128_MAX_PRECISION.html
+                DataType::Decimal128(38, 2),
+            ),
+            (SqlSupportsConvert::SqlConvertFloat, DataType::Float32),
+            (SqlSupportsConvert::SqlConvertInteger, DataType::Int32),
+            (
+                SqlSupportsConvert::SqlConvertIntervalDayTime,
+                DataType::Interval(DayTime),
+            ),
+            (
+                SqlSupportsConvert::SqlConvertIntervalYearMonth,
+                DataType::Interval(YearMonth),
+            ),
+            // SqlSupportsConvert::SqlConvertLongvarbinary is not supported
+            // LONG VARCHAR is identical to VARCHAR
+            // https://docs.oracle.com/javadb/10.6.2.1/ref/rrefsqlj15147.html
+            (SqlSupportsConvert::SqlConvertLongvarchar, DataType::Utf8),
+            // NUMERIC is a synonym for DECIMAL and behaves the same way
+            // https://docs.oracle.com/javadb/10.6.2.1/ref/rrefsqlj12362.html
+            (
+                SqlSupportsConvert::SqlConvertNumeric,
+                // Use the max precision 38
+                // https://docs.rs/arrow-schema/47.0.0/arrow_schema/constant.DECIMAL128_MAX_PRECISION.html
+                DataType::Decimal128(38, 2),
+            ),
+            (SqlSupportsConvert::SqlConvertReal, DataType::Float32),
+            (SqlSupportsConvert::SqlConvertSmallint, DataType::Int16),
+            (
+                SqlSupportsConvert::SqlConvertTime,
+                DataType::Time64(Nanosecond),
+            ),
+            (
+                SqlSupportsConvert::SqlConvertTimestamp,
+                DataType::Timestamp(Nanosecond, None),
+            ),
+            (SqlSupportsConvert::SqlConvertTinyint, DataType::Int8),
+            // SqlSupportsConvert::SqlConvertVarbinary is not supported
+            (SqlSupportsConvert::SqlConvertVarchar, DataType::Utf8),
+        ]
+        .iter()
+        .cloned()
+        .collect()
+    });
+
+pub(crate) static SQL_INFO_SUPPORTS_CONVERT: Lazy<HashMap<i32, Vec<i32>>> = Lazy::new(|| {
+    let mut convert: HashMap<i32, Vec<i32>> = HashMap::new();
+    for (from_type_sql, from_type_arrow) in SQL_DATA_TYPE_TO_ARROW_DATA_TYPE.clone().into_iter() {
+        let mut can_convert_to: Vec<i32> = vec![];
+        for (to_type_sql, to_type_arrow) in SQL_DATA_TYPE_TO_ARROW_DATA_TYPE.clone().into_iter() {
+            if can_cast_types(&from_type_arrow, &to_type_arrow) {
+                can_convert_to.push(to_type_sql as i32)
+            }
+        }
+        if !can_convert_to.is_empty() {
+            convert.insert(from_type_sql as i32, can_convert_to);
+        }
+    }
+    convert
+});

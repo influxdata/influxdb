@@ -6,10 +6,13 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 chrono = { version = "0.4.31", default-features = false, features = ["clock", "std"] }
 parking_lot = "0.12"
-tokio = { version = "1.32", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.35", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]

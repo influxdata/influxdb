@@ -33,6 +33,11 @@ impl JaegerTag {
             value: value.into(),
         }
     }
+
+    /// Key.
+    pub fn key(&self) -> &str {
+        &self.key
+    }
 }
 
 impl From<JaegerTag> for jaeger::Tag {
@@ -169,7 +174,83 @@ impl AsyncExport for JaegerAgentExporter {
         self.rate_limiter.send().await;
 
         if let Err(e) = self.client.emit_batch(batch) {
-            error!(%e, "error writing batch to jaeger agent")
+            let e = NiceThriftError::from(e);
+
+            // not a user-visible error but only a monitoring outage, print on info level
+            // Ref: https://github.com/influxdata/influxdb_iox/issues/9726
+            info!(%e, "error writing batch to jaeger agent")
+        }
+    }
+}
+
+/// Thrift error formatting is messy, try better.
+///
+/// See <https://github.com/influxdata/influxdb_iox/issues/9726>.
+#[derive(Debug)]
+struct NiceThriftError(thrift::Error);
+
+impl From<thrift::Error> for NiceThriftError {
+    fn from(e: thrift::Error) -> Self {
+        Self(e)
+    }
+}
+
+impl std::fmt::Display for NiceThriftError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.0 {
+            thrift::Error::Transport(e) => {
+                let kind = match e.kind {
+                    thrift::TransportErrorKind::Unknown => "unknown",
+                    thrift::TransportErrorKind::NotOpen => "not open",
+                    thrift::TransportErrorKind::AlreadyOpen => "already open",
+                    thrift::TransportErrorKind::TimedOut => "timed out",
+                    thrift::TransportErrorKind::EndOfFile => "end of file",
+                    thrift::TransportErrorKind::NegativeSize => "negative size message",
+                    thrift::TransportErrorKind::SizeLimit => "message too long",
+                    _ => "unknown variant",
+                };
+
+                write!(f, "transport: {}: {}", kind, e.message)
+            }
+            thrift::Error::Protocol(e) => {
+                let kind = match e.kind {
+                    thrift::ProtocolErrorKind::Unknown => "unknown",
+                    thrift::ProtocolErrorKind::InvalidData => "bad data",
+                    thrift::ProtocolErrorKind::NegativeSize => "negative message size",
+                    thrift::ProtocolErrorKind::SizeLimit => "message too long",
+                    thrift::ProtocolErrorKind::BadVersion => "invalid thrift version",
+                    thrift::ProtocolErrorKind::NotImplemented => "not implemented",
+                    thrift::ProtocolErrorKind::DepthLimit => "maximum skip depth reached",
+                    _ => "unknown variant",
+                };
+
+                write!(f, "protocol: {}: {}", kind, e.message)
+            }
+            thrift::Error::Application(e) => {
+                let kind = match e.kind {
+                    thrift::ApplicationErrorKind::Unknown => "unknown",
+                    thrift::ApplicationErrorKind::UnknownMethod => "unknown service method",
+                    thrift::ApplicationErrorKind::InvalidMessageType => {
+                        "wrong message type received"
+                    }
+                    thrift::ApplicationErrorKind::WrongMethodName => {
+                        "unknown method reply received"
+                    }
+                    thrift::ApplicationErrorKind::BadSequenceId => "out of order sequence id",
+                    thrift::ApplicationErrorKind::MissingResult => "missing method result",
+                    thrift::ApplicationErrorKind::InternalError => "remote service threw exception",
+                    thrift::ApplicationErrorKind::ProtocolError => "protocol error",
+                    thrift::ApplicationErrorKind::InvalidTransform => "invalid transform",
+                    thrift::ApplicationErrorKind::InvalidProtocol => "invalid protocol requested",
+                    thrift::ApplicationErrorKind::UnsupportedClientType => {
+                        "unsupported protocol client"
+                    }
+                    _ => "unknown variant",
+                };
+
+                write!(f, "application: {}: {}", kind, e.message)
+            }
+            thrift::Error::User(e) => write!(f, "user: {e}"),
         }
     }
 }
@@ -243,11 +324,13 @@ mod tests {
     use crate::thrift::agent::{AgentSyncHandler, AgentSyncProcessor};
     use chrono::{TimeZone, Utc};
     use iox_time::SystemProvider;
+    use std::borrow::Cow;
+    use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
     use thrift::server::TProcessor;
     use thrift::transport::TBufferChannel;
     use trace::ctx::{SpanContext, SpanId, TraceId};
-    use trace::span::{SpanEvent, SpanStatus};
+    use trace::span::{MetaValue, SpanEvent, SpanStatus};
 
     struct TestHandler {
         batches: Arc<Mutex<Vec<jaeger::Batch>>>,
@@ -382,9 +465,11 @@ mod tests {
         span.events = vec![SpanEvent {
             time: Utc.timestamp_nanos(200000),
             msg: "hello".into(),
+            metadata: HashMap::from([(Cow::from("evt_md"), MetaValue::Int(42))]),
         }];
         span.start = Some(Utc.timestamp_nanos(100000));
         span.end = Some(Utc.timestamp_nanos(300000));
+        span.metadata = HashMap::from([(Cow::from("span_md"), MetaValue::Int(1337))]);
 
         exporter.export(vec![span.clone(), span.clone()]).await;
         exporter.export(vec![span.clone()]).await;
@@ -452,14 +537,18 @@ mod tests {
         let logs = b1_s0.logs.as_ref().unwrap();
         assert_eq!(logs.len(), 1);
         assert_eq!(logs[0].timestamp, 200);
-        assert_eq!(logs[0].fields.len(), 1);
+        assert_eq!(logs[0].fields.len(), 2);
         assert_eq!(logs[0].fields[0].key.as_str(), "event");
         assert_eq!(logs[0].fields[0].v_str.as_ref().unwrap().as_str(), "hello");
+        assert_eq!(logs[0].fields[1].key.as_str(), "evt_md");
+        assert_eq!(logs[0].fields[1].v_long.unwrap(), 42);
 
         let tags = b1_s0.tags.as_ref().unwrap();
-        assert_eq!(tags.len(), 1);
+        assert_eq!(tags.len(), 2);
         assert_eq!(tags[0].key.as_str(), "ok");
         assert!(tags[0].v_bool.unwrap());
+        assert_eq!(tags[1].key.as_str(), "span_md");
+        assert_eq!(tags[1].v_long.unwrap(), 1337);
     }
 
     #[test]

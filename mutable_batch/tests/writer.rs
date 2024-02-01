@@ -2,7 +2,7 @@ use arrow_util::assert_batches_eq;
 use data_types::{StatValues, Statistics};
 use mutable_batch::{writer::Writer, MutableBatch, TimestampSummary};
 use schema::Projection;
-use std::num::NonZeroU64;
+use std::{f64::NAN, num::NonZeroU64};
 
 fn get_stats(batch: &MutableBatch) -> Vec<(&str, Statistics)> {
     let mut stats: Vec<_> = batch
@@ -342,4 +342,111 @@ fn test_basic() {
 
     let timestamps = batch.timestamp_summary().unwrap();
     assert_eq!(timestamps, expected_timestamps);
+}
+
+#[test]
+fn test_null_only() {
+    let mut batch = MutableBatch::new();
+
+    let mut writer = Writer::new(&mut batch, 1);
+
+    writer
+        .write_bool("b1", Some(&[0b00000000]), vec![].into_iter())
+        .unwrap();
+
+    writer
+        .write_f64("f64", Some(&[0b00000000]), vec![].into_iter())
+        .unwrap();
+
+    writer
+        .write_i64("i64", Some(&[0b00000000]), vec![].into_iter())
+        .unwrap();
+
+    writer
+        .write_u64("u64", Some(&[0b00000000]), vec![].into_iter())
+        .unwrap();
+
+    writer
+        .write_string("string", Some(&[0b00000000]), vec![].into_iter())
+        .unwrap();
+
+    writer.write_time("time", vec![42].into_iter()).unwrap();
+
+    writer
+        .write_tag("tag1", Some(&[0b00000000]), vec![].into_iter())
+        .unwrap();
+
+    writer.commit();
+
+    let stats: Vec<_> = get_stats(&batch);
+
+    let expected_data = &[
+        "+----+-----+-----+--------+------+--------------------------------+-----+",
+        "| b1 | f64 | i64 | string | tag1 | time                           | u64 |",
+        "+----+-----+-----+--------+------+--------------------------------+-----+",
+        "|    |     |     |        |      | 1970-01-01T00:00:00.000000042Z |     |",
+        "+----+-----+-----+--------+------+--------------------------------+-----+",
+    ];
+
+    let expected_stats = vec![
+        (
+            "b1",
+            Statistics::Bool(StatValues::new(None, None, 1, Some(1))),
+        ),
+        (
+            "f64",
+            Statistics::F64(StatValues::new(None, None, 1, Some(1))),
+        ),
+        (
+            "i64",
+            Statistics::I64(StatValues::new(None, None, 1, Some(1))),
+        ),
+        (
+            "string",
+            Statistics::String(StatValues::new(None, None, 1, Some(1))),
+        ),
+        (
+            "tag1",
+            Statistics::String(StatValues::new_with_distinct(
+                None,
+                None,
+                1,
+                Some(1),
+                Some(1.try_into().unwrap()),
+            )),
+        ),
+        (
+            "time",
+            Statistics::I64(StatValues::new(Some(42), Some(42), 1, Some(0))),
+        ),
+        (
+            "u64",
+            Statistics::U64(StatValues::new(None, None, 1, Some(1))),
+        ),
+    ];
+
+    assert_batches_eq!(expected_data, &[batch.to_arrow(Projection::All).unwrap()]);
+    pretty_assertions::assert_eq!(expected_stats, stats);
+}
+
+#[test]
+fn test_nan_stats() {
+    let mut batch = MutableBatch::new();
+
+    let mut writer = Writer::new(&mut batch, 3);
+
+    writer
+        .write_f64("f64", None, vec![4.2, NAN, 2.4].into_iter())
+        .unwrap();
+
+    writer.commit();
+
+    let stats: Vec<_> = get_stats(&batch);
+
+    let expected_stats = vec![(
+        "f64",
+        Statistics::F64(StatValues::new(Some(2.4), Some(4.2), 3, Some(0))),
+    )];
+
+    pretty_assertions::assert_eq!(expected_stats, stats);
 }

@@ -204,7 +204,7 @@ impl TaskResult {
 }
 
 /// The status of the tracked task
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Copy)]
 pub enum TaskStatus {
     /// More futures can be registered
     Creating,

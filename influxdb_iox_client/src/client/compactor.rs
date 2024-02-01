@@ -5,6 +5,7 @@ use client_util::connection::GrpcConnection;
 /// Re-export generated_types
 pub mod generated_types {
     pub use generated_types::influxdata::iox::compactor::v1::*;
+    pub use generated_types::influxdata::iox::skipped_compaction::v1::*;
 }
 
 /// A basic client for interacting with the compaction service.
@@ -22,7 +23,9 @@ impl Client {
     }
 
     /// List all skipped compactions
-    pub async fn skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>, Error> {
+    pub async fn skipped_compactions(
+        &mut self,
+    ) -> Result<Vec<generated_types::SkippedCompaction>, Error> {
         let response = self
             .inner
             .list_skipped_compactions(ListSkippedCompactionsRequest {})
@@ -35,7 +38,7 @@ impl Client {
     pub async fn delete_skipped_compactions(
         &mut self,
         partition_id: i64,
-    ) -> Result<Option<SkippedCompaction>, Error> {
+    ) -> Result<Option<generated_types::SkippedCompaction>, Error> {
         let response = self
             .inner
             .delete_skipped_compactions(DeleteSkippedCompactionsRequest { partition_id })

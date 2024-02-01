@@ -1,7 +1,7 @@
 //! Shared configuration and tests for accepting ingester addresses as arguments.
 
 use http::uri::{InvalidUri, InvalidUriParts, Uri};
-use snafu::Snafu;
+use snafu::{ResultExt, Snafu};
 use std::{fmt::Display, str::FromStr};
 
 /// An address to an ingester's gRPC API. Create by using `IngesterAddress::from_str`.
@@ -14,7 +14,7 @@ pub struct IngesterAddress {
 #[allow(missing_docs)]
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(context(false))]
+    #[snafu(display("{source}"))]
     Invalid { source: InvalidUri },
 
     #[snafu(display("Port is required; no port found in `{value}`"))]
@@ -28,14 +28,14 @@ impl FromStr for IngesterAddress {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let uri = Uri::from_str(s)?;
+        let uri = Uri::from_str(s).context(InvalidSnafu)?;
 
         if uri.port().is_none() {
             return MissingPortSnafu { value: s }.fail();
         }
 
         let uri = if uri.scheme().is_none() {
-            Uri::from_str(&format!("http://{s}"))?
+            Uri::from_str(&format!("http://{s}")).context(InvalidSnafu)?
         } else {
             uri
         };
@@ -67,7 +67,7 @@ mod tests {
             num_args=1..,
             value_delimiter = ','
         )]
-        pub ingester_addresses: Vec<IngesterAddress>,
+        pub(crate) ingester_addresses: Vec<IngesterAddress>,
     }
 
     #[test]
@@ -89,7 +89,7 @@ mod tests {
             num_args=0..,
             value_delimiter = ','
         )]
-        pub ingester_addresses: Vec<IngesterAddress>,
+        pub(crate) ingester_addresses: Vec<IngesterAddress>,
     }
 
     #[test]
@@ -243,7 +243,7 @@ mod tests {
             num_args=1..,
             value_delimiter = ','
         )]
-        pub ingester_addresses: Vec<IngesterAddress>,
+        pub(crate) ingester_addresses: Vec<IngesterAddress>,
     }
 
     #[test]
@@ -281,7 +281,7 @@ mod tests {
             num_args=0..,
             value_delimiter = ','
         )]
-        pub ingester_addresses: Vec<IngesterAddress>,
+        pub(crate) ingester_addresses: Vec<IngesterAddress>,
     }
 
     #[test]

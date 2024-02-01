@@ -6,6 +6,9 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 chrono = { version = "0.4", default-features = false }
 observability_deps = { path = "../observability_deps" }

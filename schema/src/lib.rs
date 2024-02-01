@@ -33,6 +33,7 @@ use arrow::datatypes::{
 use hashbrown::HashSet;
 
 use crate::sort::SortKey;
+use once_cell::sync::OnceCell;
 use snafu::{OptionExt, Snafu};
 
 /// The name of the timestamp column in the InfluxDB datamodel
@@ -44,15 +45,20 @@ pub const INFLUXQL_MEASUREMENT_COLUMN_NAME: &str = "iox::measurement";
 pub const INFLUXQL_METADATA_KEY: &str = "iox::influxql::group_key::metadata";
 
 /// The Timezone to use for InfluxDB timezone (should be a constant)
+// TODO: Start Epic Add timezone support to IOx #18154
+// https://github.com/influxdata/idpe/issues/18154
 #[allow(non_snake_case)]
 pub fn TIME_DATA_TIMEZONE() -> Option<Arc<str>> {
-    // TODO: we should use the "UTC" timezone as that is what the
-    // InfluxDB data model timestamps are relative to. However,
-    // DataFusion doesn't currently do a great job with such
-    // timezones so punting for now
-    //Some(String::from("UTC"));
-    None
+    _TIME_DATA_TIMEZONE
+        .get_or_init(|| {
+            std::env::var("INFLUXDB_IOX_TIME_DATA_TIMEZONE")
+                .map_or_else(|_| None, |v| Some(v.into()))
+        })
+        .clone()
 }
+
+// TODO: refactor TIME_DATA_TIMEZONE() into a lazy static
+static _TIME_DATA_TIMEZONE: OnceCell<Option<Arc<str>>> = OnceCell::new();
 
 /// the [`ArrowDataType`] to use for InfluxDB timestamps
 #[allow(non_snake_case)]
@@ -783,7 +789,7 @@ macro_rules! assert_column_eq {
 pub(crate) mod test_util {
     use super::*;
 
-    pub fn make_field(
+    pub(crate) fn make_field(
         name: &str,
         data_type: arrow::datatypes::DataType,
         nullable: bool,

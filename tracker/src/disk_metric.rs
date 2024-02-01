@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use metric::{Attributes, U64Gauge};
-use sysinfo::{DiskExt, RefreshKind, System, SystemExt};
+use sysinfo::Disks;
 use tokio::sync::watch;
 
 /// The interval at which disk metrics are updated.
@@ -53,10 +53,10 @@ pub struct DiskSpaceMetrics {
     available_disk_space: U64Gauge,
     total_disk_space: U64Gauge,
 
-    /// The [`System`] containing the disk list at construction time.
-    system: System,
+    /// The [`Disks`] containing the disk list at construction time.
+    disks: Disks,
 
-    /// The index into [`System::disks()`] for the disk containing the observed
+    /// The index into [`Disks::list()`] for the disk containing the observed
     /// directory.
     disk_idx: usize,
 
@@ -92,13 +92,14 @@ impl DiskSpaceMetrics {
             .recorder(attributes);
 
         // Load the disk stats once, and refresh them later.
-        let system = System::new_with_specifics(RefreshKind::new().with_disks_list());
+        let mut disks = Disks::new();
+        disks.refresh_list();
 
         // Resolve the mount point once.
         // The directory path may be `/path/to/dir` and the mount point is `/`.
         let (disk_idx, initial_disk) = loop {
-            if let Some((idx, disk)) = system
-                .disks()
+            if let Some((idx, disk)) = disks
+                .list()
                 .iter()
                 .enumerate()
                 .find(|(_idx, disk)| disk.mount_point() == directory)
@@ -120,7 +121,7 @@ impl DiskSpaceMetrics {
             Self {
                 available_disk_space,
                 total_disk_space,
-                system,
+                disks,
                 disk_idx,
                 snapshot_tx,
             },
@@ -135,8 +136,8 @@ impl DiskSpaceMetrics {
             interval.tick().await;
 
             let disk = self
-                .system
-                .disks_mut()
+                .disks
+                .list_mut()
                 .get_mut(self.disk_idx)
                 .expect("disk list never refreshed so should not change");
 

@@ -24,14 +24,6 @@ pub struct GarbageCollectorConfig {
     )]
     pub objectstore_cutoff: Duration,
 
-    /// Number of concurrent object store deletion tasks
-    #[clap(
-        long,
-        default_value_t = 5,
-        env = "INFLUXDB_IOX_GC_OBJECTSTORE_CONCURRENT_DELETES"
-    )]
-    pub objectstore_concurrent_deletes: usize,
-
     /// Number of minutes to sleep between iterations of the objectstore list loop.
     /// This is the sleep between entirely fresh list operations.
     /// Defaults to 30 minutes.
@@ -65,13 +57,26 @@ pub struct GarbageCollectorConfig {
     pub parquetfile_cutoff: Duration,
 
     /// Number of minutes to sleep between iterations of the parquet file deletion loop.
+    ///
     /// Defaults to 30 minutes.
+    ///
+    /// If both INFLUXDB_IOX_GC_PARQUETFILE_SLEEP_INTERVAL_MINUTES and
+    /// INFLUXDB_IOX_GC_PARQUETFILE_SLEEP_INTERVAL are specified, the smaller is chosen
+    #[clap(long, env = "INFLUXDB_IOX_GC_PARQUETFILE_SLEEP_INTERVAL_MINUTES")]
+    pub parquetfile_sleep_interval_minutes: Option<u64>,
+
+    /// Duration to sleep between iterations of the parquet file deletion loop.
+    ///
+    /// Defaults to 30 minutes.
+    ///
+    /// If both INFLUXDB_IOX_GC_PARQUETFILE_SLEEP_INTERVAL_MINUTES and
+    /// INFLUXDB_IOX_GC_PARQUETFILE_SLEEP_INTERVAL are specified, the smaller is chosen
     #[clap(
         long,
-        default_value_t = 30,
-        env = "INFLUXDB_IOX_GC_PARQUETFILE_SLEEP_INTERVAL_MINUTES"
+        value_parser = parse_duration,
+        env = "INFLUXDB_IOX_GC_PARQUETFILE_SLEEP_INTERVAL"
     )]
-    pub parquetfile_sleep_interval_minutes: u64,
+    pub parquetfile_sleep_interval: Option<Duration>,
 
     /// Number of minutes to sleep between iterations of the retention code.
     /// Defaults to 35 minutes to reduce incidence of it running at the same time as the parquet
@@ -82,4 +87,64 @@ pub struct GarbageCollectorConfig {
         env = "INFLUXDB_IOX_GC_RETENTION_SLEEP_INTERVAL_MINUTES"
     )]
     pub retention_sleep_interval_minutes: u64,
+}
+
+impl GarbageCollectorConfig {
+    /// Returns the parquet_file sleep interval
+    pub fn parquetfile_sleep_interval(&self) -> Duration {
+        match (
+            self.parquetfile_sleep_interval,
+            self.parquetfile_sleep_interval_minutes,
+        ) {
+            (None, None) => Duration::from_secs(30 * 60),
+            (Some(d), None) => d,
+            (None, Some(m)) => Duration::from_secs(m * 60),
+            (Some(d), Some(m)) => d.min(Duration::from_secs(m * 60)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gc_config() {
+        let a: &[&str] = &[];
+        let config = GarbageCollectorConfig::parse_from(a);
+        assert_eq!(
+            config.parquetfile_sleep_interval(),
+            Duration::from_secs(30 * 60)
+        );
+
+        let config =
+            GarbageCollectorConfig::parse_from(["something", "--parquetfile-sleep-interval", "3d"]);
+
+        assert_eq!(
+            config.parquetfile_sleep_interval(),
+            Duration::from_secs(24 * 60 * 60 * 3)
+        );
+
+        let config = GarbageCollectorConfig::parse_from([
+            "something",
+            "--parquetfile-sleep-interval-minutes",
+            "34",
+        ]);
+        assert_eq!(
+            config.parquetfile_sleep_interval(),
+            Duration::from_secs(34 * 60)
+        );
+
+        let config = GarbageCollectorConfig::parse_from([
+            "something",
+            "--parquetfile-sleep-interval-minutes",
+            "34",
+            "--parquetfile-sleep-interval",
+            "35m",
+        ]);
+        assert_eq!(
+            config.parquetfile_sleep_interval(),
+            Duration::from_secs(34 * 60)
+        );
+    }
 }

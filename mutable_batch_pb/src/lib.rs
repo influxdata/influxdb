@@ -20,6 +20,8 @@
 use data_types as _;
 #[cfg(test)]
 use mutable_batch_lp as _;
+#[cfg(test)]
+use partition as _;
 use workspace_hack as _;
 
 pub mod decode;

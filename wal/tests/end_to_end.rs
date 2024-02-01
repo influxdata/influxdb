@@ -1,3 +1,4 @@
+use assert_matches::assert_matches;
 use data_types::{NamespaceId, SequenceNumber, TableId};
 use dml::DmlWrite;
 use generated_types::influxdata::{
@@ -61,7 +62,7 @@ async fn crud() {
     // Can read the written entries from the closed segment, ensuring that the
     // per-partition sequence numbers are preserved.
     let mut reader = wal.reader_for_segment(closed_segment_details.id()).unwrap();
-    let mut op = reader.next().unwrap().unwrap();
+    let (mut op, _) = reader.next().unwrap().unwrap();
     let mut got_sequence_numbers = op
         .remove(0)
         .table_write_sequence_numbers
@@ -69,7 +70,7 @@ async fn crud() {
         .collect::<Vec<_>>();
     got_sequence_numbers.sort();
     assert_eq!(got_sequence_numbers, Vec::<u64>::from([42, 43]),);
-    let mut op = reader.next().unwrap().unwrap();
+    let (mut op, bytes_read) = reader.next().unwrap().unwrap();
     let mut got_sequence_numbers = op
         .remove(0)
         .table_write_sequence_numbers
@@ -77,6 +78,11 @@ async fn crud() {
         .collect::<Vec<_>>();
     got_sequence_numbers.sort();
     assert_eq!(got_sequence_numbers, Vec::<u64>::from([44, 45]),);
+
+    // Ensure that all entries have been read and the total bytes read reflect
+    // the segment size.
+    assert_matches!(reader.next(), None);
+    assert_eq!(bytes_read, closed_segment_details.size());
 
     // Can delete a segment, leaving no closed segments again
     wal.delete(closed_segment_details.id()).await.unwrap();
@@ -114,7 +120,7 @@ async fn replay() {
     // Can read the written entries from the previously closed segment
     // ensuring the per-partition sequence numbers are preserved.
     let mut reader = wal.reader_for_segment(closed_segment_ids[0]).unwrap();
-    let mut op = reader.next().unwrap().unwrap();
+    let (mut op, _) = reader.next().unwrap().unwrap();
     let mut got_sequence_numbers = op
         .remove(0)
         .table_write_sequence_numbers
@@ -125,7 +131,7 @@ async fn replay() {
 
     // Can read the written entries from the previously open segment
     let mut reader = wal.reader_for_segment(closed_segment_ids[1]).unwrap();
-    let mut op = reader.next().unwrap().unwrap();
+    let (mut op, _) = reader.next().unwrap().unwrap();
     let mut got_sequence_numbers = op
         .remove(0)
         .table_write_sequence_numbers

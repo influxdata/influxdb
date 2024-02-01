@@ -6,39 +6,59 @@ use std::borrow::Cow;
 /// e.g. a request that encounters both a ClientErr and a ServerErr will
 /// be recorded as a ServerErr
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub enum Classification {
+pub(crate) enum Classification {
     /// Successful request
     Ok,
-    /// The request was to an unrecognised path
+
+    /// The request was to an unrecognized path
     ///
     /// This is used by the metrics collection to avoid generating a new set of metrics
     /// for a request path that doesn't correspond to a valid route
     PathNotFound,
-    /// The request was unsuccessful but it was not the fault of the service
+
+    /// Method was not allowed.
+    MethodNotAllowed,
+
+    /// The request was unsuccessful (4XX) but it was not the fault of the service
     ClientErr,
-    /// The request was unsuccessful and it was the fault of the service
+
+    /// The request was unsuccessful (5XX) and it was the fault of the service
     ServerErr,
+
+    /// The request produced a response that is not 2XX Ok, 4XX ClientErr or 5XX
+    /// ServerErr. This is unexpected and likely shouldn't happen
+    UnexpectedResponse,
 }
 
-pub fn classify_response<B>(response: &http::Response<B>) -> (Cow<'static, str>, Classification) {
+pub(crate) fn classify_response<B>(
+    response: &http::Response<B>,
+) -> (Cow<'static, str>, Classification) {
     let status = response.status();
-    match status {
-        http::StatusCode::OK | http::StatusCode::CREATED | http::StatusCode::NO_CONTENT => {
-            classify_headers(Some(response.headers()))
+
+    if status.is_success() {
+        classify_headers(Some(response.headers()))
+    } else if status.is_client_error() {
+        match status {
+            http::StatusCode::NOT_FOUND => ("not found".into(), Classification::PathNotFound),
+            http::StatusCode::METHOD_NOT_ALLOWED => (
+                "method not allowed".into(),
+                Classification::MethodNotAllowed,
+            ),
+            _ => (
+                format!("unexpected 4XX status code: {status}").into(),
+                Classification::ClientErr,
+            ),
         }
-        http::StatusCode::BAD_REQUEST => ("bad request".into(), Classification::ClientErr),
-        // This is potentially over-zealous but errs on the side of caution
-        http::StatusCode::NOT_FOUND => ("not found".into(), Classification::PathNotFound),
-        http::StatusCode::TOO_MANY_REQUESTS => {
-            ("too many requests".into(), Classification::ClientErr)
-        }
-        http::StatusCode::INTERNAL_SERVER_ERROR => {
-            ("internal server error".into(), Classification::ServerErr)
-        }
-        _ => (
-            format!("unexpected status code: {status}").into(),
+    } else if status.is_server_error() {
+        (
+            format!("unexpected 5XX status code: {status}").into(),
             Classification::ServerErr,
-        ),
+        )
+    } else {
+        (
+            format!("unexpected non-error status code: {status}").into(),
+            Classification::UnexpectedResponse,
+        )
     }
 }
 
@@ -47,7 +67,7 @@ pub fn classify_response<B>(response: &http::Response<B>) -> (Cow<'static, str>,
 ///
 /// [1]: https://grpc.github.io/grpc/core/md_doc_statuscodes.html
 /// [2]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Trailer
-pub fn classify_headers(
+pub(crate) fn classify_headers(
     headers: Option<&http::header::HeaderMap>,
 ) -> (Cow<'static, str>, Classification) {
     match headers.and_then(|headers| headers.get("grpc-status")) {

@@ -11,8 +11,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// A closed segment file reader over an `R`, tracking the number of compressed
+/// bytes read.
 #[derive(Debug)]
-pub struct ClosedSegmentFileReader<R>(R);
+pub struct ClosedSegmentFileReader<R>(R, u64);
 
 impl ClosedSegmentFileReader<BufReader<File>> {
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
@@ -28,7 +30,7 @@ where
     R: Read,
 {
     pub fn new(f: R) -> Self {
-        Self(f)
+        Self(f, 0)
     }
 
     fn read_array<const N: usize>(&mut self) -> Result<[u8; N]> {
@@ -36,6 +38,7 @@ where
         self.0
             .read_exact(&mut data)
             .context(UnableToReadArraySnafu { length: N })?;
+        self.1 += N as u64;
         Ok(data)
     }
 
@@ -65,6 +68,16 @@ where
             .context(UnableToReadDataSnafu)?;
 
         let (actual_compressed_len, actual_checksum) = decompressing_read.into_inner().checksum();
+
+        // Track the size of the entry header and total amount of compressed
+        // data successfully read so far by the reader. The header values are
+        // tracked here to avoid continuously counting bytes read from a
+        // corrupted segment where no further entries can be read.
+        //
+        // This accounting is done before checksum/length mismatch, if the data has still
+        // been read in successfully.
+        self.1 += 2 * std::mem::size_of::<u32>() as u64;
+        self.1 += actual_compressed_len;
 
         ensure!(
             expected_len == actual_compressed_len,
@@ -99,6 +112,12 @@ where
         }
 
         Ok(None)
+    }
+
+    /// Returns the total amount of bytes successfully read from this reader's
+    /// underlying file, in bytes.
+    pub fn bytes_read(&self) -> u64 {
+        self.1
     }
 }
 
@@ -208,6 +227,7 @@ mod tests {
 
         let entry = reader.one_entry().unwrap();
         assert!(entry.is_none());
+        assert_eq!(reader.bytes_read(), segment_file.size_bytes());
     }
 
     #[test]
@@ -236,11 +256,17 @@ mod tests {
 
         let entry = reader.one_entry().unwrap();
         assert!(entry.is_none());
+        assert_eq!(reader.bytes_read(), segment_file.size_bytes());
     }
 
     #[test]
     fn unsuccessful_read_too_short_len() {
         let mut segment_file = FakeSegmentFile::new();
+
+        // The bad entry will prevent any entries being read, thus the
+        // no bytes can be reported as successfully read.
+        let want_bytes_read = segment_file.size_bytes();
+
         let bad_entry_input = FakeSegmentEntry::new(b"hello");
         let good_length = bad_entry_input.compressed_len();
         let bad_entry_input = bad_entry_input.with_compressed_len(good_length - 1);
@@ -260,14 +286,22 @@ mod tests {
         assert_matches!(read_fail, Err(Error::UnableToReadData { source: e }) => {
             assert_matches!(e.kind(), std::io::ErrorKind::UnexpectedEof);
         });
+        assert_eq!(reader.bytes_read(), want_bytes_read);
         // Trying to continue reading will fail as well, see:
         // <https://github.com/influxdata/influxdb_iox/issues/6222>
         assert_error!(reader.one_entry(), Error::UnableToReadData { .. });
+        // Ensure no magical bean counting occurs when stuck unable to read data.
+        assert_eq!(reader.bytes_read(), want_bytes_read);
     }
 
     #[test]
     fn unsuccessful_read_too_long_len() {
         let mut segment_file = FakeSegmentFile::new();
+
+        // The bad entry will prevent any entries being read, thus the
+        // no bytes can be reported as successfully read.
+        let want_bytes_read = segment_file.size_bytes();
+
         let bad_entry_input = FakeSegmentEntry::new(b"hello");
         let good_length = bad_entry_input.compressed_len();
         let bad_entry_input = bad_entry_input.with_compressed_len(good_length + 1);
@@ -287,14 +321,18 @@ mod tests {
         assert_matches!(read_fail, Err(Error::UnableToReadData { source: e }) => {
             assert_matches!(e.kind(), std::io::ErrorKind::UnexpectedEof);
         });
+        assert_eq!(reader.bytes_read(), want_bytes_read);
         // Trying to continue reading will fail as well, see:
         // <https://github.com/influxdata/influxdb_iox/issues/6222>
         assert_error!(reader.one_entry(), Error::UnableToReadData { .. });
+        // Also no magical bean counting when cannot read more.
+        assert_eq!(reader.bytes_read(), want_bytes_read);
     }
 
     #[test]
     fn unsuccessful_read_checksum_mismatch() {
         let mut segment_file = FakeSegmentFile::new();
+
         let bad_entry_input = FakeSegmentEntry::new(b"hello");
         let good_checksum = bad_entry_input.checksum();
         let bad_entry_input = bad_entry_input.with_checksum(good_checksum + 1);
@@ -320,6 +358,7 @@ mod tests {
 
         let entry = reader.one_entry().unwrap();
         assert!(entry.is_none());
+        assert_eq!(reader.bytes_read(), segment_file.size_bytes());
     }
 
     #[derive(Debug)]
@@ -355,6 +394,23 @@ mod tests {
             }
 
             f
+        }
+
+        fn size_bytes(&self) -> u64 {
+            std::mem::size_of::<FileTypeIdentifier>() as u64
+                + std::mem::size_of::<SegmentIdBytes>() as u64
+                + self
+                    .entries
+                    .iter()
+                    .map(|e| {
+                        // Each entry is sized by the two 4 byte
+                        // header values (checksum and compressed_len)
+                        // as well as the length of the compressed data.
+                        (std::mem::size_of::<u32>()
+                            + std::mem::size_of::<u32>()
+                            + e.compressed_data().len()) as u64
+                    })
+                    .sum::<u64>()
         }
     }
 

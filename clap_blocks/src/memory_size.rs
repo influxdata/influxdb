@@ -2,7 +2,7 @@
 
 use std::{str::FromStr, sync::OnceLock};
 
-use sysinfo::{RefreshKind, System, SystemExt};
+use sysinfo::{MemoryRefreshKind, RefreshKind, System};
 
 /// Memory size.
 ///
@@ -46,10 +46,7 @@ impl FromStr for MemorySize {
                         "relative memory size must be in [0, 100] but is {percentage}"
                     ));
                 }
-                let total = *TOTAL_MEM_BYTES.get_or_init(|| {
-                    let sys = System::new_with_specifics(RefreshKind::new().with_memory());
-                    sys.total_memory() as usize
-                });
+                let total = total_mem_bytes();
                 let bytes = (percentage as f64 / 100f64 * total as f64).round() as usize;
                 Ok(Self(bytes))
             }
@@ -62,9 +59,17 @@ impl FromStr for MemorySize {
 }
 
 /// Totally available memory size in bytes.
-///
-/// Keep this in a global state so that we only need to inspect the system once during IOx startup.
-static TOTAL_MEM_BYTES: OnceLock<usize> = OnceLock::new();
+pub fn total_mem_bytes() -> usize {
+    // Keep this in a global state so that we only need to inspect the system once during IOx startup.
+    static TOTAL_MEM_BYTES: OnceLock<usize> = OnceLock::new();
+
+    *TOTAL_MEM_BYTES.get_or_init(|| {
+        let sys = System::new_with_specifics(
+            RefreshKind::new().with_memory(MemoryRefreshKind::everything()),
+        );
+        sys.total_memory() as usize
+    })
+}
 
 #[cfg(test)]
 mod tests {

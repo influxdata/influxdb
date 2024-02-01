@@ -1,0 +1,27 @@
+[package]
+name = "mutable_batch_lp"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+hashbrown = "0.14"
+libfuzzer-sys = "0.4"
+mutable_batch_lp = { path = ".." }
+mutable_batch = { path = "../../mutable_batch" }
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "lines_converter"
+path = "fuzz_targets/lines_converter.rs"
+test = false
+doc = false

@@ -43,7 +43,7 @@ pub enum TableBorders {
 }
 
 /// Options for the [`write_columnar`] function.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct Options {
     /// Specify how borders should be rendered.
     pub borders: TableBorders,
@@ -200,17 +200,19 @@ pub fn write_columnar(mut w: impl Write, batches: &[RecordBatch], options: Optio
 mod test {
     use crate::format::influxql::{write_columnar, Options};
     use arrow::array::{ArrayRef, Float64Array, Int64Array, StringArray, TimestampNanosecondArray};
-    use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+    use arrow::datatypes::{DataType, Field, Schema};
     use arrow::record_batch::RecordBatch;
     use generated_types::influxdata::iox::querier::v1::influx_ql_metadata::TagKeyColumn;
     use generated_types::influxdata::iox::querier::v1::InfluxQlMetadata;
+    use schema::{TIME_DATA_TIMEZONE, TIME_DATA_TYPE};
     use std::collections::HashMap;
     use std::sync::Arc;
 
     fn times(vals: &[i64]) -> ArrayRef {
-        Arc::new(TimestampNanosecondArray::from_iter_values(
-            vals.iter().cloned(),
-        ))
+        Arc::new(
+            TimestampNanosecondArray::from_iter_values(vals.iter().cloned())
+                .with_timezone_opt(TIME_DATA_TIMEZONE()),
+        )
     }
 
     fn strs<T: AsRef<str>>(vals: &[Option<T>]) -> ArrayRef {
@@ -229,11 +231,7 @@ mod test {
         let schema = Arc::new(Schema::new_with_metadata(
             vec![
                 Field::new("iox::measurement", DataType::Utf8, false),
-                Field::new(
-                    "time",
-                    DataType::Timestamp(TimeUnit::Nanosecond, None),
-                    false,
-                ),
+                Field::new("time", TIME_DATA_TYPE(), false),
                 Field::new("cpu", DataType::Utf8, true),
                 Field::new("device", DataType::Utf8, true),
                 Field::new("usage_idle", DataType::Float64, true),

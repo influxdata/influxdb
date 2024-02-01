@@ -89,9 +89,9 @@
 use base64::{prelude::BASE64_STANDARD, Engine};
 use bytes::Bytes;
 use data_types::{
-    ColumnId, ColumnSet, ColumnSummary, CompactionLevel, InfluxDbType, NamespaceId,
-    ParquetFileParams, PartitionKey, StatValues, Statistics, TableId, Timestamp,
-    TransitionPartitionId,
+    ColumnId, ColumnSet, ColumnSummary, CompactionLevel, CompactionLevelProtoError, InfluxDbType,
+    NamespaceId, ObjectStoreId, ParquetFileParams, PartitionHashId, PartitionId, PartitionKey,
+    StatValues, Statistics, TableId, Timestamp,
 };
 use generated_types::influxdata::iox::ingester::v1 as proto;
 use iox_time::Time;
@@ -108,6 +108,7 @@ use parquet::{
         statistics::Statistics as ParquetStatistics,
     },
     schema::types::SchemaDescriptor as ParquetSchemaDescriptor,
+    thrift::TSerializable,
 };
 use prost::Message;
 use schema::{
@@ -116,9 +117,7 @@ use schema::{
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{convert::TryInto, fmt::Debug, mem, sync::Arc};
-use thrift::protocol::{
-    TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol, TSerializable,
-};
+use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
 use uuid::Uuid;
 
 /// Current version for serialized metadata.
@@ -218,6 +217,9 @@ pub enum Error {
     #[snafu(display("Field missing while parsing IOx metadata: {}", field))]
     IoxMetadataFieldMissing { field: String },
 
+    #[snafu(display("Cannot parse timestamp from parquet metadata: {}", e))]
+    IoxInvalidTimestamp { e: String },
+
     #[snafu(display("Cannot parse IOx metadata from Protobuf: {}", source))]
     IoxMetadataBroken {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
@@ -234,7 +236,7 @@ pub enum Error {
 
     #[snafu(display("{}: `{}`", source, compaction_level))]
     InvalidCompactionLevel {
-        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+        source: CompactionLevelProtoError,
         compaction_level: i32,
     },
 }
@@ -251,7 +253,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct IoxMetadata {
     /// The uuid used as the location of the parquet file in the OS.
     /// This uuid will later be used as the catalog's ParquetFileId
-    pub object_store_id: Uuid,
+    pub object_store_id: ObjectStoreId,
 
     /// Timestamp when this file was created.
     pub creation_timestamp: Time,
@@ -313,7 +315,7 @@ impl IoxMetadata {
     }
 
     /// Convert to protobuf v3 message.
-    pub(crate) fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
+    pub fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
         let sort_key = self.sort_key.as_ref().map(|key| proto::SortKey {
             expressions: key
                 .iter()
@@ -326,7 +328,7 @@ impl IoxMetadata {
         });
 
         let proto_msg = proto::IoxMetadata {
-            object_store_id: self.object_store_id.as_bytes().to_vec(),
+            object_store_id: self.object_store_id.get_uuid().as_bytes().to_vec(),
             creation_timestamp: Some(self.creation_timestamp.date_time().into()),
             namespace_id: self.namespace_id.get(),
             namespace_name: self.namespace_name.to_string(),
@@ -345,7 +347,7 @@ impl IoxMetadata {
     }
 
     /// Read from protobuf message
-    fn from_protobuf(data: &[u8]) -> Result<Self> {
+    pub fn from_protobuf(data: &[u8]) -> Result<Self> {
         // extract protobuf message from bytes
         let proto_msg = proto::IoxMetadata::decode(data)
             .map_err(|err| Box::new(err) as _)
@@ -372,11 +374,13 @@ impl IoxMetadata {
         });
 
         Ok(Self {
-            object_store_id: parse_uuid(&proto_msg.object_store_id)?.ok_or_else(|| {
-                Error::IoxMetadataFieldMissing {
-                    field: "object_store_id".to_string(),
-                }
-            })?,
+            object_store_id: ObjectStoreId::from_uuid(
+                parse_uuid(&proto_msg.object_store_id)?.ok_or_else(|| {
+                    Error::IoxMetadataFieldMissing {
+                        field: "object_store_id".to_string(),
+                    }
+                })?,
+            ),
             creation_timestamp,
             namespace_id: NamespaceId::new(proto_msg.namespace_id),
             namespace_name,
@@ -399,7 +403,7 @@ impl IoxMetadata {
     /// the catalog should get valid values out-of-band.
     pub fn external(creation_timestamp_ns: i64, table_name: impl Into<Arc<str>>) -> Self {
         Self {
-            object_store_id: Default::default(),
+            object_store_id: ObjectStoreId::from_uuid(Uuid::nil()),
             creation_timestamp: Time::from_timestamp_nanos(creation_timestamp_ns),
             namespace_id: NamespaceId::new(1),
             namespace_name: "external".into(),
@@ -413,8 +417,8 @@ impl IoxMetadata {
     }
 
     /// verify uuid
-    pub fn match_object_store_id(&self, uuid: Uuid) -> bool {
-        uuid == self.object_store_id
+    pub fn match_object_store_id(&self, id: ObjectStoreId) -> bool {
+        id == self.object_store_id
     }
 
     /// Create a corresponding iox catalog's ParquetFile
@@ -434,7 +438,8 @@ impl IoxMetadata {
     /// [`RecordBatch`]: arrow::record_batch::RecordBatch
     pub fn to_parquet_file<F>(
         &self,
-        partition_id: TransitionPartitionId,
+        partition_id: PartitionId,
+        partition_hash_id: Option<PartitionHashId>,
         file_size_bytes: usize,
         metadata: &IoxParquetMetaData,
         column_id_map: F,
@@ -486,6 +491,7 @@ impl IoxMetadata {
             namespace_id: self.namespace_id,
             table_id: self.table_id,
             partition_id,
+            partition_hash_id,
             object_store_id: self.object_store_id,
             min_time,
             max_time,
@@ -534,8 +540,7 @@ fn decode_timestamp_from_field(
     let date_time = value
         .context(IoxMetadataFieldMissingSnafu { field })?
         .try_into()
-        .map_err(|e| Box::new(e) as _)
-        .context(IoxMetadataBrokenSnafu)?;
+        .map_err(|e: &str| Error::IoxInvalidTimestamp { e: e.to_string() })?;
 
     Ok(Time::from_date_time(date_time))
 }
@@ -985,11 +990,11 @@ mod tests {
     };
     use data_types::CompactionLevel;
     use datafusion_util::{unbounded_memory_pool, MemoryStream};
-    use schema::builder::SchemaBuilder;
+    use schema::{builder::SchemaBuilder, TIME_DATA_TIMEZONE};
 
     #[test]
     fn iox_metadata_protobuf_round_trip() {
-        let object_store_id = Uuid::new_v4();
+        let object_store_id = ObjectStoreId::new();
 
         let sort_key = SortKeyBuilder::new().with_col("sort_col").build();
 
@@ -1018,7 +1023,7 @@ mod tests {
     #[tokio::test]
     async fn test_metadata_from_parquet_metadata() {
         let meta = IoxMetadata {
-            object_store_id: Default::default(),
+            object_store_id: ObjectStoreId::new(),
             creation_timestamp: Time::from_timestamp_nanos(42),
             namespace_id: NamespaceId::new(1),
             namespace_name: "bananas".into(),
@@ -1101,7 +1106,11 @@ mod tests {
     }
 
     fn to_timestamp_array(timestamps: &[i64]) -> ArrayRef {
-        let array: TimestampNanosecondArray = timestamps.iter().map(|v| Some(*v)).collect();
+        let array = timestamps
+            .iter()
+            .map(|v| Some(*v))
+            .collect::<TimestampNanosecondArray>()
+            .with_timezone_opt(TIME_DATA_TIMEZONE());
         Arc::new(array)
     }
 }

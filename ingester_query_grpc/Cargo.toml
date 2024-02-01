@@ -5,24 +5,27 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies] # In alphabetical order
-arrow = { workspace = true, features = ["prettyprint", "dyn_cmp_dict"] }
+arrow = { workspace = true }
 bytes = "1.5"
 base64 = "0.21"
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion-proto = { workspace = true }
 flatbuffers = "23.5.26"
-pbjson = "0.6"
+pbjson = { workspace = true }
 predicate = { path = "../predicate" }
-prost = "0.11"
+prost = { workspace = true }
 query_functions = { path = "../query_functions" }
 serde = { version = "1.0", features = ["derive"] }
-snafu = "0.7"
+snafu = "0.8"
 tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [build-dependencies] # In alphabetical order
 tonic-build = { workspace = true }
-prost-build = "0.11"
-pbjson-build = "0.5"
+prost-build = { workspace = true }
+pbjson-build = { workspace = true }

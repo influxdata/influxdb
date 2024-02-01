@@ -1,10 +1,11 @@
 //! Implementation of a DataFusion PhysicalPlan node across partition chunks
 
+use crate::statistics::build_statistics_for_chunks;
 use crate::{
     provider::record_batch_exec::RecordBatchesExec, util::arrow_sort_key_exprs, QueryChunk,
     QueryChunkData, CHUNK_ORDER_COLUMN_NAME,
 };
-use arrow::datatypes::{DataType, Fields, Schema as ArrowSchema, SchemaRef};
+use arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef};
 use datafusion::{
     datasource::{
         listing::PartitionedFile,
@@ -12,10 +13,7 @@ use datafusion::{
         physical_plan::{FileScanConfig, ParquetExec},
     },
     physical_expr::PhysicalSortExpr,
-    physical_plan::{
-        empty::EmptyExec, expressions::Column, union::UnionExec, ColumnStatistics, ExecutionPlan,
-        Statistics,
-    },
+    physical_plan::{empty::EmptyExec, expressions::Column, union::UnionExec, ExecutionPlan},
     scalar::ScalarValue,
 };
 use object_store::ObjectMeta;
@@ -145,7 +143,7 @@ pub fn chunks_to_physical_nodes(
     target_partitions: usize,
 ) -> Arc<dyn ExecutionPlan> {
     if chunks.is_empty() {
-        return Arc::new(EmptyExec::new(false, Arc::clone(schema)));
+        return Arc::new(EmptyExec::new(Arc::clone(schema)));
     }
 
     let mut record_batch_chunks: Vec<Arc<dyn QueryChunk>> = vec![];
@@ -199,24 +197,12 @@ pub fn chunks_to_physical_nodes(
         // ensure that chunks are actually ordered by chunk order
         chunks.sort_by_key(|(_meta, c)| c.order());
 
-        #[allow(clippy::manual_try_fold)]
-        let num_rows = chunks.iter().map(|(_meta, c)| c.stats().num_rows).fold(
-            Some(0usize),
-            |accu, x| match (accu, x) {
-                (Some(accu), Some(x)) => Some(accu + x),
-                _ => None,
-            },
-        );
-        let chunk_order_min = chunks
+        // Compute statistics for the chunks
+        let query_chunks = chunks
             .iter()
-            .map(|(_meta, c)| c.order().get())
-            .min()
-            .expect("at least one chunk");
-        let chunk_order_max = chunks
-            .iter()
-            .map(|(_meta, c)| c.order().get())
-            .max()
-            .expect("at least one chunk");
+            .map(|(_meta, chunk)| Arc::clone(chunk))
+            .collect::<Vec<_>>();
+        let statistics = build_statistics_for_chunks(&query_chunks, Arc::clone(schema));
 
         let file_groups = distribute(
             chunks.into_iter().map(|(object_meta, chunk)| {
@@ -242,7 +228,10 @@ pub fn chunks_to_physical_nodes(
         let output_ordering = sort_key.map(|sort_key| arrow_sort_key_exprs(&sort_key, schema));
 
         let (table_partition_cols, file_schema, output_ordering) = if has_chunk_order_col {
-            let table_partition_cols = vec![(CHUNK_ORDER_COLUMN_NAME.to_owned(), DataType::Int64)];
+            let table_partition_cols = vec![schema
+                .field_with_name(CHUNK_ORDER_COLUMN_NAME)
+                .unwrap()
+                .clone()];
             let file_schema = Arc::new(ArrowSchema::new(
                 schema
                     .fields
@@ -269,40 +258,6 @@ pub fn chunks_to_physical_nodes(
             (vec![], Arc::clone(schema), output_ordering)
         };
 
-        let statistics = Statistics {
-            num_rows,
-            total_byte_size: None,
-            column_statistics: Some(
-                schema
-                    .fields
-                    .iter()
-                    .map(|f| {
-                        let null_count = if f.is_nullable() { None } else { Some(0) };
-
-                        let (min_value, max_value) = if f.name() == CHUNK_ORDER_COLUMN_NAME {
-                            (
-                                Some(ScalarValue::from(chunk_order_min)),
-                                Some(ScalarValue::from(chunk_order_max)),
-                            )
-                        } else {
-                            (None, None)
-                        };
-
-                        ColumnStatistics {
-                            null_count,
-                            min_value,
-                            max_value,
-                            distinct_count: None,
-                        }
-                    })
-                    .collect(),
-            ),
-
-            // this does NOT account for predicate pushdown
-            // Also see https://github.com/apache/arrow-datafusion/issues/5614
-            is_exact: false,
-        };
-
         // No sort order is represented by an empty Vec
         let output_ordering = vec![output_ordering.unwrap_or_default()];
 
@@ -315,7 +270,6 @@ pub fn chunks_to_physical_nodes(
             limit: None,
             table_partition_cols,
             output_ordering,
-            infinite_source: false,
         };
         let meta_size_hint = None;
 
@@ -350,10 +304,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use schema::{sort::SortKeyBuilder, SchemaBuilder, TIME_COLUMN_NAME};
+    use datafusion::{
+        common::stats::Precision,
+        physical_plan::{ColumnStatistics, Statistics},
+    };
+    use schema::{sort::SortKeyBuilder, InfluxFieldType, SchemaBuilder, TIME_COLUMN_NAME};
 
     use crate::{
         chunk_order_field,
+        statistics::build_statistics_for_chunks,
         test::{format_execution_plan, TestChunk},
     };
 
@@ -455,7 +414,7 @@ mod tests {
             format_execution_plan(&plan),
             @r###"
         ---
-        - " EmptyExec: produce_one_row=false"
+        - " EmptyExec"
         "###
         );
     }
@@ -575,9 +534,192 @@ mod tests {
             @r###"
         ---
         - " UnionExec"
-        - "   RecordBatchesExec: chunks=1"
+        - "   RecordBatchesExec: chunks=1, projection=[tag, __chunk_order]"
         - "   ParquetExec: file_groups={1 group: [[0.parquet]]}, projection=[tag, __chunk_order], output_ordering=[__chunk_order@1 ASC]"
         "###
         );
+    }
+
+    // reproducer of https://github.com/influxdata/idpe/issues/18287
+    #[test]
+    fn reproduce_schema_bug_in_parquet_exec() {
+        // schema with one tag, one filed, time and CHUNK_ORDER_COLUMN_NAME
+        let schema: SchemaRef = SchemaBuilder::new()
+            .tag("tag")
+            .influx_field("field", InfluxFieldType::Float)
+            .timestamp()
+            .influx_field(CHUNK_ORDER_COLUMN_NAME, InfluxFieldType::Integer)
+            .build()
+            .unwrap()
+            .into();
+
+        // create a test chunk with one tag, one filed, time and CHUNK_ORDER_COLUMN_NAME
+        let record_batch_chunk = Arc::new(
+            TestChunk::new("t")
+                .with_tag_column_with_stats("tag", Some("AL"), Some("MT"))
+                .with_time_column_with_stats(Some(10), Some(20))
+                .with_i64_field_column_with_stats("field", Some(0), Some(100))
+                .with_i64_field_column_with_stats(CHUNK_ORDER_COLUMN_NAME, Some(5), Some(6)),
+        );
+
+        // create them same test chunk but with a parquet file
+        let parquet_chunk = Arc::new(
+            TestChunk::new("t")
+                .with_tag_column_with_stats("tag", Some("AL"), Some("MT"))
+                .with_i64_field_column_with_stats("field", Some(0), Some(100))
+                .with_time_column_with_stats(Some(10), Some(20))
+                .with_i64_field_column_with_stats(CHUNK_ORDER_COLUMN_NAME, Some(5), Some(6))
+                .with_dummy_parquet_file(),
+        );
+
+        // Build a RecordBatchsExec for record_batch_chunk
+        //
+        // Use chunks_to_physical_nodes to build a plan with UnionExec on top of RecordBatchesExec
+        // Note: I purposely use chunks_to_physical_node to create plan for both record_batch_chunk and parquet_chunk to
+        //       consistently create their plan. Also chunks_to_physical_node is used to do create plan in optimization
+        //       passes that I will need
+        let plan = chunks_to_physical_nodes(
+            &schema,
+            None,
+            vec![Arc::clone(&record_batch_chunk) as Arc<dyn QueryChunk>],
+            1,
+        );
+        // remove union
+        let Some(union_exec) = plan.as_any().downcast_ref::<UnionExec>() else {
+            panic!("plan is not a UnionExec");
+        };
+        let plan_record_batches_exec = Arc::clone(&union_exec.inputs()[0]);
+        // verify this is a RecordBatchesExec
+        assert!(plan_record_batches_exec
+            .as_any()
+            .downcast_ref::<RecordBatchesExec>()
+            .is_some());
+
+        // Build a ParquetExec for parquet_chunk
+        //
+        // Use chunks_to_physical_nodes to build a plan with UnionExec on top of ParquetExec
+        let plan = chunks_to_physical_nodes(
+            &schema,
+            None,
+            vec![Arc::clone(&parquet_chunk) as Arc<dyn QueryChunk>],
+            1,
+        );
+        // remove union
+        let Some(union_exec) = plan.as_any().downcast_ref::<UnionExec>() else {
+            panic!("plan is not a UnionExec");
+        };
+        let plan_parquet_exec = Arc::clone(&union_exec.inputs()[0]);
+        // verify this is a ParquetExec
+        assert!(plan_parquet_exec
+            .as_any()
+            .downcast_ref::<ParquetExec>()
+            .is_some());
+
+        // Schema of 2 chunks are the same
+        assert_eq!(record_batch_chunk.schema(), parquet_chunk.schema());
+
+        // Schema of the corresponding plans are also the same
+        assert_eq!(
+            plan_record_batches_exec.schema(),
+            plan_parquet_exec.schema()
+        );
+
+        // Statistics of 2 chunks are the same
+        let record_batch_stats =
+            build_statistics_for_chunks(&[record_batch_chunk], Arc::clone(&schema));
+        let parquet_stats = build_statistics_for_chunks(&[parquet_chunk], schema);
+        assert_eq!(record_batch_stats, parquet_stats);
+
+        // Statistics of the corresponding plans should also be the same except the CHUNK_ORDER_COLUMN_NAME
+        // Notes:
+        //  1. We do compute stats for CHUNK_ORDER_COLUMN_NAME and store it as in FileScanConfig.statistics
+        //     See: https://github.com/influxdata/influxdb_iox/blob/0e5b97d9e913111641f65b9af31e3b3f45f3b14b/iox_query/src/provider/physical.rs#L311C24-L311C24
+        //     So, if we get statistics there, we have everything
+        //  2. However, if we get statistics through the DF plan's statistics() method, we will not get stats for CHUNK_ORDER_COLUMN_NAME
+        //     The reason is we store CHUNK_ORDER_COLUMN_NAME as table_partition_cols in DF and DF has not computed stats for it yet.
+        //     See: https://github.com/apache/arrow-datafusion/blob/a9d66e2b492843c2fb335a7dfe27fed073629b09/datafusion/core/src/datasource/physical_plan/file_scan_config.rs#L139
+        // When we get the plan's statistics, we won't care about CHUNK_ORDER_COLUMN_NAME becasue it is not a real column.
+        // Thus, we are good for now. In the future, if we want a 100% consistent for CHUNK_ORDER_COLUMN_NAME, we need
+        // to modify DF to compute stats for table_partition_cols
+        //
+        // Here both parquet's plan stats and FileScanConfig stats
+        //
+        // Cast to ParquetExec to get statistics
+        let plan_parquet_exec = plan_parquet_exec
+            .as_any()
+            .downcast_ref::<ParquetExec>()
+            .unwrap();
+        // stats of the parquet plan generally computed from propagating stats from input plans/chunks/columns
+        let parquet_plan_stats = plan_parquet_exec.statistics().unwrap();
+        // stats stored in FileScanConfig
+        let parqet_file_stats = &plan_parquet_exec.base_config().statistics;
+
+        // stats of IOx specific recod batch plan
+        let record_batch_plan_stats = plan_record_batches_exec.statistics().unwrap();
+
+        // Record batch plan stats is the same as parquet file stats and includes everything
+        assert_eq!(record_batch_plan_stats, *parqet_file_stats);
+
+        // Verify content
+        //
+        // Actual columns have stats
+        let col_stats = vec![
+            ColumnStatistics {
+                null_count: Precision::Absent,
+                max_value: Precision::Exact(ScalarValue::Utf8(Some("MT".to_string()))),
+                min_value: Precision::Exact(ScalarValue::Utf8(Some("AL".to_string()))),
+                distinct_count: Precision::Absent,
+            },
+            ColumnStatistics {
+                null_count: Precision::Absent,
+                max_value: Precision::Exact(ScalarValue::Int64(Some(100))),
+                min_value: Precision::Exact(ScalarValue::Int64(Some(0))),
+                distinct_count: Precision::Absent,
+            },
+            ColumnStatistics {
+                null_count: Precision::Absent,
+                max_value: Precision::Exact(ScalarValue::TimestampNanosecond(Some(20), None)),
+                min_value: Precision::Exact(ScalarValue::TimestampNanosecond(Some(10), None)),
+                distinct_count: Precision::Absent,
+            },
+        ];
+        //
+        // Add CHUNK_ORDER_COLUMN_NAME with stats
+        let mut parquet_file_col_stats = col_stats.clone();
+        parquet_file_col_stats.push(ColumnStatistics {
+            null_count: Precision::Absent,
+            max_value: Precision::Exact(ScalarValue::Int64(Some(6))),
+            min_value: Precision::Exact(ScalarValue::Int64(Some(0))),
+            distinct_count: Precision::Absent,
+        });
+        //
+        // Add CHUNK_ORDER_COLUMN_NAME without stats
+        let mut parquet_plan_stats_col_stats = col_stats;
+        parquet_plan_stats_col_stats.push(ColumnStatistics {
+            null_count: Precision::Absent,
+            max_value: Precision::Absent,
+            min_value: Precision::Absent,
+            distinct_count: Precision::Absent,
+        });
+        //
+        let expected_parquet_plan_stats = Statistics {
+            num_rows: Precision::Exact(0),
+            total_byte_size: Precision::Absent,
+            column_statistics: parquet_plan_stats_col_stats,
+        };
+        //
+        let expected_parquet_file_stats = Statistics {
+            num_rows: Precision::Exact(0),
+            total_byte_size: Precision::Absent,
+            column_statistics: parquet_file_col_stats,
+        };
+
+        // Content of Record batch plan stats that include stats of CHUNK_ORDER_COLUMN_NAME
+        assert_eq!(record_batch_plan_stats, expected_parquet_file_stats);
+        // Content of parquet file stats that also include stats of CHUNK_ORDER_COLUMN_NAME
+        assert_eq!(*parqet_file_stats, expected_parquet_file_stats);
+        //
+        // Content of parquet plan stats that does not include stats of CHUNK_ORDER_COLUMN_NAME
+        assert_eq!(parquet_plan_stats, expected_parquet_plan_stats);
     }
 }

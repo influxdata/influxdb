@@ -11,7 +11,7 @@ use std::{
 };
 
 use iox_time::{Time, TimeProvider};
-use parking_lot::{lock_api::ArcMutexGuard, Mutex, RawMutex, ReentrantMutex};
+use parking_lot::{lock_api::ArcReentrantMutexGuard, RawMutex, RawThreadId, ReentrantMutex};
 
 use super::CacheBackend;
 
@@ -274,14 +274,14 @@ where
     ///
     /// Panics if `inner` is not empty.
     pub fn new(
-        inner: Box<dyn CacheBackend<K = K, V = V>>,
+        inner: Box<dyn CacheBackend<K = K, V = V> + Send>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         assert!(inner.is_empty(), "inner backend is not empty");
 
         Self {
             inner: Arc::new(ReentrantMutex::new(RefCell::new(PolicyBackendInner {
-                inner: Arc::new(Mutex::new(inner)),
+                inner,
                 subscribers: Vec::new(),
                 time_provider,
             }))),
@@ -324,11 +324,8 @@ where
     pub fn inner_ref(&mut self) -> InnerBackendRef<'_, K, V> {
         // NOTE: We deliberately use a mutable reference here to prevent users from using `<Self as
         // CacheBackend>` while we hold a lock to the underlying backend.
-        lock_inner!(guard = self.inner);
-        InnerBackendRef {
-            inner: guard.inner.lock_arc(),
-            _phantom: PhantomData,
-        }
+
+        inner_ref::build(Arc::clone(&self.inner))
     }
 }
 
@@ -345,8 +342,7 @@ where
         perform_changes(&mut guard, vec![ChangeRequest::get(k.clone())]);
 
         // poll inner backend AFTER everything has settled
-        let mut inner = guard.inner.lock();
-        inner.get(k)
+        guard.inner.get(k)
     }
 
     fn set(&mut self, k: Self::K, v: Self::V) {
@@ -361,8 +357,7 @@ where
 
     fn is_empty(&self) -> bool {
         lock_inner!(guard = self.inner);
-        let inner = guard.inner.lock();
-        inner.is_empty()
+        guard.inner.is_empty()
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -410,11 +405,7 @@ where
     V: Clone + Debug + Send + 'static,
 {
     /// Underlying cache backend.
-    ///
-    /// This is wrapped into another `Arc<Mutex<...>>` construct even though [`PolicyBackendInner`]
-    /// is already guarded by a lock because we need to reference the underlying backend from
-    /// [`Recorder`], and [`Recorder`] implements [`CacheBackend`] which is `'static`.
-    inner: Arc<Mutex<Box<dyn CacheBackend<K = K, V = V>>>>,
+    inner: Box<dyn CacheBackend<K = K, V = V> + Send>,
 
     /// List of subscribers.
     subscribers: Vec<Box<dyn Subscriber<K = K, V = V>>>,
@@ -439,7 +430,7 @@ fn perform_changes<K, V>(
 
     while let Some(change_request) = tasks.pop_front() {
         let mut recorder = Recorder {
-            inner: Arc::clone(&inner.inner),
+            inner: inner.inner.as_mut(),
             records: vec![],
         };
 
@@ -542,7 +533,7 @@ where
     /// patterns work out of the box without the need to fear interleaving modifications.
     pub fn from_fn<F>(f: F) -> Self
     where
-        F: for<'b> FnOnce(&'b mut Recorder<K, V>) + 'a,
+        F: for<'b, 'c> FnOnce(&'c mut Recorder<'b, K, V>) + 'a,
     {
         Self { fun: Box::new(f) }
     }
@@ -578,13 +569,13 @@ where
     }
 
     /// Execute this change request.
-    pub fn eval(self, backend: &mut Recorder<K, V>) {
-        (self.fun)(backend)
+    pub fn eval(self, backend: &mut Recorder<'_, K, V>) {
+        (self.fun)(backend);
     }
 }
 
 /// Function captured within [`ChangeRequest`].
-type ChangeRequestFn<'a, K, V> = Box<dyn for<'b> FnOnce(&'b mut Recorder<K, V>) + 'a>;
+type ChangeRequestFn<'a, K, V> = Box<dyn for<'b, 'c> FnOnce(&'c mut Recorder<'b, K, V>) + 'a>;
 
 /// Records of interactions with the callback [`CacheBackend`].
 #[derive(Debug, PartialEq)]
@@ -614,16 +605,16 @@ enum Record<K, V> {
 /// Specialized [`CacheBackend`] that forwards changes and requests to the underlying backend of
 /// [`PolicyBackend`] but also records all changes into [`Record`]s.
 #[derive(Debug)]
-pub struct Recorder<K, V>
+pub struct Recorder<'a, K, V>
 where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
 {
-    inner: Arc<Mutex<Box<dyn CacheBackend<K = K, V = V>>>>,
+    inner: &'a mut (dyn CacheBackend<K = K, V = V> + Send),
     records: Vec<Record<K, V>>,
 }
 
-impl<K, V> Recorder<K, V>
+impl<'a, K, V> Recorder<'a, K, V>
 where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
@@ -637,11 +628,11 @@ where
     /// modifying requests like [`SET`](CacheBackend::set) or [`REMOVE`](CacheBackend::remove)
     /// since they always require policies to be in-sync.
     pub fn get_untracked(&mut self, k: &K) -> Option<V> {
-        self.inner.lock().get(k)
+        self.inner.get(k)
     }
 }
 
-impl<K, V> CacheBackend for Recorder<K, V>
+impl<'a, K, V> CacheBackend for Recorder<'a, K, V>
 where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
@@ -651,7 +642,7 @@ where
 
     fn get(&mut self, k: &Self::K) -> Option<Self::V> {
         self.records.push(Record::Get { k: k.clone() });
-        self.inner.lock().get(k)
+        self.inner.get(k)
     }
 
     fn set(&mut self, k: Self::K, v: Self::V) {
@@ -659,63 +650,74 @@ where
             k: k.clone(),
             v: v.clone(),
         });
-        self.inner.lock().set(k, v);
+        self.inner.set(k, v);
     }
 
     fn remove(&mut self, k: &Self::K) {
         self.records.push(Record::Remove { k: k.clone() });
-        self.inner.lock().remove(k);
+        self.inner.remove(k);
     }
 
     fn is_empty(&self) -> bool {
-        self.inner.lock().is_empty()
+        self.inner.is_empty()
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
-        self
+        panic!("don't any-cast the recorder please")
     }
 }
 
-/// Read-only ref to the inner backend of [`PolicyBackend`] for debugging.
-pub struct InnerBackendRef<'a, K, V>
-where
-    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
-    V: Clone + Debug + Send + 'static,
-{
-    inner: ArcMutexGuard<RawMutex, Box<dyn CacheBackend<K = K, V = V>>>,
-    _phantom: PhantomData<&'a mut ()>,
-}
+/// Helper module that wraps the implementation of [`InnerBackendRef`].
+///
+/// This is required because [`ouroboros`] generates a bunch of code that we do not want to leak all over the place.
+mod inner_ref {
+    #![allow(non_snake_case, clippy::future_not_send)]
 
-// Workaround for <https://github.com/rust-lang/rust/issues/100573>.
-impl<'a, K, V> Drop for InnerBackendRef<'a, K, V>
-where
-    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
-    V: Clone + Debug + Send + 'static,
-{
-    fn drop(&mut self) {}
-}
+    use super::*;
+    use ouroboros::self_referencing;
 
-impl<'a, K, V> Debug for InnerBackendRef<'a, K, V>
-where
-    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
-    V: Clone + Debug + Send + 'static,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("InnerBackendRef").finish_non_exhaustive()
+    /// Read-only ref to the inner backend of [`PolicyBackend`] for debugging.
+    #[self_referencing]
+    pub struct InnerBackendRef<'a, K, V>
+    where
+        K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+        V: Clone + Debug + Send + 'static,
+    {
+        l1: ArcReentrantMutexGuard<RawMutex, RawThreadId, RefCell<PolicyBackendInner<K, V>>>,
+        #[borrows(l1)]
+        #[covariant]
+        l2: std::cell::RefMut<'this, PolicyBackendInner<K, V>>,
+        _phantom: PhantomData<&'a mut ()>,
+    }
+
+    impl<'a, K, V> Deref for InnerBackendRef<'a, K, V>
+    where
+        K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+        V: Clone + Debug + Send + 'static,
+    {
+        type Target = dyn CacheBackend<K = K, V = V>;
+
+        fn deref(&self) -> &Self::Target {
+            self.borrow_l2().inner.as_ref()
+        }
+    }
+
+    pub(super) fn build<'a, K, V>(inner: StrongSharedInner<K, V>) -> InnerBackendRef<'a, K, V>
+    where
+        K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+        V: Clone + Debug + Send + 'static,
+    {
+        let inner = inner.lock_arc();
+        InnerBackendRefBuilder {
+            l1: inner,
+            l2_builder: |l1| l1.borrow_mut(),
+            _phantom: PhantomData,
+        }
+        .build()
     }
 }
 
-impl<'a, K, V> Deref for InnerBackendRef<'a, K, V>
-where
-    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
-    V: Clone + Debug + Send + 'static,
-{
-    type Target = dyn CacheBackend<K = K, V = V>;
-
-    fn deref(&self) -> &Self::Target {
-        self.inner.as_ref()
-    }
-}
+pub use inner_ref::InnerBackendRef;
 
 #[cfg(test)]
 mod tests {
@@ -1923,7 +1925,7 @@ mod tests {
 
     /// Same as [`ChangeRequestFn`] but implements `Send`.
     type SendableChangeRequestFn =
-        Box<dyn for<'a> FnOnce(&'a mut Recorder<String, usize>) + Send + 'static>;
+        Box<dyn for<'a, 'b> FnOnce(&'b mut Recorder<'a, String, usize>) + Send + 'static>;
 
     /// Same as [`ChangeRequest`] but implements `Send`.
     struct SendableChangeRequest {
@@ -1940,7 +1942,7 @@ mod tests {
     impl SendableChangeRequest {
         fn from_fn<F>(f: F) -> Self
         where
-            F: for<'b> FnOnce(&'b mut Recorder<String, usize>) + Send + 'static,
+            F: for<'b, 'c> FnOnce(&'c mut Recorder<'b, String, usize>) + Send + 'static,
         {
             Self { fun: Box::new(f) }
         }

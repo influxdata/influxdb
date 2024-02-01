@@ -10,7 +10,7 @@ mod test_util;
 /// Backend to keep and manage stored entries.
 ///
 /// A backend might remove entries at any point, e.g. due to memory pressure or expiration.
-pub trait CacheBackend: Debug + Send + 'static {
+pub trait CacheBackend: Debug {
     /// Cache key.
     type K: Clone + Eq + Hash + Ord + Debug + Send + 'static;
 
@@ -37,13 +37,12 @@ pub trait CacheBackend: Debug + Send + 'static {
     fn as_any(&self) -> &dyn Any;
 }
 
-impl<K, V> CacheBackend for Box<dyn CacheBackend<K = K, V = V>>
+impl<T> CacheBackend for Box<T>
 where
-    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
-    V: Clone + Debug + Send + 'static,
+    T: CacheBackend + ?Sized + 'static,
 {
-    type K = K;
-    type V = V;
+    type K = T::K;
+    type V = T::V;
 
     fn get(&mut self, k: &Self::K) -> Option<Self::V> {
         self.as_mut().get(k)

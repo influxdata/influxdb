@@ -189,8 +189,8 @@ impl BufferedInput {
                 .iter()
                 .map(|c| SortField::new(batch.column(*c).data_type().clone()))
                 .collect();
-            let row_converter =
-                RowConverter::new(sort_fields).map_err(DataFusionError::ArrowError)?;
+            let row_converter = RowConverter::new(sort_fields)
+                .map_err(|err| DataFusionError::ArrowError(err, None))?;
             self.row_converter = Some(row_converter);
         }
         Ok(self.row_converter.as_mut().expect("cannot be none"))
@@ -206,7 +206,7 @@ impl BufferedInput {
             .collect();
         self.get_row_converter()?
             .convert_columns(&columns)
-            .map_err(DataFusionError::ArrowError)
+            .map_err(|err| DataFusionError::ArrowError(err, None))
     }
 
     /// Returns the row-oriented representation of the last buffered row that may appear in the next

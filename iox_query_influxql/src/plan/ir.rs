@@ -228,8 +228,8 @@ impl Display for Field {
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Interval {
     /// The nanosecond duration of the interval
-    pub duration: i64,
+    pub(super) duration: i64,
 
     /// The nanosecond offset of the interval.
-    pub offset: Option<i64>,
+    pub(super) offset: Option<i64>,
 }

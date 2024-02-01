@@ -5,10 +5,9 @@ use crate::{
     storage::{ParquetExecInput, ParquetStorage},
     ParquetFilePath,
 };
-use data_types::{ParquetFile, TimestampMinMax};
+use data_types::{ObjectStoreId, ParquetFile, TimestampMinMax};
 use schema::Schema;
 use std::{mem, sync::Arc};
-use uuid::Uuid;
 
 /// A abstract representation of a Parquet file in object storage, with
 /// associated metadata.
@@ -45,7 +44,7 @@ impl ParquetChunk {
     }
 
     /// Return object store id
-    pub fn object_store_id(&self) -> Uuid {
+    pub fn object_store_id(&self) -> ObjectStoreId {
         self.parquet_file.object_store_id
     }
 

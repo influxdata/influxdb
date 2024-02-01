@@ -7,19 +7,18 @@ use arrow::{
 use data_types::{
     partition_template::TablePartitionTemplateOverride, Column, ColumnSet, ColumnType,
     ColumnsByName, CompactionLevel, MaxColumnsPerTable, MaxTables, Namespace, NamespaceName,
-    NamespaceSchema, ParquetFile, ParquetFileParams, Partition, PartitionId, SortedColumnSet,
-    Table, TableId, TableSchema, Timestamp, TransitionPartitionId,
+    NamespaceSchema, ObjectStoreId, ParquetFile, ParquetFileParams, Partition, PartitionId,
+    SortKeyIds, Table, TableSchema, Timestamp, TransitionPartitionId,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::{unbounded_memory_pool, MemoryStream};
 use generated_types::influxdata::iox::partition_template::v1::PartitionTemplate;
+use iox_catalog::interface::PartitionRepoExt;
 use iox_catalog::{
-    interface::{
-        get_schema_by_id, get_table_columns_by_id, Catalog, RepoCollection, SoftDeletedRows,
-    },
+    interface::{Catalog, ParquetFileRepoExt, RepoCollection, SoftDeletedRows},
     mem::MemCatalog,
-    partition_lookup,
     test_helpers::arbitrary_table,
+    util::{get_schema_by_id, get_table_columns_by_id},
 };
 use iox_query::{
     exec::{DedicatedExecutors, Executor, ExecutorConfig},
@@ -40,10 +39,9 @@ use schema::{
     Projection, Schema,
 };
 use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
-use uuid::Uuid;
 
 /// Common retention period used throughout tests
-pub const TEST_RETENTION_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
+pub(crate) const TEST_RETENTION_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
 
 /// Catalog for tests
 #[derive(Debug)]
@@ -79,11 +77,14 @@ impl TestCatalog {
         target_query_partitions: NonZeroUsize,
     ) -> Arc<Self> {
         let metric_registry = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp(0, 0).unwrap()));
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(
+            Arc::clone(&metric_registry),
+            Arc::clone(&time_provider) as _,
+        ));
         let object_store = Arc::new(InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store) as _, StorageId::from("iox"));
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp(0, 0).unwrap()));
         let exec = Arc::new(Executor::new_with_config_and_executors(
             ExecutorConfig {
                 num_threads: exec.num_threads(),
@@ -148,7 +149,7 @@ impl TestCatalog {
         name: &str,
         retention_period_ns: Option<i64>,
     ) -> Arc<TestNamespace> {
-        let mut repos = self.catalog.repositories().await;
+        let mut repos = self.catalog.repositories();
         let namespace_name = NamespaceName::new(name).unwrap();
         let namespace = repos
             .namespaces()
@@ -171,27 +172,13 @@ impl TestCatalog {
             .await
     }
 
-    /// List all non-deleted files
-    pub async fn list_by_table_not_to_delete(
-        self: &Arc<Self>,
-        table_id: TableId,
-    ) -> Vec<ParquetFile> {
-        self.catalog
-            .repositories()
-            .await
-            .parquet_files()
-            .list_by_table_not_to_delete(table_id)
-            .await
-            .unwrap()
-    }
-
     /// Add a partition into skipped compaction
     pub async fn add_to_skipped_compaction(
         self: &Arc<Self>,
         partition_id: PartitionId,
         reason: &str,
     ) {
-        let mut repos = self.catalog.repositories().await;
+        let mut repos = self.catalog.repositories();
 
         repos
             .partitions()
@@ -212,7 +199,7 @@ pub struct TestNamespace {
 impl TestNamespace {
     /// Create a table in this namespace
     pub async fn create_table(self: &Arc<Self>, name: &str) -> Arc<TestTable> {
-        let mut repos = self.catalog.catalog.repositories().await;
+        let mut repos = self.catalog.catalog.repositories();
 
         let table = arbitrary_table(&mut *repos, name, &self.namespace).await;
 
@@ -229,7 +216,7 @@ impl TestNamespace {
         name: &str,
         template: Option<PartitionTemplate>,
     ) -> Arc<TestTable> {
-        let mut repos = self.catalog.catalog.repositories().await;
+        let mut repos = self.catalog.catalog.repositories();
 
         let table = repos
             .tables()
@@ -254,32 +241,36 @@ impl TestNamespace {
 
     /// Get namespace schema for this namespace.
     pub async fn schema(&self) -> NamespaceSchema {
-        let mut repos = self.catalog.catalog.repositories().await;
+        let mut repos = self.catalog.catalog.repositories();
         get_schema_by_id(
             self.namespace.id,
             repos.as_mut(),
             SoftDeletedRows::ExcludeDeleted,
         )
         .await
-        .unwrap()
+        .expect("no catalog error")
+        .expect("namespace exists")
     }
 
     /// Set the number of tables allowed in this namespace.
-    pub async fn update_table_limit(&self, new_max: i32) {
-        let mut repos = self.catalog.catalog.repositories().await;
+    pub async fn update_table_limit(&self, new_max: usize) {
+        let mut repos = self.catalog.catalog.repositories();
         repos
             .namespaces()
-            .update_table_limit(&self.namespace.name, MaxTables::new(new_max))
+            .update_table_limit(&self.namespace.name, MaxTables::try_from(new_max).unwrap())
             .await
             .unwrap();
     }
 
     /// Set the number of columns per table allowed in this namespace.
-    pub async fn update_column_limit(&self, new_max: i32) {
-        let mut repos = self.catalog.catalog.repositories().await;
+    pub async fn update_column_limit(&self, new_max: usize) {
+        let mut repos = self.catalog.catalog.repositories();
         repos
             .namespaces()
-            .update_column_limit(&self.namespace.name, MaxColumnsPerTable::new(new_max))
+            .update_column_limit(
+                &self.namespace.name,
+                MaxColumnsPerTable::try_from(new_max).unwrap(),
+            )
             .await
             .unwrap();
     }
@@ -297,7 +288,7 @@ pub struct TestTable {
 impl TestTable {
     /// Creat a partition for the table
     pub async fn create_partition(self: &Arc<Self>, key: &str) -> Arc<TestPartition> {
-        let mut repos = self.catalog.catalog.repositories().await;
+        let mut repos = self.catalog.catalog.repositories();
 
         let partition = repos
             .partitions()
@@ -317,10 +308,9 @@ impl TestTable {
     pub async fn create_partition_with_sort_key(
         self: &Arc<Self>,
         key: &str,
-        sort_key: &[&str],
         sort_key_ids: &[i64],
     ) -> Arc<TestPartition> {
-        let mut repos = self.catalog.catalog.repositories().await;
+        let mut repos = self.catalog.catalog.repositories();
 
         let partition = repos
             .partitions()
@@ -331,11 +321,9 @@ impl TestTable {
         let partition = repos
             .partitions()
             .cas_sort_key(
-                &TransitionPartitionId::Deprecated(partition.id),
+                partition.id,
                 None,
-                None,
-                sort_key,
-                &SortedColumnSet::from(sort_key_ids.iter().cloned()),
+                &SortKeyIds::from(sort_key_ids.iter().cloned()),
             )
             .await
             .unwrap();
@@ -354,7 +342,7 @@ impl TestTable {
         name: &str,
         column_type: ColumnType,
     ) -> Arc<TestColumn> {
-        let mut repos = self.catalog.catalog.repositories().await;
+        let mut repos = self.catalog.catalog.repositories();
 
         let column = repos
             .columns()
@@ -381,7 +369,7 @@ impl TestTable {
 
     /// Get columns from the catalog.
     pub async fn catalog_columns(&self) -> ColumnsByName {
-        let mut repos = self.catalog.catalog.repositories().await;
+        let mut repos = self.catalog.catalog.repositories();
 
         get_table_columns_by_id(self.table.id, repos.as_mut())
             .await
@@ -402,9 +390,9 @@ impl TestTable {
         let selection: Vec<_> = file
             .column_set
             .iter()
-            .map(|id| *column_id_lookup.get(id).unwrap())
+            .map(|id| column_id_lookup.get(id).unwrap().as_ref())
             .collect();
-        let schema = table_schema.select_by_names(&selection).unwrap();
+        let schema = table_schema.select_by_names(&selection[..]).unwrap();
 
         let chunk = ParquetChunk::new(Arc::new(file), schema, self.catalog.parquet_store.clone());
         chunk
@@ -421,6 +409,7 @@ impl TestTable {
 
 /// A test column.
 #[allow(missing_docs)]
+#[derive(Debug)]
 pub struct TestColumn {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
@@ -446,35 +435,20 @@ pub struct TestPartition {
 
 impl TestPartition {
     /// Update sort key.
-    pub async fn update_sort_key(
-        self: &Arc<Self>,
-        sort_key: SortKey,
-        sort_key_ids: &SortedColumnSet,
-    ) -> Arc<Self> {
-        let partition = partition_lookup(
-            self.catalog.catalog.repositories().await.as_mut(),
-            &self.partition.transition_partition_id(),
-        )
-        .await
-        .unwrap()
-        .unwrap();
-
-        let old_sort_key = partition.sort_key;
-        let old_sort_key_ids = partition.sort_key_ids;
-
-        let partition = self
-            .catalog
-            .catalog
-            .repositories()
-            .await
+    pub async fn update_sort_key(self: &Arc<Self>, sort_key_ids: &SortKeyIds) -> Arc<Self> {
+        let mut repos = self.catalog.catalog.repositories();
+        let partition = repos
             .partitions()
-            .cas_sort_key(
-                &self.partition.transition_partition_id(),
-                Some(old_sort_key),
-                Some(old_sort_key_ids),
-                &sort_key.to_columns().collect::<Vec<_>>(),
-                sort_key_ids,
-            )
+            .get_by_id(self.partition.id)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let old_sort_key_ids = partition.sort_key_ids();
+
+        let partition = repos
+            .partitions()
+            .cas_sort_key(self.partition.id, old_sort_key_ids, sort_key_ids)
             .await
             .unwrap();
 
@@ -525,7 +499,7 @@ impl TestPartition {
         let (record_batch, sort_key) = sort_batch(record_batch, &schema);
         let record_batch = dedup_batch(record_batch, &sort_key);
 
-        let object_store_id = object_store_id.unwrap_or_else(Uuid::new_v4);
+        let object_store_id = object_store_id.unwrap_or_else(ObjectStoreId::new);
 
         let metadata = IoxMetadata {
             object_store_id,
@@ -567,13 +541,8 @@ impl TestPartition {
         };
 
         let result = self.create_parquet_file_catalog_record(builder).await;
-        let mut repos = self.catalog.catalog.repositories().await;
-        update_catalog_sort_key_if_needed(
-            repos.as_mut(),
-            &self.partition.transition_partition_id(),
-            sort_key,
-        )
-        .await;
+        let mut repos = self.catalog.catalog.repositories();
+        update_catalog_sort_key_if_needed(repos.as_mut(), self.partition.id, sort_key).await;
         result
     }
 
@@ -622,8 +591,9 @@ impl TestPartition {
         let parquet_file_params = ParquetFileParams {
             namespace_id: self.namespace.namespace.id,
             table_id: self.table.table.id,
-            partition_id: self.partition.transition_partition_id(),
-            object_store_id: object_store_id.unwrap_or_else(Uuid::new_v4),
+            partition_id: self.partition.id,
+            partition_hash_id: self.partition.hash_id().cloned(),
+            object_store_id: object_store_id.unwrap_or_else(ObjectStoreId::new),
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
             file_size_bytes: file_size_bytes.unwrap_or(0) as i64,
@@ -634,7 +604,7 @@ impl TestPartition {
             max_l0_created_at: Timestamp::new(max_l0_created_at),
         };
 
-        let mut repos = self.catalog.catalog.repositories().await;
+        let mut repos = self.catalog.catalog.repositories();
         let parquet_file = repos
             .parquet_files()
             .create(parquet_file_params)
@@ -644,7 +614,13 @@ impl TestPartition {
         if to_delete {
             repos
                 .parquet_files()
-                .create_upgrade_delete(&[parquet_file.id], &[], &[], CompactionLevel::Initial)
+                .create_upgrade_delete(
+                    parquet_file.partition_id,
+                    &[parquet_file.object_store_id],
+                    &[],
+                    &[],
+                    CompactionLevel::Initial,
+                )
                 .await
                 .unwrap();
         }
@@ -673,7 +649,7 @@ pub struct TestParquetFileBuilder {
     creation_time: i64,
     compaction_level: CompactionLevel,
     to_delete: bool,
-    object_store_id: Option<Uuid>,
+    object_store_id: Option<ObjectStoreId>,
     row_count: Option<usize>,
     max_l0_created_at: i64,
 }
@@ -709,6 +685,12 @@ impl TestParquetFileBuilder {
         self.with_record_batch(record_batch)
             .with_table(table)
             .with_schema(schema)
+    }
+
+    /// Specify an object store id for this parquet file.
+    pub fn with_object_store_id(mut self, object_store_id: ObjectStoreId) -> Self {
+        self.object_store_id = Some(object_store_id);
+        self
     }
 
     fn with_record_batch(mut self, record_batch: RecordBatch) -> Self {
@@ -782,15 +764,12 @@ impl TestParquetFileBuilder {
     }
 }
 
-async fn update_catalog_sort_key_if_needed<R>(
-    repos: &mut R,
-    id: &TransitionPartitionId,
-    sort_key: SortKey,
-) where
+async fn update_catalog_sort_key_if_needed<R>(repos: &mut R, id: PartitionId, sort_key: SortKey)
+where
     R: RepoCollection + ?Sized,
 {
     // Fetch the latest partition info from the catalog
-    let partition = partition_lookup(repos, id).await.unwrap().unwrap();
+    let partition = repos.partitions().get_by_id(id).await.unwrap().unwrap();
 
     // fecth column ids from catalog
     let columns = get_table_columns_by_id(partition.table_id, repos)
@@ -799,9 +778,8 @@ async fn update_catalog_sort_key_if_needed<R>(
 
     // Similarly to what the ingester does, if there's an existing sort key in the catalog, add new
     // columns onto the end
-
-    match (partition.sort_key(), partition.sort_key_ids_none_if_empty()) {
-        (Some(catalog_sort_key), Some(catalog_sort_key_ids)) => {
+    match partition.sort_key(&columns) {
+        Some(catalog_sort_key) => {
             let new_sort_key = sort_key.to_columns().collect::<Vec<_>>();
             let (_metadata, update) = adjust_sort_key_columns(&catalog_sort_key, &new_sort_key);
             if let Some(new_sort_key) = update {
@@ -811,44 +789,28 @@ async fn update_catalog_sort_key_if_needed<R>(
                 debug!(
                     "Updating (sort_key, sort_key_ids) from ({:?}, {:?}) to ({:?}, {:?})",
                     catalog_sort_key.to_columns().collect::<Vec<_>>(),
-                    catalog_sort_key_ids,
+                    partition.sort_key_ids(),
                     &new_sort_key,
                     &new_sort_key_ids,
                 );
 
                 repos
                     .partitions()
-                    .cas_sort_key(
-                        id,
-                        Some(
-                            catalog_sort_key
-                                .to_columns()
-                                .map(ToString::to_string)
-                                .collect::<Vec<_>>(),
-                        ),
-                        Some(partition.sort_key_ids),
-                        &new_sort_key,
-                        &new_sort_key_ids,
-                    )
+                    .cas_sort_key(partition.id, partition.sort_key_ids(), &new_sort_key_ids)
                     .await
                     .unwrap();
             }
         }
-        (None, None) => {
+        None => {
             let new_columns = sort_key.to_columns().collect::<Vec<_>>();
             debug!("Updating sort key from None to {:?}", &new_columns);
             let column_ids = columns.ids_for_names(&new_columns);
             repos
                 .partitions()
-                .cas_sort_key(id, None, None, &new_columns, &column_ids)
+                .cas_sort_key(partition.id, None, &column_ids)
                 .await
                 .unwrap();
         }
-        _ => panic!(
-            "sort_key {:?} and sort_key_ids {:?} should be both None or both Some",
-            partition.sort_key(),
-            partition.sort_key_ids_none_if_empty()
-        ),
     }
 }
 
@@ -869,6 +831,7 @@ async fn create_parquet_file(
 
 /// A test parquet file of the catalog
 #[allow(missing_docs)]
+#[derive(Debug)]
 pub struct TestParquetFile {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
@@ -889,11 +852,17 @@ impl From<TestParquetFile> for ParquetFile {
 impl TestParquetFile {
     /// Make the parquet file deletable
     pub async fn flag_for_delete(&self) {
-        let mut repos = self.catalog.catalog.repositories().await;
+        let mut repos = self.catalog.catalog.repositories();
 
         repos
             .parquet_files()
-            .create_upgrade_delete(&[self.parquet_file.id], &[], &[], CompactionLevel::Initial)
+            .create_upgrade_delete(
+                self.parquet_file.partition_id,
+                &[self.parquet_file.object_store_id],
+                &[],
+                &[],
+                CompactionLevel::Initial,
+            )
             .await
             .unwrap();
     }
@@ -906,15 +875,15 @@ impl TestParquetFile {
             .parquet_file
             .column_set
             .iter()
-            .map(|id| *column_id_lookup.get(id).unwrap())
+            .map(|id| column_id_lookup.get(id).unwrap().as_ref())
             .collect();
         let table_schema: Schema = table_columns.clone().try_into().unwrap();
-        table_schema.select_by_names(&selection).unwrap()
+        table_schema.select_by_names(&selection[..]).unwrap()
     }
 }
 
 /// Return the current time
-pub fn now() -> Time {
+pub(crate) fn now() -> Time {
     Time::from_timestamp(0, 0).unwrap()
 }
 

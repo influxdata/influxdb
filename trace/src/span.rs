@@ -58,27 +58,26 @@ impl Span {
     }
 
     /// Record an event on this `Span`
-    pub fn event(&mut self, meta: impl Into<Cow<'static, str>>) {
-        let event = SpanEvent {
-            time: Utc::now(),
-            msg: meta.into(),
-        };
-        self.events.push(event)
+    pub fn event(&mut self, event: SpanEvent) {
+        self.events.push(event);
     }
 
     /// Record success on this `Span` setting the status if it isn't already set
-    pub fn ok(&mut self, meta: impl Into<Cow<'static, str>>) {
-        self.event(meta);
-        if self.status == SpanStatus::Unknown {
-            self.status = SpanStatus::Ok;
-        }
+    pub fn ok(&mut self, msg: impl Into<Cow<'static, str>>) {
+        self.event(SpanEvent::new(msg));
+        self.status(SpanStatus::Ok);
     }
 
     /// Record an error on this `Span` setting the status if it isn't already set
-    pub fn error(&mut self, meta: impl Into<Cow<'static, str>>) {
-        self.event(meta);
+    pub fn error(&mut self, msg: impl Into<Cow<'static, str>>) {
+        self.event(SpanEvent::new(msg));
+        self.status(SpanStatus::Err);
+    }
+
+    /// Set status of `Span`
+    pub fn status(&mut self, status: SpanStatus) {
         if self.status == SpanStatus::Unknown {
-            self.status = SpanStatus::Err;
+            self.status = status;
         }
     }
 
@@ -110,6 +109,25 @@ pub struct SpanEvent {
     pub time: DateTime<Utc>,
 
     pub msg: Cow<'static, str>,
+
+    pub metadata: HashMap<Cow<'static, str>, MetaValue>,
+}
+
+impl SpanEvent {
+    /// Create new event.
+    pub fn new(msg: impl Into<Cow<'static, str>>) -> Self {
+        Self {
+            time: Utc::now(),
+            msg: msg.into(),
+            // assume no metadata by default
+            metadata: HashMap::with_capacity(0),
+        }
+    }
+
+    /// Set meta data.
+    pub fn set_metadata(&mut self, key: impl Into<Cow<'static, str>>, value: impl Into<MetaValue>) {
+        self.metadata.insert(key.into(), value.into());
+    }
 }
 
 /// Values that can be stored in a Span's metadata and events
@@ -183,9 +201,9 @@ impl SpanRecorder {
     }
 
     /// Record an event on the contained `Span` if any
-    pub fn event(&mut self, meta: impl Into<Cow<'static, str>>) {
+    pub fn event(&mut self, event: SpanEvent) {
         if let Some(span) = self.span.as_mut() {
-            span.event(meta)
+            span.event(event);
         }
     }
 
@@ -200,6 +218,13 @@ impl SpanRecorder {
     pub fn error(&mut self, meta: impl Into<Cow<'static, str>>) {
         if let Some(span) = self.span.as_mut() {
             span.error(meta)
+        }
+    }
+
+    /// Set status of contained `Span` if any
+    pub fn status(&mut self, status: SpanStatus) {
+        if let Some(span) = self.span.as_mut() {
+            span.status(status);
         }
     }
 

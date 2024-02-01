@@ -5,8 +5,11 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
-arrow = { workspace = true, features = ["prettyprint"] }
+arrow = { workspace = true }
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
@@ -17,11 +20,11 @@ observability_deps = { path = "../observability_deps" }
 query_functions = { path = "../query_functions"}
 schema = { path = "../schema" }
 predicate = { path = "../predicate" }
-snafu = "0.7"
+snafu = "0.8"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
 arrow_util = { path = "../arrow_util" }
 test_helpers = { path = "../test_helpers" }
 insta = { version = "1", features = ["yaml"] }
-tokio = { version = "1.32", features = ["macros", "parking_lot"] }
+tokio = { version = "1.35", features = ["macros", "parking_lot"] }

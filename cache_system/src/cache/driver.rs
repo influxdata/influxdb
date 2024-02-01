@@ -12,8 +12,8 @@ use futures::{
     FutureExt, TryFutureExt,
 };
 use observability_deps::tracing::debug;
-use parking_lot::Mutex;
 use std::{collections::HashMap, fmt::Debug, future::Future, sync::Arc};
+use tracker::{LockMetrics, Mutex};
 
 use super::{Cache, CacheGetStatus, CachePeekStatus};
 
@@ -21,7 +21,7 @@ use super::{Cache, CacheGetStatus, CachePeekStatus};
 #[derive(Debug)]
 pub struct CacheDriver<B, L>
 where
-    B: CacheBackend,
+    B: CacheBackend + Send + 'static,
     L: Loader<K = B::K, V = B::V>,
 {
     state: Arc<Mutex<CacheState<B>>>,
@@ -30,13 +30,18 @@ where
 
 impl<B, L> CacheDriver<B, L>
 where
-    B: CacheBackend,
+    B: CacheBackend + Send + 'static,
     L: Loader<K = B::K, V = B::V>,
 {
     /// Create new, empty cache with given loader function.
-    pub fn new(loader: Arc<L>, backend: B) -> Self {
+    pub fn new(loader: Arc<L>, backend: B, metrics: &metric::Registry, name: &'static str) -> Self {
+        let metrics = Arc::new(LockMetrics::new(
+            metrics,
+            &[("what", "cache_driver_state"), ("cache", name)],
+        ));
+
         Self {
-            state: Arc::new(Mutex::new(CacheState {
+            state: Arc::new(metrics.new_mutex(CacheState {
                 cached_entries: backend,
                 running_queries: HashMap::new(),
                 tag_counter: 0,
@@ -140,7 +145,7 @@ where
 #[async_trait]
 impl<B, L> Cache for CacheDriver<B, L>
 where
-    B: CacheBackend,
+    B: CacheBackend + Send,
     L: Loader<K = B::K, V = B::V>,
 {
     type K = B::K;
@@ -257,7 +262,7 @@ where
 
 impl<B, L> Drop for CacheDriver<B, L>
 where
-    B: CacheBackend,
+    B: CacheBackend + Send,
     L: Loader<K = B::K, V = B::V>,
 {
     fn drop(&mut self) {
@@ -430,7 +435,12 @@ mod tests {
         type Cache = CacheDriver<HashMap<u8, String>, TestLoader>;
 
         fn construct(&self, loader: Arc<TestLoader>) -> Arc<Self::Cache> {
-            Arc::new(CacheDriver::new(Arc::clone(&loader) as _, HashMap::new()))
+            Arc::new(CacheDriver::new(
+                Arc::clone(&loader) as _,
+                HashMap::new(),
+                &metric::Registry::default(),
+                "test",
+            ))
         }
 
         fn get_extra(&self, inner: bool) -> Self::GetExtra {

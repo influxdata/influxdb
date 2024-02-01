@@ -24,6 +24,11 @@ use std::{
     time::Duration,
 };
 
+use hashbrown::HashMap;
+use parking_lot::Mutex;
+use snafu::prelude::*;
+use tokio::{sync::watch, task::JoinHandle};
+
 use data_types::{sequence_number_set::SequenceNumberSet, NamespaceId, TableId};
 use generated_types::{
     google::{FieldViolation, OptionalField},
@@ -31,13 +36,9 @@ use generated_types::{
         sequenced_wal_op::Op as WalOp, SequencedWalOp as ProtoSequencedWalOp,
     },
 };
-use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
 use mutable_batch_pb::decode::decode_database_batch;
 use observability_deps::tracing::info;
-use parking_lot::Mutex;
-use snafu::prelude::*;
-use tokio::{sync::watch, task::JoinHandle};
 use writer_thread::WriterIoThreadHandle;
 
 use crate::blocking::{
@@ -235,7 +236,7 @@ impl Wal {
     ///
     /// Similarly, editing or deleting files within a `Wal`'s root directory via some other
     /// mechanism is not supported.
-    pub async fn new(root: impl Into<PathBuf>) -> Result<Arc<Self>> {
+    pub async fn new(root: impl Into<PathBuf> + Send) -> Result<Arc<Self>> {
         let root = root.into();
         info!(wal_dir=?root, "Initalizing Write Ahead Log (WAL)");
         tokio::fs::create_dir_all(&root)
@@ -550,7 +551,7 @@ pub struct ClosedSegmentFileReader {
 }
 
 impl Iterator for ClosedSegmentFileReader {
-    type Item = Result<Vec<SequencedWalOp>>;
+    type Item = Result<(Vec<SequencedWalOp>, u64)>;
 
     /// Read the next batch of sequenced WAL operations from the file
     fn next(&mut self) -> Option<Self::Item> {
@@ -558,6 +559,7 @@ impl Iterator for ClosedSegmentFileReader {
             .next_batch()
             .context(UnableToReadNextOpsSnafu)
             .transpose()
+            .map(|result| result.map(|batch| (batch, self.bytes_read())))
     }
 }
 
@@ -565,6 +567,12 @@ impl ClosedSegmentFileReader {
     /// Return the segment file id
     pub fn id(&self) -> SegmentId {
         self.id
+    }
+
+    /// Returns the total number of bytes successfully read by the underlying file reader
+    /// from disk.
+    pub fn bytes_read(&self) -> u64 {
+        self.file.bytes_read()
     }
 
     /// Open the segment file and read its header, ensuring it is a segment file and reading its id.
@@ -629,7 +637,7 @@ impl Iterator for WriteOpEntryDecoder {
             self.reader
                 .next()?
                 .context(FailedToReadWalSnafu)
-                .map(|batch| {
+                .map(|(batch, _)| {
                     batch
                         .into_iter()
                         .filter_map(|sequenced_op| match sequenced_op.op {
@@ -680,6 +688,7 @@ mod tests {
     use std::io::Write;
 
     use assert_matches::assert_matches;
+
     use data_types::{NamespaceId, SequenceNumber, TableId};
     use dml::DmlWrite;
     use generated_types::influxdata::{
@@ -730,7 +739,7 @@ mod tests {
         let ops: Vec<SequencedWalOp> = wal
             .reader_for_segment(closed.id)
             .expect("should be able to open reader for closed WAL segment")
-            .flat_map(|batch| batch.expect("failed to read WAL op batch"))
+            .flat_map(|batch| batch.expect("failed to read WAL op batch").0)
             .collect();
         assert_eq!(vec![op1, op2, op3, op4], ops);
 
@@ -863,15 +872,9 @@ mod tests {
         assert_eq!(wal_entries.len(), 2);
         let write_op_entries = wal_entries.into_iter().flatten().collect::<Vec<_>>();
         assert_eq!(write_op_entries.len(), 3);
-        assert_matches!(write_op_entries.first(), Some(got_op1) => {
-            assert_op_shape(got_op1, &w1);
-        });
-        assert_matches!(write_op_entries.get(1), Some(got_op2) => {
-            assert_op_shape(got_op2, &w2);
-        });
-        assert_matches!(write_op_entries.get(2), Some(got_op3) => {
-            assert_op_shape(got_op3, &w3);
-        });
+        assert_op_shape(&write_op_entries[0], &w1);
+        assert_op_shape(&write_op_entries[1], &w2);
+        assert_op_shape(&write_op_entries[2], &w3);
     }
 
     #[tokio::test]
@@ -916,7 +919,7 @@ mod tests {
         // error is thrown
         assert_matches!(decoder.next(), Some(Ok(batch)) => {
             assert_eq!(batch.len(), 1);
-            assert_op_shape(batch.first().unwrap(), &good_write);
+            assert_op_shape(&batch[0], &good_write);
         });
         assert_matches!(
             decoder.next(),

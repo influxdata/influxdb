@@ -60,7 +60,17 @@ impl SendPanicsToTracing {
             if let Some(metrics) = &metrics {
                 metrics.inc(panic_type);
             }
-            error!(panic_type=panic_type.name(), panic_info=%info, "Thread panic");
+
+            let location = info.location();
+            error!(
+                panic_type = panic_type.name(),
+                panic_message = message(info),
+                panic_file = location.map(|l| l.file()),
+                panic_line = location.map(|l| l.line()),
+                panic_column = location.map(|l| l.column()),
+                "Thread panic",
+            );
+
             current_panic_hook(info);
         }));
 
@@ -149,18 +159,21 @@ impl PanicType {
     }
 
     fn classify(panic_info: &PanicInfo<'_>) -> Self {
-        let payload_any = panic_info.payload();
-
-        let maybe_msg = payload_any
-            .downcast_ref::<&str>()
-            .copied()
-            .or(payload_any.downcast_ref::<String>().map(|s| s.as_str()));
-
-        match maybe_msg {
+        match message(panic_info) {
             Some("offset overflow" | "offset") => Self::OffsetOverflow,
             _ => Self::Unknown,
         }
     }
+}
+
+/// Extract string message from [`PanicInfo`]
+fn message<'a>(panic_info: &'a PanicInfo<'a>) -> Option<&'a str> {
+    let payload_any = panic_info.payload();
+
+    payload_any
+        .downcast_ref::<&str>()
+        .copied()
+        .or(payload_any.downcast_ref::<String>().map(|s| s.as_str()))
 }
 
 /// Metrics used for panics.
@@ -195,6 +208,8 @@ impl Metrics {
 
 #[cfg(test)]
 mod tests {
+    use std::panic::panic_any;
+
     use metric::{Attributes, Metric};
     use test_helpers::{maybe_start_logging, tracing::TracingCapture};
 
@@ -246,6 +261,14 @@ mod tests {
         .join()
         .expect_err("wat");
 
+        let capture2 = Arc::clone(&capture);
+        std::thread::spawn(move || {
+            capture2.register_in_current_thread();
+            panic_any(1);
+        })
+        .join()
+        .expect_err("wat");
+
         drop(guard);
         let capture2 = Arc::clone(&capture);
         std::thread::spawn(move || {
@@ -256,16 +279,14 @@ mod tests {
         .expect_err("wat");
 
         assert_count(&metrics, "offset_overflow", 2);
-        assert_count(&metrics, "unknown", 1);
+        assert_count(&metrics, "unknown", 2);
 
         assert_eq!(
             capture.to_string(),
-            "level = ERROR; message = Thread panic; panic_type = \"unknown\"; panic_info = panicked at panic_logging/src/lib.rs:227:13:\n\
-            it's bananas; \n\
-            level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at panic_logging/src/lib.rs:235:13:\n\
-            offset; \n\
-            level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at panic_logging/src/lib.rs:244:13:\n\
-            offset overflow; "
+            "level = ERROR; message = Thread panic; panic_type = \"unknown\"; panic_message = \"it's bananas\"; panic_file = \"panic_logging/src/lib.rs\"; panic_line = 242; panic_column = 13; \n\
+             level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_message = \"offset\"; panic_file = \"panic_logging/src/lib.rs\"; panic_line = 250; panic_column = 13; \n\
+             level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_message = \"offset overflow\"; panic_file = \"panic_logging/src/lib.rs\"; panic_line = 259; panic_column = 13; \n\
+             level = ERROR; message = Thread panic; panic_type = \"unknown\"; panic_file = \"panic_logging/src/lib.rs\"; panic_line = 267; panic_column = 13; "
         );
     }
 }

@@ -4,6 +4,7 @@ use datafusion::{
     config::ConfigOptions, execution::runtime_env::RuntimeEnv, prelude::SessionConfig,
 };
 use object_store::ObjectStore;
+use schema::TIME_DATA_TIMEZONE;
 use url::Url;
 
 // The default catalog name - this impacts what SQL queries use if not specified
@@ -20,6 +21,7 @@ pub fn iox_session_config() -> SessionConfig {
     let mut options = ConfigOptions::new();
     options.execution.parquet.pushdown_filters = true;
     options.execution.parquet.reorder_filters = true;
+    options.execution.time_zone = TIME_DATA_TIMEZONE().map(|s| s.to_string());
     options.optimizer.repartition_sorts = true;
 
     SessionConfig::from(options)
@@ -27,6 +29,12 @@ pub fn iox_session_config() -> SessionConfig {
         .with_create_default_catalog_and_schema(true)
         .with_information_schema(true)
         .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)
+        // Tell the datafusion optimizer to avoid repartitioning sorted inputs
+        .with_prefer_existing_sort(true)
+        // Avoid repartitioning file scans as it destroys existing sort orders
+        // see https://github.com/influxdata/influxdb_iox/issues/9450
+        // see https://github.com/apache/arrow-datafusion/issues/8451
+        .with_repartition_file_scans(false)
 }
 
 /// Register the "IOx" object store provider for URLs of the form "iox://{id}

@@ -251,6 +251,18 @@ impl SortKey {
     }
 }
 
+impl From<SortKey> for Vec<String> {
+    fn from(val: SortKey) -> Self {
+        val.columns.iter().map(|(id, _)| id.to_string()).collect()
+    }
+}
+
+impl From<Vec<String>> for SortKey {
+    fn from(val: Vec<String>) -> Self {
+        Self::from_columns(val)
+    }
+}
+
 // Produces a human-readable representation of a sort key that looks like:
 //
 //  "host, region DESC, env NULLS FIRST, time"
@@ -288,20 +300,26 @@ pub fn compute_sort_key<'a>(
     let primary_key = schema.primary_key();
 
     let cardinalities = distinct_counts(batches, &primary_key);
+    let sort_key = sort_key_from_cardinalities(&cardinalities);
 
-    let mut cardinalities: Vec<_> = cardinalities.into_iter().collect();
+    debug!(?primary_key, ?sort_key, "computed sort key");
+    sort_key
+}
+
+/// Given columns and their cardinalities (the number of distinct values in the data), sort the
+/// columns by cardinality and turn that ordering into a [`SortKey`], with the time column always
+/// appearing last.
+pub fn sort_key_from_cardinalities(cardinalities: &HashMap<String, usize>) -> SortKey {
+    let mut cardinalities: Vec<_> = cardinalities.iter().collect();
     // Sort by (cardinality, column_name) to have deterministic order if same cardinality
     cardinalities.sort_by_cached_key(|x| (x.1, x.0.clone()));
 
     let mut builder = SortKeyBuilder::with_capacity(cardinalities.len() + 1);
     for (col, _) in cardinalities {
-        builder = builder.with_col(col)
+        builder = builder.with_col(col.as_str())
     }
     builder = builder.with_col(TIME_COLUMN_NAME);
-    let sort_key = builder.build();
-
-    debug!(?primary_key, ?sort_key, "computed sort key");
-    sort_key
+    builder.build()
 }
 
 /// Takes batches of data and the columns that make up the primary key. Computes the number of
@@ -310,7 +328,7 @@ pub fn compute_sort_key<'a>(
 fn distinct_counts<'a>(
     batches: impl Iterator<Item = &'a RecordBatch>,
     primary_key: &[&str],
-) -> HashMap<String, u64> {
+) -> HashMap<String, usize> {
     let mut distinct_values_across_batches = HashMap::with_capacity(primary_key.len());
 
     for batch in batches {
@@ -324,14 +342,7 @@ fn distinct_counts<'a>(
 
     distinct_values_across_batches
         .into_iter()
-        .map(|(column, distinct_values)| {
-            let count = distinct_values
-                .len()
-                .try_into()
-                .expect("usize -> u64 overflow");
-
-            (column, count)
-        })
+        .map(|(column, distinct_values)| (column, distinct_values.len()))
         .collect()
 }
 
@@ -404,7 +415,7 @@ pub fn adjust_sort_key_columns(
     let existing_columns_without_time = catalog_sort_key
         .iter()
         .map(|(col, _opts)| col)
-        .filter(|&col| TIME_COLUMN_NAME != col.as_ref())
+        .filter(|col| TIME_COLUMN_NAME != col.as_ref())
         .cloned();
     let new_columns: Vec<_> = primary_key
         .iter()

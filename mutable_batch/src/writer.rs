@@ -1,7 +1,7 @@
 //! A panic-safe write abstraction for [`MutableBatch`]
 
 use crate::{
-    column::{Column, ColumnData, INVALID_DID},
+    column::{Column, ColumnData, NULL_DID},
     MutableBatch,
 };
 use arrow_util::bitset::{iter_set_positions, iter_set_positions_with_offset, BitSet};
@@ -325,7 +325,7 @@ impl<'a> Writer<'a> {
         let mut stats = StatValues::new_empty();
         match &mut col.data {
             ColumnData::Tag(col_data, dict, _) => {
-                col_data.resize(initial_rows + to_insert, INVALID_DID);
+                col_data.resize(initial_rows + to_insert, NULL_DID);
 
                 for idx in set_position_iterator(valid_mask, to_insert) {
                     let value = values.next().ok_or(Error::InsufficientValues)?;
@@ -375,7 +375,7 @@ impl<'a> Writer<'a> {
                 // Lazily compute mappings to handle dictionaries with unused mappings
                 let mut mapping: Vec<_> = values.map(|value| (value, None)).collect();
 
-                col_data.resize(initial_rows + to_insert, INVALID_DID);
+                col_data.resize(initial_rows + to_insert, NULL_DID);
 
                 for idx in set_position_iterator(valid_mask, to_insert) {
                     let key = keys.next().ok_or(Error::InsufficientValues)?;
@@ -483,7 +483,7 @@ impl<'a> Writer<'a> {
                         .collect();
 
                     dst_data.extend(src_data.iter().map(|src_id| match *src_id {
-                        INVALID_DID => INVALID_DID,
+                        NULL_DID => NULL_DID,
                         _ => mapping[*src_id as usize],
                     }));
 
@@ -567,9 +567,9 @@ impl<'a> Writer<'a> {
                     for range in ranges {
                         dst_data.extend(src_data[range.clone()].iter().map(
                             |src_id| match *src_id {
-                                INVALID_DID => {
+                                NULL_DID => {
                                     stats.update_for_nulls(1);
-                                    INVALID_DID
+                                    NULL_DID
                                 }
                                 _ => {
                                     let maybe_did = &mut mapping[*src_id as usize];

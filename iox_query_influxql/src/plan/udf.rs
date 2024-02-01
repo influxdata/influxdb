@@ -8,12 +8,16 @@
 use crate::plan::util::find_exprs_in_exprs;
 use crate::{error, NUMERICS};
 use arrow::datatypes::{DataType, TimeUnit};
-use datafusion::logical_expr::{
-    Expr, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF, Signature, TypeSignature,
-    Volatility,
+use datafusion::{
+    error::{DataFusionError, Result},
+    logical_expr::{
+        Expr, ScalarFunctionDefinition, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature,
+        Volatility,
+    },
+    physical_plan::ColumnarValue,
 };
 use once_cell::sync::Lazy;
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
 
 pub(super) enum WindowFunction {
     MovingAverage,
@@ -27,7 +31,7 @@ pub(super) enum WindowFunction {
 impl WindowFunction {
     /// Try to return the equivalent [`WindowFunction`] for `fun`.
     pub(super) fn try_from_scalar_udf(fun: Arc<ScalarUDF>) -> Option<Self> {
-        match fun.name.as_str() {
+        match fun.name() {
             MOVING_AVERAGE_UDF_NAME => Some(Self::MovingAverage),
             DIFFERENCE_UDF_NAME => Some(Self::Difference),
             NON_NEGATIVE_DIFFERENCE_UDF_NAME => Some(Self::NonNegativeDifference),
@@ -39,16 +43,50 @@ impl WindowFunction {
     }
 }
 
-/// Find all [`Expr::ScalarUDF`] expressions that match one of the supported
+/// Find all [`ScalarUDF`] expressions that match one of the supported
 /// window UDF functions.
 pub(super) fn find_window_udfs(exprs: &[Expr]) -> Vec<Expr> {
-    find_exprs_in_exprs(
-        exprs,
-        &|nested_expr| matches!(nested_expr, Expr::ScalarUDF(s) if WindowFunction::try_from_scalar_udf(Arc::clone(&s.fun)).is_some()),
-    )
+    find_exprs_in_exprs(exprs, &|nested_expr| {
+        let Expr::ScalarFunction(fun) = nested_expr else {
+            return false;
+        };
+        let ScalarFunctionDefinition::UDF(udf) = &fun.func_def else {
+            return false;
+        };
+        WindowFunction::try_from_scalar_udf(Arc::clone(udf)).is_some()
+    })
 }
 
 const MOVING_AVERAGE_UDF_NAME: &str = "moving_average";
+
+#[derive(Debug)]
+struct MovingAverageUDF {
+    signature: Signature,
+}
+
+impl ScalarUDFImpl for MovingAverageUDF {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        MOVING_AVERAGE_UDF_NAME
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
+        Ok(DataType::Float64)
+    }
+
+    fn invoke(&self, _args: &[ColumnarValue]) -> Result<ColumnarValue> {
+        error::internal(format!(
+            "{MOVING_AVERAGE_UDF_NAME} should not exist in the final logical plan"
+        ))
+    }
+}
 
 /// Create an expression to represent the `MOVING_AVERAGE` function.
 pub(crate) fn moving_average(args: Vec<Expr>) -> Expr {
@@ -57,24 +95,52 @@ pub(crate) fn moving_average(args: Vec<Expr>) -> Expr {
 
 /// Definition of the `MOVING_AVERAGE` function.
 static MOVING_AVERAGE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
-    static RETURN_TYPE: Lazy<Arc<DataType>> = Lazy::new(|| Arc::new(DataType::Float64));
-
-    let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(RETURN_TYPE.clone()));
-    Arc::new(ScalarUDF::new(
-        MOVING_AVERAGE_UDF_NAME,
-        &Signature::one_of(
+    Arc::new(ScalarUDF::from(MovingAverageUDF {
+        signature: Signature::one_of(
             NUMERICS
                 .iter()
                 .map(|dt| TypeSignature::Exact(vec![dt.clone(), DataType::Int64]))
                 .collect(),
             Volatility::Immutable,
         ),
-        &return_type_fn,
-        &stand_in_impl(MOVING_AVERAGE_UDF_NAME),
-    ))
+    }))
 });
 
 const DIFFERENCE_UDF_NAME: &str = "difference";
+
+#[derive(Debug)]
+struct DifferenceUDF {
+    signature: Signature,
+}
+
+impl ScalarUDFImpl for DifferenceUDF {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        DIFFERENCE_UDF_NAME
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
+        if arg_types.is_empty() {
+            return Err(DataFusionError::Plan(format!(
+                "{DIFFERENCE_UDF_NAME} expects at least 1 argument"
+            )));
+        }
+        Ok(arg_types[0].clone())
+    }
+
+    fn invoke(&self, _args: &[ColumnarValue]) -> Result<ColumnarValue> {
+        error::internal(format!(
+            "{DIFFERENCE_UDF_NAME} should not exist in the final logical plan"
+        ))
+    }
+}
 
 /// Create an expression to represent the `DIFFERENCE` function.
 pub(crate) fn difference(args: Vec<Expr>) -> Expr {
@@ -83,22 +149,52 @@ pub(crate) fn difference(args: Vec<Expr>) -> Expr {
 
 /// Definition of the `DIFFERENCE` function.
 static DIFFERENCE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
-    let return_type_fn: ReturnTypeFunction = Arc::new(|args| Ok(Arc::new(args[0].clone())));
-    Arc::new(ScalarUDF::new(
-        DIFFERENCE_UDF_NAME,
-        &Signature::one_of(
+    Arc::new(ScalarUDF::from(DifferenceUDF {
+        signature: Signature::one_of(
             NUMERICS
                 .iter()
                 .map(|dt| TypeSignature::Exact(vec![dt.clone()]))
                 .collect(),
             Volatility::Immutable,
         ),
-        &return_type_fn,
-        &stand_in_impl(DIFFERENCE_UDF_NAME),
-    ))
+    }))
 });
 
 const NON_NEGATIVE_DIFFERENCE_UDF_NAME: &str = "non_negative_difference";
+
+#[derive(Debug)]
+struct NonNegativeDifferenceUDF {
+    signature: Signature,
+}
+
+impl ScalarUDFImpl for NonNegativeDifferenceUDF {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        NON_NEGATIVE_DIFFERENCE_UDF_NAME
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
+        if arg_types.is_empty() {
+            return Err(DataFusionError::Plan(format!(
+                "{NON_NEGATIVE_DIFFERENCE_UDF_NAME} expects at least 1 argument"
+            )));
+        }
+        Ok(arg_types[0].clone())
+    }
+
+    fn invoke(&self, _args: &[ColumnarValue]) -> Result<ColumnarValue> {
+        error::internal(format!(
+            "{NON_NEGATIVE_DIFFERENCE_UDF_NAME} should not exist in the final logical plan"
+        ))
+    }
+}
 
 /// Create an expression to represent the `NON_NEGATIVE_DIFFERENCE` function.
 pub(crate) fn non_negative_difference(args: Vec<Expr>) -> Expr {
@@ -107,22 +203,47 @@ pub(crate) fn non_negative_difference(args: Vec<Expr>) -> Expr {
 
 /// Definition of the `NON_NEGATIVE_DIFFERENCE` function.
 static NON_NEGATIVE_DIFFERENCE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
-    let return_type_fn: ReturnTypeFunction = Arc::new(|args| Ok(Arc::new(args[0].clone())));
-    Arc::new(ScalarUDF::new(
-        NON_NEGATIVE_DIFFERENCE_UDF_NAME,
-        &Signature::one_of(
+    Arc::new(ScalarUDF::from(NonNegativeDifferenceUDF {
+        signature: Signature::one_of(
             NUMERICS
                 .iter()
                 .map(|dt| TypeSignature::Exact(vec![dt.clone()]))
                 .collect(),
             Volatility::Immutable,
         ),
-        &return_type_fn,
-        &stand_in_impl(NON_NEGATIVE_DIFFERENCE_UDF_NAME),
-    ))
+    }))
 });
 
 const DERIVATIVE_UDF_NAME: &str = "derivative";
+
+#[derive(Debug)]
+struct DerivativeUDF {
+    signature: Signature,
+}
+
+impl ScalarUDFImpl for DerivativeUDF {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        DERIVATIVE_UDF_NAME
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
+        Ok(DataType::Float64)
+    }
+
+    fn invoke(&self, _args: &[ColumnarValue]) -> Result<ColumnarValue> {
+        error::internal(format!(
+            "{DERIVATIVE_UDF_NAME} should not exist in the final logical plan"
+        ))
+    }
+}
 
 /// Create an expression to represent the `DERIVATIVE` function.
 pub(crate) fn derivative(args: Vec<Expr>) -> Expr {
@@ -131,10 +252,8 @@ pub(crate) fn derivative(args: Vec<Expr>) -> Expr {
 
 /// Definition of the `DERIVATIVE` function.
 static DERIVATIVE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
-    let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Float64)));
-    Arc::new(ScalarUDF::new(
-        DERIVATIVE_UDF_NAME,
-        &Signature::one_of(
+    Arc::new(ScalarUDF::from(DerivativeUDF {
+        signature: Signature::one_of(
             NUMERICS
                 .iter()
                 .flat_map(|dt| {
@@ -149,13 +268,39 @@ static DERIVATIVE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
                 .collect(),
             Volatility::Immutable,
         ),
-        &return_type_fn,
-        &stand_in_impl(DERIVATIVE_UDF_NAME),
-    ))
+    }))
 });
 
 const NON_NEGATIVE_DERIVATIVE_UDF_NAME: &str = "non_negative_derivative";
 
+#[derive(Debug)]
+struct NonNegativeDerivativeUDF {
+    signature: Signature,
+}
+
+impl ScalarUDFImpl for NonNegativeDerivativeUDF {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        NON_NEGATIVE_DERIVATIVE_UDF_NAME
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
+        Ok(DataType::Float64)
+    }
+
+    fn invoke(&self, _args: &[ColumnarValue]) -> Result<ColumnarValue> {
+        error::internal(format!(
+            "{NON_NEGATIVE_DERIVATIVE_UDF_NAME} should not exist in the final logical plan"
+        ))
+    }
+}
 /// Create an expression to represent the `NON_NEGATIVE_DERIVATIVE` function.
 pub(crate) fn non_negative_derivative(args: Vec<Expr>) -> Expr {
     NON_NEGATIVE_DERIVATIVE.call(args)
@@ -163,10 +308,8 @@ pub(crate) fn non_negative_derivative(args: Vec<Expr>) -> Expr {
 
 /// Definition of the `NON_NEGATIVE_DERIVATIVE` function.
 static NON_NEGATIVE_DERIVATIVE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
-    let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Float64)));
-    Arc::new(ScalarUDF::new(
-        NON_NEGATIVE_DERIVATIVE_UDF_NAME,
-        &Signature::one_of(
+    Arc::new(ScalarUDF::from(NonNegativeDerivativeUDF {
+        signature: Signature::one_of(
             NUMERICS
                 .iter()
                 .flat_map(|dt| {
@@ -181,12 +324,44 @@ static NON_NEGATIVE_DERIVATIVE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
                 .collect(),
             Volatility::Immutable,
         ),
-        &return_type_fn,
-        &stand_in_impl(NON_NEGATIVE_DERIVATIVE_UDF_NAME),
-    ))
+    }))
 });
 
 const CUMULATIVE_SUM_UDF_NAME: &str = "cumulative_sum";
+
+#[derive(Debug)]
+struct CumulativeSumUDF {
+    signature: Signature,
+}
+
+impl ScalarUDFImpl for CumulativeSumUDF {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        CUMULATIVE_SUM_UDF_NAME
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
+        if arg_types.is_empty() {
+            return Err(DataFusionError::Plan(format!(
+                "{CUMULATIVE_SUM_UDF_NAME} expects at least 1 argument"
+            )));
+        }
+        Ok(arg_types[0].clone())
+    }
+
+    fn invoke(&self, _args: &[ColumnarValue]) -> Result<ColumnarValue> {
+        error::internal(format!(
+            "{CUMULATIVE_SUM_UDF_NAME} should not exist in the final logical plan"
+        ))
+    }
+}
 
 /// Create an expression to represent the `CUMULATIVE_SUM` function.
 pub(crate) fn cumulative_sum(args: Vec<Expr>) -> Expr {
@@ -194,22 +369,13 @@ pub(crate) fn cumulative_sum(args: Vec<Expr>) -> Expr {
 }
 /// Definition of the `CUMULATIVE_SUM` function.
 static CUMULATIVE_SUM: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
-    let return_type_fn: ReturnTypeFunction = Arc::new(|args| Ok(Arc::new(args[0].clone())));
-    Arc::new(ScalarUDF::new(
-        CUMULATIVE_SUM_UDF_NAME,
-        &Signature::one_of(
+    Arc::new(ScalarUDF::from(CumulativeSumUDF {
+        signature: Signature::one_of(
             NUMERICS
                 .iter()
                 .map(|dt| TypeSignature::Exact(vec![dt.clone()]))
                 .collect(),
             Volatility::Immutable,
         ),
-        &return_type_fn,
-        &stand_in_impl(CUMULATIVE_SUM_UDF_NAME),
-    ))
+    }))
 });
-
-/// Returns an implementation that always returns an error.
-fn stand_in_impl(name: &'static str) -> ScalarFunctionImplementation {
-    Arc::new(move |_| error::internal(format!("{name} should not exist in the final logical plan")))
-}

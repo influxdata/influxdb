@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use datafusion::{
-    common::tree_node::{RewriteRecursion, Transformed, TreeNode, TreeNodeRewriter},
-    config::ConfigOptions,
-    error::Result,
-    physical_expr::{
-        utils::ordering_satisfy_requirement,
-        {PhysicalSortExpr, PhysicalSortRequirement},
+    common::{
+        internal_err,
+        tree_node::{RewriteRecursion, Transformed, TreeNode, TreeNodeRewriter},
     },
+    config::ConfigOptions,
+    error::{DataFusionError, Result},
+    physical_expr::{PhysicalSortExpr, PhysicalSortRequirement},
     physical_optimizer::PhysicalOptimizerRule,
     physical_plan::{
         repartition::RepartitionExec, sorts::sort::SortExec, union::UnionExec, ExecutionPlan,
@@ -67,7 +67,7 @@ impl PhysicalOptimizerRule for PushSortThroughUnion {
                 return Ok(Transformed::No(plan));
             };
 
-            if !sort_should_be_pushed_down(sort_exec) {
+            if !sort_should_be_pushed_down(sort_exec)? {
                 return Ok(Transformed::No(plan));
             }
 
@@ -80,16 +80,16 @@ impl PhysicalOptimizerRule for PushSortThroughUnion {
 
             // As a sanity check, make sure plan has the same ordering as before.
             // If this fails, there is a bug in this optimization.
-            let required_order = sort_exec.output_ordering().map(sort_exprs_to_requirement);
-            if !ordering_satisfy_requirement(
-                plan.output_ordering(),
-                required_order.as_deref(),
-                || plan.equivalence_properties(),
-                || plan.ordering_equivalence_properties(),
-            ) {
-                return Err(datafusion::error::DataFusionError::Internal(
-                    "PushSortThroughUnion corrupted plan sort order".into(),
-                ));
+            let Some(required_order) = sort_exec.output_ordering().map(sort_exprs_to_requirement)
+            else {
+                return internal_err!("No sort order after a sort");
+            };
+
+            if !plan
+                .equivalence_properties()
+                .ordering_satisfy_requirement(&required_order)
+            {
+                return internal_err!("PushSortThroughUnion corrupted plan sort order");
             }
 
             Ok(Transformed::Yes(plan))
@@ -106,7 +106,7 @@ impl PhysicalOptimizerRule for PushSortThroughUnion {
 }
 
 /// Returns true if the [`SortExec`] can be pushed down beneath a [`UnionExec`].
-fn sort_should_be_pushed_down(sort_exec: &SortExec) -> bool {
+fn sort_should_be_pushed_down(sort_exec: &SortExec) -> Result<bool> {
     // Skip over any RepartitionExecs
     let mut input = sort_exec.input();
     while input.as_any().is::<RepartitionExec>() {
@@ -118,22 +118,21 @@ fn sort_should_be_pushed_down(sort_exec: &SortExec) -> bool {
     }
 
     let Some(union_exec) = input.as_any().downcast_ref::<UnionExec>() else {
-        return false;
+        return Ok(false);
     };
 
-    let required_ordering = sort_exec.output_ordering().map(sort_exprs_to_requirement);
+    let Some(required_order) = sort_exec.output_ordering().map(sort_exprs_to_requirement) else {
+        return internal_err!("No sort order after a sort");
+    };
 
     // Push down the sort if any of the children are already sorted.
     // This means we will need to sort fewer rows than if we didn't
     // push down the sort.
-    union_exec.children().iter().any(|child| {
-        ordering_satisfy_requirement(
-            child.output_ordering(),
-            required_ordering.as_deref(),
-            || child.equivalence_properties(),
-            || child.ordering_equivalence_properties(),
-        )
-    })
+    Ok(union_exec.children().iter().any(|child| {
+        child
+            .equivalence_properties()
+            .ordering_satisfy_requirement(&required_order)
+    }))
 }
 
 /// Rewrites a plan:
@@ -166,23 +165,21 @@ impl TreeNodeRewriter for SortRewriter {
                     Arc::clone(repartition_exec.input()),
                     repartition_exec.output_partitioning(),
                 )?
-                .with_preserve_order(true),
+                .with_preserve_order(),
             ))
         } else if let Some(union_exec) = plan.as_any().downcast_ref::<UnionExec>() {
             // Any children of the UnionExec that are not already sorted,
             // need to be sorted.
-            let required_ordering = Some(sort_exprs_to_requirement(self.ordering.as_ref()));
+            let required_ordering = sort_exprs_to_requirement(self.ordering.as_ref());
 
             let new_children = union_exec
                 .children()
                 .into_iter()
                 .map(|child| {
-                    if !ordering_satisfy_requirement(
-                        child.output_ordering(),
-                        required_ordering.as_deref(),
-                        || child.equivalence_properties(),
-                        || child.ordering_equivalence_properties(),
-                    ) {
+                    if !child
+                        .equivalence_properties()
+                        .ordering_satisfy_requirement(&required_ordering)
+                    {
                         let sort_exec = SortExec::new(self.ordering.clone(), child)
                             .with_preserve_partitioning(true);
                         Arc::new(sort_exec)
@@ -266,16 +263,16 @@ mod test {
           - "     RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
           - "       RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
           - "         UnionExec"
-          - "           RecordBatchesExec: chunks=2"
+          - "           RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
           - "           ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
-            - "   SortPreservingRepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
-            - "     SortPreservingRepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
+            - "   RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8, preserve_order=true, sort_exprs=col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC"
+            - "     RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4, preserve_order=true, sort_exprs=col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC"
             - "       UnionExec"
             - "         SortExec: expr=[col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
-            - "           RecordBatchesExec: chunks=2"
+            - "           RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
             - "         ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         "###
         );
@@ -317,17 +314,17 @@ mod test {
           - "       RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
           - "         RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
           - "           UnionExec"
-          - "             RecordBatchesExec: chunks=2"
+          - "             RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
           - "             ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         output:
           Ok:
             - " SortExec: expr=[time@3 ASC]"
             - "   DeduplicateExec: [col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
-            - "     SortPreservingRepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
-            - "       SortPreservingRepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
+            - "     RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8, preserve_order=true, sort_exprs=col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC"
+            - "       RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4, preserve_order=true, sort_exprs=col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC"
             - "         UnionExec"
             - "           SortExec: expr=[col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
-            - "             RecordBatchesExec: chunks=2"
+            - "             RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
             - "           ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         "###
         );
@@ -358,14 +355,14 @@ mod test {
           - " DeduplicateExec: [col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
           - "   SortExec: expr=[col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
           - "     UnionExec"
-          - "       RecordBatchesExec: chunks=2"
+          - "       RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
           - "       ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
             - "   UnionExec"
             - "     SortExec: expr=[col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
-            - "       RecordBatchesExec: chunks=2"
+            - "       RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
             - "     ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         "###
         );
@@ -402,8 +399,8 @@ mod test {
           - "     RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
           - "       RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
           - "         UnionExec"
-          - "           RecordBatchesExec: chunks=2"
-          - "           RecordBatchesExec: chunks=2"
+          - "           RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+          - "           RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
         output:
           Ok:
             - " DeduplicateExec: [col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
@@ -411,8 +408,8 @@ mod test {
             - "     RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
             - "       RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
             - "         UnionExec"
-            - "           RecordBatchesExec: chunks=2"
-            - "           RecordBatchesExec: chunks=2"
+            - "           RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
+            - "           RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
         "###
         );
     }
@@ -454,8 +451,8 @@ mod test {
         output:
           Ok:
             - " DeduplicateExec: [col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
-            - "   SortPreservingRepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
-            - "     SortPreservingRepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
+            - "   RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8, preserve_order=true, sort_exprs=col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC"
+            - "     RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4, preserve_order=true, sort_exprs=col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC"
             - "       UnionExec"
             - "         ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
             - "         ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
@@ -537,16 +534,16 @@ mod test {
           - "       RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
           - "         RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
           - "           UnionExec"
-          - "             RecordBatchesExec: chunks=2"
+          - "             RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
           - "             ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
-            - "   SortPreservingRepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
-            - "     SortPreservingRepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
+            - "   RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8, preserve_order=true, sort_exprs=col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC"
+            - "     RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4, preserve_order=true, sort_exprs=col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC"
             - "       UnionExec"
             - "         SortExec: expr=[col2@1 ASC,col1@0 ASC,time@3 ASC,__chunk_order@4 ASC]"
-            - "           RecordBatchesExec: chunks=2"
+            - "           RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
             - "         ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         "###
         );
@@ -586,7 +583,7 @@ mod test {
           - "       RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
           - "         RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
           - "           UnionExec"
-          - "             RecordBatchesExec: chunks=2"
+          - "             RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
           - "             ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         output:
           Ok:
@@ -596,7 +593,7 @@ mod test {
             - "       RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
             - "         RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
             - "           UnionExec"
-            - "             RecordBatchesExec: chunks=2"
+            - "             RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
             - "             ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, time@3 ASC, __chunk_order@4 ASC]"
         "###
         );
@@ -635,7 +632,7 @@ mod test {
           - "     RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
           - "       RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
           - "         UnionExec"
-          - "           RecordBatchesExec: chunks=2"
+          - "           RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
           - "           ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col1@0 ASC, col2@1 ASC, time@3 ASC, __chunk_order@4 ASC]"
         output:
           Ok:
@@ -644,7 +641,7 @@ mod test {
             - "     RepartitionExec: partitioning=Hash([col2@1, col1@0, time@3, __chunk_order@4], 8), input_partitions=8"
             - "       RepartitionExec: partitioning=RoundRobinBatch(8), input_partitions=4"
             - "         UnionExec"
-            - "           RecordBatchesExec: chunks=2"
+            - "           RecordBatchesExec: chunks=2, projection=[col1, col2, field1, time, __chunk_order]"
             - "           ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, field1, time, __chunk_order], output_ordering=[col1@0 ASC, col2@1 ASC, time@3 ASC, __chunk_order@4 ASC]"
         "###
         );
@@ -662,12 +659,11 @@ mod test {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(schema),
             file_groups: vec![vec![file(1)], vec![file(2)]],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![order.to_vec()],
-            infinite_source: false,
         };
         Arc::new(ParquetExec::new(base_config, None, None))
     }
@@ -691,6 +687,7 @@ mod test {
                 last_modified: Default::default(),
                 size: 0,
                 e_tag: None,
+                version: None,
             },
             partition_values: vec![],
             range: None,

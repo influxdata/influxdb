@@ -10,6 +10,7 @@ mod non_null_checker;
 pub mod query_tracing;
 mod schema_pivot;
 pub mod seriesset;
+pub mod sleep;
 pub(crate) mod split;
 pub mod stringset;
 use datafusion_util::config::register_iox_object_store;
@@ -58,6 +59,18 @@ pub struct ExecutorConfig {
 
     /// Memory pool size in bytes.
     pub mem_pool_size: usize,
+}
+
+impl ExecutorConfig {
+    pub fn testing() -> Self {
+        Self {
+            num_threads: NonZeroUsize::new(1).unwrap(),
+            target_query_partitions: NonZeroUsize::new(1).unwrap(),
+            object_stores: HashMap::default(),
+            metric_registry: Arc::new(Registry::default()),
+            mem_pool_size: TESTING_MEM_POOL_SIZE,
+        }
+    }
 }
 
 impl Display for ExecutorConfig {
@@ -172,13 +185,7 @@ impl Executor {
     /// Get testing executor that runs a on single thread and a low memory bound
     /// to preserve resources.
     pub fn new_testing() -> Self {
-        let config = ExecutorConfig {
-            num_threads: NonZeroUsize::new(1).unwrap(),
-            target_query_partitions: NonZeroUsize::new(1).unwrap(),
-            object_stores: HashMap::default(),
-            metric_registry: Arc::new(Registry::default()),
-            mem_pool_size: TESTING_MEM_POOL_SIZE,
-        };
+        let config = ExecutorConfig::testing();
         let executors = Arc::new(DedicatedExecutors::new_testing());
         Self::new_with_config_and_executors(config, executors)
     }
@@ -273,6 +280,11 @@ impl Executor {
     /// Returns the memory pool associated with this `Executor`
     pub fn pool(&self) -> Arc<dyn MemoryPool> {
         Arc::clone(&self.runtime.memory_pool)
+    }
+
+    /// Returns underlying config.
+    pub fn config(&self) -> &ExecutorConfig {
+        &self.config
     }
 }
 
@@ -742,8 +754,10 @@ mod tests {
             Ok(Box::pin(stream))
         }
 
-        fn statistics(&self) -> datafusion::physical_plan::Statistics {
-            Default::default()
+        fn statistics(&self) -> Result<datafusion::physical_plan::Statistics, DataFusionError> {
+            Ok(datafusion::physical_plan::Statistics::new_unknown(
+                &self.schema(),
+            ))
         }
     }
 

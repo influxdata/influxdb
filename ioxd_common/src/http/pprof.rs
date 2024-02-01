@@ -1,7 +1,7 @@
 use observability_deps::tracing::info;
 use tokio::time::Duration;
 
-pub async fn dump_rsprof(seconds: u64, frequency: i32) -> pprof::Result<pprof::Report> {
+pub(crate) async fn dump_rsprof(seconds: u64, frequency: i32) -> pprof::Result<pprof::Report> {
     let guard = pprof::ProfilerGuard::new(frequency)?;
     info!(
         "start profiling {} seconds with frequency {} /s",

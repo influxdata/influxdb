@@ -32,6 +32,7 @@ impl ToString for Message {
     }
 }
 
+#[derive(Debug)]
 pub struct UdpCapture {
     socket_addr: std::net::SocketAddr,
     join_handle: tokio::task::JoinHandle<()>,
@@ -117,7 +118,7 @@ impl UdpCapture {
     // wait for a message to appear that passes `pred` or the timeout expires
     pub async fn wait_for<P>(&self, pred: P)
     where
-        P: FnMut(&Message) -> bool + Copy,
+        P: FnMut(&Message) -> bool + Copy + Send,
     {
         let end = Instant::now() + Duration::from_secs(MAX_WAIT_TIME_SEC);
 

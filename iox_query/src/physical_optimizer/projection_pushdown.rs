@@ -18,6 +18,7 @@ use datafusion::{
         empty::EmptyExec,
         expressions::Column,
         filter::FilterExec,
+        placeholder_row::PlaceholderRowExec,
         projection::ProjectionExec,
         sorts::{sort::SortExec, sort_preserving_merge::SortPreservingMergeExec},
         union::UnionExec,
@@ -63,10 +64,15 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
 
                 let child_any = child.as_any();
                 if let Some(child_empty) = child_any.downcast_ref::<EmptyExec>() {
-                    let new_child = EmptyExec::new(
-                        child_empty.produce_one_row(),
-                        Arc::new(child_empty.schema().project(&column_indices)?),
-                    );
+                    let new_child =
+                        EmptyExec::new(Arc::new(child_empty.schema().project(&column_indices)?));
+                    return Ok(Transformed::Yes(Arc::new(new_child)));
+                } else if let Some(child_placeholder) =
+                    child_any.downcast_ref::<PlaceholderRowExec>()
+                {
+                    let new_child = PlaceholderRowExec::new(Arc::new(
+                        child_placeholder.schema().project(&column_indices)?,
+                    ));
                     return Ok(Transformed::Yes(Arc::new(new_child)));
                 } else if let Some(child_union) = child_any.downcast_ref::<UnionExec>() {
                     let new_inputs = child_union
@@ -453,7 +459,7 @@ mod tests {
         let plan = Arc::new(
             ProjectionExec::try_new(
                 vec![(expr_col("tag1", &schema), String::from("tag1"))],
-                Arc::new(EmptyExec::new(false, schema)),
+                Arc::new(EmptyExec::new(schema)),
             )
             .unwrap(),
         );
@@ -465,10 +471,10 @@ mod tests {
         ---
         input:
           - " ProjectionExec: expr=[tag1@0 as tag1]"
-          - "   EmptyExec: produce_one_row=false"
+          - "   EmptyExec"
         output:
           Ok:
-            - " EmptyExec: produce_one_row=false"
+            - " EmptyExec"
         "###
         );
 
@@ -492,7 +498,7 @@ mod tests {
                     (expr_col("tag1", &schema), String::from("tag1")),
                     (expr_col("field", &schema), String::from("field")),
                 ],
-                Arc::new(EmptyExec::new(false, schema)),
+                Arc::new(EmptyExec::new(schema)),
             )
             .unwrap(),
         );
@@ -504,10 +510,10 @@ mod tests {
         ---
         input:
           - " ProjectionExec: expr=[tag2@1 as tag2, tag1@0 as tag1, field@2 as field]"
-          - "   EmptyExec: produce_one_row=false"
+          - "   EmptyExec"
         output:
           Ok:
-            - " EmptyExec: produce_one_row=false"
+            - " EmptyExec"
         "###
         );
 
@@ -531,7 +537,7 @@ mod tests {
         let plan = Arc::new(
             ProjectionExec::try_new(
                 vec![(expr_col("tag2", &schema), String::from("tag1"))],
-                Arc::new(EmptyExec::new(false, schema)),
+                Arc::new(EmptyExec::new(schema)),
             )
             .unwrap(),
         );
@@ -542,11 +548,11 @@ mod tests {
         ---
         input:
           - " ProjectionExec: expr=[tag2@1 as tag1]"
-          - "   EmptyExec: produce_one_row=false"
+          - "   EmptyExec"
         output:
           Ok:
             - " ProjectionExec: expr=[tag2@1 as tag1]"
-            - "   EmptyExec: produce_one_row=false"
+            - "   EmptyExec"
         "###
         );
     }
@@ -560,7 +566,7 @@ mod tests {
                     (expr_col("tag1", &schema), String::from("tag1")),
                     (expr_col("tag2", &schema), String::from("tag3")),
                 ],
-                Arc::new(EmptyExec::new(false, schema)),
+                Arc::new(EmptyExec::new(schema)),
             )
             .unwrap(),
         );
@@ -571,11 +577,11 @@ mod tests {
         ---
         input:
           - " ProjectionExec: expr=[tag1@0 as tag1, tag2@1 as tag3]"
-          - "   EmptyExec: produce_one_row=false"
+          - "   EmptyExec"
         output:
           Ok:
             - " ProjectionExec: expr=[tag1@0 as tag1, tag2@1 as tag3]"
-            - "   EmptyExec: produce_one_row=false"
+            - "   EmptyExec"
         "###
         );
     }
@@ -589,7 +595,7 @@ mod tests {
                     Arc::new(Literal::new(ScalarValue::from("foo"))),
                     String::from("tag1"),
                 )],
-                Arc::new(EmptyExec::new(false, schema)),
+                Arc::new(EmptyExec::new(schema)),
             )
             .unwrap(),
         );
@@ -600,11 +606,11 @@ mod tests {
         ---
         input:
           - " ProjectionExec: expr=[foo as tag1]"
-          - "   EmptyExec: produce_one_row=false"
+          - "   EmptyExec"
         output:
           Ok:
             - " ProjectionExec: expr=[foo as tag1]"
-            - "   EmptyExec: produce_one_row=false"
+            - "   EmptyExec"
         "###
         );
     }
@@ -725,7 +731,7 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: Some(projection),
             limit: None,
             table_partition_cols: vec![],
@@ -743,7 +749,6 @@ mod tests {
                     options: Default::default(),
                 },
             ]],
-            infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, Some(expr_string_cmp("tag1", &schema)), None);
         let plan = Arc::new(
@@ -987,12 +992,12 @@ mod tests {
         ---
         input:
           - " ProjectionExec: expr=[tag1@0 as tag1]"
-          - "   SortExec: fetch=42, expr=[tag2@1 DESC]"
+          - "   SortExec: TopK(fetch=42), expr=[tag2@1 DESC]"
           - "     Test"
         output:
           Ok:
             - " ProjectionExec: expr=[tag1@0 as tag1]"
-            - "   SortExec: fetch=42, expr=[tag2@1 DESC]"
+            - "   SortExec: TopK(fetch=42), expr=[tag2@1 DESC]"
             - "     ProjectionExec: expr=[tag1@0 as tag1, tag2@1 as tag2]"
             - "       Test"
         "###
@@ -1033,12 +1038,12 @@ mod tests {
         ---
         input:
           - " ProjectionExec: expr=[tag1@0 as tag1]"
-          - "   SortExec: fetch=42, expr=[tag2@1 DESC]"
+          - "   SortExec: TopK(fetch=42), expr=[tag2@1 DESC]"
           - "     Test"
         output:
           Ok:
             - " ProjectionExec: expr=[tag1@0 as tag1]"
-            - "   SortExec: fetch=42, expr=[tag2@1 DESC]"
+            - "   SortExec: TopK(fetch=42), expr=[tag2@1 DESC]"
             - "     ProjectionExec: expr=[tag1@0 as tag1, tag2@1 as tag2]"
             - "       Test"
         "###
@@ -1089,7 +1094,7 @@ mod tests {
     #[test]
     fn test_nested_proj_inner_is_impure() {
         let schema = schema();
-        let plan = Arc::new(EmptyExec::new(false, schema));
+        let plan = Arc::new(EmptyExec::new(schema));
         let plan = Arc::new(
             ProjectionExec::try_new(
                 vec![
@@ -1121,11 +1126,11 @@ mod tests {
         input:
           - " ProjectionExec: expr=[tag1@0 as tag1]"
           - "   ProjectionExec: expr=[foo as tag1, bar as tag2]"
-          - "     EmptyExec: produce_one_row=false"
+          - "     EmptyExec"
         output:
           Ok:
             - " ProjectionExec: expr=[foo as tag1]"
-            - "   EmptyExec: produce_one_row=false"
+            - "   EmptyExec"
         "###
         );
     }
@@ -1133,7 +1138,7 @@ mod tests {
     #[test]
     fn test_nested_proj_inner_is_pure() {
         let schema = schema();
-        let plan = Arc::new(EmptyExec::new(false, schema));
+        let plan = Arc::new(EmptyExec::new(schema));
         let plan = Arc::new(
             ProjectionExec::try_new(
                 vec![
@@ -1160,10 +1165,10 @@ mod tests {
         input:
           - " ProjectionExec: expr=[tag1@0 as tag1]"
           - "   ProjectionExec: expr=[tag1@0 as tag1, tag2@1 as tag2]"
-          - "     EmptyExec: produce_one_row=false"
+          - "     EmptyExec"
         output:
           Ok:
-            - " EmptyExec: produce_one_row=false"
+            - " EmptyExec"
         "###
         );
         let empty_exec = test
@@ -1297,10 +1302,10 @@ mod tests {
         ---
         input:
           - " ProjectionExec: expr=[tag1@0 as tag1]"
-          - "   RecordBatchesExec: chunks=1"
+          - "   RecordBatchesExec: chunks=1, projection=[tag1, tag2, field]"
         output:
           Ok:
-            - " RecordBatchesExec: chunks=1"
+            - " RecordBatchesExec: chunks=1, projection=[tag1]"
         "###
         );
 
@@ -1326,12 +1331,11 @@ mod tests {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![],
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&schema),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![],
-            infinite_source: false,
         };
         let plan = Arc::new(ParquetExec::new(base_config, None, None));
         let plan = Arc::new(UnionExec::new(vec![plan]));
@@ -1695,8 +1699,10 @@ mod tests {
             unimplemented!()
         }
 
-        fn statistics(&self) -> datafusion::physical_plan::Statistics {
-            Statistics::default()
+        fn statistics(&self) -> Result<datafusion::physical_plan::Statistics, DataFusionError> {
+            Ok(datafusion::physical_plan::Statistics::new_unknown(
+                &self.schema(),
+            ))
         }
     }
 

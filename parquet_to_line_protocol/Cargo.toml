@@ -5,6 +5,9 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
@@ -14,10 +17,9 @@ num_cpus = "1.16.0"
 object_store = { workspace = true }
 parquet_file  = { path = "../parquet_file" }
 schema = { path = "../schema" }
-tokio = "1.32"
-snafu = "0.7"
+tokio = "1.35"
+snafu = "0.8"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
-
 
 [dev-dependencies]
 mutable_batch_lp = { path = "../mutable_batch_lp" }

@@ -20,6 +20,12 @@
 //! permitting fast conversion to [`RecordBatch`].
 
 // Workaround for "unused crate" lint false positives.
+#[cfg(test)]
+use partition as _;
+#[cfg(test)]
+use pretty_assertions as _;
+#[cfg(test)]
+use rand as _;
 use workspace_hack as _;
 
 use crate::column::{Column, ColumnData};
@@ -156,16 +162,13 @@ impl MutableBatch {
     /// Returns a summary of the write timestamps in this chunk if a
     /// time column exists
     pub fn timestamp_summary(&self) -> Option<TimestampSummary> {
-        let time = self.column_names.get(TIME_COLUMN_NAME)?;
+        let col_data = self.time_column().ok()?;
         let mut summary = TimestampSummary::default();
-        match &self.columns[*time].data {
-            ColumnData::I64(col_data, _) => {
-                for t in col_data {
-                    summary.record_nanos(*t)
-                }
-            }
-            _ => unreachable!(),
+
+        for t in col_data {
+            summary.record_nanos(*t)
         }
+
         Some(summary)
     }
 
@@ -205,6 +208,27 @@ impl MutableBatch {
         Ok(&self.columns[*idx])
     }
 
+    /// Returns a reference to the column at the specified index
+    pub fn column_by_index(&self, idx: usize) -> Result<&Column> {
+        self.columns.get(idx).with_context(|| ColumnNotFoundSnafu {
+            column: format!("index {}", idx),
+        })
+    }
+
+    /// Return the values in the time column in this batch. Returns an error if the batch has no
+    /// time column.
+    ///
+    /// # Panics
+    ///
+    /// If a time column exists but its data isn't of type `i64`, this function will panic.
+    fn time_column(&self) -> Result<&[i64]> {
+        let time_column = self.column(TIME_COLUMN_NAME)?;
+        match &time_column.data {
+            ColumnData::I64(col_data, _) => Ok(col_data),
+            x => unreachable!("expected i64 got {} for time column", x),
+        }
+    }
+
     /// Return the approximate memory size of the batch, in bytes.
     ///
     /// This includes `Self`.
@@ -221,6 +245,31 @@ impl MutableBatch {
     /// Return the approximate memory size of the data in the batch, in bytes.
     pub fn size_data(&self) -> usize {
         self.columns.iter().map(|c| c.size_data()).sum::<usize>()
+    }
+
+    /// Split this [`MutableBatch`] at the specified row boundary, such that
+    /// after this call, `self` contains the range of rows indexed from `[0, n)`
+    /// and the returned value contains `[n, len)`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `n > self.rows()`.
+    ///
+    /// # Performance
+    ///
+    /// This implementation is heavily optimised towards splitting `self` at a
+    /// `n` value skewed towards the high end of the row count - see [`Column`].
+    pub fn split_off(&mut self, n: usize) -> Self {
+        assert!(n <= self.row_count);
+
+        let right_row_count = self.row_count - n;
+        self.row_count = n;
+
+        Self {
+            column_names: self.column_names.clone(),
+            columns: self.columns.iter_mut().map(|v| v.split_off(n)).collect(),
+            row_count: right_row_count,
+        }
     }
 }
 
@@ -262,7 +311,9 @@ impl TimestampSummary {
 
 #[cfg(test)]
 mod tests {
+    use arrow_util::assert_batches_eq;
     use mutable_batch_lp::lines_to_batches;
+    use schema::Projection;
 
     #[test]
     fn size_data_without_nulls() {
@@ -297,5 +348,169 @@ mod tests {
 
         assert_eq!(batch.size_data(), 124);
         assert_eq!(batch.columns().len(), 5);
+    }
+
+    /// Assert the correct row index is split off using
+    /// [`MutableBatch::split_off()`].
+    ///
+    /// Correctness of the [`Column`] splitting is handled by tests against the
+    /// [`Column`] itself.
+    #[test]
+    fn test_split_off() {
+        let mut batches = lines_to_batches(
+            "\
+            cpu,t1=hello,t2=world f1=1.1 1234\n\
+            cpu,t2=w f1=2.2,f2=2i 1234\n\
+            ",
+            0,
+        )
+        .unwrap();
+        let mut batch = batches.remove("cpu").unwrap();
+        assert_eq!(batch.rows(), 2);
+        assert_eq!(batch.column_names().len(), 5);
+
+        let got = batch.split_off(1);
+
+        assert_batches_eq!(
+            &[
+                "+-----+----+-------+-------+--------------------------------+",
+                "| f1  | f2 | t1    | t2    | time                           |",
+                "+-----+----+-------+-------+--------------------------------+",
+                "| 1.1 |    | hello | world | 1970-01-01T00:00:00.000001234Z |",
+                "+-----+----+-------+-------+--------------------------------+",
+            ],
+            &[batch.to_arrow(Projection::All).unwrap()]
+        );
+        assert_batches_eq!(
+            &[
+                "+-----+----+----+----+--------------------------------+",
+                "| f1  | f2 | t1 | t2 | time                           |",
+                "+-----+----+----+----+--------------------------------+",
+                "| 2.2 | 2  |    | w  | 1970-01-01T00:00:00.000001234Z |",
+                "+-----+----+----+----+--------------------------------+",
+            ],
+            &[got.to_arrow(Projection::All).unwrap()]
+        );
+
+        assert_eq!(batch.rows(), 1);
+        assert_eq!(got.rows(), 1);
+
+        // Actual Column instances
+        assert_eq!(got.columns().len(), batch.columns().len());
+
+        // Column name map
+        assert_eq!(got.column_names().len(), 5);
+        assert_eq!(got.column_names(), batch.column_names());
+        assert_eq!(got.column_names().len(), got.columns().len());
+
+        // Schema
+        assert_eq!(
+            got.schema(Projection::All).unwrap(),
+            batch.schema(Projection::All).unwrap()
+        );
+        assert_eq!(
+            got.schema(Projection::All).unwrap().len(),
+            got.columns().len()
+        );
+    }
+
+    #[test]
+    fn test_split_off_n_0() {
+        let mut batches = lines_to_batches(
+            "\
+            cpu,t1=hello,t2=world f1=1.1 1234\n\
+            cpu,t2=w f1=2.2,f2=2i 1234\n\
+            ",
+            0,
+        )
+        .unwrap();
+        let mut batch = batches.remove("cpu").unwrap();
+        assert_eq!(batch.rows(), 2);
+        assert_eq!(batch.column_names().len(), 5);
+
+        let got = batch.split_off(0);
+
+        assert_batches_eq!(
+            &[
+                "+-----+----+-------+-------+--------------------------------+",
+                "| f1  | f2 | t1    | t2    | time                           |",
+                "+-----+----+-------+-------+--------------------------------+",
+                "| 1.1 |    | hello | world | 1970-01-01T00:00:00.000001234Z |",
+                "| 2.2 | 2  |       | w     | 1970-01-01T00:00:00.000001234Z |",
+                "+-----+----+-------+-------+--------------------------------+",
+            ],
+            &[got.to_arrow(Projection::All).unwrap()]
+        );
+
+        assert_eq!(batch.rows(), 0);
+        assert_eq!(got.rows(), 2);
+
+        // Actual Column instances
+        assert_eq!(got.columns().len(), batch.columns().len());
+
+        // Column name map
+        assert_eq!(got.column_names().len(), 5);
+        assert_eq!(got.column_names(), batch.column_names());
+        assert_eq!(got.column_names().len(), got.columns().len());
+
+        // Schema
+        assert_eq!(
+            got.schema(Projection::All).unwrap(),
+            batch.schema(Projection::All).unwrap()
+        );
+        assert_eq!(
+            got.schema(Projection::All).unwrap().len(),
+            got.columns().len()
+        );
+    }
+
+    #[test]
+    fn test_split_off_none() {
+        let mut batches = lines_to_batches(
+            "\
+            cpu,t1=hello,t2=world f1=1.1 1234\n\
+            cpu,t2=w f1=2.2,f2=2i 1234\n\
+            ",
+            0,
+        )
+        .unwrap();
+        let mut batch = batches.remove("cpu").unwrap();
+        assert_eq!(batch.rows(), 2);
+        assert_eq!(batch.column_names().len(), 5);
+
+        let got = batch.split_off(2);
+
+        assert_batches_eq!(
+            &[
+                "+-----+----+-------+-------+--------------------------------+",
+                "| f1  | f2 | t1    | t2    | time                           |",
+                "+-----+----+-------+-------+--------------------------------+",
+                "| 1.1 |    | hello | world | 1970-01-01T00:00:00.000001234Z |",
+                "| 2.2 | 2  |       | w     | 1970-01-01T00:00:00.000001234Z |",
+                "+-----+----+-------+-------+--------------------------------+",
+            ],
+            &[batch.to_arrow(Projection::All).unwrap()]
+        );
+
+        assert_eq!(batch.rows(), 2);
+        assert_eq!(got.rows(), 0);
+
+        // Actual Column instances
+        assert_eq!(got.columns().len(), batch.columns().len());
+
+        // Column name map
+        assert_eq!(got.column_names().len(), 5);
+        assert_eq!(got.column_names(), batch.column_names());
+        assert_eq!(got.column_names().len(), got.columns().len());
+
+        // Schema
+        assert_eq!(
+            got.schema(Projection::All).unwrap(),
+            batch.schema(Projection::All).unwrap()
+        );
+        assert_eq!(
+            got.schema(Projection::All).unwrap().len(),
+            got.columns().len()
+        );
     }
 }

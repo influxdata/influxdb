@@ -99,7 +99,7 @@ async fn watch_task<S>(
 struct AutoAbortJoinHandle<T>(#[pin] JoinHandle<T>);
 
 impl<T> AutoAbortJoinHandle<T> {
-    pub fn new(handle: JoinHandle<T>) -> Self {
+    pub(crate) fn new(handle: JoinHandle<T>) -> Self {
         Self(handle)
     }
 }

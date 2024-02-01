@@ -53,6 +53,7 @@ macro_rules! maybe_skip_integration {
 
 /// Represents a server that has been started and is available for
 /// testing.
+#[derive(Debug)]
 pub struct ServerFixture {
     server: Arc<TestServer>,
 }
@@ -156,6 +157,7 @@ const ADMIN_TEST_ORG: &str = "admin-test-org";
 const ADMIN_TEST_BUCKET: &str = "admin-test-bucket";
 const ADMIN_TEST_PASSWORD: &str = "admin-test-password";
 
+#[derive(Debug)]
 struct TestServer {
     /// Is the server ready to accept connections?
     ready: Mutex<ServerState>,

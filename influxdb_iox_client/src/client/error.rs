@@ -68,16 +68,16 @@ pub enum Error {
     Unknown(ServerError<()>),
 
     #[error("Client specified an invalid argument: {0}")]
-    InvalidArgument(ServerError<FieldViolation>),
+    InvalidArgument(Box<ServerError<FieldViolation>>),
 
     #[error("Deadline expired before operation could complete: {0}")]
     DeadlineExceeded(ServerError<()>),
 
     #[error("{0}")]
-    NotFound(ServerError<NotFound>),
+    NotFound(Box<ServerError<NotFound>>),
 
     #[error("Some entity that we attempted to create already exists: {0}")]
-    AlreadyExists(ServerError<AlreadyExists>),
+    AlreadyExists(Box<ServerError<AlreadyExists>>),
 
     #[error("The caller does not have permission to execute the specified operation: {0}")]
     PermissionDenied(ServerError<()>),
@@ -86,7 +86,7 @@ pub enum Error {
     ResourceExhausted(ServerError<()>),
 
     #[error("The system is not in a state required for the operation's execution: {0}")]
-    FailedPrecondition(ServerError<PreconditionViolation>),
+    FailedPrecondition(Box<ServerError<PreconditionViolation>>),
 
     #[error("The operation was aborted: {0}")]
     Aborted(ServerError<()>),
@@ -122,13 +122,13 @@ impl From<tonic::Status> for Error {
             Code::Ok => Self::Client("status is not an error".into()),
             Code::Cancelled => Self::Cancelled(parse_status(s)),
             Code::Unknown => Self::Unknown(parse_status(s)),
-            Code::InvalidArgument => Self::InvalidArgument(parse_status(s)),
+            Code::InvalidArgument => Self::InvalidArgument(Box::new(parse_status(s))),
             Code::DeadlineExceeded => Self::DeadlineExceeded(parse_status(s)),
-            Code::NotFound => Self::NotFound(parse_status(s)),
-            Code::AlreadyExists => Self::AlreadyExists(parse_status(s)),
+            Code::NotFound => Self::NotFound(Box::new(parse_status(s))),
+            Code::AlreadyExists => Self::AlreadyExists(Box::new(parse_status(s))),
             Code::PermissionDenied => Self::PermissionDenied(parse_status(s)),
             Code::ResourceExhausted => Self::ResourceExhausted(parse_status(s)),
-            Code::FailedPrecondition => Self::FailedPrecondition(parse_status(s)),
+            Code::FailedPrecondition => Self::FailedPrecondition(Box::new(parse_status(s))),
             Code::Aborted => Self::Aborted(parse_status(s)),
             Code::OutOfRange => Self::OutOfRange(parse_status(s)),
             Code::Unimplemented => Self::Unimplemented(parse_status(s)),
@@ -170,13 +170,13 @@ impl Error {
         let field_name = field_name.into();
         let description = description.into();
 
-        Self::InvalidArgument(ServerError {
+        Self::InvalidArgument(Box::new(ServerError {
             message: format!("Invalid argument for '{field_name}': {description}"),
             details: Some(FieldViolation {
                 field: field_name,
                 description,
             }),
-        })
+        }))
     }
 }
 

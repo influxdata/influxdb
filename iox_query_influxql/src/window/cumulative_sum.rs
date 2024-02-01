@@ -2,32 +2,51 @@ use crate::NUMERICS;
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::DataType;
 use datafusion::common::{Result, ScalarValue};
-use datafusion::logical_expr::{PartitionEvaluator, Signature, TypeSignature, Volatility};
-use once_cell::sync::Lazy;
+use datafusion::logical_expr::{
+    PartitionEvaluator, Signature, TypeSignature, Volatility, WindowUDFImpl,
+};
+use std::any::Any;
 use std::sync::Arc;
 
-/// The name of the cumulative_sum window function.
-pub(super) const NAME: &str = "cumumlative_sum";
-
-/// Valid signatures for the cumulative_sum window function.
-pub(super) static SIGNATURE: Lazy<Signature> = Lazy::new(|| {
-    Signature::one_of(
-        NUMERICS
-            .iter()
-            .map(|dt| TypeSignature::Exact(vec![dt.clone()]))
-            .collect(),
-        Volatility::Immutable,
-    )
-});
-
-/// Calculate the return type given the function signature.
-pub(super) fn return_type(sig: &[DataType]) -> Result<Arc<DataType>> {
-    Ok(Arc::new(sig[0].clone()))
+#[derive(Debug)]
+pub(super) struct CumulativeSumUDWF {
+    signature: Signature,
 }
 
-/// Create a new partition_evaluator_factory.
-pub(super) fn partition_evaluator_factory() -> Result<Box<dyn PartitionEvaluator>> {
-    Ok(Box::new(CumulativeSumPartitionEvaluator {}))
+impl CumulativeSumUDWF {
+    pub(super) fn new() -> Self {
+        Self {
+            signature: Signature::one_of(
+                NUMERICS
+                    .iter()
+                    .map(|dt| TypeSignature::Exact(vec![dt.clone()]))
+                    .collect(),
+                Volatility::Immutable,
+            ),
+        }
+    }
+}
+
+impl WindowUDFImpl for CumulativeSumUDWF {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        "cumumlative_sum"
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
+        Ok(arg_types[0].clone())
+    }
+
+    fn partition_evaluator(&self) -> Result<Box<dyn PartitionEvaluator>> {
+        Ok(Box::new(CumulativeSumPartitionEvaluator {}))
+    }
 }
 
 /// PartitionEvaluator which returns the cumulative sum of the input.

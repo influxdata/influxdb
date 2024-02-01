@@ -5,6 +5,9 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 # Workspace dependencies, in alphabetical order
 authz = { path = "../authz" }
@@ -14,21 +17,24 @@ flightsql = { path = "../flightsql" }
 generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
 iox_query = { path = "../iox_query" }
+iox_query_influxql = { path = "../iox_query_influxql" }
+iox_query_params = { path = "../iox_query_params" }
 service_common = { path = "../service_common" }
+tower_trailer = { path = "../tower_trailer"}
 trace = { path = "../trace"}
 trace_http = { path = "../trace_http"}
 tracker = { path = "../tracker" }
 
 # Crates.io dependencies, in alphabetical order
-arrow = { workspace = true, features = ["prettyprint"] }
-arrow-flight = { workspace = true, features=["flight-sql-experimental"] }
+arrow = { workspace = true }
+arrow-flight = { workspace = true }
 bytes = "1.5"
 futures = "0.3"
-prost = "0.11"
+prost = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.107"
-snafu = "0.7"
-tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+serde_json = "1.0.111"
+snafu = "0.8"
+tokio = { version = "1.35", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 

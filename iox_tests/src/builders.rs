@@ -1,7 +1,7 @@
 use data_types::{
-    Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, NamespaceId, ParquetFile,
-    ParquetFileId, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
-    Timestamp, TransitionPartitionId,
+    Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, NamespaceId, ObjectStoreId,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionHashId, PartitionId,
+    PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
 };
 use uuid::Uuid;
 
@@ -21,11 +21,14 @@ impl ParquetFileBuilder {
                 id: ParquetFileId::new(id),
                 namespace_id: NamespaceId::new(0),
                 table_id,
-                partition_id: TransitionPartitionId::new(
+                partition_id: PartitionId::new(0),
+                partition_hash_id: Some(PartitionHashId::new(
                     table_id,
                     &PartitionKey::from("arbitrary"),
-                ),
-                object_store_id: Uuid::from_u128(id.try_into().expect("invalid id")),
+                )),
+                object_store_id: ObjectStoreId::from_uuid(Uuid::from_u128(
+                    id.try_into().expect("invalid id"),
+                )),
                 min_time: Timestamp::new(0),
                 max_time: Timestamp::new(0),
                 to_delete: None,
@@ -40,7 +43,7 @@ impl ParquetFileBuilder {
     }
 
     /// Set the partition identifier
-    pub fn with_partition(self, partition_id: TransitionPartitionId) -> Self {
+    pub fn with_partition(self, partition_id: PartitionId) -> Self {
         Self {
             file: ParquetFile {
                 partition_id,
@@ -103,6 +106,27 @@ impl ParquetFileBuilder {
     /// Create the [`ParquetFile`]
     pub fn build(self) -> ParquetFile {
         self.file
+    }
+
+    /// Construct [`ParquetFileParams`] and the corresponding [`ParquetFile`]
+    pub fn params(self) -> (ParquetFileParams, ParquetFile) {
+        let file = self.clone().build();
+        let params = ParquetFileParams {
+            partition_id: self.file.partition_id,
+            partition_hash_id: self.file.partition_hash_id,
+            namespace_id: self.file.namespace_id,
+            table_id: self.file.table_id,
+            object_store_id: self.file.object_store_id,
+            min_time: self.file.min_time,
+            max_time: self.file.max_time,
+            file_size_bytes: self.file.file_size_bytes,
+            row_count: self.file.row_count,
+            compaction_level: self.file.compaction_level,
+            created_at: self.file.created_at,
+            column_set: self.file.column_set,
+            max_l0_created_at: self.file.max_l0_created_at,
+        };
+        (params, file)
     }
 }
 
@@ -201,12 +225,16 @@ pub struct PartitionBuilder {
 impl PartitionBuilder {
     /// Create a builder to create a partition with `partition_id` `id`
     pub fn new(id: i64) -> Self {
+        let table_id = TableId::new(0);
+        let key = PartitionKey::from("key");
+        let hash_id = PartitionHashId::new(table_id, &key);
+
         Self {
-            partition: Partition::new_in_memory_only(
+            partition: Partition::new_catalog_only(
                 PartitionId::new(id),
-                TableId::new(0),
-                PartitionKey::from("key"),
-                vec![],
+                Some(hash_id),
+                table_id,
+                key,
                 Default::default(),
                 None,
             ),

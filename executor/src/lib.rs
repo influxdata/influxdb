@@ -19,6 +19,7 @@ use metric::Registry;
 use snafu::Snafu;
 #[cfg(tokio_unstable)]
 use tokio_metrics_bridge::setup_tokio_metrics;
+use tokio_watchdog::WatchdogConfig;
 // Workaround for "unused crate" lint false positives.
 #[cfg(not(tokio_unstable))]
 use tokio_metrics_bridge as _;
@@ -35,6 +36,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
+    time::Duration,
 };
 use tokio::sync::oneshot::{error::RecvError, Receiver};
 use tokio_util::sync::CancellationToken;
@@ -251,6 +253,12 @@ impl DedicatedExecutor {
                     .on_thread_start(move || set_current_thread_priority(WORKER_PRIORITY))
                     .build()
                     .expect("Creating tokio runtime");
+
+                WatchdogConfig::new(runtime.handle(), &metric_registry)
+                    .with_runtime_name(thread_name)
+                    .with_tick_duration(Duration::from_millis(100))
+                    .with_warn_duration(Duration::from_millis(100))
+                    .install();
 
                 #[cfg(tokio_unstable)]
                 setup_tokio_metrics(runtime.metrics(), thread_name, metric_registry);

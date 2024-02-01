@@ -27,6 +27,9 @@ pub mod ingester;
 /// Client for namespace API
 pub mod namespace;
 
+/// Client for query log API.
+pub mod query_log;
+
 /// Client for schema API
 pub mod schema;
 

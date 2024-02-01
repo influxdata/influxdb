@@ -5,9 +5,11 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[dependencies]
-sqlparser = "0.37.0"
-snafu = "0.7.5"
+[lints]
+workspace = true
 
+[dependencies]
+sqlparser = {workspace = true}
+snafu = "0.8.0"
 generated_types = { path = "../generated_types" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

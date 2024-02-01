@@ -10,6 +10,7 @@
     clippy::dbg_macro,
     unused_crate_dependencies
 )]
+#![allow(unreachable_pub)]
 
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
@@ -205,8 +206,23 @@ fn jaeger_exporter(config: &TracingConfig) -> Result<Arc<AsyncExporter>> {
     )?;
 
     // Use any specified static span tags.
-    if let Some(tags) = &config.traces_jaeger_tags {
-        jaeger = jaeger.with_tags(tags);
+    let mut tags = config
+        .traces_jaeger_tags
+        .as_ref()
+        .cloned()
+        .unwrap_or_default();
+
+    // add hostname
+    const TAG_HOSTNAME: &str = "hostname";
+    if !tags.iter().any(|t| t.key() == TAG_HOSTNAME) {
+        if let Ok(hostname) = std::env::var("HOSTNAME") {
+            tags.push(JaegerTag::new(TAG_HOSTNAME, hostname));
+        }
+    }
+
+    // commit tags
+    if !tags.is_empty() {
+        jaeger = jaeger.with_tags(&tags);
     }
 
     Ok(Arc::new(AsyncExporter::new(jaeger)))

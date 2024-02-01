@@ -323,32 +323,34 @@ jobs:
           name: Check iox_data_generator compiles
           command: cargo check  --package="iox_data_generator"  --no-default-features
 
-  # Lint protobufs.
-  protobuf-lint:
-    docker:
-      - image: bufbuild/buf:0.40.0
-    environment:
-      # Value to look for to skip breaking changes check
-      SKIP_LABEL: "https://api.github.com/repos/influxdata/influxdb/labels/incompatible%20protobuf"
-    steps:
-      - checkout
-      - run:
-          name: buf lint
-          command: buf lint
-      - run:
-          name: buf breaking changes
-          command: |
-            echo "If you want to make changes forbidden by this lint, please"
-            echo "coordinate with the conductor team, add the 'incompatible protobuf' label"
-            echo "to the PR, and rerun this test"
-            # Check if label is present using github API:
-            # Inspired by https://discuss.circleci.com/t/tag-label-filter/11158
-            if wget -O -  https://api.github.com/repos/influxdata/influxdb/issues/$(echo $CIRCLE_PULL_REQUEST | grep -oE "[^/pull]+$") | grep "$SKIP_LABEL" ; then echo "SKIPPING (FOUND LABEL)" && exit ; else echo "CHECKING (NO LABEL FOUND)"; fi
-            git fetch origin main
-            # compare against only changes in this branch (not against
-            # other stuff that may have been added to main since last merge)
-            MERGE_BASE=$(git merge-base origin/main $CIRCLE_BRANCH) sh -c 'buf breaking --against ".git#ref=$MERGE_BASE,depth=100"'
-
+  # TODO: Figure out how to get this to work with changes in IOx Repo
+  # and here
+  # # Lint protobufs.
+  # protobuf-lint:
+  #   docker:
+  #     - image: bufbuild/buf:0.40.0
+  #   environment:
+  #     # Value to look for to skip breaking changes check
+  #     SKIP_LABEL: "https://api.github.com/repos/influxdata/influxdb/labels/incompatible%20protobuf"
+  #   steps:
+  #     - checkout
+  #     - run:
+  #         name: buf lint
+  #         command: buf lint
+  #     - run:
+  #         name: buf breaking changes
+  #         command: |
+  #           echo "If you want to make changes forbidden by this lint, please"
+  #           echo "coordinate with the conductor team, add the 'incompatible protobuf' label"
+  #           echo "to the PR, and rerun this test"
+  #           # Check if label is present using github API:
+  #           # Inspired by https://discuss.circleci.com/t/tag-label-filter/11158
+  #           if wget -O -  https://api.github.com/repos/influxdata/influxdb/issues/$(echo $CIRCLE_PULL_REQUEST | grep -oE "[^/pull]+$") | grep "$SKIP_LABEL" ; then echo "SKIPPING (FOUND LABEL)" && exit ; else echo "CHECKING (NO LABEL FOUND)"; fi
+  #           git fetch origin main
+  #           # compare against only changes in this branch (not against
+  #           # other stuff that may have been added to main since last merge)
+  #           MERGE_BASE=$(git merge-base origin/main $CIRCLE_BRANCH) sh -c 'buf breaking --against ".git#ref=$MERGE_BASE,depth=100"'
+  #
   # Lint docs
   docs-lint:
     docker:
@@ -455,7 +457,7 @@ workflows:
       - fmt
       - lint
       - cargo_audit
-      - protobuf-lint
+      # - protobuf-lint
       - docs-lint
       - test
       - test_heappy

@@ -1,26 +1,61 @@
 use arrow::array::Array;
 use arrow::compute::kernels::cmp::lt;
 use arrow::compute::nullif;
+use arrow::datatypes::DataType;
 use datafusion::common::{Result, ScalarValue};
 use datafusion::logical_expr::window_state::WindowAggState;
-use datafusion::logical_expr::PartitionEvaluator;
+use datafusion::logical_expr::{PartitionEvaluator, Signature, WindowUDFImpl};
+use std::any::Any;
 use std::ops::Range;
 use std::sync::Arc;
 
-/// Wrap a PartitionEvaluator in a non-negative filter.
-pub(super) fn wrapper(
-    partition_evaluator: Box<dyn PartitionEvaluator>,
-) -> Box<dyn PartitionEvaluator> {
-    Box::new(NonNegative {
-        partition_evaluator,
-    })
+/// Wrap a WindowUDF so that all values are non-negative.
+
+#[derive(Debug)]
+pub(super) struct NonNegativeUDWF<U: WindowUDFImpl> {
+    name: String,
+    inner: U,
 }
 
+impl<U: WindowUDFImpl> NonNegativeUDWF<U> {
+    pub(super) fn new(name: impl Into<String>, inner: U) -> Self {
+        Self {
+            name: name.into(),
+            inner,
+        }
+    }
+}
+
+impl<U: WindowUDFImpl + 'static> WindowUDFImpl for NonNegativeUDWF<U> {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn signature(&self) -> &Signature {
+        self.inner.signature()
+    }
+
+    fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
+        self.inner.return_type(arg_types)
+    }
+
+    fn partition_evaluator(&self) -> Result<Box<dyn PartitionEvaluator>> {
+        Ok(Box::new(NonNegative {
+            partition_evaluator: self.inner.partition_evaluator()?,
+        }))
+    }
+}
+
+/// Wraps an existing [`PartitionEvaluator`] and ensures that all values are
+/// non-negative.
 #[derive(Debug)]
 struct NonNegative {
     partition_evaluator: Box<dyn PartitionEvaluator>,
 }
-
 impl PartitionEvaluator for NonNegative {
     fn memoize(&mut self, state: &mut WindowAggState) -> Result<()> {
         self.partition_evaluator.memoize(state)
@@ -37,7 +72,7 @@ impl PartitionEvaluator for NonNegative {
     ) -> Result<Arc<dyn Array>> {
         let array = self.partition_evaluator.evaluate_all(values, num_rows)?;
         let zero = ScalarValue::new_zero(array.data_type())?;
-        let predicate = lt(&array, &zero.to_scalar())?;
+        let predicate = lt(&array, &zero.to_scalar()?)?;
         Ok(nullif(&array, &predicate)?)
     }
 
@@ -60,7 +95,7 @@ impl PartitionEvaluator for NonNegative {
             .evaluate_all_with_rank(num_rows, ranks_in_partition)?;
 
         let zero = ScalarValue::new_zero(array.data_type())?;
-        let predicate = lt(&array, &zero.to_scalar())?;
+        let predicate = lt(&array, &zero.to_scalar()?)?;
         Ok(nullif(&array, &predicate)?)
     }
 

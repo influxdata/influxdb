@@ -29,6 +29,7 @@ pub mod reexport {
     pub use tonic_health;
     pub use tonic_reflection;
     pub use tower_http;
+    pub use tower_trailer;
     pub use trace_http;
 }
 
@@ -45,6 +46,9 @@ use trace_http::ctx::TraceHeaderParser;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
+    #[snafu(display("Neither grpc nor http listeners are available"))]
+    MissingListener,
+
     #[snafu(display("Unable to bind to listen for HTTP requests on {}: {}", addr, source))]
     StartListeningHttp {
         addr: SocketAddr,
@@ -121,10 +125,14 @@ pub async fn http_listener(addr: SocketAddr) -> Result<AddrIncoming> {
 pub async fn serve(
     common_state: CommonServerState,
     frontend_shutdown: CancellationToken,
-    grpc_listener: tokio::net::TcpListener,
+    grpc_listener: Option<tokio::net::TcpListener>,
     http_listener: Option<AddrIncoming>,
     server_type: Arc<dyn ServerType>,
 ) -> Result<()> {
+    if grpc_listener.is_none() && http_listener.is_none() {
+        return Err(Error::MissingListener);
+    }
+
     let trace_header_parser = TraceHeaderParser::new()
         .with_jaeger_trace_context_header_name(
             &common_state
@@ -140,14 +148,26 @@ pub async fn serve(
         );
 
     // Construct and start up gRPC server
-    let grpc_server = rpc::serve(
-        grpc_listener,
-        Arc::clone(&server_type),
-        trace_header_parser.clone(),
-        frontend_shutdown.clone(),
-    )
+    let captured_server_type = Arc::clone(&server_type);
+    let captured_shutdown = frontend_shutdown.clone();
+    let captured_trace_header_parser = trace_header_parser.clone();
+    let grpc_server = async move {
+        if let Some(grpc_listener) = grpc_listener {
+            info!(?captured_server_type, "gRPC server listening");
+            rpc::serve(
+                grpc_listener,
+                captured_server_type,
+                captured_trace_header_parser,
+                captured_shutdown,
+            )
+            .await?
+        } else {
+            // don't resolve otherwise will cause server to shutdown
+            captured_shutdown.cancelled().await
+        }
+        Ok(())
+    }
     .fuse();
-    info!(?server_type, "gRPC server listening");
 
     let captured_server_type = Arc::clone(&server_type);
     let captured_shutdown = frontend_shutdown.clone();
@@ -218,7 +238,7 @@ pub async fn serve(
     //
     // This is important to ensure background tasks, such as polling the tracker
     // registry, don't exit before HTTP and gRPC requests dependent on them
-    while !grpc_server.is_terminated() && !http_server.is_terminated() {
+    while !grpc_server.is_terminated() || !http_server.is_terminated() {
         futures::select! {
             _ = signal => info!(?server_type, "shutdown requested"),
             _ = server_handle => {

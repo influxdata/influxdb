@@ -46,6 +46,7 @@ use arrow::{
     datatypes::{DataType, Field, Schema, SchemaRef},
     record_batch::RecordBatch,
 };
+use datafusion::logical_expr::expr_vec_fmt;
 use datafusion::{
     common::{DFSchemaRef, ToDFSchema},
     error::{DataFusionError, Result},
@@ -79,6 +80,10 @@ pub struct NonNullCheckerNode {
 }
 
 impl NonNullCheckerNode {
+    /// Creates a new NonNullChecker node
+    ///
+    /// # Panics
+    /// If the input schema is empty
     pub fn new(value: &str, input: LogicalPlan) -> Self {
         let schema = make_non_null_checker_output_schema();
 
@@ -90,6 +95,8 @@ impl NonNullCheckerNode {
             .iter()
             .map(|field| Expr::Column(field.qualified_column()))
             .collect::<Vec<_>>();
+
+        assert!(!exprs.is_empty(), "NonNullChecker: input schema was empty");
 
         Self {
             input,
@@ -130,17 +137,23 @@ impl UserDefinedLogicalNodeCore for NonNullCheckerNode {
         self.exprs.clone()
     }
 
-    /// For example: `NonNullChecker('the_value')`
+    /// For example: `NonNullChecker('the_value'), exprs=[foo]`
     fn fmt_for_explain(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}('{}')", self.name(), self.value)
+        write!(
+            f,
+            "{}('{}') exprs={}",
+            self.name(),
+            self.value,
+            expr_vec_fmt!(self.exprs)
+        )
     }
 
     fn from_template(&self, exprs: &[Expr], inputs: &[LogicalPlan]) -> Self {
-        assert_eq!(inputs.len(), 1, "NonNullChecker: input sizes inconistent");
+        assert_eq!(inputs.len(), 1, "NonNullChecker: input sizes inconsistent");
         assert_eq!(
             exprs.len(),
             self.exprs.len(),
-            "NonNullChecker: expression sizes inconistent"
+            "NonNullChecker: expression sizes inconsistent"
         );
         Self::new(self.value.as_ref(), inputs[0].clone())
     }
@@ -276,9 +289,8 @@ impl ExecutionPlan for NonNullCheckerExec {
         Some(self.metrics.clone_inner())
     }
 
-    fn statistics(&self) -> Statistics {
-        // don't know anything about the statistics
-        Statistics::default()
+    fn statistics(&self) -> Result<Statistics> {
+        Ok(Statistics::new_unknown(&self.schema()))
     }
 }
 

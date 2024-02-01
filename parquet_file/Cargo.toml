@@ -5,8 +5,11 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies] # In alphabetical order
-arrow = { workspace = true, features = ["prettyprint"] }
+arrow = { workspace = true }
 base64 = "0.21"
 bytes = "1.5"
 data_types = { path = "../data_types" }
@@ -17,19 +20,19 @@ generated_types = { path = "../generated_types" }
 iox_time = { path = "../iox_time" }
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
-parquet = { workspace = true, features = ["experimental"]}
-pbjson-types = "0.5"
-prost = "0.11"
+parquet = { workspace = true }
+pbjson-types = { workspace = true }
+prost = { workspace = true }
 schema = { path = "../schema" }
-snafu = "0.7"
-thiserror = "1.0.48"
+snafu = "0.8"
+thiserror = "1.0.56"
 thrift = "0.17"
-tokio = { version = "1.32", features = ["macros", "parking_lot", "rt", "rt-multi-thread", "sync"] }
+tokio = { version = "1.35", features = ["macros", "parking_lot", "rt", "rt-multi-thread", "sync"] }
 uuid = { version = "1", features = ["v4"] }
-zstd = "0.12"
+zstd = { version = "0.13", default-features = false }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
-
 [dev-dependencies] # In alphabetical order
+assert_matches = "1.5.0"
 rand = "0.8.3"
 test_helpers = { version = "0.1.0", path = "../test_helpers" }

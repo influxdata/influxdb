@@ -17,15 +17,19 @@
 )]
 
 use keep_alive::KeepAliveStream;
+use planner::Planner;
+use tower_trailer::{HeaderMap, Trailers};
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
 mod keep_alive;
+mod planner;
 mod request;
 
 use arrow::error::ArrowError;
 use arrow_flight::{
     encode::FlightDataEncoderBuilder,
+    error::FlightError,
     flight_descriptor::DescriptorType,
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightEndpoint, FlightInfo,
@@ -35,20 +39,24 @@ use authz::{extract_token, Authorizer};
 use data_types::NamespaceNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use flightsql::FlightSQLCommand;
-use futures::{ready, Stream, StreamExt, TryStreamExt};
+use futures::{ready, stream::BoxStream, Stream, StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::querier::v1 as proto;
-use iox_query::{exec::IOxSessionContext, QueryCompletedToken, QueryNamespace};
+use iox_query::{
+    exec::IOxSessionContext,
+    query_log::{QueryCompletedToken, QueryLogEntry, StatePermit, StatePlanned},
+    QueryNamespaceProvider,
+};
 use observability_deps::tracing::{debug, info, warn};
 use prost::Message;
 use request::{IoxGetRequest, RunQuery};
-use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
+use service_common::datafusion_error_to_tonic_code;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     fmt::Debug,
     pin::Pin,
-    sync::Arc,
+    sync::{Arc, Mutex},
     task::Poll,
-    time::{Duration, Instant},
+    time::Duration,
 };
 use tonic::{
     metadata::{AsciiMetadataValue, MetadataMap},
@@ -63,12 +71,26 @@ use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 ///
 /// See <https://lists.apache.org/thread/fd6r1n7vt91sg2c7fr35wcrsqz6x4645>
 /// for discussion on adding support to FlightSQL itself.
-const IOX_FLIGHT_SQL_DATABASE_HEADERS: [&str; 4] = [
+const IOX_FLIGHT_SQL_DATABASE_REQUEST_HEADERS: [&str; 4] = [
     "database", // preferred
     "bucket",
     "bucket-name",
     "iox-namespace-name", // deprecated
 ];
+
+/// Trailer that describes the duration (in seconds) for which a query was queued due to concurrency limits.
+const IOX_FLIGHT_QUEUE_DURATION_RESPONSE_TRAILER: &str = "x-influxdata-queue-duration-seconds";
+
+/// Trailer that describes the duration (in seconds) of the planning phase of a query.
+const IOX_FLIGHT_PLANNING_DURATION_RESPONSE_TRAILER: &str =
+    "x-influxdata-planning-duration-seconds";
+
+/// Trailer that describes the duration (in seconds) of the execution phase of a query.
+const IOX_FLIGHT_EXECUTION_DURATION_RESPONSE_TRAILER: &str =
+    "x-influxdata-execution-duration-seconds";
+
+/// Trailer that describes the duration (in seconds) the CPU(s) took to compute the results.
+const IOX_FLIGHT_COMPUTE_DURATION_RESPONSE_TRAILER: &str = "x-influxdata-compute-duration-seconds";
 
 /// In which interval should the `DoGet` stream send empty messages as keep alive markers?
 const DO_GET_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(5);
@@ -127,7 +149,7 @@ pub enum Error {
     Planning {
         namespace_name: String,
         query: String,
-        source: service_common::planner::Error,
+        source: planner::Error,
     },
 
     #[snafu(display("Error while planning Flight SQL : {}", source))]
@@ -488,82 +510,80 @@ where
 {
     /// Implementation of the `DoGet` method
     async fn run_do_get(
-        &self,
+        server: Arc<S>,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
-        permit: InstrumentedAsyncOwnedSemaphorePermit,
-        query: RunQuery,
-        namespace_name: String,
-        is_debug: bool,
-    ) -> Result<Response<TonicStream<FlightData>>, tonic::Status> {
-        let db = self
-            .server
+        request: IoxGetRequest,
+        log_entry: &mut Option<Arc<QueryLogEntry>>,
+    ) -> Result<TonicStream<FlightData>, tonic::Status> {
+        let IoxGetRequest {
+            database,
+            query,
+            params,
+            is_debug,
+        } = request;
+        let namespace_name = database.as_str();
+
+        let db = server
             .db(
-                &namespace_name,
+                namespace_name,
                 span_ctx.child_span("get namespace"),
                 is_debug,
             )
             .await
-            .context(DatabaseNotFoundSnafu {
-                namespace_name: &namespace_name,
-            })?;
+            .context(DatabaseNotFoundSnafu { namespace_name })?;
+
+        //TODO: add structured logging for parameterized queries https://github.com/influxdata/influxdb_iox/issues/9626
+        let query_completed_token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            query.variant(),
+            Box::new(query.to_string()),
+        );
+
+        *log_entry = Some(Arc::clone(query_completed_token.entry()));
+
+        // Log after we acquire the permit and are about to start execution
+        info!(
+            %namespace_name,
+            %query,
+            trace=external_span_ctx.format_jaeger().as_str(),
+            variant=query.variant(),
+            "DoGet request",
+        );
 
         let ctx = db.new_query_context(span_ctx);
-        let (query_completed_token, physical_plan) = match &query {
-            RunQuery::Sql(sql_query) => {
-                let token = db.record_query(
-                    external_span_ctx.as_ref().map(RequestLogContext::ctx),
-                    "sql",
-                    Box::new(sql_query.clone()),
-                );
-                let plan = Planner::new(&ctx)
-                    .sql(sql_query)
-                    .await
-                    .context(PlanningSnafu {
-                        namespace_name: &namespace_name,
-                        query: query.to_string(),
-                    })?;
-                (token, plan)
-            }
-            RunQuery::InfluxQL(sql_query) => {
-                let token = db.record_query(
-                    external_span_ctx.as_ref().map(RequestLogContext::ctx),
-                    "influxql",
-                    Box::new(sql_query.clone()),
-                );
-                let plan = Planner::new(&ctx)
-                    .influxql(sql_query)
-                    .await
-                    .context(PlanningSnafu {
-                        namespace_name: &namespace_name,
-                        query: query.to_string(),
-                    })?;
-                (token, plan)
-            }
-            RunQuery::FlightSQL(msg) => {
-                let token = db.record_query(
-                    external_span_ctx.as_ref().map(RequestLogContext::ctx),
-                    "flightsql",
-                    Box::new(msg.to_string()),
-                );
-                let plan = Planner::new(&ctx)
-                    .flight_sql_do_get(&namespace_name, db, msg.clone())
-                    .await
-                    .context(PlanningSnafu {
-                        namespace_name: &namespace_name,
-                        query: query.to_string(),
-                    })?;
-                (token, plan)
-            }
+        let physical_plan = match &query {
+            RunQuery::Sql(sql_query) => Planner::new(&ctx)
+                .sql(sql_query, params)
+                .await
+                .with_context(|_| PlanningSnafu {
+                    namespace_name,
+                    query: query.to_string(),
+                })?,
+            RunQuery::InfluxQL(sql_query) => Planner::new(&ctx)
+                .influxql(sql_query, params)
+                .await
+                .with_context(|_| PlanningSnafu {
+                namespace_name,
+                query: query.to_string(),
+            })?,
+            RunQuery::FlightSQL(msg) => Planner::new(&ctx)
+                .flight_sql_do_get(namespace_name, db, msg.clone(), params)
+                .await
+                .with_context(|_| PlanningSnafu {
+                    namespace_name,
+                    query: query.to_string(),
+                })?,
         };
+        let query_completed_token = query_completed_token.planned(Arc::clone(&physical_plan));
 
         let output = GetStream::new(
+            server,
             ctx,
             physical_plan,
             namespace_name.to_string(),
             &query,
             query_completed_token,
-            permit,
         )
         .await?;
 
@@ -572,7 +592,7 @@ where
         let output = output.map(move |res| {
             if let Err(e) = &res {
                 info!(
-                    %namespace_name,
+                    %database,
                     %query,
                     trace=external_span_ctx.format_jaeger().as_str(),
                     %e,
@@ -582,7 +602,7 @@ where
             res
         });
 
-        Ok(Response::new(Box::pin(output) as TonicStream<FlightData>))
+        Ok(Box::pin(output) as TonicStream<FlightData>)
     }
 }
 
@@ -613,9 +633,12 @@ where
         request: Request<Ticket>,
     ) -> Result<Response<Self::DoGetStream>, tonic::Status> {
         let external_span_ctx: Option<RequestLogContext> = request.extensions().get().cloned();
+        // technically the trailers layer should always be installed but for testing this isn' always the case, so lets
+        // make this optional
+        let trailers: Option<Trailers> = request.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
         let authz_token = get_flight_authz(request.metadata());
-        let mut is_debug = has_debug_header(request.metadata());
+        let debug_header = has_debug_header(request.metadata());
         let ticket = request.into_inner();
 
         // attempt to decode ticket
@@ -625,15 +648,12 @@ where
             info!(%e, "Error decoding Flight API ticket");
         };
 
-        let request = request?;
-        let namespace_name = request.database();
-        let query = request.query();
-        is_debug |= request.is_debug();
+        let request = request?.add_debug_header(debug_header);
 
-        let perms = match query {
-            RunQuery::FlightSQL(cmd) => flightsql_permissions(namespace_name, cmd),
+        let perms = match request.query() {
+            RunQuery::FlightSQL(cmd) => flightsql_permissions(request.database(), cmd),
             RunQuery::Sql(_) | RunQuery::InfluxQL(_) => vec![authz::Permission::ResourceAction(
-                authz::Resource::Database(namespace_name.to_string()),
+                authz::Resource::Database(request.database().to_string()),
                 authz::Action::Read,
             )],
         };
@@ -642,51 +662,49 @@ where
             .await
             .map_err(Error::from)?;
 
-        let permit = self
-            .server
-            .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
-            .await;
-
-        // Log after we acquire the permit and are about to start execution
-        let start = Instant::now();
-        info!(
-            %namespace_name,
-            %query,
-            trace=external_span_ctx.format_jaeger().as_str(),
-            variant=query.variant(),
-            "DoGet request",
-        );
-
-        let response = self
-            .run_do_get(
-                span_ctx,
-                external_span_ctx.clone(),
-                permit,
-                query.clone(),
-                namespace_name.to_string(),
-                is_debug,
-            )
-            .await;
+        // `run_do_get` may wait for the semaphore. In this case, we shall send empty "keep alive" messages already. So
+        // wrap the whole implementation into the keep alive stream.
+        //
+        // Also note that due to the keep alive mechanism, we cannot send any headers back because they might come
+        // after a keep alive message and therefore aren't headers. gRPC metadata can only be sent at the very beginning
+        // (headers) or at the very end (trailers). We shall use trailers.
+        let server = Arc::clone(&self.server);
+        let mut log_entry = None;
+        let response = Self::run_do_get(
+            server,
+            span_ctx,
+            external_span_ctx.clone(),
+            request.clone(),
+            &mut log_entry,
+        )
+        .await;
 
         if let Err(e) = &response {
             info!(
-                %namespace_name,
-                %query,
+                %request.database,
+                %request.query,
                 trace=external_span_ctx.format_jaeger().as_str(),
                 %e,
                 "Error running DoGet",
             );
         } else {
-            let elapsed = Instant::now() - start;
             debug!(
-                %namespace_name,
-                %query,
+                %request.database,
+                %request.query,
                 trace=external_span_ctx.format_jaeger().as_str(),
-                ?elapsed,
-                "Completed DoGet request",
+                "Planned DoGet request",
             );
         }
-        response
+
+        let md = QueryResponseMetadata { log_entry };
+        let md_captured = md.clone();
+        if let Some(trailers) = trailers {
+            trailers.add_callback(move |trailers| md_captured.write_trailers(trailers));
+        }
+
+        let stream = response?;
+
+        Ok(Response::new(Box::pin(stream) as _))
     }
 
     async fn handshake(
@@ -919,7 +937,7 @@ fn cmd_from_descriptor(flight_descriptor: FlightDescriptor) -> Result<FlightSQLC
 fn get_flightsql_namespace(metadata: &MetadataMap) -> Result<String> {
     let mut found_header_keys: Vec<String> = vec![];
 
-    for key in IOX_FLIGHT_SQL_DATABASE_HEADERS {
+    for key in IOX_FLIGHT_SQL_DATABASE_REQUEST_HEADERS {
         if metadata.contains_key(key) {
             found_header_keys.push(key.to_string());
         }
@@ -982,25 +1000,32 @@ fn has_debug_header(metadata: &MetadataMap) -> bool {
         .unwrap_or_default()
 }
 
-/// Wrapper over a FlightDataEncodeStream that adds IOx specfic
-/// metadata and records completion
-struct GetStream {
-    inner: KeepAliveStream,
+struct PermitAndToken {
     #[allow(dead_code)]
     permit: InstrumentedAsyncOwnedSemaphorePermit,
-    query_completed_token: QueryCompletedToken,
+    query_completed_token: QueryCompletedToken<StatePermit>,
+}
+
+/// Wrapper over a FlightDataEncodeStream that adds IOx specific
+/// metadata and records completion
+struct GetStream {
+    inner: BoxStream<'static, Result<FlightData, FlightError>>,
+    permit_state: Arc<Mutex<Option<PermitAndToken>>>,
     done: bool,
 }
 
 impl GetStream {
-    async fn new(
+    async fn new<S>(
+        server: Arc<S>,
         ctx: IOxSessionContext,
         physical_plan: Arc<dyn ExecutionPlan>,
         namespace_name: String,
         query: &RunQuery,
-        query_completed_token: QueryCompletedToken,
-        permit: InstrumentedAsyncOwnedSemaphorePermit,
-    ) -> Result<Self, tonic::Status> {
+        query_completed_token: QueryCompletedToken<StatePlanned>,
+    ) -> Result<Self, tonic::Status>
+    where
+        S: QueryNamespaceProvider,
+    {
         let app_metadata = proto::AppMetadata {};
 
         let schema = physical_plan.schema();
@@ -1017,21 +1042,44 @@ impl GetStream {
                 tonic::Status::new(code, e.to_string()).into()
             });
 
-        // setup inner stream
-        let inner = FlightDataEncoderBuilder::new()
+        // acquire token (after planning)
+        let permit_state: Arc<Mutex<Option<PermitAndToken>>> = Default::default();
+        let permit_state_captured = Arc::clone(&permit_state);
+        let permit_span = ctx.child_span("query rate limit semaphore");
+        let query_results = futures::stream::once(async move {
+            let permit = server.acquire_semaphore(permit_span).await;
+            let query_completed_token = query_completed_token.permit();
+            *permit_state_captured.lock().expect("not poisened") = Some(PermitAndToken {
+                permit,
+                query_completed_token,
+            });
+            query_results
+        })
+        .flatten();
+
+        // setup encoding stream
+        let encoded = FlightDataEncoderBuilder::new()
             .with_schema(schema)
             .with_metadata(app_metadata.encode_to_vec().into())
             .build(query_results);
 
-        // add keep alive
-        let inner = KeepAliveStream::new(inner, DO_GET_KEEP_ALIVE_INTERVAL);
+        // keep-alive
+        let inner = KeepAliveStream::new(encoded, DO_GET_KEEP_ALIVE_INTERVAL).boxed();
 
         Ok(Self {
             inner,
-            permit,
-            query_completed_token,
+            permit_state,
             done: false,
         })
+    }
+
+    #[must_use]
+    fn finish_stream(&self) -> Option<QueryCompletedToken<StatePermit>> {
+        self.permit_state
+            .lock()
+            .expect("not poisened")
+            .take()
+            .map(|state| state.query_completed_token)
     }
 }
 
@@ -1052,27 +1100,78 @@ impl Stream for GetStream {
                 None => {
                     self.done = true;
                     // if we get here, all is good
-                    self.query_completed_token.set_success();
+                    if let Some(token) = self.finish_stream() {
+                        token.success();
+                    }
                 }
                 Some(Ok(data)) => {
                     return Poll::Ready(Some(Ok(data)));
                 }
                 Some(Err(e)) => {
                     self.done = true;
+                    if let Some(token) = self.finish_stream() {
+                        token.fail();
+                    }
                     return Poll::Ready(Some(Err(e.into())));
                 }
             }
         }
     }
 }
+
+/// Header/trailer data added to query responses.
+#[derive(Debug, Clone)]
+struct QueryResponseMetadata {
+    log_entry: Option<Arc<QueryLogEntry>>,
+}
+
+impl QueryResponseMetadata {
+    fn write_trailer_duration(md: &mut HeaderMap, key: &'static str, d: Option<Duration>) {
+        let Some(d) = d else { return };
+
+        md.insert(
+            key,
+            d.as_secs_f64().to_string().parse().expect("always valid"),
+        );
+    }
+
+    fn write_trailers(&self, md: &mut HeaderMap) {
+        let Some(log_entry) = &self.log_entry else {
+            return;
+        };
+
+        Self::write_trailer_duration(
+            md,
+            IOX_FLIGHT_QUEUE_DURATION_RESPONSE_TRAILER,
+            log_entry.permit_duration(),
+        );
+        Self::write_trailer_duration(
+            md,
+            IOX_FLIGHT_PLANNING_DURATION_RESPONSE_TRAILER,
+            log_entry.plan_duration(),
+        );
+        Self::write_trailer_duration(
+            md,
+            IOX_FLIGHT_EXECUTION_DURATION_RESPONSE_TRAILER,
+            log_entry.execute_duration(),
+        );
+        Self::write_trailer_duration(
+            md,
+            IOX_FLIGHT_COMPUTE_DURATION_RESPONSE_TRAILER,
+            log_entry.compute_duration(),
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use arrow_flight::sql::ProstMessageExt;
     use async_trait::async_trait;
     use authz::Permission;
     use futures::Future;
+    use iox_query::test::TestDatabaseStore;
     use metric::{Attributes, Metric, U64Gauge};
-    use service_common::test_util::TestDatabaseStore;
+    use test_helpers::maybe_start_logging;
     use tokio::pin;
     use tonic::metadata::{MetadataKey, MetadataValue};
 
@@ -1111,10 +1210,13 @@ mod tests {
                 .to_vec()
                 .into(),
         };
-        let streaming_resp1 = service
+        let mut streaming_resp1 = service
             .do_get(tonic::Request::new(ticket.clone()))
             .await
-            .unwrap();
+            .unwrap()
+            .into_inner();
+        streaming_resp1.next().await.unwrap().unwrap(); // schema (planning)
+        streaming_resp1.next().await.unwrap().unwrap(); // record batch (execution)
 
         assert_semaphore_metric(
             &test_storage.metric_registry,
@@ -1132,10 +1234,13 @@ mod tests {
             1,
         );
 
-        let streaming_resp2 = service
+        let mut streaming_resp2 = service
             .do_get(tonic::Request::new(ticket.clone()))
             .await
-            .unwrap();
+            .unwrap()
+            .into_inner();
+        streaming_resp2.next().await.unwrap().unwrap(); // schema (planning)
+        streaming_resp2.next().await.unwrap().unwrap(); // record batch (execution)
 
         assert_semaphore_metric(
             &test_storage.metric_registry,
@@ -1154,7 +1259,13 @@ mod tests {
         );
 
         // 3rd request is pending
-        let fut = service.do_get(tonic::Request::new(ticket.clone()));
+        let mut streaming_resp3 = service
+            .do_get(tonic::Request::new(ticket.clone()))
+            .await
+            .unwrap()
+            .into_inner();
+        streaming_resp3.next().await.unwrap().unwrap(); // schema (planning)
+        let fut = streaming_resp3.next(); // record batch (execution)
         pin!(fut);
         assert_fut_pending(&mut fut).await;
 
@@ -1176,7 +1287,7 @@ mod tests {
 
         // free permit
         drop(streaming_resp1);
-        let streaming_resp3 = fut.await;
+        fut.await.unwrap().unwrap();
 
         assert_semaphore_metric(
             &test_storage.metric_registry,
@@ -1227,6 +1338,7 @@ mod tests {
         };
     }
 
+    #[track_caller]
     fn assert_semaphore_metric(registry: &metric::Registry, name: &'static str, expected: u64) {
         let actual = registry
             .get_instrument::<Metric<U64Gauge>>(name)
@@ -1262,6 +1374,8 @@ mod tests {
 
     #[tokio::test]
     async fn do_get_authz() {
+        maybe_start_logging();
+
         let test_storage = Arc::new(TestDatabaseStore::default());
         test_storage.db_or_create("bananas").await;
 

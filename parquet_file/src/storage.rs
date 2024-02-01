@@ -122,7 +122,7 @@ impl ParquetExecInput {
                 .clone()
                 .with_metadata(Default::default()),
         );
-
+        let statistics = Statistics::new_unknown(&schema);
         let base_config = FileScanConfig {
             object_store_url: self.object_store_url.clone(),
             file_schema: schema,
@@ -132,13 +132,12 @@ impl ParquetExecInput {
                 range: None,
                 extensions: None,
             }]],
-            statistics: Statistics::default(),
+            statistics,
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             // Parquet files ARE actually sorted but we don't care here since we just construct a `collect` plan.
             output_ordering: vec![],
-            infinite_source: false,
         };
         let exec = ParquetExec::new(base_config, None, None);
         let exec_schema = exec.schema();
@@ -204,7 +203,7 @@ impl ParquetStorage {
     pub fn test_df_context(&self) -> SessionContext {
         // set up "fake" DataFusion session
         let object_store = Arc::clone(&self.object_store);
-        let session_ctx = SessionContext::with_config(iox_session_config());
+        let session_ctx = SessionContext::new_with_config(iox_session_config());
         register_iox_object_store(session_ctx.runtime_env(), self.id, object_store);
         session_ctx
     }
@@ -298,6 +297,7 @@ impl ParquetStorage {
                 last_modified: Default::default(),
                 size: file_size,
                 e_tag: None,
+                version: None,
             },
         }
     }
@@ -326,10 +326,10 @@ pub enum ProjectionError {
 mod tests {
     use super::*;
     use arrow::{
-        array::{ArrayRef, BinaryArray, Int64Array, StringArray},
+        array::{ArrayRef, Int64Array, IntervalMonthDayNanoArray, StringArray},
         record_batch::RecordBatch,
     };
-    use data_types::{CompactionLevel, NamespaceId, PartitionId, TableId};
+    use data_types::{CompactionLevel, NamespaceId, ObjectStoreId, PartitionId, TableId};
     use datafusion::common::DataFusionError;
     use datafusion_util::{unbounded_memory_pool, MemoryStream};
     use iox_time::Time;
@@ -442,13 +442,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_schema_check_fail_different_types() {
-        let batch = RecordBatch::try_from_iter([("a", to_binary_array(&["value"]))]).unwrap();
-        let other_batch = RecordBatch::try_from_iter([("a", to_int_array(&[1]))]).unwrap();
+        let batch = RecordBatch::try_from_iter([("a", to_interval_array(&[123456]))]).unwrap();
+        let other_batch = RecordBatch::try_from_iter([("a", to_int_array(&[123456]))]).unwrap();
         let schema = batch.schema();
         assert_schema_check_fail(
             other_batch,
             schema,
-            "Error during planning: Cannot cast file schema field a of type Int64 to table schema field of type Binary",
+            "Error during planning: Cannot cast file schema field a of type Int64 to table schema field of type Interval(MonthDayNano)",
         ).await;
     }
 
@@ -584,8 +584,8 @@ mod tests {
         Arc::new(array)
     }
 
-    fn to_binary_array(strs: &[&str]) -> ArrayRef {
-        let array: BinaryArray = strs.iter().map(|s| Some(*s)).collect();
+    fn to_interval_array(vals: &[i128]) -> ArrayRef {
+        let array: IntervalMonthDayNanoArray = vals.iter().map(|v| Some(*v)).collect();
         Arc::new(array)
     }
 
@@ -598,7 +598,7 @@ mod tests {
         (
             TransitionPartitionId::Deprecated(PartitionId::new(4)),
             IoxMetadata {
-                object_store_id: Default::default(),
+                object_store_id: ObjectStoreId::new(),
                 creation_timestamp: Time::from_timestamp_nanos(42),
                 namespace_id: NamespaceId::new(1),
                 namespace_name: "bananas".into(),

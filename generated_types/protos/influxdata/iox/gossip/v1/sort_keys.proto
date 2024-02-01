@@ -1,0 +1,20 @@
+syntax = "proto3";
+package influxdata.iox.gossip.v1;
+option go_package = "github.com/influxdata/iox/gossip/v1";
+
+import "influxdata/iox/catalog/v1/partition_identifier.proto";
+import "influxdata/iox/catalog/v1/service.proto";
+
+// Notification of the sort key for a partition being updated.
+//
+// This message defines the complete sort key yielded by the sender as a result
+// of the update. Sort key updates are additive so this event MUST NOT result in
+// the removal of columns from the receivers sort key.
+message PartitionSortKeyUpdateEvent {
+  // The unique identifier for the partition this event 
+  influxdata.iox.catalog.v1.PartitionIdentifier identifier = 1;
+
+  // The complete, sorted set of column IDs which make up the new sort key for 
+  // the partition at the time of update.
+  influxdata.iox.catalog.v1.SortKeyIds sort_key_ids = 2;
+}

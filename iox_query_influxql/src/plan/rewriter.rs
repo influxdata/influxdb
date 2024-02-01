@@ -100,8 +100,12 @@ impl RewriteSelect {
 
         let from = self.expand_from(s, stmt)?;
         let tag_set = from_tag_set(s, &from);
-        let (fields, group_by) = self.expand_projection(s, stmt, &from, &tag_set)?;
-        let condition = self.condition_resolve_types(s, stmt, &from)?;
+        let (fields, group_by) = self
+            .expand_projection(s, stmt, &from, &tag_set)
+            .map_err(|e| e.context("expand projection"))?;
+        let condition = self
+            .condition_resolve_types(s, stmt, &from)
+            .map_err(|e| e.context("resolve types in condition"))?;
 
         let now = Timestamp::from(s.execution_props().query_execution_start_time);
         let rc = ReduceContext {
@@ -109,10 +113,14 @@ impl RewriteSelect {
             tz: stmt.timezone.map(|tz| *tz),
         };
 
-        let interval = self.find_interval_offset(&rc, group_by.as_ref())?;
+        let interval = self
+            .find_interval_offset(&rc, group_by.as_ref())
+            .map_err(|e| e.context("find interval offset"))?;
 
         let (condition, time_range) = match condition {
-            Some(where_clause) => split_cond(&rc, &where_clause).map_err(error::map::expr_error)?,
+            Some(where_clause) => split_cond(&rc, &where_clause)
+                .map_err(error::map::expr_error)
+                .map_err(|e| e.context("split condition"))?,
             None => (None, TimeRange::default()),
         };
 
@@ -131,7 +139,8 @@ impl RewriteSelect {
         let SelectStatementInfo {
             projection_type,
             extra_intervals,
-        } = select_statement_info(&fields, &group_by, stmt.fill)?;
+        } = select_statement_info(&fields, &group_by, stmt.fill)
+            .map_err(|e| e.context("gather information about select statement"))?;
 
         // Following InfluxQL OG behaviour, if this is a subquery, and the fill strategy equates
         // to `FILL(null)`, switch to `FILL(none)`.
@@ -1042,6 +1051,8 @@ impl FieldChecker {
                 } else {
                     ProjectionType::WindowAggregateMixed
                 }
+            } else if self.has_distinct {
+                ProjectionType::RawDistinct
             } else {
                 ProjectionType::Aggregate
             }
@@ -1566,7 +1577,7 @@ pub(crate) enum ProjectionType {
     /// A query that projects no aggregate or selector functions.
     #[default]
     Raw,
-    /// A query that projects a single DISTINCT(field)
+    /// A query that projects a single DISTINCT(field).
     RawDistinct,
     /// A query that projects one or more aggregate functions or
     /// two or more selector functions.
@@ -2432,21 +2443,21 @@ mod test {
 
             let stmt = parse_select("SELECT *::field + *::tag FROM cpu");
             let err = rewrite_select_statement(&namespace, &stmt).unwrap_err();
-            assert_eq!(
+            assert_contains!(
                 err.to_string(),
                 "Error during planning: unsupported binary expression: contains a wildcard or regular expression"
             );
 
             let stmt = parse_select("SELECT COUNT(*) + SUM(usage_idle) FROM cpu");
             let err = rewrite_select_statement(&namespace, &stmt).unwrap_err();
-            assert_eq!(
+            assert_contains!(
                 err.to_string(),
                 "Error during planning: unsupported binary expression: contains a wildcard or regular expression"
             );
 
             let stmt = parse_select("SELECT COUNT(*::tag) FROM cpu");
             let err = rewrite_select_statement(&namespace, &stmt).unwrap_err();
-            assert_eq!(
+            assert_contains!(
                 err.to_string(),
                 "Error during planning: unable to use tag as wildcard in count()"
             );

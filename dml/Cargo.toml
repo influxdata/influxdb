@@ -6,6 +6,9 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 arrow_util = { path = "../arrow_util" }
 data_types = { path = "../data_types" }

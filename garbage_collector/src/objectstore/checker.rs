@@ -1,4 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
+use data_types::ObjectStoreId;
 use iox_catalog::interface::{Catalog, ParquetFileRepo};
 use object_store::ObjectMeta;
 use observability_deps::tracing::*;
@@ -7,7 +8,6 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
-use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
@@ -51,7 +51,7 @@ pub(crate) async fn perform(
     items: mpsc::Receiver<ObjectMeta>,
     deleter: mpsc::Sender<ObjectMeta>,
 ) -> Result<()> {
-    let mut repositories = catalog.repositories().await;
+    let mut repositories = catalog.repositories();
     let parquet_files = repositories.parquet_files();
 
     perform_inner(parquet_files, cutoff, items, deleter).await
@@ -143,7 +143,7 @@ async fn should_delete(
 
         // extract the file suffix, delete it if it isn't a parquet file
         if let Some(uuid) = file_name.unwrap().as_ref().strip_suffix(".parquet") {
-            if let Ok(object_store_id) = uuid.parse::<Uuid>() {
+            if let Ok(object_store_id) = uuid.parse::<ObjectStoreId>() {
                 // add it to the list to check against the catalog
                 // push a tuple that maps the uuid to the object meta struct so we don't have generate the uuid again
                 to_check_in_catalog.push((object_store_id, candidate))
@@ -171,7 +171,8 @@ async fn should_delete(
     }
 
     // do_not_delete contains the items that are present in the catalog
-    let mut do_not_delete: HashSet<Uuid> = HashSet::with_capacity(to_check_in_catalog.len());
+    let mut do_not_delete: HashSet<ObjectStoreId> =
+        HashSet::with_capacity(to_check_in_catalog.len());
     for batch in to_check_in_catalog.chunks(CATALOG_BATCH_SIZE) {
         let just_uuids: Vec<_> = batch.iter().map(|id| id.0).collect();
         match check_ids_exists_in_catalog(just_uuids.clone(), parquet_files).await {
@@ -214,9 +215,9 @@ async fn should_delete(
 /// helper to check a batch of ids for presence in the catalog.
 /// returns a list of the ids (from the original batch) that exist (or catalog error).
 async fn check_ids_exists_in_catalog(
-    candidates: Vec<Uuid>,
+    candidates: Vec<ObjectStoreId>,
     parquet_files: &mut dyn ParquetFileRepo,
-) -> Result<Vec<Uuid>> {
+) -> Result<Vec<ObjectStoreId>> {
     parquet_files
         .exists_by_object_store_id_batch(candidates)
         .await
@@ -228,19 +229,19 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, NamespaceId, ParquetFile, ParquetFileId,
-        ParquetFileParams, PartitionId, TableId, Timestamp, TransitionPartitionId,
+        ColumnId, ColumnSet, CompactionLevel, NamespaceId, ObjectStoreId, ParquetFile,
+        ParquetFileId, ParquetFileParams, PartitionId, TableId, Timestamp, TransitionPartitionId,
     };
     use iox_catalog::{
-        interface::Catalog,
+        interface::{Catalog, ParquetFileRepoExt},
         mem::MemCatalog,
         test_helpers::{arbitrary_namespace, arbitrary_table},
     };
+    use iox_time::SystemProvider;
     use object_store::path::Path;
     use once_cell::sync::Lazy;
     use parquet_file::ParquetFilePath;
     use std::{assert_eq, vec};
-    use uuid::Uuid;
 
     static OLDER_TIME: Lazy<DateTime<Utc>> = Lazy::new(|| {
         DateTime::parse_from_str("2022-01-01T00:00:00z", "%+")
@@ -257,12 +258,13 @@ mod tests {
 
     async fn create_catalog_and_file() -> (Arc<dyn Catalog>, ParquetFile) {
         let metric_registry = Arc::new(metric::Registry::new());
-        let catalog = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
+        let time_provider = Arc::new(SystemProvider::new());
+        let catalog = Arc::new(MemCatalog::new(Arc::clone(&metric_registry), time_provider));
         create_schema_and_file(catalog).await
     }
 
     async fn create_schema_and_file(catalog: Arc<dyn Catalog>) -> (Arc<dyn Catalog>, ParquetFile) {
-        let mut repos = catalog.repositories().await;
+        let mut repos = catalog.repositories();
         let namespace = arbitrary_namespace(&mut *repos, "namespace_parquet_file_test").await;
         let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
         let partition = repos
@@ -274,8 +276,9 @@ mod tests {
         let parquet_file_params = ParquetFileParams {
             namespace_id: namespace.id,
             table_id: partition.table_id,
-            partition_id: partition.transition_partition_id(),
-            object_store_id: Uuid::new_v4(),
+            partition_id: partition.id,
+            partition_hash_id: partition.hash_id().cloned(),
+            object_store_id: ObjectStoreId::new(),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,
@@ -298,13 +301,13 @@ mod tests {
     #[tokio::test]
     async fn dont_delete_new_file_in_catalog() {
         let (catalog, file_in_catalog) = create_catalog_and_file().await;
-        let mut repositories = catalog.repositories().await;
+        let mut repositories = catalog.repositories();
         let parquet_files = repositories.parquet_files();
 
         let location = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            &file_in_catalog.partition_id.clone(),
+            &file_in_catalog.transition_partition_id(),
             file_in_catalog.object_store_id,
         )
         .object_store_path();
@@ -317,6 +320,7 @@ mod tests {
             last_modified,
             size: 0,
             e_tag: None,
+            version: None,
         };
 
         let results = should_delete(vec![item], cutoff, parquet_files).await;
@@ -326,15 +330,17 @@ mod tests {
     #[tokio::test]
     async fn dont_delete_new_file_not_in_catalog() {
         let metric_registry = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
-        let mut repositories = catalog.repositories().await;
+        let time_provider = Arc::new(SystemProvider::new());
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::clone(&metric_registry), time_provider));
+        let mut repositories = catalog.repositories();
         let parquet_files = repositories.parquet_files();
 
         let location = ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
             &TransitionPartitionId::Deprecated(PartitionId::new(4)),
-            Uuid::new_v4(),
+            ObjectStoreId::new(),
         )
         .object_store_path();
 
@@ -346,6 +352,7 @@ mod tests {
             last_modified,
             size: 0,
             e_tag: None,
+            version: None,
         };
 
         let results = should_delete(vec![item], cutoff, parquet_files).await;
@@ -355,8 +362,10 @@ mod tests {
     #[tokio::test]
     async fn dont_delete_new_file_with_unparseable_path() {
         let metric_registry = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
-        let mut repositories = catalog.repositories().await;
+        let time_provider = Arc::new(SystemProvider::new());
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::clone(&metric_registry), time_provider));
+        let mut repositories = catalog.repositories();
         let parquet_files = repositories.parquet_files();
 
         let cutoff = *OLDER_TIME;
@@ -367,6 +376,7 @@ mod tests {
             last_modified,
             size: 0,
             e_tag: None,
+            version: None,
         };
 
         let results = should_delete(vec![item], cutoff, parquet_files).await;
@@ -376,13 +386,13 @@ mod tests {
     #[tokio::test]
     async fn dont_delete_old_file_in_catalog() {
         let (catalog, file_in_catalog) = create_catalog_and_file().await;
-        let mut repositories = catalog.repositories().await;
+        let mut repositories = catalog.repositories();
         let parquet_files = repositories.parquet_files();
 
         let location = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            &file_in_catalog.partition_id.clone(),
+            &file_in_catalog.transition_partition_id(),
             file_in_catalog.object_store_id,
         )
         .object_store_path();
@@ -395,6 +405,7 @@ mod tests {
             last_modified,
             size: 0,
             e_tag: None,
+            version: None,
         };
 
         let results = should_delete(vec![item], cutoff, parquet_files).await;
@@ -404,15 +415,17 @@ mod tests {
     #[tokio::test]
     async fn delete_old_file_not_in_catalog() {
         let metric_registry = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
-        let mut repositories = catalog.repositories().await;
+        let time_provider = Arc::new(SystemProvider::new());
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::clone(&metric_registry), time_provider));
+        let mut repositories = catalog.repositories();
         let parquet_files = repositories.parquet_files();
 
         let location = ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
             &TransitionPartitionId::Deprecated(PartitionId::new(4)),
-            Uuid::new_v4(),
+            ObjectStoreId::new(),
         )
         .object_store_path();
 
@@ -424,6 +437,7 @@ mod tests {
             last_modified,
             size: 0,
             e_tag: None,
+            version: None,
         };
         let results = should_delete(vec![item.clone()], cutoff, parquet_files).await;
         assert_eq!(results.len(), 1);
@@ -433,8 +447,10 @@ mod tests {
     #[tokio::test]
     async fn delete_old_file_with_unparseable_path() {
         let metric_registry = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
-        let mut repositories = catalog.repositories().await;
+        let time_provider = Arc::new(SystemProvider::new());
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::clone(&metric_registry), time_provider));
+        let mut repositories = catalog.repositories();
         let parquet_files = repositories.parquet_files();
 
         let cutoff = *NEWER_TIME;
@@ -445,6 +461,7 @@ mod tests {
             last_modified,
             size: 0,
             e_tag: None,
+            version: None,
         };
 
         let results = should_delete(vec![item.clone()], cutoff, parquet_files).await;
@@ -458,10 +475,12 @@ mod tests {
     #[tokio::test]
     async fn do_not_delete_on_catalog_error() {
         let metric_registry = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
+        let time_provider = Arc::new(SystemProvider::new());
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::clone(&metric_registry), time_provider));
         let (catalog, file_in_catalog) = create_schema_and_file(catalog).await;
 
-        let mut repositories = catalog.repositories().await;
+        let mut repositories = catalog.repositories();
         let parquet_files = repositories.parquet_files();
 
         // A ParquetFileRepo that returns an error in the one method [should_delete] uses.
@@ -475,7 +494,7 @@ mod tests {
         let loc = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            &file_in_catalog.partition_id.clone(),
+            &file_in_catalog.transition_partition_id(),
             file_in_catalog.object_store_id,
         )
         .object_store_path();
@@ -485,6 +504,7 @@ mod tests {
             last_modified,
             size: 0,
             e_tag: None,
+            version: None,
         };
 
         // check precondition, file exists in catalog
@@ -506,79 +526,53 @@ mod tests {
 
     #[async_trait]
     impl ParquetFileRepo for MockParquetFileRepo<'_> {
-        async fn create(
-            &mut self,
-            parquet_file_params: ParquetFileParams,
-        ) -> iox_catalog::interface::Result<ParquetFile> {
-            self.inner.create(parquet_file_params).await
-        }
-
-        async fn list_all(&mut self) -> iox_catalog::interface::Result<Vec<ParquetFile>> {
-            self.inner.list_all().await
-        }
-
         async fn flag_for_delete_by_retention(
             &mut self,
-        ) -> iox_catalog::interface::Result<Vec<ParquetFileId>> {
+        ) -> iox_catalog::interface::Result<Vec<(PartitionId, ObjectStoreId)>> {
             self.inner.flag_for_delete_by_retention().await
-        }
-
-        async fn list_by_namespace_not_to_delete(
-            &mut self,
-            namespace_id: NamespaceId,
-        ) -> iox_catalog::interface::Result<Vec<ParquetFile>> {
-            self.inner
-                .list_by_namespace_not_to_delete(namespace_id)
-                .await
-        }
-
-        async fn list_by_table_not_to_delete(
-            &mut self,
-            table_id: TableId,
-        ) -> iox_catalog::interface::Result<Vec<ParquetFile>> {
-            self.inner.list_by_table_not_to_delete(table_id).await
         }
 
         async fn delete_old_ids_only(
             &mut self,
             older_than: Timestamp,
-        ) -> iox_catalog::interface::Result<Vec<ParquetFileId>> {
+        ) -> iox_catalog::interface::Result<Vec<ObjectStoreId>> {
             self.inner.delete_old_ids_only(older_than).await
         }
 
-        async fn list_by_partition_not_to_delete(
+        async fn list_by_partition_not_to_delete_batch(
             &mut self,
-            partition_id: &TransitionPartitionId,
+            partition_ids: Vec<PartitionId>,
         ) -> iox_catalog::interface::Result<Vec<ParquetFile>> {
             self.inner
-                .list_by_partition_not_to_delete(partition_id)
+                .list_by_partition_not_to_delete_batch(partition_ids)
                 .await
         }
 
         async fn get_by_object_store_id(
             &mut self,
-            object_store_id: Uuid,
+            object_store_id: ObjectStoreId,
         ) -> iox_catalog::interface::Result<Option<ParquetFile>> {
             self.inner.get_by_object_store_id(object_store_id).await
         }
 
         async fn exists_by_object_store_id_batch(
             &mut self,
-            _object_store_ids: Vec<Uuid>,
-        ) -> iox_catalog::interface::Result<Vec<Uuid>> {
-            Err(iox_catalog::interface::Error::SqlxError {
-                source: sqlx::Error::WorkerCrashed,
+            _object_store_ids: Vec<ObjectStoreId>,
+        ) -> iox_catalog::interface::Result<Vec<ObjectStoreId>> {
+            Err(iox_catalog::interface::Error::External {
+                source: String::from("test").into(),
             })
         }
 
         async fn create_upgrade_delete(
             &mut self,
-            delete: &[ParquetFileId],
-            upgrade: &[ParquetFileId],
+            partition_id: PartitionId,
+            delete: &[ObjectStoreId],
+            upgrade: &[ObjectStoreId],
             create: &[ParquetFileParams],
             target_level: CompactionLevel,
         ) -> iox_catalog::interface::Result<Vec<ParquetFileId>> {
-            self.create_upgrade_delete(delete, upgrade, create, target_level)
+            self.create_upgrade_delete(partition_id, delete, upgrade, create, target_level)
                 .await
         }
     }

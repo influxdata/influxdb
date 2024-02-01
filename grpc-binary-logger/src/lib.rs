@@ -14,7 +14,7 @@
     clippy::dbg_macro,
     unused_crate_dependencies
 )]
-
+#[allow(unreachable_pub)]
 // Workaround for "unused crate" lint false positives.
 #[cfg(test)]
 use assert_matches as _;

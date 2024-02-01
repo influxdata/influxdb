@@ -1,7 +1,7 @@
 mod internal;
 
 pub use internal::Duration;
-use schema::TIME_DATA_TYPE;
+use schema::{TIME_DATA_TIMEZONE, TIME_DATA_TYPE};
 
 use std::sync::Arc;
 
@@ -158,7 +158,9 @@ fn window_bounds(arg: &dyn Array, every: WindowDuration, offset: WindowDuration)
         })
     });
 
-    let array = values.collect::<TimestampNanosecondArray>();
+    let array = values
+        .collect::<TimestampNanosecondArray>()
+        .with_timezone_opt(TIME_DATA_TIMEZONE());
     Arc::new(array) as ArrayRef
 }
 
@@ -264,26 +266,20 @@ mod tests {
 
     #[test]
     fn test_window_bounds() {
-        let input: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![
-            Some(100),
-            None,
-            Some(200),
-            Some(300),
-            Some(400),
-        ]));
+        let input: ArrayRef = Arc::new(
+            TimestampNanosecondArray::from(vec![Some(100), None, Some(200), Some(300), Some(400)])
+                .with_timezone_opt(TIME_DATA_TIMEZONE()),
+        );
 
         let every = WindowDuration::from_nanoseconds(200);
         let offset = WindowDuration::from_nanoseconds(50);
 
         let bounds_array = window_bounds(&input, every, offset);
 
-        let expected_array: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![
-            Some(250),
-            None,
-            Some(250),
-            Some(450),
-            Some(450),
-        ]));
+        let expected_array: ArrayRef = Arc::new(
+            TimestampNanosecondArray::from(vec![Some(250), None, Some(250), Some(450), Some(450)])
+                .with_timezone_opt(TIME_DATA_TIMEZONE()),
+        );
 
         assert_eq!(
             &expected_array, &bounds_array,

@@ -1,3 +1,4 @@
+use http::StatusCode;
 use std::{convert::Infallible, num::NonZeroI32, sync::Arc};
 
 use authz::http::AuthorizationHeaderExtension;
@@ -94,14 +95,11 @@ pub async fn serve(
     shutdown: CancellationToken,
     trace_header_parser: TraceHeaderParser,
 ) -> Result<(), hyper::Error> {
-    let metric_registry = server_type.metric_registry();
     let trace_collector = server_type.trace_collector();
-
     let trace_layer = TraceLayer::new(
         trace_header_parser,
-        metric_registry,
+        Arc::new(server_type.http_request_metrics()),
         trace_collector,
-        false,
         server_type.name(),
     );
 
@@ -136,7 +134,7 @@ async fn route_request(
     let content_length = req.headers().get("content-length").cloned();
 
     let response = match (method.clone(), uri.path()) {
-        (Method::GET, "/health") => health(),
+        (Method::GET, "/health") => Ok(health(server_type.as_ref())),
         (Method::GET, "/metrics") => handle_metrics(server_type.as_ref()),
         (Method::GET, "/debug/pprof") => pprof_home(req).await,
         (Method::GET, "/debug/pprof/profile") => pprof_profile(req).await,
@@ -165,9 +163,18 @@ async fn route_request(
     }
 }
 
-fn health() -> Result<Response<Body>, ApplicationError> {
-    let response_body = "OK";
-    Ok(Response::new(Body::from(response_body.to_string())))
+fn health(server_type: &dyn ServerType) -> Response<Body> {
+    match server_type.is_healthy() {
+        true => {
+            let response_body = "OK";
+            Response::new(Body::from(response_body.to_string()))
+        }
+        false => {
+            let mut resp = Response::new(Body::empty());
+            *resp.status_mut() = StatusCode::SERVICE_UNAVAILABLE;
+            resp
+        }
+    }
 }
 
 fn handle_metrics(server_type: &dyn ServerType) -> Result<Response<Body>, ApplicationError> {

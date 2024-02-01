@@ -15,7 +15,6 @@ pub(crate) async fn perform(
         if !dry_run {
             let flagged = catalog
                 .repositories()
-                .await
                 .parquet_files()
                 .flag_for_delete_by_retention() //read/write
                 .await

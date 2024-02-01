@@ -5,17 +5,21 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 futures = "0.3"
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
-once_cell = { version = "1.18", features = ["parking_lot"] }
+once_cell = { version = "1.19", features = ["parking_lot"] }
 parking_lot = "0.12"
 pin-project = "1.1"
-snafu = "0.7"
-tokio = { version = "1.32" }
-tokio-util = { version = "0.7.9" }
+snafu = "0.8"
+tokio = { version = "1.35" }
+tokio-util = { version = "0.7.10" }
 tokio_metrics_bridge = { path = "../tokio_metrics_bridge" }
+tokio_watchdog = { path = "../tokio_watchdog" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 # use libc on unix like platforms to set worker priority in DedicatedExecutor

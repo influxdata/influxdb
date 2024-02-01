@@ -86,7 +86,7 @@ struct SizeLimitedHashMap<K, V> {
 }
 
 impl<K: Copy + Hash + Eq + Ord, V> SizeLimitedHashMap<K, V> {
-    pub fn new(capacity: usize) -> Self {
+    pub(crate) fn new(capacity: usize) -> Self {
         Self {
             values: HashMap::with_capacity(capacity),
             ring: Vec::with_capacity(capacity),
@@ -96,14 +96,14 @@ impl<K: Copy + Hash + Eq + Ord, V> SizeLimitedHashMap<K, V> {
     }
 
     /// Get the value associated with a specific key
-    pub fn get(&self, key: &K) -> Option<&V> {
+    pub(crate) fn get(&self, key: &K) -> Option<&V> {
         self.values.get(key)
     }
 
     /// Returns an iterator to all values stored within the ring buffer
     ///
     /// Note: the order is not guaranteed
-    pub fn values(&self) -> impl Iterator<Item = &V> + '_ {
+    pub(crate) fn values(&self) -> impl Iterator<Item = &V> + '_ {
         self.values.values()
     }
 
@@ -116,7 +116,7 @@ impl<K: Copy + Hash + Eq + Ord, V> SizeLimitedHashMap<K, V> {
     /// from the buffer.
     ///
     /// This returns the replaced value (if any).
-    pub fn push(&mut self, key: K, value: V) -> Option<(K, V)> {
+    pub(crate) fn push(&mut self, key: K, value: V) -> Option<(K, V)> {
         if let Entry::Occupied(occupied) = self.values.entry(key) {
             // If already exists - replace existing value
             occupied.replace_entry(value);

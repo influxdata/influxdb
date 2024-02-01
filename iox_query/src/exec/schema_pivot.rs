@@ -251,9 +251,8 @@ impl ExecutionPlan for SchemaPivotExec {
         Some(self.metrics.clone_inner())
     }
 
-    fn statistics(&self) -> Statistics {
-        // don't know anything about the statistics
-        Statistics::default()
+    fn statistics(&self) -> Result<Statistics> {
+        Ok(Statistics::new_unknown(&self.schema()))
     }
 }
 

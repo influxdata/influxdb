@@ -7,7 +7,7 @@ use arrow::record_batch::RecordBatch;
 use datafusion::common::tree_node::{TreeNode, TreeNodeVisitor, VisitRecursion};
 use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::optimizer::utils::split_conjunction_owned;
+use datafusion::logical_expr::utils::split_conjunction_owned;
 use datafusion::physical_expr::create_physical_expr;
 use datafusion::physical_expr::execution_props::ExecutionProps;
 use datafusion::physical_plan::ColumnarValue;

@@ -6,13 +6,17 @@ use data_types::{
     partition_template::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, PARTITION_BY_DAY_PROTO,
     },
-    ColumnSet, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceName,
-    NamespaceNameError, ParquetFileParams, Partition, PartitionKey, SortedColumnSet, Statistics,
-    Table, TableId, Timestamp,
+    ColumnSet, ColumnType, CompactionLevel, CompactionLevelProtoError, Namespace, NamespaceId,
+    NamespaceName, NamespaceNameError, ParquetFileParams, Partition, PartitionKey, SortKeyIds,
+    Statistics, Table, TableId, Timestamp,
 };
 use generated_types::influxdata::iox::catalog::v1 as proto;
+use generated_types::influxdata::iox::table::v1 as table;
 //    ParquetFile as ProtoParquetFile, Partition as ProtoPartition,
-use iox_catalog::interface::{CasFailure, Catalog, RepoCollection, SoftDeletedRows};
+use iox_catalog::{
+    interface::{CasFailure, Catalog, ParquetFileRepoExt, RepoCollection, SoftDeletedRows},
+    util::get_table_columns_by_id,
+};
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, info, warn};
 use parquet_file::{
@@ -59,7 +63,7 @@ pub enum Error {
     #[error("Mismatched sort key. Exported sort key is {exported}, existing is {existing}")]
     MismatchedSortKey { exported: String, existing: String },
 
-    #[error("Unexpected parquet filename. Expected a name like <id>.<partition_id>.parquet, got {path:?}")]
+    #[error("Unexpected parquet filename. Expected a name like <id>.parquet, got {path:?}")]
     UnexpectedFileName { path: PathBuf },
 
     #[error("Invalid Namespace: {0}")]
@@ -71,7 +75,7 @@ pub enum Error {
     NoSortKey,
 
     #[error("Unknown compaction level in encoded metadata: {0}")]
-    UnknownCompactionLevel(Box<dyn std::error::Error + std::marker::Send + Sync>),
+    UnknownCompactionLevel(#[from] CompactionLevelProtoError),
 
     #[error("Catalog error: {0}")]
     Catalog(#[from] iox_catalog::interface::Error),
@@ -109,6 +113,9 @@ pub struct ExportedContents {
 
     /// Decoded partition metadata,  found in the export
     partition_metadata: Vec<proto::Partition>,
+
+    /// Decoded tables, found in the export
+    tables: Vec<table::Table>,
 
     /// Decoded parquet metata found in the export
     /// Key is object_store_id, value is decoded metadata
@@ -206,6 +213,21 @@ impl ExportedContents {
             self.parquet_metadata.push(parquet_file);
         }
 
+        for path in &self.table_json_files {
+            debug!(?path, "Reading table metadata json file");
+            let json = std::fs::read_to_string(path).map_err(|e| Error::Reading {
+                path: path.clone(),
+                e,
+            })?;
+
+            let table: table::Table = serde_json::from_str(&json).map_err(|e| Error::Json {
+                path: path.clone(),
+                e,
+            })?;
+
+            self.tables.push(table);
+        }
+
         Ok(())
     }
 
@@ -249,6 +271,15 @@ impl ExportedContents {
         self.parquet_metadata
             .iter()
             .find(|p| p.object_store_id == object_store_id)
+            .cloned()
+    }
+
+    /// Returns table information retrieved exported
+    /// from the table client, if any, with the given table namespace id and table id
+    pub fn table(&self, namespace_id: i64, table_name: &str) -> Option<table::Table> {
+        self.tables
+            .iter()
+            .find(|t| t.namespace_id == namespace_id && t.name == table_name)
             .cloned()
     }
 }
@@ -332,7 +363,7 @@ impl RemoteImporter {
 
         // step 2: Add the appropriate entry to the catalog
         let namespace_name = iox_metadata.namespace_name.as_ref();
-        let mut repos = self.catalog.repositories().await;
+        let mut repos = self.catalog.repositories();
 
         let namespace = repos
             .namespaces()
@@ -411,7 +442,7 @@ impl RemoteImporter {
             Ok(parquet_file) => {
                 debug!(parquet_file_id=?parquet_file.id, "  Created parquet file entry {}", parquet_file.id);
             }
-            Err(iox_catalog::interface::Error::FileExists { .. }) => {
+            Err(iox_catalog::interface::Error::AlreadyExists { .. }) => {
                 warn!(%object_store_id, "parquet file already exists, skipping");
             }
             Err(e) => {
@@ -449,9 +480,10 @@ impl RemoteImporter {
         Ok(())
     }
 
-    /// Return the relevant Catlog [`Table`] for the specified parquet
+    /// Return the relevant Catalog [`Table`] for the specified parquet
     /// file.
     ///
+    /// If the table has been exported, add it to the repo and return it.
     /// If the table does not yet exist, it is created, using any
     /// available catalog metadata and falling back to what is in the
     /// iox metadata if needed
@@ -473,13 +505,23 @@ impl RemoteImporter {
             return Ok(table);
         }
 
+        // use exported table
+        if let Some(table) = self.exported_contents.table(namespace.id.get(), table_name) {
+            return Ok(tables
+                .create(
+                    &table.name,
+                    table.partition_template.try_into()?,
+                    NamespaceId::new(table.namespace_id),
+                )
+                .await?);
+        }
+
         // need to make a new table, create the default partitioning scheme...
         let partition_template = PARTITION_BY_DAY_PROTO.as_ref().clone();
         let namespace_template = NamespacePartitionTemplateOverride::try_from(partition_template)?;
         let custom_table_template = None;
         let partition_template =
             TablePartitionTemplateOverride::try_new(custom_table_template, &namespace_template)?;
-
         let table = tables
             .create(table_name, partition_template, namespace.id)
             .await?;
@@ -508,7 +550,7 @@ impl RemoteImporter {
 
     /// Update sort keys of the partition
     ///
-    /// file shoudl be inserted.
+    /// file should be inserted.
     ///
     /// First attempts to use any available metadata from the
     /// catalog export, and falls back to what is in the iox
@@ -530,24 +572,15 @@ impl RemoteImporter {
             .exported_contents
             .partition_metadata(iox_metadata.table_id.get(), partition_key.inner());
 
-        let (new_sort_key, new_sort_key_ids) = if let Some(proto_partition) =
-            proto_partition.as_ref()
-        {
+        let new_sort_key_ids = if let Some(proto_partition) = proto_partition.as_ref() {
             // Use the sort key from the source catalog
-            debug!(array_sort_key=?proto_partition.array_sort_key, "Using sort key from catalog export");
-            let new_sort_key = proto_partition
-                .array_sort_key
-                .iter()
-                .map(|s| s.as_str())
-                .collect::<Vec<&str>>();
-
+            debug!(sort_key_ids=?proto_partition.sort_key_ids, "Using sort key from catalog export");
             let new_sort_key_ids = match &proto_partition.sort_key_ids {
                 Some(sort_key_ids) => sort_key_ids.array_sort_key_ids.clone(),
                 None => vec![],
             };
-            let new_sort_key_ids = SortedColumnSet::from(new_sort_key_ids);
 
-            (new_sort_key, new_sort_key_ids)
+            SortKeyIds::from(new_sort_key_ids)
         } else {
             warn!("Could not find sort key in catalog metadata export, falling back to embedded metadata");
             let sort_key = iox_metadata
@@ -557,29 +590,15 @@ impl RemoteImporter {
 
             let new_sort_key = sort_key.to_columns().collect::<Vec<_>>();
 
-            // fecth table columns
-            let columns = ColumnsByName::new(repos.columns().list_by_table_id(table.id).await?);
-            let new_sort_key_ids = columns.ids_for_names(&new_sort_key);
-
-            (new_sort_key, new_sort_key_ids)
+            // fetch table columns
+            let columns = get_table_columns_by_id(table.id, repos).await?;
+            columns.ids_for_names(&new_sort_key)
         };
-
-        if !partition.sort_key.is_empty() && partition.sort_key != new_sort_key {
-            let exported = new_sort_key.join(",");
-            let existing = partition.sort_key.join(",");
-            return Err(Error::MismatchedSortKey { exported, existing });
-        }
 
         loop {
             let res = repos
                 .partitions()
-                .cas_sort_key(
-                    &partition.transition_partition_id(),
-                    Some(partition.sort_key.clone()),
-                    Some(partition.sort_key_ids.clone()),
-                    &new_sort_key,
-                    &new_sort_key_ids,
-                )
+                .cas_sort_key(partition.id, partition.sort_key_ids(), &new_sort_key_ids)
                 .await;
 
             match res {
@@ -618,15 +637,13 @@ impl RemoteImporter {
         let column_set = insert_columns(table.id, decoded_iox_parquet_metadata, repos).await?;
 
         let params = if let Some(proto_parquet_file) = &parquet_metadata {
-            let compaction_level = proto_parquet_file
-                .compaction_level
-                .try_into()
-                .map_err(Error::UnknownCompactionLevel)?;
+            let compaction_level = proto_parquet_file.compaction_level.try_into()?;
 
             ParquetFileParams {
                 namespace_id: namespace.id,
                 table_id: table.id,
-                partition_id: partition.transition_partition_id(),
+                partition_id: partition.id,
+                partition_hash_id: partition.hash_id().cloned(),
                 object_store_id,
                 min_time: Timestamp::new(proto_parquet_file.min_time),
                 max_time: Timestamp::new(proto_parquet_file.max_time),
@@ -645,7 +662,8 @@ impl RemoteImporter {
             ParquetFileParams {
                 namespace_id: namespace.id,
                 table_id: table.id,
-                partition_id: partition.transition_partition_id(),
+                partition_id: partition.id,
+                partition_hash_id: partition.hash_id().cloned(),
                 object_store_id,
                 min_time,
                 max_time,
@@ -722,7 +740,7 @@ fn get_min_max_times(
 
 /// Given a filename of the store parquet metadata, returns the object_store_id
 ///
-/// For example, `e65790df-3e42-0094-048f-0b69a7ee402c.13180488.parquet`,
+/// For example, `e65790df-3e42-0094-048f-0b69a7ee402c.parquet`,
 /// returns `e65790df-3e42-0094-048f-0b69a7ee402c`
 ///
 /// For some reason the object store id embedded in the parquet file's
@@ -735,8 +753,5 @@ fn object_store_id_from_parquet_filename(path: &Path) -> Option<String> {
         .file_stem()?
         .to_string_lossy();
 
-    // <uuid>.partition_id --> (<uuid>, partition_id)
-    let (object_store_id, _partition_id) = stem.split_once('.')?;
-
-    Some(object_store_id.to_string())
+    Some(stem.to_string())
 }

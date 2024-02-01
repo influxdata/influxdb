@@ -1,19 +1,23 @@
 use crate::snapshot_comparison::Language;
 use crate::{
-    check_flight_error, run_influxql, run_sql, snapshot_comparison, try_run_influxql, try_run_sql,
-    MiniCluster,
+    check_flight_error, run_influxql, run_influxql_with_params, run_sql, run_sql_with_params,
+    snapshot_comparison, try_run_influxql, try_run_influxql_with_params, try_run_sql,
+    try_run_sql_with_params, MiniCluster,
 };
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
 use futures::future::BoxFuture;
 use http::StatusCode;
+use iox_query_params::StatementParam;
 use observability_deps::tracing::info;
+use std::collections::HashMap;
 use std::{path::PathBuf, time::Duration};
 use test_helpers::assert_contains;
 
 const MAX_QUERY_RETRY_TIME_SEC: u64 = 20;
 
 /// Test harness for end to end tests that are comprised of several steps
+#[allow(missing_debug_implementations)]
 pub struct StepTest<'a, S> {
     cluster: &'a mut MiniCluster,
 
@@ -22,6 +26,7 @@ pub struct StepTest<'a, S> {
 }
 
 /// The test state that is passed to custom steps
+#[derive(Debug)]
 pub struct StepTestState<'a> {
     /// The mini cluster
     cluster: &'a mut MiniCluster,
@@ -154,12 +159,14 @@ impl<'a> StepTestState<'a> {
 ///   }.boxed()
 /// });
 /// ```
-pub type FCustom = Box<dyn for<'b> Fn(&'b mut StepTestState) -> BoxFuture<'b, ()> + Send + Sync>;
+pub type FCustom =
+    Box<dyn for<'b> Fn(&'b mut StepTestState<'_>) -> BoxFuture<'b, ()> + Send + Sync>;
 
 /// Function to do custom validation on metrics. Expected to panic on validation failure.
-pub type MetricsValidationFn = Box<dyn Fn(&mut StepTestState, String) + Send + Sync>;
+pub(crate) type MetricsValidationFn = Box<dyn Fn(&mut StepTestState<'_>, String) + Send + Sync>;
 
 /// Possible test steps that a test can perform
+#[allow(missing_debug_implementations)]
 pub enum Step {
     /// Writes the specified line protocol to the `/api/v2/write`
     /// endpoint, assert the data was written successfully
@@ -170,6 +177,8 @@ pub enum Step {
     WriteLineProtocolExpectingError {
         line_protocol: String,
         expected_error_code: StatusCode,
+        expected_error_message: String,
+        expected_line_number: Option<usize>,
     },
 
     /// Writes the specified line protocol to the `/api/v2/write` endpoint
@@ -217,6 +226,16 @@ pub enum Step {
         expected: Vec<&'static str>,
     },
 
+    /// Run SQL query using the FlightSQL interface, replacing `$placeholder` variables
+    /// with the supplied parameters. Then verify that the
+    /// results match the expected results using the
+    /// `assert_batches_eq!` macro
+    QueryWithParams {
+        sql: String,
+        params: HashMap<String, StatementParam>,
+        expected: Vec<&'static str>,
+    },
+
     /// Read the SQL queries in the specified file and verify that the results match the expected
     /// results in the corresponding expected file
     QueryAndCompare {
@@ -229,6 +248,16 @@ pub enum Step {
     /// request returns the expected error code and message
     QueryExpectingError {
         sql: String,
+        expected_error_code: tonic::Code,
+        expected_message: String,
+    },
+
+    /// Run SQL query using the FlightSQL interface, replacing `$placeholder` variables
+    /// with the supplied parameters. Then verify that the
+    /// request returns the expected error code and message
+    QueryWithParamsExpectingError {
+        sql: String,
+        params: HashMap<String, StatementParam>,
         expected_error_code: tonic::Code,
         expected_message: String,
     },
@@ -271,6 +300,15 @@ pub enum Step {
         expected: Vec<&'static str>,
     },
 
+    /// Run an InfluxQL query using the FlightSQL interface, replacing `$placeholder` variables
+    /// in the query text with values provided by the params HashMap. Then verify that the
+    /// results match the expected results using the `assert_batches_eq!` macro
+    InfluxQLQueryWithParams {
+        query: String,
+        params: HashMap<String, StatementParam>,
+        expected: Vec<&'static str>,
+    },
+
     /// Read the InfluxQL queries in the specified file and verify that the results match the
     /// expected results in the corresponding expected file
     InfluxQLQueryAndCompare {
@@ -283,6 +321,16 @@ pub enum Step {
     /// the request returns the expected error code and message
     InfluxQLExpectingError {
         query: String,
+        expected_error_code: tonic::Code,
+        expected_message: String,
+    },
+
+    /// Run InfluxQL query using the FlightSQL interface, replacing `$placeholder` variables
+    /// with the supplied parameters. Then verify that the
+    /// request returns the expected error code and message
+    InfluxQLWithParamsExpectingError {
+        query: String,
+        params: HashMap<String, StatementParam>,
         expected_error_code: tonic::Code,
         expected_message: String,
     },
@@ -332,7 +380,7 @@ impl AsRef<Step> for Step {
 
 impl<'a, S> StepTest<'a, S>
 where
-    S: AsRef<Step>,
+    S: AsRef<Step> + Send,
 {
     /// Create a new test that runs each `step`, in sequence, against
     /// `cluster` panic'ing if any step fails
@@ -382,6 +430,8 @@ where
                 Step::WriteLineProtocolExpectingError {
                     line_protocol,
                     expected_error_code,
+                    expected_error_message,
+                    expected_line_number,
                 } => {
                     info!(
                         "====Begin writing line protocol expecting error to v2 HTTP API:\n{}",
@@ -389,6 +439,40 @@ where
                     );
                     let response = state.cluster.write_to_router(line_protocol, None).await;
                     assert_eq!(response.status(), *expected_error_code);
+
+                    let body: serde_json::Value = serde_json::from_slice(
+                        &hyper::body::to_bytes(response.into_body())
+                            .await
+                            .expect("should be able to read response body"),
+                    )
+                    .expect("response body should be valid json");
+
+                    assert_matches::assert_matches!(
+                        body["message"],
+                        serde_json::Value::String(ref s) if s.contains(expected_error_message),
+                        "error message did not match: expected '{}' to contain '{}'",
+                        body["message"],
+                        expected_error_message
+                    );
+
+                    match expected_line_number {
+                        Some(line) => {
+                            assert_matches::assert_matches!(
+                                body["line"],
+                                serde_json::Value::Number(ref n) if n == &serde_json::Number::from(*line),
+                                "error line did not match: expected '{}' to be '{}'",
+                                body["line"],
+                                line
+                            );
+                        }
+                        None => {
+                            assert!(
+                                !body.as_object().unwrap().contains_key("line"),
+                                "error line should not be present"
+                            );
+                        }
+                    };
+
                     info!("====Done writing line protocol expecting error");
                 }
                 Step::WriteLineProtocolWithAuthorization {
@@ -466,6 +550,27 @@ where
                     assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
                 }
+                Step::QueryWithParams {
+                    sql,
+                    params,
+                    expected,
+                } => {
+                    info!("====Begin running SQL query: {}", sql);
+                    info!("params: {:?}", params);
+                    // run query
+                    let (mut batches, schema) = run_sql_with_params(
+                        sql,
+                        state.cluster.namespace(),
+                        params.clone(),
+                        state.cluster.querier().querier_grpc_connection(),
+                        None,
+                        false,
+                    )
+                    .await;
+                    batches.push(RecordBatch::new_empty(schema));
+                    assert_batches_sorted_eq!(expected, &batches);
+                    info!("====Done running");
+                }
                 Step::QueryAndCompare {
                     input_path,
                     setup_name,
@@ -496,6 +601,29 @@ where
                     let err = try_run_sql(
                         sql,
                         state.cluster().namespace(),
+                        state.cluster().querier().querier_grpc_connection(),
+                        None,
+                        false,
+                    )
+                    .await
+                    .unwrap_err();
+
+                    check_flight_error(err, *expected_error_code, Some(expected_message));
+
+                    info!("====Done running");
+                }
+                Step::QueryWithParamsExpectingError {
+                    sql,
+                    params,
+                    expected_error_code,
+                    expected_message,
+                } => {
+                    info!("====Begin running SQL query expected to error: {}", sql);
+
+                    let err = try_run_sql_with_params(
+                        sql,
+                        state.cluster().namespace(),
+                        params.clone(),
                         state.cluster().querier().querier_grpc_connection(),
                         None,
                         false,
@@ -569,6 +697,26 @@ where
                     assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
                 }
+                Step::InfluxQLQueryWithParams {
+                    query,
+                    expected,
+                    params,
+                } => {
+                    info!("====Begin running InfluxQL query: {}", query);
+                    info!("params: {:?}", params);
+                    // run query
+                    let (mut batches, schema) = run_influxql_with_params(
+                        query,
+                        state.cluster.namespace(),
+                        params.clone(),
+                        state.cluster.querier().querier_grpc_connection(),
+                        None,
+                    )
+                    .await;
+                    batches.push(RecordBatch::new_empty(schema));
+                    assert_batches_sorted_eq!(expected, &batches);
+                    info!("====Done running");
+                }
                 Step::InfluxQLQueryAndCompare {
                     input_path,
                     setup_name,
@@ -602,6 +750,31 @@ where
                     let err = try_run_influxql(
                         query,
                         state.cluster().namespace(),
+                        state.cluster().querier().querier_grpc_connection(),
+                        None,
+                    )
+                    .await
+                    .unwrap_err();
+
+                    check_flight_error(err, *expected_error_code, Some(expected_message));
+
+                    info!("====Done running");
+                }
+                Step::InfluxQLWithParamsExpectingError {
+                    query,
+                    params,
+                    expected_error_code,
+                    expected_message,
+                } => {
+                    info!(
+                        "====Begin running InfluxQL query expected to error: {}",
+                        query
+                    );
+                    info!("params: {:?}", params);
+                    let err = try_run_influxql_with_params(
+                        query,
+                        state.cluster().namespace(),
+                        params.clone(),
                         state.cluster().querier().querier_grpc_connection(),
                         None,
                     )
@@ -650,7 +823,7 @@ where
                 Step::GracefulStopIngesters => {
                     info!("====Gracefully stop all ingesters");
 
-                    state.cluster_mut().gracefully_stop_ingesters();
+                    state.cluster_mut().gracefully_stop_ingesters().await;
                 }
                 Step::VerifiedMetrics(verify) => {
                     info!("====Begin validating metrics");

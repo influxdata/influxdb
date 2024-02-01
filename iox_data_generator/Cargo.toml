@@ -6,27 +6,30 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 bytes = "1.5"
 chrono = { version = "0.4", default-features = false }
 clap = { version = "4", features = ["derive", "env", "cargo"] }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
-handlebars = "4.4.0"
+handlebars = "5.1.0"
 humantime = "2.1.0"
 influxdb2_client = { path = "../influxdb2_client" }
-itertools = "0.11.0"
+itertools = "0.12.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch = { path = "../mutable_batch" }
 parquet_file = { path = "../parquet_file" }
 rand = { version = "0.8.3", features = ["small_rng"] }
-regex = "1.9"
+regex = "1.10"
 schema = { path = "../schema" }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.107"
-snafu = "0.7"
-tokio = { version = "1.32", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
-toml = "0.8.0"
+serde_json = "1.0.111"
+snafu = "0.8"
+tokio = { version = "1.35", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+toml = "0.8.8"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 uuid = { version = "1", default_features = false }

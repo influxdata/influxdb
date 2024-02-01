@@ -9,8 +9,11 @@ license.workspace = true
 # Prevent this from being published to crates.io!
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
-sqlx = { version = "0.7.1", features = ["runtime-tokio-rustls", "postgres", "json", "tls-rustls"] }
+sqlx = { version = "0.7.3", features = ["runtime-tokio-rustls", "postgres", "json", "tls-rustls"] }
 either = "1.9.0"
 futures = "0.3"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
@@ -18,4 +21,4 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 [dev-dependencies]
 dotenvy = "0.15.7"
 rand = { version = "0.8", features = ["small_rng"] }
-tokio = { version = "1.32", features = ["rt-multi-thread", "macros", "parking_lot"] }
+tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "parking_lot"] }

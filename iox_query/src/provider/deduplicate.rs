@@ -1,6 +1,5 @@
 //! Implemention of DeduplicateExec operator (resolves primary key conflicts) plumbing and tests
 mod algo;
-mod key_ranges;
 
 use std::{collections::HashSet, fmt, sync::Arc};
 
@@ -11,6 +10,7 @@ use crate::CHUNK_ORDER_COLUMN_NAME;
 
 use self::algo::get_col_name;
 pub use self::algo::RecordBatchDeduplicator;
+use datafusion::physical_expr::EquivalenceProperties;
 use datafusion::{
     error::{DataFusionError, Result},
     execution::context::TaskContext,
@@ -188,6 +188,7 @@ impl ExecutionPlan for DeduplicateExec {
     }
 
     fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        trace!("Deduplicate output ordering: {:?}", self.sort_keys);
         Some(&self.sort_keys)
     }
 
@@ -207,6 +208,11 @@ impl ExecutionPlan for DeduplicateExec {
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
         vec![Arc::clone(&self.input)]
+    }
+
+    fn equivalence_properties(&self) -> EquivalenceProperties {
+        // deduplicate does not change the equivalence properties
+        self.input.equivalence_properties()
     }
 
     fn with_new_children(
@@ -271,12 +277,9 @@ impl ExecutionPlan for DeduplicateExec {
         Some(self.metrics.clone_inner())
     }
 
-    fn statistics(&self) -> Statistics {
+    fn statistics(&self) -> Result<Statistics> {
         // use a guess from our input but they are NOT exact
-        Statistics {
-            is_exact: false,
-            ..self.input.statistics()
-        }
+        Ok(self.input.statistics()?.into_inexact())
     }
 }
 
@@ -369,6 +372,7 @@ mod test {
 
     use super::*;
     use arrow::array::{DictionaryArray, Int64Array};
+    use schema::TIME_DATA_TIMEZONE;
     use std::iter::FromIterator;
 
     #[tokio::test]
@@ -465,7 +469,8 @@ mod test {
         let f1 = Float64Array::from(vec![Some(1.0), None]);
         let f2 = Float64Array::from(vec![None, Some(3.0)]);
 
-        let time = TimestampNanosecondArray::from(vec![Some(100), Some(100)]);
+        let time = TimestampNanosecondArray::from(vec![Some(100), Some(100)])
+            .with_timezone_opt(TIME_DATA_TIMEZONE());
 
         let batch = RecordBatch::try_from_iter(vec![
             ("f1", Arc::new(f1) as ArrayRef),
@@ -1219,9 +1224,9 @@ mod test {
             Ok(AdapterStream::adapt_unbounded(self.schema(), rx, handle))
         }
 
-        fn statistics(&self) -> Statistics {
+        fn statistics(&self) -> Result<Statistics, DataFusionError> {
             // don't know anything about the statistics
-            Statistics::default()
+            Ok(Statistics::new_unknown(&self.schema()))
         }
     }
 

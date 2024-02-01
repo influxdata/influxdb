@@ -1,0 +1,31 @@
+---
+source: influxdb_influxql_parser/src/visit_mut.rs
+expression: "visit_statement!(\"EXPLAIN EXPLAIN SELECT * from cpu\")"
+---
+- pre_visit_statement
+- pre_visit_explain_statement
+- pre_visit_statement
+- pre_visit_explain_statement
+- pre_visit_statement
+- pre_visit_select_statement
+- pre_visit_select_field_list
+- pre_visit_select_field
+- pre_visit_expr
+- post_visit_expr
+- post_visit_select_field
+- post_visit_select_field_list
+- pre_visit_select_from_clause
+- pre_visit_select_measurement_selection
+- pre_visit_qualified_measurement_name
+- pre_visit_measurement_name
+- post_visit_measurement_name
+- post_visit_qualified_measurement_name
+- post_visit_select_measurement_selection
+- post_visit_select_from_clause
+- post_visit_select_statement
+- post_visit_statement
+- post_visit_explain_statement
+- post_visit_statement
+- post_visit_explain_statement
+- post_visit_statement
+

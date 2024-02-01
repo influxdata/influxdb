@@ -2,20 +2,21 @@
 
 use crate::QueryChunk;
 use arrow::{
-    array::{ArrayRef, UInt64Array},
+    array::{ArrayRef, BooleanArray, UInt64Array},
     datatypes::{DataType, SchemaRef},
 };
 use datafusion::{
     physical_expr::execution_props::ExecutionProps,
     physical_optimizer::pruning::PruningStatistics,
     physical_plan::{ColumnStatistics, Statistics},
-    prelude::{col, lit_timestamp_nano, Column, Expr},
+    prelude::{col, Column, Expr},
     scalar::ScalarValue,
 };
-use datafusion_util::create_pruning_predicate;
+use datafusion_util::{create_pruning_predicate, lit_timestamptz_nano};
 use observability_deps::tracing::{debug, trace, warn};
 use query_functions::group_by::Aggregate;
 use schema::{Schema, TIME_COLUMN_NAME};
+use std::collections::HashSet;
 use std::sync::Arc;
 
 /// Reason why a chunk could not be pruned.
@@ -82,16 +83,7 @@ pub fn prune_chunks(
         .iter()
         .map(|c| (c.stats(), c.schema().as_arrow()))
         .collect();
-    prune_summaries(table_schema, &summaries, filters)
-}
 
-/// Given a `Vec` of pruning summaries, return a `Vec<bool>` where `false` indicates that the
-/// predicate can be proven to evaluate to `false` for every single row.
-pub fn prune_summaries(
-    table_schema: &Schema,
-    summaries: &[(Arc<Statistics>, SchemaRef)],
-    filters: &[Expr],
-) -> Result<Vec<bool>, NotPrunedReason> {
     let filter_expr = match filters.iter().cloned().reduce(|a, b| a.and(b)) {
         Some(expr) => expr,
         None => {
@@ -99,12 +91,23 @@ pub fn prune_summaries(
             return Err(NotPrunedReason::NoExpressionOnPredicate);
         }
     };
+
+    prune_summaries(table_schema, &summaries, &filter_expr)
+}
+
+/// Given a `Vec` of pruning summaries, return a `Vec<bool>` where `false` indicates that the
+/// predicate can be proven to evaluate to `false` for every single row.
+pub fn prune_summaries(
+    table_schema: &Schema,
+    summaries: &[(Arc<Statistics>, SchemaRef)],
+    filter_expr: &Expr,
+) -> Result<Vec<bool>, NotPrunedReason> {
     trace!(%filter_expr, "Filter_expr of pruning chunks");
 
     // no information about the queries here
     let props = ExecutionProps::new();
     let pruning_predicate =
-        match create_pruning_predicate(&props, &filter_expr, &table_schema.as_arrow()) {
+        match create_pruning_predicate(&props, filter_expr, &table_schema.as_arrow()) {
             Ok(p) => p,
             Err(e) => {
                 warn!(%e, ?filter_expr, "Can not create pruning predicate");
@@ -148,9 +151,8 @@ impl<'a> ChunkPruningStatistics<'a> {
         column: &'b Column,
     ) -> impl Iterator<Item = Option<&'a ColumnStatistics>> + 'a {
         self.summaries.iter().map(|(stats, schema)| {
-            let stats = stats.column_statistics.as_ref()?;
             let idx = schema.index_of(&column.name).ok()?;
-            Some(&stats[idx])
+            Some(&stats.column_statistics[idx])
         })
     }
 }
@@ -175,9 +177,18 @@ impl<'a> PruningStatistics for ChunkPruningStatistics<'a> {
     fn null_counts(&self, column: &Column) -> Option<ArrayRef> {
         let null_counts = self
             .column_summaries(column)
-            .map(|x| x.and_then(|s| s.null_count.map(|x| x as u64)));
+            .map(|stats| stats.and_then(|stats| stats.null_count.get_value()))
+            .map(|x| x.map(|x| *x as u64));
 
         Some(Arc::new(UInt64Array::from_iter(null_counts)))
+    }
+
+    fn contained(
+        &self,
+        _column: &datafusion::common::Column,
+        _values: &HashSet<ScalarValue>,
+    ) -> Option<BooleanArray> {
+        None
     }
 }
 
@@ -201,15 +212,15 @@ fn collect_pruning_stats<'a>(
 /// Returns the aggregate statistic corresponding to `aggregate` from `stats`
 fn get_aggregate(stats: &ColumnStatistics, aggregate: Aggregate) -> Option<&ScalarValue> {
     match aggregate {
-        Aggregate::Min => stats.min_value.as_ref(),
-        Aggregate::Max => stats.max_value.as_ref(),
+        Aggregate::Min => stats.min_value.get_value(),
+        Aggregate::Max => stats.max_value.get_value(),
         _ => None,
     }
 }
 
 /// Retention time expression, "time > retention_time".
 pub fn retention_expr(retention_time: i64) -> Expr {
-    col(TIME_COLUMN_NAME).gt(lit_timestamp_nano(retention_time))
+    col(TIME_COLUMN_NAME).gt(lit_timestamptz_nano(retention_time))
 }
 
 #[cfg(test)]

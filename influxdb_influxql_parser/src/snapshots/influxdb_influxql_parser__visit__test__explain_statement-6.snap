@@ -1,0 +1,13 @@
+---
+source: influxdb_influxql_parser/src/visit.rs
+expression: "visit_statement!(\"EXPLAIN SHOW RETENTION POLICIES\")"
+---
+- pre_visit_statement
+- pre_visit_explain_statement
+- pre_visit_statement
+- pre_visit_show_retention_policies_statement
+- post_visit_show_retention_policies_statement
+- post_visit_statement
+- post_visit_explain_statement
+- post_visit_statement
+

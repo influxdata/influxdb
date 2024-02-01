@@ -48,7 +48,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 // Handles converting record batches into SeriesSets
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct SeriesSetConverter {}
 
 impl SeriesSetConverter {
@@ -386,7 +386,7 @@ impl Stream for SeriesSetConverterStream {
                         Err(e) => {
                             // internal state is broken, end this stream
                             this.we_finished = true;
-                            return Poll::Ready(Some(Err(DataFusionError::ArrowError(e))));
+                            return Poll::Ready(Some(Err(DataFusionError::ArrowError(e, None))));
                         }
                     };
 
@@ -435,7 +435,7 @@ impl Stream for SeriesSetConverterStream {
                         Err(e) => {
                             // internal state is broken, end this stream
                             this.we_finished = true;
-                            return Poll::Ready(Some(Err(DataFusionError::ArrowError(e))));
+                            return Poll::Ready(Some(Err(DataFusionError::ArrowError(e, None))));
                         }
                     };
 
@@ -625,9 +625,8 @@ impl PartialEq for SortableSeries {
 impl Eq for SortableSeries {}
 
 impl PartialOrd for SortableSeries {
-    #[allow(clippy::non_canonical_partial_ord_impl)]
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.tag_vals.partial_cmp(&other.tag_vals)
+        Some(self.cmp(other))
     }
 }
 

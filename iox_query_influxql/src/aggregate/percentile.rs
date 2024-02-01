@@ -120,8 +120,9 @@ impl Accumulator for PercentileAccumulator {
     }
 
     fn state(&self) -> Result<Vec<ScalarValue>> {
+        let arr = ScalarValue::new_list(&self.data, &self.data_type);
         Ok(vec![
-            ScalarValue::new_list(Some(self.data.clone()), self.data_type.clone()),
+            ScalarValue::List(arr),
             ScalarValue::Float64(self.percentile),
         ])
     }

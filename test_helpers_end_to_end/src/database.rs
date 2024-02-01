@@ -11,7 +11,7 @@ use tokio::sync::Mutex;
 static DB_INITIALIZED: Lazy<Mutex<BTreeSet<String>>> = Lazy::new(|| Mutex::new(BTreeSet::new()));
 
 /// Performs once-per-process database initialization, if necessary
-pub async fn initialize_db(dsn: &str, schema_name: &str) {
+pub(crate) async fn initialize_db(dsn: &str, schema_name: &str) {
     let mut init = DB_INITIALIZED.lock().await;
 
     // already done

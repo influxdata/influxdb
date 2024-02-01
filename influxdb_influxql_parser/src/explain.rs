@@ -7,7 +7,7 @@
 use crate::common::ws1;
 use crate::internal::{expect, ParseResult};
 use crate::keywords::keyword;
-use crate::select::{select_statement, SelectStatement};
+use crate::statement::{statement, Statement};
 use nom::branch::alt;
 use nom::combinator::{map, opt, value};
 use nom::sequence::{preceded, tuple};
@@ -46,7 +46,7 @@ pub struct ExplainStatement {
     pub options: Option<ExplainOption>,
 
     /// Represents the `SELECT` statement to be explained and / or analyzed.
-    pub select: Box<SelectStatement>,
+    pub statement: Box<Statement>,
 }
 
 impl Display for ExplainStatement {
@@ -55,7 +55,7 @@ impl Display for ExplainStatement {
         if let Some(options) = &self.options {
             write!(f, "{options} ")?;
         }
-        Display::fmt(&self.select, f)
+        Display::fmt(&self.statement, f)
     }
 }
 
@@ -80,13 +80,13 @@ pub(crate) fn explain_statement(i: &str) -> ParseResult<&str, ExplainStatement> 
             )),
             ws1,
             expect(
-                "invalid EXPLAIN statement, expected SELECT statement",
-                select_statement,
+                "invalid EXPLAIN statement, expected InfluxQL statement",
+                statement,
             ),
         )),
-        |(_, options, _, select)| ExplainStatement {
+        |(_, options, _, statement)| ExplainStatement {
             options,
-            select: Box::new(select),
+            statement: Box::new(statement),
         },
     )(i)
 }
@@ -99,6 +99,8 @@ mod test {
 
     #[test]
     fn test_explain_statement() {
+        // EXPLAIN SELECT cases
+
         let (remain, got) = explain_statement("EXPLAIN SELECT val from temp").unwrap();
         assert_eq!(remain, ""); // assert that all input was consumed
         assert_matches!(got.options, None);
@@ -123,16 +125,161 @@ mod test {
             "EXPLAIN ANALYZE VERBOSE SELECT val FROM temp"
         );
 
-        // Fallible cases
+        // EXPLAIN SHOW MEASUREMENTS cases
+        let (remain, got) = explain_statement("EXPLAIN SHOW MEASUREMENTS").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(got.options, None);
+        assert_eq!(got.to_string(), "EXPLAIN SHOW MEASUREMENTS");
 
-        assert_expect_error!(
-            explain_statement("EXPLAIN ANALYZE SHOW DATABASES"),
-            "invalid EXPLAIN statement, expected SELECT statement"
+        let (remain, got) = explain_statement("EXPLAIN VERBOSE SHOW MEASUREMENTS").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::Verbose);
+        assert_eq!(got.to_string(), "EXPLAIN VERBOSE SHOW MEASUREMENTS");
+
+        let (remain, got) = explain_statement("EXPLAIN ANALYZE SHOW MEASUREMENTS").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::Analyze);
+        assert_eq!(got.to_string(), "EXPLAIN ANALYZE SHOW MEASUREMENTS");
+
+        let (remain, got) = explain_statement("EXPLAIN ANALYZE VERBOSE SHOW MEASUREMENTS").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::AnalyzeVerbose);
+        assert_eq!(got.to_string(), "EXPLAIN ANALYZE VERBOSE SHOW MEASUREMENTS");
+
+        // EXPLAIN SHOW TAG KEYS cases
+        let (remain, got) = explain_statement("EXPLAIN SHOW TAG KEYS").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(got.options, None);
+        assert_eq!(got.to_string(), "EXPLAIN SHOW TAG KEYS");
+
+        let (remain, got) = explain_statement("EXPLAIN VERBOSE SHOW TAG KEYS").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::Verbose);
+        assert_eq!(got.to_string(), "EXPLAIN VERBOSE SHOW TAG KEYS");
+
+        let (remain, got) = explain_statement("EXPLAIN ANALYZE SHOW TAG KEYS").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::Analyze);
+        assert_eq!(got.to_string(), "EXPLAIN ANALYZE SHOW TAG KEYS");
+
+        let (remain, got) = explain_statement("EXPLAIN ANALYZE VERBOSE SHOW TAG KEYS").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::AnalyzeVerbose);
+        assert_eq!(got.to_string(), "EXPLAIN ANALYZE VERBOSE SHOW TAG KEYS");
+
+        // EXPLAIN SHOW TAG VALUES cases
+        let (remain, got) =
+            explain_statement("EXPLAIN SHOW TAG VALUES WITH KEY = \"Key\"").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(got.options, None);
+        assert_eq!(
+            got.to_string(),
+            "EXPLAIN SHOW TAG VALUES WITH KEY = \"Key\""
         );
 
-        assert_expect_error!(
-            explain_statement("EXPLAIN ANALYZE EXPLAIN SELECT val from temp"),
-            "invalid EXPLAIN statement, expected SELECT statement"
+        let (remain, got) =
+            explain_statement("EXPLAIN VERBOSE SHOW TAG VALUES WITH KEY = \"Key\"").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::Verbose);
+        assert_eq!(
+            got.to_string(),
+            "EXPLAIN VERBOSE SHOW TAG VALUES WITH KEY = \"Key\""
+        );
+
+        let (remain, got) =
+            explain_statement("EXPLAIN ANALYZE SHOW TAG VALUES WITH KEY = \"Key\"").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::Analyze);
+        assert_eq!(
+            got.to_string(),
+            "EXPLAIN ANALYZE SHOW TAG VALUES WITH KEY = \"Key\""
+        );
+
+        let (remain, got) =
+            explain_statement("EXPLAIN ANALYZE VERBOSE SHOW TAG VALUES WITH KEY = \"Key\"")
+                .unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::AnalyzeVerbose);
+        assert_eq!(
+            got.to_string(),
+            "EXPLAIN ANALYZE VERBOSE SHOW TAG VALUES WITH KEY = \"Key\""
+        );
+
+        // EXPLAIN SHOW FIELD KEYS cases
+        let (remain, got) = explain_statement("EXPLAIN SHOW FIELD KEYS").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(got.options, None);
+        assert_eq!(got.to_string(), "EXPLAIN SHOW FIELD KEYS");
+
+        let (remain, got) = explain_statement("EXPLAIN VERBOSE SHOW FIELD KEYS").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::Verbose);
+        assert_eq!(got.to_string(), "EXPLAIN VERBOSE SHOW FIELD KEYS");
+
+        let (remain, got) = explain_statement("EXPLAIN ANALYZE SHOW FIELD KEYS").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::Analyze);
+        assert_eq!(got.to_string(), "EXPLAIN ANALYZE SHOW FIELD KEYS");
+
+        let (remain, got) = explain_statement("EXPLAIN ANALYZE VERBOSE SHOW FIELD KEYS").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::AnalyzeVerbose);
+        assert_eq!(got.to_string(), "EXPLAIN ANALYZE VERBOSE SHOW FIELD KEYS");
+
+        // EXPLAIN SHOW RETENTION POLICIES cases
+        let (remain, got) = explain_statement("EXPLAIN SHOW RETENTION POLICIES").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(got.options, None);
+        assert_eq!(got.to_string(), "EXPLAIN SHOW RETENTION POLICIES");
+
+        let (remain, got) = explain_statement("EXPLAIN VERBOSE SHOW RETENTION POLICIES").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::Verbose);
+        assert_eq!(got.to_string(), "EXPLAIN VERBOSE SHOW RETENTION POLICIES");
+
+        let (remain, got) = explain_statement("EXPLAIN ANALYZE SHOW RETENTION POLICIES").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::Analyze);
+        assert_eq!(got.to_string(), "EXPLAIN ANALYZE SHOW RETENTION POLICIES");
+
+        let (remain, got) =
+            explain_statement("EXPLAIN ANALYZE VERBOSE SHOW RETENTION POLICIES").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::AnalyzeVerbose);
+        assert_eq!(
+            got.to_string(),
+            "EXPLAIN ANALYZE VERBOSE SHOW RETENTION POLICIES"
+        );
+
+        // EXPLAIN SHOW DATABASES cases
+        let (remain, got) = explain_statement("EXPLAIN SHOW DATABASES").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(got.options, None);
+        assert_eq!(got.to_string(), "EXPLAIN SHOW DATABASES");
+
+        let (remain, got) = explain_statement("EXPLAIN VERBOSE SHOW DATABASES").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::Verbose);
+        assert_eq!(got.to_string(), "EXPLAIN VERBOSE SHOW DATABASES");
+
+        let (remain, got) = explain_statement("EXPLAIN ANALYZE SHOW DATABASES").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::Analyze);
+        assert_eq!(got.to_string(), "EXPLAIN ANALYZE SHOW DATABASES");
+
+        let (remain, got) = explain_statement("EXPLAIN ANALYZE VERBOSE SHOW DATABASES").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::AnalyzeVerbose);
+        assert_eq!(got.to_string(), "EXPLAIN ANALYZE VERBOSE SHOW DATABASES");
+
+        // NOTE: Nested EXPLAIN is valid; DataFusion will throw a "No Nested EXPLAIN" error later
+        let (remain, got) =
+            explain_statement("EXPLAIN ANALYZE EXPLAIN SELECT val from temp").unwrap();
+        assert_eq!(remain, ""); // assert that all input was consumed
+        assert_matches!(&got.options, Some(o) if *o == ExplainOption::Analyze);
+        assert_eq!(
+            got.to_string(),
+            "EXPLAIN ANALYZE EXPLAIN SELECT val FROM temp"
         );
 
         // surfaces statement-specific errors

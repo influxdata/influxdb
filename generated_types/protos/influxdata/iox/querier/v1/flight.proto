@@ -47,6 +47,27 @@ message ReadInfo {
     QUERY_TYPE_FLIGHT_SQL_MESSAGE = 3;
   }
 
+  // A sequence of query parameters to insert into the query in place
+  // of `$placeholder` variables
+  repeated QueryParam params = 6;
+
+  message QueryParam {
+    string name = 1;
+    // Tagged union of possible param values
+    oneof value {
+      NullValue null = 2;
+      bool boolean = 3;
+      uint64 u_int64 = 4;
+      int64 int64 = 5;
+      double float64 = 6;
+      string string = 7;
+    }
+    // a singleton enum to represent a null value
+    enum NullValue {
+      NULL_VALUE_UNSPECIFIED = 0;
+    }
+  }
+
   // Do we present debug information to the user?
   //
   // Debug information are mostly features that are helpful to IOx developers but a unhelpful or even confusing to end

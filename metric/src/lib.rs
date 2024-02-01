@@ -280,8 +280,7 @@ pub trait Instrument: std::fmt::Debug + Send + Sync {
     /// - call finish_metric once complete
     fn report(&self, reporter: &mut dyn Reporter);
 
-    /// Returns the type as [`Any`] so that it can be downcast to
-    /// it underlying type
+    /// Returns the type as [`Any`] so that it can be downcast to its underlying type
     fn as_any(&self) -> &dyn Any;
 }
 

@@ -2,6 +2,7 @@ use data_types::Timestamp;
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
 use snafu::prelude::*;
+use std::time::Instant;
 use std::{sync::Arc, time::Duration};
 use tokio::{select, time::sleep};
 use tokio_util::sync::CancellationToken;
@@ -10,25 +11,27 @@ pub(crate) async fn perform(
     shutdown: CancellationToken,
     catalog: Arc<dyn Catalog>,
     cutoff: Duration,
-    sleep_interval_minutes: u64,
+    sleep_interval: Duration,
 ) -> Result<()> {
     loop {
+        let start = Instant::now();
         let older_than = Timestamp::from(catalog.time_provider().now() - cutoff);
         // do the delete, returning the deleted files
         let deleted = catalog
             .repositories()
-            .await
             .parquet_files()
             .delete_old_ids_only(older_than) // read/write
             .await
             .context(DeletingSnafu)?;
-        info!(delete_count = %deleted.len(), "iox_catalog::delete_old()");
+
+        let elapsed = start.elapsed();
+        info!(delete_count = %deleted.len(), ?elapsed, "iox_catalog::delete_old()");
 
         select! {
             _ = shutdown.cancelled() => {
                 break
             },
-            _ = sleep(Duration::from_secs(60 * sleep_interval_minutes)) => (),
+            _ = sleep(sleep_interval) => (),
         }
     }
     Ok(())

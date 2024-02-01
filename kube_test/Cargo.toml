@@ -1,0 +1,22 @@
+[package]
+name = "kube_test"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+http = "0.2.9"
+hyper = "0.14.27"
+kube-core = "0.87.1"
+k8s-openapi = { version = "0.20.0", features = ["earliest"] }
+rand = "0.8.5"
+serde = "1.0.195"
+serde_json = "1.0.111"
+serde_yaml = "0.9.30"
+tower = "0.4.13"
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+

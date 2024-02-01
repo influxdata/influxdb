@@ -3,10 +3,12 @@
 use std::{collections::HashMap, sync::Arc};
 
 use data_types::TimestampMinMax;
+use datafusion::common::stats::Precision;
 use datafusion::{
     physical_plan::{ColumnStatistics, Statistics},
     scalar::ScalarValue,
 };
+use datafusion_util::{option_to_precision, timestamptz_nano};
 use schema::{InfluxColumnType, Schema};
 
 /// Represent known min/max values for a specific column.
@@ -23,12 +25,25 @@ pub struct ColumnRange {
 /// These ranges apply to ALL rows (esp. in ALL files and ingester chunks) within in given partition.
 pub type ColumnRanges = Arc<HashMap<Arc<str>, ColumnRange>>;
 
+/// Returns the min/max values for the range, if present
+fn range_to_min_max_stats(
+    range: Option<&ColumnRange>,
+) -> (Precision<ScalarValue>, Precision<ScalarValue>) {
+    let Some(range) = range else {
+        return (Precision::Absent, Precision::Absent);
+    };
+    (
+        Precision::Exact(range.min_value.as_ref().clone()),
+        Precision::Exact(range.max_value.as_ref().clone()),
+    )
+}
+
 /// Create chunk [statistics](Statistics).
 pub fn create_chunk_statistics(
-    row_count: u64,
+    row_count: Option<usize>,
     schema: &Schema,
     ts_min_max: Option<TimestampMinMax>,
-    ranges: &ColumnRanges,
+    ranges: Option<&ColumnRanges>,
 ) -> Statistics {
     let mut columns = Vec::with_capacity(schema.len());
 
@@ -38,43 +53,46 @@ pub fn create_chunk_statistics(
                 // prefer explicitely given time range but fall back to column ranges
                 let (min_value, max_value) = match ts_min_max {
                     Some(ts_min_max) => (
-                        Some(ScalarValue::TimestampNanosecond(Some(ts_min_max.min), None)),
-                        Some(ScalarValue::TimestampNanosecond(Some(ts_min_max.max), None)),
+                        Precision::Exact(timestamptz_nano(ts_min_max.min)),
+                        Precision::Exact(timestamptz_nano(ts_min_max.max)),
                     ),
                     None => {
-                        let range = ranges.get::<str>(field.name().as_ref());
-                        (
-                            range.map(|r| r.min_value.as_ref().clone()),
-                            range.map(|r| r.max_value.as_ref().clone()),
-                        )
+                        let range =
+                            ranges.and_then(|ranges| ranges.get::<str>(field.name().as_ref()));
+
+                        range_to_min_max_stats(range)
                     }
                 };
 
                 ColumnStatistics {
-                    null_count: Some(0),
-                    max_value,
+                    null_count: Precision::Exact(0),
                     min_value,
-                    distinct_count: None,
+                    max_value,
+                    distinct_count: Precision::Absent,
                 }
             }
-            _ => ranges
-                .get::<str>(field.name().as_ref())
-                .map(|range| ColumnStatistics {
-                    null_count: None,
-                    max_value: Some(range.max_value.as_ref().clone()),
-                    min_value: Some(range.min_value.as_ref().clone()),
-                    distinct_count: None,
-                })
-                .unwrap_or_default(),
+            _ => {
+                let range = ranges.and_then(|ranges| ranges.get::<str>(field.name().as_ref()));
+
+                let (min_value, max_value) = range_to_min_max_stats(range);
+
+                ColumnStatistics {
+                    null_count: Precision::Absent,
+                    min_value,
+                    max_value,
+                    distinct_count: Precision::Absent,
+                }
+            }
         };
         columns.push(stats)
     }
 
+    let num_rows = option_to_precision(row_count);
+
     Statistics {
-        num_rows: Some(row_count as usize),
-        total_byte_size: None,
-        column_statistics: Some(columns),
-        is_exact: true,
+        num_rows,
+        total_byte_size: Precision::Absent,
+        column_statistics: columns,
     }
 }
 
@@ -89,12 +107,24 @@ mod tests {
         let schema = SchemaBuilder::new().build().unwrap();
         let row_count = 0;
 
-        let actual = create_chunk_statistics(row_count, &schema, None, &Default::default());
+        let actual = create_chunk_statistics(Some(row_count), &schema, None, None);
         let expected = Statistics {
-            num_rows: Some(row_count as usize),
-            total_byte_size: None,
-            column_statistics: Some(vec![]),
-            is_exact: true,
+            num_rows: Precision::Exact(row_count),
+            total_byte_size: Precision::Absent,
+            column_statistics: vec![],
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_chunk_statistics_no_columns_null_rows() {
+        let schema = SchemaBuilder::new().build().unwrap();
+
+        let actual = create_chunk_statistics(None, &schema, None, None);
+        let expected = Statistics {
+            num_rows: Precision::Absent,
+            total_byte_size: Precision::Absent,
+            column_statistics: vec![],
         };
         assert_eq!(actual, expected);
     }
@@ -127,37 +157,45 @@ mod tests {
             ),
         ]));
 
-        for row_count in [0u64, 1337u64] {
-            let actual = create_chunk_statistics(row_count, &schema, Some(ts_min_max), &ranges);
+        for row_count in [0usize, 1337usize] {
+            let actual =
+                create_chunk_statistics(Some(row_count), &schema, Some(ts_min_max), Some(&ranges));
             let expected = Statistics {
-                num_rows: Some(row_count as usize),
-                total_byte_size: None,
-                column_statistics: Some(vec![
+                num_rows: Precision::Exact(row_count),
+                total_byte_size: Precision::Absent,
+                column_statistics: vec![
+                    // tag1
                     ColumnStatistics {
-                        null_count: None,
-                        min_value: Some(ScalarValue::from("aaa")),
-                        max_value: Some(ScalarValue::from("bbb")),
-                        distinct_count: None,
+                        null_count: Precision::Absent,
+                        min_value: Precision::Exact(ScalarValue::from("aaa")),
+                        max_value: Precision::Exact(ScalarValue::from("bbb")),
+                        distinct_count: Precision::Absent,
                     },
+                    // tag2
                     ColumnStatistics::default(),
+                    // field_bool
                     ColumnStatistics::default(),
+                    // field_float
                     ColumnStatistics::default(),
+                    // field_integer
                     ColumnStatistics {
-                        null_count: None,
-                        min_value: Some(ScalarValue::from(10i64)),
-                        max_value: Some(ScalarValue::from(20i64)),
-                        distinct_count: None,
+                        null_count: Precision::Absent,
+                        min_value: Precision::Exact(ScalarValue::from(10i64)),
+                        max_value: Precision::Exact(ScalarValue::from(20i64)),
+                        distinct_count: Precision::Absent,
                     },
+                    // field_string
                     ColumnStatistics::default(),
+                    // field_uinteger
                     ColumnStatistics::default(),
+                    // time
                     ColumnStatistics {
-                        null_count: Some(0),
-                        min_value: Some(ScalarValue::TimestampNanosecond(Some(10), None)),
-                        max_value: Some(ScalarValue::TimestampNanosecond(Some(20), None)),
-                        distinct_count: None,
+                        null_count: Precision::Exact(0),
+                        min_value: Precision::Exact(timestamptz_nano(10)),
+                        max_value: Precision::Exact(timestamptz_nano(20)),
+                        distinct_count: Precision::Absent,
                     },
-                ]),
-                is_exact: true,
+                ],
             };
             assert_eq!(actual, expected);
         }
@@ -166,21 +204,22 @@ mod tests {
     #[test]
     fn test_create_chunk_statistics_ts_min_max_overrides_column_range() {
         let schema = full_schema();
-        let row_count = 42u64;
+        let row_count = 42usize;
         let ts_min_max = TimestampMinMax { min: 10, max: 20 };
         let ranges = Arc::new(HashMap::from([(
             Arc::from(TIME_COLUMN_NAME),
             ColumnRange {
-                min_value: Arc::new(ScalarValue::TimestampNanosecond(Some(12), None)),
-                max_value: Arc::new(ScalarValue::TimestampNanosecond(Some(22), None)),
+                min_value: Arc::new(timestamptz_nano(12)),
+                max_value: Arc::new(timestamptz_nano(22)),
             },
         )]));
 
-        let actual = create_chunk_statistics(row_count, &schema, Some(ts_min_max), &ranges);
+        let actual =
+            create_chunk_statistics(Some(row_count), &schema, Some(ts_min_max), Some(&ranges));
         let expected = Statistics {
-            num_rows: Some(row_count as usize),
-            total_byte_size: None,
-            column_statistics: Some(vec![
+            num_rows: Precision::Exact(row_count),
+            total_byte_size: Precision::Absent,
+            column_statistics: vec![
                 ColumnStatistics::default(),
                 ColumnStatistics::default(),
                 ColumnStatistics::default(),
@@ -189,13 +228,12 @@ mod tests {
                 ColumnStatistics::default(),
                 ColumnStatistics::default(),
                 ColumnStatistics {
-                    null_count: Some(0),
-                    min_value: Some(ScalarValue::TimestampNanosecond(Some(10), None)),
-                    max_value: Some(ScalarValue::TimestampNanosecond(Some(20), None)),
-                    distinct_count: None,
+                    null_count: Precision::Exact(0),
+                    min_value: Precision::Exact(timestamptz_nano(10)),
+                    max_value: Precision::Exact(timestamptz_nano(20)),
+                    distinct_count: Precision::Absent,
                 },
-            ]),
-            is_exact: true,
+            ],
         };
         assert_eq!(actual, expected);
     }
@@ -203,20 +241,20 @@ mod tests {
     #[test]
     fn test_create_chunk_statistics_ts_min_max_none_so_fallback_to_column_range() {
         let schema = full_schema();
-        let row_count = 42u64;
+        let row_count = 42usize;
         let ranges = Arc::new(HashMap::from([(
             Arc::from(TIME_COLUMN_NAME),
             ColumnRange {
-                min_value: Arc::new(ScalarValue::TimestampNanosecond(Some(12), None)),
-                max_value: Arc::new(ScalarValue::TimestampNanosecond(Some(22), None)),
+                min_value: Arc::new(timestamptz_nano(12)),
+                max_value: Arc::new(timestamptz_nano(22)),
             },
         )]));
 
-        let actual = create_chunk_statistics(row_count, &schema, None, &ranges);
+        let actual = create_chunk_statistics(Some(row_count), &schema, None, Some(&ranges));
         let expected = Statistics {
-            num_rows: Some(row_count as usize),
-            total_byte_size: None,
-            column_statistics: Some(vec![
+            num_rows: Precision::Exact(row_count),
+            total_byte_size: Precision::Absent,
+            column_statistics: vec![
                 ColumnStatistics::default(),
                 ColumnStatistics::default(),
                 ColumnStatistics::default(),
@@ -225,13 +263,12 @@ mod tests {
                 ColumnStatistics::default(),
                 ColumnStatistics::default(),
                 ColumnStatistics {
-                    null_count: Some(0),
-                    min_value: Some(ScalarValue::TimestampNanosecond(Some(12), None)),
-                    max_value: Some(ScalarValue::TimestampNanosecond(Some(22), None)),
-                    distinct_count: None,
+                    null_count: Precision::Exact(0),
+                    min_value: Precision::Exact(timestamptz_nano(12)),
+                    max_value: Precision::Exact(timestamptz_nano(22)),
+                    distinct_count: Precision::Absent,
                 },
-            ]),
-            is_exact: true,
+            ],
         };
         assert_eq!(actual, expected);
     }

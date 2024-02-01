@@ -1,4 +1,5 @@
 use arrow::datatypes::SchemaRef;
+use datafusion::common::ParamValues;
 use datafusion::physical_expr::execution_props::ExecutionProps;
 use influxdb_influxql_parser::show_field_keys::ShowFieldKeysStatement;
 use influxdb_influxql_parser::show_measurements::ShowMeasurementsStatement;
@@ -12,7 +13,6 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use crate::plan::{parse_regex, InfluxQLToLogicalPlan, SchemaProvider};
-use datafusion::common::Statistics;
 use datafusion::datasource::provider_as_source;
 use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::logical_expr::{AggregateUDF, LogicalPlan, ScalarUDF, TableSource};
@@ -120,8 +120,10 @@ impl ExecutionPlan for SchemaExec {
         self.input.execute(partition, context)
     }
 
-    fn statistics(&self) -> Statistics {
-        self.input.statistics()
+    fn statistics(&self) -> Result<datafusion::physical_plan::Statistics, DataFusionError> {
+        Ok(datafusion::physical_plan::Statistics::new_unknown(
+            &self.schema(),
+        ))
     }
 }
 
@@ -136,7 +138,7 @@ impl DisplayAs for SchemaExec {
 }
 
 /// Create plans for running InfluxQL queries against databases
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct InfluxQLQueryPlanner {}
 
 impl InfluxQLQueryPlanner {
@@ -149,13 +151,20 @@ impl InfluxQLQueryPlanner {
     pub async fn query(
         &self,
         query: &str,
+        params: impl Into<ParamValues> + Send,
         ctx: &IOxSessionContext,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        let ctx = ctx.child_ctx("InfluxQLQueryPlanner::query");
         debug!(text=%query, "planning InfluxQL query");
 
         let statement = self.query_to_statement(query)?;
-        let logical_plan = self.statement_to_plan(statement, ctx).await?;
-
+        let logical_plan = self.statement_to_plan(statement, &ctx).await?;
+        // add params to plan only when they're non-empty
+        let logical_plan = match params.into() {
+            ParamValues::List(v) if !v.is_empty() => logical_plan.with_param_values(v)?,
+            ParamValues::Map(m) if !m.is_empty() => logical_plan.with_param_values(m)?,
+            _ => logical_plan,
+        };
         let input = ctx.create_physical_plan(&logical_plan).await?;
 
         // Merge schema-level metadata from the logical plan with the
@@ -179,6 +188,7 @@ impl InfluxQLQueryPlanner {
     ) -> Result<LogicalPlan> {
         use std::collections::hash_map::Entry;
 
+        let ctx = ctx.child_ctx("statement_to_plan");
         let session_cfg = ctx.inner().copied_config();
         let cfg = session_cfg.options();
         let schema = ctx
@@ -207,6 +217,9 @@ impl InfluxQLQueryPlanner {
 
         for table_name in &query_tables {
             if let Entry::Vacant(v) = sp.tables.entry(table_name.to_string()) {
+                let mut ctx = ctx.child_ctx("get table schema");
+                ctx.set_metadata("table", table_name.to_owned());
+
                 if let Some(table) = schema.table(table_name).await {
                     let schema = Schema::try_from(table.schema())
                         .map_err(|err| {
@@ -217,7 +230,7 @@ impl InfluxQLQueryPlanner {
             }
         }
 
-        let planner = InfluxQLToLogicalPlan::new(&sp, ctx);
+        let planner = InfluxQLToLogicalPlan::new(&sp, &ctx);
         let logical_plan = planner.statement_to_plan(statement)?;
         debug!(plan=%logical_plan.display_graphviz(), "logical plan");
         Ok(logical_plan)

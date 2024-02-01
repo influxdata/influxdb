@@ -207,7 +207,7 @@ impl ParquetFileReader {
     ) -> Result<Self, Error> {
         let runtime = Arc::new(RuntimeEnv::default());
         let session_config = iox_session_config();
-        let session_state = SessionState::with_config_rt(session_config, runtime);
+        let session_state = SessionState::new_with_config_rt(session_config, runtime);
 
         // Keep metadata so we can find the measurement name
         let format = ParquetFormat::new().with_skip_metadata(Some(false));
@@ -219,7 +219,7 @@ impl ParquetFileReader {
             .await
             .context(InferringSchemaSnafu)?;
 
-        let session_ctx = SessionContext::with_state(session_state);
+        let session_ctx = SessionContext::new_with_state(session_state);
 
         Ok(Self {
             object_store,
@@ -237,21 +237,22 @@ impl ParquetFileReader {
 
     /// read the parquet file as a stream
     pub async fn read(&self) -> Result<SendableRecordBatchStream, Error> {
+        let file_schema = self.schema();
+        let statistics = Statistics::new_unknown(&file_schema);
         let base_config = FileScanConfig {
             object_store_url: self.object_store_url.clone(),
-            file_schema: self.schema(),
+            file_schema,
             file_groups: vec![vec![PartitionedFile {
                 object_meta: self.object_meta.clone(),
                 partition_values: vec![],
                 range: None,
                 extensions: None,
             }]],
-            statistics: Statistics::default(),
+            statistics,
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             output_ordering: vec![],
-            infinite_source: false,
         };
 
         // set up enough datafusion context to do the real read session

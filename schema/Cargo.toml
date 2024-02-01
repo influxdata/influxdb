@@ -6,10 +6,14 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
-arrow = { workspace = true, features = ["prettyprint"] }
+arrow = { workspace = true }
 hashbrown = { workspace = true }
-indexmap = { version = "2.0", features = ["std"] }
+indexmap = { version = "2.1", features = ["std"] }
 observability_deps = { path = "../observability_deps" }
-snafu = "0.7"
+snafu = "0.8"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
+once_cell = "1"

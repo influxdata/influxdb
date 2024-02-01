@@ -1,7 +1,8 @@
 use arrow_util::assert_batches_eq;
 use data_types::PartitionKey;
-use mutable_batch::{writer::Writer, MutableBatch, PartitionWrite, WritePayload};
+use mutable_batch::{writer::Writer, MutableBatch, WritePayload};
 use mutable_batch_pb::{decode::write_table_batch, encode::encode_batch};
+use partition::PartitionWrite;
 use schema::Projection;
 
 #[test]

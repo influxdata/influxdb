@@ -19,6 +19,10 @@ use arrow_flight::{decode::FlightRecordBatchStream, error::FlightError, FlightCl
 
 use crate::connection::Connection;
 
+use self::query::{NoQuery, QueryBuilder};
+
+pub mod query;
+
 /// Re-export generated_types
 pub mod generated_types {
     pub use generated_types::influxdata::iox::querier::v1::*;
@@ -134,6 +138,55 @@ impl From<tonic::Status> for Error {
 ///     .expect("valid bathes");
 /// # }
 /// ```
+///
+/// # Parameterized Queries
+///
+/// Use the [`Client::query`] method to create a [`QueryBuilder`] which can be used
+/// to supply parameter values to a query containing `$placeholder` variables
+///
+/// For example:
+///
+/// ```rust, no_run
+/// # let mut client: influxdb_iox_client::flight::Client = todo!();
+/// # async {
+///
+/// // Use QueryBuilder to create a parameterized query
+/// let query_results = client
+///     .query("my_namespace")
+///     .sql("select * from cpu_load where host = $host and value = $value")
+///     .with_param("$host", "my.hostname")
+///     .with_param("$value", 0.523)
+///     .run()
+///     .await?;
+///
+/// # Ok::<(), influxdb_iox_client::flight::Error>(())
+/// # };
+///```
+///
+/// ## Helper macro for working with query parameters
+///
+/// To make building queries easier in some scenarios, you can use the [`iox_query_params::params`] macro to
+/// build a map of name-value pairs.
+///
+/// Use the `params!` macro with [`query::QueryBuilder::with_params`] to
+/// supply parameters to a [`query::QueryBuilder`]
+///
+/// ```rust, no_run
+///     # use influxdb_iox_client::flight::query::{QueryBuilder, Query};
+///     # use iox_query_params::params;
+///     # let mut query: QueryBuilder<Query> = todo!();
+///     query.with_params(
+///         params! {
+///            "param1" => "a string",
+///            "param2" => 1234,
+///            "param3" => 1.234,
+///            "param4" => true,
+///            "param5" => Some(false),
+///            "param6" => None::<Option<()>>
+///         }
+///     )
+///     # ;
+/// ```
 #[derive(Debug)]
 pub struct Client {
     inner: FlightClient,
@@ -185,6 +238,12 @@ impl Client {
         Ok(self.inner.add_header(key, value)?)
     }
 
+    /// Create a new [`QueryBuilder`] to construct a query, optionally with parameters, on the
+    /// given namespace
+    pub fn query(&mut self, database: impl Into<String> + Send) -> QueryBuilder<'_, NoQuery> {
+        QueryBuilder::new(self, database)
+    }
+
     /// Query the given database with the given SQL query, returning
     /// a struct that can stream Arrow [`RecordBatch`] results.
     pub async fn sql(
@@ -197,6 +256,7 @@ impl Client {
             sql_query: sql_query.into(),
             query_type: QueryType::Sql.into(),
             flightsql_command: vec![],
+            params: vec![],
             is_debug: false,
         };
 
@@ -215,6 +275,7 @@ impl Client {
             sql_query: influxql_query.into(),
             query_type: QueryType::InfluxQl.into(),
             flightsql_command: vec![],
+            params: vec![],
             is_debug: false,
         };
 

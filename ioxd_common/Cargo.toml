@@ -5,6 +5,9 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 # Optional feature 'pprof' enables http://localhost:8080/debug/pprof/profile support support
 
 [dependencies]
@@ -12,15 +15,16 @@ license.workspace = true
 authz = { path = "../authz", features = ["http"] }
 clap_blocks = { path = "../clap_blocks" }
 generated_types = { path = "../generated_types" }
-heappy = { git = "https://github.com/mkmik/heappy", rev = "1de977a241cdd768acc5b6c82c0728b30c7db7b4", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
+heappy = { git = "https://github.com/mkmik/heappy", rev = "01a1f88e1b404c5894f89eb1a57f813f713d7ad1", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
 metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }
 observability_deps = { path = "../observability_deps" }
 # NOTE: we may not notice that we need the "backtrace-rs" feature if we also build with the heappy feature, which depends on backtrace-rs.
 # (honestly I thought that cargo dependencies were isolated on a per crate basis so I'm a bit surprised that pprof accidentally builds
 # successfully just because another crate happens to depend on backtrace-rs)
-pprof = { version = "0.12", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
+pprof = { version = "0.13", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
 service_grpc_testing = { path = "../service_grpc_testing" }
+tower_trailer = { path = "../tower_trailer" }
 trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }
 trace_http = { path = "../trace_http" }
@@ -32,25 +36,24 @@ clap = { version = "4", features = ["derive", "env"] }
 flate2 = "1.0"
 futures = "0.3"
 hashbrown = { workspace = true }
-http = "0.2.9"
+http = "0.2.11"
 hyper = "0.14"
 log = "0.4"
 parking_lot = "0.12"
-reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.107"
+serde_json = "1.0.111"
 serde_urlencoded = "0.7.0"
-snafu = "0.7"
-tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+snafu = "0.8"
+tokio = { version = "1.35", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
-tokio-util = { version = "0.7.9" }
+tokio-util = { version = "0.7.10" }
 tonic  = { workspace = true }
 tonic-health  = { workspace = true }
 tonic-reflection = { workspace = true }
 tower = "0.4"
 tower-http = { version = "0.4", features = ["catch-panic"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
-
 
 [dev-dependencies]
 # Workspace dependencies, in alphabetical order

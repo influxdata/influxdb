@@ -5,6 +5,9 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = ["flight", "format"]
 flight = ["arrow", "arrow-flight", "arrow_util"]
@@ -12,22 +15,23 @@ format = ["arrow", "arrow_util"]
 
 [dependencies]
 arrow = { workspace = true, optional = true }
-arrow-flight = { workspace = true, optional = true, features=["flight-sql-experimental"] }
+arrow-flight = { workspace = true, optional = true }
 arrow_util = { path = "../arrow_util", optional = true }
 bytes = "1.5"
 client_util = { path = "../client_util" }
-comfy-table = { version = "7.0", default-features = false}
+comfy-table = { version = "7.1", default-features = false}
 futures-util = { version = "0.3" }
 influxdb-line-protocol = { path = "../influxdb_line_protocol"}
+iox_query_params = { path = "../iox_query_params" }
 generated_types = { path = "../generated_types" }
-prost = "0.11"
+prost = { workspace = true }
 rand = "0.8.3"
-reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls"] }
+reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls-native-roots"] }
 schema = { path = "../schema" }
-serde_json = "1.0.107"
-tokio = { version = "1.32", features = ["macros", "parking_lot", "rt-multi-thread"] }
+serde_json = "1.0.111"
+tokio = { version = "1.35", features = ["macros", "parking_lot", "rt-multi-thread"] }
 tokio-stream = "0.1.13"
-thiserror = "1.0.48"
+thiserror = "1.0.56"
 tonic = { workspace = true }
 
 [dev-dependencies]

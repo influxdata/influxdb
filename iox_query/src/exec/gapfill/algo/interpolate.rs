@@ -353,6 +353,7 @@ mod test {
 
     use arrow::array::{ArrayRef, Float64Array, Int64Array, TimestampNanosecondArray, UInt64Array};
     use hashbrown::HashMap;
+    use schema::TIME_DATA_TIMEZONE;
 
     use crate::exec::gapfill::{
         algo::tests::{array_to_lines, assert_cursor_end_state, new_cursor_with_batch_size},
@@ -404,12 +405,14 @@ mod test {
         let output_batch_size = 10000;
         let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
 
-        let time_arr: TimestampNanosecondArray = cursor
-            .clone_for_aggr_col(None)
-            .unwrap()
-            .build_time_vec(&params, &series_ends, &input_times)
-            .unwrap()
-            .into();
+        let time_arr = TimestampNanosecondArray::from(
+            cursor
+                .clone_for_aggr_col(None)
+                .unwrap()
+                .build_time_vec(&params, &series_ends, &input_times)
+                .unwrap(),
+        )
+        .with_timezone_opt(TIME_DATA_TIMEZONE());
         let arr = cursor
             .build_aggr_fill_interpolate(&params, &series_ends, &input_times, &input_aggr_array)
             .unwrap();
@@ -476,12 +479,14 @@ mod test {
         let output_batch_size = 10000;
         let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
 
-        let time_arr: TimestampNanosecondArray = cursor
-            .clone_for_aggr_col(None)
-            .unwrap()
-            .build_time_vec(&params, &series_ends, &input_times)
-            .unwrap()
-            .into();
+        let time_arr = TimestampNanosecondArray::from(
+            cursor
+                .clone_for_aggr_col(None)
+                .unwrap()
+                .build_time_vec(&params, &series_ends, &input_times)
+                .unwrap(),
+        )
+        .with_timezone_opt(TIME_DATA_TIMEZONE());
         let arr = cursor
             .build_aggr_fill_interpolate(&params, &series_ends, &input_times, &input_aggr_array)
             .unwrap();
@@ -548,12 +553,14 @@ mod test {
         let output_batch_size = 10000;
         let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
 
-        let time_arr: TimestampNanosecondArray = cursor
-            .clone_for_aggr_col(None)
-            .unwrap()
-            .build_time_vec(&params, &series_ends, &input_times)
-            .unwrap()
-            .into();
+        let time_arr = TimestampNanosecondArray::from(
+            cursor
+                .clone_for_aggr_col(None)
+                .unwrap()
+                .build_time_vec(&params, &series_ends, &input_times)
+                .unwrap(),
+        )
+        .with_timezone_opt(TIME_DATA_TIMEZONE());
         let arr = cursor
             .build_aggr_fill_interpolate(&params, &series_ends, &input_times, &input_aggr_array)
             .unwrap();

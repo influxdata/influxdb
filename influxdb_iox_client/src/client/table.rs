@@ -39,6 +39,24 @@ impl Client {
             .tables)
     }
 
+    /// Get a  table in the given namespace
+    pub async fn get_table(
+        &mut self,
+        namespace_name: &str,
+        table_name: &str,
+    ) -> Result<Table, Error> {
+        Ok(self
+            .inner
+            .get_table(GetTableRequest {
+                namespace_name: namespace_name.to_string(),
+                table_name: table_name.to_string(),
+            })
+            .await?
+            .into_inner()
+            .table
+            .unwrap_field("table")?)
+    }
+
     /// Create a table
     pub async fn create_table(
         &mut self,

@@ -1,10 +1,13 @@
 //! Catalog-DSN-related configs.
+use http::uri::InvalidUri;
+use iox_catalog::grpc::client::GrpcCatalogClient;
 use iox_catalog::sqlite::{SqliteCatalog, SqliteConnectionOptions};
 use iox_catalog::{
     interface::Catalog,
     mem::MemCatalog,
     postgres::{PostgresCatalog, PostgresConnectionOptions},
 };
+use iox_time::TimeProvider;
 use observability_deps::tracing::*;
 use snafu::{ResultExt, Snafu};
 use std::{sync::Arc, time::Duration};
@@ -17,6 +20,9 @@ pub enum Error {
 
     #[snafu(display("Catalog DSN not specified. Expected a string like 'postgresql://postgres@localhost:5432/postgres' or 'sqlite:///tmp/catalog.sqlite'"))]
     DsnNotSpecified {},
+
+    #[snafu(display("Invalid URI: {source}"))]
+    InvalidUri { source: InvalidUri },
 
     #[snafu(display("A catalog error occurred: {}", source))]
     Catalog {
@@ -55,7 +61,9 @@ pub struct CatalogDsnConfig {
     ///
     /// PostgreSQL: `postgresql://postgres@localhost:5432/postgres`
     ///
-    /// Sqlite (a local filename /tmp/foo.sqlite): `sqlite:///tmp/foo.sqlite`
+    /// Sqlite (a local filename /tmp/foo.sqlite): `sqlite:///tmp/foo.sqlite` -
+    /// note sqlite is for development/testing only and should not be used for
+    /// production workloads.
     ///
     /// Memory (ephemeral, only useful for testing): `memory`
     ///
@@ -117,6 +125,7 @@ impl CatalogDsnConfig {
         &self,
         app_name: &'static str,
         metrics: Arc<metric::Registry>,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> Result<Arc<dyn Catalog>, Error> {
         let Some(dsn) = self.dsn.as_ref() else {
             return Err(Error::DsnNotSpecified {});
@@ -141,7 +150,7 @@ impl CatalogDsnConfig {
             ))
         } else if dsn == "memory" {
             info!("Catalog: In-memory");
-            let mem = MemCatalog::new(metrics);
+            let mem = MemCatalog::new(metrics, time_provider);
             Ok(Arc::new(mem))
         } else if let Some(file_path) = dsn.strip_prefix("sqlite://") {
             info!(file_path, "Catalog: Sqlite");
@@ -153,6 +162,11 @@ impl CatalogDsnConfig {
                     .await
                     .context(CatalogSnafu)?,
             ))
+        } else if dsn.starts_with("http://") || dsn.starts_with("https://") {
+            info!("Catalog: gRPC");
+            let uri = dsn.parse().context(InvalidUriSnafu)?;
+            let grpc = GrpcCatalogClient::new(uri, metrics, time_provider);
+            Ok(Arc::new(grpc))
         } else {
             Err(Error::UnknownCatalogDsn {
                 dsn: dsn.to_string(),

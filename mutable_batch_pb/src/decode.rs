@@ -4,6 +4,7 @@ use generated_types::influxdata::pbdata::v1::{
     column::{SemanticType, Values as PbValues},
     Column as PbColumn, DatabaseBatch, PackedStrings, TableBatch,
 };
+use generated_types::DecodeError;
 use hashbrown::{HashMap, HashSet};
 use mutable_batch::{writer::Writer, MutableBatch};
 use schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
@@ -48,6 +49,9 @@ pub enum Error {
 
     #[snafu(display("column \"{}\" contains more than one type of values", column))]
     MultipleValues { column: String },
+
+    #[snafu(display("unknown type for column {column}: {source}"))]
+    UnknownType { source: DecodeError, column: String },
 
     #[snafu(display("cannot infer type for column: {}", column))]
     InvalidType { column: String },
@@ -365,12 +369,14 @@ fn pb_column_type(col: &PbColumn) -> Result<InfluxColumnType> {
     })?;
 
     let value_type = pb_value_type(&col.column_name, values)?;
-    let semantic_type = SemanticType::from_i32(col.semantic_type);
+    let semantic_type = SemanticType::try_from(col.semantic_type).context(UnknownTypeSnafu {
+        column: &col.column_name,
+    })?;
 
     match (semantic_type, value_type) {
-        (Some(SemanticType::Tag), InfluxFieldType::String) => Ok(InfluxColumnType::Tag),
-        (Some(SemanticType::Field), field) => Ok(InfluxColumnType::Field(field)),
-        (Some(SemanticType::Time), InfluxFieldType::Integer)
+        (SemanticType::Tag, InfluxFieldType::String) => Ok(InfluxColumnType::Tag),
+        (SemanticType::Field, field) => Ok(InfluxColumnType::Field(field)),
+        (SemanticType::Time, InfluxFieldType::Integer)
             if col.column_name.as_str() == TIME_COLUMN_NAME =>
         {
             Ok(InfluxColumnType::Timestamp)
