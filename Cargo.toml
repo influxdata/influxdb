@@ -112,7 +112,7 @@ pbjson-types = { version = "0.6.0" }
 prost = { version = "0.12.3" }
 prost-build = { version = "0.12.2" }
 prost-types = { version = "0.12.3" }
-sqlparser = { version = "0.41.0" }
+sqlparser = { version = "0.43.1" }
 tonic = { version = "0.10.2", features = ["tls", "tls-roots"] }
 tonic-build = { version = "0.10.2" }
 tonic-health = { version = "0.10.2" }
