@@ -22,17 +22,24 @@ pub struct OpenBufferSegment {
     segment_writer: Box<dyn WalSegmentWriter>,
     segment_id: SegmentId,
     buffered_data: HashMap<String, DatabaseBuffer>,
+    #[allow(dead_code)]
+    starting_catalog_sequence_number: SequenceNumber,
     // TODO: This is temporarily just the number of rows in the segment. When the buffer gets refactored to use
     //       different structures, we want this to be a representation of approximate memory usage.
     segment_size: usize,
 }
 
 impl OpenBufferSegment {
-    pub fn new(segment_id: SegmentId, segment_writer: Box<dyn WalSegmentWriter>) -> Self {
+    pub fn new(
+        segment_id: SegmentId,
+        starting_catalog_sequence_number: SequenceNumber,
+        segment_writer: Box<dyn WalSegmentWriter>,
+    ) -> Self {
         Self {
             buffered_data: Default::default(),
             segment_writer,
             segment_id,
+            starting_catalog_sequence_number,
             segment_size: 0,
         }
     }
@@ -314,6 +321,7 @@ mod tests {
     fn buffers_rows() {
         let mut open_segment = OpenBufferSegment::new(
             SegmentId::new(0),
+            SequenceNumber::new(0),
             Box::new(WalSegmentWriterNoopImpl::new(SegmentId::new(0))),
         );
 

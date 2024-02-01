@@ -1,5 +1,6 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
+use crate::SequenceNumber;
 use data_types::ColumnType;
 use observability_deps::tracing::info;
 use parking_lot::RwLock;
@@ -39,22 +40,26 @@ impl Catalog {
         }
     }
 
-    pub(crate) fn replace_database(&self, sequence: u64, db: Arc<DatabaseSchema>) -> Result<()> {
+    pub(crate) fn replace_database(
+        &self,
+        sequence: SequenceNumber,
+        db: Arc<DatabaseSchema>,
+    ) -> Result<()> {
         let mut inner = self.inner.write();
         if inner.sequence != sequence {
             info!("catalog updated elsewhere");
             return Err(Error::CatalogUpdatedElsewhere);
         }
 
-        info!("inserted {}", db.name);
+        info!("inserted/updated database in catalog: {}", db.name);
 
-        inner.sequence += 1;
+        inner.sequence = inner.sequence.next();
         inner.databases.insert(db.name.clone(), db);
 
         Ok(())
     }
 
-    pub(crate) fn db_or_create(&self, db_name: &str) -> (u64, Arc<DatabaseSchema>) {
+    pub(crate) fn db_or_create(&self, db_name: &str) -> (SequenceNumber, Arc<DatabaseSchema>) {
         let (sequence, db) = {
             let inner = self.inner.read();
             (inner.sequence, inner.databases.get(db_name).cloned())
@@ -85,20 +90,24 @@ impl Catalog {
     pub fn into_inner(self) -> InnerCatalog {
         self.inner.into_inner()
     }
+
+    pub fn sequence_number(&self) -> SequenceNumber {
+        self.inner.read().sequence
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
     databases: HashMap<String, Arc<DatabaseSchema>>,
-    sequence: u64,
+    sequence: SequenceNumber,
 }
 
 impl InnerCatalog {
     pub(crate) fn new() -> Self {
         Self {
             databases: HashMap::new(),
-            sequence: 0,
+            sequence: SequenceNumber::new(0),
         }
     }
 
@@ -271,7 +280,9 @@ mod tests {
             ),
         );
         let database = Arc::new(database);
-        catalog.replace_database(0, database).unwrap();
+        catalog
+            .replace_database(SequenceNumber::new(0), database)
+            .unwrap();
         let inner = catalog.inner.read();
 
         let serialized = serde_json::to_string(&*inner).unwrap();

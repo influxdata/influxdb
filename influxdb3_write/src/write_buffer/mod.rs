@@ -102,7 +102,8 @@ impl<W: Wal> WriteBufferImpl<W> {
             .transpose()?
             .unwrap_or_else(|| Box::new(WalSegmentWriterNoopImpl::new(next_segment_id)));
 
-        let open_segment = OpenBufferSegment::new(next_segment_id, segment_writer);
+        let open_segment =
+            OpenBufferSegment::new(next_segment_id, catalog.sequence_number(), segment_writer);
         let segment_state = Arc::new(RwLock::new(SegmentState::new(open_segment)));
 
         let write_buffer_flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
