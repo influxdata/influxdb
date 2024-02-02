@@ -124,6 +124,10 @@ pub struct Config {
     action
     )]
     pub datafusion_config: HashMap<String, String>,
+
+    /// bearer token to be set for requests
+    #[clap(long = "bearer-token", env = "INFLUXDB3_BEARER_TOKEN", action)]
+    pub bearer_token: Option<String>,
 }
 
 #[cfg(all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")))]
@@ -235,7 +239,8 @@ pub async fn command(config: Config) -> Result<()> {
         trace_exporter,
         trace_header_parser,
         *config.http_bind_address,
-    );
+        config.bearer_token,
+    )?;
     let catalog = Arc::new(influxdb3_write::catalog::Catalog::new());
     let wal: Option<Arc<WalImpl>> = config
         .wal_directory

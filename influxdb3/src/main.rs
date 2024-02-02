@@ -25,6 +25,7 @@ use trogging::{
 };
 
 mod commands {
+    pub mod create;
     pub mod serve;
 }
 
@@ -79,9 +80,12 @@ struct Config {
 }
 
 #[derive(Debug, clap::Parser)]
+#[allow(clippy::large_enum_variant)]
 enum Command {
     /// Run the InfluxDB 3.0 server
     Serve(commands::serve::Config),
+    /// Create new resources
+    Create(commands::create::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -111,6 +115,12 @@ fn main() -> Result<(), std::io::Error> {
                     handle_init_logs(init_logs_and_tracing(&config.logging_config));
                 if let Err(e) = commands::serve::command(config).await {
                     eprintln!("Serve command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Create(config)) => {
+                if let Err(e) = commands::create::command(config) {
+                    eprintln!("Create command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
