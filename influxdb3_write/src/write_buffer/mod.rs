@@ -96,14 +96,11 @@ impl<W: Wal> WriteBufferImpl<W> {
         wal: Option<Arc<W>>,
         next_segment_id: SegmentId,
     ) -> Result<Self> {
-        let segment_writer = match wal
+        let segment_writer = wal
             .as_ref()
             .map(|w| w.open_segment_writer(next_segment_id))
             .transpose()?
-        {
-            Some(writer) => writer,
-            None => Box::new(WalSegmentWriterNoopImpl::new(next_segment_id)),
-        };
+            .unwrap_or_else(|| Box::new(WalSegmentWriterNoopImpl::new(next_segment_id)));
 
         let open_segment = OpenBufferSegment::new(next_segment_id, segment_writer);
         let segment_state = Arc::new(RwLock::new(SegmentState::new(open_segment)));

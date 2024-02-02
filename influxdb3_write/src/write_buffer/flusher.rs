@@ -3,6 +3,7 @@
 use crate::write_buffer::buffer_segment::{BufferedWrite, DatabaseWrite, WriteBatch, WriteSummary};
 use crate::write_buffer::{Error, SegmentState, TableBatch};
 use crate::{wal, SequenceNumber, WalOp};
+use crossbeam_channel::{bounded, Receiver as CrossbeamReceiver, Sender as CrossbeamSender};
 use data_types::NamespaceName;
 use observability_deps::tracing::debug;
 use parking_lot::{Mutex, RwLock};
@@ -11,6 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::select;
 use tokio::sync::{mpsc, oneshot, watch};
+use tokio::time::MissedTickBehavior;
 
 // Duration to buffer writes before flushing them to the wal
 const BUFFER_FLUSH_INTERVAL: Duration = Duration::from_millis(10);
@@ -25,6 +27,9 @@ pub enum BufferedWriteResult {
     Error(String),
 }
 
+/// The WriteBufferFlusher buffers writes and flushes them to the configured wal. The wal IO is done in a native
+/// thread rather than a tokio task to avoid blocking the tokio runtime. As referenced in this post, continuous
+/// long-running IO threads should be off the tokio runtime: `<https://ryhl.io/blog/async-what-is-blocking/>`.
 #[derive(Debug)]
 pub struct WriteBufferFlusher {
     join_handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
@@ -38,8 +43,8 @@ impl WriteBufferFlusher {
     pub fn new(segment_state: Arc<RwLock<SegmentState>>) -> Self {
         let (shutdown_tx, shutdown_rx) = watch::channel(());
         let (buffer_tx, buffer_rx) = mpsc::channel(BUFFER_CHANNEL_LIMIT);
-        let (io_flush_tx, io_flush_rx) = std::sync::mpsc::channel();
-        let (io_flush_notify_tx, io_flush_notify_rx) = std::sync::mpsc::channel();
+        let (io_flush_tx, io_flush_rx) = bounded(1);
+        let (io_flush_notify_tx, io_flush_notify_rx) = bounded(1);
 
         let flusher = Self {
             join_handle: Default::default(),
@@ -102,14 +107,15 @@ impl WriteBufferFlusher {
 async fn run_wal_op_buffer(
     segment_state: Arc<RwLock<SegmentState>>,
     mut buffer_rx: mpsc::Receiver<BufferedWrite>,
-    io_flush_tx: std::sync::mpsc::Sender<Vec<WalOp>>,
-    io_flush_notify_rx: std::sync::mpsc::Receiver<wal::Result<SequenceNumber>>,
+    io_flush_tx: CrossbeamSender<Vec<WalOp>>,
+    io_flush_notify_rx: CrossbeamReceiver<wal::Result<SequenceNumber>>,
     mut shutdown: watch::Receiver<()>,
 ) {
     let mut ops = Vec::new();
     let mut write_batch = crate::write_buffer::buffer_segment::WriteBatch::default();
     let mut notifies = Vec::new();
     let mut interval = tokio::time::interval(BUFFER_FLUSH_INTERVAL);
+    interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     loop {
         // select on either buffering an op, ticking the flush interval, or shutting down
@@ -166,8 +172,8 @@ async fn run_wal_op_buffer(
 
 fn run_io_flush(
     segment_state: Arc<RwLock<SegmentState>>,
-    buffer_rx: std::sync::mpsc::Receiver<Vec<WalOp>>,
-    buffer_notify: std::sync::mpsc::Sender<wal::Result<SequenceNumber>>,
+    buffer_rx: CrossbeamReceiver<Vec<WalOp>>,
+    buffer_notify: CrossbeamSender<wal::Result<SequenceNumber>>,
 ) {
     loop {
         let batch = match buffer_rx.recv() {

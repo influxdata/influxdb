@@ -2689,6 +2689,7 @@ dependencies = [
  "bytes",
  "chrono",
  "crc32fast",
+ "crossbeam-channel",
  "data_types",
  "datafusion",
  "futures-util",
