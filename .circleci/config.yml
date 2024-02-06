@@ -2,12 +2,6 @@
 # CI Overview
 # -----------
 #
-# Each night:
-#
-#   A build image is created (ci_image) from `docker/Dockerfile.ci` and is
-#   pushed to `quay.io/influxdb/rust:ci`. This build image is then used to run
-#   the CI tasks for the day.
-#
 # Every commit:
 #
 # The CI for every PR and merge to main runs tests, fmt, lints and compiles debug binaries
@@ -38,19 +32,6 @@
 #   $ curl -XPOST -H "Content-Type: application/json" -H "Circle-Token: <your personal circleCI token>" \
 #       -d '{"parameters": {"release_branch": true}, "branch": "chore/ci-tidy-up"}' \
 #       https://circleci.com/api/v2/project/github/influxdata/influxdb/pipeline
-#
-# Manual CI Base Image:
-#
-# It is possible to manually trigger a rebuild of the base image used in CI. To do this, navigate to
-# https://app.circleci.com/pipelines/github/influxdata/influxdb?branch=main (overriding the
-# branch name if desired). Then:
-# - Click "Run Pipeline" in the top-right
-# - Expand "Add Parameters"
-# - Add a "boolean" parameter called "ci_image" with the value true
-# - Click "Run Pipeline"
-#
-# If you refresh the page you should see a newly running ci_image workflow
-#
 
 version: 2.1
 
@@ -290,7 +271,7 @@ jobs:
   # Build a dev binary.
   #
   # Compiles a binary with the default ("dev") cargo profile from the influxdb3 source
-  # using the latest ci_image and ensures various targets compile successfully
+  # using the latest ci_image (influxdb/rust) and ensures various targets compile successfully
   build_dev:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -370,7 +351,7 @@ jobs:
 
   # Compile cargo "release" profile binaries for influxdb3 & data generator
   #
-  # Uses the latest ci_image (influxdb/rust below) to build a release binary and
+  # Uses the latest ci_image (influxdb/rust) to build a release binary and
   # copies it to a minimal container image based upon `rust:slim-buster`. This
   # minimal image is then pushed to `quay.io/influxdb/influxdb3:${BRANCH}`.
   build_release:
@@ -408,37 +389,7 @@ jobs:
           paths:
             - "*.tar.gz"
 
-  # Prepare the CI image used for other tasks.
-  #
-  # A nightly job (scheduled below in the `workflows` section) to build the CI
-  # image (influxdb/rust) used for the rest of the checks.
-  #
-  # To modify the contents of the CI image, update docker/Dockerfile.ci
-  ci_image:
-    # Use a `machine` executor instead of a docker-based because:
-    # - we bootstrap our CI images somehow (we could use a docker-hub image as well)
-    # - the machine executor also supports multi-arch builds
-    # - we only run this job once a day, so the additional startup delay of 30-60s doesn't really matter
-    machine:
-      # https://circleci.com/docs/2.0/configuration-reference/#available-machine-images
-      image: ubuntu-2004:2022.04.2
-    resource_class: xlarge
-    steps:
-      - checkout
-      - run: |
-          echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
-      - run: |
-          COMMIT_SHA=$(git rev-parse --short HEAD)
-          RUST_VERSION=$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)
-          docker --version
-          docker build -t quay.io/influxdb/rust:$COMMIT_SHA -t quay.io/influxdb/rust:ci -f docker/Dockerfile.ci --build-arg RUST_VERSION=$RUST_VERSION .
-          docker push --all-tags quay.io/influxdb/rust
-
 parameters:
-  ci_image:
-    description: "Trigger build of CI image"
-    type: boolean
-    default: false
   release_branch:
     description: "Build and push container image for non-main branch"
     type: boolean
@@ -451,7 +402,6 @@ workflows:
   ci:
     when:
       and:
-        - not: << pipeline.parameters.ci_image >>
         - not: << pipeline.parameters.release_branch >>
     jobs:
       - fmt
@@ -470,27 +420,9 @@ workflows:
             branches:
               only: main
 
-  # Manual build of CI image
-  ci_image:
-    when: << pipeline.parameters.ci_image >>
-    jobs:
-      - ci_image
-
   # Force build and push of container image for non-main branch.
   # See instructions at the top of this file
   release_branch:
     when: << pipeline.parameters.release_branch >>
     jobs:
       - build_release
-
-  # Nightly rebuild of the build container
-  ci_image_nightly:
-    triggers:
-      - schedule:
-          cron: "0 5 * * *"
-          filters:
-            branches:
-              only:
-                - main
-    jobs:
-      - ci_image
