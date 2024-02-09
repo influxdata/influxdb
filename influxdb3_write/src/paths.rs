@@ -67,6 +67,21 @@ impl ParquetFilePath {
         ));
         Self(path)
     }
+
+    pub fn new_with_parititon_key(
+        db_name: &str,
+        table_name: &str,
+        partition_key: &str,
+        file_number: u32,
+    ) -> Self {
+        let path = ObjPath::from(format!(
+            "dbs/{db_name}/{table_name}/{}/{:010}.{}",
+            partition_key,
+            object_store_file_stem(file_number),
+            PARQUET_FILE_EXTENSION
+        ));
+        Self(path)
+    }
 }
 
 impl Deref for ParquetFilePath {

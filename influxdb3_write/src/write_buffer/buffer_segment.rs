@@ -2,9 +2,14 @@
 //! single WAL segment. Only one segment should be open for writes in the write buffer at any
 //! given time.
 
+use crate::catalog::Catalog;
+use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
 use crate::write_buffer::{FieldData, Row, TableBatch};
-use crate::{wal, write_buffer::Result, SegmentId, SequenceNumber, WalOp, WalSegmentWriter};
+use crate::{
+    wal, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment, Persister, SegmentId,
+    SequenceNumber, TableParquetFiles, WalOp, WalSegmentWriter,
+};
 use arrow::array::{
     ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, StringDictionaryBuilder,
     TimestampNanosecondBuilder, UInt64Builder,
@@ -12,6 +17,7 @@ use arrow::array::{
 use arrow::datatypes::Int32Type;
 use arrow::record_batch::RecordBatch;
 use data_types::{ColumnType, NamespaceName, TimestampMinMax};
+use datafusion_util::stream_from_batch;
 use schema::Schema;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
@@ -81,6 +87,18 @@ impl OpenBufferSegment {
         }
 
         Ok(self.segment_size)
+    }
+
+    #[allow(dead_code)]
+    pub fn into_closed_segment(self, catalog: Arc<Catalog>) -> ClosedBufferSegment {
+        ClosedBufferSegment::new(
+            self.segment_id,
+            self.starting_catalog_sequence_number,
+            catalog.sequence_number(),
+            self.segment_writer,
+            self.buffered_data,
+            catalog,
+        )
     }
 }
 
@@ -280,6 +298,8 @@ impl PartitionBuffer {
             cols.push(columns.remove(f.name()).unwrap().into_arrow());
         }
 
+        println!("row count: {}", row_count);
+
         RecordBatch::try_new(schema, cols).unwrap()
     }
 }
@@ -308,14 +328,141 @@ impl Builder {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
-pub struct ClosedBufferSegment {}
+pub struct ClosedBufferSegment {
+    segment_id: SegmentId,
+    catalog_start_sequence_number: SequenceNumber,
+    catalog_end_sequence_number: SequenceNumber,
+    segment_writer: Box<dyn WalSegmentWriter>,
+    buffered_data: HashMap<String, DatabaseBuffer>,
+    catalog: Arc<Catalog>,
+}
+
+impl ClosedBufferSegment {
+    #[allow(dead_code)]
+    fn new(
+        segment_id: SegmentId,
+        catalog_start_sequence_number: SequenceNumber,
+        catalog_end_sequence_number: SequenceNumber,
+        segment_writer: Box<dyn WalSegmentWriter>,
+        buffered_data: HashMap<String, DatabaseBuffer>,
+        catalog: Arc<Catalog>,
+    ) -> Self {
+        Self {
+            segment_id,
+            catalog_start_sequence_number,
+            catalog_end_sequence_number,
+            segment_writer,
+            buffered_data,
+            catalog,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub async fn persist(&self, persister: Arc<dyn Persister>) -> crate::Result<()> {
+        if self.catalog_start_sequence_number != self.catalog_end_sequence_number {
+            let inner_catalog = self.catalog.clone_inner();
+
+            persister
+                .persist_catalog(self.segment_id, Catalog::from_inner(inner_catalog))
+                .await?;
+        }
+
+        let mut persisted_database_files = HashMap::new();
+        let mut segment_parquet_size_bytes = 0;
+        let mut segment_row_count = 0;
+        let mut segment_min_time = i64::MAX;
+        let mut segment_max_time = i64::MIN;
+
+        // persist every partition buffer
+        for (db_name, db_buffer) in &self.buffered_data {
+            let mut database_tables = DatabaseTables::default();
+
+            if let Some(db_schema) = self.catalog.db_schema(db_name) {
+                for (table_name, table_buffer) in &db_buffer.table_buffers {
+                    if let Some(table) = db_schema.get_table(table_name) {
+                        let mut table_parquet_files = TableParquetFiles {
+                            table_name: table_name.to_string(),
+                            parquet_files: vec![],
+                            sort_key: vec![],
+                        };
+
+                        // persist every partition buffer
+                        for (partition_key, partition_buffer) in &table_buffer.partition_buffers {
+                            let data = partition_buffer
+                                .rows_to_record_batch(table.schema(), table.columns());
+                            let row_count = data.num_rows();
+                            let batch_stream = stream_from_batch(table.schema().as_arrow(), data);
+                            let parquet_file_path = ParquetFilePath::new_with_parititon_key(
+                                db_name,
+                                &table.name,
+                                partition_key,
+                                self.segment_id.0,
+                            );
+                            let path = parquet_file_path.to_string();
+                            let (size_bytes, meta) = persister
+                                .persist_parquet_file(parquet_file_path, batch_stream)
+                                .await?;
+
+                            let parquet_file = ParquetFile {
+                                path,
+                                size_bytes,
+                                row_count: row_count as u64,
+                                min_time: partition_buffer.timestamp_min,
+                                max_time: partition_buffer.timestamp_max,
+                            };
+                            table_parquet_files.parquet_files.push(parquet_file);
+
+                            segment_parquet_size_bytes += size_bytes;
+                            segment_row_count += meta.num_rows as u64;
+                            segment_max_time = segment_max_time.max(partition_buffer.timestamp_max);
+                            segment_min_time = segment_min_time.min(partition_buffer.timestamp_min);
+                        }
+
+                        if !table_parquet_files.parquet_files.is_empty() {
+                            database_tables
+                                .tables
+                                .insert(table_name.to_string(), table_parquet_files);
+                        }
+                    }
+                }
+            }
+
+            if !database_tables.tables.is_empty() {
+                persisted_database_files.insert(db_name.to_string(), database_tables);
+            }
+        }
+
+        let persisted_segment = PersistedSegment {
+            segment_id: self.segment_id,
+            segment_wal_size_bytes: self.segment_writer.bytes_written(),
+            segment_parquet_size_bytes,
+            segment_row_count,
+            segment_min_time,
+            segment_max_time,
+            databases: persisted_database_files,
+        };
+
+        persister.persist_segment(persisted_segment).await?;
+
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::wal::WalSegmentWriterNoopImpl;
     use crate::write_buffer::tests::lp_to_table_batches;
+    use crate::write_buffer::{parse_validate_and_update_schema, Partitioner};
+    use crate::{LpWriteOp, PersistedCatalog};
+    use bytes::Bytes;
+    use datafusion::execution::SendableRecordBatchStream;
+    use object_store::ObjectStore;
+    use parking_lot::Mutex;
+    use parquet::format::FileMetaData;
+    use std::any::Any;
 
     #[test]
     fn buffers_rows() {
@@ -349,5 +496,161 @@ mod tests {
         assert_eq!(mem_partition.rows.len(), 1);
         assert_eq!(mem_partition.timestamp_min, 20);
         assert_eq!(mem_partition.timestamp_max, 20);
+    }
+
+    #[tokio::test]
+    async fn persist_closed_buffer() {
+        let segment_id = SegmentId::new(4);
+        let segment_writer = Box::new(WalSegmentWriterNoopImpl::new(segment_id));
+        let mut open_segment =
+            OpenBufferSegment::new(segment_id, SequenceNumber::new(0), segment_writer);
+
+        let catalog = Catalog::new();
+
+        let lp = "cpu,tag1=cupcakes bar=1 10\nmem,tag2=turtles bar=3 15\nmem,tag2=snakes bar=2 20";
+
+        let wal_op = WalOp::LpWrite(LpWriteOp {
+            db_name: "db1".to_string(),
+            lp: lp.to_string(),
+            default_time: 0,
+        });
+
+        let write_batch = lp_to_write_batch(&catalog, "db1", lp);
+
+        open_segment.write_batch(vec![wal_op]).unwrap();
+        open_segment.buffer_writes(write_batch).unwrap();
+
+        let catalog = Arc::new(catalog);
+        let closed_buffer_segment = open_segment.into_closed_segment(Arc::clone(&catalog));
+
+        let persister: Arc<dyn Persister> = Arc::new(TestPersister::default());
+        closed_buffer_segment
+            .persist(Arc::clone(&persister))
+            .await
+            .unwrap();
+
+        let persisted_state = persister
+            .as_any()
+            .downcast_ref::<TestPersister>()
+            .unwrap()
+            .state
+            .lock();
+        assert_eq!(
+            persisted_state.catalog.as_ref().unwrap().clone_inner(),
+            catalog.clone_inner()
+        );
+        let segment_info = persisted_state.segment.as_ref().unwrap();
+
+        assert_eq!(segment_info.segment_id, segment_id);
+        assert_eq!(segment_info.segment_min_time, 10);
+        assert_eq!(segment_info.segment_max_time, 20);
+        assert_eq!(segment_info.segment_row_count, 2);
+        // in the mock each parquet file is 1 byte, so should have 2
+        assert_eq!(segment_info.segment_parquet_size_bytes, 2);
+        // should have been one write into the wal
+        assert_eq!(segment_info.segment_wal_size_bytes, 1);
+        // one file for cpu, one for mem
+        assert_eq!(persisted_state.parquet_files.len(), 2);
+
+        println!("segment_info:\n{:#?}", segment_info);
+        let db = segment_info.databases.get("db1").unwrap();
+        let cpu = db.tables.get("cpu").unwrap();
+        let cpu_parqet = &cpu.parquet_files[0];
+
+        // file number of the path should match the segment id
+        assert_eq!(
+            cpu_parqet.path,
+            ParquetFilePath::new_with_parititon_key("db1", "cpu", "1970-01-01", 4).to_string()
+        );
+        assert_eq!(cpu_parqet.row_count, 1);
+        assert_eq!(cpu_parqet.min_time, 10);
+        assert_eq!(cpu_parqet.max_time, 10);
+
+        let mem = db.tables.get("mem").unwrap();
+        let mem_parqet = &mem.parquet_files[0];
+
+        // file number of the path should match the segment id
+        assert_eq!(
+            mem_parqet.path,
+            ParquetFilePath::new_with_parititon_key("db1", "mem", "1970-01-01", 4).to_string()
+        );
+        assert_eq!(mem_parqet.row_count, 2);
+        assert_eq!(mem_parqet.min_time, 15);
+        assert_eq!(mem_parqet.max_time, 20);
+    }
+
+    #[derive(Debug, Default)]
+    struct TestPersister {
+        state: Mutex<PersistedState>,
+    }
+
+    #[derive(Debug, Default)]
+    struct PersistedState {
+        catalog: Option<Catalog>,
+        segment: Option<PersistedSegment>,
+        parquet_files: Vec<ParquetFilePath>,
+    }
+
+    #[async_trait::async_trait]
+    impl Persister for TestPersister {
+        async fn persist_catalog(
+            &self,
+            _segment_id: SegmentId,
+            catalog: Catalog,
+        ) -> crate::Result<()> {
+            self.state.lock().catalog = Some(catalog);
+            Ok(())
+        }
+
+        async fn persist_parquet_file(
+            &self,
+            path: ParquetFilePath,
+            _data: SendableRecordBatchStream,
+        ) -> crate::Result<(u64, FileMetaData)> {
+            self.state.lock().parquet_files.push(path);
+            let meta = FileMetaData::new(1, vec![], 1, vec![], None, None, None, None, None);
+            Ok((1, meta))
+        }
+
+        async fn persist_segment(&self, segment: PersistedSegment) -> crate::Result<()> {
+            self.state.lock().segment = Some(segment);
+            Ok(())
+        }
+
+        fn as_any(&self) -> &dyn Any {
+            self as &dyn Any
+        }
+
+        async fn load_catalog(&self) -> crate::Result<Option<PersistedCatalog>> {
+            todo!()
+        }
+
+        async fn load_segments(
+            &self,
+            _most_recent_n: usize,
+        ) -> crate::Result<Vec<PersistedSegment>> {
+            todo!()
+        }
+
+        async fn load_parquet_file(&self, _path: ParquetFilePath) -> crate::Result<Bytes> {
+            todo!()
+        }
+
+        fn object_store(&self) -> Arc<dyn ObjectStore> {
+            todo!()
+        }
+    }
+
+    fn lp_to_write_batch(catalog: &Catalog, db_name: &'static str, lp: &str) -> WriteBatch {
+        let mut write_batch = WriteBatch::default();
+        let (seq, db) = catalog.db_or_create(db_name);
+        let partitioner = Partitioner::new_per_day_partitioner();
+        let result = parse_validate_and_update_schema(lp, &db, &partitioner, 0).unwrap();
+        if let Some(db) = result.schema {
+            catalog.replace_database(seq, Arc::new(db)).unwrap();
+        }
+        let db_name = NamespaceName::new(db_name).unwrap();
+        write_batch.add_db_write(db_name, result.table_batches);
+        write_batch
     }
 }

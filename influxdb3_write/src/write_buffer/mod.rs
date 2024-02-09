@@ -182,7 +182,7 @@ impl<W: Wal> WriteBufferImpl<W> {
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         let db_schema = self.catalog.db_schema(database_name).unwrap();
         let table = db_schema.tables.get(table_name).unwrap();
-        let schema = table.schema.as_ref().cloned().unwrap();
+        let schema = table.schema.clone();
 
         let table_buffer = self.clone_table_buffer(database_name, table_name).unwrap();
 
@@ -223,7 +223,7 @@ impl<W: Wal> WriteBufferImpl<W> {
     fn get_table_record_batches(&self, datbase_name: &str, table_name: &str) -> Vec<RecordBatch> {
         let db_schema = self.catalog.db_schema(datbase_name).unwrap();
         let table = db_schema.tables.get(table_name).unwrap();
-        let schema = table.schema.as_ref().cloned().unwrap();
+        let schema = table.schema.clone();
 
         let table_buffer = self.clone_table_buffer(datbase_name, table_name).unwrap();
 

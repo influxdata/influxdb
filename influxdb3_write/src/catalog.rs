@@ -40,6 +40,12 @@ impl Catalog {
         }
     }
 
+    pub fn from_inner(inner: InnerCatalog) -> Self {
+        Self {
+            inner: RwLock::new(inner),
+        }
+    }
+
     pub(crate) fn replace_database(
         &self,
         sequence: SequenceNumber,
@@ -94,9 +100,13 @@ impl Catalog {
     pub fn sequence_number(&self) -> SequenceNumber {
         self.inner.read().sequence
     }
+
+    pub fn clone_inner(&self) -> InnerCatalog {
+        self.inner.read().clone()
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
     databases: HashMap<String, Arc<DatabaseSchema>>,
@@ -135,7 +145,11 @@ impl DatabaseSchema {
     pub fn get_table_schema(&self, table_name: &str) -> Option<Schema> {
         self.tables
             .get(table_name)
-            .and_then(|table| table.schema.clone())
+            .map(|table| table.schema.clone())
+    }
+
+    pub fn get_table(&self, table_name: &str) -> Option<&TableDefinition> {
+        self.tables.get(table_name)
     }
 
     pub fn table_names(&self) -> Vec<String> {
@@ -151,7 +165,7 @@ impl DatabaseSchema {
 pub struct TableDefinition {
     pub name: String,
     #[serde(skip_serializing, skip_deserializing)]
-    pub schema: Option<Schema>,
+    pub schema: Schema,
     columns: BTreeMap<String, i16>,
 }
 
@@ -218,7 +232,7 @@ impl TableDefinition {
 
         Self {
             name: name.into(),
-            schema: Some(schema),
+            schema,
             columns,
         }
     }
@@ -241,7 +255,12 @@ impl TableDefinition {
         for (name, column_type) in columns.into_iter() {
             self.columns.insert(name, column_type);
         }
-        self.schema = Some(schema);
+        self.schema = schema;
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn schema(&self) -> &Schema {
+        &self.schema
     }
 
     pub(crate) fn columns(&self) -> &BTreeMap<String, i16> {

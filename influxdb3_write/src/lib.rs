@@ -24,6 +24,7 @@ use datafusion::prelude::Expr;
 use iox_query::QueryChunk;
 use parquet::format::FileMetaData;
 use serde::{Deserialize, Serialize};
+use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;
@@ -187,16 +188,18 @@ pub trait Persister: Debug + Send + Sync + 'static {
     /// for this segment.
     async fn persist_segment(&self, persisted_segment: PersistedSegment) -> Result<()>;
 
-    // Writes a SendableRecorgBatchStream to the Parquet format and perists it
-    // to Object Store at the given path
+    // Writes a SendableRecorgBatchStream to the Parquet format and persists it
+    // to Object Store at the given path. Returns the number of bytes written and the file metadata.
     async fn persist_parquet_file(
         &self,
         path: ParquetFilePath,
         record_batch: SendableRecordBatchStream,
-    ) -> crate::Result<FileMetaData>;
+    ) -> crate::Result<(u64, FileMetaData)>;
 
     /// Returns the configured `ObjectStore` that data is loaded from and persisted to.
     fn object_store(&self) -> Arc<dyn object_store::ObjectStore>;
+
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub trait Wal: Debug + Send + Sync + 'static {
@@ -223,6 +226,8 @@ pub struct SegmentFile {
 
 pub trait WalSegmentWriter: Debug + Send + Sync + 'static {
     fn id(&self) -> SegmentId;
+
+    fn bytes_written(&self) -> u64;
 
     fn write_batch(&mut self, ops: Vec<WalOp>) -> wal::Result<SequenceNumber>;
 
@@ -309,7 +314,12 @@ pub struct PersistedSegment {
     pub segment_max_time: i64,
     /// The collection of databases that had tables persisted in this segment. The tables will then have their
     /// name and the parquet files.
-    pub databases: HashMap<String, TableParquetFiles>,
+    pub databases: HashMap<String, DatabaseTables>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct DatabaseTables {
+    pub tables: HashMap<String, TableParquetFiles>,
 }
 
 /// A collection of parquet files persisted in a segment for a specific table.
@@ -328,7 +338,7 @@ pub struct TableParquetFiles {
 pub struct ParquetFile {
     pub path: String,
     pub size_bytes: u64,
-    pub row_count: u32,
+    pub row_count: u64,
     pub min_time: i64,
     pub max_time: i64,
 }
