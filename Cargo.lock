@@ -2734,16 +2734,17 @@ name = "influxdb3_write"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow_util",
  "async-trait",
  "byteorder",
  "bytes",
  "chrono",
  "crc32fast",
+ "crossbeam-channel",
  "data_types",
  "datafusion",
  "futures-util",
  "influxdb-line-protocol",
- "iox_catalog",
  "iox_query",
  "object_store",
  "observability_deps",
