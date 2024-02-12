@@ -39,6 +39,9 @@ pub enum Error {
 
     #[error("datafusion error: {0}")]
     DataFusion(#[from] datafusion::error::DataFusionError),
+
+    #[error("influxdb3_write error: {0}")]
+    InfluxDB3Write(#[from] influxdb3_write::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -225,8 +228,9 @@ mod tests {
 
         let server = format!("http://{}", addr);
         write_lp(&server, "foo", "cpu,host=a val=1i 123", None).await;
-        let res = query(server, "foo", "select * from cpu", None).await;
 
+        // Test that we can query the output with a pretty output
+        let res = query(&server, "foo", "select * from cpu", "pretty", None).await;
         let body = body::to_bytes(res.into_body()).await.unwrap();
         let body = String::from_utf8(body.as_bytes().to_vec()).unwrap();
         let expected = vec![
@@ -241,6 +245,54 @@ mod tests {
             expected, actual,
             "\n\nexpected:\n\n{:#?}\nactual:\n\n{:#?}\n\n",
             expected, actual
+        );
+        // Test that we can query the output with a json output
+        let res = query(&server, "foo", "select * from cpu", "json", None).await;
+        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let actual = std::str::from_utf8(body.as_bytes()).unwrap();
+        let expected = r#"[{"host":"a","time":"1970-01-01T00:00:00.000000123","val":1}]"#;
+        assert_eq!(actual, expected);
+        // Test that we can query the output with a csv output
+        let res = query(&server, "foo", "select * from cpu", "csv", None).await;
+        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let actual = std::str::from_utf8(body.as_bytes()).unwrap();
+        let expected = "host,time,val\na,1970-01-01T00:00:00.000000123,1\n";
+        assert_eq!(actual, expected);
+
+        // Test that we can query the output with a parquet
+        use arrow::buffer::Buffer;
+        use parquet::arrow::arrow_reader;
+        let res = query(&server, "foo", "select * from cpu", "parquet", None).await;
+        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let batches = arrow_reader::ParquetRecordBatchReaderBuilder::try_new(body)
+            .unwrap()
+            .build()
+            .unwrap();
+        let batches = batches.into_iter().collect::<Result<Vec<_>, _>>().unwrap();
+        assert_eq!(batches.len(), 1);
+
+        // Check that we only have the columns we expect
+        assert_eq!(batches[0].num_columns(), 3);
+        assert!(batches[0].schema().column_with_name("host").is_some());
+        assert!(batches[0].schema().column_with_name("time").is_some());
+        assert!(batches[0].schema().column_with_name("val").is_some());
+        assert!(batches[0]
+            .schema()
+            .column_with_name("random_name")
+            .is_none());
+
+        assert_eq!(
+            batches[0]["host"].to_data().child_data()[0].buffers()[1],
+            Buffer::from([b'a'].to_vec())
+        );
+
+        assert_eq!(
+            batches[0]["time"].to_data().buffers(),
+            &[Buffer::from(vec![123, 0, 0, 0, 0, 0, 0, 0])]
+        );
+        assert_eq!(
+            batches[0]["val"].to_data().buffers(),
+            &[Buffer::from(1_u64.to_le_bytes().to_vec())]
         );
 
         shutdown.cancel();
@@ -275,16 +327,18 @@ mod tests {
         server: impl Into<String> + Send,
         database: impl Into<String> + Send,
         query: impl Into<String> + Send,
+        format: impl Into<String> + Send,
         authorization: Option<&str>,
     ) -> Response<Body> {
         let client = Client::new();
         // query escaped for uri
         let query = urlencoding::encode(&query.into());
         let url = format!(
-            "{}/api/v3/query_sql?db={}&q={}",
+            "{}/api/v3/query_sql?db={}&q={}&format={}",
             server.into(),
             database.into(),
-            query
+            query,
+            format.into()
         );
 
         println!("query url: {}", url);

@@ -6,11 +6,14 @@ use arrow::util::pretty;
 use authz::http::AuthorizationHeaderExtension;
 use bytes::{Bytes, BytesMut};
 use data_types::NamespaceName;
+use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use futures::StreamExt;
+use hyper::header::ACCEPT;
 use hyper::header::CONTENT_ENCODING;
 use hyper::http::HeaderValue;
 use hyper::server::conn::{AddrIncoming, AddrStream};
 use hyper::{Body, Method, Request, Response, StatusCode};
+use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::WriteBuffer;
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, error, info};
@@ -117,6 +120,18 @@ pub enum Error {
     /// WriteBuffer error
     #[error("write buffer error: {0}")]
     WriteBuffer(#[from] influxdb3_write::write_buffer::Error),
+
+    // ToStrError
+    #[error("to str error: {0}")]
+    ToStr(#[from] hyper::header::ToStrError),
+
+    // SerdeJsonError
+    #[error("serde json error: {0}")]
+    SerdeJson(#[from] serde_json::Error),
+
+    // Influxdb3 Write
+    #[error("serde json error: {0}")]
+    Influxdb3Write(#[from] influxdb3_write::Error),
 }
 
 impl Error {
@@ -200,13 +215,102 @@ where
             .into_iter()
             .map(|b| b.unwrap())
             .collect();
-        let pretty_string = format!("{}", pretty::pretty_format_batches(&batches)?);
 
-        // Create a response with the pretty-printed string as the body.
-        Ok(Response::builder()
-            .status(StatusCode::OK)
-            .header("Content-Type", "text/plain; charset=utf-8")
-            .body(Body::from(pretty_string))?) // Handle this unwrap in production.
+        fn to_json(batches: Vec<RecordBatch>) -> Result<Bytes> {
+            let batches: Vec<&RecordBatch> = batches.iter().collect();
+            Ok(Bytes::from(serde_json::to_string(
+                &arrow_json::writer::record_batches_to_json_rows(batches.as_slice())?,
+            )?))
+        }
+
+        fn to_csv(batches: Vec<RecordBatch>) -> Result<Bytes> {
+            let mut writer = arrow_csv::writer::Writer::new(Vec::new());
+            for batch in batches {
+                writer.write(&batch)?;
+            }
+
+            Ok(Bytes::from(writer.into_inner()))
+        }
+
+        fn to_pretty(batches: Vec<RecordBatch>) -> Result<Bytes> {
+            Ok(Bytes::from(format!(
+                "{}",
+                pretty::pretty_format_batches(&batches)?
+            )))
+        }
+
+        fn to_parquet(batches: Vec<RecordBatch>) -> Result<Bytes> {
+            let mut bytes = Vec::new();
+            let mem_pool = Arc::new(UnboundedMemoryPool::default());
+            let mut writer =
+                TrackedMemoryArrowWriter::try_new(&mut bytes, batches[0].schema(), mem_pool)?;
+            for batch in batches {
+                writer.write(batch)?;
+            }
+            writer.close()?;
+            Ok(Bytes::from(bytes))
+        }
+
+        enum Format {
+            Parquet,
+            Csv,
+            Pretty,
+            Json,
+            Error,
+        }
+
+        let (body, format) = match params.format {
+            None => match req
+                .headers()
+                .get(ACCEPT)
+                .map(HeaderValue::to_str)
+                .transpose()?
+            {
+                // Accept Headers use the MIME types maintained by IANA here:
+                // https://www.iana.org/assignments/media-types/media-types.xhtml
+                // Note parquet hasn't been accepted yet just Arrow, but there
+                // is the possibility it will be:
+                // https://issues.apache.org/jira/browse/PARQUET-1889
+                Some("application/vnd.apache.parquet") => {
+                    (to_parquet(batches)?, Format::Parquet)
+                }
+                Some("text/csv") => (to_csv(batches)?, Format::Csv),
+                Some("text/plain") => (to_pretty(batches)?, Format::Pretty),
+                Some("application/json") => (to_json(batches)?, Format::Json),
+                Some(_) => (Bytes::from("{ \"error\": \"Available mime types are: application/vnd.apache.parquet, text/csv, text/plain, and application/json\" }"), Format::Error),
+                None => (to_json(batches)?, Format::Json),
+            },
+            Some(format) => match format.as_str() {
+                "parquet" => (to_parquet(batches)?, Format::Parquet),
+                "csv" => (to_csv(batches)?, Format::Csv),
+                "pretty" => (to_pretty(batches)?, Format::Pretty),
+                "json" => (to_json(batches)?, Format::Json),
+                _ => (Bytes::from("{ \"error\": \"Available formats are: parquet, csv, pretty, and json\" }"), Format::Error),
+            },
+        };
+
+        match format {
+            Format::Parquet => Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/vnd.apache.parquet")
+                .body(Body::from(body))?),
+            Format::Csv => Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "text/csv")
+                .body(Body::from(body))?),
+            Format::Pretty => Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "text/plain; charset=utf-8")
+                .body(Body::from(body))?),
+            Format::Json => Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .body(Body::from(body))?),
+            Format::Error => Ok(Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(body))?),
+        }
     }
 
     fn health(&self) -> Result<Response<Body>> {
@@ -284,6 +388,7 @@ where
 pub(crate) struct QuerySqlParams {
     pub(crate) db: String,
     pub(crate) q: String,
+    pub(crate) format: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
