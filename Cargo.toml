@@ -23,6 +23,7 @@ members = [
     "influxdb_tsm",
     "influxdb2_client",
     "influxdb3",
+    "influxdb3_client",
     "influxdb3_server",
     "influxdb3_write",
     "influxrpc_parser",
@@ -64,7 +65,7 @@ members = [
     "trogging",
     "wal_inspect",
     "wal",
-    "workspace-hack",
+    "workspace-hack", "influxdb3_client",
 ]
 default-members = ["influxdb3"]
 
