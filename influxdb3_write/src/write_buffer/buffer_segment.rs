@@ -205,6 +205,7 @@ impl Default for PartitionBuffer {
 
 impl PartitionBuffer {
     pub fn add_rows(&mut self, rows: Vec<Row>) {
+        self.rows.reserve(rows.len());
         for row in rows {
             self.timestamp_min = self.timestamp_min.min(row.time);
             self.timestamp_max = self.timestamp_max.max(row.time);
@@ -297,8 +298,6 @@ impl PartitionBuffer {
         for f in &schema.fields {
             cols.push(columns.remove(f.name()).unwrap().into_arrow());
         }
-
-        println!("row count: {}", row_count);
 
         RecordBatch::try_new(schema, cols).unwrap()
     }
