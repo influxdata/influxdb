@@ -18,11 +18,11 @@ pub enum Error {
     #[error("failed to send /api/v3/write_lp request: {0}")]
     WriteLpSend(#[source] reqwest::Error),
 
+    #[error("failed to read the API response bytes: {0}")]
+    Bytes(#[source] reqwest::Error),
+
     #[error("failed to send /api/v3/query_sql request: {0}")]
     QuerySqlSend(#[source] reqwest::Error),
-
-    #[error("failed to read the /api/v3/query_sql response bytes: {0}")]
-    QuerySqlBytes(#[source] reqwest::Error),
 
     #[error("invalid UTF8 in response: {0}")]
     InvalidUtf8(#[from] FromUtf8Error),
@@ -70,12 +70,13 @@ impl Client {
     /// # Example
     /// ```no_run
     /// # use influxdb3_client::Client;
+    /// # use influxdb3_client::Precision;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     /// let client = Client::new("localhost:8181", reqwest::Client::new())?;
-    /// let _ = client
+    /// client
     ///     .api_v3_write_lp("db_name")
-    ///     .precision_milli()
+    ///     .precision(Precision::Milli)
     ///     .accept_partial(true)
     ///     .body("cpu,host=s1 usage=0.5")
     ///     .send()
@@ -147,7 +148,7 @@ impl<'a, B> From<&'a WriteRequestBuilder<'a, B>> for WriteParams<'a> {
 // TODO - this should re-use type from server code.
 #[derive(Debug, Copy, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
-enum Precision {
+pub enum Precision {
     Second,
     Milli,
     Micro,
@@ -167,27 +168,9 @@ pub struct WriteRequestBuilder<'c, B> {
 }
 
 impl<'c, B> WriteRequestBuilder<'c, B> {
-    /// Use seconds precision
-    pub fn precision_seconds(mut self) -> Self {
-        self.precision = Some(Precision::Second);
-        self
-    }
-
-    /// Use milliseconds precision
-    pub fn precision_milli(mut self) -> Self {
-        self.precision = Some(Precision::Milli);
-        self
-    }
-
-    /// Use microseconds precision
-    pub fn precision_micro(mut self) -> Self {
-        self.precision = Some(Precision::Micro);
-        self
-    }
-
-    /// Use nanoseconds precision
-    pub fn precision_nano(mut self) -> Self {
-        self.precision = Some(Precision::Nano);
+    /// Set the precision
+    pub fn precision(mut self, set_to: Precision) -> Self {
+        self.precision = Some(set_to);
         self
     }
 
@@ -223,9 +206,17 @@ impl<'c> WriteRequestBuilder<'c, Body> {
         if let Some(token) = &self.client.auth_header {
             b = b.bearer_auth(token.expose_secret());
         }
-        // TODO - handle the response, return to caller, etc.
-        b.body(self.body).send().await.map_err(Error::WriteLpSend)?;
-        Ok(())
+        let resp = b.body(self.body).send().await.map_err(Error::WriteLpSend)?;
+        let status = resp.status();
+        let content = resp.bytes().await.map_err(Error::Bytes)?;
+        match status {
+            // TODO - handle the OK response content, return to caller, etc.
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: String::from_utf8(content.to_vec())?,
+            }),
+        }
     }
 }
 
@@ -265,7 +256,7 @@ impl<'c> QueryRequestBuilder<'c> {
         }
         let resp = b.send().await.map_err(Error::QuerySqlSend)?;
         let status = resp.status();
-        let content = resp.bytes().await.map_err(Error::QuerySqlBytes)?;
+        let content = resp.bytes().await.map_err(Error::Bytes)?;
 
         match status {
             StatusCode::OK => Ok(content),
@@ -310,7 +301,7 @@ pub enum Format {
 mod tests {
     use mockito::{Matcher, Server};
 
-    use crate::{Client, Format};
+    use crate::{Client, Format, Precision};
 
     #[tokio::test]
     async fn api_v3_write_lp() {
@@ -339,7 +330,7 @@ cpu,host=s1,region=us-west usage=0.7";
 
         let _ = client
             .api_v3_write_lp(db)
-            .precision_milli()
+            .precision(Precision::Milli)
             .accept_partial(true)
             .body(body)
             .send()
