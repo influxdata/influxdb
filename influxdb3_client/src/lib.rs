@@ -1,4 +1,7 @@
-use reqwest::{Body, IntoUrl};
+use std::string::FromUtf8Error;
+
+use bytes::Bytes;
+use reqwest::{Body, IntoUrl, StatusCode};
 use secrecy::{ExposeSecret, Secret};
 use serde::Serialize;
 use url::Url;
@@ -14,13 +17,25 @@ pub enum Error {
 
     #[error("failed to send /api/v3/write_lp request: {0}")]
     WriteLpSend(#[source] reqwest::Error),
+
+    #[error("failed to send /api/v3/query_sql request: {0}")]
+    QuerySqlSend(#[source] reqwest::Error),
+
+    #[error("failed to read the /api/v3/query_sql response bytes: {0}")]
+    QuerySqlBytes(#[source] reqwest::Error),
+
+    #[error("invalid UTF8 in response: {0}")]
+    InvalidUtf8(#[from] FromUtf8Error),
+
+    #[error("server responded with error [{code}]: {message}")]
+    ApiError { code: StatusCode, message: String },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// The InfluxDB 3.0 Client
 ///
-/// Convenience type for accessing the HTTP API of InfluxDB 3.0
+/// For programmatic access to the HTTP API of InfluxDB 3.0
 #[derive(Debug, Clone)]
 pub struct Client {
     /// The base URL for making requests to a running InfluxDB 3.0 server
@@ -69,13 +84,42 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn api_v3_write_lp<S: Into<String>>(&self, db: S) -> WriteRequestBuilder<NoBody> {
+    pub fn api_v3_write_lp<S: Into<String>>(&self, db: S) -> WriteRequestBuilder<'_, NoBody> {
         WriteRequestBuilder {
-            client: self.clone(),
+            client: self,
             db: db.into(),
             precision: None,
             accept_partial: None,
             body: NoBody,
+        }
+    }
+
+    /// Compose a request to the `/api/v3/query_sql` API
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use influxdb3_client::Client;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// let client = Client::new("localhost:8181", reqwest::Client::new())?;
+    /// let response_bytes = client
+    ///     .api_v3_query_sql("db_name", "SELECT * FROM foo")
+    ///     .send()
+    ///     .await
+    ///     .expect("send query_sql request");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn api_v3_query_sql<D: Into<String>, Q: Into<String>>(
+        &self,
+        db: D,
+        query: Q,
+    ) -> QueryRequestBuilder<'_> {
+        QueryRequestBuilder {
+            client: self,
+            db: db.into(),
+            query: query.into(),
+            format: None,
         }
     }
 }
@@ -83,14 +127,14 @@ impl Client {
 /// The body of the request to the `/api/v3/write_lp` API
 // TODO - this should re-use the type defined in the server code.
 #[derive(Debug, Serialize)]
-struct WriteRequest<'a> {
+struct WriteParams<'a> {
     db: &'a str,
     precision: Option<Precision>,
     accept_partial: Option<bool>,
 }
 
-impl<'a, B> From<&'a WriteRequestBuilder<B>> for WriteRequest<'a> {
-    fn from(builder: &'a WriteRequestBuilder<B>) -> Self {
+impl<'a, B> From<&'a WriteRequestBuilder<'a, B>> for WriteParams<'a> {
+    fn from(builder: &'a WriteRequestBuilder<'a, B>) -> Self {
         Self {
             db: &builder.db,
             precision: builder.precision,
@@ -114,15 +158,15 @@ enum Precision {
 ///
 /// Produced by [`Client::api_v3_write_lp`]
 #[derive(Debug)]
-pub struct WriteRequestBuilder<B> {
-    client: Client,
+pub struct WriteRequestBuilder<'c, B> {
+    client: &'c Client,
     db: String,
     precision: Option<Precision>,
     accept_partial: Option<bool>,
     body: B,
 }
 
-impl<B> WriteRequestBuilder<B> {
+impl<'c, B> WriteRequestBuilder<'c, B> {
     /// Use seconds precision
     pub fn precision_seconds(mut self) -> Self {
         self.precision = Some(Precision::Second);
@@ -154,12 +198,12 @@ impl<B> WriteRequestBuilder<B> {
     }
 }
 
-impl WriteRequestBuilder<NoBody> {
+impl<'c> WriteRequestBuilder<'c, NoBody> {
     /// Set the body of the request to the `/api/v3/write_lp` API
     ///
     /// This essentially wraps `reqwest`'s [`body`][reqwest::RequestBuilder::body]
     /// method, and puts the responsibility on the caller for now.
-    pub fn body<T: Into<Body>>(self, body: T) -> WriteRequestBuilder<Body> {
+    pub fn body<T: Into<Body>>(self, body: T) -> WriteRequestBuilder<'c, Body> {
         WriteRequestBuilder {
             client: self.client,
             db: self.db,
@@ -170,13 +214,13 @@ impl WriteRequestBuilder<NoBody> {
     }
 }
 
-impl WriteRequestBuilder<Body> {
+impl<'c> WriteRequestBuilder<'c, Body> {
     /// Send the request to the server
     pub async fn send(self) -> Result<()> {
         let url = self.client.base_url.join("/api/v3/write_lp")?;
-        let req = WriteRequest::from(&self);
+        let req = WriteParams::from(&self);
         let mut b = self.client.http_client.post(url).query(&req);
-        if let Some(token) = self.client.auth_header {
+        if let Some(token) = &self.client.auth_header {
             b = b.bearer_auth(token.expose_secret());
         }
         // TODO - handle the response, return to caller, etc.
@@ -190,11 +234,83 @@ impl WriteRequestBuilder<Body> {
 #[derive(Debug, Copy, Clone)]
 pub struct NoBody;
 
+/// Used to compose a request to the `/api/v3/query_sql` API
+///
+/// Produced by [`Client::api_v3_query_sql`] method.
+#[derive(Debug)]
+pub struct QueryRequestBuilder<'c> {
+    client: &'c Client,
+    db: String,
+    query: String,
+    format: Option<Format>,
+}
+
+// TODO - for now the send method just returns the bytes from the response.
+//   It may be nicer to have the format parameter dictate how we return from
+//   send, e.g., using types more specific to the format selected.
+impl<'c> QueryRequestBuilder<'c> {
+    /// Specify the format, `json`, `csv`, `pretty`, or `parquet`
+    pub fn format(mut self, format: Format) -> Self {
+        self.format = Some(format);
+        self
+    }
+
+    /// Send the request to `/api/v3/query_sql`
+    pub async fn send(self) -> Result<Bytes> {
+        let url = self.client.base_url.join("/api/v3/query_sql")?;
+        let req = QueryParams::from(&self);
+        let mut b = self.client.http_client.get(url).query(&req);
+        if let Some(token) = &self.client.auth_header {
+            b = b.bearer_auth(token.expose_secret());
+        }
+        let resp = b.send().await.map_err(Error::QuerySqlSend)?;
+        let status = resp.status();
+        let content = resp.bytes().await.map_err(Error::QuerySqlBytes)?;
+
+        match status {
+            StatusCode::OK => Ok(content),
+            code => Err(Error::ApiError {
+                code,
+                message: String::from_utf8(content.to_vec()).map_err(Error::InvalidUtf8)?,
+            }),
+        }
+    }
+}
+
+/// Query parameters for the `/api/v3/query_sql` API
+#[derive(Debug, Serialize)]
+pub struct QueryParams<'a> {
+    db: &'a str,
+    #[serde(rename = "q")]
+    query: &'a str,
+    format: Option<Format>,
+}
+
+impl<'a> From<&'a QueryRequestBuilder<'a>> for QueryParams<'a> {
+    fn from(builder: &'a QueryRequestBuilder<'a>) -> Self {
+        Self {
+            db: &builder.db,
+            query: &builder.query,
+            format: builder.format,
+        }
+    }
+}
+
+/// Output format to request from the server in the `/api/v3/query_sql` API
+#[derive(Debug, Serialize, Copy, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum Format {
+    Json,
+    Csv,
+    Parquet,
+    Pretty,
+}
+
 #[cfg(test)]
 mod tests {
     use mockito::{Matcher, Server};
 
-    use crate::Client;
+    use crate::{Client, Format};
 
     #[tokio::test]
     async fn api_v3_write_lp() {
@@ -229,6 +345,46 @@ cpu,host=s1,region=us-west usage=0.7";
             .send()
             .await
             .expect("send write_lp request");
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn api_v3_query_sql() {
+        let token = "super-secret-token";
+        let db = "stats";
+        let query = "SELECT * FROM foo";
+        let body = r#"[{"host": "foo", "time": "1990-07-23T06:00:00:000", "val": 1}]"#;
+
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("GET", "/api/v3/query_sql")
+            .match_header("Authorization", format!("Bearer {token}").as_str())
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("db".into(), db.into()),
+                Matcher::UrlEncoded("q".into(), query.into()),
+                Matcher::UrlEncoded("format".into(), "json".into()),
+            ]))
+            .with_status(200)
+            // TODO - could add content-type header but that may be too brittle
+            //        at the moment
+            //      - this will be JSON Lines at some point
+            .with_body(body)
+            .create_async()
+            .await;
+
+        let client = Client::new(mock_server.url(), reqwest::Client::new())
+            .expect("create client")
+            .with_auth_header(token);
+
+        let r = client
+            .api_v3_query_sql(db, query)
+            .format(Format::Json)
+            .send()
+            .await
+            .expect("send request to server");
+
+        assert_eq!(&r, body);
 
         mock.assert_async().await;
     }

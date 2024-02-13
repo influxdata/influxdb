@@ -2668,6 +2668,7 @@ dependencies = [
 name = "influxdb3_client"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "mockito",
  "reqwest",
  "secrecy",
