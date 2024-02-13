@@ -2638,6 +2638,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "url",
+ "workspace-hack",
 ]
 
 [[package]]
