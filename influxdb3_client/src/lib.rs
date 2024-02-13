@@ -328,7 +328,7 @@ cpu,host=s1,region=us-west usage=0.7";
             .expect("create client")
             .with_auth_header(token);
 
-        let _ = client
+        client
             .api_v3_write_lp(db)
             .precision(Precision::Milli)
             .accept_partial(true)
