@@ -52,6 +52,7 @@ lock_api = { version = "0.4", features = ["arc_lock"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
 md-5 = { version = "0.10" }
 memchr = { version = "2" }
+mockito = { version = "1" }
 nom = { version = "7" }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
 object_store = { version = "0.8", default-features = false, features = ["aws", "azure", "gcp"] }
@@ -68,9 +69,10 @@ rand_core = { version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
 regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "dfa-search", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
 regex-syntax = { version = "0.8" }
-reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls", "rustls-tls-native-roots", "stream"] }
+reqwest = { version = "0.11", features = ["json", "rustls-tls", "rustls-tls-native-roots", "stream"] }
 ring = { version = "0.17", features = ["std"] }
 rustls = { version = "0.21", features = ["dangerous_configuration"] }
+secrecy = { version = "0.8", features = ["serde"] }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde_json = { version = "1", features = ["alloc", "raw_value"] }
 sha2 = { version = "0.10" }
@@ -174,6 +176,7 @@ spin = { version = "0.9" }
 [target.x86_64-apple-darwin.dependencies]
 hyper-rustls = { version = "0.24" }
 nix = { version = "0.27", features = ["fs", "signal", "user"] }
+security-framework-sys = { version = "2" }
 spin = { version = "0.9" }
 
 [target.x86_64-apple-darwin.build-dependencies]
@@ -184,6 +187,7 @@ spin = { version = "0.9" }
 [target.aarch64-apple-darwin.dependencies]
 hyper-rustls = { version = "0.24" }
 nix = { version = "0.27", features = ["fs", "signal", "user"] }
+security-framework-sys = { version = "2" }
 spin = { version = "0.9" }
 
 [target.aarch64-apple-darwin.build-dependencies]
