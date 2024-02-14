@@ -41,27 +41,37 @@ pub struct Client {
     /// The base URL for making requests to a running InfluxDB 3.0 server
     base_url: Url,
     /// The `Bearer` token to use for authenticating on each request to the server
-    auth_header: Option<Secret<String>>,
+    auth_token: Option<Secret<String>>,
     /// A [`reqwest::Client`] for handling HTTP requests
     http_client: reqwest::Client,
 }
 
 impl Client {
     /// Create a new [`Client`]
-    ///
-    /// A [`reqwest::Client`] is passed in order to allow for re-use of an existing
-    /// `reqwest::Client`.
-    pub fn new<U: IntoUrl>(base_url: U, http_client: reqwest::Client) -> Result<Self> {
+    pub fn new<U: IntoUrl>(base_url: U) -> Result<Self> {
         Ok(Self {
             base_url: base_url.into_url().map_err(Error::BaseUrl)?,
-            auth_header: None,
-            http_client,
+            auth_token: None,
+            http_client: reqwest::Client::new(),
         })
     }
 
     /// Set the `Bearer` token that will be sent with each request to the server
-    pub fn with_auth_header<S: Into<String>>(mut self, auth_header: S) -> Self {
-        self.auth_header = Some(Secret::new(auth_header.into()));
+    ///
+    /// # Example
+    /// ```
+    /// # use influxdb3_client::Client;
+    /// # use influxdb3_client::Precision;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// let token = "secret-token-string";
+    /// let client = Client::new("http://localhost:8181")?
+    ///     .with_auth_token(token);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_auth_token<S: Into<String>>(mut self, auth_token: S) -> Self {
+        self.auth_token = Some(Secret::new(auth_token.into()));
         self
     }
 
@@ -73,7 +83,7 @@ impl Client {
     /// # use influxdb3_client::Precision;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /// let client = Client::new("localhost:8181", reqwest::Client::new())?;
+    /// let client = Client::new("http://localhost:8181")?;
     /// client
     ///     .api_v3_write_lp("db_name")
     ///     .precision(Precision::Milli)
@@ -102,7 +112,7 @@ impl Client {
     /// # use influxdb3_client::Client;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /// let client = Client::new("localhost:8181", reqwest::Client::new())?;
+    /// let client = Client::new("http://localhost:8181")?;
     /// let response_bytes = client
     ///     .api_v3_query_sql("db_name", "SELECT * FROM foo")
     ///     .send()
@@ -125,8 +135,9 @@ impl Client {
     }
 }
 
-/// The body of the request to the `/api/v3/write_lp` API
-// TODO - this should re-use the type defined in the server code.
+/// The URL parameters of the request to the `/api/v3/write_lp` API
+// TODO - this should re-use a type defined in the server code, or a separate crate,
+//        central to both.
 #[derive(Debug, Serialize)]
 struct WriteParams<'a> {
     db: &'a str,
@@ -145,7 +156,8 @@ impl<'a, B> From<&'a WriteRequestBuilder<'a, B>> for WriteParams<'a> {
 }
 
 /// Time series precision
-// TODO - this should re-use type from server code.
+// TODO - this should re-use a type defined in the server code, or a separate crate,
+//        central to both.
 #[derive(Debug, Copy, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Precision {
@@ -203,7 +215,7 @@ impl<'c> WriteRequestBuilder<'c, Body> {
         let url = self.client.base_url.join("/api/v3/write_lp")?;
         let req = WriteParams::from(&self);
         let mut b = self.client.http_client.post(url).query(&req);
-        if let Some(token) = &self.client.auth_header {
+        if let Some(token) = &self.client.auth_token {
             b = b.bearer_auth(token.expose_secret());
         }
         let resp = b.body(self.body).send().await.map_err(Error::WriteLpSend)?;
@@ -251,7 +263,7 @@ impl<'c> QueryRequestBuilder<'c> {
         let url = self.client.base_url.join("/api/v3/query_sql")?;
         let req = QueryParams::from(&self);
         let mut b = self.client.http_client.get(url).query(&req);
-        if let Some(token) = &self.client.auth_header {
+        if let Some(token) = &self.client.auth_token {
             b = b.bearer_auth(token.expose_secret());
         }
         let resp = b.send().await.map_err(Error::QuerySqlSend)?;
@@ -308,8 +320,8 @@ mod tests {
         let token = "super-secret-token";
         let db = "stats";
         let body = "\
-cpu,host=s1 usage=0.5
-cpu,host=s1,region=us-west usage=0.7";
+            cpu,host=s1 usage=0.5
+            cpu,host=s1,region=us-west usage=0.7";
 
         let mut mock_server = Server::new_async().await;
         let mock = mock_server
@@ -324,9 +336,9 @@ cpu,host=s1,region=us-west usage=0.7";
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url(), reqwest::Client::new())
+        let client = Client::new(mock_server.url())
             .expect("create client")
-            .with_auth_header(token);
+            .with_auth_token(token);
 
         client
             .api_v3_write_lp(db)
@@ -364,9 +376,9 @@ cpu,host=s1,region=us-west usage=0.7";
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url(), reqwest::Client::new())
+        let client = Client::new(mock_server.url())
             .expect("create client")
-            .with_auth_header(token);
+            .with_auth_token(token);
 
         let r = client
             .api_v3_query_sql(db, query)

@@ -65,7 +65,7 @@ members = [
     "trogging",
     "wal_inspect",
     "wal",
-    "workspace-hack", "influxdb3_client",
+    "workspace-hack",
 ]
 default-members = ["influxdb3"]
 
