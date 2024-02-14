@@ -318,6 +318,10 @@ impl WalSegmentWriter for WalSegmentWriterImpl {
         self.segment_id
     }
 
+    fn bytes_written(&self) -> u64 {
+        self.bytes_written as u64
+    }
+
     fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<SequenceNumber> {
         self.write_batch(ops)
     }
@@ -331,6 +335,7 @@ impl WalSegmentWriter for WalSegmentWriterImpl {
 pub struct WalSegmentWriterNoopImpl {
     segment_id: SegmentId,
     sequence_number: SequenceNumber,
+    wal_ops_written: usize,
 }
 
 impl WalSegmentWriterNoopImpl {
@@ -338,6 +343,7 @@ impl WalSegmentWriterNoopImpl {
         Self {
             segment_id,
             sequence_number: SequenceNumber::new(0),
+            wal_ops_written: 0,
         }
     }
 }
@@ -347,9 +353,18 @@ impl WalSegmentWriter for WalSegmentWriterNoopImpl {
         self.segment_id
     }
 
-    fn write_batch(&mut self, _ops: Vec<WalOp>) -> Result<SequenceNumber> {
+    fn bytes_written(&self) -> u64 {
+        self.wal_ops_written as u64
+    }
+
+    fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<SequenceNumber> {
         let sequence_number = self.sequence_number.next();
         self.sequence_number = sequence_number;
+        self.wal_ops_written += ops.len();
+        println!(
+            "write_batch called: wal_ops_written: {}",
+            self.wal_ops_written
+        );
         Ok(sequence_number)
     }
 

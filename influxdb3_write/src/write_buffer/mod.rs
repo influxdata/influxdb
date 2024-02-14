@@ -102,7 +102,8 @@ impl<W: Wal> WriteBufferImpl<W> {
             .transpose()?
             .unwrap_or_else(|| Box::new(WalSegmentWriterNoopImpl::new(next_segment_id)));
 
-        let open_segment = OpenBufferSegment::new(next_segment_id, segment_writer);
+        let open_segment =
+            OpenBufferSegment::new(next_segment_id, catalog.sequence_number(), segment_writer);
         let segment_state = Arc::new(RwLock::new(SegmentState::new(open_segment)));
 
         let write_buffer_flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
@@ -179,11 +180,19 @@ impl<W: Wal> WriteBufferImpl<W> {
         _projection: Option<&Vec<usize>>,
         _ctx: &SessionState,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let db_schema = self.catalog.db_schema(database_name).unwrap();
-        let table = db_schema.tables.get(table_name).unwrap();
-        let schema = table.schema.as_ref().cloned().unwrap();
+        let db_schema = self
+            .catalog
+            .db_schema(database_name)
+            .ok_or_else(|| DataFusionError::Execution(format!("db {} not found", database_name)))?;
+        let table = db_schema
+            .tables
+            .get(table_name)
+            .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
+        let schema = table.schema.clone();
 
-        let table_buffer = self.clone_table_buffer(database_name, table_name).unwrap();
+        let table_buffer = self
+            .clone_table_buffer(database_name, table_name)
+            .unwrap_or_default();
 
         let mut chunks = Vec::with_capacity(table_buffer.partition_buffers.len());
 
@@ -222,7 +231,7 @@ impl<W: Wal> WriteBufferImpl<W> {
     fn get_table_record_batches(&self, datbase_name: &str, table_name: &str) -> Vec<RecordBatch> {
         let db_schema = self.catalog.db_schema(datbase_name).unwrap();
         let table = db_schema.tables.get(table_name).unwrap();
-        let schema = table.schema.as_ref().cloned().unwrap();
+        let schema = table.schema.clone();
 
         let table_buffer = self.clone_table_buffer(datbase_name, table_name).unwrap();
 

@@ -22,6 +22,7 @@ chrono = "0.4"
 crc32fast = "1.2.0"
 crossbeam-channel = "0.5.11"
 datafusion = { workspace = true }
+datafusion_util = { path = "../datafusion_util" }
 parking_lot = "0.11.1"
 parquet = { workspace = true }
 thiserror = "1.0"

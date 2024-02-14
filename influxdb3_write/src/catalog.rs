@@ -1,5 +1,6 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
+use crate::SequenceNumber;
 use data_types::ColumnType;
 use observability_deps::tracing::info;
 use parking_lot::RwLock;
@@ -39,22 +40,32 @@ impl Catalog {
         }
     }
 
-    pub(crate) fn replace_database(&self, sequence: u64, db: Arc<DatabaseSchema>) -> Result<()> {
+    pub fn from_inner(inner: InnerCatalog) -> Self {
+        Self {
+            inner: RwLock::new(inner),
+        }
+    }
+
+    pub(crate) fn replace_database(
+        &self,
+        sequence: SequenceNumber,
+        db: Arc<DatabaseSchema>,
+    ) -> Result<()> {
         let mut inner = self.inner.write();
         if inner.sequence != sequence {
             info!("catalog updated elsewhere");
             return Err(Error::CatalogUpdatedElsewhere);
         }
 
-        info!("inserted {}", db.name);
+        info!("inserted/updated database in catalog: {}", db.name);
 
-        inner.sequence += 1;
+        inner.sequence = inner.sequence.next();
         inner.databases.insert(db.name.clone(), db);
 
         Ok(())
     }
 
-    pub(crate) fn db_or_create(&self, db_name: &str) -> (u64, Arc<DatabaseSchema>) {
+    pub(crate) fn db_or_create(&self, db_name: &str) -> (SequenceNumber, Arc<DatabaseSchema>) {
         let (sequence, db) = {
             let inner = self.inner.read();
             (inner.sequence, inner.databases.get(db_name).cloned())
@@ -85,20 +96,28 @@ impl Catalog {
     pub fn into_inner(self) -> InnerCatalog {
         self.inner.into_inner()
     }
+
+    pub fn sequence_number(&self) -> SequenceNumber {
+        self.inner.read().sequence
+    }
+
+    pub fn clone_inner(&self) -> InnerCatalog {
+        self.inner.read().clone()
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
     databases: HashMap<String, Arc<DatabaseSchema>>,
-    sequence: u64,
+    sequence: SequenceNumber,
 }
 
 impl InnerCatalog {
     pub(crate) fn new() -> Self {
         Self {
             databases: HashMap::new(),
-            sequence: 0,
+            sequence: SequenceNumber::new(0),
         }
     }
 
@@ -123,10 +142,12 @@ impl DatabaseSchema {
         }
     }
 
-    pub fn get_table_schema(&self, table_name: &str) -> Option<Schema> {
-        self.tables
-            .get(table_name)
-            .and_then(|table| table.schema.clone())
+    pub fn get_table_schema(&self, table_name: &str) -> Option<&Schema> {
+        self.tables.get(table_name).map(|table| &table.schema)
+    }
+
+    pub fn get_table(&self, table_name: &str) -> Option<&TableDefinition> {
+        self.tables.get(table_name)
     }
 
     pub fn table_names(&self) -> Vec<String> {
@@ -142,7 +163,7 @@ impl DatabaseSchema {
 pub struct TableDefinition {
     pub name: String,
     #[serde(skip_serializing, skip_deserializing)]
-    pub schema: Option<Schema>,
+    pub schema: Schema,
     columns: BTreeMap<String, i16>,
 }
 
@@ -209,7 +230,7 @@ impl TableDefinition {
 
         Self {
             name: name.into(),
-            schema: Some(schema),
+            schema,
             columns,
         }
     }
@@ -232,7 +253,12 @@ impl TableDefinition {
         for (name, column_type) in columns.into_iter() {
             self.columns.insert(name, column_type);
         }
-        self.schema = Some(schema);
+        self.schema = schema;
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn schema(&self) -> &Schema {
+        &self.schema
     }
 
     pub(crate) fn columns(&self) -> &BTreeMap<String, i16> {
@@ -271,7 +297,9 @@ mod tests {
             ),
         );
         let database = Arc::new(database);
-        catalog.replace_database(0, database).unwrap();
+        catalog
+            .replace_database(SequenceNumber::new(0), database)
+            .unwrap();
         let inner = catalog.inner.read();
 
         let serialized = serde_json::to_string(&*inner).unwrap();

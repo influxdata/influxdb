@@ -2692,6 +2692,7 @@ dependencies = [
  "crossbeam-channel",
  "data_types",
  "datafusion",
+ "datafusion_util",
  "futures-util",
  "influxdb-line-protocol",
  "iox_query",
