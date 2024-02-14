@@ -644,7 +644,7 @@ mod tests {
         let mut write_batch = WriteBatch::default();
         let (seq, db) = catalog.db_or_create(db_name);
         let partitioner = Partitioner::new_per_day_partitioner();
-        let result = parse_validate_and_update_schema(lp, &db, &partitioner, 0).unwrap();
+        let result = parse_validate_and_update_schema(lp, &db, &partitioner, 0, false).unwrap();
         if let Some(db) = result.schema {
             catalog.replace_database(seq, Arc::new(db)).unwrap();
         }

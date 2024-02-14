@@ -2694,6 +2694,7 @@ dependencies = [
  "trace_exporters",
  "trace_http",
  "tracker",
+ "unicode-segmentation",
  "urlencoding 1.3.3",
  "workspace-hack",
 ]

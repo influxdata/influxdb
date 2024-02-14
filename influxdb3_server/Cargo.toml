@@ -51,6 +51,7 @@ arrow-schema = "49.0.0"
 arrow-csv = "49.0.0"
 sha2 = "0.10.8"
 hex = "0.4.3"
+unicode-segmentation = "1.11.0"
 
 [dev-dependencies]
 parquet.workspace = true

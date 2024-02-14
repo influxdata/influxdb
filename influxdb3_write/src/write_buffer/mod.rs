@@ -9,7 +9,7 @@ use crate::write_buffer::buffer_segment::{ClosedBufferSegment, OpenBufferSegment
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::{
     BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, SegmentId, Wal,
-    WalOp, WriteBuffer,
+    WalOp, WriteBuffer, WriteLineError,
 };
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -36,8 +36,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("error parsing line {line_number}: {message}")]
-    ParseError { line_number: usize, message: String },
+    #[error("parsing for line protocol failed")]
+    ParseError(WriteLineError),
 
     #[error("column type mismatch for column {name}: existing: {existing:?}, new: {new:?}")]
     ColumnTypeMismatch {
@@ -121,14 +121,20 @@ impl<W: Wal> WriteBufferImpl<W> {
         db_name: NamespaceName<'static>,
         lp: &str,
         default_time: i64,
+        accept_partial: bool,
     ) -> Result<BufferedWriteRequest> {
         debug!("write_lp to {} in writebuffer", db_name);
 
-        let result = self.parse_validate_and_update_schema(db_name.clone(), lp, default_time)?;
+        let result = self.parse_validate_and_update_schema(
+            db_name.clone(),
+            lp,
+            default_time,
+            accept_partial,
+        )?;
 
         let wal_op = WalOp::LpWrite(LpWriteOp {
             db_name: db_name.to_string(),
-            lp: lp.to_string(),
+            lp: result.lp_valid,
             default_time,
         });
 
@@ -139,7 +145,7 @@ impl<W: Wal> WriteBufferImpl<W> {
 
         Ok(BufferedWriteRequest {
             db_name,
-            invalid_lines: vec![],
+            invalid_lines: result.errors,
             line_count: result.line_count,
             field_count: result.field_count,
             tag_count: result.tag_count,
@@ -154,6 +160,7 @@ impl<W: Wal> WriteBufferImpl<W> {
         db_name: NamespaceName<'static>,
         lp: &str,
         default_time: i64,
+        accept_partial: bool,
     ) -> Result<ValidationResult> {
         let (sequence, db) = self.catalog.db_or_create(db_name.as_str());
         let mut result = parse_validate_and_update_schema(
@@ -161,6 +168,7 @@ impl<W: Wal> WriteBufferImpl<W> {
             &db,
             &Partitioner::new_per_day_partitioner(),
             default_time,
+            accept_partial,
         )?;
 
         if let Some(schema) = result.schema.take() {
@@ -253,8 +261,10 @@ impl<W: Wal> Bufferer for WriteBufferImpl<W> {
         database: NamespaceName<'static>,
         lp: &str,
         default_time: i64,
+        accept_partial: bool,
     ) -> Result<BufferedWriteRequest> {
-        self.write_lp(database, lp, default_time).await
+        self.write_lp(database, lp, default_time, accept_partial)
+            .await
     }
 
     async fn close_open_segment(&self) -> crate::Result<Arc<dyn BufferSegment>> {
@@ -358,17 +368,44 @@ pub(crate) fn parse_validate_and_update_schema(
     schema: &DatabaseSchema,
     partitioner: &Partitioner,
     default_time: i64,
+    accept_partial: bool,
 ) -> Result<ValidationResult> {
     let mut lines = vec![];
+    let mut errors = vec![];
+    let mut valid_lines = vec![];
+    let mut lp_lines = lp.lines();
+
     for (line_idx, maybe_line) in parse_lines(lp).enumerate() {
-        let line = maybe_line.map_err(|e| Error::ParseError {
-            line_number: line_idx + 1,
-            message: e.to_string(),
-        })?;
+        let line = match maybe_line {
+            Ok(line) => line,
+            Err(e) => {
+                if !accept_partial {
+                    return Err(Error::ParseError(WriteLineError {
+                        original_line: lp_lines.next().unwrap().to_string(),
+                        line_number: line_idx + 1,
+                        error_message: e.to_string(),
+                    }));
+                } else {
+                    errors.push(WriteLineError {
+                        original_line: lp_lines.next().unwrap().to_string(),
+                        line_number: line_idx + 1,
+                        error_message: e.to_string(),
+                    });
+                }
+                continue;
+            }
+        };
+        valid_lines.push(lp_lines.next().unwrap());
         lines.push(line);
     }
 
-    validate_or_insert_schema_and_partitions(lines, schema, partitioner, default_time)
+    validate_or_insert_schema_and_partitions(lines, schema, partitioner, default_time).map(
+        move |mut result| {
+            result.lp_valid = valid_lines.join("\n");
+            result.errors = errors;
+            result
+        },
+    )
 }
 
 /// Takes parsed lines, validates their schema. If new tables or columns are defined, they
@@ -415,6 +452,8 @@ pub(crate) fn validate_or_insert_schema_and_partitions(
         line_count,
         field_count,
         tag_count,
+        errors: vec![],
+        lp_valid: String::new(),
     })
 }
 
@@ -585,6 +624,10 @@ pub(crate) struct ValidationResult {
     pub(crate) field_count: usize,
     /// Number of tags passed in
     pub(crate) tag_count: usize,
+    /// Any errors that ocurred while parsing the lines
+    pub(crate) errors: Vec<crate::WriteLineError>,
+    /// Only valid lines from what was passed in to validate
+    pub(crate) lp_valid: String,
 }
 
 /// Generates the partition key for a given line or row
@@ -628,7 +671,7 @@ mod tests {
         let db = Arc::new(DatabaseSchema::new("foo"));
         let partitioner = Partitioner::new_per_day_partitioner();
         let lp = "cpu,region=west user=23.2 100\nfoo f1=1i";
-        let result = parse_validate_and_update_schema(lp, &db, &partitioner, 0).unwrap();
+        let result = parse_validate_and_update_schema(lp, &db, &partitioner, 0, false).unwrap();
 
         println!("result: {:#?}", result);
         let db = result.schema.unwrap();
@@ -647,7 +690,12 @@ mod tests {
             WriteBufferImpl::new(catalog, Some(Arc::new(wal)), SegmentId::new(0)).unwrap();
 
         let summary = write_buffer
-            .write_lp(NamespaceName::new("foo").unwrap(), "cpu bar=1 10", 123)
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=1 10",
+                123,
+                false,
+            )
             .await
             .unwrap();
         assert_eq!(summary.line_count, 1);
@@ -686,7 +734,8 @@ mod tests {
     pub(crate) fn lp_to_table_batches(lp: &str, default_time: i64) -> HashMap<String, TableBatch> {
         let db = Arc::new(DatabaseSchema::new("foo"));
         let partitioner = Partitioner::new_per_day_partitioner();
-        let result = parse_validate_and_update_schema(lp, &db, &partitioner, default_time).unwrap();
+        let result =
+            parse_validate_and_update_schema(lp, &db, &partitioner, default_time, false).unwrap();
 
         result.table_batches
     }

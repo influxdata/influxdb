@@ -83,6 +83,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         database: NamespaceName<'static>,
         lp: &str,
         default_time: i64,
+        accept_partial: bool,
     ) -> write_buffer::Result<BufferedWriteRequest>;
 
     /// Closes the open segment and returns it so that it can be persisted or thrown away. A new segment will be opened
