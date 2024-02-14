@@ -354,7 +354,6 @@ impl WalSegmentWriter for WalSegmentWriterNoopImpl {
     }
 
     fn bytes_written(&self) -> u64 {
-        println!("getting bytes_written");
         self.wal_ops_written as u64
     }
 

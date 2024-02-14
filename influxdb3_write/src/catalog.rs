@@ -142,10 +142,8 @@ impl DatabaseSchema {
         }
     }
 
-    pub fn get_table_schema(&self, table_name: &str) -> Option<Schema> {
-        self.tables
-            .get(table_name)
-            .map(|table| table.schema.clone())
+    pub fn get_table_schema(&self, table_name: &str) -> Option<&Schema> {
+        self.tables.get(table_name).map(|table| &table.schema)
     }
 
     pub fn get_table(&self, table_name: &str) -> Option<&TableDefinition> {
