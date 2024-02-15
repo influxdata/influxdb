@@ -213,12 +213,16 @@ impl<'c> WriteRequestBuilder<'c, Body> {
     /// Send the request to the server
     pub async fn send(self) -> Result<()> {
         let url = self.client.base_url.join("/api/v3/write_lp")?;
-        let req = WriteParams::from(&self);
-        let mut b = self.client.http_client.post(url).query(&req);
+        let params = WriteParams::from(&self);
+        let mut req = self.client.http_client.post(url).query(&params);
         if let Some(token) = &self.client.auth_token {
-            b = b.bearer_auth(token.expose_secret());
+            req = req.bearer_auth(token.expose_secret());
         }
-        let resp = b.body(self.body).send().await.map_err(Error::WriteLpSend)?;
+        let resp = req
+            .body(self.body)
+            .send()
+            .await
+            .map_err(Error::WriteLpSend)?;
         let status = resp.status();
         let content = resp.bytes().await.map_err(Error::Bytes)?;
         match status {
@@ -261,12 +265,12 @@ impl<'c> QueryRequestBuilder<'c> {
     /// Send the request to `/api/v3/query_sql`
     pub async fn send(self) -> Result<Bytes> {
         let url = self.client.base_url.join("/api/v3/query_sql")?;
-        let req = QueryParams::from(&self);
-        let mut b = self.client.http_client.get(url).query(&req);
+        let params = QueryParams::from(&self);
+        let mut req = self.client.http_client.get(url).query(&params);
         if let Some(token) = &self.client.auth_token {
-            b = b.bearer_auth(token.expose_secret());
+            req = req.bearer_auth(token.expose_secret());
         }
-        let resp = b.send().await.map_err(Error::QuerySqlSend)?;
+        let resp = req.send().await.map_err(Error::QuerySqlSend)?;
         let status = resp.status();
         let content = resp.bytes().await.map_err(Error::Bytes)?;
 
