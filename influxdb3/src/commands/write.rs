@@ -30,6 +30,12 @@ pub struct Config {
     /// Currently, only files containing line protocol are supported.
     #[clap(short = 'f', long = "file")]
     file_path: String,
+
+    /// Flag to request the server accept partial writes
+    ///
+    /// Invalid lines in the input data will be ignored by the server.
+    #[clap(long = "accept-partial")]
+    accept_partial_writes: bool,
 }
 
 pub(crate) async fn command(config: Config) -> Result<()> {
@@ -47,11 +53,11 @@ pub(crate) async fn command(config: Config) -> Result<()> {
     let mut writes = Vec::new();
     f.read_to_end(&mut writes).await?;
 
-    client
-        .api_v3_write_lp(database_name)
-        .body(writes)
-        .send()
-        .await?;
+    let mut req = client.api_v3_write_lp(database_name);
+    if config.accept_partial_writes {
+        req = req.accept_partial(true);
+    }
+    req.body(writes).send().await?;
 
     println!("success");
 
