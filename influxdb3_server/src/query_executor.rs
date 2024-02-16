@@ -282,18 +282,14 @@ impl<B: WriteBuffer> SchemaProvider for QueryDatabase<B> {
     }
 
     async fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
-        info!("table {}", name);
-
-        let schema = self.db_schema.get_table_schema(name).unwrap();
-
-        info!("return QueryTable");
-        let name: Arc<str> = name.into();
-        Some(Arc::new(QueryTable {
-            db_schema: Arc::clone(&self.db_schema),
-            name,
-            schema,
-            write_buffer: Arc::clone(&self.write_buffer),
-        }))
+        self.db_schema.get_table_schema(name).map(|schema| {
+            Arc::new(QueryTable {
+                db_schema: Arc::clone(&self.db_schema),
+                name: name.into(),
+                schema: schema.clone(),
+                write_buffer: Arc::clone(&self.write_buffer),
+            }) as Arc<dyn TableProvider>
+        })
     }
 
     fn table_exist(&self, name: &str) -> bool {

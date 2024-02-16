@@ -27,6 +27,7 @@ use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
 use parquet::format::FileMetaData;
+use std::any::Any;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -214,15 +215,20 @@ impl Persister for PersisterImpl {
         &self,
         path: ParquetFilePath,
         record_batch: SendableRecordBatchStream,
-    ) -> Result<FileMetaData> {
+    ) -> Result<(u64, FileMetaData)> {
         let parquet = self.serialize_to_parquet(record_batch).await?;
+        let bytes_written = parquet.bytes.len() as u64;
         self.object_store.put(path.as_ref(), parquet.bytes).await?;
 
-        Ok(parquet.meta_data)
+        Ok((bytes_written, parquet.meta_data))
     }
 
     fn object_store(&self) -> Arc<dyn ObjectStore> {
         self.object_store.clone()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
     }
 }
 
@@ -482,7 +488,7 @@ async fn persist_and_load_parquet_bytes() {
     stream_builder.tx().send(Ok(batch2)).await.unwrap();
 
     let path = ParquetFilePath::new("db_one", "table_one", Utc::now(), 1);
-    let meta = persister
+    let (bytes_written, meta) = persister
         .persist_parquet_file(path.clone(), stream_builder.build())
         .await
         .unwrap();
@@ -493,5 +499,6 @@ async fn persist_and_load_parquet_bytes() {
     let bytes = persister.load_parquet_file(path).await.unwrap();
 
     // Assert that we have a file of bytes > 0
-    assert!(!bytes.is_empty())
+    assert!(!bytes.is_empty());
+    assert_eq!(bytes.len() as u64, bytes_written);
 }

@@ -205,6 +205,7 @@ mod tests {
         let segment_id = SegmentId::new(3);
         let open_segment = OpenBufferSegment::new(
             segment_id,
+            SequenceNumber::new(0),
             Box::new(WalSegmentWriterNoopImpl::new(segment_id)),
         );
         let segment_state = Arc::new(RwLock::new(SegmentState::new(open_segment)));
