@@ -3257,6 +3257,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "k8s-openapi"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "301f367a36090b7dfdaac248ee3ed4f14a6a8292e7bec0f1c5e6e2e1f181cd33"
+dependencies = [
+ "base64",
+ "chrono",
+ "serde",
+ "serde-value",
+ "serde_json",
+]
+
+[[package]]
 name = "kqueue"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3282,9 +3295,9 @@ version = "0.87.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3499c8d60c763246c7a213f51caac1e9033f46026904cb89bc8951ae8601f26e"
 dependencies = [
- "k8s-openapi",
+ "k8s-openapi 0.20.0",
  "kube-client",
- "kube-core",
+ "kube-core 0.87.2",
  "kube-derive",
  "kube-runtime",
 ]
@@ -3307,8 +3320,8 @@ dependencies = [
  "hyper-rustls",
  "hyper-timeout",
  "jsonpath-rust",
- "k8s-openapi",
- "kube-core",
+ "k8s-openapi 0.20.0",
+ "kube-core 0.87.2",
  "pem",
  "pin-project",
  "rustls",
@@ -3335,7 +3348,25 @@ dependencies = [
  "form_urlencoded",
  "http",
  "json-patch",
- "k8s-openapi",
+ "k8s-openapi 0.20.0",
+ "once_cell",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "kube-core"
+version = "0.88.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6b42844e9172f631b8263ea9ce003b9251da13beb1401580937ad206dd82f4c"
+dependencies = [
+ "chrono",
+ "form_urlencoded",
+ "http",
+ "json-patch",
+ "k8s-openapi 0.21.0",
  "once_cell",
  "schemars",
  "serde",
@@ -3369,7 +3400,7 @@ dependencies = [
  "futures",
  "hashbrown 0.14.3",
  "json-patch",
- "k8s-openapi",
+ "k8s-openapi 0.20.0",
  "kube-client",
  "parking_lot 0.12.1",
  "pin-project",
@@ -3388,8 +3419,8 @@ version = "0.1.0"
 dependencies = [
  "http",
  "hyper",
- "k8s-openapi",
- "kube-core",
+ "k8s-openapi 0.20.0",
+ "kube-core 0.87.2",
  "rand",
  "serde",
  "serde_json",
@@ -4225,7 +4256,7 @@ dependencies = [
  "iox_catalog",
  "iox_tests",
  "iox_time",
- "k8s-openapi",
+ "k8s-openapi 0.20.0",
  "kube",
  "kube_test",
  "lazy_static",
@@ -7290,8 +7321,8 @@ dependencies = [
  "hyper-rustls",
  "indexmap 2.2.3",
  "itertools 0.11.0",
- "k8s-openapi",
- "kube-core",
+ "k8s-openapi 0.20.0",
+ "kube-core 0.88.1",
  "libc",
  "lock_api",
  "log",

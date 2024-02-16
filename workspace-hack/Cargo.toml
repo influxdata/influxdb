@@ -46,7 +46,7 @@ hyper = { version = "0.14", features = ["full"] }
 indexmap = { version = "2" }
 itertools = { version = "0.11" }
 k8s-openapi = { version = "0.20", default-features = false, features = ["earliest", "schemars"] }
-kube-core = { version = "0.87", default-features = false, features = ["jsonpatch", "schema"] }
+kube-core = { version = "0.88", default-features = false, features = ["jsonpatch", "schema"] }
 libc = { version = "0.2", features = ["extra_traits"] }
 lock_api = { version = "0.4", features = ["arc_lock"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
