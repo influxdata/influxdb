@@ -16,7 +16,7 @@ datafusion_util = { path = "../datafusion_util" }
 generated_types = { path = "../generated_types" }
 influxdb_influxql_parser = { path = "../influxdb_influxql_parser" }
 iox_query = { path = "../iox_query" }
-itertools = "0.12.0"
+itertools = "0.12.1"
 observability_deps = { path = "../observability_deps" }
 once_cell = "1"
 predicate = { path = "../predicate" }
