@@ -14,7 +14,7 @@ pub struct InfluxDb3Config {
     pub host_url: Url,
 
     /// The database name to run the query against
-    #[clap(short = 'd', long = "db", env = "INFLUXDB3_DATABASE_NAME")]
+    #[clap(short = 'd', long = "dbname", env = "INFLUXDB3_DATABASE_NAME")]
     pub database_name: String,
 
     /// The token for authentication with the InfluxDB 3.0 server
