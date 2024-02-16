@@ -2599,6 +2599,7 @@ dependencies = [
  "clap_blocks",
  "console-subscriber",
  "dotenvy",
+ "influxdb3_client",
  "influxdb3_server",
  "influxdb3_write",
  "iox_query",
@@ -2613,6 +2614,7 @@ dependencies = [
  "panic_logging",
  "parking_lot 0.12.1",
  "parquet_file",
+ "secrecy",
  "thiserror",
  "tikv-jemalloc-ctl",
  "tikv-jemalloc-sys",
@@ -2622,6 +2624,7 @@ dependencies = [
  "trace",
  "trace_exporters",
  "trogging",
+ "url",
  "uuid",
  "workspace-hack",
 ]
