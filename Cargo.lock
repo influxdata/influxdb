@@ -2790,7 +2790,7 @@ dependencies = [
  "integer-encoding 4.0.0",
  "observability_deps",
  "rand",
- "snafu 0.7.5",
+ "snafu 0.8.0",
  "snap",
  "test_helpers",
  "workspace-hack",
