@@ -81,10 +81,13 @@ struct Config {
     command: Option<Command>,
 }
 
+// Ignoring clippy here since this enum is just used for running
+// the CLI command
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, clap::Parser)]
 enum Command {
     /// Run the InfluxDB 3.0 server
-    Serve(Box<commands::serve::Config>),
+    Serve(commands::serve::Config),
 
     /// Perform a query against a running InfluxDB 3.0 server
     Query(commands::query::Config),
@@ -118,7 +121,7 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::Serve(config)) => {
                 let _tracing_guard =
                     handle_init_logs(init_logs_and_tracing(&config.logging_config));
-                if let Err(e) = commands::serve::command(*config).await {
+                if let Err(e) = commands::serve::command(config).await {
                     eprintln!("Serve command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
