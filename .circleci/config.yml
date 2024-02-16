@@ -111,7 +111,7 @@ jobs:
     machine:
       enabled: true
       docker_layer_caching: true
-      image: ubuntu-2004:202107-02
+      image: ubuntu-2204:current
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -120,7 +120,6 @@ jobs:
           export DEBIAN_FRONTEND=noninteractive
           sudo -E apt-get update
           sudo -E apt-get install --no-install-recommends --yes \
-            asciidoc        \
             build-essential \
             git             \
             python3         \
@@ -130,9 +129,11 @@ jobs:
 
           sudo gem install fpm
 
-          ( cd man ; make build ; gzip -9 ./*.1 )
+          python3 -m venv venv ; source venv/bin/activate
 
           python3 -m pip install -r .circleci/scripts/package/requirements.txt
+
+          ( cd man ; make build ; gzip -9 ./*.1 )
 
           # Unfortunately, this must be executed as root. This is so permission
           # modifying commands (chown, chmod, etc.) succeed.
