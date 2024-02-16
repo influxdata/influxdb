@@ -1,0 +1,24 @@
+[package]
+name = "influxdb3_client"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bytes = { version = "1.5.0"}
+reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls"]}
+secrecy = { version = "0.8.0" }
+serde = { version = "1.0.196", features = ["derive"]}
+thiserror = { version = "1.0.57" }
+url = { version = "2.5.0" }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+mockito = { version = "1.2.0", default-features = false }
+tokio = { version = "1.36.0", features = ["rt", "macros"] }
+
+[lints]
+workspace = true
