@@ -1235,7 +1235,7 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 		count := int32(binary.BigEndian.Uint16(b[i : i+indexCountSize]))
 
 		if count <= 0 {
-			return fmt.Errorf("indirectIndex: the count should have >0 value")
+			return fmt.Errorf("invalid index %d; count must be greater than 0", count)
 		}
 		i += indexCountSize
 
