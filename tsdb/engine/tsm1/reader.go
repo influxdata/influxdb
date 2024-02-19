@@ -1237,6 +1237,10 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 			return fmt.Errorf("indirectIndex: not enough data for index entries count")
 		}
 		count := int32(binary.BigEndian.Uint16(b[i : i+indexCountSize]))
+
+		if count <= 0 {
+			return fmt.Errorf("invalid index %d; count must be greater than 0", count)
+		}
 		i += indexCountSize
 
 		// Find the min time for the block
@@ -1406,7 +1410,7 @@ func (m *mmapAccessor) init() (*indirectIndex, error) {
 
 	indexOfsPos := len(m.b) - 8
 	indexStart := binary.BigEndian.Uint64(m.b[indexOfsPos : indexOfsPos+8])
-	if indexStart >= uint64(indexOfsPos) {
+	if indexStart >= uint64(indexOfsPos) || (uint64(indexOfsPos)-indexStart) > math.MaxInt32 {
 		return nil, fmt.Errorf("mmapAccessor: invalid indexStart")
 	}
 
