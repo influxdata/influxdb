@@ -23,7 +23,7 @@ crc32fast = "1.2.0"
 crossbeam-channel = "0.5.11"
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
-parking_lot = "0.11.1"
+parking_lot = "0.12.1"
 parquet = { workspace = true }
 thiserror = "1.0"
 tokio = { version = "1.35", features = ["macros", "fs", "io-util", "parking_lot", "rt-multi-thread", "sync", "time"] }
