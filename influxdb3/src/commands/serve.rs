@@ -35,6 +35,8 @@ pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 
 /// The default bind address for the HTTP API.
 pub const DEFAULT_HTTP_BIND_ADDR: &str = "127.0.0.1:8181";
+/// The default bind address for the gRPC FlightSQL interface
+pub const DEFAULT_GRPC_BIND_ADDR: &str = "127.0.0.1:8282";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -84,6 +86,15 @@ pub struct Config {
     action,
     )]
     pub http_bind_address: SocketAddr,
+
+    /// The address on which InfluxDB will serve FlightSQL gRPC requests
+    #[clap(
+    long = "grpc-bind",
+    env = "INFLUXDB3_GRPC_BIND_ADDR",
+    default_value = DEFAULT_GRPC_BIND_ADDR,
+    action,
+    )]
+    pub grpc_bind_address: SocketAddr,
 
     /// Size of the RAM cache used to store data in bytes.
     ///

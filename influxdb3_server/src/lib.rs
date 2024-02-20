@@ -11,28 +11,53 @@ clippy::clone_on_ref_ptr,
 clippy::future_not_send
 )]
 
+mod grpc;
 mod http;
 pub mod query_executor;
 
+use crate::grpc::make_flight_server;
+use crate::http::route_request;
 use crate::http::HttpApi;
 use async_trait::async_trait;
 use datafusion::execution::SendableRecordBatchStream;
+use hyper::body::HttpBody;
+use hyper::server::conn::AddrIncoming;
+use hyper::service::service_fn;
+use hyper::Version;
 use influxdb3_write::{Persister, WriteBuffer};
-use observability_deps::tracing::info;
+use iox_query::QueryNamespaceProvider;
+use observability_deps::tracing::{error, info};
+use std::convert::Infallible;
 use std::fmt::Debug;
 use std::net::SocketAddr;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::Context;
+use std::task::Poll;
 use thiserror::Error;
+use tokio_util::either::Either;
 use tokio_util::sync::CancellationToken;
+use tower::{Layer, Service};
 use trace::ctx::SpanContext;
 use trace::TraceCollector;
 use trace_http::ctx::RequestLogContext;
 use trace_http::ctx::TraceHeaderParser;
+use trace_http::metrics::MetricFamily;
+use trace_http::metrics::RequestMetrics;
+use trace_http::tower::TraceLayer;
+
+const TRACE_SERVER_NAME: &str = "influxdb3_http";
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("hyper error: {0}")]
+    Hyper(#[from] hyper::Error),
+
     #[error("http error: {0}")]
     Http(#[from] http::Error),
+
+    #[error("grpc error: {0}")]
+    Grpc(#[from] grpc::Error),
 
     #[error("database not found {db_name}")]
     DatabaseNotFound { db_name: String },
@@ -90,11 +115,12 @@ impl CommonServerState {
 
 #[derive(Debug)]
 pub struct Server<W, Q> {
+    common_state: CommonServerState,
     http: Arc<HttpApi<W, Q>>,
 }
 
 #[async_trait]
-pub trait QueryExecutor: Debug + Send + Sync + 'static {
+pub trait QueryExecutor: QueryNamespaceProvider + Debug + Send + Sync + 'static {
     async fn query(
         &self,
         database: &str,
@@ -104,7 +130,10 @@ pub trait QueryExecutor: Debug + Send + Sync + 'static {
     ) -> Result<SendableRecordBatchStream>;
 }
 
-impl<W, Q> Server<W, Q> {
+impl<W, Q> Server<W, Q>
+where
+    Q: QueryExecutor,
+{
     pub fn new(
         common_state: CommonServerState,
         _persister: Arc<dyn Persister>,
@@ -114,28 +143,126 @@ impl<W, Q> Server<W, Q> {
     ) -> Self {
         let http = Arc::new(HttpApi::new(
             common_state.clone(),
-            Arc::<W>::clone(&write_buffer),
-            Arc::<Q>::clone(&query_executor),
+            Arc::clone(&write_buffer),
+            Arc::clone(&query_executor),
             max_http_request_size,
         ));
 
-        Self { http }
+        Self { common_state, http }
     }
 }
 
-pub async fn serve<W: WriteBuffer, Q: QueryExecutor>(
-    server: Server<W, Q>,
-    shutdown: CancellationToken,
-) -> Result<()> {
+pub async fn serve<W, Q>(server: Server<W, Q>, shutdown: CancellationToken) -> Result<()>
+where
+    W: WriteBuffer,
+    Q: QueryExecutor,
+{
     // TODO:
     //  1. load the persisted catalog and segments from the persister
     //  2. load semgments into the buffer
     //  3. persist any segments from the buffer that are closed and haven't yet been persisted
     //  4. start serving
 
-    http::serve(Arc::clone(&server.http), shutdown).await?;
+    let req_metrics = RequestMetrics::new(
+        Arc::clone(&server.common_state.metrics),
+        MetricFamily::HttpServer,
+    );
+    let trace_layer = TraceLayer::new(
+        server.common_state.trace_header_parser.clone(),
+        Arc::new(req_metrics),
+        server.common_state.trace_collector().clone(),
+        TRACE_SERVER_NAME,
+    );
+
+    // TODO - authz here:
+    let flight = make_flight_server(Arc::clone(&server.http.query_executor), None);
+
+    let make_svc = hyper::service::make_service_fn(move |_| {
+        let mut flight = flight.clone();
+        let http_server = Arc::clone(&server.http);
+        let mut rest = service_fn(move |req: hyper::Request<hyper::Body>| {
+            route_request(Arc::clone(&http_server), req)
+        });
+        let service =
+            tower::service_fn(
+                move |req: hyper::Request<hyper::Body>| match req.version() {
+                    Version::HTTP_11 | Version::HTTP_10 => Either::Left({
+                        let res = rest.call(req);
+                        Box::pin(async move {
+                            let res = res.await.map(|res| res.map(EitherBody::Http))?;
+                            Ok::<_, StdError>(res)
+                        })
+                    }),
+                    Version::HTTP_2 => Either::Right({
+                        let res = flight.call(req);
+                        Box::pin(async move {
+                            let res = res.await.map(|res| res.map(EitherBody::Grpc))?;
+                            Ok::<_, StdError>(res)
+                        })
+                    }),
+                    _ => unimplemented!(),
+                },
+            );
+        let service = trace_layer.layer(service);
+        std::future::ready(Ok::<_, Infallible>(service))
+    });
+
+    hyper::Server::bind(&server.common_state.http_addr)
+        .serve(make_svc)
+        .with_graceful_shutdown(shutdown.cancelled())
+        .await?;
 
     Ok(())
+}
+
+enum EitherBody<A, B> {
+    Http(A),
+    Grpc(B),
+}
+
+type StdError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+impl<A, B> HttpBody for EitherBody<A, B>
+where
+    A: HttpBody + Send + Unpin,
+    B: HttpBody<Data = A::Data> + Send + Unpin,
+    A::Error: Into<StdError>,
+    B::Error: Into<StdError>,
+{
+    type Data = A::Data;
+
+    type Error = StdError;
+
+    fn is_end_stream(&self) -> bool {
+        match self {
+            EitherBody::Http(b) => b.is_end_stream(),
+            EitherBody::Grpc(b) => b.is_end_stream(),
+        }
+    }
+
+    fn poll_data(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<std::result::Result<Self::Data, StdError>>> {
+        match self.get_mut() {
+            EitherBody::Http(b) => Pin::new(b).poll_data(cx).map(map_option_err),
+            EitherBody::Grpc(b) => Pin::new(b).poll_data(cx).map(map_option_err),
+        }
+    }
+
+    fn poll_trailers(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<Option<hyper::http::HeaderMap>, StdError>> {
+        match self.get_mut() {
+            EitherBody::Http(b) => Pin::new(b).poll_trailers(cx).map_err(Into::into),
+            EitherBody::Grpc(b) => Pin::new(b).poll_trailers(cx).map_err(Into::into),
+        }
+    }
+}
+
+fn map_option_err<T, U: Into<StdError>>(err: Option<Result<T, U>>) -> Option<Result<T, StdError>> {
+    err.map(|e| e.map_err(Into::into))
 }
 
 /// On unix platforms we want to intercept SIGINT and SIGTERM

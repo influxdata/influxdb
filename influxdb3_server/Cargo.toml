@@ -30,9 +30,10 @@ trace_http = { path = "../trace_http" }
 tracker = { path = "../tracker" }
 
 arrow = { workspace = true, features = ["prettyprint"] }
+arrow-flight.workspace = true
+async-trait = "0.1"
 chrono = "0.4"
 datafusion = { workspace = true }
-async-trait = "0.1"
 futures = "0.3.28"
 hyper = "0.14"
 parking_lot = "0.11.1"
