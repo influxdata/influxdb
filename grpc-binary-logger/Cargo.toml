@@ -14,7 +14,7 @@ byteorder = { version = "1", features = ["std"] }
 bytes = "1.5"
 futures = "0.3"
 http = "0.2"
-http-body = "0.4"
+http-body = "1.0"
 hyper = "0.14"
 pin-project = "1.1"
 prost = { workspace = true }

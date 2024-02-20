@@ -555,7 +555,7 @@ dependencies = [
  "backoff 0.1.0",
  "base64",
  "generated_types",
- "http",
+ "http 0.2.11",
  "iox_time",
  "metric",
  "observability_deps",
@@ -585,8 +585,8 @@ dependencies = [
  "bitflags 1.3.2",
  "bytes",
  "futures-util",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "hyper",
  "itoa",
  "matchit",
@@ -611,8 +611,8 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures-util",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "mime",
  "rustversion",
  "tower-layer",
@@ -971,7 +971,7 @@ dependencies = [
  "clap",
  "ed25519-dalek",
  "futures",
- "http",
+ "http 0.2.11",
  "humantime",
  "iox_catalog",
  "iox_time",
@@ -1026,7 +1026,7 @@ checksum = "98cc8fbded0c607b7ba9dd60cd98df59af97e84d24e49c8557331cfc26d301ce"
 name = "client_util"
 version = "0.1.0"
 dependencies = [
- "http",
+ "http 0.2.11",
  "mockito",
  "reqwest",
  "thiserror",
@@ -2181,8 +2181,8 @@ dependencies = [
  "futures",
  "grpc-binary-logger-proto",
  "grpc-binary-logger-test-proto",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 1.0.0",
  "hyper",
  "pin-project",
  "prost 0.12.3",
@@ -2229,7 +2229,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "futures-util",
- "http",
+ "http 0.2.11",
  "indexmap 2.2.3",
  "slab",
  "tokio",
@@ -2375,14 +2375,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "http"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b32afd38673a8016f7c9ae69e5af41a58f81b1d31689040f2f1959594ce194ea"
+dependencies = [
+ "bytes",
+ "fnv",
+ "itoa",
+]
+
+[[package]]
 name = "http-body"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ceab25649e9960c0311ea418d17bee82c0dcec1bd053b5f9a66e265a693bed2"
 dependencies = [
  "bytes",
- "http",
+ "http 0.2.11",
  "pin-project-lite",
+]
+
+[[package]]
+name = "http-body"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1cac85db508abc24a2e48553ba12a996e87244a0395ce011e62b37158745d643"
+dependencies = [
+ "bytes",
+ "http 1.0.0",
 ]
 
 [[package]]
@@ -2420,8 +2441,8 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "httparse",
  "httpdate",
  "itoa",
@@ -2440,7 +2461,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec3efd23720e2049821a693cbc7e65ea87c72f1c58ff2f9522ff332b1491e590"
 dependencies = [
  "futures-util",
- "http",
+ "http 0.2.11",
  "hyper",
  "log",
  "rustls",
@@ -2665,7 +2686,7 @@ dependencies = [
  "flate2",
  "futures",
  "hex",
- "http",
+ "http 0.2.11",
  "hyper",
  "influxdb-line-protocol",
  "influxdb3_write",
@@ -3112,7 +3133,7 @@ dependencies = [
  "generated_types",
  "hashbrown 0.14.3",
  "heappy",
- "http",
+ "http 0.2.11",
  "hyper",
  "log",
  "metric",
@@ -3309,8 +3330,8 @@ dependencies = [
  "either",
  "futures",
  "home",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "hyper",
  "hyper-rustls",
  "hyper-timeout",
@@ -3341,7 +3362,7 @@ checksum = "b5bba93d054786eba7994d03ce522f368ef7d48c88a1826faa28478d85fb63ae"
 dependencies = [
  "chrono",
  "form_urlencoded",
- "http",
+ "http 0.2.11",
  "json-patch",
  "k8s-openapi",
  "once_cell",
@@ -3394,7 +3415,7 @@ dependencies = [
 name = "kube_test"
 version = "0.1.0"
 dependencies = [
- "http",
+ "http 0.2.11",
  "hyper",
  "k8s-openapi",
  "kube-core",
@@ -4228,7 +4249,7 @@ dependencies = [
  "data_types",
  "fnv",
  "futures",
- "http",
+ "http 0.2.11",
  "hyper",
  "iox_catalog",
  "iox_tests",
@@ -5034,8 +5055,8 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "hyper",
  "hyper-rustls",
  "ipnet",
@@ -6114,7 +6135,7 @@ dependencies = [
  "dml",
  "futures",
  "generated_types",
- "http",
+ "http 0.2.11",
  "hyper",
  "influxdb_iox_client",
  "ingester_query_grpc",
@@ -6395,8 +6416,8 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "hyper",
  "hyper-timeout",
  "percent-encoding",
@@ -6422,8 +6443,8 @@ dependencies = [
  "base64",
  "bytes",
  "h2",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "hyper",
  "hyper-timeout",
  "percent-encoding",
@@ -6511,8 +6532,8 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "http-range-header",
  "mime",
  "pin-project-lite",
@@ -6538,8 +6559,8 @@ name = "tower_trailer"
 version = "0.1.0"
 dependencies = [
  "futures",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "parking_lot 0.12.1",
  "pin-project",
  "tower",
@@ -6581,8 +6602,8 @@ dependencies = [
  "bytes",
  "futures",
  "hashbrown 0.14.3",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 1.0.0",
  "itertools 0.12.1",
  "metric",
  "observability_deps",

@@ -15,7 +15,7 @@ trace = { path = "../trace" }
 futures = "0.3"
 hashbrown = { workspace = true }
 http = "0.2"
-http-body = "0.4"
+http-body = "1.0"
 itertools = "0.12"
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
