@@ -13,6 +13,7 @@ influxdb3_server = { path = "../influxdb3_server" }
 iox_time = { path = "../iox_time" }
 iox_query = { path = "../iox_query" }
 ioxd_common = { path = "../ioxd_common"}
+influxdb3_client = { path = "../influxdb3_client" }
 influxdb3_write = { path = "../influxdb3_write" }
 metric = { path = "../metric" }
 object_store = { workspace = true }
@@ -33,13 +34,17 @@ libc = { version = "0.2" }
 num_cpus = "1.16.0"
 once_cell = { version = "1.18", features = ["parking_lot"] }
 parking_lot = "0.12.1"
+secrecy = "0.8.0"
 thiserror = "1.0.48"
 tikv-jemalloc-ctl = { version = "0.5.4", optional = true }
 tikv-jemalloc-sys = { version = "0.5.4", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
 tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "io-std"] }
 tokio-util = { version = "0.7.9" }
+url = "2.5.0"
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
+sha2 = "0.10.8"
+hex = "0.4.3"
 
 [features]
 default = ["jemalloc_replacing_malloc"]
@@ -64,3 +69,6 @@ jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl"]
 # Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
 # linting
 clippy = []
+
+[dev-dependencies]
+reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls"] }

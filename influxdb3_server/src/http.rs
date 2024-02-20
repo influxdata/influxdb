@@ -9,6 +9,7 @@ use data_types::NamespaceName;
 use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use futures::StreamExt;
 use hyper::header::ACCEPT;
+use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
 use hyper::http::HeaderValue;
 use hyper::{Body, Method, Request, Response, StatusCode};
@@ -17,6 +18,8 @@ use influxdb3_write::WriteBuffer;
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, error, info};
 use serde::Deserialize;
+use sha2::Digest;
+use sha2::Sha256;
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::num::NonZeroI32;
@@ -126,6 +129,16 @@ pub enum Error {
     // Influxdb3 Write
     #[error("serde json error: {0}")]
     Influxdb3Write(#[from] influxdb3_write::Error),
+}
+
+#[derive(Debug, Error)]
+pub enum AuthorizationError {
+    #[error("the request was not authorized")]
+    Unauthorized,
+    #[error("the request was not in the form of 'Authorization: Bearer <token>'")]
+    MalformedRequest,
+    #[error("to str error: {0}")]
+    ToStr(#[from] hyper::header::ToStrError),
 }
 
 impl Error {
@@ -269,8 +282,8 @@ where
                 Some("text/csv") => (to_csv(batches)?, Format::Csv),
                 Some("text/plain") => (to_pretty(batches)?, Format::Pretty),
                 Some("application/json") => (to_json(batches)?, Format::Json),
+                Some("*/*") | None => (to_json(batches)?, Format::Json),
                 Some(_) => (Bytes::from("{ \"error\": \"Available mime types are: application/vnd.apache.parquet, text/csv, text/plain, and application/json\" }"), Format::Error),
-                None => (to_json(batches)?, Format::Json),
             },
             Some(format) => match format.as_str() {
                 "parquet" => (to_parquet(batches)?, Format::Parquet),
@@ -374,6 +387,46 @@ where
 
         Ok(decoded_data.into())
     }
+
+    fn authorize_request(&self, req: &mut Request<Body>) -> Result<(), AuthorizationError> {
+        // We won't need the authorization header anymore and we don't want to accidentally log it.
+        // Take it out so we can use it and not log it later by accident.
+        let auth = req.headers_mut().remove(AUTHORIZATION);
+
+        if let Some(bearer_token) = self.common_state.bearer_token() {
+            let Some(header) = &auth else {
+                return Err(AuthorizationError::Unauthorized);
+            };
+
+            // Split the header value into two parts
+            let mut header = header.to_str()?.split(' ');
+
+            // Check that the header is the 'Bearer' auth scheme
+            let bearer = header.next().ok_or(AuthorizationError::MalformedRequest)?;
+            if bearer != "Bearer" {
+                return Err(AuthorizationError::MalformedRequest);
+            }
+
+            // Get the token that we want to hash to check the request is valid
+            let token = header.next().ok_or(AuthorizationError::MalformedRequest)?;
+
+            // There should only be two parts the 'Bearer' scheme and the actual
+            // token, error otherwise
+            if header.next().is_some() {
+                return Err(AuthorizationError::MalformedRequest);
+            }
+
+            // Check that the hashed token is acceptable
+            let authorized = &Sha256::digest(token)[..] == bearer_token;
+            if !authorized {
+                return Err(AuthorizationError::Unauthorized);
+            }
+        }
+
+        req.extensions_mut()
+            .insert(AuthorizationHeaderExtension::new(auth));
+        Ok(())
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -392,12 +445,32 @@ pub(crate) async fn route_request<W: WriteBuffer, Q: QueryExecutor>(
     http_server: Arc<HttpApi<W, Q>>,
     mut req: Request<Body>,
 ) -> Result<Response<Body>, Infallible> {
-    let auth = { req.headers().get(hyper::header::AUTHORIZATION).cloned() };
-    req.extensions_mut()
-        .insert(AuthorizationHeaderExtension::new(auth));
-
-    // we don't need the authorization header anymore and we don't want to accidentally log it.
-    req.headers_mut().remove(hyper::header::AUTHORIZATION);
+    if let Err(e) = http_server.authorize_request(&mut req) {
+        match e {
+            AuthorizationError::Unauthorized => {
+                return Ok(Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .body(Body::empty())
+                    .unwrap())
+            }
+            AuthorizationError::MalformedRequest => {
+                return Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(Body::from("{\"error\":\
+                        \"Authorization header was malformed and should be in the form 'Authorization: Bearer <token>'\"\
+                    }"))
+                    .unwrap());
+            }
+            // We don't expect this to happen, but if the header is messed up
+            // better to handle it then not at all
+            AuthorizationError::ToStr(_) => {
+                return Ok(Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(Body::empty())
+                    .unwrap())
+            }
+        }
+    }
     debug!(request = ?req,"Processing request");
 
     let method = req.method().clone();
