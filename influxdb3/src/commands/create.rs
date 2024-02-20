@@ -16,6 +16,10 @@ pub enum SubCommand {
 pub fn command(config: Config) -> Result<(), Box<dyn Error>> {
     match config.cmd {
         SubCommand::Token { token } => {
+            if token.is_empty() {
+                return Err("Token argument must not be empty".into());
+            }
+
             println!(
                 "\
                 Token Input: {token}\n\
