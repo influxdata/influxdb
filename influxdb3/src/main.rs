@@ -26,6 +26,7 @@ use trogging::{
 
 mod commands {
     pub(crate) mod common;
+    pub mod create;
     pub mod query;
     pub mod serve;
     pub mod write;
@@ -85,6 +86,7 @@ struct Config {
 // the CLI command
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, clap::Parser)]
+#[allow(clippy::large_enum_variant)]
 enum Command {
     /// Run the InfluxDB 3.0 server
     Serve(commands::serve::Config),
@@ -94,6 +96,9 @@ enum Command {
 
     /// Perform a set of writes to a running InfluxDB 3.0 server
     Write(commands::write::Config),
+
+    /// Create new resources
+    Create(commands::create::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -135,6 +140,12 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::Write(config)) => {
                 if let Err(e) = commands::write::command(config).await {
                     eprintln!("Write command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Create(config)) => {
+                if let Err(e) = commands::create::command(config) {
+                    eprintln!("Create command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

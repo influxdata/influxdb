@@ -42,6 +42,9 @@ pub enum Error {
 
     #[error("influxdb3_write error: {0}")]
     InfluxDB3Write(#[from] influxdb3_write::Error),
+
+    #[error("from hex error: {0}")]
+    FromHex(#[from] hex::FromHexError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -52,6 +55,7 @@ pub struct CommonServerState {
     trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
     trace_header_parser: TraceHeaderParser,
     http_addr: SocketAddr,
+    bearer_token: Option<Vec<u8>>,
 }
 
 impl CommonServerState {
@@ -60,13 +64,15 @@ impl CommonServerState {
         trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
         trace_header_parser: TraceHeaderParser,
         http_addr: SocketAddr,
-    ) -> Self {
-        Self {
+        bearer_token: Option<String>,
+    ) -> Result<Self> {
+        Ok(Self {
             metrics,
             trace_exporter,
             trace_header_parser,
             http_addr,
-        }
+            bearer_token: bearer_token.map(hex::decode).transpose()?,
+        })
     }
 
     pub fn trace_exporter(&self) -> Option<Arc<trace_exporters::export::AsyncExporter>> {
@@ -85,6 +91,10 @@ impl CommonServerState {
 
     pub fn metric_registry(&self) -> Arc<metric::Registry> {
         Arc::<metric::Registry>::clone(&self.metrics)
+    }
+
+    pub fn bearer_token(&self) -> Option<&[u8]> {
+        self.bearer_token.as_deref()
     }
 }
 
@@ -183,8 +193,14 @@ mod tests {
         let addr = get_free_port();
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
-        let common_state =
-            crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser, addr);
+        let common_state = crate::CommonServerState::new(
+            Arc::clone(&metrics),
+            None,
+            trace_header_parser,
+            addr,
+            None,
+        )
+        .unwrap();
         let catalog = Arc::new(influxdb3_write::catalog::Catalog::new());
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
