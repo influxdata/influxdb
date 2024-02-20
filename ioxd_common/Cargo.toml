@@ -36,7 +36,7 @@ clap = { version = "4", features = ["derive", "env"] }
 flate2 = "1.0"
 futures = "0.3"
 hashbrown = { workspace = true }
-http = "0.2.11"
+http = "1.0.0"
 hyper = "0.14"
 log = "0.4"
 parking_lot = "0.12"

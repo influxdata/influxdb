@@ -12,7 +12,7 @@ workspace = true
 clap = { version = "4", features = ["derive", "env"] }
 ed25519-dalek = { version = "2", features = ["pem"] }
 futures = "0.3"
-http = "0.2.11"
+http = "1.0.0"
 humantime = "2.1.0"
 iox_catalog = { path = "../iox_catalog" }
 iox_time = { path = "../iox_time" }

@@ -10,7 +10,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-http = "0.2.11"
+http = "1.0.0"
 reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls-native-roots"] }
 thiserror = "1.0.56"
 tonic = { workspace = true }
