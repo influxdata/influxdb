@@ -34,7 +34,7 @@ chrono = "0.4"
 datafusion = { workspace = true }
 async-trait = "0.1"
 futures = "0.3.28"
-hyper = "0.14"
+hyper = "1.1"
 parking_lot = "0.11.1"
 thiserror = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
@@ -58,5 +58,5 @@ parquet_file = { path = "../parquet_file" }
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }
 http = "0.2.9"
-hyper = "0.14"
+hyper = "1.1"
 urlencoding = "1.1"
