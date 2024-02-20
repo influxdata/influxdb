@@ -2600,6 +2600,7 @@ dependencies = [
  "console-subscriber",
  "dotenvy",
  "hex",
+ "influxdb3_client",
  "influxdb3_server",
  "influxdb3_write",
  "iox_query",
@@ -2615,6 +2616,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "parquet_file",
  "reqwest",
+ "secrecy",
  "sha2",
  "thiserror",
  "tikv-jemalloc-ctl",
@@ -2625,6 +2627,7 @@ dependencies = [
  "trace",
  "trace_exporters",
  "trogging",
+ "url",
  "uuid",
  "workspace-hack",
 ]
