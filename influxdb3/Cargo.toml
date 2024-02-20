@@ -28,7 +28,7 @@ trogging = { path = "../trogging", default-features = false, features = ["clap"]
 # Crates.io dependencies, in alphabetical order
 backtrace = "0.3"
 clap = { version = "4", features = ["derive", "env", "string"] }
-console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
+console-subscriber = { version = "0.2.0", optional = true, features = ["parking_lot"] }
 dotenvy = "0.15.7"
 libc = { version = "0.2" }
 num_cpus = "1.16.0"
