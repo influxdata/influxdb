@@ -978,7 +978,7 @@ dependencies = [
  "itertools 0.12.1",
  "metric",
  "non-empty-string",
- "object_store",
+ "object_store 0.9.0",
  "observability_deps",
  "parquet_cache",
  "snafu 0.8.0",
@@ -1478,7 +1478,7 @@ dependencies = [
  "itertools 0.12.1",
  "log",
  "num_cpus",
- "object_store",
+ "object_store 0.8.0",
  "parking_lot 0.12.1",
  "parquet",
  "pin-project-lite",
@@ -1507,7 +1507,7 @@ dependencies = [
  "half",
  "libc",
  "num_cpus",
- "object_store",
+ "object_store 0.8.0",
  "parquet",
  "sqlparser",
 ]
@@ -1525,7 +1525,7 @@ dependencies = [
  "futures",
  "hashbrown 0.14.3",
  "log",
- "object_store",
+ "object_store 0.8.0",
  "parking_lot 0.12.1",
  "rand",
  "tempfile",
@@ -1637,7 +1637,7 @@ dependencies = [
  "datafusion",
  "datafusion-common",
  "datafusion-expr",
- "object_store",
+ "object_store 0.8.0",
  "prost 0.12.3",
 ]
 
@@ -1661,7 +1661,7 @@ dependencies = [
  "async-trait",
  "datafusion",
  "futures",
- "object_store",
+ "object_store 0.9.0",
  "observability_deps",
  "pin-project",
  "schema",
@@ -2510,7 +2510,7 @@ dependencies = [
  "generated_types",
  "influxdb_iox_client",
  "iox_catalog",
- "object_store",
+ "object_store 0.9.0",
  "observability_deps",
  "parquet_file",
  "schema",
@@ -2609,7 +2609,7 @@ dependencies = [
  "libc",
  "metric",
  "num_cpus",
- "object_store",
+ "object_store 0.9.0",
  "observability_deps",
  "once_cell",
  "panic_logging",
@@ -2674,7 +2674,7 @@ dependencies = [
  "iox_time",
  "metric",
  "metric_exporters",
- "object_store",
+ "object_store 0.9.0",
  "observability_deps",
  "parking_lot 0.11.2",
  "parquet",
@@ -2719,7 +2719,7 @@ dependencies = [
  "futures-util",
  "influxdb-line-protocol",
  "iox_query",
- "object_store",
+ "object_store 0.9.0",
  "observability_deps",
  "parking_lot 0.11.2",
  "parquet",
@@ -2983,7 +2983,7 @@ dependencies = [
  "iox_time",
  "itertools 0.12.1",
  "metric",
- "object_store",
+ "object_store 0.9.0",
  "observability_deps",
  "once_cell",
  "parking_lot 0.12.1",
@@ -3080,7 +3080,7 @@ dependencies = [
  "iox_time",
  "metric",
  "mutable_batch_lp",
- "object_store",
+ "object_store 0.9.0",
  "observability_deps",
  "parquet_file",
  "schema",
@@ -3320,7 +3320,7 @@ dependencies = [
  "pem",
  "pin-project",
  "rustls",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "secrecy",
  "serde",
  "serde_json",
@@ -3998,20 +3998,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2524735495ea1268be33d200e1ee97455096a0846295a21548cd2f3541de7050"
 dependencies = [
  "async-trait",
+ "bytes",
+ "chrono",
+ "futures",
+ "humantime",
+ "itertools 0.11.0",
+ "parking_lot 0.12.1",
+ "percent-encoding",
+ "snafu 0.7.5",
+ "tokio",
+ "tracing",
+ "url",
+ "walkdir",
+]
+
+[[package]]
+name = "object_store"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d139f545f64630e2e3688fd9f81c470888ab01edeb72d13b4e86c566f1130000"
+dependencies = [
+ "async-trait",
  "base64",
  "bytes",
  "chrono",
  "futures",
  "humantime",
  "hyper",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "parking_lot 0.12.1",
  "percent-encoding",
  "quick-xml 0.31.0",
  "rand",
  "reqwest",
  "ring",
- "rustls-pemfile",
+ "rustls-pemfile 2.1.0",
  "serde",
  "serde_json",
  "snafu 0.7.5",
@@ -4030,7 +4051,7 @@ dependencies = [
  "futures",
  "iox_time",
  "metric",
- "object_store",
+ "object_store 0.9.0",
  "pin-project",
  "snafu 0.8.0",
  "tokio",
@@ -4203,7 +4224,7 @@ dependencies = [
  "lz4_flex",
  "num",
  "num-bigint",
- "object_store",
+ "object_store 0.8.0",
  "paste",
  "seq-macro",
  "snap",
@@ -4240,7 +4261,7 @@ dependencies = [
  "moka",
  "mpchash",
  "notify",
- "object_store",
+ "object_store 0.9.0",
  "observability_deps",
  "parking_lot 0.12.1",
  "parquet_file",
@@ -4275,7 +4296,7 @@ dependencies = [
  "futures",
  "generated_types",
  "iox_time",
- "object_store",
+ "object_store 0.9.0",
  "observability_deps",
  "parquet",
  "pbjson-types",
@@ -4302,7 +4323,7 @@ dependencies = [
  "influxdb-line-protocol",
  "mutable_batch_lp",
  "num_cpus",
- "object_store",
+ "object_store 0.9.0",
  "parquet_file",
  "schema",
  "snafu 0.8.0",
@@ -5047,7 +5068,7 @@ dependencies = [
  "pin-project-lite",
  "rustls",
  "rustls-native-certs",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -5156,7 +5177,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9aace74cb666635c918e9c12bc0d348266037aa8eb599b5cba565709a8dff00"
 dependencies = [
  "openssl-probe",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "schannel",
  "security-framework",
 ]
@@ -5169,6 +5190,22 @@ checksum = "1c74cae0a4cf6ccbbf5f359f08efdf8ee7e1dc532573bf0db71968cb56b1448c"
 dependencies = [
  "base64",
 ]
+
+[[package]]
+name = "rustls-pemfile"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c333bb734fcdedcea57de1602543590f545f127dc8b533324318fd492c5c70b"
+dependencies = [
+ "base64",
+ "rustls-pki-types",
+]
+
+[[package]]
+name = "rustls-pki-types"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "048a63e5b3ac996d78d402940b5fa47973d2d080c6c6fffa1d0f19c4445310b7"
 
 [[package]]
 name = "rustls-webpki"
@@ -5724,7 +5761,7 @@ dependencies = [
  "paste",
  "percent-encoding",
  "rustls",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "serde",
  "serde_json",
  "sha2",
@@ -6431,7 +6468,7 @@ dependencies = [
  "prost 0.12.3",
  "rustls",
  "rustls-native-certs",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "tokio",
  "tokio-rustls",
  "tokio-stream",
@@ -7309,7 +7346,7 @@ dependencies = [
  "nix 0.27.1",
  "nom",
  "num-traits",
- "object_store",
+ "object_store 0.9.0",
  "once_cell",
  "parking_lot 0.12.1",
  "percent-encoding",

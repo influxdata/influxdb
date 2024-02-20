@@ -54,7 +54,7 @@ md-5 = { version = "0.10" }
 memchr = { version = "2" }
 nom = { version = "7" }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
-object_store = { version = "0.8", default-features = false, features = ["aws", "azure", "gcp"] }
+object_store = { version = "0.9", default-features = false, features = ["aws", "azure", "gcp"] }
 once_cell = { version = "1", features = ["parking_lot"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
 percent-encoding = { version = "2" }

@@ -105,7 +105,7 @@ arrow-flight = { version = "49.0.0", features = ["flight-sql-experimental"] }
 datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "0e53c6d816f3a9d3d27c6ebb6d25b1699e5553e7" }
 datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev = "0e53c6d816f3a9d3d27c6ebb6d25b1699e5553e7" }
 hashbrown = { version = "0.14.3" }
-object_store = { version = "0.8.0" }
+object_store = { version = "0.9.0" }
 parquet = { version = "49.0.0", features = ["object_store"] }
 pbjson = { version = "0.6.0" }
 pbjson-build = { version = "0.6.2" }
