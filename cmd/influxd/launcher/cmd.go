@@ -540,7 +540,7 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 		{
 			DestP: &o.StorageConfig.Data.CompactThroughput,
 			Flag:  "storage-compact-throughput",
-			Desc:  "Throughput per sec",
+			Desc:  "The rate limit in bytes per second that we will allow TSM compactions to write to disk. This option overwrites throughput-burst when throughput > throughput-burst",
 		},
 		{
 			DestP: &o.StorageConfig.Data.CompactThroughputBurst,
