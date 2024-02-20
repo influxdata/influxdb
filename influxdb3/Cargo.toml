@@ -40,6 +40,8 @@ tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-mult
 tokio-util = { version = "0.7.9" }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
+sha2 = "0.10.8"
+hex = "0.4.3"
 
 [features]
 default = ["jemalloc_replacing_malloc"]
@@ -64,3 +66,6 @@ jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl"]
 # Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
 # linting
 clippy = []
+
+[dev-dependencies]
+reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls"] }
