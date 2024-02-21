@@ -20,7 +20,7 @@ dml = { path = "../dml" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 http = "0.2.11"
-hyper = "0.14"
+hyper = "1.2"
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format"] }
 ingester_query_grpc = { path = "../ingester_query_grpc" }
 insta = { version = "1.34.0", features = ["yaml"] }

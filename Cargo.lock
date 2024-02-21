@@ -555,7 +555,7 @@ dependencies = [
  "backoff 0.1.0",
  "base64",
  "generated_types",
- "http",
+ "http 0.2.11",
  "iox_time",
  "metric",
  "observability_deps",
@@ -585,9 +585,9 @@ dependencies = [
  "bitflags 1.3.2",
  "bytes",
  "futures-util",
- "http",
- "http-body",
- "hyper",
+ "http 0.2.11",
+ "http-body 0.4.6",
+ "hyper 0.14.28",
  "itoa",
  "matchit",
  "memchr",
@@ -611,8 +611,8 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures-util",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "mime",
  "rustversion",
  "tower-layer",
@@ -865,7 +865,7 @@ dependencies = [
  "bytes",
  "dashmap",
  "futures",
- "hyper",
+ "hyper 0.14.28",
  "reqwest",
  "snafu 0.8.0",
  "tokio",
@@ -971,7 +971,7 @@ dependencies = [
  "clap",
  "ed25519-dalek",
  "futures",
- "http",
+ "http 0.2.11",
  "humantime",
  "iox_catalog",
  "iox_time",
@@ -1026,7 +1026,7 @@ checksum = "98cc8fbded0c607b7ba9dd60cd98df59af97e84d24e49c8557331cfc26d301ce"
 name = "client_util"
 version = "0.1.0"
 dependencies = [
- "http",
+ "http 0.2.11",
  "mockito",
  "reqwest",
  "thiserror",
@@ -2181,9 +2181,9 @@ dependencies = [
  "futures",
  "grpc-binary-logger-proto",
  "grpc-binary-logger-test-proto",
- "http",
- "http-body",
- "hyper",
+ "http 0.2.11",
+ "http-body 0.4.6",
+ "hyper 1.2.0",
  "pin-project",
  "prost 0.12.3",
  "prost-build",
@@ -2229,7 +2229,26 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "futures-util",
- "http",
+ "http 0.2.11",
+ "indexmap 2.2.3",
+ "slab",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "h2"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31d030e59af851932b72ceebadf4a2b5986dba4c3b99dd2493f8273a0f151943"
+dependencies = [
+ "bytes",
+ "fnv",
+ "futures-core",
+ "futures-sink",
+ "futures-util",
+ "http 1.0.0",
  "indexmap 2.2.3",
  "slab",
  "tokio",
@@ -2375,14 +2394,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "http"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b32afd38673a8016f7c9ae69e5af41a58f81b1d31689040f2f1959594ce194ea"
+dependencies = [
+ "bytes",
+ "fnv",
+ "itoa",
+]
+
+[[package]]
 name = "http-body"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ceab25649e9960c0311ea418d17bee82c0dcec1bd053b5f9a66e265a693bed2"
 dependencies = [
  "bytes",
- "http",
+ "http 0.2.11",
  "pin-project-lite",
+]
+
+[[package]]
+name = "http-body"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1cac85db508abc24a2e48553ba12a996e87244a0395ce011e62b37158745d643"
+dependencies = [
+ "bytes",
+ "http 1.0.0",
 ]
 
 [[package]]
@@ -2419,9 +2459,9 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-util",
- "h2",
- "http",
- "http-body",
+ "h2 0.3.24",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "httparse",
  "httpdate",
  "itoa",
@@ -2434,14 +2474,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "186548d73ac615b32a73aafe38fb4f56c0d340e110e5a200bcadbaf2e199263a"
+dependencies = [
+ "bytes",
+ "futures-channel",
+ "futures-util",
+ "h2 0.4.2",
+ "http 1.0.0",
+ "http-body 1.0.0",
+ "httparse",
+ "httpdate",
+ "itoa",
+ "pin-project-lite",
+ "smallvec",
+ "tokio",
+ "want",
+]
+
+[[package]]
 name = "hyper-rustls"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec3efd23720e2049821a693cbc7e65ea87c72f1c58ff2f9522ff332b1491e590"
 dependencies = [
  "futures-util",
- "http",
- "hyper",
+ "http 0.2.11",
+ "hyper 0.14.28",
  "log",
  "rustls",
  "rustls-native-certs",
@@ -2455,7 +2516,7 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbb958482e8c7be4bc3cf272a766a2b0bf1a6755e7a6ae777f017a31d11b13b1"
 dependencies = [
- "hyper",
+ "hyper 0.14.28",
  "pin-project-lite",
  "tokio",
  "tokio-io-timeout",
@@ -2665,8 +2726,8 @@ dependencies = [
  "flate2",
  "futures",
  "hex",
- "http",
- "hyper",
+ "http 0.2.11",
+ "hyper 1.2.0",
  "influxdb-line-protocol",
  "influxdb3_write",
  "iox_catalog",
@@ -3112,8 +3173,8 @@ dependencies = [
  "generated_types",
  "hashbrown 0.14.3",
  "heappy",
- "http",
- "hyper",
+ "http 0.2.11",
+ "hyper 1.2.0",
  "log",
  "metric",
  "metric_exporters",
@@ -3147,7 +3208,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "clap",
- "hyper",
+ "hyper 1.2.0",
  "ioxd_common",
  "metric",
  "snafu 0.8.0",
@@ -3309,9 +3370,9 @@ dependencies = [
  "either",
  "futures",
  "home",
- "http",
- "http-body",
- "hyper",
+ "http 0.2.11",
+ "http-body 0.4.6",
+ "hyper 0.14.28",
  "hyper-rustls",
  "hyper-timeout",
  "jsonpath-rust",
@@ -3341,7 +3402,7 @@ checksum = "b5bba93d054786eba7994d03ce522f368ef7d48c88a1826faa28478d85fb63ae"
 dependencies = [
  "chrono",
  "form_urlencoded",
- "http",
+ "http 0.2.11",
  "json-patch",
  "k8s-openapi",
  "once_cell",
@@ -3394,8 +3455,8 @@ dependencies = [
 name = "kube_test"
 version = "0.1.0"
 dependencies = [
- "http",
- "hyper",
+ "http 0.2.11",
+ "hyper 0.14.28",
  "k8s-openapi",
  "kube-core",
  "rand",
@@ -3662,7 +3723,7 @@ checksum = "f8d3038e23466858569c2d30a537f691fa0d53b51626630ae08262943e3bbb8b"
 dependencies = [
  "assert-json-diff",
  "futures",
- "hyper",
+ "hyper 0.14.28",
  "log",
  "rand",
  "regex",
@@ -4003,7 +4064,7 @@ dependencies = [
  "chrono",
  "futures",
  "humantime",
- "hyper",
+ "hyper 0.14.28",
  "itertools 0.11.0",
  "parking_lot 0.12.1",
  "percent-encoding",
@@ -4228,8 +4289,8 @@ dependencies = [
  "data_types",
  "fnv",
  "futures",
- "http",
- "hyper",
+ "http 0.2.11",
+ "hyper 0.14.28",
  "iox_catalog",
  "iox_tests",
  "iox_time",
@@ -5033,10 +5094,10 @@ dependencies = [
  "encoding_rs",
  "futures-core",
  "futures-util",
- "h2",
- "http",
- "http-body",
- "hyper",
+ "h2 0.3.24",
+ "http 0.2.11",
+ "http-body 0.4.6",
+ "hyper 0.14.28",
  "hyper-rustls",
  "ipnet",
  "js-sys",
@@ -6114,8 +6175,8 @@ dependencies = [
  "dml",
  "futures",
  "generated_types",
- "http",
- "hyper",
+ "http 0.2.11",
+ "hyper 1.2.0",
  "influxdb_iox_client",
  "ingester_query_grpc",
  "insta",
@@ -6394,10 +6455,10 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
- "h2",
- "http",
- "http-body",
- "hyper",
+ "h2 0.3.24",
+ "http 0.2.11",
+ "http-body 0.4.6",
+ "hyper 0.14.28",
  "hyper-timeout",
  "percent-encoding",
  "pin-project",
@@ -6421,10 +6482,10 @@ dependencies = [
  "axum",
  "base64",
  "bytes",
- "h2",
- "http",
- "http-body",
- "hyper",
+ "h2 0.3.24",
+ "http 0.2.11",
+ "http-body 0.4.6",
+ "hyper 0.14.28",
  "hyper-timeout",
  "percent-encoding",
  "pin-project",
@@ -6511,8 +6572,8 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "http-range-header",
  "mime",
  "pin-project-lite",
@@ -6538,8 +6599,8 @@ name = "tower_trailer"
 version = "0.1.0"
 dependencies = [
  "futures",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "parking_lot 0.12.1",
  "pin-project",
  "tower",
@@ -6581,8 +6642,8 @@ dependencies = [
  "bytes",
  "futures",
  "hashbrown 0.14.3",
- "http",
- "http-body",
+ "http 0.2.11",
+ "http-body 0.4.6",
  "itertools 0.12.1",
  "metric",
  "observability_deps",
@@ -7294,7 +7355,7 @@ dependencies = [
  "getrandom",
  "hashbrown 0.14.3",
  "heck",
- "hyper",
+ "hyper 1.2.0",
  "hyper-rustls",
  "indexmap 2.2.3",
  "itertools 0.11.0",

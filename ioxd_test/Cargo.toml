@@ -17,7 +17,7 @@ trace = { path = "../trace" }
 # Crates.io dependencies, in alphabetical order
 async-trait = "0.1"
 clap = { version = "4", features = ["derive", "env"] }
-hyper = "0.14"
+hyper = "1.2"
 snafu = "0.8"
 tokio-util = "0.7.10"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
