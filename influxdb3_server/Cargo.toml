@@ -61,3 +61,4 @@ test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }
 http = "0.2.9"
 hyper = "0.14"
 urlencoding = "1.1"
+pretty_assertions = "1.4.0"

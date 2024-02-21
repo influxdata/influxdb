@@ -455,6 +455,7 @@ mod tests {
     use crate::wal::WalSegmentWriterNoopImpl;
     use crate::write_buffer::tests::lp_to_table_batches;
     use crate::write_buffer::{parse_validate_and_update_schema, Partitioner};
+    use crate::Precision;
     use crate::{LpWriteOp, PersistedCatalog};
     use bytes::Bytes;
     use datafusion::execution::SendableRecordBatchStream;
@@ -644,7 +645,15 @@ mod tests {
         let mut write_batch = WriteBatch::default();
         let (seq, db) = catalog.db_or_create(db_name);
         let partitioner = Partitioner::new_per_day_partitioner();
-        let result = parse_validate_and_update_schema(lp, &db, &partitioner, 0, false).unwrap();
+        let result = parse_validate_and_update_schema(
+            lp,
+            &db,
+            &partitioner,
+            0,
+            false,
+            Precision::Nanosecond,
+        )
+        .unwrap();
         if let Some(db) = result.schema {
             catalog.replace_database(seq, Arc::new(db)).unwrap();
         }

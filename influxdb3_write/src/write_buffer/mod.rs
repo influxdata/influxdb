@@ -8,8 +8,8 @@ use crate::wal::WalSegmentWriterNoopImpl;
 use crate::write_buffer::buffer_segment::{ClosedBufferSegment, OpenBufferSegment, TableBuffer};
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::{
-    BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, SegmentId, Wal,
-    WalOp, WriteBuffer, WriteLineError,
+    BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Precision, SegmentId,
+    Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -122,6 +122,7 @@ impl<W: Wal> WriteBufferImpl<W> {
         lp: &str,
         default_time: i64,
         accept_partial: bool,
+        precision: Precision,
     ) -> Result<BufferedWriteRequest> {
         debug!("write_lp to {} in writebuffer", db_name);
 
@@ -130,6 +131,7 @@ impl<W: Wal> WriteBufferImpl<W> {
             lp,
             default_time,
             accept_partial,
+            precision,
         )?;
 
         let wal_op = WalOp::LpWrite(LpWriteOp {
@@ -161,6 +163,7 @@ impl<W: Wal> WriteBufferImpl<W> {
         lp: &str,
         default_time: i64,
         accept_partial: bool,
+        precision: Precision,
     ) -> Result<ValidationResult> {
         let (sequence, db) = self.catalog.db_or_create(db_name.as_str());
         let mut result = parse_validate_and_update_schema(
@@ -169,6 +172,7 @@ impl<W: Wal> WriteBufferImpl<W> {
             &Partitioner::new_per_day_partitioner(),
             default_time,
             accept_partial,
+            precision,
         )?;
 
         if let Some(schema) = result.schema.take() {
@@ -262,8 +266,9 @@ impl<W: Wal> Bufferer for WriteBufferImpl<W> {
         lp: &str,
         default_time: i64,
         accept_partial: bool,
+        precision: Precision,
     ) -> Result<BufferedWriteRequest> {
-        self.write_lp(database, lp, default_time, accept_partial)
+        self.write_lp(database, lp, default_time, accept_partial, precision)
             .await
     }
 
@@ -369,6 +374,7 @@ pub(crate) fn parse_validate_and_update_schema(
     partitioner: &Partitioner,
     default_time: i64,
     accept_partial: bool,
+    precision: Precision,
 ) -> Result<ValidationResult> {
     let mut lines = vec![];
     let mut errors = vec![];
@@ -399,13 +405,12 @@ pub(crate) fn parse_validate_and_update_schema(
         lines.push(line);
     }
 
-    validate_or_insert_schema_and_partitions(lines, schema, partitioner, default_time).map(
-        move |mut result| {
+    validate_or_insert_schema_and_partitions(lines, schema, partitioner, default_time, precision)
+        .map(move |mut result| {
             result.lp_valid = valid_lines.join("\n");
             result.errors = errors;
             result
-        },
-    )
+        })
 }
 
 /// Takes parsed lines, validates their schema. If new tables or columns are defined, they
@@ -417,6 +422,7 @@ pub(crate) fn validate_or_insert_schema_and_partitions(
     schema: &DatabaseSchema,
     partitioner: &Partitioner,
     default_time: i64,
+    precision: Precision,
 ) -> Result<ValidationResult> {
     // The (potentially updated) DatabaseSchema to return to the caller.
     let mut schema = Cow::Borrowed(schema);
@@ -438,6 +444,7 @@ pub(crate) fn validate_or_insert_schema_and_partitions(
             &mut schema,
             partitioner,
             default_time,
+            precision,
         )?;
     }
 
@@ -465,6 +472,7 @@ fn validate_and_convert_parsed_line(
     schema: &mut Cow<'_, DatabaseSchema>,
     partitioner: &Partitioner,
     default_time: i64,
+    precision: Precision,
 ) -> Result<()> {
     let table_name = line.series.measurement.as_str();
 
@@ -551,7 +559,28 @@ fn validate_and_convert_parsed_line(
     }
 
     // set the time value
-    let time_value = line.timestamp.unwrap_or(default_time);
+    let time_value = line
+        .timestamp
+        .map(|ts| {
+            let multiplier = match precision {
+                Precision::Auto => match crate::guess_precision(ts) {
+                    Precision::Second => 1_000_000_000,
+                    Precision::Millisecond => 1_000_000,
+                    Precision::Microsecond => 1_000,
+                    Precision::Nanosecond => 1,
+
+                    Precision::Auto => unreachable!(),
+                },
+                Precision::Second => 1_000_000_000,
+                Precision::Millisecond => 1_000_000,
+                Precision::Microsecond => 1_000,
+                Precision::Nanosecond => 1,
+            };
+
+            // This will fail in June 2128, but that's not our problem
+            ts * multiplier
+        })
+        .unwrap_or(default_time);
     values.push(Field {
         name: TIME_COLUMN_NAME.to_string(),
         value: FieldData::Timestamp(time_value),
@@ -671,7 +700,15 @@ mod tests {
         let db = Arc::new(DatabaseSchema::new("foo"));
         let partitioner = Partitioner::new_per_day_partitioner();
         let lp = "cpu,region=west user=23.2 100\nfoo f1=1i";
-        let result = parse_validate_and_update_schema(lp, &db, &partitioner, 0, false).unwrap();
+        let result = parse_validate_and_update_schema(
+            lp,
+            &db,
+            &partitioner,
+            0,
+            false,
+            Precision::Nanosecond,
+        )
+        .unwrap();
 
         println!("result: {:#?}", result);
         let db = result.schema.unwrap();
@@ -695,6 +732,7 @@ mod tests {
                 "cpu bar=1 10",
                 123,
                 false,
+                Precision::Nanosecond,
             )
             .await
             .unwrap();
@@ -734,8 +772,15 @@ mod tests {
     pub(crate) fn lp_to_table_batches(lp: &str, default_time: i64) -> HashMap<String, TableBatch> {
         let db = Arc::new(DatabaseSchema::new("foo"));
         let partitioner = Partitioner::new_per_day_partitioner();
-        let result =
-            parse_validate_and_update_schema(lp, &db, &partitioner, default_time, false).unwrap();
+        let result = parse_validate_and_update_schema(
+            lp,
+            &db,
+            &partitioner,
+            default_time,
+            false,
+            Precision::Nanosecond,
+        )
+        .unwrap();
 
         result.table_batches
     }

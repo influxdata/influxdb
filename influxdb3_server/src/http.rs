@@ -17,6 +17,7 @@ use hyper::{Body, Method, Request, Response, StatusCode};
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
+use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, error, info};
@@ -269,7 +270,13 @@ where
 
         let result = self
             .write_buffer
-            .write_lp(database, body, default_time, params.accept_partial)
+            .write_lp(
+                database,
+                body,
+                default_time,
+                params.accept_partial,
+                params.precision,
+            )
             .await?;
 
         if result.invalid_lines.is_empty() {
@@ -550,11 +557,16 @@ pub(crate) struct QuerySqlParams {
 const fn true_fn() -> bool {
     true
 }
+const fn precision_fn() -> Precision {
+    Precision::Auto
+}
 #[derive(Debug, Deserialize)]
 pub(crate) struct WriteParams {
     pub(crate) db: String,
     #[serde(default = "true_fn")]
     pub(crate) accept_partial: bool,
+    #[serde(default = "precision_fn")]
+    pub(crate) precision: Precision,
 }
 
 pub(crate) async fn serve<W: WriteBuffer, Q: QueryExecutor>(

@@ -2676,6 +2676,7 @@ dependencies = [
  "parking_lot 0.11.2",
  "parquet",
  "parquet_file",
+ "pretty_assertions",
  "schema",
  "serde",
  "serde_json",

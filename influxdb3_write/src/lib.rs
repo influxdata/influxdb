@@ -84,6 +84,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         lp: &str,
         default_time: i64,
         accept_partial: bool,
+        precision: Precision,
     ) -> write_buffer::Result<BufferedWriteRequest>;
 
     /// Closes the open segment and returns it so that it can be persisted or thrown away. A new segment will be opened
@@ -342,4 +343,28 @@ pub struct ParquetFile {
     pub row_count: u64,
     pub min_time: i64,
     pub max_time: i64,
+}
+
+/// The summary data for a persisted parquet file in a segment.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Precision {
+    Auto,
+    Second,
+    Millisecond,
+    Microsecond,
+    Nanosecond,
+}
+
+pub(crate) fn guess_precision(timestamp: i64) -> Precision {
+    let val = timestamp / 1_000_000_000;
+    if val < 5 {
+        Precision::Second
+    } else if val < 5_000 {
+        Precision::Millisecond
+    } else if val < 5_000_000 {
+        Precision::Microsecond
+    } else {
+        Precision::Nanosecond
+    }
 }
