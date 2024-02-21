@@ -56,9 +56,6 @@ pub enum Error {
     #[error("http error: {0}")]
     Http(#[from] http::Error),
 
-    #[error("grpc error: {0}")]
-    Grpc(#[from] grpc::Error),
-
     #[error("database not found {db_name}")]
     DatabaseNotFound { db_name: String },
 
