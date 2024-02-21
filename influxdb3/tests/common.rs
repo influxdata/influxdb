@@ -1,5 +1,5 @@
 use std::{
-    net::{SocketAddrV4, TcpListener},
+    net::{SocketAddr, SocketAddrV4, TcpListener},
     process::{Child, Command, Stdio},
 };
 
@@ -7,7 +7,7 @@ use arrow_flight::FlightClient;
 use assert_cmd::cargo::CommandCargoExt;
 
 pub struct TestServer {
-    bind_addr: String,
+    bind_addr: SocketAddr,
     server_process: Child,
     http_client: reqwest::Client,
 }
@@ -18,7 +18,7 @@ impl TestServer {
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
         let command = command
             .arg("serve")
-            .args(["--http-bind", &bind_addr])
+            .args(["--http-bind", &bind_addr.to_string()])
             // TODO - other configuration can be passed through
             .stdout(Stdio::null())
             .stderr(Stdio::null());
@@ -35,24 +35,8 @@ impl TestServer {
         server
     }
 
-    pub async fn wait_until_ready(&self) {
-        while self
-            .http_client
-            .get(format!("{base}/health", base = self.client_addr()))
-            .send()
-            .await
-            .is_err()
-        {
-            // TODO - sleep or do a count to ensure we don't loop infinitely
-        }
-    }
-
     pub fn client_addr(&self) -> String {
         format!("http://{addr}", addr = self.bind_addr)
-    }
-
-    pub fn kill(&mut self) {
-        self.server_process.kill().expect("kill the server process");
     }
 
     pub async fn flight_client(&self) -> FlightClient {
@@ -63,6 +47,22 @@ impl TestServer {
             .expect("connect to gRPC client");
         FlightClient::new(channel)
     }
+
+    fn kill(&mut self) {
+        self.server_process.kill().expect("kill the server process");
+    }
+
+    async fn wait_until_ready(&self) {
+        while self
+            .http_client
+            .get(format!("{base}/health", base = self.client_addr()))
+            .send()
+            .await
+            .is_err()
+        {
+            // TODO - sleep or do a count to ensure we don't loop infinitely
+        }
+    }
 }
 
 impl Drop for TestServer {
@@ -71,7 +71,7 @@ impl Drop for TestServer {
     }
 }
 
-fn get_bind_addr() -> String {
+fn get_bind_addr() -> SocketAddr {
     let ip = std::net::Ipv4Addr::new(127, 0, 0, 1);
     // Port 0 will find a free port
     let addr = SocketAddrV4::new(ip, 0).to_string();
@@ -82,5 +82,4 @@ fn get_bind_addr() -> String {
         .expect("bind to a socket address")
         .local_addr()
         .expect("get local address")
-        .to_string()
 }
