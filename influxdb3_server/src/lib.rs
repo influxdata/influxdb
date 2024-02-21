@@ -21,7 +21,7 @@ use crate::http::HttpApi;
 use async_trait::async_trait;
 use datafusion::execution::SendableRecordBatchStream;
 use hyper::body::HttpBody;
-use hyper::server::conn::AddrIncoming;
+use hyper::header::CONTENT_TYPE;
 use hyper::service::service_fn;
 use hyper::Version;
 use influxdb3_write::{Persister, WriteBuffer};
@@ -184,7 +184,7 @@ where
         TRACE_SERVER_NAME,
     );
 
-    // TODO - authz here:
+    // TODO - need to configure authz here:
     let flight = make_flight_server(Arc::clone(&server.http.query_executor), None);
 
     let make_svc = hyper::service::make_service_fn(move |_| {
@@ -193,26 +193,33 @@ where
         let mut rest = service_fn(move |req: hyper::Request<hyper::Body>| {
             route_request(Arc::clone(&http_server), req)
         });
-        let service =
-            tower::service_fn(
-                move |req: hyper::Request<hyper::Body>| match req.version() {
-                    Version::HTTP_11 | Version::HTTP_10 => Either::Left({
-                        let res = rest.call(req);
-                        Box::pin(async move {
-                            let res = res.await.map(|res| res.map(EitherBody::Http))?;
-                            Ok::<_, StdError>(res)
-                        })
-                    }),
-                    Version::HTTP_2 => Either::Right({
+        let service = tower::service_fn(move |req: hyper::Request<hyper::Body>| {
+            match (req.version(), req.headers().get(CONTENT_TYPE)) {
+                // If HTTP 2.0 and Content-Type is `application/grpc` serve with tonic:
+                (Version::HTTP_2, Some(v))
+                    if v.to_str()
+                        .is_ok_and(|hv| hv.starts_with("application/grpc")) =>
+                {
+                    Either::Right({
                         let res = flight.call(req);
                         Box::pin(async move {
                             let res = res.await.map(|res| res.map(EitherBody::Grpc))?;
                             Ok::<_, StdError>(res)
                         })
-                    }),
-                    _ => unimplemented!(),
-                },
-            );
+                    })
+                }
+                // Otherwise, serve with standard REST router:
+                (Version::HTTP_10 | Version::HTTP_11 | Version::HTTP_2, _) => Either::Left({
+                    let res = rest.call(req);
+                    Box::pin(async move {
+                        let res = res.await.map(|res| res.map(EitherBody::Http))?;
+                        Ok::<_, StdError>(res)
+                    })
+                }),
+                // Other HTTP Versions are not supported:
+                _ => todo!("error for non-supported HTTP version"),
+            }
+        });
         let service = trace_layer.layer(service);
         std::future::ready(Ok::<_, Infallible>(service))
     });
@@ -245,8 +252,8 @@ where
 
     fn is_end_stream(&self) -> bool {
         match self {
-            EitherBody::Http(b) => b.is_end_stream(),
-            EitherBody::Grpc(b) => b.is_end_stream(),
+            Self::Http(b) => b.is_end_stream(),
+            Self::Grpc(b) => b.is_end_stream(),
         }
     }
 
@@ -255,8 +262,8 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Option<std::result::Result<Self::Data, StdError>>> {
         match self.get_mut() {
-            EitherBody::Http(b) => Pin::new(b).poll_data(cx).map(map_option_err),
-            EitherBody::Grpc(b) => Pin::new(b).poll_data(cx).map(map_option_err),
+            Self::Http(b) => Pin::new(b).poll_data(cx).map(map_option_err),
+            Self::Grpc(b) => Pin::new(b).poll_data(cx).map(map_option_err),
         }
     }
 
@@ -265,8 +272,8 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<std::result::Result<Option<hyper::http::HeaderMap>, StdError>> {
         match self.get_mut() {
-            EitherBody::Http(b) => Pin::new(b).poll_trailers(cx).map_err(Into::into),
-            EitherBody::Grpc(b) => Pin::new(b).poll_trailers(cx).map_err(Into::into),
+            Self::Http(b) => Pin::new(b).poll_trailers(cx).map_err(Into::into),
+            Self::Grpc(b) => Pin::new(b).poll_trailers(cx).map_err(Into::into),
         }
     }
 }
