@@ -6,12 +6,6 @@ use arrow_flight::flight_service_server::{
 use authz::Authorizer;
 use iox_query::QueryNamespaceProvider;
 
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("tonic server error: {0}")]
-    Tonic(#[from] tonic::transport::Error),
-}
-
 pub(crate) fn make_flight_server<Q: QueryNamespaceProvider>(
     server: Arc<Q>,
     authz: Option<Arc<dyn Authorizer>>,
