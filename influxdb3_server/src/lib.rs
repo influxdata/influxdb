@@ -14,6 +14,7 @@ clippy::future_not_send
 mod grpc;
 mod http;
 pub mod query_executor;
+mod service;
 
 use crate::grpc::make_flight_server;
 use crate::http::route_request;
@@ -22,6 +23,7 @@ use async_trait::async_trait;
 use datafusion::execution::SendableRecordBatchStream;
 use hyper::body::HttpBody;
 use hyper::header::CONTENT_TYPE;
+use hyper::http::HeaderMap;
 use hyper::service::service_fn;
 use hyper::Version;
 use influxdb3_write::{Persister, WriteBuffer};
@@ -70,6 +72,7 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 #[derive(Debug, Clone)]
 pub struct CommonServerState {
@@ -201,7 +204,7 @@ where
                         let res = flight.call(req);
                         Box::pin(async move {
                             let res = res.await.map(|res| res.map(EitherBody::Grpc))?;
-                            Ok::<_, StdError>(res)
+                            Ok::<_, BoxError>(res)
                         })
                     })
                 }
@@ -210,7 +213,7 @@ where
                     let res = rest.call(req);
                     Box::pin(async move {
                         let res = res.await.map(|res| res.map(EitherBody::Http))?;
-                        Ok::<_, StdError>(res)
+                        Ok::<_, BoxError>(res)
                     })
                 }),
             }
@@ -232,18 +235,15 @@ enum EitherBody<A, B> {
     Grpc(B),
 }
 
-type StdError = Box<dyn std::error::Error + Send + Sync + 'static>;
-
 impl<A, B> HttpBody for EitherBody<A, B>
 where
     A: HttpBody + Send + Unpin,
     B: HttpBody<Data = A::Data> + Send + Unpin,
-    A::Error: Into<StdError>,
-    B::Error: Into<StdError>,
+    A::Error: Into<BoxError>,
+    B::Error: Into<BoxError>,
 {
     type Data = A::Data;
-
-    type Error = StdError;
+    type Error = BoxError;
 
     fn is_end_stream(&self) -> bool {
         match self {
@@ -255,7 +255,7 @@ where
     fn poll_data(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<std::result::Result<Self::Data, StdError>>> {
+    ) -> Poll<Option<Result<Self::Data, BoxError>>> {
         match self.get_mut() {
             Self::Http(b) => Pin::new(b).poll_data(cx).map(map_option_err),
             Self::Grpc(b) => Pin::new(b).poll_data(cx).map(map_option_err),
@@ -265,7 +265,7 @@ where
     fn poll_trailers(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<std::result::Result<Option<hyper::http::HeaderMap>, StdError>> {
+    ) -> Poll<Result<Option<HeaderMap>, BoxError>> {
         match self.get_mut() {
             Self::Http(b) => Pin::new(b).poll_trailers(cx).map_err(Into::into),
             Self::Grpc(b) => Pin::new(b).poll_trailers(cx).map_err(Into::into),
@@ -273,7 +273,7 @@ where
     }
 }
 
-fn map_option_err<T, U: Into<StdError>>(err: Option<Result<T, U>>) -> Option<Result<T, StdError>> {
+fn map_option_err<T, U: Into<BoxError>>(err: Option<Result<T, U>>) -> Option<Result<T, BoxError>> {
     err.map(|e| e.map_err(Into::into))
 }
 

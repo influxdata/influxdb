@@ -2798,6 +2798,7 @@ dependencies = [
  "parking_lot 0.11.2",
  "parquet",
  "parquet_file",
+ "pin-project-lite",
  "schema",
  "serde",
  "serde_json",
