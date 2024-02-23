@@ -4,8 +4,8 @@ use std::{
     time::Duration,
 };
 
-use arrow_flight::FlightClient;
 use assert_cmd::cargo::CommandCargoExt;
+use influxdb_iox_client::flightsql::FlightSqlClient;
 
 /// A running instance of the `influxdb3 serve` process
 pub struct TestServer {
@@ -46,14 +46,17 @@ impl TestServer {
         format!("http://{addr}", addr = self.bind_addr)
     }
 
-    /// Get a [`FlightClient`] for making requests to the running service over gRPC
-    pub async fn flight_client(&self) -> FlightClient {
+    /// Get a [`FlightSqlClient`] for making requests to the running service over gRPC
+    pub async fn flight_client(&self, database: &str) -> FlightSqlClient {
         let channel = tonic::transport::Channel::from_shared(self.client_addr())
             .expect("create tonic channel")
             .connect()
             .await
             .expect("connect to gRPC client");
-        FlightClient::new(channel)
+        let mut client = FlightSqlClient::new(channel);
+        client.add_header("database", database).unwrap();
+        client.add_header("iox-debug", "true").unwrap();
+        client
     }
 
     fn kill(&mut self) {

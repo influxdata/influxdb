@@ -71,9 +71,13 @@ jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl"]
 clippy = []
 
 [dev-dependencies]
+arrow_util = { path = "../arrow_util" }
+influxdb_iox_client = { path = "../influxdb_iox_client" }
+
 # Crates.io dependencies in alphabetical order:
-arrow-array = "50.0.0"
-arrow-flight = "50.0.0"
+arrow = { workspace = true }
+arrow-array = "49.0.0"
+arrow-flight = "49.0.0"
 assert_cmd = "2.0.14"
 futures = "0.3.28"
 hyper = "0.14"
