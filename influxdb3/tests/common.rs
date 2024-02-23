@@ -1,11 +1,13 @@
 use std::{
     net::{SocketAddr, SocketAddrV4, TcpListener},
     process::{Child, Command, Stdio},
+    time::Duration,
 };
 
 use arrow_flight::FlightClient;
 use assert_cmd::cargo::CommandCargoExt;
 
+/// A running instance of the `influxdb3 serve` process
 pub struct TestServer {
     bind_addr: SocketAddr,
     server_process: Child,
@@ -13,8 +15,12 @@ pub struct TestServer {
 }
 
 impl TestServer {
+    /// Spawn a new [`TestServer`]
+    ///
+    /// This will run the `influxdb3 serve` command, and bind its HTTP
+    /// address to a random port on localhost.
     pub async fn spawn() -> Self {
-        let bind_addr = get_bind_addr();
+        let bind_addr = get_local_bind_addr();
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
         let command = command
             .arg("serve")
@@ -35,10 +41,12 @@ impl TestServer {
         server
     }
 
+    /// Get the URL of the running service for use with an HTTP client
     pub fn client_addr(&self) -> String {
         format!("http://{addr}", addr = self.bind_addr)
     }
 
+    /// Get a [`FlightClient`] for making requests to the running service over gRPC
     pub async fn flight_client(&self) -> FlightClient {
         let channel = tonic::transport::Channel::from_shared(self.client_addr())
             .expect("create tonic channel")
@@ -60,7 +68,7 @@ impl TestServer {
             .await
             .is_err()
         {
-            // TODO - sleep or do a count to ensure we don't loop infinitely
+            tokio::time::sleep(Duration::from_millis(10)).await;
         }
     }
 }
@@ -71,13 +79,16 @@ impl Drop for TestServer {
     }
 }
 
-fn get_bind_addr() -> SocketAddr {
+/// Get an available bind address on localhost
+///
+/// This binds a [`TcpListener`] to 127.0.0.1:0, which will randomly
+/// select an available port, and produces the resulting local address.
+/// The [`TcpListener`] is dropped at the end of the function, thus
+/// freeing the port for use by the caller.
+fn get_local_bind_addr() -> SocketAddr {
     let ip = std::net::Ipv4Addr::new(127, 0, 0, 1);
-    // Port 0 will find a free port
-    let addr = SocketAddrV4::new(ip, 0).to_string();
-    // Bind to get the full address with the selected port,
-    // the TcpListener will be dropped at the end of this function
-    // and therefore the port will be free for the command to start
+    let port = 0;
+    let addr = SocketAddrV4::new(ip, port);
     TcpListener::bind(addr)
         .expect("bind to a socket address")
         .local_addr()
