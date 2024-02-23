@@ -31,10 +31,15 @@ tracker = { path = "../tracker" }
 
 arrow = { workspace = true, features = ["prettyprint"] }
 arrow-flight.workspace = true
+arrow-json = "49.0.0"
+arrow-schema = "49.0.0"
+arrow-csv = "49.0.0"
 async-trait = "0.1"
 chrono = "0.4"
 datafusion = { workspace = true }
+flate2 = "1.0.27"
 futures = "0.3.28"
+hex = "0.4.3"
 hyper = "0.14"
 parking_lot = "0.11.1"
 thiserror = "1.0"
@@ -44,14 +49,9 @@ tonic = { workspace = true }
 serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0.107"
 serde_urlencoded = "0.7.0"
-tower = "0.4.13"
-flate2 = "1.0.27"
-workspace-hack = { version = "0.1", path = "../workspace-hack" }
-arrow-json = "49.0.0"
-arrow-schema = "49.0.0"
-arrow-csv = "49.0.0"
 sha2 = "0.10.8"
-hex = "0.4.3"
+tower = "0.4.13"
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 parquet.workspace = true

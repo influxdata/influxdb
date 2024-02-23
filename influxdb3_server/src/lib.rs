@@ -206,15 +206,13 @@ where
                     })
                 }
                 // Otherwise, serve with standard REST router:
-                (Version::HTTP_10 | Version::HTTP_11 | Version::HTTP_2, _) => Either::Left({
+                _ => Either::Left({
                     let res = rest.call(req);
                     Box::pin(async move {
                         let res = res.await.map(|res| res.map(EitherBody::Http))?;
                         Ok::<_, StdError>(res)
                     })
                 }),
-                // Other HTTP Versions are not supported:
-                _ => todo!("error for non-supported HTTP version"),
             }
         });
         let service = trace_layer.layer(service);
