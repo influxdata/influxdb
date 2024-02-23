@@ -131,8 +131,6 @@ async fn flight() {
             &batches
         );
     }
-
-    //
 }
 
 async fn write_lp_to_db(server: &TestServer, database: &str, lp: &'static str) {
