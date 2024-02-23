@@ -52,7 +52,7 @@ tonic  = { workspace = true }
 tonic-health  = { workspace = true }
 tonic-reflection = { workspace = true }
 tower = "0.4"
-tower-http = { version = "0.4", features = ["catch-panic"] }
+tower-http = { version = "0.5", features = ["catch-panic"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
