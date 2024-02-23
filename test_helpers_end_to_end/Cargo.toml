@@ -23,7 +23,7 @@ http = "0.2.11"
 hyper = "0.14"
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format"] }
 ingester_query_grpc = { path = "../ingester_query_grpc" }
-insta = { version = "1.34.0", features = ["yaml"] }
+insta = { version = "1.35.1", features = ["yaml"] }
 iox_catalog = { path = "../iox_catalog" }
 iox_query_params = { path = "../iox_query_params" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
