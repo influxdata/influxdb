@@ -21,25 +21,18 @@ use crate::http::route_request;
 use crate::http::HttpApi;
 use async_trait::async_trait;
 use datafusion::execution::SendableRecordBatchStream;
-use hyper::body::HttpBody;
-use hyper::header::CONTENT_TYPE;
-use hyper::http::HeaderMap;
 use hyper::service::service_fn;
-use hyper::Version;
 use influxdb3_write::{Persister, WriteBuffer};
 use iox_query::QueryNamespaceProvider;
 use observability_deps::tracing::{error, info};
+use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 use thiserror::Error;
-use tokio_util::either::Either;
 use tokio_util::sync::CancellationToken;
-use tower::{Layer, Service};
+use tower::Layer;
 use trace::ctx::SpanContext;
 use trace::TraceCollector;
 use trace_http::ctx::RequestLogContext;
@@ -72,7 +65,6 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 #[derive(Debug, Clone)]
 pub struct CommonServerState {
@@ -184,97 +176,28 @@ where
         TRACE_SERVER_NAME,
     );
 
-    // TODO - need to configure authz here:
-    let flight = make_flight_server(Arc::clone(&server.http.query_executor), None);
-
-    let make_svc = hyper::service::make_service_fn(move |_| {
-        let mut flight = flight.clone();
+    let grpc_service = trace_layer.clone().layer(make_flight_server(
+        Arc::clone(&server.http.query_executor),
+        // TODO - need to configure authz here:
+        None,
+    ));
+    let rest_service = hyper::service::make_service_fn(|_| {
         let http_server = Arc::clone(&server.http);
-        let mut rest = service_fn(move |req: hyper::Request<hyper::Body>| {
+        let service = service_fn(move |req: hyper::Request<hyper::Body>| {
             route_request(Arc::clone(&http_server), req)
         });
-        let service = tower::service_fn(move |req: hyper::Request<hyper::Body>| {
-            match (req.version(), req.headers().get(CONTENT_TYPE)) {
-                // If HTTP 2.0 and Content-Type is `application/grpc` serve with tonic:
-                (Version::HTTP_2, Some(v))
-                    if v.to_str()
-                        .is_ok_and(|hv| hv.starts_with("application/grpc")) =>
-                {
-                    Either::Right({
-                        let res = flight.call(req);
-                        Box::pin(async move {
-                            let res = res.await.map(|res| res.map(EitherBody::Grpc))?;
-                            Ok::<_, BoxError>(res)
-                        })
-                    })
-                }
-                // Otherwise, serve with standard REST router:
-                _ => Either::Left({
-                    let res = rest.call(req);
-                    Box::pin(async move {
-                        let res = res.await.map(|res| res.map(EitherBody::Http))?;
-                        Ok::<_, BoxError>(res)
-                    })
-                }),
-            }
-        });
         let service = trace_layer.layer(service);
-        std::future::ready(Ok::<_, Infallible>(service))
+        futures::future::ready(Ok::<_, Infallible>(service))
     });
 
+    let hybrid_make_service = hybrid(rest_service, grpc_service);
+
     hyper::Server::bind(&server.common_state.http_addr)
-        .serve(make_svc)
+        .serve(hybrid_make_service)
         .with_graceful_shutdown(shutdown.cancelled())
         .await?;
 
     Ok(())
-}
-
-enum EitherBody<A, B> {
-    Http(A),
-    Grpc(B),
-}
-
-impl<A, B> HttpBody for EitherBody<A, B>
-where
-    A: HttpBody + Send + Unpin,
-    B: HttpBody<Data = A::Data> + Send + Unpin,
-    A::Error: Into<BoxError>,
-    B::Error: Into<BoxError>,
-{
-    type Data = A::Data;
-    type Error = BoxError;
-
-    fn is_end_stream(&self) -> bool {
-        match self {
-            Self::Http(b) => b.is_end_stream(),
-            Self::Grpc(b) => b.is_end_stream(),
-        }
-    }
-
-    fn poll_data(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Data, BoxError>>> {
-        match self.get_mut() {
-            Self::Http(b) => Pin::new(b).poll_data(cx).map(map_option_err),
-            Self::Grpc(b) => Pin::new(b).poll_data(cx).map(map_option_err),
-        }
-    }
-
-    fn poll_trailers(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<Option<HeaderMap>, BoxError>> {
-        match self.get_mut() {
-            Self::Http(b) => Pin::new(b).poll_trailers(cx).map_err(Into::into),
-            Self::Grpc(b) => Pin::new(b).poll_trailers(cx).map_err(Into::into),
-        }
-    }
-}
-
-fn map_option_err<T, U: Into<BoxError>>(err: Option<Result<T, U>>) -> Option<Result<T, BoxError>> {
-    err.map(|e| e.map_err(Into::into))
 }
 
 /// On unix platforms we want to intercept SIGINT and SIGTERM

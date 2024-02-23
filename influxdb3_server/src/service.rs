@@ -98,18 +98,20 @@ where
     }
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
-        if req
-            .headers()
-            .get(hyper::header::CONTENT_TYPE)
-            .is_some_and(|hv| hv.as_bytes().starts_with(b"application/grpc"))
-        {
-            HybridFuture::Grpc {
-                grpc_future: self.grpc.call(req),
+        match (
+            req.version(),
+            req.headers().get(hyper::header::CONTENT_TYPE),
+        ) {
+            (hyper::Version::HTTP_2, Some(hv))
+                if hv.as_bytes().starts_with(b"application/grpc") =>
+            {
+                HybridFuture::Grpc {
+                    grpc_future: self.grpc.call(req),
+                }
             }
-        } else {
-            HybridFuture::Rest {
+            _ => HybridFuture::Rest {
                 rest_future: self.rest.call(req),
-            }
+            },
         }
     }
 }
