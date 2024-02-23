@@ -142,8 +142,8 @@ where
 
     fn is_end_stream(&self) -> bool {
         match self {
-            HybridBody::Rest { rest_body } => rest_body.is_end_stream(),
-            HybridBody::Grpc { grpc_body } => grpc_body.is_end_stream(),
+            Self::Rest { rest_body } => rest_body.is_end_stream(),
+            Self::Grpc { grpc_body } => grpc_body.is_end_stream(),
         }
     }
 
