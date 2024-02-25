@@ -42,7 +42,7 @@ log = "0.4"
 parking_lot = "0.12"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.111"
+serde_json = "1.0.114"
 serde_urlencoded = "0.7.0"
 snafu = "0.8"
 tokio = { version = "1.35", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
