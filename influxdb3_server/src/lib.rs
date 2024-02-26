@@ -11,26 +11,43 @@ clippy::clone_on_ref_ptr,
 clippy::future_not_send
 )]
 
+mod grpc;
 mod http;
 pub mod query_executor;
+mod service;
 
+use crate::grpc::make_flight_server;
+use crate::http::route_request;
 use crate::http::HttpApi;
 use async_trait::async_trait;
 use datafusion::execution::SendableRecordBatchStream;
+use hyper::service::service_fn;
 use influxdb3_write::{Persister, WriteBuffer};
-use observability_deps::tracing::info;
+use iox_query::QueryNamespaceProvider;
+use observability_deps::tracing::{error, info};
+use service::hybrid;
+use std::convert::Infallible;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
+use tower::Layer;
 use trace::ctx::SpanContext;
 use trace::TraceCollector;
 use trace_http::ctx::RequestLogContext;
 use trace_http::ctx::TraceHeaderParser;
+use trace_http::metrics::MetricFamily;
+use trace_http::metrics::RequestMetrics;
+use trace_http::tower::TraceLayer;
+
+const TRACE_SERVER_NAME: &str = "influxdb3_http";
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("hyper error: {0}")]
+    Hyper(#[from] hyper::Error),
+
     #[error("http error: {0}")]
     Http(#[from] http::Error),
 
@@ -100,11 +117,12 @@ impl CommonServerState {
 
 #[derive(Debug)]
 pub struct Server<W, Q> {
+    common_state: CommonServerState,
     http: Arc<HttpApi<W, Q>>,
 }
 
 #[async_trait]
-pub trait QueryExecutor: Debug + Send + Sync + 'static {
+pub trait QueryExecutor: QueryNamespaceProvider + Debug + Send + Sync + 'static {
     async fn query(
         &self,
         database: &str,
@@ -121,7 +139,10 @@ pub enum QueryKind {
     InfluxQl,
 }
 
-impl<W, Q> Server<W, Q> {
+impl<W, Q> Server<W, Q>
+where
+    Q: QueryExecutor,
+{
     pub fn new(
         common_state: CommonServerState,
         _persister: Arc<dyn Persister>,
@@ -131,26 +152,57 @@ impl<W, Q> Server<W, Q> {
     ) -> Self {
         let http = Arc::new(HttpApi::new(
             common_state.clone(),
-            Arc::<W>::clone(&write_buffer),
-            Arc::<Q>::clone(&query_executor),
+            Arc::clone(&write_buffer),
+            Arc::clone(&query_executor),
             max_http_request_size,
         ));
 
-        Self { http }
+        Self { common_state, http }
     }
 }
 
-pub async fn serve<W: WriteBuffer, Q: QueryExecutor>(
-    server: Server<W, Q>,
-    shutdown: CancellationToken,
-) -> Result<()> {
+pub async fn serve<W, Q>(server: Server<W, Q>, shutdown: CancellationToken) -> Result<()>
+where
+    W: WriteBuffer,
+    Q: QueryExecutor,
+{
     // TODO:
     //  1. load the persisted catalog and segments from the persister
     //  2. load semgments into the buffer
     //  3. persist any segments from the buffer that are closed and haven't yet been persisted
     //  4. start serving
 
-    http::serve(Arc::clone(&server.http), shutdown).await?;
+    let req_metrics = RequestMetrics::new(
+        Arc::clone(&server.common_state.metrics),
+        MetricFamily::HttpServer,
+    );
+    let trace_layer = TraceLayer::new(
+        server.common_state.trace_header_parser.clone(),
+        Arc::new(req_metrics),
+        server.common_state.trace_collector().clone(),
+        TRACE_SERVER_NAME,
+    );
+
+    let grpc_service = trace_layer.clone().layer(make_flight_server(
+        Arc::clone(&server.http.query_executor),
+        // TODO - need to configure authz here:
+        None,
+    ));
+    let rest_service = hyper::service::make_service_fn(|_| {
+        let http_server = Arc::clone(&server.http);
+        let service = service_fn(move |req: hyper::Request<hyper::Body>| {
+            route_request(Arc::clone(&http_server), req)
+        });
+        let service = trace_layer.layer(service);
+        futures::future::ready(Ok::<_, Infallible>(service))
+    });
+
+    let hybrid_make_service = hybrid(rest_service, grpc_service);
+
+    hyper::Server::bind(&server.common_state.http_addr)
+        .serve(hybrid_make_service)
+        .with_graceful_shutdown(shutdown.cancelled())
+        .await?;
 
     Ok(())
 }
