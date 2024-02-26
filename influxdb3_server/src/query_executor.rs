@@ -1,5 +1,5 @@
 //! module for query executor
-use crate::QueryExecutor;
+use crate::{QueryExecutor, QueryKind};
 use arrow::datatypes::SchemaRef;
 use async_trait::async_trait;
 use data_types::NamespaceId;
@@ -28,6 +28,7 @@ use iox_query::query_log::QueryText;
 use iox_query::query_log::StateReceived;
 use iox_query::QueryNamespaceProvider;
 use iox_query::{QueryChunk, QueryChunkData, QueryNamespace};
+use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
 use metric::Registry;
 use observability_deps::tracing::info;
 use schema::sort::SortKey;
@@ -83,6 +84,7 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         &self,
         database: &str,
         q: &str,
+        kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
     ) -> crate::Result<SendableRecordBatchStream> {
@@ -103,11 +105,19 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         );
 
         info!("plan");
-        let planner = SqlQueryPlanner::new();
         // TODO: Figure out if we want to support parameter values in SQL
         // queries
         let params = ParamValues::List(Vec::new());
-        let plan = planner.query(q, params, &ctx).await?;
+        let plan = match kind {
+            QueryKind::Sql => {
+                let planner = SqlQueryPlanner::new();
+                planner.query(q, params, &ctx).await?
+            }
+            QueryKind::InfluxQl => {
+                let planner = InfluxQLQueryPlanner::new();
+                planner.query(q, params, &ctx).await?
+            }
+        };
         let token = token.planned(Arc::clone(&plan));
 
         // TODO: Enforce concurrency limit here

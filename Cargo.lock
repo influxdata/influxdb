@@ -2671,6 +2671,7 @@ dependencies = [
  "influxdb3_write",
  "iox_catalog",
  "iox_query",
+ "iox_query_influxql",
  "iox_time",
  "metric",
  "metric_exporters",

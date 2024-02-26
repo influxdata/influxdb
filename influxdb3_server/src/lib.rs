@@ -109,9 +109,16 @@ pub trait QueryExecutor: Debug + Send + Sync + 'static {
         &self,
         database: &str,
         q: &str,
+        kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
     ) -> Result<SendableRecordBatchStream>;
+}
+
+#[derive(Debug)]
+pub enum QueryKind {
+    Sql,
+    InfluxQl,
 }
 
 impl<W, Q> Server<W, Q> {
