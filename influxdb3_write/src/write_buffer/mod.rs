@@ -577,7 +577,6 @@ fn validate_and_convert_parsed_line(
                 Precision::Nanosecond => 1,
             };
 
-            // This will fail in June 2128, but that's not our problem
             ts * multiplier
         })
         .unwrap_or(default_time);
