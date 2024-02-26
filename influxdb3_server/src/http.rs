@@ -254,11 +254,8 @@ where
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
-        match validate_db_name(&params.db) {
-            DbName::Valid => info!("write_lp to {}", params.db),
-            DbName::InvalidStartChar => return Err(Error::DbNameInvalidStartChar),
-            DbName::InvalidChar => return Err(Error::DbNameInvalidChar),
-        }
+        validate_db_name(&params.db)?;
+        info!("write_lp to {}", params.db);
 
         let body = self.read_body(req).await?;
         let body = std::str::from_utf8(&body).map_err(Error::NonUtf8Body)?;
@@ -517,33 +514,27 @@ where
 /// - Starts with a letter or a number
 /// - Is ASCII not UTF-8
 /// - Contains only letters, numbers, underscores or hyphens
-fn validate_db_name(name: &str) -> DbName {
+fn validate_db_name(name: &str) -> Result<()> {
     let mut is_first_char = true;
     for grapheme in name.graphemes(true) {
         if grapheme.as_bytes().len() > 1 {
             // In the case of a unicode we need to handle multibyte chars
-            return DbName::InvalidChar;
+            return Err(Error::DbNameInvalidChar);
         }
         let char = grapheme.as_bytes()[0] as char;
         if !is_first_char {
             if !(char.is_ascii_alphanumeric() || char == '_' || char == '-') {
-                return DbName::InvalidChar;
+                return Err(Error::DbNameInvalidChar);
             }
         } else {
             if !char.is_ascii_alphanumeric() {
-                return DbName::InvalidStartChar;
+                return Err(Error::DbNameInvalidStartChar);
             }
             is_first_char = false;
         }
     }
-    DbName::Valid
-}
 
-#[derive(Debug)]
-enum DbName {
-    Valid,
-    InvalidChar,
-    InvalidStartChar,
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
