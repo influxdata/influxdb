@@ -12,7 +12,6 @@ use hyper::header::ACCEPT;
 use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
 use hyper::http::HeaderValue;
-use hyper::server::conn::{AddrIncoming, AddrStream};
 use hyper::{Body, Method, Request, Response, StatusCode};
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::WriteBuffer;
@@ -27,11 +26,6 @@ use std::num::NonZeroI32;
 use std::str::Utf8Error;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio_util::sync::CancellationToken;
-use tower::Layer;
-use trace_http::metrics::MetricFamily;
-use trace_http::metrics::RequestMetrics;
-use trace_http::tower::TraceLayer;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -159,13 +153,11 @@ impl Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-const TRACE_SERVER_NAME: &str = "http_api";
-
 #[derive(Debug)]
 pub(crate) struct HttpApi<W, Q> {
     common_state: CommonServerState,
     write_buffer: Arc<W>,
-    query_executor: Arc<Q>,
+    pub(crate) query_executor: Arc<Q>,
     max_request_bytes: usize,
 }
 
@@ -449,42 +441,7 @@ pub(crate) struct WriteParams {
     pub(crate) db: String,
 }
 
-pub(crate) async fn serve<W: WriteBuffer, Q: QueryExecutor>(
-    http_server: Arc<HttpApi<W, Q>>,
-    shutdown: CancellationToken,
-) -> Result<()> {
-    let listener = AddrIncoming::bind(&http_server.common_state.http_addr)?;
-    println!("binding listener");
-    info!(bind_addr=%listener.local_addr(), "bound HTTP listener");
-
-    let req_metrics = RequestMetrics::new(
-        Arc::clone(&http_server.common_state.metrics),
-        MetricFamily::HttpServer,
-    );
-    let trace_layer = TraceLayer::new(
-        http_server.common_state.trace_header_parser.clone(),
-        Arc::new(req_metrics),
-        http_server.common_state.trace_collector().clone(),
-        TRACE_SERVER_NAME,
-    );
-
-    hyper::Server::builder(listener)
-        .serve(hyper::service::make_service_fn(|_conn: &AddrStream| {
-            let http_server = Arc::clone(&http_server);
-            let service = hyper::service::service_fn(move |request: Request<_>| {
-                route_request(Arc::clone(&http_server), request)
-            });
-
-            let service = trace_layer.layer(service);
-            futures::future::ready(Ok::<_, Infallible>(service))
-        }))
-        .with_graceful_shutdown(shutdown.cancelled())
-        .await?;
-
-    Ok(())
-}
-
-async fn route_request<W: WriteBuffer, Q: QueryExecutor>(
+pub(crate) async fn route_request<W: WriteBuffer, Q: QueryExecutor>(
     http_server: Arc<HttpApi<W, Q>>,
     mut req: Request<Body>,
 ) -> Result<Response<Body>, Infallible> {

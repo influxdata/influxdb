@@ -29,7 +29,7 @@ use iox_query::query_log::StateReceived;
 use iox_query::QueryNamespaceProvider;
 use iox_query::{QueryChunk, QueryChunkData, QueryNamespace};
 use metric::Registry;
-use observability_deps::tracing::info;
+use observability_deps::tracing::{debug, info, trace};
 use schema::sort::SortKey;
 use schema::Schema;
 use std::any::Any;
@@ -187,19 +187,37 @@ impl<B: WriteBuffer> QueryDatabase<B> {
             query_log,
         }
     }
+
+    async fn query_table(&self, table_name: &str) -> Option<Arc<QueryTable<B>>> {
+        self.db_schema.get_table_schema(table_name).map(|schema| {
+            Arc::new(QueryTable {
+                db_schema: Arc::clone(&self.db_schema),
+                name: table_name.into(),
+                schema: schema.clone(),
+                write_buffer: Arc::clone(&self.write_buffer),
+            })
+        })
+    }
 }
 
 #[async_trait]
 impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
     async fn chunks(
         &self,
-        _table_name: &str,
-        _filters: &[Expr],
-        _projection: Option<&Vec<usize>>,
-        _ctx: IOxSessionContext,
+        table_name: &str,
+        filters: &[Expr],
+        projection: Option<&Vec<usize>>,
+        ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        info!("called chunks on querydatabase");
-        todo!()
+        let _span_recorder = SpanRecorder::new(ctx.child_span("QueryDatabase::chunks"));
+        debug!(%table_name, ?filters, "Finding chunks for table");
+
+        let Some(table) = self.query_table(table_name).await else {
+            trace!(%table_name, "No entry for table");
+            return Ok(vec![]);
+        };
+
+        table.chunks(&ctx.inner().state(), projection, filters, None)
     }
 
     fn retention_time_ns(&self) -> Option<i64> {
@@ -282,14 +300,7 @@ impl<B: WriteBuffer> SchemaProvider for QueryDatabase<B> {
     }
 
     async fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
-        self.db_schema.get_table_schema(name).map(|schema| {
-            Arc::new(QueryTable {
-                db_schema: Arc::clone(&self.db_schema),
-                name: name.into(),
-                schema: schema.clone(),
-                write_buffer: Arc::clone(&self.write_buffer),
-            }) as Arc<dyn TableProvider>
-        })
+        self.query_table(name).await.map(|qt| qt as _)
     }
 
     fn table_exist(&self, name: &str) -> bool {
@@ -313,6 +324,7 @@ impl<B: WriteBuffer> QueryTable<B> {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+        // TODO - this is only pulling from write buffer, and not parquet?
         self.write_buffer.get_table_chunks(
             &self.db_schema.name,
             self.name.as_ref(),

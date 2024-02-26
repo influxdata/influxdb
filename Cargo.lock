@@ -435,9 +435,9 @@ dependencies = [
 
 [[package]]
 name = "assert_cmd"
-version = "2.0.13"
+version = "2.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00ad3f3a942eee60335ab4342358c161ee296829e0d16ff42fc1d6cb07815467"
+checksum = "ed72493ac66d5804837f480ab3766c72bdfab91a65e565fc54fa9e42db0073a8"
 dependencies = [
  "anstyle",
  "bstr",
@@ -2594,15 +2594,23 @@ dependencies = [
 name = "influxdb3"
 version = "0.1.0"
 dependencies = [
+ "arrow",
+ "arrow-array",
+ "arrow-flight",
+ "arrow_util",
+ "assert_cmd",
  "backtrace",
  "clap",
  "clap_blocks",
  "console-subscriber",
  "dotenvy",
+ "futures",
  "hex",
+ "hyper",
  "influxdb3_client",
  "influxdb3_server",
  "influxdb3_write",
+ "influxdb_iox_client",
  "iox_query",
  "iox_time",
  "ioxd_common",
@@ -2624,6 +2632,8 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tokio_metrics_bridge",
+ "tonic 0.10.2",
+ "tower",
  "trace",
  "trace_exporters",
  "trogging",
@@ -2653,6 +2663,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow-csv",
+ "arrow-flight",
  "arrow-json",
  "arrow-schema",
  "async-trait",
@@ -2679,6 +2690,7 @@ dependencies = [
  "parking_lot 0.11.2",
  "parquet",
  "parquet_file",
+ "pin-project-lite",
  "schema",
  "serde",
  "serde_json",
