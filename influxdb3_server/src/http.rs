@@ -513,11 +513,11 @@ where
     }
 }
 
+/// A valid name:
+/// - Starts with a letter or a number
+/// - Is ASCII not UTF-8
+/// - Contains only letters, numbers, underscores or hyphens
 fn validate_db_name(name: &str) -> DbName {
-    // A valid name:
-    // - Starts with a letter or a number
-    // - Is ASCII not UTF-8
-    // - Contains only letters, numbers, underscores or hyphens
     let mut is_first_char = true;
     for grapheme in name.graphemes(true) {
         if grapheme.as_bytes().len() > 1 {
