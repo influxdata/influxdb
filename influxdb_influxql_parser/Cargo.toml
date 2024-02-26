@@ -20,5 +20,5 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
 assert_matches = "1"
-insta = { version = "1.34.0", features = ["yaml"] }
+insta = { version = "1.35.1", features = ["yaml"] }
 paste = "1.0.14"

@@ -26,7 +26,7 @@ rand = { version = "0.8.3", features = ["small_rng"] }
 regex = "1.10"
 schema = { path = "../schema" }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.111"
+serde_json = "1.0.114"
 snafu = "0.8"
 tokio = { version = "1.35", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 toml = "0.8.8"

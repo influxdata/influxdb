@@ -25,8 +25,11 @@ use trogging::{
 };
 
 mod commands {
+    pub(crate) mod common;
     pub mod create;
+    pub mod query;
     pub mod serve;
+    pub mod write;
 }
 
 #[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
@@ -79,11 +82,21 @@ struct Config {
     command: Option<Command>,
 }
 
+// Ignoring clippy here since this enum is just used for running
+// the CLI command
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, clap::Parser)]
 #[allow(clippy::large_enum_variant)]
 enum Command {
     /// Run the InfluxDB 3.0 server
     Serve(commands::serve::Config),
+
+    /// Perform a query against a running InfluxDB 3.0 server
+    Query(commands::query::Config),
+
+    /// Perform a set of writes to a running InfluxDB 3.0 server
+    Write(commands::write::Config),
+
     /// Create new resources
     Create(commands::create::Config),
 }
@@ -115,6 +128,18 @@ fn main() -> Result<(), std::io::Error> {
                     handle_init_logs(init_logs_and_tracing(&config.logging_config));
                 if let Err(e) = commands::serve::command(config).await {
                     eprintln!("Serve command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Query(config)) => {
+                if let Err(e) = commands::query::command(config).await {
+                    eprintln!("Query command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Write(config)) => {
+                if let Err(e) = commands::write::command(config).await {
+                    eprintln!("Write command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

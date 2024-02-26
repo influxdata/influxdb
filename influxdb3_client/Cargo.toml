@@ -11,7 +11,7 @@ license.workspace = true
 bytes = { version = "1.5.0"}
 reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls"]}
 secrecy = { version = "0.8.0" }
-serde = { version = "1.0.196", features = ["derive"]}
+serde = { version = "1.0.197", features = ["derive"]}
 thiserror = { version = "1.0.57" }
 url = { version = "2.5.0" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
