@@ -9,7 +9,6 @@ use crate::TestServer;
 async fn flight() {
     let server = TestServer::spawn().await;
 
-    // use the influxdb3_client to write in some data
     server
         .write_lp_to_db(
             "foo",

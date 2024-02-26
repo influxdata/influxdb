@@ -144,10 +144,10 @@ impl Client {
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     /// let client = Client::new("http://localhost:8181")?;
     /// let response_bytes = client
-    ///     .api_v3_query_sql("db_name", "SELECT * FROM foo")
+    ///     .api_v3_query_influxql("db_name", "SELECT * FROM foo")
     ///     .send()
     ///     .await
-    ///     .expect("send query_sql request");
+    ///     .expect("send query_influxql request");
     /// # Ok(())
     /// # }
     /// ```
