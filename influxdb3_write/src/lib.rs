@@ -356,6 +356,12 @@ pub enum Precision {
     Nanosecond,
 }
 
+impl Default for Precision {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
 pub(crate) fn guess_precision(timestamp: i64) -> Precision {
     let val = timestamp / 1_000_000_000;
     if val < 5 {

@@ -557,15 +557,12 @@ pub(crate) struct QuerySqlParams {
 const fn true_fn() -> bool {
     true
 }
-const fn precision_fn() -> Precision {
-    Precision::Auto
-}
 #[derive(Debug, Deserialize)]
 pub(crate) struct WriteParams {
     pub(crate) db: String,
     #[serde(default = "true_fn")]
     pub(crate) accept_partial: bool,
-    #[serde(default = "precision_fn")]
+    #[serde(default)]
     pub(crate) precision: Precision,
 }
 
