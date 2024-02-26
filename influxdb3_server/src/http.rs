@@ -419,10 +419,10 @@ pub(crate) enum QueryFormat {
 impl QueryFormat {
     fn as_content_type(&self) -> &str {
         match self {
-            QueryFormat::Parquet => "application/vnd.apache.parquet",
-            QueryFormat::Csv => "text/csv",
-            QueryFormat::Pretty => "text/plain; charset=utf-8",
-            QueryFormat::Json => "application/json",
+            Self::Parquet => "application/vnd.apache.parquet",
+            Self::Csv => "text/csv",
+            Self::Pretty => "text/plain; charset=utf-8",
+            Self::Json => "application/json",
         }
     }
 }
