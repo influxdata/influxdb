@@ -3,23 +3,21 @@ use arrow_flight::{decode::FlightRecordBatchStream, sql::SqlInfo};
 use arrow_util::assert_batches_sorted_eq;
 use futures::TryStreamExt;
 
-use crate::common::TestServer;
-
-mod common;
+use crate::TestServer;
 
 #[tokio::test]
 async fn flight() {
     let server = TestServer::spawn().await;
 
     // use the influxdb3_client to write in some data
-    write_lp_to_db(
-        &server,
-        "foo",
-        "cpu,host=s1,region=us-east usage=0.9 1\n\
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=s1,region=us-east usage=0.9 1\n\
         cpu,host=s1,region=us-east usage=0.89 2\n\
         cpu,host=s1,region=us-east usage=0.85 3",
-    )
-    .await;
+        )
+        .await;
 
     let mut client = server.flight_client("foo").await;
 
@@ -131,16 +129,6 @@ async fn flight() {
             &batches
         );
     }
-}
-
-async fn write_lp_to_db(server: &TestServer, database: &str, lp: &'static str) {
-    let client = influxdb3_client::Client::new(server.client_addr()).unwrap();
-    client
-        .api_v3_write_lp(database)
-        .body(lp)
-        .send()
-        .await
-        .unwrap();
 }
 
 async fn collect_stream(stream: FlightRecordBatchStream) -> Vec<RecordBatch> {

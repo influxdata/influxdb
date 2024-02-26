@@ -7,6 +7,10 @@ use std::{
 use assert_cmd::cargo::CommandCargoExt;
 use influxdb_iox_client::flightsql::FlightSqlClient;
 
+mod auth;
+mod flight;
+mod query;
+
 /// A running instance of the `influxdb3 serve` process
 pub struct TestServer {
     bind_addr: SocketAddr,
@@ -82,6 +86,18 @@ impl Drop for TestServer {
     }
 }
 
+impl TestServer {
+    /// Write some line protocol to the server
+    pub async fn write_lp_to_db(&self, database: &str, lp: &'static str) {
+        let client = influxdb3_client::Client::new(self.client_addr()).unwrap();
+        client
+            .api_v3_write_lp(database)
+            .body(lp)
+            .send()
+            .await
+            .unwrap();
+    }
+}
 /// Get an available bind address on localhost
 ///
 /// This binds a [`TcpListener`] to 127.0.0.1:0, which will randomly
