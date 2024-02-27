@@ -2,6 +2,7 @@ use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, sql::SqlInfo};
 use arrow_util::assert_batches_sorted_eq;
 use futures::TryStreamExt;
+use influxdb3_client::Precision;
 
 use crate::common::TestServer;
 
@@ -18,6 +19,7 @@ async fn flight() {
         "cpu,host=s1,region=us-east usage=0.9 1\n\
         cpu,host=s1,region=us-east usage=0.89 2\n\
         cpu,host=s1,region=us-east usage=0.85 3",
+        Precision::Nanosecond,
     )
     .await;
 
@@ -133,11 +135,17 @@ async fn flight() {
     }
 }
 
-async fn write_lp_to_db(server: &TestServer, database: &str, lp: &'static str) {
+async fn write_lp_to_db(
+    server: &TestServer,
+    database: &str,
+    lp: &'static str,
+    precision: Precision,
+) {
     let client = influxdb3_client::Client::new(server.client_addr()).unwrap();
     client
         .api_v3_write_lp(database)
         .body(lp)
+        .precision(precision)
         .send()
         .await
         .unwrap();

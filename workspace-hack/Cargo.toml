@@ -83,7 +83,7 @@ sqlx-postgres = { version = "0.7", default-features = false, features = ["any", 
 sqlx-sqlite = { version = "0.7", default-features = false, features = ["any", "json", "migrate", "offline", "uuid"] }
 strum = { version = "0.25", features = ["derive"] }
 thrift = { version = "0.17" }
-tokio = { version = "1", features = ["full", "tracing"] }
+tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io", "time"] }
 tower = { version = "0.4", features = ["balance", "buffer", "filter", "limit", "timeout", "util"] }
@@ -151,7 +151,7 @@ sqlx-postgres = { version = "0.7", default-features = false, features = ["any", 
 sqlx-sqlite = { version = "0.7", default-features = false, features = ["any", "json", "migrate", "offline", "uuid"] }
 syn-dff4ba8e3ae991db = { package = "syn", version = "1", features = ["extra-traits", "full", "visit", "visit-mut"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "full", "visit-mut"] }
-tokio = { version = "1", features = ["full", "tracing"] }
+tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net"] }
 tracing = { version = "0.1", features = ["log", "max_level_trace", "release_max_level_trace"] }
 tracing-core = { version = "0.1" }
@@ -196,12 +196,12 @@ spin = { version = "0.9" }
 hyper-rustls = { version = "0.24" }
 spin = { version = "0.9" }
 winapi = { version = "0.3", default-features = false, features = ["cfg", "consoleapi", "errhandlingapi", "evntrace", "fileapi", "handleapi", "in6addr", "inaddr", "minwinbase", "minwindef", "ntsecapi", "ntstatus", "processenv", "profileapi", "std", "sysinfoapi", "winbase", "wincon", "windef", "winerror", "winioctl", "winnt"] }
-windows-sys-b21d60becc0929df = { package = "windows-sys", version = "0.52", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_Security_Authentication_Identity", "Win32_Security_Credentials", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_Memory", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
+windows-sys-b21d60becc0929df = { package = "windows-sys", version = "0.52", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_Security_Authentication_Identity", "Win32_Security_Credentials", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Memory", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
 windows-sys-c8eced492e86ede7 = { package = "windows-sys", version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_Registry", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_Time", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }
 
 [target.x86_64-pc-windows-msvc.build-dependencies]
 spin = { version = "0.9" }
-windows-sys-b21d60becc0929df = { package = "windows-sys", version = "0.52", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_Security_Authentication_Identity", "Win32_Security_Credentials", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_Memory", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
+windows-sys-b21d60becc0929df = { package = "windows-sys", version = "0.52", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_Security_Authentication_Identity", "Win32_Security_Credentials", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Memory", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
 windows-sys-c8eced492e86ede7 = { package = "windows-sys", version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_Registry", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_Time", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }
 
 ### END HAKARI SECTION
