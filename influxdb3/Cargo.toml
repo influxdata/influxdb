@@ -81,6 +81,7 @@ arrow-flight = "49.0.0"
 assert_cmd = "2.0.14"
 futures = "0.3.28"
 hyper = "0.14"
+pretty_assertions = "1.4.0"
 reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls"] }
 tonic.workspace = true
 tower = "0.4.13"

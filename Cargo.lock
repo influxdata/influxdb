@@ -2623,6 +2623,7 @@ dependencies = [
  "panic_logging",
  "parking_lot 0.12.1",
  "parquet_file",
+ "pretty_assertions",
  "reqwest",
  "secrecy",
  "sha2",
