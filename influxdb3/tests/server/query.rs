@@ -57,21 +57,13 @@ async fn api_v3_query_influxql() {
         )
         .await;
 
-    let client = reqwest::Client::new();
-
-    let resp = client
-        .get(format!(
-            "{base}/api/v3/query_influxql",
-            base = server.client_addr()
-        ))
-        .query(&[
+    let resp = server
+        .api_v3_query_influxql(&[
             ("db", "foo"),
             ("q", "SELECT * FROM cpu"),
             ("format", "pretty"),
         ])
-        .send()
         .await
-        .unwrap()
         .text()
         .await
         .unwrap();
@@ -86,4 +78,17 @@ async fn api_v3_query_influxql() {
         +------------------+-------------------------------+------+---------+-------+",
         resp,
     );
+
+    let queries = ["SHOW MEASUREMENTS", "SHOW FIELD KEYS"];
+    for q in queries {
+        let resp = server
+            .api_v3_query_influxql(&[("db", "foo"), ("q", q), ("format", "pretty")])
+            .await
+            .text()
+            .await
+            .unwrap();
+
+        println!("{q}");
+        println!("{resp}");
+    }
 }

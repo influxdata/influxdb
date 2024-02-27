@@ -1,6 +1,6 @@
 //! HTTP API service implementations for `server`
 
-use crate::QueryKind;
+use crate::{query_executor, QueryKind};
 use crate::{CommonServerState, QueryExecutor};
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
@@ -143,6 +143,9 @@ pub enum Error {
 
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("query error: {0}")]
+    Query(#[from] query_executor::Error),
 }
 
 #[derive(Debug, Error)]
@@ -195,6 +198,7 @@ impl<W, Q> HttpApi<W, Q>
 where
     W: WriteBuffer,
     Q: QueryExecutor,
+    Error: From<<Q as QueryExecutor>::Error>,
 {
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
@@ -236,8 +240,7 @@ where
         let stream = self
             .query_executor
             .query(&database, &query_str, kind, None, None)
-            .await
-            .unwrap();
+            .await?;
 
         Response::builder()
             .status(StatusCode::OK)
@@ -482,10 +485,15 @@ pub(crate) struct WriteParams {
     pub(crate) db: String,
 }
 
-pub(crate) async fn route_request<W: WriteBuffer, Q: QueryExecutor>(
+pub(crate) async fn route_request<W, Q>(
     http_server: Arc<HttpApi<W, Q>>,
     mut req: Request<Body>,
-) -> Result<Response<Body>, Infallible> {
+) -> Result<Response<Body>, Infallible>
+where
+    W: WriteBuffer,
+    Q: QueryExecutor,
+    Error: From<<Q as QueryExecutor>::Error>,
+{
     if let Err(e) = http_server.authorize_request(&mut req) {
         match e {
             AuthorizationError::Unauthorized => {

@@ -123,6 +123,8 @@ pub struct Server<W, Q> {
 
 #[async_trait]
 pub trait QueryExecutor: QueryNamespaceProvider + Debug + Send + Sync + 'static {
+    type Error;
+
     async fn query(
         &self,
         database: &str,
@@ -130,7 +132,7 @@ pub trait QueryExecutor: QueryNamespaceProvider + Debug + Send + Sync + 'static 
         kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
-    ) -> Result<SendableRecordBatchStream>;
+    ) -> Result<SendableRecordBatchStream, Self::Error>;
 }
 
 #[derive(Debug)]
@@ -165,6 +167,7 @@ pub async fn serve<W, Q>(server: Server<W, Q>, shutdown: CancellationToken) -> R
 where
     W: WriteBuffer,
     Q: QueryExecutor,
+    http::Error: From<<Q as QueryExecutor>::Error>,
 {
     // TODO:
     //  1. load the persisted catalog and segments from the persister

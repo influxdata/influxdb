@@ -80,6 +80,8 @@ impl<W: WriteBuffer> QueryExecutorImpl<W> {
 
 #[async_trait]
 impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
+    type Error = Error;
+
     async fn query(
         &self,
         database: &str,
@@ -87,12 +89,12 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
-    ) -> crate::Result<SendableRecordBatchStream> {
+    ) -> Result<SendableRecordBatchStream, Self::Error> {
         info!("query in executor {}", database);
         let db = self
             .db(database, span_ctx.child_span("get database"), false)
             .await
-            .ok_or_else(|| crate::Error::DatabaseNotFound {
+            .ok_or_else(|| Error::DatabaseNotFound {
                 db_name: database.to_string(),
             })?;
 
@@ -111,13 +113,14 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         let plan = match kind {
             QueryKind::Sql => {
                 let planner = SqlQueryPlanner::new();
-                planner.query(q, params, &ctx).await?
+                planner.query(q, params, &ctx).await
             }
             QueryKind::InfluxQl => {
                 let planner = InfluxQLQueryPlanner::new();
-                planner.query(q, params, &ctx).await?
+                planner.query(q, params, &ctx).await
             }
-        };
+        }
+        .map_err(Error::QueryPlanning)?;
         let token = token.planned(Arc::clone(&plan));
 
         // TODO: Enforce concurrency limit here
@@ -131,10 +134,20 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
             }
             Err(err) => {
                 token.fail();
-                Err(err.into())
+                Err(Error::ExecuteStream(err))
             }
         }
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("database not found: {db_name}")]
+    DatabaseNotFound { db_name: String },
+    #[error("error while planning query: {0}")]
+    QueryPlanning(#[source] DataFusionError),
+    #[error("error while executing plan: {0}")]
+    ExecuteStream(#[source] DataFusionError),
 }
 
 // This implementation is for the Flight service

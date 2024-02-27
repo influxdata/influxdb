@@ -6,6 +6,7 @@ use std::{
 
 use assert_cmd::cargo::CommandCargoExt;
 use influxdb_iox_client::flightsql::FlightSqlClient;
+use reqwest::Response;
 
 mod auth;
 mod flight;
@@ -97,7 +98,20 @@ impl TestServer {
             .await
             .unwrap();
     }
+
+    pub async fn api_v3_query_influxql(&self, params: &[(&str, &str)]) -> Response {
+        self.http_client
+            .get(format!(
+                "{base}/api/v3/query_influxql",
+                base = self.client_addr()
+            ))
+            .query(params)
+            .send()
+            .await
+            .expect("send /api/v3/query_influxql request to server")
+    }
 }
+
 /// Get an available bind address on localhost
 ///
 /// This binds a [`TcpListener`] to 127.0.0.1:0, which will randomly
