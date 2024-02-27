@@ -387,6 +387,8 @@ pub(crate) fn parse_validate_and_update_schema(
             Err(e) => {
                 if !accept_partial {
                     return Err(Error::ParseError(WriteLineError {
+                        // This unwrap is fine because we're moving line by line
+                        // alongside the output from parse_lines
                         original_line: lp_lines.next().unwrap().to_string(),
                         line_number: line_idx + 1,
                         error_message: e.to_string(),
@@ -394,6 +396,8 @@ pub(crate) fn parse_validate_and_update_schema(
                 } else {
                     errors.push(WriteLineError {
                         original_line: lp_lines.next().unwrap().to_string(),
+                        // This unwrap is fine because we're moving line by line
+                        // alongside the output from parse_lines
                         line_number: line_idx + 1,
                         error_message: e.to_string(),
                     });
@@ -401,6 +405,8 @@ pub(crate) fn parse_validate_and_update_schema(
                 continue;
             }
         };
+        // This unwrap is fine because we're moving line by line
+        // alongside the output from parse_lines
         valid_lines.push(lp_lines.next().unwrap());
         lines.push(line);
     }
