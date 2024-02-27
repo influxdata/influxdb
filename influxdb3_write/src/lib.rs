@@ -83,6 +83,8 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         database: NamespaceName<'static>,
         lp: &str,
         default_time: i64,
+        accept_partial: bool,
+        precision: Precision,
     ) -> write_buffer::Result<BufferedWriteRequest>;
 
     /// Closes the open segment and returns it so that it can be persisted or thrown away. A new segment will be opened
@@ -341,4 +343,52 @@ pub struct ParquetFile {
     pub row_count: u64,
     pub min_time: i64,
     pub max_time: i64,
+}
+
+/// The summary data for a persisted parquet file in a segment.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Precision {
+    Auto,
+    Second,
+    Millisecond,
+    Microsecond,
+    Nanosecond,
+}
+
+impl Default for Precision {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+/// Guess precision based off of a given timestamp.
+// Note that this will fail in June 2128, but that's not our problem
+pub(crate) fn guess_precision(timestamp: i64) -> Precision {
+    const NANO_SECS_PER_SEC: i64 = 1_000_000_000;
+    // Get the absolute value of the timestamp so we can work with negative
+    // numbers
+    let val = timestamp.abs() / NANO_SECS_PER_SEC;
+
+    if val < 5 {
+        // If the time sent to us is in seconds then this will be a number less than
+        // 5 so for example if the time in seconds is 1_708_976_567 then it will be
+        // 1 (due to integer truncation) and be less than 5
+        Precision::Second
+    } else if val < 5_000 {
+        // If however the value is milliseconds and not seconds than the same number
+        // for time but now in milliseconds 1_708_976_567_000 when divided will now
+        // be 1708 which is bigger than the previous if statement but less than this
+        // one and so we return milliseconds
+        Precision::Millisecond
+    } else if val < 5_000_000 {
+        // If we do the same thing here by going up another order of magnitude then
+        // 1_708_976_567_000_000 when divided will be 1708976 which is large enough
+        // for this if statement
+        Precision::Microsecond
+    } else {
+        // Anything else we can assume is large enough of a number that it must
+        // be nanoseconds
+        Precision::Nanosecond
+    }
 }

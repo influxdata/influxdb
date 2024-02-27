@@ -1,4 +1,5 @@
 use crate::TestServer;
+use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 
 #[tokio::test]
@@ -11,6 +12,7 @@ async fn api_v3_query_sql() {
             "cpu,host=s1,region=us-east usage=0.9 1\n\
             cpu,host=s1,region=us-east usage=0.89 2\n\
             cpu,host=s1,region=us-east usage=0.85 3",
+            Precision::Nanosecond,
         )
         .await;
 
@@ -55,6 +57,7 @@ async fn api_v3_query_influxql() {
             "cpu,host=s1,region=us-east usage=0.9 1\n\
             cpu,host=s1,region=us-east usage=0.89 2\n\
             cpu,host=s1,region=us-east usage=0.85 3",
+            Precision::Nanosecond,
         )
         .await;
 

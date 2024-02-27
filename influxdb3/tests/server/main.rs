@@ -5,6 +5,7 @@ use std::{
 };
 
 use assert_cmd::cargo::CommandCargoExt;
+use influxdb3_client::Precision;
 use influxdb_iox_client::flightsql::FlightSqlClient;
 use reqwest::Response;
 
@@ -89,11 +90,12 @@ impl Drop for TestServer {
 
 impl TestServer {
     /// Write some line protocol to the server
-    pub async fn write_lp_to_db(&self, database: &str, lp: &'static str) {
+    pub async fn write_lp_to_db(&self, database: &str, lp: &'static str, precision: Precision) {
         let client = influxdb3_client::Client::new(self.client_addr()).unwrap();
         client
             .api_v3_write_lp(database)
             .body(lp)
+            .precision(precision)
             .send()
             .await
             .unwrap();

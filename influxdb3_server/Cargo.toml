@@ -31,10 +31,10 @@ trace_http = { path = "../trace_http" }
 tracker = { path = "../tracker" }
 
 arrow = { workspace = true, features = ["prettyprint"] }
+arrow-csv = "49.0.0"
 arrow-flight.workspace = true
 arrow-json = "49.0.0"
 arrow-schema = "49.0.0"
-arrow-csv = "49.0.0"
 async-trait = "0.1"
 chrono = "0.4"
 datafusion = { workspace = true }
@@ -44,15 +44,16 @@ hex = "0.4.3"
 hyper = "0.14"
 parking_lot = "0.11.1"
 pin-project-lite = "0.2"
-thiserror = "1.0"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
-tokio-util = { version = "0.7.9" }
-tonic = { workspace = true }
 serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0.114"
 serde_urlencoded = "0.7.0"
 sha2 = "0.10.8"
+thiserror = "1.0"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+tokio-util = { version = "0.7.9" }
+tonic = { workspace = true }
 tower = "0.4.13"
+unicode-segmentation = "1.11.0"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
@@ -63,3 +64,4 @@ test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }
 http = "0.2.9"
 hyper = "0.14"
 urlencoding = "1.1"
+pretty_assertions = "1.4.0"

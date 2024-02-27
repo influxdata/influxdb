@@ -2,6 +2,7 @@ use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, sql::SqlInfo};
 use arrow_util::assert_batches_sorted_eq;
 use futures::TryStreamExt;
+use influxdb3_client::Precision;
 
 use crate::TestServer;
 
@@ -15,6 +16,7 @@ async fn flight() {
             "cpu,host=s1,region=us-east usage=0.9 1\n\
         cpu,host=s1,region=us-east usage=0.89 2\n\
         cpu,host=s1,region=us-east usage=0.85 3",
+            Precision::Nanosecond,
         )
         .await;
 

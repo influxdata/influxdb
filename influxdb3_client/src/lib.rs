@@ -86,7 +86,7 @@ impl Client {
     /// let client = Client::new("http://localhost:8181")?;
     /// client
     ///     .api_v3_write_lp("db_name")
-    ///     .precision(Precision::Milli)
+    ///     .precision(Precision::Millisecond)
     ///     .accept_partial(true)
     ///     .body("cpu,host=s1 usage=0.5")
     ///     .send()
@@ -193,9 +193,9 @@ impl<'a, B> From<&'a WriteRequestBuilder<'a, B>> for WriteParams<'a> {
 #[serde(rename_all = "snake_case")]
 pub enum Precision {
     Second,
-    Milli,
-    Micro,
-    Nano,
+    Millisecond,
+    Microsecond,
+    Nanosecond,
 }
 
 /// Builder type for composing a request to `/api/v3/write_lp`
@@ -373,7 +373,7 @@ mod tests {
             .mock("POST", "/api/v3/write_lp")
             .match_header("Authorization", format!("Bearer {token}").as_str())
             .match_query(Matcher::AllOf(vec![
-                Matcher::UrlEncoded("precision".into(), "milli".into()),
+                Matcher::UrlEncoded("precision".into(), "millisecond".into()),
                 Matcher::UrlEncoded("db".into(), db.into()),
                 Matcher::UrlEncoded("accept_partial".into(), "true".into()),
             ]))
@@ -387,7 +387,7 @@ mod tests {
 
         client
             .api_v3_write_lp(db)
-            .precision(Precision::Milli)
+            .precision(Precision::Millisecond)
             .accept_partial(true)
             .body(body)
             .send()

@@ -17,10 +17,14 @@ use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
 use hyper::{Body, Method, Request, Response, StatusCode};
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
+use influxdb3_write::write_buffer::Error as WriteBufferError;
+use influxdb3_write::BufferedWriteRequest;
+use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, error, info};
 use serde::Deserialize;
+use serde::Serialize;
 use sha2::Digest;
 use sha2::Sha256;
 use std::convert::Infallible;
@@ -31,6 +35,7 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::sync::Arc;
 use thiserror::Error;
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -146,6 +151,17 @@ pub enum Error {
 
     #[error("query error: {0}")]
     Query(#[from] query_executor::Error),
+
+    // Invalid Start Character for a Database Name
+    #[error("db name did not start with a number or letter")]
+    DbNameInvalidStartChar,
+
+    // Invalid Character for a Database Name
+    #[error("db name must use ASCII letters, numbers, underscores and hyphens only")]
+    DbNameInvalidChar,
+
+    #[error("partial write of line protocol ocurred")]
+    PartialLpWrite(BufferedWriteRequest),
 }
 
 #[derive(Debug, Error)]
@@ -159,12 +175,57 @@ pub enum AuthorizationError {
 }
 
 impl Error {
-    fn response(&self) -> Response<Body> {
-        let body = Body::from(self.to_string());
-        Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(body)
-            .unwrap()
+    fn response(self) -> Response<Body> {
+        #[derive(Debug, Serialize)]
+        struct ErrorMessage<T: Serialize> {
+            error: String,
+            data: Option<T>,
+        }
+        match self {
+            Self::WriteBuffer(WriteBufferError::ParseError(err)) => {
+                let err = ErrorMessage {
+                    error: "parsing failed for write_lp endpoint".into(),
+                    data: Some(err),
+                };
+                let serialized = serde_json::to_string(&err).unwrap();
+                let body = Body::from(serialized);
+                Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(body)
+                    .unwrap()
+            }
+            Self::DbNameInvalidStartChar | Self::DbNameInvalidChar => {
+                let err: ErrorMessage<()> = ErrorMessage {
+                    error: self.to_string(),
+                    data: None,
+                };
+                let serialized = serde_json::to_string(&err).unwrap();
+                let body = Body::from(serialized);
+                Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(body)
+                    .unwrap()
+            }
+            Self::PartialLpWrite(data) => {
+                let err = ErrorMessage {
+                    error: "partial write of line protocol ocurred".into(),
+                    data: Some(data.invalid_lines),
+                };
+                let serialized = serde_json::to_string(&err).unwrap();
+                let body = Body::from(serialized);
+                Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(body)
+                    .unwrap()
+            }
+            _ => {
+                let body = Body::from(self.to_string());
+                Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(body)
+                    .unwrap()
+            }
+        }
     }
 }
 
@@ -203,6 +264,7 @@ where
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
+        validate_db_name(&params.db)?;
         info!("write_lp to {}", params.db);
 
         let body = self.read_body(req).await?;
@@ -213,11 +275,22 @@ where
         // TODO: use the time provider
         let default_time = SystemProvider::new().now().timestamp_nanos();
 
-        self.write_buffer
-            .write_lp(database, body, default_time)
+        let result = self
+            .write_buffer
+            .write_lp(
+                database,
+                body,
+                default_time,
+                params.accept_partial,
+                params.precision,
+            )
             .await?;
 
-        Ok(Response::new(Body::from("{}")))
+        if result.invalid_lines.is_empty() {
+            Ok(Response::new(Body::empty()))
+        } else {
+            Err(Error::PartialLpWrite(result))
+        }
     }
 
     async fn query_sql(&self, req: Request<Body>) -> Result<Response<Body>> {
@@ -360,6 +433,33 @@ where
     }
 }
 
+/// A valid name:
+/// - Starts with a letter or a number
+/// - Is ASCII not UTF-8
+/// - Contains only letters, numbers, underscores or hyphens
+fn validate_db_name(name: &str) -> Result<()> {
+    let mut is_first_char = true;
+    for grapheme in name.graphemes(true) {
+        if grapheme.as_bytes().len() > 1 {
+            // In the case of a unicode we need to handle multibyte chars
+            return Err(Error::DbNameInvalidChar);
+        }
+        let char = grapheme.as_bytes()[0] as char;
+        if !is_first_char {
+            if !(char.is_ascii_alphanumeric() || char == '_' || char == '-') {
+                return Err(Error::DbNameInvalidChar);
+            }
+        } else {
+            if !char.is_ascii_alphanumeric() {
+                return Err(Error::DbNameInvalidStartChar);
+            }
+            is_first_char = false;
+        }
+    }
+
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct QueryParams<F> {
     #[serde(rename = "db")]
@@ -480,9 +580,17 @@ async fn record_batch_stream_to_body(
     .map(Body::from)
 }
 
+// This is a hack around the fact that bool default is false not true
+const fn true_fn() -> bool {
+    true
+}
 #[derive(Debug, Deserialize)]
 pub(crate) struct WriteParams {
     pub(crate) db: String,
+    #[serde(default = "true_fn")]
+    pub(crate) accept_partial: bool,
+    #[serde(default)]
+    pub(crate) precision: Precision,
 }
 
 pub(crate) async fn route_request<W, Q>(
