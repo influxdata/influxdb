@@ -133,6 +133,8 @@ pub trait QueryExecutor: QueryNamespaceProvider + Debug + Send + Sync + 'static 
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
     ) -> Result<SendableRecordBatchStream, Self::Error>;
+
+    fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error>;
 }
 
 #[derive(Debug)]

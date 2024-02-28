@@ -1,11 +1,15 @@
 //! module for query executor
 use crate::{QueryExecutor, QueryKind};
 use arrow::datatypes::SchemaRef;
+use arrow::record_batch::RecordBatch;
+use arrow_schema::ArrowError;
 use async_trait::async_trait;
 use data_types::NamespaceId;
 use data_types::{ChunkId, ChunkOrder, TransitionPartitionId};
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::catalog::CatalogProvider;
+use datafusion::common::arrow::array::StringArray;
+use datafusion::common::arrow::datatypes::{DataType, Field, Schema as DatafusionSchema};
 use datafusion::common::ParamValues;
 use datafusion::common::Statistics;
 use datafusion::datasource::{TableProvider, TableType};
@@ -15,6 +19,7 @@ use datafusion::execution::SendableRecordBatchStream;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
+use datafusion_util::MemoryStream;
 use influxdb3_write::{
     catalog::{Catalog, DatabaseSchema},
     WriteBuffer,
@@ -138,6 +143,15 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
             }
         }
     }
+
+    fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error> {
+        let databases = StringArray::from(self.catalog.list_databases());
+        let schema =
+            DatafusionSchema::new(vec![Field::new("iox::database", DataType::Utf8, false)]);
+        let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(databases)])
+            .map_err(Error::DatabasesToRecordBatch)?;
+        Ok(Box::pin(MemoryStream::new(vec![batch])))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -148,6 +162,8 @@ pub enum Error {
     QueryPlanning(#[source] DataFusionError),
     #[error("error while executing plan: {0}")]
     ExecuteStream(#[source] DataFusionError),
+    #[error("unable to compose record batches from databases: {0}")]
+    DatabasesToRecordBatch(#[source] ArrowError),
 }
 
 // This implementation is for the Flight service

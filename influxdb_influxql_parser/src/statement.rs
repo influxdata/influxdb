@@ -43,6 +43,18 @@ pub enum Statement {
     ShowFieldKeys(Box<ShowFieldKeysStatement>),
 }
 
+impl Statement {
+    /// Is this a `SHOW DATABASES` statement
+    pub fn is_show_databases(&self) -> bool {
+        matches!(self, Statement::ShowDatabases(_))
+    }
+
+    /// Is this a `SHOW RETENTION POLICIES` statement
+    pub fn is_show_retention_policies(&self) -> bool {
+        matches!(self, Statement::ShowRetentionPolicies(_))
+    }
+}
+
 impl Display for Statement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {

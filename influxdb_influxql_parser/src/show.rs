@@ -63,6 +63,18 @@ fn show_databases(i: &str) -> ParseResult<&str, ShowDatabasesStatement> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OnClause(pub(crate) Identifier);
 
+impl OnClause {
+    fn to_identifier(self) -> Identifier {
+        self.0
+    }
+}
+
+impl From<OnClause> for Identifier {
+    fn from(oc: OnClause) -> Self {
+        oc.to_identifier()
+    }
+}
+
 impl_tuple_clause!(OnClause, Identifier);
 
 impl Display for OnClause {

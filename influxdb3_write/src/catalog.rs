@@ -104,6 +104,10 @@ impl Catalog {
     pub fn clone_inner(&self) -> InnerCatalog {
         self.inner.read().clone()
     }
+
+    pub fn list_databases(&self) -> Vec<String> {
+        self.inner.read().databases.keys().cloned().collect()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]

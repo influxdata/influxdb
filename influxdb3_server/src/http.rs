@@ -7,6 +7,7 @@ use arrow::util::pretty;
 use authz::http::AuthorizationHeaderExtension;
 use bytes::{Bytes, BytesMut};
 use data_types::NamespaceName;
+use datafusion::error::DataFusionError;
 use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::execution::RecordBatchStream;
 use futures::{StreamExt, TryStreamExt};
@@ -21,8 +22,10 @@ use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
 use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
+use iox_query_influxql::rewrite;
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, error, info};
+use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
 use sha2::Digest;
@@ -144,7 +147,7 @@ pub enum Error {
     Influxdb3Write(#[from] influxdb3_write::Error),
 
     #[error("datafusion error: {0}")]
-    Datafusion(#[from] datafusion::error::DataFusionError),
+    Datafusion(#[from] DataFusionError),
 
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
@@ -162,6 +165,26 @@ pub enum Error {
 
     #[error("partial write of line protocol ocurred")]
     PartialLpWrite(BufferedWriteRequest),
+
+    #[error("error in InfluxQL statement: {0}")]
+    InfluxqlRewrite(#[from] rewrite::Error),
+
+    #[error("must provide only one InfluxQl statement per query")]
+    InfluxqlSingleStatement,
+
+    #[error(
+        "must specify a 'database' parameter, or provide the database\
+        in the InfluxQL query, for queries that support ON clauses"
+    )]
+    InfluxqlNoDatabase,
+
+    #[error(
+        "provided a database in both the parameters ({param_db}) and\
+        query string ({query_db}) that do not match, if providing a query\
+        with an ON clause, you can omit the 'database' parameter from your\
+        request"
+    )]
+    InfluxqlDatabaseMismatch { param_db: String, query_db: String },
 }
 
 #[derive(Debug, Error)]
@@ -294,26 +317,73 @@ where
     }
 
     async fn query_sql(&self, req: Request<Body>) -> Result<Response<Body>> {
-        self.query_inner(req, QueryKind::Sql).await
-    }
-
-    async fn query_influxql(&self, req: Request<Body>) -> Result<Response<Body>> {
-        self.query_inner(req, QueryKind::InfluxQl).await
-    }
-
-    async fn query_inner(&self, req: Request<Body>, kind: QueryKind) -> Result<Response<Body>> {
         let QueryParams {
             database,
             query_str,
             format,
-        } = QueryParams::from_request(&req)?;
+        } = QueryParams::<String, _>::from_request(&req)?;
 
-        info!(%database, %query_str, ?format, ?kind, "handling query");
+        info!(%database, %query_str, ?format, "handling query_sql");
 
         let stream = self
             .query_executor
-            .query(&database, &query_str, kind, None, None)
+            .query(&database, &query_str, QueryKind::Sql, None, None)
             .await?;
+
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, format.as_content_type())
+            .body(record_batch_stream_to_body(stream, format).await?)
+            .map_err(Into::into)
+    }
+
+    async fn query_influxql(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let QueryParams {
+            database,
+            query_str,
+            format,
+        } = QueryParams::<Option<String>, _>::from_request(&req)?;
+
+        info!(?database, %query_str, ?format, "handling query_influxql");
+
+        let mut statements = rewrite::parse_statements(&query_str)?;
+
+        if statements.len() != 1 {
+            return Err(Error::InfluxqlSingleStatement);
+        }
+
+        let statement = statements.pop().unwrap();
+
+        let stream = if statement.statement().is_show_databases() {
+            self.query_executor.show_databases()?
+        } else {
+            let database = match (database, statement.resolve_dbrp()) {
+                (None, None) => return Err(Error::InfluxqlNoDatabase),
+                (None, Some(s)) | (Some(s), None) => s,
+                (Some(p), Some(q)) => {
+                    if p == q {
+                        p
+                    } else {
+                        return Err(Error::InfluxqlDatabaseMismatch {
+                            param_db: p,
+                            query_db: q,
+                        });
+                    }
+                }
+            };
+
+            self.query_executor
+                .query(
+                    &database,
+                    // TODO - implement an interface that takes the statement directly,
+                    // so we don't need to double down on the parsing
+                    &statement.to_statement().to_string(),
+                    QueryKind::InfluxQl,
+                    None,
+                    None,
+                )
+                .await?
+        };
 
         Response::builder()
             .status(StatusCode::OK)
@@ -461,18 +531,21 @@ fn validate_db_name(name: &str) -> Result<()> {
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct QueryParams<F> {
+pub(crate) struct QueryParams<D, F> {
     #[serde(rename = "db")]
-    pub(crate) database: String,
+    pub(crate) database: D,
     #[serde(rename = "q")]
     pub(crate) query_str: String,
     pub(crate) format: F,
 }
 
-impl QueryParams<QueryFormat> {
+impl<D> QueryParams<D, QueryFormat>
+where
+    D: DeserializeOwned,
+{
     fn from_request(req: &Request<Body>) -> Result<Self> {
         let query = req.uri().query().ok_or(Error::MissingQueryParams)?;
-        let params = serde_urlencoded::from_str::<QueryParams<Option<QueryFormat>>>(query)?;
+        let params = serde_urlencoded::from_str::<QueryParams<D, Option<QueryFormat>>>(query)?;
         let format = match params.format {
             None => match req.headers().get(ACCEPT).map(HeaderValue::as_bytes) {
                 // Accept Headers use the MIME types maintained by IANA here:
