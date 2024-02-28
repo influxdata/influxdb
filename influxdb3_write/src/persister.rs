@@ -6,13 +6,12 @@ use crate::catalog::InnerCatalog;
 use crate::paths::CatalogFilePath;
 use crate::paths::ParquetFilePath;
 use crate::paths::SegmentInfoFilePath;
-use crate::Error;
-use crate::Result;
 use crate::{PersistedCatalog, PersistedSegment, Persister, SegmentId};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use bytes::Bytes;
+use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::MemoryConsumer;
 use datafusion::execution::memory_pool::MemoryPool;
 use datafusion::execution::memory_pool::MemoryReservation;
@@ -30,6 +29,30 @@ use parquet::format::FileMetaData;
 use std::any::Any;
 use std::io::Write;
 use std::sync::Arc;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("datafusion error: {0}")]
+    DataFusion(#[from] DataFusionError),
+
+    #[error("serde_json error: {0}")]
+    SerdeJson(#[from] serde_json::Error),
+
+    #[error("object_store error: {0}")]
+    ObjectStore(#[from] object_store::Error),
+
+    #[error("parquet error: {0}")]
+    ParquetError(#[from] parquet::errors::ParquetError),
+
+    #[error("tried to serialize a parquet file with no rows")]
+    NoRows,
+
+    #[error("parse int error: {0}")]
+    ParseInt(#[from] std::num::ParseIntError),
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub struct PersisterImpl {

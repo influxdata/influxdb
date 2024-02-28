@@ -11,7 +11,6 @@ use influxdb3_server::{query_executor::QueryExecutorImpl, serve, CommonServerSta
 use influxdb3_write::persister::PersisterImpl;
 use influxdb3_write::wal::WalImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
-use influxdb3_write::SegmentId;
 use iox_query::exec::{Executor, ExecutorConfig};
 use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use object_store::DynObjectStore;
@@ -241,19 +240,15 @@ pub async fn command(config: Config) -> Result<()> {
         *config.http_bind_address,
         config.bearer_token,
     )?;
-    let catalog = Arc::new(influxdb3_write::catalog::Catalog::new());
+    let persister = PersisterImpl::new(Arc::clone(&object_store));
     let wal: Option<Arc<WalImpl>> = config
         .wal_directory
         .map(|dir| WalImpl::new(dir).map(Arc::new))
         .transpose()?;
     // TODO: the next segment ID should be loaded from the persister
-    let write_buffer = Arc::new(WriteBufferImpl::new(
-        Arc::clone(&catalog),
-        wal,
-        SegmentId::new(0),
-    )?);
+    let write_buffer = Arc::new(WriteBufferImpl::new(Arc::new(persister), wal).await?);
     let query_executor = QueryExecutorImpl::new(
-        catalog,
+        write_buffer.catalog(),
         Arc::clone(&write_buffer),
         Arc::clone(&exec),
         Arc::clone(&metrics),

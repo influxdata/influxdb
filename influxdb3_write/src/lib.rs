@@ -36,29 +36,14 @@ pub enum Error {
     #[error("database not found {db_name}")]
     DatabaseNotFound { db_name: String },
 
-    #[error("datafusion error: {0}")]
-    DataFusion(#[from] DataFusionError),
-
     #[error("object store path error: {0}")]
     ObjStorePath(#[from] object_store::path::Error),
 
     #[error("write buffer error: {0}")]
     WriteBuffer(#[from] write_buffer::Error),
 
-    #[error("serde_json error: {0}")]
-    SerdeJson(#[from] serde_json::Error),
-
-    #[error("object_store error: {0}")]
-    ObjectStore(#[from] object_store::Error),
-
-    #[error("parse int error: {0}")]
-    ParseInt(#[from] std::num::ParseIntError),
-
-    #[error("parquet error: {0}")]
-    ParquetError(#[from] parquet::errors::ParquetError),
-
-    #[error("tried to serialize a parquet file with no rows")]
-    NoRows,
+    #[error("persister error: {0}")]
+    Persister(#[from] persister::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -102,6 +87,9 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
 
     /// Returns the configured WAL, if there is one.
     fn wal(&self) -> Option<Arc<impl Wal>>;
+
+    /// Returns the catalog
+    fn catalog(&self) -> Arc<catalog::Catalog>;
 }
 
 /// A segment in the buffer that corresponds to a single WAL segment file. It contains a catalog with any updates
@@ -134,7 +122,9 @@ pub trait ChunkContainer: Debug + Send + Sync + 'static {
 }
 
 /// The segment identifier, which will be monotonically increasing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct SegmentId(u32);
 pub type SegmentIdBytes = [u8; 4];
 
@@ -157,7 +147,9 @@ impl SegmentId {
 }
 
 /// The sequence number of a batch of WAL operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct SequenceNumber(u32);
 
 impl SequenceNumber {
@@ -173,22 +165,26 @@ impl SequenceNumber {
 #[async_trait]
 pub trait Persister: Debug + Send + Sync + 'static {
     /// Loads the most recently persisted catalog from object storage.
-    async fn load_catalog(&self) -> Result<Option<PersistedCatalog>>;
+    async fn load_catalog(&self) -> persister::Result<Option<PersistedCatalog>>;
 
     /// Loads the most recently persisted N segment parquet file lists from object storage.
-    async fn load_segments(&self, most_recent_n: usize) -> Result<Vec<PersistedSegment>>;
+    async fn load_segments(&self, most_recent_n: usize)
+        -> persister::Result<Vec<PersistedSegment>>;
 
     // Loads a Parquet file from ObjectStore
-    async fn load_parquet_file(&self, path: ParquetFilePath) -> crate::Result<Bytes>;
+    async fn load_parquet_file(&self, path: ParquetFilePath) -> persister::Result<Bytes>;
 
     /// Persists the catalog with the given segment ID. If this is the highest segment ID, it will
     /// be the catalog that is returned the next time `load_catalog` is called.
-    async fn persist_catalog(&self, segment_id: SegmentId, catalog: catalog::Catalog)
-        -> Result<()>;
+    async fn persist_catalog(
+        &self,
+        segment_id: SegmentId,
+        catalog: catalog::Catalog,
+    ) -> persister::Result<()>;
 
     /// Writes a single file to object storage that contains the information for the parquet files persisted
     /// for this segment.
-    async fn persist_segment(&self, persisted_segment: PersistedSegment) -> Result<()>;
+    async fn persist_segment(&self, persisted_segment: PersistedSegment) -> persister::Result<()>;
 
     // Writes a SendableRecorgBatchStream to the Parquet format and persists it
     // to Object Store at the given path. Returns the number of bytes written and the file metadata.
@@ -196,7 +192,7 @@ pub trait Persister: Debug + Send + Sync + 'static {
         &self,
         path: ParquetFilePath,
         record_batch: SendableRecordBatchStream,
-    ) -> crate::Result<(u64, FileMetaData)>;
+    ) -> persister::Result<(u64, FileMetaData)>;
 
     /// Returns the configured `ObjectStore` that data is loaded from and persisted to.
     fn object_store(&self) -> Arc<dyn object_store::ObjectStore>;
@@ -291,7 +287,7 @@ pub struct BufferedWriteRequest {
 }
 
 /// A persisted Catalog that contains the database, table, and column schemas.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct PersistedCatalog {
     /// The segment_id that this catalog was persisted with.
     pub segment_id: SegmentId,
@@ -300,7 +296,7 @@ pub struct PersistedCatalog {
 }
 
 /// The collection of Parquet files that were persisted for a segment.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct PersistedSegment {
     /// The segment_id that these parquet files were persisted with.
     pub segment_id: SegmentId,
@@ -319,13 +315,13 @@ pub struct PersistedSegment {
     pub databases: HashMap<String, DatabaseTables>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq)]
 pub struct DatabaseTables {
     pub tables: HashMap<String, TableParquetFiles>,
 }
 
 /// A collection of parquet files persisted in a segment for a specific table.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct TableParquetFiles {
     /// The table name.
     pub table_name: String,
@@ -336,7 +332,7 @@ pub struct TableParquetFiles {
 }
 
 /// The summary data for a persisted parquet file in a segment.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ParquetFile {
     pub path: String,
     pub size_bytes: u64,
@@ -390,5 +386,57 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
         // Anything else we can assume is large enough of a number that it must
         // be nanoseconds
         Precision::Nanosecond
+    }
+}
+
+#[cfg(test)]
+mod test_helpers {
+    use crate::catalog::{Catalog, DatabaseSchema};
+    use crate::write_buffer::buffer_segment::WriteBatch;
+    use crate::write_buffer::{parse_validate_and_update_schema, Partitioner, TableBatch};
+    use crate::Precision;
+    use data_types::NamespaceName;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    pub(crate) fn lp_to_write_batch(
+        catalog: &Catalog,
+        db_name: &'static str,
+        lp: &str,
+    ) -> WriteBatch {
+        let mut write_batch = WriteBatch::default();
+        let (seq, db) = catalog.db_or_create(db_name);
+        let partitioner = Partitioner::new_per_day_partitioner();
+        let result = parse_validate_and_update_schema(
+            lp,
+            &db,
+            &partitioner,
+            0,
+            false,
+            Precision::Nanosecond,
+        )
+        .unwrap();
+        if let Some(db) = result.schema {
+            catalog.replace_database(seq, Arc::new(db)).unwrap();
+        }
+        let db_name = NamespaceName::new(db_name).unwrap();
+        write_batch.add_db_write(db_name, result.table_batches);
+        write_batch
+    }
+
+    pub(crate) fn lp_to_table_batches(lp: &str, default_time: i64) -> HashMap<String, TableBatch> {
+        let db = Arc::new(DatabaseSchema::new("foo"));
+        let partitioner = Partitioner::new_per_day_partitioner();
+        let result = parse_validate_and_update_schema(
+            lp,
+            &db,
+            &partitioner,
+            default_time,
+            false,
+            Precision::Nanosecond,
+        )
+        .unwrap();
+
+        result.table_batches
     }
 }

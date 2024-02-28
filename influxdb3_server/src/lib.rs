@@ -227,7 +227,7 @@ mod tests {
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_write::persister::PersisterImpl;
-    use influxdb3_write::SegmentId;
+    use influxdb3_write::Persister;
     use iox_query::exec::{Executor, ExecutorConfig};
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
@@ -254,7 +254,6 @@ mod tests {
             None,
         )
         .unwrap();
-        let catalog = Arc::new(influxdb3_write::catalog::Catalog::new());
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
@@ -269,17 +268,18 @@ mod tests {
             metric_registry: Arc::clone(&metrics),
             mem_pool_size: usize::MAX,
         }));
+        let persister = PersisterImpl::new(Arc::clone(&object_store));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
-                Arc::clone(&catalog),
+                Arc::new(persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
-                SegmentId::new(0),
             )
+            .await
             .unwrap(),
         );
         let query_executor = crate::query_executor::QueryExecutorImpl::new(
-            catalog,
+            write_buffer.catalog(),
             Arc::clone(&write_buffer),
             Arc::clone(&exec),
             Arc::clone(&metrics),
@@ -393,7 +393,6 @@ mod tests {
             None,
         )
         .unwrap();
-        let catalog = Arc::new(influxdb3_write::catalog::Catalog::new());
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
@@ -408,24 +407,24 @@ mod tests {
             metric_registry: Arc::clone(&metrics),
             mem_pool_size: usize::MAX,
         }));
+        let persister: Arc<dyn Persister> = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
-                Arc::clone(&catalog),
+                Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
-                SegmentId::new(0),
             )
+            .await
             .unwrap(),
         );
         let query_executor = crate::query_executor::QueryExecutorImpl::new(
-            catalog,
+            write_buffer.catalog(),
             Arc::clone(&write_buffer),
             Arc::clone(&exec),
             Arc::clone(&metrics),
             Arc::new(HashMap::new()),
             10,
         );
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
 
         let server = crate::Server::new(
             common_state,
@@ -568,7 +567,6 @@ mod tests {
             None,
         )
         .unwrap();
-        let catalog = Arc::new(influxdb3_write::catalog::Catalog::new());
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
@@ -583,24 +581,24 @@ mod tests {
             metric_registry: Arc::clone(&metrics),
             mem_pool_size: usize::MAX,
         }));
+        let persister: Arc<dyn Persister> = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
-                Arc::clone(&catalog),
+                Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
-                SegmentId::new(0),
             )
+            .await
             .unwrap(),
         );
         let query_executor = crate::query_executor::QueryExecutorImpl::new(
-            catalog,
+            write_buffer.catalog(),
             Arc::clone(&write_buffer),
             Arc::clone(&exec),
             Arc::clone(&metrics),
             Arc::new(HashMap::new()),
             10,
         );
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
 
         let server = crate::Server::new(
             common_state,

@@ -106,7 +106,7 @@ impl Catalog {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
 pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
     databases: HashMap<String, Arc<DatabaseSchema>>,
@@ -119,6 +119,10 @@ impl InnerCatalog {
             databases: HashMap::new(),
             sequence: SequenceNumber::new(0),
         }
+    }
+
+    pub fn sequence_number(&self) -> SequenceNumber {
+        self.sequence
     }
 
     #[cfg(test)]
