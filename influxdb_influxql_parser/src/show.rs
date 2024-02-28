@@ -64,14 +64,14 @@ fn show_databases(i: &str) -> ParseResult<&str, ShowDatabasesStatement> {
 pub struct OnClause(pub(crate) Identifier);
 
 impl OnClause {
-    fn to_identifier(self) -> Identifier {
+    fn into_inner(self) -> Identifier {
         self.0
     }
 }
 
 impl From<OnClause> for Identifier {
     fn from(oc: OnClause) -> Self {
-        oc.to_identifier()
+        oc.into_inner()
     }
 }
 

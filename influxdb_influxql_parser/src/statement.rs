@@ -46,12 +46,12 @@ pub enum Statement {
 impl Statement {
     /// Is this a `SHOW DATABASES` statement
     pub fn is_show_databases(&self) -> bool {
-        matches!(self, Statement::ShowDatabases(_))
+        matches!(self, Self::ShowDatabases(_))
     }
 
     /// Is this a `SHOW RETENTION POLICIES` statement
     pub fn is_show_retention_policies(&self) -> bool {
-        matches!(self, Statement::ShowRetentionPolicies(_))
+        matches!(self, Self::ShowRetentionPolicies(_))
     }
 }
 
