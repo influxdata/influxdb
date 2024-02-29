@@ -3052,6 +3052,7 @@ version = "0.1.0"
 dependencies = [
  "influxdb_influxql_parser",
  "thiserror",
+ "workspace-hack",
 ]
 
 [[package]]

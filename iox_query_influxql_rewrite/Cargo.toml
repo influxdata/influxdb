@@ -10,6 +10,8 @@ license.workspace = true
 [dependencies]
 # workspace dependencies:
 influxdb_influxql_parser = { path = "../influxdb_influxql_parser" }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
 # crates.io dependencies:
 thiserror = "1.0"
 
