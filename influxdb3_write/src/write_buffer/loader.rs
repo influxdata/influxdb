@@ -7,9 +7,11 @@ use crate::write_buffer::{
     buffer_segment::{load_buffer_from_segment, ClosedBufferSegment, OpenBufferSegment},
     Result,
 };
-use crate::{persister, Wal};
+use crate::Wal;
 use crate::{PersistedCatalog, PersistedSegment, Persister, SegmentId};
 use std::sync::Arc;
+
+use super::Error;
 
 const SEGMENTS_TO_LOAD: usize = 1000;
 
@@ -22,10 +24,15 @@ pub struct LoadedState {
     pub persisted_segments: Vec<PersistedSegment>,
 }
 
-pub async fn load_starting_state<W: Wal>(
-    persister: Arc<dyn Persister<Error = persister::Error>>,
+pub async fn load_starting_state<W, P>(
+    persister: Arc<P>,
     wal: Option<Arc<W>>,
-) -> Result<LoadedState> {
+) -> Result<LoadedState>
+where
+    W: Wal,
+    P: Persister,
+    Error: From<P::Error>,
+{
     let PersistedCatalog { catalog, .. } = persister.load_catalog().await?.unwrap_or_default();
     let catalog = Arc::new(Catalog::from_inner(catalog));
 
@@ -125,8 +132,7 @@ mod tests {
     #[tokio::test]
     async fn loads_without_wal() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let persister: Arc<dyn Persister<Error = persister::Error>> =
-            Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
 
         let segment_id = SegmentId::new(4);
         let segment_writer = Box::new(WalSegmentWriterNoopImpl::new(segment_id));
@@ -192,8 +198,7 @@ mod tests {
     #[tokio::test]
     async fn loads_with_no_persisted_segments_and_wal() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let persister: Arc<dyn Persister<Error = persister::Error>> =
-            Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let dir = test_helpers::tmp_dir().unwrap().into_path();
         let wal = Arc::new(WalImpl::new(dir.clone()).unwrap());
         let db_name = "db1";
@@ -267,8 +272,7 @@ mod tests {
     #[tokio::test]
     async fn loads_with_persisted_segments_and_wal() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let persister: Arc<dyn Persister<Error = persister::Error>> =
-            Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let dir = test_helpers::tmp_dir().unwrap().into_path();
         let wal = Arc::new(WalImpl::new(dir.clone()).unwrap());
         let db_name = "db1";
@@ -418,8 +422,7 @@ mod tests {
     #[tokio::test]
     async fn loads_with_persisting() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let persister: Arc<dyn Persister<Error = persister::Error>> =
-            Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let dir = test_helpers::tmp_dir().unwrap().into_path();
         let wal = Arc::new(WalImpl::new(dir.clone()).unwrap());
         let db_name = "db1";

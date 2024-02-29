@@ -7,9 +7,8 @@ use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
 use crate::write_buffer::{parse_validate_and_update_catalog, FieldData, Row, TableBatch};
 use crate::{
-    persister, wal, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment, Persister,
-    Precision, SegmentId, SequenceNumber, TableParquetFiles, WalOp, WalSegmentReader,
-    WalSegmentWriter,
+    wal, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment, Persister, Precision,
+    SegmentId, SequenceNumber, TableParquetFiles, WalOp, WalSegmentReader, WalSegmentWriter,
 };
 use arrow::array::{
     ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, StringDictionaryBuilder,
@@ -425,10 +424,11 @@ impl ClosedBufferSegment {
     }
 
     #[allow(dead_code)]
-    pub async fn persist(
-        &self,
-        persister: Arc<dyn Persister<Error = persister::Error>>,
-    ) -> crate::Result<()> {
+    pub async fn persist<P>(&self, persister: Arc<P>) -> crate::Result<()>
+    where
+        P: Persister,
+        crate::Error: From<P::Error>,
+    {
         if self.catalog_start_sequence_number != self.catalog_end_sequence_number {
             let inner_catalog = self.catalog.clone_inner();
 
@@ -591,8 +591,7 @@ mod tests {
         let catalog = Arc::new(catalog);
         let closed_buffer_segment = open_segment.into_closed_segment(Arc::clone(&catalog));
 
-        let persister: Arc<dyn Persister<Error = persister::Error>> =
-            Arc::new(TestPersister::default());
+        let persister = Arc::new(TestPersister::default());
         closed_buffer_segment
             .persist(Arc::clone(&persister))
             .await

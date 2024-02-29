@@ -22,7 +22,7 @@ use crate::http::HttpApi;
 use async_trait::async_trait;
 use datafusion::execution::SendableRecordBatchStream;
 use hyper::service::service_fn;
-use influxdb3_write::{persister, Persister, WriteBuffer};
+use influxdb3_write::{Persister, WriteBuffer};
 use iox_query::QueryNamespaceProvider;
 use observability_deps::tracing::{error, info};
 use service::hybrid;
@@ -115,10 +115,12 @@ impl CommonServerState {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
-pub struct Server<W, Q> {
+pub struct Server<W, Q, P> {
     common_state: CommonServerState,
     http: Arc<HttpApi<W, Q>>,
+    persister: Arc<P>,
 }
 
 #[async_trait]
@@ -132,13 +134,14 @@ pub trait QueryExecutor: QueryNamespaceProvider + Debug + Send + Sync + 'static 
     ) -> Result<SendableRecordBatchStream>;
 }
 
-impl<W, Q> Server<W, Q>
+impl<W, Q, P> Server<W, Q, P>
 where
     Q: QueryExecutor,
+    P: Persister,
 {
     pub fn new(
         common_state: CommonServerState,
-        _persister: Arc<dyn Persister<Error = persister::Error>>,
+        persister: Arc<P>,
         write_buffer: Arc<W>,
         query_executor: Arc<Q>,
         max_http_request_size: usize,
@@ -150,14 +153,19 @@ where
             max_http_request_size,
         ));
 
-        Self { common_state, http }
+        Self {
+            common_state,
+            http,
+            persister,
+        }
     }
 }
 
-pub async fn serve<W, Q>(server: Server<W, Q>, shutdown: CancellationToken) -> Result<()>
+pub async fn serve<W, Q, P>(server: Server<W, Q, P>, shutdown: CancellationToken) -> Result<()>
 where
     W: WriteBuffer,
     Q: QueryExecutor,
+    P: Persister,
 {
     // TODO:
     //  1. load the persisted catalog and segments from the persister
@@ -227,7 +235,6 @@ mod tests {
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_write::persister::PersisterImpl;
-    use influxdb3_write::{persister, Persister};
     use iox_query::exec::{Executor, ExecutorConfig};
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
@@ -407,8 +414,7 @@ mod tests {
             metric_registry: Arc::clone(&metrics),
             mem_pool_size: usize::MAX,
         }));
-        let persister: Arc<dyn Persister<Error = persister::Error>> =
-            Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
@@ -582,8 +588,7 @@ mod tests {
             metric_registry: Arc::clone(&metrics),
             mem_pool_size: usize::MAX,
         }));
-        let persister: Arc<dyn Persister<Error = persister::Error>> =
-            Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
