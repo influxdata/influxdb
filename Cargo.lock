@@ -2684,6 +2684,7 @@ dependencies = [
  "iox_catalog",
  "iox_query",
  "iox_query_influxql",
+ "iox_query_influxql_rewrite",
  "iox_time",
  "metric",
  "metric_exporters",
@@ -3043,6 +3044,14 @@ dependencies = [
  "test_helpers",
  "thiserror",
  "workspace-hack",
+]
+
+[[package]]
+name = "iox_query_influxql_rewrite"
+version = "0.1.0"
+dependencies = [
+ "influxdb_influxql_parser",
+ "thiserror",
 ]
 
 [[package]]

@@ -22,7 +22,7 @@ use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
 use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
-use iox_query_influxql::rewrite;
+use iox_query_influxql_rewrite as rewrite;
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, error, info};
 use serde::de::DeserializeOwned;

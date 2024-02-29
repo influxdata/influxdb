@@ -1,0 +1,17 @@
+[package]
+name = "iox_query_influxql_rewrite"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# workspace dependencies:
+influxdb_influxql_parser = { path = "../influxdb_influxql_parser" }
+# crates.io dependencies:
+thiserror = "1.0"
+
+[lints]
+workspace = true

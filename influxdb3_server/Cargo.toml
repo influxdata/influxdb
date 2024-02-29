@@ -15,6 +15,7 @@ data_types = { path = "../data_types" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 iox_query_influxql = { path = "../iox_query_influxql" }
+iox_query_influxql_rewrite = { path = "../iox_query_influxql_rewrite" }
 influxdb_influxql_parser = { path = "../influxdb_influxql_parser" }
 iox_time = { path = "../iox_time" }
 influxdb-line-protocol = { path = "../influxdb_line_protocol" }
