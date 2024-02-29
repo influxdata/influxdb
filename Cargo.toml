@@ -30,6 +30,7 @@ members = [
     "iox_catalog",
     "iox_data_generator",
     "iox_query_influxql",
+    "iox_query_influxql_rewrite",
     "iox_query_influxrpc",
     "iox_query",
     "iox_tests",
@@ -65,7 +66,7 @@ members = [
     "trogging",
     "wal_inspect",
     "wal",
-    "workspace-hack", "iox_query_influxql_rewrite",
+    "workspace-hack",
 ]
 default-members = ["influxdb3"]
 
