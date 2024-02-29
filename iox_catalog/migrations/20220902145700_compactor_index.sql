@@ -1,2 +1,0 @@
--- Add index for query to select recent_highest_throughput_partitions
-CREATE INDEX IF NOT EXISTS parquet_file_shard_compaction_delete_created_idx ON parquet_file (shard_id, compaction_level, to_delete, created_at);

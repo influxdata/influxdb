@@ -5,46 +5,48 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-clap_blocks = { path = "../clap_blocks" }
-influxdb3_server = { path = "../influxdb3_server" }
-iox_time = { path = "../iox_time" }
-iox_query = { path = "../iox_query" }
-ioxd_common = { path = "../ioxd_common"}
-influxdb3_client = { path = "../influxdb3_client" }
-influxdb3_write = { path = "../influxdb3_write" }
-metric = { path = "../metric" }
-object_store = { workspace = true }
-observability_deps = { path = "../observability_deps" }
-panic_logging = { path = "../panic_logging" }
-parquet_file = { path = "../parquet_file" }
-tokio_metrics_bridge = { path = "../tokio_metrics_bridge" }
-trace = { path = "../trace/" }
-trace_exporters = { path = "../trace_exporters" }
-trogging = { path = "../trogging", default-features = false, features = ["clap"] }
+# Core Crates
+clap_blocks.workspace = true
+iox_query.workspace = true
+iox_time.workspace = true
+ioxd_common.workspace = true
+metric.workspace = true
+object_store.workspace = true
+observability_deps.workspace = true
+panic_logging.workspace = true
+parquet_file.workspace = true
+tokio_metrics_bridge.workspace = true
+trace.workspace = true
+trace_exporters.workspace = true
+trogging.workspace = true
 
-# Crates.io dependencies, in alphabetical order
-backtrace = "0.3"
-clap = { version = "4", features = ["derive", "env", "string"] }
+# Local Crates
+influxdb3_client = { path = "../influxdb3_client" }
+influxdb3_server = { path = "../influxdb3_server" }
+influxdb3_write = { path = "../influxdb3_write" }
+
+# Crates.io dependencies
+backtrace.workspace = true
+clap.workspace = true
+dotenvy.workspace = true
+hex.workspace = true
+libc.workspace = true
+num_cpus.workspace = true
+once_cell.workspace = true
+parking_lot.workspace = true
+secrecy.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+# Optional Dependencies
 console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
-dotenvy = "0.15.7"
-libc = { version = "0.2" }
-num_cpus = "1.16.0"
-once_cell = { version = "1.18", features = ["parking_lot"] }
-parking_lot = "0.12.1"
-secrecy = "0.8.0"
-thiserror = "1.0.48"
 tikv-jemalloc-ctl = { version = "0.5.4", optional = true }
 tikv-jemalloc-sys = { version = "0.5.4", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
-tokio = { version = "1.32", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "io-std"] }
-tokio-util = { version = "0.7.9" }
-url = "2.5.0"
-uuid = { version = "1", features = ["v4"] }
-workspace-hack = { version = "0.1", path = "../workspace-hack" }
-sha2 = "0.10.8"
-hex = "0.4.3"
 
 [features]
 default = ["jemalloc_replacing_malloc"]
@@ -71,17 +73,17 @@ jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl"]
 clippy = []
 
 [dev-dependencies]
-arrow_util = { path = "../arrow_util" }
-influxdb_iox_client = { path = "../influxdb_iox_client" }
+# Core Crates
+arrow_util.workspace = true
+influxdb_iox_client.workspace = true
 
 # Crates.io dependencies in alphabetical order:
-arrow = { workspace = true }
-arrow-array = "49.0.0"
-arrow-flight = "49.0.0"
-assert_cmd = "2.0.14"
-futures = "0.3.28"
-hyper = "0.14"
-pretty_assertions = "1.4.0"
-reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls"] }
+arrow.workspace = true
+arrow-array.workspace = true
+arrow-flight.workspace = true
+assert_cmd.workspace = true
+futures.workspace = true
+hyper.workspace = true
+reqwest.workspace = true
 tonic.workspace = true
-tower = "0.4.13"
+tower.workspace = true

@@ -6,13 +6,12 @@ use crate::catalog::InnerCatalog;
 use crate::paths::CatalogFilePath;
 use crate::paths::ParquetFilePath;
 use crate::paths::SegmentInfoFilePath;
-use crate::Error;
-use crate::Result;
 use crate::{PersistedCatalog, PersistedSegment, Persister, SegmentId};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use bytes::Bytes;
+use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::MemoryConsumer;
 use datafusion::execution::memory_pool::MemoryPool;
 use datafusion::execution::memory_pool::MemoryReservation;
@@ -30,6 +29,30 @@ use parquet::format::FileMetaData;
 use std::any::Any;
 use std::io::Write;
 use std::sync::Arc;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("datafusion error: {0}")]
+    DataFusion(#[from] DataFusionError),
+
+    #[error("serde_json error: {0}")]
+    SerdeJson(#[from] serde_json::Error),
+
+    #[error("object_store error: {0}")]
+    ObjectStore(#[from] object_store::Error),
+
+    #[error("parquet error: {0}")]
+    ParquetError(#[from] parquet::errors::ParquetError),
+
+    #[error("tried to serialize a parquet file with no rows")]
+    NoRows,
+
+    #[error("parse int error: {0}")]
+    ParseInt(#[from] std::num::ParseIntError),
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub struct PersisterImpl {
@@ -83,6 +106,8 @@ impl PersisterImpl {
 
 #[async_trait]
 impl Persister for PersisterImpl {
+    type Error = Error;
+
     async fn load_catalog(&self) -> Result<Option<PersistedCatalog>> {
         let mut list = self.object_store.list(Some(&CatalogFilePath::dir()));
         let mut catalog_path: Option<ObjPath> = None;
@@ -178,6 +203,10 @@ impl Persister for PersisterImpl {
             for item in &list[0..end] {
                 let bytes = self.object_store.get(&item.location).await?.bytes().await?;
                 output.push(serde_json::from_slice(&bytes)?);
+            }
+
+            if end == 0 {
+                break;
             }
 
             // Get the last path in the array to use as an offset. This assumes
@@ -290,145 +319,131 @@ impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
 }
 
 #[cfg(test)]
-use {
-    arrow::array::Int32Array, arrow::datatypes::DataType, arrow::datatypes::Field,
-    arrow::datatypes::Schema, chrono::Utc,
-    datafusion::physical_plan::stream::RecordBatchReceiverStreamBuilder,
-    object_store::local::LocalFileSystem, std::collections::HashMap,
-};
-
-#[tokio::test]
-async fn persist_catalog() {
-    let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-    let persister = PersisterImpl::new(Arc::new(local_disk));
-    let catalog = Catalog::new();
-    let _ = catalog.db_or_create("my_db");
-
-    persister
-        .persist_catalog(SegmentId::new(0), catalog)
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn persist_and_load_newest_catalog() {
-    let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-    let persister = PersisterImpl::new(Arc::new(local_disk));
-    let catalog = Catalog::new();
-    let _ = catalog.db_or_create("my_db");
-
-    persister
-        .persist_catalog(SegmentId::new(0), catalog)
-        .await
-        .unwrap();
-
-    let catalog = Catalog::new();
-    let _ = catalog.db_or_create("my_second_db");
-
-    persister
-        .persist_catalog(SegmentId::new(1), catalog)
-        .await
-        .unwrap();
-
-    let catalog = persister
-        .load_catalog()
-        .await
-        .expect("loading the catalog did not cause an error")
-        .expect("there was a catalog to load");
-
-    assert_eq!(catalog.segment_id, SegmentId::new(1));
-    assert!(catalog.catalog.db_exists("my_second_db"));
-    assert!(!catalog.catalog.db_exists("my_db"));
-}
-
-#[tokio::test]
-async fn persist_segment_info_file() {
-    let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-    let persister = PersisterImpl::new(Arc::new(local_disk));
-    let info_file = PersistedSegment {
-        segment_id: SegmentId::new(0),
-        segment_wal_size_bytes: 0,
-        databases: HashMap::new(),
-        segment_min_time: 0,
-        segment_max_time: 1,
-        segment_row_count: 0,
-        segment_parquet_size_bytes: 0,
+mod tests {
+    use super::*;
+    use object_store::memory::InMemory;
+    use {
+        arrow::array::Int32Array, arrow::datatypes::DataType, arrow::datatypes::Field,
+        arrow::datatypes::Schema, chrono::Utc,
+        datafusion::physical_plan::stream::RecordBatchReceiverStreamBuilder,
+        object_store::local::LocalFileSystem, std::collections::HashMap,
     };
 
-    persister.persist_segment(info_file).await.unwrap();
-}
+    #[tokio::test]
+    async fn persist_catalog() {
+        let local_disk =
+            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+        let persister = PersisterImpl::new(Arc::new(local_disk));
+        let catalog = Catalog::new();
+        let _ = catalog.db_or_create("my_db");
 
-#[tokio::test]
-async fn persist_and_load_segment_info_files() {
-    let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-    let persister = PersisterImpl::new(Arc::new(local_disk));
-    let info_file = PersistedSegment {
-        segment_id: SegmentId::new(0),
-        segment_wal_size_bytes: 0,
-        databases: HashMap::new(),
-        segment_min_time: 0,
-        segment_max_time: 1,
-        segment_row_count: 0,
-        segment_parquet_size_bytes: 0,
-    };
-    let info_file_2 = PersistedSegment {
-        segment_id: SegmentId::new(1),
-        segment_wal_size_bytes: 0,
-        databases: HashMap::new(),
-        segment_min_time: 0,
-        segment_max_time: 1,
-        segment_row_count: 0,
-        segment_parquet_size_bytes: 0,
-    };
-    let info_file_3 = PersistedSegment {
-        segment_id: SegmentId::new(2),
-        segment_wal_size_bytes: 0,
-        databases: HashMap::new(),
-        segment_min_time: 0,
-        segment_max_time: 1,
-        segment_row_count: 0,
-        segment_parquet_size_bytes: 0,
-    };
+        persister
+            .persist_catalog(SegmentId::new(0), catalog)
+            .await
+            .unwrap();
+    }
 
-    persister.persist_segment(info_file).await.unwrap();
-    persister.persist_segment(info_file_2).await.unwrap();
-    persister.persist_segment(info_file_3).await.unwrap();
+    #[tokio::test]
+    async fn persist_and_load_newest_catalog() {
+        let local_disk =
+            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+        let persister = PersisterImpl::new(Arc::new(local_disk));
+        let catalog = Catalog::new();
+        let _ = catalog.db_or_create("my_db");
 
-    let segments = persister.load_segments(2).await.unwrap();
-    assert_eq!(segments.len(), 2);
-    // The most recent one is first
-    assert_eq!(segments[0].segment_id.0, 2);
-    assert_eq!(segments[1].segment_id.0, 1);
-}
+        persister
+            .persist_catalog(SegmentId::new(0), catalog)
+            .await
+            .unwrap();
 
-#[tokio::test]
-async fn persist_and_load_segment_info_files_with_fewer_than_requested() {
-    let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-    let persister = PersisterImpl::new(Arc::new(local_disk));
-    let info_file = PersistedSegment {
-        segment_id: SegmentId::new(0),
-        segment_wal_size_bytes: 0,
-        databases: HashMap::new(),
-        segment_min_time: 0,
-        segment_max_time: 1,
-        segment_row_count: 0,
-        segment_parquet_size_bytes: 0,
-    };
-    persister.persist_segment(info_file).await.unwrap();
-    let segments = persister.load_segments(2).await.unwrap();
-    // We asked for the most recent 2 but there should only be 1
-    assert_eq!(segments.len(), 1);
-    assert_eq!(segments[0].segment_id.0, 0);
-}
+        let catalog = Catalog::new();
+        let _ = catalog.db_or_create("my_second_db");
 
-#[tokio::test]
-/// This test makes sure that the logic for offset lists works
-async fn persist_and_load_over_9000_segment_info_files() {
-    let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-    let persister = PersisterImpl::new(Arc::new(local_disk));
-    for id in 0..9001 {
+        persister
+            .persist_catalog(SegmentId::new(1), catalog)
+            .await
+            .unwrap();
+
+        let catalog = persister
+            .load_catalog()
+            .await
+            .expect("loading the catalog did not cause an error")
+            .expect("there was a catalog to load");
+
+        assert_eq!(catalog.segment_id, SegmentId::new(1));
+        assert!(catalog.catalog.db_exists("my_second_db"));
+        assert!(!catalog.catalog.db_exists("my_db"));
+    }
+
+    #[tokio::test]
+    async fn persist_segment_info_file() {
+        let local_disk =
+            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+        let persister = PersisterImpl::new(Arc::new(local_disk));
         let info_file = PersistedSegment {
-            segment_id: SegmentId::new(id),
+            segment_id: SegmentId::new(0),
+            segment_wal_size_bytes: 0,
+            databases: HashMap::new(),
+            segment_min_time: 0,
+            segment_max_time: 1,
+            segment_row_count: 0,
+            segment_parquet_size_bytes: 0,
+        };
+
+        persister.persist_segment(info_file).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn persist_and_load_segment_info_files() {
+        let local_disk =
+            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+        let persister = PersisterImpl::new(Arc::new(local_disk));
+        let info_file = PersistedSegment {
+            segment_id: SegmentId::new(0),
+            segment_wal_size_bytes: 0,
+            databases: HashMap::new(),
+            segment_min_time: 0,
+            segment_max_time: 1,
+            segment_row_count: 0,
+            segment_parquet_size_bytes: 0,
+        };
+        let info_file_2 = PersistedSegment {
+            segment_id: SegmentId::new(1),
+            segment_wal_size_bytes: 0,
+            databases: HashMap::new(),
+            segment_min_time: 0,
+            segment_max_time: 1,
+            segment_row_count: 0,
+            segment_parquet_size_bytes: 0,
+        };
+        let info_file_3 = PersistedSegment {
+            segment_id: SegmentId::new(2),
+            segment_wal_size_bytes: 0,
+            databases: HashMap::new(),
+            segment_min_time: 0,
+            segment_max_time: 1,
+            segment_row_count: 0,
+            segment_parquet_size_bytes: 0,
+        };
+
+        persister.persist_segment(info_file).await.unwrap();
+        persister.persist_segment(info_file_2).await.unwrap();
+        persister.persist_segment(info_file_3).await.unwrap();
+
+        let segments = persister.load_segments(2).await.unwrap();
+        assert_eq!(segments.len(), 2);
+        // The most recent one is first
+        assert_eq!(segments[0].segment_id.0, 2);
+        assert_eq!(segments[1].segment_id.0, 1);
+    }
+
+    #[tokio::test]
+    async fn persist_and_load_segment_info_files_with_fewer_than_requested() {
+        let local_disk =
+            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+        let persister = PersisterImpl::new(Arc::new(local_disk));
+        let info_file = PersistedSegment {
+            segment_id: SegmentId::new(0),
             segment_wal_size_bytes: 0,
             databases: HashMap::new(),
             segment_min_time: 0,
@@ -437,68 +452,103 @@ async fn persist_and_load_over_9000_segment_info_files() {
             segment_parquet_size_bytes: 0,
         };
         persister.persist_segment(info_file).await.unwrap();
+        let segments = persister.load_segments(2).await.unwrap();
+        // We asked for the most recent 2 but there should only be 1
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].segment_id.0, 0);
     }
-    let segments = persister.load_segments(9500).await.unwrap();
-    // We asked for the most recent 9500 so there should be 9001 of them
-    assert_eq!(segments.len(), 9001);
-    assert_eq!(segments[0].segment_id.0, 9000);
-}
 
-#[tokio::test]
-async fn get_parquet_bytes() {
-    let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-    let persister = PersisterImpl::new(Arc::new(local_disk));
+    #[tokio::test]
+    /// This test makes sure that the logic for offset lists works
+    async fn persist_and_load_over_9000_segment_info_files() {
+        let local_disk =
+            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+        let persister = PersisterImpl::new(Arc::new(local_disk));
+        for id in 0..9001 {
+            let info_file = PersistedSegment {
+                segment_id: SegmentId::new(id),
+                segment_wal_size_bytes: 0,
+                databases: HashMap::new(),
+                segment_min_time: 0,
+                segment_max_time: 1,
+                segment_row_count: 0,
+                segment_parquet_size_bytes: 0,
+            };
+            persister.persist_segment(info_file).await.unwrap();
+        }
+        let segments = persister.load_segments(9500).await.unwrap();
+        // We asked for the most recent 9500 so there should be 9001 of them
+        assert_eq!(segments.len(), 9001);
+        assert_eq!(segments[0].segment_id.0, 9000);
+    }
 
-    let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
-    let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
+    #[tokio::test]
+    async fn load_segments_works_with_no_segments() {
+        let store = InMemory::new();
+        let persister = PersisterImpl::new(Arc::new(store));
 
-    let id_array = Int32Array::from(vec![1, 2, 3, 4, 5]);
-    let batch1 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
+        let segments = persister.load_segments(100).await.unwrap();
+        assert!(segments.is_empty());
+    }
 
-    let id_array = Int32Array::from(vec![6, 7, 8, 9, 10]);
-    let batch2 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
+    #[tokio::test]
+    async fn get_parquet_bytes() {
+        let local_disk =
+            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+        let persister = PersisterImpl::new(Arc::new(local_disk));
 
-    stream_builder.tx().send(Ok(batch1)).await.unwrap();
-    stream_builder.tx().send(Ok(batch2)).await.unwrap();
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
+        let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
 
-    let parquet = persister
-        .serialize_to_parquet(stream_builder.build())
-        .await
-        .unwrap();
+        let id_array = Int32Array::from(vec![1, 2, 3, 4, 5]);
+        let batch1 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
 
-    // Assert we've written all the expected rows
-    assert_eq!(parquet.meta_data.num_rows, 10);
-}
+        let id_array = Int32Array::from(vec![6, 7, 8, 9, 10]);
+        let batch2 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
 
-#[tokio::test]
-async fn persist_and_load_parquet_bytes() {
-    let local_disk = LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-    let persister = PersisterImpl::new(Arc::new(local_disk));
+        stream_builder.tx().send(Ok(batch1)).await.unwrap();
+        stream_builder.tx().send(Ok(batch2)).await.unwrap();
 
-    let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
-    let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
+        let parquet = persister
+            .serialize_to_parquet(stream_builder.build())
+            .await
+            .unwrap();
 
-    let id_array = Int32Array::from(vec![1, 2, 3, 4, 5]);
-    let batch1 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
+        // Assert we've written all the expected rows
+        assert_eq!(parquet.meta_data.num_rows, 10);
+    }
 
-    let id_array = Int32Array::from(vec![6, 7, 8, 9, 10]);
-    let batch2 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
+    #[tokio::test]
+    async fn persist_and_load_parquet_bytes() {
+        let local_disk =
+            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+        let persister = PersisterImpl::new(Arc::new(local_disk));
 
-    stream_builder.tx().send(Ok(batch1)).await.unwrap();
-    stream_builder.tx().send(Ok(batch2)).await.unwrap();
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
+        let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
 
-    let path = ParquetFilePath::new("db_one", "table_one", Utc::now(), 1);
-    let (bytes_written, meta) = persister
-        .persist_parquet_file(path.clone(), stream_builder.build())
-        .await
-        .unwrap();
+        let id_array = Int32Array::from(vec![1, 2, 3, 4, 5]);
+        let batch1 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
 
-    // Assert we've written all the expected rows
-    assert_eq!(meta.num_rows, 10);
+        let id_array = Int32Array::from(vec![6, 7, 8, 9, 10]);
+        let batch2 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
 
-    let bytes = persister.load_parquet_file(path).await.unwrap();
+        stream_builder.tx().send(Ok(batch1)).await.unwrap();
+        stream_builder.tx().send(Ok(batch2)).await.unwrap();
 
-    // Assert that we have a file of bytes > 0
-    assert!(!bytes.is_empty());
-    assert_eq!(bytes.len() as u64, bytes_written);
+        let path = ParquetFilePath::new("db_one", "table_one", Utc::now(), 1);
+        let (bytes_written, meta) = persister
+            .persist_parquet_file(path.clone(), stream_builder.build())
+            .await
+            .unwrap();
+
+        // Assert we've written all the expected rows
+        assert_eq!(meta.num_rows, 10);
+
+        let bytes = persister.load_parquet_file(path).await.unwrap();
+
+        // Assert that we have a file of bytes > 0
+        assert!(!bytes.is_empty());
+        assert_eq!(bytes.len() as u64, bytes_written);
+    }
 }

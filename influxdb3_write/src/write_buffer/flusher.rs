@@ -195,9 +195,9 @@ fn run_io_flush(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::lp_to_table_batches;
     use crate::wal::WalSegmentWriterNoopImpl;
     use crate::write_buffer::buffer_segment::OpenBufferSegment;
-    use crate::write_buffer::tests::lp_to_table_batches;
     use crate::{LpWriteOp, SegmentId};
 
     #[tokio::test]
@@ -207,6 +207,7 @@ mod tests {
             segment_id,
             SequenceNumber::new(0),
             Box::new(WalSegmentWriterNoopImpl::new(segment_id)),
+            None,
         );
         let segment_state = Arc::new(RwLock::new(SegmentState::new(open_segment)));
         let flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));

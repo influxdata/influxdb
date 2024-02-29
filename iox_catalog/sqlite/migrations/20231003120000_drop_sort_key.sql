@@ -1,1 +1,0 @@
-ALTER TABLE partition DROP COLUMN sort_key;

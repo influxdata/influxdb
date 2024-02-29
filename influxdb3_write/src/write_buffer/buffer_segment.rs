@@ -5,10 +5,10 @@
 use crate::catalog::Catalog;
 use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
-use crate::write_buffer::{FieldData, Row, TableBatch};
+use crate::write_buffer::{parse_validate_and_update_catalog, FieldData, Row, TableBatch};
 use crate::{
-    wal, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment, Persister, SegmentId,
-    SequenceNumber, TableParquetFiles, WalOp, WalSegmentWriter,
+    wal, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment, Persister, Precision,
+    SegmentId, SequenceNumber, TableParquetFiles, WalOp, WalSegmentReader, WalSegmentWriter,
 };
 use arrow::array::{
     ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, StringDictionaryBuilder,
@@ -27,7 +27,7 @@ use tokio::sync::oneshot;
 pub struct OpenBufferSegment {
     segment_writer: Box<dyn WalSegmentWriter>,
     segment_id: SegmentId,
-    buffered_data: HashMap<String, DatabaseBuffer>,
+    buffered_data: BufferedData,
     #[allow(dead_code)]
     starting_catalog_sequence_number: SequenceNumber,
     // TODO: This is temporarily just the number of rows in the segment. When the buffer gets refactored to use
@@ -40,13 +40,16 @@ impl OpenBufferSegment {
         segment_id: SegmentId,
         starting_catalog_sequence_number: SequenceNumber,
         segment_writer: Box<dyn WalSegmentWriter>,
+        buffered_data: Option<(BufferedData, usize)>,
     ) -> Self {
+        let (buffered_data, segment_size) = buffered_data.unwrap_or_default();
+
         Self {
-            buffered_data: Default::default(),
             segment_writer,
             segment_id,
             starting_catalog_sequence_number,
-            segment_size: 0,
+            segment_size,
+            buffered_data,
         }
     }
 
@@ -59,6 +62,7 @@ impl OpenBufferSegment {
 
     pub fn table_buffer(&self, db_name: &str, table_name: &str) -> Option<TableBuffer> {
         self.buffered_data
+            .database_buffers
             .get(db_name)
             .and_then(|db_buffer| db_buffer.table_buffers.get(table_name).cloned())
     }
@@ -66,7 +70,11 @@ impl OpenBufferSegment {
     /// Adds the batch into the in memory buffer. Returns the number of rows in the segment after the write.
     pub(crate) fn buffer_writes(&mut self, write_batch: WriteBatch) -> Result<usize> {
         for (db_name, db_batch) in write_batch.database_batches {
-            let db_buffer = self.buffered_data.entry(db_name.to_string()).or_default();
+            let db_buffer = self
+                .buffered_data
+                .database_buffers
+                .entry(db_name.to_string())
+                .or_default();
 
             for (table_name, table_batch) in db_batch.table_batches {
                 let table_buffer = db_buffer.table_buffers.entry(table_name).or_default();
@@ -100,6 +108,58 @@ impl OpenBufferSegment {
             catalog,
         )
     }
+}
+
+pub(crate) fn load_buffer_from_segment(
+    catalog: &Catalog,
+    mut segment_reader: Box<dyn WalSegmentReader>,
+) -> Result<(BufferedData, usize)> {
+    let mut segment_size = 0;
+    let mut buffered_data = BufferedData::default();
+
+    while let Some(batch) = segment_reader.next_batch()? {
+        for wal_op in batch.ops {
+            println!("wal_op: {:?}", wal_op);
+            match wal_op {
+                WalOp::LpWrite(write) => {
+                    let validated_write = parse_validate_and_update_catalog(
+                        &write.db_name,
+                        &write.lp,
+                        catalog,
+                        write.default_time,
+                        false,
+                        Precision::Nanosecond,
+                    )?;
+                    println!("validated_write: {:?}", validated_write);
+                    let db_buffer = buffered_data
+                        .database_buffers
+                        .entry(write.db_name)
+                        .or_default();
+
+                    for (table_name, table_batch) in validated_write.table_batches {
+                        let table_buffer = db_buffer.table_buffers.entry(table_name).or_default();
+
+                        for (partition_key, partition_batch) in table_batch.partition_batches {
+                            let partition_buffer = table_buffer
+                                .partition_buffers
+                                .entry(partition_key)
+                                .or_default();
+
+                            // TODO: for now we'll just have the number of rows represent the segment size. The entire
+                            //       buffer is going to get refactored to use different structures, so this will change.
+                            segment_size += partition_batch.rows.len();
+
+                            println!("partition_batch: {:?}", partition_batch);
+
+                            partition_buffer.add_rows(partition_batch.rows);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok((buffered_data, segment_size))
 }
 
 #[derive(Debug, Default)]
@@ -169,12 +229,17 @@ pub struct WriteSummary {
     pub buffer_size: usize,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Eq, PartialEq)]
+pub struct BufferedData {
+    database_buffers: HashMap<String, DatabaseBuffer>,
+}
+
+#[derive(Debug, Default, Eq, PartialEq)]
 struct DatabaseBuffer {
     table_buffers: HashMap<String, TableBuffer>,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
 pub struct TableBuffer {
     pub partition_buffers: HashMap<String, PartitionBuffer>,
 }
@@ -186,7 +251,7 @@ impl TableBuffer {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PartitionBuffer {
     rows: Vec<Row>,
     timestamp_min: i64,
@@ -330,11 +395,11 @@ impl Builder {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct ClosedBufferSegment {
-    segment_id: SegmentId,
-    catalog_start_sequence_number: SequenceNumber,
-    catalog_end_sequence_number: SequenceNumber,
+    pub segment_id: SegmentId,
+    pub catalog_start_sequence_number: SequenceNumber,
+    pub catalog_end_sequence_number: SequenceNumber,
     segment_writer: Box<dyn WalSegmentWriter>,
-    buffered_data: HashMap<String, DatabaseBuffer>,
+    pub buffered_data: BufferedData,
     catalog: Arc<Catalog>,
 }
 
@@ -345,7 +410,7 @@ impl ClosedBufferSegment {
         catalog_start_sequence_number: SequenceNumber,
         catalog_end_sequence_number: SequenceNumber,
         segment_writer: Box<dyn WalSegmentWriter>,
-        buffered_data: HashMap<String, DatabaseBuffer>,
+        buffered_data: BufferedData,
         catalog: Arc<Catalog>,
     ) -> Self {
         Self {
@@ -359,7 +424,11 @@ impl ClosedBufferSegment {
     }
 
     #[allow(dead_code)]
-    pub async fn persist(&self, persister: Arc<dyn Persister>) -> crate::Result<()> {
+    pub async fn persist<P>(&self, persister: Arc<P>) -> crate::Result<()>
+    where
+        P: Persister,
+        crate::Error: From<P::Error>,
+    {
         if self.catalog_start_sequence_number != self.catalog_end_sequence_number {
             let inner_catalog = self.catalog.clone_inner();
 
@@ -375,7 +444,7 @@ impl ClosedBufferSegment {
         let mut segment_max_time = i64::MIN;
 
         // persist every partition buffer
-        for (db_name, db_buffer) in &self.buffered_data {
+        for (db_name, db_buffer) in &self.buffered_data.database_buffers {
             let mut database_tables = DatabaseTables::default();
 
             if let Some(db_schema) = self.catalog.db_schema(db_name) {
@@ -452,11 +521,9 @@ impl ClosedBufferSegment {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::{lp_to_table_batches, lp_to_write_batch};
     use crate::wal::WalSegmentWriterNoopImpl;
-    use crate::write_buffer::tests::lp_to_table_batches;
-    use crate::write_buffer::{parse_validate_and_update_schema, Partitioner};
-    use crate::Precision;
-    use crate::{LpWriteOp, PersistedCatalog};
+    use crate::{persister, LpWriteOp, PersistedCatalog};
     use bytes::Bytes;
     use datafusion::execution::SendableRecordBatchStream;
     use object_store::ObjectStore;
@@ -470,6 +537,7 @@ mod tests {
             SegmentId::new(0),
             SequenceNumber::new(0),
             Box::new(WalSegmentWriterNoopImpl::new(SegmentId::new(0))),
+            None,
         );
 
         let db_name: NamespaceName<'static> = NamespaceName::new("db1").unwrap();
@@ -503,7 +571,7 @@ mod tests {
         let segment_id = SegmentId::new(4);
         let segment_writer = Box::new(WalSegmentWriterNoopImpl::new(segment_id));
         let mut open_segment =
-            OpenBufferSegment::new(segment_id, SequenceNumber::new(0), segment_writer);
+            OpenBufferSegment::new(segment_id, SequenceNumber::new(0), segment_writer, None);
 
         let catalog = Catalog::new();
 
@@ -523,7 +591,7 @@ mod tests {
         let catalog = Arc::new(catalog);
         let closed_buffer_segment = open_segment.into_closed_segment(Arc::clone(&catalog));
 
-        let persister: Arc<dyn Persister> = Arc::new(TestPersister::default());
+        let persister = Arc::new(TestPersister::default());
         closed_buffer_segment
             .persist(Arc::clone(&persister))
             .await
@@ -593,11 +661,13 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Persister for TestPersister {
+        type Error = persister::Error;
+
         async fn persist_catalog(
             &self,
             _segment_id: SegmentId,
             catalog: Catalog,
-        ) -> crate::Result<()> {
+        ) -> persister::Result<()> {
             self.state.lock().catalog = Some(catalog);
             Ok(())
         }
@@ -606,13 +676,13 @@ mod tests {
             &self,
             path: ParquetFilePath,
             _data: SendableRecordBatchStream,
-        ) -> crate::Result<(u64, FileMetaData)> {
+        ) -> persister::Result<(u64, FileMetaData)> {
             self.state.lock().parquet_files.push(path);
             let meta = FileMetaData::new(1, vec![], 1, vec![], None, None, None, None, None);
             Ok((1, meta))
         }
 
-        async fn persist_segment(&self, segment: PersistedSegment) -> crate::Result<()> {
+        async fn persist_segment(&self, segment: PersistedSegment) -> persister::Result<()> {
             self.state.lock().segment = Some(segment);
             Ok(())
         }
@@ -621,44 +691,23 @@ mod tests {
             self as &dyn Any
         }
 
-        async fn load_catalog(&self) -> crate::Result<Option<PersistedCatalog>> {
+        async fn load_catalog(&self) -> persister::Result<Option<PersistedCatalog>> {
             todo!()
         }
 
         async fn load_segments(
             &self,
             _most_recent_n: usize,
-        ) -> crate::Result<Vec<PersistedSegment>> {
+        ) -> persister::Result<Vec<PersistedSegment>> {
             todo!()
         }
 
-        async fn load_parquet_file(&self, _path: ParquetFilePath) -> crate::Result<Bytes> {
+        async fn load_parquet_file(&self, _path: ParquetFilePath) -> persister::Result<Bytes> {
             todo!()
         }
 
         fn object_store(&self) -> Arc<dyn ObjectStore> {
             todo!()
         }
-    }
-
-    fn lp_to_write_batch(catalog: &Catalog, db_name: &'static str, lp: &str) -> WriteBatch {
-        let mut write_batch = WriteBatch::default();
-        let (seq, db) = catalog.db_or_create(db_name);
-        let partitioner = Partitioner::new_per_day_partitioner();
-        let result = parse_validate_and_update_schema(
-            lp,
-            &db,
-            &partitioner,
-            0,
-            false,
-            Precision::Nanosecond,
-        )
-        .unwrap();
-        if let Some(db) = result.schema {
-            catalog.replace_database(seq, Arc::new(db)).unwrap();
-        }
-        let db_name = NamespaceName::new(db_name).unwrap();
-        write_batch.add_db_write(db_name, result.table_batches);
-        write_batch
     }
 }
