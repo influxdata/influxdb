@@ -92,6 +92,7 @@ impl From<Format> for influxdb3_client::Format {
 #[derive(Debug, ValueEnum, Clone)]
 enum QueryLanguage {
     Sql,
+    Influxql,
 }
 
 pub(crate) async fn command(config: Config) -> Result<()> {
@@ -112,6 +113,13 @@ pub(crate) async fn command(config: Config) -> Result<()> {
         QueryLanguage::Sql => {
             client
                 .api_v3_query_sql(database_name, query)
+                .format(config.output_format.clone().into())
+                .send()
+                .await?
+        }
+        QueryLanguage::Influxql => {
+            client
+                .api_v3_query_influxql(database_name, query)
                 .format(config.output_format.clone().into())
                 .send()
                 .await?
