@@ -41,12 +41,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aliasable"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "250f629c0161ad8107cf89319e990051fae62832fd343083bea452d93e2205fd"
-
-[[package]]
 name = "alloc-no-stdlib"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -81,12 +75,6 @@ checksum = "819e7219dbd41043ac279b19830f2efc897156490d7fd6ea916720117ee66311"
 dependencies = [
  "libc",
 ]
-
-[[package]]
-name = "anes"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
 name = "anstream"
@@ -330,7 +318,7 @@ dependencies = [
  "arrow-schema",
  "chrono",
  "half",
- "indexmap 2.2.3",
+ "indexmap 2.2.5",
  "lexical-core",
  "num",
  "serde",
@@ -406,17 +394,15 @@ dependencies = [
 [[package]]
 name = "arrow_util"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "ahash",
  "arrow",
  "chrono",
  "comfy-table",
- "datafusion",
  "hashbrown 0.14.3",
  "num-traits",
  "once_cell",
- "proptest",
- "rand",
  "regex",
  "snafu 0.8.1",
  "uuid",
@@ -461,7 +447,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f28243a43d821d11341ab73c80bed182dc015c514b951616cf79bd4af39af0c3"
 dependencies = [
  "concurrent-queue",
- "event-listener 5.1.0",
+ "event-listener 5.2.0",
  "event-listener-strategy",
  "futures-core",
  "pin-project-lite",
@@ -549,8 +535,8 @@ dependencies = [
 [[package]]
 name = "authz"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
- "assert_matches",
  "async-trait",
  "backoff 0.1.0",
  "base64",
@@ -559,11 +545,7 @@ dependencies = [
  "iox_time",
  "metric",
  "observability_deps",
- "parking_lot 0.12.1",
- "paste",
  "snafu 0.8.1",
- "test_helpers_end_to_end",
- "tokio",
  "tonic 0.10.2",
  "workspace-hack",
 ]
@@ -622,6 +604,7 @@ dependencies = [
 [[package]]
 name = "backoff"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "observability_deps",
  "rand",
@@ -798,30 +781,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cache_system"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "backoff 0.1.0",
- "criterion",
- "futures",
- "iox_time",
- "metric",
- "observability_deps",
- "ouroboros",
- "parking_lot 0.12.1",
- "pdatastructs",
- "proptest",
- "rand",
- "test_helpers",
- "tokio",
- "tokio-util",
- "trace",
- "tracker",
- "workspace-hack",
-]
-
-[[package]]
 name = "camino"
 version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -853,14 +812,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "cast"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
-
-[[package]]
 name = "catalog_cache"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "bytes",
  "dashmap",
@@ -927,33 +881,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ciborium"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42e69ffd6f0917f5c029256a24d0161db17cea3997d185db0d35926308770f0e"
-dependencies = [
- "ciborium-io",
- "ciborium-ll",
- "serde",
-]
-
-[[package]]
-name = "ciborium-io"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05afea1e0a06c9be33d539b876f1ce3692f4afea2cb41f740e7743225ed1c757"
-
-[[package]]
-name = "ciborium-ll"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9"
-dependencies = [
- "ciborium-io",
- "half",
-]
-
-[[package]]
 name = "clap"
 version = "4.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -966,6 +893,7 @@ dependencies = [
 [[package]]
 name = "clap_blocks"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "clap",
  "ed25519-dalek",
@@ -982,8 +910,6 @@ dependencies = [
  "parquet_cache",
  "snafu 0.8.1",
  "sysinfo",
- "tempfile",
- "test_helpers",
  "trace_exporters",
  "trogging",
  "url",
@@ -1024,12 +950,11 @@ checksum = "98cc8fbded0c607b7ba9dd60cd98df59af97e84d24e49c8557331cfc26d301ce"
 [[package]]
 name = "client_util"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "http",
- "mockito",
  "reqwest",
  "thiserror",
- "tokio",
  "tonic 0.10.2",
  "tower",
  "workspace-hack",
@@ -1097,7 +1022,7 @@ dependencies = [
  "futures",
  "hdrhistogram",
  "humantime",
- "parking_lot 0.12.1",
+ "parking_lot",
  "prost-types 0.11.9",
  "serde",
  "serde_json",
@@ -1198,43 +1123,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3855a8a784b474f333699ef2bbca9db2c4a1f6d9088a90a2d25b1eb53111eaa"
 dependencies = [
  "cfg-if",
-]
-
-[[package]]
-name = "criterion"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2b12d017a929603d80db1831cd3a24082f8137ce19c69e6447f54f5fc8d692f"
-dependencies = [
- "anes",
- "cast",
- "ciborium",
- "clap",
- "criterion-plot",
- "futures",
- "is-terminal",
- "itertools 0.10.5",
- "num-traits",
- "once_cell",
- "oorandom",
- "rayon",
- "regex",
- "serde",
- "serde_derive",
- "serde_json",
- "tinytemplate",
- "tokio",
- "walkdir",
-]
-
-[[package]]
-name = "criterion-plot"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1"
-dependencies = [
- "cast",
- "itertools 0.10.5",
 ]
 
 [[package]]
@@ -1409,29 +1297,26 @@ dependencies = [
  "hashbrown 0.14.3",
  "lock_api",
  "once_cell",
- "parking_lot_core 0.9.9",
+ "parking_lot_core",
 ]
 
 [[package]]
 name = "data_types"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow-buffer",
- "assert_matches",
  "bytes",
  "chrono",
  "croaring",
  "generated_types",
- "hex",
  "influxdb-line-protocol",
  "iox_time",
  "murmur3",
  "observability_deps",
  "once_cell",
  "ordered-float 4.2.0",
- "paste",
  "percent-encoding",
- "proptest",
  "prost 0.12.3",
  "schema",
  "serde_json",
@@ -1439,7 +1324,6 @@ dependencies = [
  "siphasher 1.0.0",
  "snafu 0.8.1",
  "sqlx",
- "test_helpers",
  "thiserror",
  "uuid",
  "workspace-hack",
@@ -1473,12 +1357,12 @@ dependencies = [
  "glob",
  "half",
  "hashbrown 0.14.3",
- "indexmap 2.2.3",
+ "indexmap 2.2.5",
  "itertools 0.12.1",
  "log",
  "num_cpus",
  "object_store",
- "parking_lot 0.12.1",
+ "parking_lot",
  "parquet",
  "pin-project-lite",
  "rand",
@@ -1525,7 +1409,7 @@ dependencies = [
  "hashbrown 0.14.3",
  "log",
  "object_store",
- "parking_lot 0.12.1",
+ "parking_lot",
  "rand",
  "tempfile",
  "url",
@@ -1583,7 +1467,7 @@ dependencies = [
  "half",
  "hashbrown 0.14.3",
  "hex",
- "indexmap 2.2.3",
+ "indexmap 2.2.5",
  "itertools 0.12.1",
  "log",
  "md-5",
@@ -1615,11 +1499,11 @@ dependencies = [
  "futures",
  "half",
  "hashbrown 0.14.3",
- "indexmap 2.2.3",
+ "indexmap 2.2.5",
  "itertools 0.12.1",
  "log",
  "once_cell",
- "parking_lot 0.12.1",
+ "parking_lot",
  "pin-project-lite",
  "rand",
  "tokio",
@@ -1656,6 +1540,7 @@ dependencies = [
 [[package]]
 name = "datafusion_util"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "async-trait",
  "datafusion",
@@ -1739,6 +1624,7 @@ dependencies = [
 [[package]]
 name = "dml"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow_util",
  "data_types",
@@ -1860,9 +1746,9 @@ checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
 name = "event-listener"
-version = "5.1.0"
+version = "5.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7ad6fd685ce13acd6d9541a30f6db6567a7a24c9ffd4ba2955d29e3f22c8b27"
+checksum = "2b5fb89194fa3cad959b833185b3063ba881dbfc7030680b314250779fb4cc91"
 dependencies = [
  "concurrent-queue",
  "parking",
@@ -1875,20 +1761,21 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "feedafcaa9b749175d5ac357452a9d41ea2911da598fde46ce1fe02c37751291"
 dependencies = [
- "event-listener 5.1.0",
+ "event-listener 5.2.0",
  "pin-project-lite",
 ]
 
 [[package]]
 name = "executor"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "futures",
  "libc",
  "metric",
  "observability_deps",
  "once_cell",
- "parking_lot 0.12.1",
+ "parking_lot",
  "pin-project",
  "snafu 0.8.1",
  "tokio",
@@ -1918,7 +1805,7 @@ checksum = "1ee447700ac8aa0b2f2bd7bc4462ad686ba06baa6727ac149a2d6277f0d240fd"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall 0.4.1",
+ "redox_syscall",
  "windows-sys 0.52.0",
 ]
 
@@ -1969,6 +1856,7 @@ dependencies = [
 [[package]]
 name = "flightsql"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -2068,7 +1956,7 @@ checksum = "1d930c203dd0b6ff06e0201a4a2fe9149b43c684fd4420555b26d21b1a02956f"
 dependencies = [
  "futures-core",
  "lock_api",
- "parking_lot 0.12.1",
+ "parking_lot",
 ]
 
 [[package]]
@@ -2121,8 +2009,8 @@ dependencies = [
 [[package]]
 name = "generated_types"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
- "bytes",
  "observability_deps",
  "pbjson",
  "pbjson-build",
@@ -2170,54 +2058,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
-name = "grpc-binary-logger"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "base64",
- "byteorder",
- "bytes",
- "futures",
- "grpc-binary-logger-proto",
- "grpc-binary-logger-test-proto",
- "http",
- "http-body",
- "hyper",
- "pin-project",
- "prost 0.12.3",
- "prost-build",
- "tokio",
- "tokio-stream",
- "tonic 0.10.2",
- "tonic-build",
- "tower",
- "workspace-hack",
-]
-
-[[package]]
-name = "grpc-binary-logger-proto"
-version = "0.1.0"
-dependencies = [
- "prost 0.12.3",
- "prost-build",
- "prost-types 0.12.3",
- "tonic 0.10.2",
- "tonic-build",
- "workspace-hack",
-]
-
-[[package]]
-name = "grpc-binary-logger-test-proto"
-version = "0.1.0"
-dependencies = [
- "prost 0.12.3",
- "prost-build",
- "tonic 0.10.2",
- "tonic-build",
- "workspace-hack",
-]
-
-[[package]]
 name = "h2"
 version = "0.3.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2229,7 +2069,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http",
- "indexmap 2.2.3",
+ "indexmap 2.2.5",
  "slab",
  "tokio",
  "tokio-util",
@@ -2245,20 +2085,6 @@ dependencies = [
  "cfg-if",
  "crunchy",
  "num-traits",
-]
-
-[[package]]
-name = "handlebars"
-version = "5.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab283476b99e66691dee3f1640fea91487a8d81f50fb5ecc75538f8f8879a1e4"
-dependencies = [
- "log",
- "pest",
- "pest_derive",
- "serde",
- "serde_json",
- "thiserror",
 ]
 
 [[package]]
@@ -2325,9 +2151,9 @@ dependencies = [
 
 [[package]]
 name = "hermit-abi"
-version = "0.3.8"
+version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "379dada1584ad501b383485dd706b8afb7a70fcbc7f4da7d780638a5a6124a60"
+checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
 
 [[package]]
 name = "hex"
@@ -2500,27 +2326,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "import_export"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "data_types",
- "futures-util",
- "generated_types",
- "influxdb_iox_client",
- "iox_catalog",
- "object_store",
- "observability_deps",
- "parquet_file",
- "schema",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-util",
- "workspace-hack",
-]
-
-[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2532,9 +2337,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.2.3"
+version = "2.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "233cf39063f058ea2caae4091bf4a3ef70a653afbc026f5c4a4135d114e3c177"
+checksum = "7b0b929d511467233429c45a44ac1dcaa21ba0f5ba11e4879e6ed28ddb4f9df4"
 dependencies = [
  "equivalent",
  "hashbrown 0.14.3",
@@ -2547,7 +2352,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "321f0f839cd44a4686e9504b0a62b4d69a50b62072144c71c68f5873c167b8d9"
 dependencies = [
  "ahash",
- "indexmap 2.2.3",
+ "indexmap 2.2.5",
  "is-terminal",
  "itoa",
  "log",
@@ -2561,32 +2366,13 @@ dependencies = [
 [[package]]
 name = "influxdb-line-protocol"
 version = "1.0.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "bytes",
  "log",
  "nom",
  "smallvec",
  "snafu 0.8.1",
- "test_helpers",
-]
-
-[[package]]
-name = "influxdb2_client"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "futures",
- "mockito",
- "once_cell",
- "parking_lot 0.12.1",
- "reqwest",
- "serde",
- "serde_json",
- "snafu 0.8.1",
- "test_helpers",
- "tokio",
- "url",
- "uuid",
 ]
 
 [[package]]
@@ -2620,7 +2406,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "panic_logging",
- "parking_lot 0.12.1",
+ "parking_lot",
  "parquet_file",
  "reqwest",
  "secrecy",
@@ -2638,7 +2424,6 @@ dependencies = [
  "trogging",
  "url",
  "uuid",
- "workspace-hack",
 ]
 
 [[package]]
@@ -2653,7 +2438,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "url",
- "workspace-hack",
 ]
 
 [[package]]
@@ -2686,7 +2470,7 @@ dependencies = [
  "metric_exporters",
  "object_store",
  "observability_deps",
- "parking_lot 0.11.2",
+ "parking_lot",
  "parquet",
  "parquet_file",
  "pin-project-lite",
@@ -2711,7 +2495,6 @@ dependencies = [
  "tracker",
  "unicode-segmentation",
  "urlencoding 1.3.3",
- "workspace-hack",
 ]
 
 [[package]]
@@ -2731,10 +2514,11 @@ dependencies = [
  "datafusion_util",
  "futures-util",
  "influxdb-line-protocol",
+ "iox_catalog",
  "iox_query",
  "object_store",
  "observability_deps",
- "parking_lot 0.11.2",
+ "parking_lot",
  "parquet",
  "schema",
  "serde",
@@ -2743,29 +2527,26 @@ dependencies = [
  "test_helpers",
  "thiserror",
  "tokio",
- "workspace-hack",
 ]
 
 [[package]]
 name = "influxdb_influxql_parser"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
- "assert_matches",
  "chrono",
  "chrono-tz",
- "insta",
  "nom",
  "num-integer",
  "num-traits",
  "once_cell",
- "paste",
- "test_helpers",
  "workspace-hack",
 ]
 
 [[package]]
 name = "influxdb_iox_client"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -2776,7 +2557,6 @@ dependencies = [
  "futures-util",
  "generated_types",
  "influxdb-line-protocol",
- "insta",
  "iox_query_params",
  "prost 0.12.3",
  "rand",
@@ -2790,46 +2570,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "influxdb_storage_client"
-version = "0.1.0"
-dependencies = [
- "client_util",
- "futures-util",
- "generated_types",
- "observability_deps",
- "prost 0.12.3",
- "tonic 0.10.2",
- "workspace-hack",
-]
-
-[[package]]
-name = "influxdb_tsm"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "hex",
- "integer-encoding 4.0.0",
- "observability_deps",
- "rand",
- "snafu 0.7.5",
- "snap",
- "test_helpers",
- "workspace-hack",
-]
-
-[[package]]
-name = "influxrpc_parser"
-version = "0.1.0"
-dependencies = [
- "generated_types",
- "snafu 0.8.1",
- "sqlparser",
- "workspace-hack",
-]
-
-[[package]]
 name = "ingester_query_grpc"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow",
  "base64",
@@ -2901,42 +2644,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8bb03732005da905c88227371639bf1ad885cc712789c011c31c5fb3ab3ccf02"
 
 [[package]]
-name = "integer-encoding"
-version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "924df4f0e24e2e7f9cdd90babb0b96f93b20f3ecfa949ea9e6613756b8c8e1bf"
-
-[[package]]
 name = "iox_catalog"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
- "assert_matches",
  "async-trait",
  "backoff 0.1.0",
  "catalog_cache",
  "data_types",
- "dotenvy",
  "futures",
  "generated_types",
  "iox_time",
  "log",
  "metric",
  "mutable_batch",
- "mutable_batch_lp",
  "observability_deps",
  "once_cell",
- "parking_lot 0.12.1",
- "paste",
- "pretty_assertions",
- "proptest",
- "rand",
+ "parking_lot",
  "serde",
  "siphasher 1.0.0",
  "snafu 0.8.1",
  "sqlx",
  "sqlx-hotswap-pool",
- "tempfile",
- "test_helpers",
  "thiserror",
  "tokio",
  "tonic 0.10.2",
@@ -2946,43 +2675,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "iox_data_generator"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "chrono",
- "clap",
- "criterion",
- "datafusion_util",
- "futures",
- "handlebars",
- "humantime",
- "influxdb2_client",
- "itertools 0.12.1",
- "mutable_batch",
- "mutable_batch_lp",
- "parquet_file",
- "rand",
- "regex",
- "schema",
- "serde",
- "serde_json",
- "snafu 0.8.1",
- "test_helpers",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "iox_query"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow",
  "arrow_util",
- "assert_matches",
  "async-trait",
  "chrono",
  "data_types",
@@ -2991,22 +2689,19 @@ dependencies = [
  "executor",
  "futures",
  "hashbrown 0.14.3",
- "indexmap 2.2.3",
- "insta",
+ "indexmap 2.2.5",
  "iox_time",
  "itertools 0.12.1",
  "metric",
  "object_store",
  "observability_deps",
  "once_cell",
- "parking_lot 0.12.1",
+ "parking_lot",
  "parquet_file",
  "predicate",
  "query_functions",
  "schema",
- "serde",
  "snafu 0.8.1",
- "test_helpers",
  "tokio",
  "tokio-stream",
  "trace",
@@ -3018,16 +2713,14 @@ dependencies = [
 [[package]]
 name = "iox_query_influxql"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow",
- "assert_matches",
- "chrono",
  "chrono-tz",
  "datafusion",
  "datafusion_util",
  "generated_types",
  "influxdb_influxql_parser",
- "insta",
  "iox_query",
  "itertools 0.12.1",
  "observability_deps",
@@ -3037,39 +2730,15 @@ dependencies = [
  "regex",
  "schema",
  "serde_json",
- "test_helpers",
  "thiserror",
- "workspace-hack",
-]
-
-[[package]]
-name = "iox_query_influxrpc"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "arrow_util",
- "data_types",
- "datafusion",
- "datafusion_util",
- "futures",
- "hashbrown 0.14.3",
- "insta",
- "iox_query",
- "observability_deps",
- "predicate",
- "query_functions",
- "schema",
- "snafu 0.8.1",
- "test_helpers",
- "tokio",
  "workspace-hack",
 ]
 
 [[package]]
 name = "iox_query_params"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
- "assert_matches",
  "datafusion",
  "generated_types",
  "observability_deps",
@@ -3080,33 +2749,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "iox_tests"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "data_types",
- "datafusion",
- "datafusion_util",
- "generated_types",
- "iox_catalog",
- "iox_query",
- "iox_time",
- "metric",
- "mutable_batch_lp",
- "object_store",
- "observability_deps",
- "parquet_file",
- "schema",
- "uuid",
- "workspace-hack",
-]
-
-[[package]]
 name = "iox_time"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "chrono",
- "parking_lot 0.12.1",
+ "parking_lot",
  "tokio",
  "workspace-hack",
 ]
@@ -3114,6 +2762,7 @@ dependencies = [
 [[package]]
 name = "ioxd_common"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "async-trait",
  "authz",
@@ -3131,7 +2780,7 @@ dependencies = [
  "metric",
  "metric_exporters",
  "observability_deps",
- "parking_lot 0.12.1",
+ "parking_lot",
  "pprof",
  "reqwest",
  "serde",
@@ -3151,21 +2800,6 @@ dependencies = [
  "trace",
  "trace_exporters",
  "trace_http",
- "workspace-hack",
-]
-
-[[package]]
-name = "ioxd_test"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "clap",
- "hyper",
- "ioxd_common",
- "metric",
- "snafu 0.8.1",
- "tokio-util",
- "trace",
  "workspace-hack",
 ]
 
@@ -3383,7 +3017,7 @@ dependencies = [
  "json-patch",
  "k8s-openapi",
  "kube-client",
- "parking_lot 0.12.1",
+ "parking_lot",
  "pin-project",
  "serde",
  "serde_json",
@@ -3392,22 +3026,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
-]
-
-[[package]]
-name = "kube_test"
-version = "0.1.0"
-dependencies = [
- "http",
- "hyper",
- "k8s-openapi",
- "kube-core",
- "rand",
- "serde",
- "serde_json",
- "serde_yaml",
- "tower",
- "workspace-hack",
 ]
 
 [[package]]
@@ -3537,11 +3155,9 @@ checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 [[package]]
 name = "logfmt"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "observability_deps",
- "once_cell",
- "parking_lot 0.12.1",
- "regex",
  "tracing-subscriber",
  "workspace-hack",
 ]
@@ -3609,19 +3225,20 @@ dependencies = [
 [[package]]
 name = "metric"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
- "parking_lot 0.12.1",
+ "parking_lot",
  "workspace-hack",
 ]
 
 [[package]]
 name = "metric_exporters"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "metric",
  "observability_deps",
  "prometheus",
- "test_helpers",
  "workspace-hack",
 ]
 
@@ -3689,7 +3306,7 @@ dependencies = [
  "crossbeam-utils",
  "futures-util",
  "once_cell",
- "parking_lot 0.12.1",
+ "parking_lot",
  "quanta",
  "rustc_version",
  "skeptic",
@@ -3726,19 +3343,14 @@ checksum = "9252111cf132ba0929b6f8e030cac2a24b507f3a4d6db6fb2896f27b354c714b"
 [[package]]
 name = "mutable_batch"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow",
  "arrow_util",
- "assert_matches",
  "data_types",
  "hashbrown 0.14.3",
  "iox_time",
  "itertools 0.12.1",
- "mutable_batch_lp",
- "partition",
- "pretty_assertions",
- "proptest",
- "rand",
  "schema",
  "snafu 0.8.1",
  "workspace-hack",
@@ -3747,51 +3359,29 @@ dependencies = [
 [[package]]
 name = "mutable_batch_lp"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
- "arrow_util",
- "assert_matches",
- "criterion",
  "hashbrown 0.14.3",
  "influxdb-line-protocol",
  "itertools 0.12.1",
  "mutable_batch",
- "schema",
  "snafu 0.8.1",
- "test_helpers",
  "workspace-hack",
 ]
 
 [[package]]
 name = "mutable_batch_pb"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow_util",
- "data_types",
  "dml",
  "generated_types",
  "hashbrown 0.14.3",
  "mutable_batch",
- "mutable_batch_lp",
- "partition",
  "schema",
  "snafu 0.8.1",
  "workspace-hack",
-]
-
-[[package]]
-name = "mutable_batch_tests"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "criterion",
- "data_types",
- "dml",
- "flate2",
- "generated_types",
- "mutable_batch",
- "mutable_batch_lp",
- "mutable_batch_pb",
- "prost 0.12.3",
 ]
 
 [[package]]
@@ -4009,7 +3599,7 @@ dependencies = [
  "humantime",
  "hyper",
  "itertools 0.11.0",
- "parking_lot 0.12.1",
+ "parking_lot",
  "percent-encoding",
  "quick-xml 0.31.0",
  "rand",
@@ -4026,24 +3616,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "object_store_metrics"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bytes",
- "futures",
- "iox_time",
- "metric",
- "object_store",
- "pin-project",
- "snafu 0.8.1",
- "tokio",
- "workspace-hack",
-]
-
-[[package]]
 name = "observability_deps"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "tracing",
  "workspace-hack",
@@ -4055,14 +3630,8 @@ version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 dependencies = [
- "parking_lot_core 0.9.9",
+ "parking_lot_core",
 ]
-
-[[package]]
-name = "oorandom"
-version = "11.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
 
 [[package]]
 name = "openssl-probe"
@@ -4089,31 +3658,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ouroboros"
-version = "0.18.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97b7be5a8a3462b752f4be3ff2b2bf2f7f1d00834902e46be2a4d68b87b0573c"
-dependencies = [
- "aliasable",
- "ouroboros_macro",
- "static_assertions",
-]
-
-[[package]]
-name = "ouroboros_macro"
-version = "0.18.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b645dcde5f119c2c454a92d0dfa271a2a3b205da92e4292a68ead4bdbfde1f33"
-dependencies = [
- "heck",
- "itertools 0.12.1",
- "proc-macro2",
- "proc-macro2-diagnostics",
- "quote",
- "syn 2.0.52",
-]
-
-[[package]]
 name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4122,10 +3666,10 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "panic_logging"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "metric",
  "observability_deps",
- "test_helpers",
  "workspace-hack",
 ]
 
@@ -4137,37 +3681,12 @@ checksum = "bb813b8af86854136c6922af0598d719255ecb2179515e6e7730d468f05c9cae"
 
 [[package]]
 name = "parking_lot"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d17b78036a60663b797adeaee46f5c9dfebb86948d1255007a1d6be0271ff99"
-dependencies = [
- "instant",
- "lock_api",
- "parking_lot_core 0.8.6",
-]
-
-[[package]]
-name = "parking_lot"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3742b2c103b9f06bc9fff0a37ff4912935851bee6d36f3c02bcc755bcfec228f"
 dependencies = [
  "lock_api",
- "parking_lot_core 0.9.9",
-]
-
-[[package]]
-name = "parking_lot_core"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60a2cfe6f0ad2bfc16aefa463b497d5c7a5ecd44a23efa72aa342d90177356dc"
-dependencies = [
- "cfg-if",
- "instant",
- "libc",
- "redox_syscall 0.2.16",
- "smallvec",
- "winapi",
+ "parking_lot_core",
 ]
 
 [[package]]
@@ -4178,7 +3697,7 @@ checksum = "4c42a9226546d68acdd9c0a280d17ce19bfe27a46bf68784e4066115788d008e"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall 0.4.1",
+ "redox_syscall",
  "smallvec",
  "windows-targets 0.48.5",
 ]
@@ -4220,10 +3739,9 @@ dependencies = [
 [[package]]
 name = "parquet_cache"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
- "ahash",
  "arc-swap",
- "assert_matches",
  "async-channel",
  "async-trait",
  "backoff 0.1.0",
@@ -4235,42 +3753,34 @@ dependencies = [
  "http",
  "hyper",
  "iox_catalog",
- "iox_tests",
- "iox_time",
  "k8s-openapi",
  "kube",
- "kube_test",
- "lazy_static",
  "moka",
  "mpchash",
  "notify",
  "object_store",
  "observability_deps",
- "parking_lot 0.12.1",
+ "parking_lot",
  "parquet_file",
  "pin-project",
- "rand",
  "reqwest",
  "schemars",
  "serde",
  "serde_json",
- "tempfile",
  "thiserror",
  "tokio",
- "tokio-stream",
  "tokio-util",
  "tower",
  "url",
- "uuid",
  "workspace-hack",
 ]
 
 [[package]]
 name = "parquet_file"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow",
- "assert_matches",
  "base64",
  "bytes",
  "data_types",
@@ -4284,10 +3794,8 @@ dependencies = [
  "parquet",
  "pbjson-types",
  "prost 0.12.3",
- "rand",
  "schema",
  "snafu 0.8.1",
- "test_helpers",
  "thiserror",
  "thrift",
  "tokio",
@@ -4297,54 +3805,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "parquet_to_line_protocol"
-version = "0.1.0"
-dependencies = [
- "datafusion",
- "datafusion_util",
- "futures",
- "influxdb-line-protocol",
- "mutable_batch_lp",
- "num_cpus",
- "object_store",
- "parquet_file",
- "schema",
- "snafu 0.8.1",
- "tokio",
- "workspace-hack",
-]
-
-[[package]]
 name = "parse-zoneinfo"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c705f256449c60da65e11ff6626e0c16a0a0b96aaa348de61376b249bc340f41"
 dependencies = [
  "regex",
-]
-
-[[package]]
-name = "partition"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "assert_matches",
- "chrono",
- "criterion",
- "data_types",
- "generated_types",
- "hashbrown 0.14.3",
- "mutable_batch",
- "mutable_batch_lp",
- "paste",
- "percent-encoding",
- "proptest",
- "rand",
- "schema",
- "test_helpers",
- "thiserror",
- "unicode-segmentation",
- "workspace-hack",
 ]
 
 [[package]]
@@ -4388,15 +3854,6 @@ dependencies = [
  "prost 0.12.3",
  "prost-build",
  "serde",
-]
-
-[[package]]
-name = "pdatastructs"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bdcb4943c3c68659690124771ffb2fd93b73900bd0fb47e934f7b8b2e6687fa"
-dependencies = [
- "fixedbitset",
 ]
 
 [[package]]
@@ -4476,7 +3933,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1d3afd2628e69da2be385eb6f2fd57c8ac7977ceeff6dc166ff1657b0e386a9"
 dependencies = [
  "fixedbitset",
- "indexmap 2.2.3",
+ "indexmap 2.2.5",
 ]
 
 [[package]]
@@ -4596,7 +4053,7 @@ dependencies = [
  "log",
  "nix 0.26.4",
  "once_cell",
- "parking_lot 0.12.1",
+ "parking_lot",
  "prost 0.12.3",
  "prost-build",
  "prost-derive 0.12.3",
@@ -4617,6 +4074,7 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 [[package]]
 name = "predicate"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow",
  "chrono",
@@ -4629,7 +4087,6 @@ dependencies = [
  "schema",
  "snafu 0.8.1",
  "sqlparser",
- "test_helpers",
  "workspace-hack",
 ]
 
@@ -4667,7 +4124,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af7cee1a6c8a5b9208b3cb1061f10c0cb689087b3d8ce85fb9d2dd7a29b6ba66"
 dependencies = [
  "diff",
- "yansi 0.5.1",
+ "yansi",
 ]
 
 [[package]]
@@ -4690,19 +4147,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "proc-macro2-diagnostics"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af066a9c399a26e020ada66a034357a868728e72cd426f3adcd35f80d88d88c8"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.52",
- "version_check",
- "yansi 1.0.0-rc.1",
-]
-
-[[package]]
 name = "prometheus"
 version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4712,7 +4156,7 @@ dependencies = [
  "fnv",
  "lazy_static",
  "memchr",
- "parking_lot 0.12.1",
+ "parking_lot",
  "thiserror",
 ]
 
@@ -4853,18 +4297,16 @@ dependencies = [
 [[package]]
 name = "query_functions"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow",
  "chrono",
  "datafusion",
- "datafusion_util",
- "itertools 0.12.1",
  "once_cell",
  "regex",
  "regex-syntax 0.8.2",
  "schema",
  "snafu 0.8.1",
- "tokio",
  "workspace-hack",
 ]
 
@@ -4962,15 +4404,6 @@ checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
-]
-
-[[package]]
-name = "redox_syscall"
-version = "0.2.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb5a58c1855b4b6819d59012155603f0b22ad30cad752600aadfcb695265519a"
-dependencies = [
- "bitflags 1.3.2",
 ]
 
 [[package]]
@@ -5218,10 +4651,11 @@ dependencies = [
 [[package]]
 name = "schema"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow",
  "hashbrown 0.14.3",
- "indexmap 2.2.3",
+ "indexmap 2.2.5",
  "observability_deps",
  "once_cell",
  "snafu 0.8.1",
@@ -5369,15 +4803,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_spanned"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb3622f419d1296904700073ea6cc23ad690adbd66f13ea683df73298736f0c1"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5395,7 +4820,7 @@ version = "0.9.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fd075d994154d4a774f95b51fb96bdc2832b0ea48425c92546073816cda1f2f"
 dependencies = [
- "indexmap 2.2.3",
+ "indexmap 2.2.5",
  "itoa",
  "ryu",
  "serde",
@@ -5405,6 +4830,7 @@ dependencies = [
 [[package]]
 name = "service_common"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow",
  "datafusion",
@@ -5416,11 +4842,10 @@ dependencies = [
 [[package]]
 name = "service_grpc_flight"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow",
  "arrow-flight",
- "assert_matches",
- "async-trait",
  "authz",
  "bytes",
  "data_types",
@@ -5431,14 +4856,12 @@ dependencies = [
  "iox_query",
  "iox_query_influxql",
  "iox_query_params",
- "metric",
  "observability_deps",
  "prost 0.12.3",
  "serde",
  "serde_json",
  "service_common",
  "snafu 0.8.1",
- "test_helpers",
  "tokio",
  "tonic 0.10.2",
  "tower_trailer",
@@ -5451,6 +4874,7 @@ dependencies = [
 [[package]]
 name = "service_grpc_testing"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "generated_types",
  "observability_deps",
@@ -5487,21 +4911,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
-]
-
-[[package]]
-name = "sharder"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "data_types",
- "hashbrown 0.14.3",
- "mutable_batch",
- "mutable_batch_lp",
- "parking_lot 0.12.1",
- "rand",
- "siphasher 1.0.0",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5722,7 +5131,7 @@ dependencies = [
  "futures-util",
  "hashlink",
  "hex",
- "indexmap 2.2.3",
+ "indexmap 2.2.5",
  "log",
  "memchr",
  "once_cell",
@@ -5747,13 +5156,11 @@ dependencies = [
 [[package]]
 name = "sqlx-hotswap-pool"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
- "dotenvy",
  "either",
  "futures",
- "rand",
  "sqlx",
- "tokio",
  "workspace-hack",
 ]
 
@@ -6025,12 +5432,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
 
 [[package]]
-name = "synchronized-writer"
-version = "1.1.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3543ca0810e71767052bdcdd5653f23998b192642a22c5164bfa6581e40a4a2"
-
-[[package]]
 name = "sysinfo"
 version = "0.30.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6093,11 +5494,12 @@ checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
 [[package]]
 name = "test_helpers"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "async-trait",
  "dotenvy",
  "observability_deps",
- "parking_lot 0.12.1",
+ "parking_lot",
  "tempfile",
  "tokio",
  "tracing-log",
@@ -6108,6 +5510,7 @@ dependencies = [
 [[package]]
 name = "test_helpers_end_to_end"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -6131,7 +5534,7 @@ dependencies = [
  "nix 0.27.1",
  "observability_deps",
  "once_cell",
- "parking_lot 0.12.1",
+ "parking_lot",
  "prost 0.12.3",
  "rand",
  "regex",
@@ -6193,7 +5596,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e54bc85fc7faa8bc175c4bab5b92ba8d9a3ce893d0e9f42cc455c8ab16a9e09"
 dependencies = [
  "byteorder",
- "integer-encoding 3.0.4",
+ "integer-encoding",
  "log",
  "ordered-float 2.10.1",
  "threadpool",
@@ -6230,16 +5633,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tinytemplate"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be4d6b5f19ff7664e8c98d03e2139cb510db9b0a60b55f8e8709b689d939b6bc"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "tinyvec"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6265,7 +5658,7 @@ dependencies = [
  "libc",
  "mio",
  "num_cpus",
- "parking_lot 0.12.1",
+ "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
@@ -6335,9 +5728,10 @@ dependencies = [
 [[package]]
 name = "tokio_metrics_bridge"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "metric",
- "parking_lot 0.12.1",
+ "parking_lot",
  "tokio",
  "workspace-hack",
 ]
@@ -6345,46 +5739,12 @@ dependencies = [
 [[package]]
 name = "tokio_watchdog"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "metric",
  "observability_deps",
- "test_helpers",
  "tokio",
  "workspace-hack",
-]
-
-[[package]]
-name = "toml"
-version = "0.8.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a9aad4a3066010876e8dcf5a8a06e70a558751117a145c6ce2b82c2e2054290"
-dependencies = [
- "serde",
- "serde_spanned",
- "toml_datetime",
- "toml_edit",
-]
-
-[[package]]
-name = "toml_datetime"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3550f4e9685620ac18a50ed434eb3aec30db8ba93b0287467bca5826ea25baf1"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "toml_edit"
-version = "0.22.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c1b5fd4128cc8d3e0cb74d4ed9a9cc7c7284becd4df68f5f940e1ad123606f6"
-dependencies = [
- "indexmap 2.2.3",
- "serde",
- "serde_spanned",
- "toml_datetime",
- "winnow",
 ]
 
 [[package]]
@@ -6541,11 +5901,12 @@ checksum = "b6bc1c9ce2b5135ac7f93c72918fc37feb872bdc6a5533a8b85eb4b86bfdae52"
 [[package]]
 name = "tower_trailer"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "futures",
  "http",
  "http-body",
- "parking_lot 0.12.1",
+ "parking_lot",
  "pin-project",
  "tower",
  "workspace-hack",
@@ -6554,10 +5915,11 @@ dependencies = [
 [[package]]
 name = "trace"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "chrono",
  "observability_deps",
- "parking_lot 0.12.1",
+ "parking_lot",
  "rand",
  "workspace-hack",
 ]
@@ -6565,9 +5927,9 @@ dependencies = [
 [[package]]
 name = "trace_exporters"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "async-trait",
- "chrono",
  "clap",
  "futures",
  "iox_time",
@@ -6582,6 +5944,7 @@ dependencies = [
 [[package]]
 name = "trace_http"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "bytes",
  "futures",
@@ -6591,7 +5954,7 @@ dependencies = [
  "itertools 0.12.1",
  "metric",
  "observability_deps",
- "parking_lot 0.12.1",
+ "parking_lot",
  "pin-project",
  "snafu 0.8.1",
  "tower",
@@ -6662,7 +6025,7 @@ dependencies = [
  "matchers",
  "nu-ansi-term",
  "once_cell",
- "parking_lot 0.12.1",
+ "parking_lot",
  "regex",
  "serde",
  "serde_json",
@@ -6678,6 +6041,7 @@ dependencies = [
 [[package]]
 name = "tracker"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "futures",
  "hashbrown 0.14.3",
@@ -6685,11 +6049,9 @@ dependencies = [
  "lock_api",
  "metric",
  "observability_deps",
- "parking_lot 0.12.1",
+ "parking_lot",
  "pin-project",
  "sysinfo",
- "tempfile",
- "test_helpers",
  "tokio",
  "tokio-util",
  "trace",
@@ -6714,12 +6076,11 @@ checksum = "859eb650cfee7434994602c3a68b25d77ad9e68c8a6cd491616ef86661382eb3"
 [[package]]
 name = "trogging"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "clap",
  "logfmt",
  "observability_deps",
- "regex",
- "synchronized-writer",
  "thiserror",
  "tracing-log",
  "tracing-subscriber",
@@ -6882,50 +6243,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f200f5b12eb75f8c1ed65abd4b2db8a6e1b138a20de009dacee265a2498f3f6"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "wal"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "byteorder",
- "crc32fast",
- "data_types",
- "dml",
- "generated_types",
- "hashbrown 0.14.3",
- "mutable_batch",
- "mutable_batch_lp",
- "mutable_batch_pb",
- "observability_deps",
- "parking_lot 0.12.1",
- "prost 0.12.3",
- "snafu 0.8.1",
- "snap",
- "test_helpers",
- "tokio",
- "workspace-hack",
-]
-
-[[package]]
-name = "wal_inspect"
-version = "0.1.0"
-dependencies = [
- "data_types",
- "dml",
- "generated_types",
- "hashbrown 0.14.3",
- "mutable_batch",
- "mutable_batch_lp",
- "mutable_batch_pb",
- "parquet_to_line_protocol",
- "schema",
- "test_helpers",
- "thiserror",
- "tokio",
- "wal",
- "workspace-hack",
 ]
 
 [[package]]
@@ -7249,15 +6566,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32b752e52a2da0ddfbdbcc6fceadfeede4c939ed16d13e648833a61dfb611ed8"
 
 [[package]]
-name = "winnow"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44e19b97e00a4d3db3cdb9b53c8c5f87151b5689b82cc86c2848cbdcccb2689b"
-dependencies = [
- "memchr",
-]
-
-[[package]]
 name = "winreg"
 version = "0.50.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7270,6 +6578,7 @@ dependencies = [
 [[package]]
 name = "workspace-hack"
 version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=675113bd298c777ec7c45bdbbf89bd6413da6feb#675113bd298c777ec7c45bdbbf89bd6413da6feb"
 dependencies = [
  "ahash",
  "arrow",
@@ -7301,7 +6610,7 @@ dependencies = [
  "heck",
  "hyper",
  "hyper-rustls",
- "indexmap 2.2.3",
+ "indexmap 2.2.5",
  "itertools 0.11.0",
  "k8s-openapi",
  "kube-core",
@@ -7316,7 +6625,7 @@ dependencies = [
  "num-traits",
  "object_store",
  "once_cell",
- "parking_lot 0.12.1",
+ "parking_lot",
  "percent-encoding",
  "petgraph",
  "phf_shared",
@@ -7331,7 +6640,6 @@ dependencies = [
  "reqwest",
  "ring",
  "rustls",
- "secrecy",
  "serde",
  "serde_json",
  "sha2",
@@ -7395,12 +6703,6 @@ name = "yansi"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09041cd90cf85f7f8b2df60c646f853b7f535ce68f85244eb6731cf89fa498ec"
-
-[[package]]
-name = "yansi"
-version = "1.0.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1367295b8f788d371ce2dbc842c7b709c73ee1364d30351dd300ec2203b12377"
 
 [[package]]
 name = "zerocopy"

@@ -1,1 +1,0 @@
-ALTER TABLE table_name ADD COLUMN generation BIGINT NOT NULL DEFAULT 0;

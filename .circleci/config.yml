@@ -46,7 +46,6 @@ commands:
             rustup show
             cargo fmt --version
             cargo clippy --version
-            cargo install cargo-hakari && cargo hakari --version
 
   login_to_gcloud:
     steps:
@@ -94,14 +93,8 @@ jobs:
           name: Clippy
           command: cargo clippy --all-targets --all-features --workspace -- -D warnings
       - run:
-          name: Shellcheck
-          command: find scripts -type f ! \( -iname '*.py' -or -iname '*.supp' \) -exec shellcheck {} +
-      - run:
           name: Yamllint
           command: yamllint --config-file .circleci/yamllint.yml --strict .
-      - run:
-          name: migrations check
-          command: iox_catalog/check_linear_migrations.sh migrations
   cargo_audit:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -147,85 +140,8 @@ jobs:
           command: tar -cvzf rustdoc.tar.gz target/doc/
       - store_artifacts:
           path: rustdoc.tar.gz
-  workspace_hack_checks:
-    docker:
-      - image: quay.io/influxdb/rust:ci
-    environment:
-      # https://github.com/rust-lang/cargo/issues/10280
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "77:99:88:4a:ac:1f:55:9e:39:c7:1f:e4:7f:1e:60:4b"
-      - checkout
-      - rust_components
-      - run:
-          name: Configure git
-          command: |
-            git config user.email "circleci@influxdata.com"
-            git config user.name "CircleCI[bot]"
-      - run:
-          name: Commit any changes from cargo hakari
-          command: |
-            cargo hakari generate
-            cargo hakari manage-deps -y
-            if [[ $(git status --porcelain) ]] ; then
-              if [[ $(git rev-list --count --author=CircleCI origin/main..) -ne 0 ]]; then
-                echo "There's already a cargo hakari commit on this branch, but there are cargo hakari changes... something is wrong."
-              else
-                git commit -am "chore: Run cargo hakari tasks"
-                git push origin "$CIRCLE_BRANCH"
-                echo "Cargo hakari changes need to be committed before merging this branch."
-              fi
-              exit 1
-            else
-              echo "No changes to commit"
-            fi
 
-  # Run integration tests that need postgres and other external dependencies
-  # such as influxdb v1 and java
-  test_integration:
-    # setup multiple docker images (see https://circleci.com/docs/2.0/configuration-reference/#docker)
-    docker:
-      - image: quay.io/influxdb/rust:ci
-      - image: postgres
-        environment:
-          POSTGRES_HOST_AUTH_METHOD: trust
-        command:
-          - "postgres"
-          - "-c"
-          - "max_connections=200"
-    resource_class: xlarge # use of a smaller executor tends crashes on link
-    environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      CARGO_PROFILE_DEV_DEBUG: "1"
-      # https://github.com/rust-lang/cargo/issues/10280
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-      RUST_BACKTRACE: "1"
-      # Run integration tests
-      TEST_INTEGRATION: 1
-      INFLUXDB_IOX_INTEGRATION_LOCAL: 1
-      POSTGRES_USER: postgres
-      TEST_INFLUXDB_IOX_CATALOG_DSN: "postgres://postgres@localhost/iox_shared"
-      # When removing this, also remove the ignore on the test in trogging/src/cli.rs
-      RUST_LOG: debug,,hyper::proto::h1=info,h2=info
-      LOG_FILTER: debug,,hyper::proto::h1=info,h2=info
-      # Run the JDBC tests
-      TEST_INFLUXDB_JDBC: "true"
-    steps:
-      - checkout
-      - rust_components
-      - run:
-          name: cargo test -p influxdb2_client
-          command: cargo test -p influxdb2_client
-      - run:
-          name: cargo test -p iox_catalog
-          command: cargo test -p iox_catalog
-
-  # Run all tests (without external dependencies, like a developer would)
+  # Run all tests
   test:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -299,55 +215,6 @@ jobs:
       - run:
           name: Check extra features (like prod image)
           command: cargo check --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof"
-      - run:
-          # Validate that the data generator compiles (in the same way as it does in release builds)
-          name: Check iox_data_generator compiles
-          command: cargo check  --package="iox_data_generator"  --no-default-features
-
-  # TODO: Figure out how to get this to work with changes in IOx Repo
-  # and here
-  # # Lint protobufs.
-  # protobuf-lint:
-  #   docker:
-  #     - image: bufbuild/buf:0.40.0
-  #   environment:
-  #     # Value to look for to skip breaking changes check
-  #     SKIP_LABEL: "https://api.github.com/repos/influxdata/influxdb/labels/incompatible%20protobuf"
-  #   steps:
-  #     - checkout
-  #     - run:
-  #         name: buf lint
-  #         command: buf lint
-  #     - run:
-  #         name: buf breaking changes
-  #         command: |
-  #           echo "If you want to make changes forbidden by this lint, please"
-  #           echo "coordinate with the conductor team, add the 'incompatible protobuf' label"
-  #           echo "to the PR, and rerun this test"
-  #           # Check if label is present using github API:
-  #           # Inspired by https://discuss.circleci.com/t/tag-label-filter/11158
-  #           if wget -O -  https://api.github.com/repos/influxdata/influxdb/issues/$(echo $CIRCLE_PULL_REQUEST | grep -oE "[^/pull]+$") | grep "$SKIP_LABEL" ; then echo "SKIPPING (FOUND LABEL)" && exit ; else echo "CHECKING (NO LABEL FOUND)"; fi
-  #           git fetch origin main
-  #           # compare against only changes in this branch (not against
-  #           # other stuff that may have been added to main since last merge)
-  #           MERGE_BASE=$(git merge-base origin/main $CIRCLE_BRANCH) sh -c 'buf breaking --against ".git#ref=$MERGE_BASE,depth=100"'
-  #
-  # Lint docs
-  docs-lint:
-    docker:
-      - image: python:3-slim-bullseye
-    steps:
-      # need a proper SSH client for checkout
-      # https://discuss.circleci.com/t/circleci-user-key-uses-rsa-with-sha1-which-github-has-deprecated/42548
-      - run:
-          name: Install GIT and SSH
-          command: |
-            apt-get update
-            apt-get install -y git ssh
-      - checkout
-      - run:
-          name: Lint docs
-          command: ./scripts/lint_docs.py ./docs
 
   # Compile cargo "release" profile binaries for influxdb3 & data generator
   #
@@ -372,14 +239,8 @@ jobs:
               "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
               "quay.io/influxdb/influxdb3:$COMMIT_SHA"
 
-            .circleci/docker_build_release.bash \
-              "iox_data_generator" \
-              "" \
-              "quay.io/influxdb/iox_data_generator:$COMMIT_SHA"
-
             mkdir /tmp/images
             docker save quay.io/influxdb/influxdb3:"$COMMIT_SHA" | gzip > /tmp/images/influxdb3.tar.gz
-            docker save quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" | gzip > /tmp/images/iox_data_generator.tar.gz
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
       - store_artifacts:
@@ -407,14 +268,10 @@ workflows:
       - fmt
       - lint
       - cargo_audit
-      # - protobuf-lint
-      - docs-lint
       - test
       - test_heappy
-      - test_integration
       - build_dev
       - doc
-      - workspace_hack_checks
       - build_release:
           filters:
             branches:
