@@ -5,62 +5,66 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-authz = { path = "../authz", features = ["http"] }
-bytes = "1.5"
-datafusion_util = { path = "../datafusion_util" }
-data_types = { path = "../data_types" }
-iox_catalog = { path = "../iox_catalog" }
-iox_query = { path = "../iox_query" }
-iox_time = { path = "../iox_time" }
-influxdb-line-protocol = { path = "../influxdb_line_protocol" }
-influxdb3_write = { path = "../influxdb3_write" }
-object_store = { workspace = true }
-observability_deps = { path = "../observability_deps" }
-metric = { path = "../metric" }
-metric_exporters = { path = "../metric_exporters" }
-schema = { path = "../schema" }
-service_common = { path = "../service_common" }
-service_grpc_flight = { path = "../service_grpc_flight" }
-trace = { path = "../trace/" }
-trace_exporters = { path = "../trace_exporters" }
-trace_http = { path = "../trace_http" }
-tracker = { path = "../tracker" }
+# Core Crates
+authz.workspace = true
+data_types.workspace = true
+datafusion_util.workspace = true
+influxdb-line-protocol.workspace = true
+iox_catalog.workspace = true
+iox_query.workspace = true
+iox_time.workspace = true
+metric.workspace = true
+metric_exporters.workspace = true
+observability_deps.workspace = true
+schema.workspace = true
+service_common.workspace = true
+service_grpc_flight.workspace = true
+trace.workspace = true
+trace_exporters.workspace = true
+trace_http.workspace = true
+tracker.workspace = true
 
-arrow = { workspace = true, features = ["prettyprint"] }
-arrow-csv = "49.0.0"
+# Local Deps
+influxdb3_write = { path = "../influxdb3_write" }
+
+# crates.io Dependencies
+arrow.workspace = true
+arrow-csv.workspace = true
 arrow-flight.workspace = true
-arrow-json = "49.0.0"
-arrow-schema = "49.0.0"
-async-trait = "0.1"
-chrono = "0.4"
-datafusion = { workspace = true }
-flate2 = "1.0.27"
-futures = "0.3.28"
-hex = "0.4.3"
-hyper = "0.14"
-parking_lot = "0.11.1"
-pin-project-lite = "0.2"
-serde = { version = "1.0.197", features = ["derive"] }
-serde_json = "1.0.114"
-serde_urlencoded = "0.7.0"
-sha2 = "0.10.8"
-thiserror = "1.0"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
-tokio-util = { version = "0.7.9" }
-tonic = { workspace = true }
-tower = "0.4.13"
-unicode-segmentation = "1.11.0"
-workspace-hack = { version = "0.1", path = "../workspace-hack" }
+arrow-json.workspace = true
+arrow-schema.workspace = true
+async-trait.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+datafusion.workspace = true
+flate2.workspace = true
+futures.workspace = true
+hex.workspace = true
+hyper.workspace = true
+object_store.workspace = true
+parking_lot.workspace = true
+pin-project-lite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_urlencoded.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tonic.workspace = true
+tower.workspace = true
+unicode-segmentation.workspace = true
 
 [dev-dependencies]
+# Core Crates
 parquet.workspace = true
-parquet_file = { path = "../parquet_file" }
-test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
-test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }
-http = "0.2.9"
-hyper = "0.14"
-urlencoding = "1.1"
-pretty_assertions = "1.4.0"
+parquet_file.workspace = true
+test_helpers.workspace = true
+test_helpers_end_to_end.workspace = true
+
+# crates.io crates
+http.workspace = true
+hyper.workspace = true
+urlencoding.workspace = true
+pretty_assertions.workspace = true

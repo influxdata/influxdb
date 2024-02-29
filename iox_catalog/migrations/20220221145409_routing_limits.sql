@@ -1,9 +1,0 @@
-ALTER TABLE
-  IF EXISTS namespace
-ADD
-  COLUMN max_tables INT NOT NULL DEFAULT 10000;
-
-ALTER TABLE
-  IF EXISTS namespace
-ADD
-  COLUMN max_columns_per_table INT NOT NULL DEFAULT 1000;

@@ -1,1 +1,0 @@
-ALTER TABLE namespace DROP COLUMN IF EXISTS retention_duration;

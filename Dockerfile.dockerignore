@@ -1,7 +1,0 @@
-.*/
-target/
-tests/
-docker/
-!.cargo/
-!.git/
-!docker/entrypoint.sh
