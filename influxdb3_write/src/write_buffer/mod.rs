@@ -1,15 +1,16 @@
 //! Implementation of an in-memory buffer for writes that persists data into a wal if it is configured.
 
-mod buffer_segment;
+pub(crate) mod buffer_segment;
 mod flusher;
+mod loader;
 
 use crate::catalog::{Catalog, DatabaseSchema, TableDefinition, TIME_COLUMN_NAME};
-use crate::wal::WalSegmentWriterNoopImpl;
 use crate::write_buffer::buffer_segment::{ClosedBufferSegment, OpenBufferSegment, TableBuffer};
 use crate::write_buffer::flusher::WriteBufferFlusher;
+use crate::write_buffer::loader::load_starting_state;
 use crate::{
-    BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Precision, SegmentId,
-    Wal, WalOp, WriteBuffer, WriteLineError,
+    BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister, Precision,
+    SegmentId, Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -54,6 +55,9 @@ pub enum Error {
 
     #[error("error from buffer segment: {0}")]
     BufferSegmentError(String),
+
+    #[error("error from persister: {0}")]
+    PersisterError(#[from] crate::persister::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -91,29 +95,26 @@ impl SegmentState {
 }
 
 impl<W: Wal> WriteBufferImpl<W> {
-    pub fn new(
-        catalog: Arc<Catalog>,
-        wal: Option<Arc<W>>,
-        next_segment_id: SegmentId,
-    ) -> Result<Self> {
-        let segment_writer = wal
-            .as_ref()
-            .map(|w| w.open_segment_writer(next_segment_id))
-            .transpose()?
-            .unwrap_or_else(|| Box::new(WalSegmentWriterNoopImpl::new(next_segment_id)));
-
-        let open_segment =
-            OpenBufferSegment::new(next_segment_id, catalog.sequence_number(), segment_writer);
-        let segment_state = Arc::new(RwLock::new(SegmentState::new(open_segment)));
+    pub async fn new<P>(persister: Arc<P>, wal: Option<Arc<W>>) -> Result<Self>
+    where
+        P: Persister,
+        Error: From<P::Error>,
+    {
+        let loaded_state = load_starting_state(persister, wal.clone()).await?;
+        let segment_state = Arc::new(RwLock::new(SegmentState::new(loaded_state.open_segment)));
 
         let write_buffer_flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
 
         Ok(Self {
-            catalog,
+            catalog: loaded_state.catalog,
             segment_state,
             wal,
             write_buffer_flusher,
         })
+    }
+
+    pub fn catalog(&self) -> Arc<Catalog> {
+        Arc::clone(&self.catalog)
     }
 
     async fn write_lp(
@@ -126,9 +127,10 @@ impl<W: Wal> WriteBufferImpl<W> {
     ) -> Result<BufferedWriteRequest> {
         debug!("write_lp to {} in writebuffer", db_name);
 
-        let result = self.parse_validate_and_update_schema(
-            db_name.clone(),
+        let result = parse_validate_and_update_catalog(
+            db_name.as_str(),
             lp,
+            &self.catalog,
             default_time,
             accept_partial,
             precision,
@@ -155,33 +157,6 @@ impl<W: Wal> WriteBufferImpl<W> {
             segment_id: write_summary.segment_id,
             sequence_number: write_summary.sequence_number,
         })
-    }
-
-    fn parse_validate_and_update_schema(
-        &self,
-        db_name: NamespaceName<'static>,
-        lp: &str,
-        default_time: i64,
-        accept_partial: bool,
-        precision: Precision,
-    ) -> Result<ValidationResult> {
-        let (sequence, db) = self.catalog.db_or_create(db_name.as_str());
-        let mut result = parse_validate_and_update_schema(
-            lp,
-            &db,
-            &Partitioner::new_per_day_partitioner(),
-            default_time,
-            accept_partial,
-            precision,
-        )?;
-
-        if let Some(schema) = result.schema.take() {
-            debug!("replacing schema for {:?}", schema);
-
-            self.catalog.replace_database(sequence, Arc::new(schema))?;
-        }
-
-        Ok(result)
     }
 
     fn get_table_chunks(
@@ -287,6 +262,10 @@ impl<W: Wal> Bufferer for WriteBufferImpl<W> {
     fn wal(&self) -> Option<Arc<impl Wal>> {
         self.wal.clone()
     }
+
+    fn catalog(&self) -> Arc<Catalog> {
+        self.catalog()
+    }
 }
 
 impl<W: Wal> ChunkContainer for WriteBufferImpl<W> {
@@ -365,6 +344,33 @@ impl QueryChunk for BufferChunk {
 }
 
 const YEAR_MONTH_DAY_TIME_FORMAT: &str = "%Y-%m-%d";
+
+pub(crate) fn parse_validate_and_update_catalog(
+    db_name: &str,
+    lp: &str,
+    catalog: &Catalog,
+    default_time: i64,
+    accept_partial: bool,
+    precision: Precision,
+) -> Result<ValidationResult> {
+    let (sequence, db) = catalog.db_or_create(db_name);
+    let mut result = parse_validate_and_update_schema(
+        lp,
+        &db,
+        &Partitioner::new_per_day_partitioner(),
+        default_time,
+        accept_partial,
+        precision,
+    )?;
+
+    if let Some(schema) = result.schema.take() {
+        debug!("replacing schema for {:?}", schema);
+
+        catalog.replace_database(sequence, Arc::new(schema))?;
+    }
+
+    Ok(result)
+}
 
 /// Takes &str of line protocol, parses lines, validates the schema, and inserts new columns
 /// and partitions if present. Assigns the default time to any lines that do not include a time
@@ -619,13 +625,13 @@ pub(crate) struct PartitionBatch {
     pub(crate) rows: Vec<Row>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Row {
     pub(crate) time: i64,
     pub(crate) fields: Vec<Field>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Field {
     pub(crate) name: String,
     pub(crate) value: FieldData,
@@ -641,6 +647,23 @@ pub(crate) enum FieldData {
     Float(f64),
     Boolean(bool),
 }
+
+impl PartialEq for FieldData {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (FieldData::Timestamp(a), FieldData::Timestamp(b)) => a == b,
+            (FieldData::Tag(a), FieldData::Tag(b)) => a == b,
+            (FieldData::String(a), FieldData::String(b)) => a == b,
+            (FieldData::Integer(a), FieldData::Integer(b)) => a == b,
+            (FieldData::UInteger(a), FieldData::UInteger(b)) => a == b,
+            (FieldData::Float(a), FieldData::Float(b)) => a == b,
+            (FieldData::Boolean(a), FieldData::Boolean(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for FieldData {}
 
 /// Result of the validation. If the NamespaceSchema or PartitionMap were updated, they will be
 /// in the result.
@@ -696,9 +719,12 @@ impl Partitioner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::persister::PersisterImpl;
     use crate::wal::WalImpl;
     use crate::{SequenceNumber, WalOpBatch};
     use arrow_util::assert_batches_eq;
+    use object_store::memory::InMemory;
+    use object_store::ObjectStore;
 
     #[test]
     fn parse_lp_into_buffer() {
@@ -715,7 +741,6 @@ mod tests {
         )
         .unwrap();
 
-        println!("result: {:#?}", result);
         let db = result.schema.unwrap();
 
         assert_eq!(db.tables.len(), 2);
@@ -727,9 +752,11 @@ mod tests {
     async fn buffers_and_persists_to_wal() {
         let dir = test_helpers::tmp_dir().unwrap().into_path();
         let wal = WalImpl::new(dir.clone()).unwrap();
-        let catalog = Arc::new(Catalog::new());
-        let write_buffer =
-            WriteBufferImpl::new(catalog, Some(Arc::new(wal)), SegmentId::new(0)).unwrap();
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let write_buffer = WriteBufferImpl::new(Arc::clone(&persister), Some(Arc::new(wal)))
+            .await
+            .unwrap();
 
         let summary = write_buffer
             .write_lp(
@@ -745,7 +772,7 @@ mod tests {
         assert_eq!(summary.field_count, 1);
         assert_eq!(summary.tag_count, 0);
         assert_eq!(summary.total_buffer_memory_used, 1);
-        assert_eq!(summary.segment_id, SegmentId::new(0));
+        assert_eq!(summary.segment_id, SegmentId::new(1));
         assert_eq!(summary.sequence_number, SequenceNumber::new(1));
 
         // ensure the data is in the buffer
@@ -761,7 +788,7 @@ mod tests {
 
         // ensure the data is in the wal
         let wal = WalImpl::new(dir).unwrap();
-        let mut reader = wal.open_segment_reader(SegmentId::new(0)).unwrap();
+        let mut reader = wal.open_segment_reader(SegmentId::new(1)).unwrap();
         let batch = reader.next_batch().unwrap().unwrap();
         let expected_batch = WalOpBatch {
             sequence_number: SequenceNumber::new(1),
@@ -772,21 +799,12 @@ mod tests {
             })],
         };
         assert_eq!(batch, expected_batch);
-    }
 
-    pub(crate) fn lp_to_table_batches(lp: &str, default_time: i64) -> HashMap<String, TableBatch> {
-        let db = Arc::new(DatabaseSchema::new("foo"));
-        let partitioner = Partitioner::new_per_day_partitioner();
-        let result = parse_validate_and_update_schema(
-            lp,
-            &db,
-            &partitioner,
-            default_time,
-            false,
-            Precision::Nanosecond,
-        )
-        .unwrap();
-
-        result.table_batches
+        // ensure we load state from the persister
+        let write_buffer = WriteBufferImpl::new(persister, Some(Arc::new(wal)))
+            .await
+            .unwrap();
+        let actual = write_buffer.get_table_record_batches("foo", "cpu");
+        assert_batches_eq!(&expected, &actual);
     }
 }
