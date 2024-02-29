@@ -106,6 +106,8 @@ impl PersisterImpl {
 
 #[async_trait]
 impl Persister for PersisterImpl {
+    type Error = Error;
+
     async fn load_catalog(&self) -> Result<Option<PersistedCatalog>> {
         let mut list = self.object_store.list(Some(&CatalogFilePath::dir()));
         let mut catalog_path: Option<ObjPath> = None;

@@ -9,8 +9,8 @@ use crate::write_buffer::buffer_segment::{ClosedBufferSegment, OpenBufferSegment
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
 use crate::{
-    BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister, Precision,
-    SegmentId, Wal, WalOp, WriteBuffer, WriteLineError,
+    persister, BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister,
+    Precision, SegmentId, Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -95,7 +95,10 @@ impl SegmentState {
 }
 
 impl<W: Wal> WriteBufferImpl<W> {
-    pub async fn new(persister: Arc<dyn Persister>, wal: Option<Arc<W>>) -> Result<Self> {
+    pub async fn new(
+        persister: Arc<dyn Persister<Error = persister::Error>>,
+        wal: Option<Arc<W>>,
+    ) -> Result<Self> {
         let loaded_state = load_starting_state(persister, wal.clone()).await?;
         let segment_state = Arc::new(RwLock::new(SegmentState::new(loaded_state.open_segment)));
 
@@ -749,7 +752,8 @@ mod tests {
         let dir = test_helpers::tmp_dir().unwrap().into_path();
         let wal = WalImpl::new(dir.clone()).unwrap();
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let persister: Arc<dyn Persister> = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let persister: Arc<dyn Persister<Error = persister::Error>> =
+            Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let write_buffer = WriteBufferImpl::new(Arc::clone(&persister), Some(Arc::new(wal)))
             .await
             .unwrap();

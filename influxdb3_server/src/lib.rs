@@ -22,7 +22,7 @@ use crate::http::HttpApi;
 use async_trait::async_trait;
 use datafusion::execution::SendableRecordBatchStream;
 use hyper::service::service_fn;
-use influxdb3_write::{Persister, WriteBuffer};
+use influxdb3_write::{persister, Persister, WriteBuffer};
 use iox_query::QueryNamespaceProvider;
 use observability_deps::tracing::{error, info};
 use service::hybrid;
@@ -138,7 +138,7 @@ where
 {
     pub fn new(
         common_state: CommonServerState,
-        _persister: Arc<dyn Persister>,
+        _persister: Arc<dyn Persister<Error = persister::Error>>,
         write_buffer: Arc<W>,
         query_executor: Arc<Q>,
         max_http_request_size: usize,
@@ -227,7 +227,7 @@ mod tests {
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_write::persister::PersisterImpl;
-    use influxdb3_write::Persister;
+    use influxdb3_write::{persister, Persister};
     use iox_query::exec::{Executor, ExecutorConfig};
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
@@ -407,7 +407,8 @@ mod tests {
             metric_registry: Arc::clone(&metrics),
             mem_pool_size: usize::MAX,
         }));
-        let persister: Arc<dyn Persister> = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let persister: Arc<dyn Persister<Error = persister::Error>> =
+            Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
@@ -581,7 +582,8 @@ mod tests {
             metric_registry: Arc::clone(&metrics),
             mem_pool_size: usize::MAX,
         }));
-        let persister: Arc<dyn Persister> = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let persister: Arc<dyn Persister<Error = persister::Error>> =
+            Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
