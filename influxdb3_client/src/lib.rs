@@ -1,4 +1,4 @@
-use std::string::FromUtf8Error;
+use std::{fmt::Display, string::FromUtf8Error};
 
 use bytes::Bytes;
 use reqwest::{Body, IntoUrl, StatusCode};
@@ -21,8 +21,12 @@ pub enum Error {
     #[error("failed to read the API response bytes: {0}")]
     Bytes(#[source] reqwest::Error),
 
-    #[error("failed to send /api/v3/query_sql request: {0}")]
-    QuerySqlSend(#[source] reqwest::Error),
+    #[error("failed to send /api/v3/query_{kind} request: {source}")]
+    QuerySend {
+        kind: QueryKind,
+        #[source]
+        source: reqwest::Error,
+    },
 
     #[error("invalid UTF8 in response: {0}")]
     InvalidUtf8(#[from] FromUtf8Error),
@@ -135,7 +139,7 @@ impl Client {
         }
     }
 
-    /// Compose a request to the `/api/v3/query_sql` API
+    /// Compose a request to the `/api/v3/query_influxql` API
     ///
     /// # Example
     /// ```no_run
@@ -305,7 +309,10 @@ impl<'c> QueryRequestBuilder<'c> {
         if let Some(token) = &self.client.auth_token {
             req = req.bearer_auth(token.expose_secret());
         }
-        let resp = req.send().await.map_err(Error::QuerySqlSend)?;
+        let resp = req.send().await.map_err(|source| Error::QuerySend {
+            kind: self.kind,
+            source,
+        })?;
         let status = resp.status();
         let content = resp.bytes().await.map_err(Error::Bytes)?;
 
@@ -338,10 +345,19 @@ impl<'a> From<&'a QueryRequestBuilder<'a>> for QueryParams<'a> {
     }
 }
 
-#[derive(Debug)]
-enum QueryKind {
+#[derive(Debug, Copy, Clone)]
+pub enum QueryKind {
     Sql,
     InfluxQl,
+}
+
+impl Display for QueryKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            QueryKind::Sql => write!(f, "sql"),
+            QueryKind::InfluxQl => write!(f, "influxql"),
+        }
+    }
 }
 
 /// Output format to request from the server in the `/api/v3/query_sql` API
