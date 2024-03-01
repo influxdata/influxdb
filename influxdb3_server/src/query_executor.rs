@@ -1,12 +1,15 @@
 //! module for query executor
-use crate::QueryExecutor;
+use crate::{QueryExecutor, QueryKind};
 use arrow::datatypes::SchemaRef;
+use arrow::record_batch::RecordBatch;
+use arrow_schema::ArrowError;
 use async_trait::async_trait;
 use data_types::NamespaceId;
 use data_types::{ChunkId, ChunkOrder, TransitionPartitionId};
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::catalog::CatalogProvider;
-use datafusion::common::ParamValues;
+use datafusion::common::arrow::array::StringArray;
+use datafusion::common::arrow::datatypes::{DataType, Field, Schema as DatafusionSchema};
 use datafusion::common::Statistics;
 use datafusion::datasource::{TableProvider, TableType};
 use datafusion::error::DataFusionError;
@@ -15,11 +18,12 @@ use datafusion::execution::SendableRecordBatchStream;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
+use datafusion_util::MemoryStream;
 use influxdb3_write::{
     catalog::{Catalog, DatabaseSchema},
     WriteBuffer,
 };
-use iox_query::exec::{Executor, ExecutorType, IOxSessionContext};
+use iox_query::exec::{Executor, ExecutorType, IOxSessionContext, QueryConfig};
 use iox_query::frontend::sql::SqlQueryPlanner;
 use iox_query::provider::ProviderBuilder;
 use iox_query::query_log::QueryCompletedToken;
@@ -28,6 +32,8 @@ use iox_query::query_log::QueryText;
 use iox_query::query_log::StateReceived;
 use iox_query::QueryNamespaceProvider;
 use iox_query::{QueryChunk, QueryChunkData, QueryNamespace};
+use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
+use iox_query_params::StatementParams;
 use metric::Registry;
 use observability_deps::tracing::{debug, info, trace};
 use schema::sort::SortKey;
@@ -79,22 +85,29 @@ impl<W: WriteBuffer> QueryExecutorImpl<W> {
 
 #[async_trait]
 impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
+    type Error = Error;
+
     async fn query(
         &self,
         database: &str,
         q: &str,
+        kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
-    ) -> crate::Result<SendableRecordBatchStream> {
+    ) -> Result<SendableRecordBatchStream, Self::Error> {
         info!("query in executor {}", database);
         let db = self
             .db(database, span_ctx.child_span("get database"), false)
             .await
-            .ok_or_else(|| crate::Error::DatabaseNotFound {
+            .map_err(|_| Error::DatabaseNotFound {
+                db_name: database.to_string(),
+            })?
+            .ok_or_else(|| Error::DatabaseNotFound {
                 db_name: database.to_string(),
             })?;
 
-        let ctx = db.new_query_context(span_ctx);
+        // TODO - configure query here?
+        let ctx = db.new_query_context(span_ctx, Default::default());
 
         let token = db.record_query(
             external_span_ctx.as_ref().map(RequestLogContext::ctx),
@@ -103,11 +116,20 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         );
 
         info!("plan");
-        let planner = SqlQueryPlanner::new();
         // TODO: Figure out if we want to support parameter values in SQL
         // queries
-        let params = ParamValues::List(Vec::new());
-        let plan = planner.query(q, params, &ctx).await?;
+        let params = StatementParams::default();
+        let plan = match kind {
+            QueryKind::Sql => {
+                let planner = SqlQueryPlanner::new();
+                planner.query(q, params, &ctx).await
+            }
+            QueryKind::InfluxQl => {
+                let planner = InfluxQLQueryPlanner::new();
+                planner.query(q, params, &ctx).await
+            }
+        }
+        .map_err(Error::QueryPlanning)?;
         let token = token.planned(Arc::clone(&plan));
 
         // TODO: Enforce concurrency limit here
@@ -121,10 +143,31 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
             }
             Err(err) => {
                 token.fail();
-                Err(err.into())
+                Err(Error::ExecuteStream(err))
             }
         }
     }
+
+    fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error> {
+        let databases = StringArray::from(self.catalog.list_databases());
+        let schema =
+            DatafusionSchema::new(vec![Field::new("iox::database", DataType::Utf8, false)]);
+        let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(databases)])
+            .map_err(Error::DatabasesToRecordBatch)?;
+        Ok(Box::pin(MemoryStream::new(vec![batch])))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("database not found: {db_name}")]
+    DatabaseNotFound { db_name: String },
+    #[error("error while planning query: {0}")]
+    QueryPlanning(#[source] DataFusionError),
+    #[error("error while executing plan: {0}")]
+    ExecuteStream(#[source] DataFusionError),
+    #[error("unable to compose record batches from databases: {0}")]
+    DatabasesToRecordBatch(#[source] ArrowError),
 }
 
 // This implementation is for the Flight service
@@ -135,17 +178,21 @@ impl<W: WriteBuffer> QueryNamespaceProvider for QueryExecutorImpl<W> {
         name: &str,
         span: Option<Span>,
         _include_debug_info_tables: bool,
-    ) -> Option<Arc<dyn QueryNamespace>> {
+    ) -> Result<Option<Arc<dyn QueryNamespace>>, DataFusionError> {
         let _span_recorder = SpanRecorder::new(span);
 
-        let db_schema = self.catalog.db_schema(name)?;
+        let db_schema = self.catalog.db_schema(name).ok_or_else(|| {
+            DataFusionError::External(Box::new(Error::DatabaseNotFound {
+                db_name: name.into(),
+            }))
+        })?;
 
-        Some(Arc::new(QueryDatabase::new(
+        Ok(Some(Arc::new(QueryDatabase::new(
             db_schema,
             Arc::clone(&self.write_buffer) as _,
             Arc::clone(&self.exec),
             Arc::clone(&self.datafusion_config),
-        )))
+        ))))
     }
 
     async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
@@ -241,7 +288,11 @@ impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
         )
     }
 
-    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext {
+    fn new_query_context(
+        &self,
+        span_ctx: Option<SpanContext>,
+        _config: Option<&QueryConfig>,
+    ) -> IOxSessionContext {
         let qdb = Self::new(
             Arc::clone(&self.db_schema),
             Arc::clone(&self.write_buffer),

@@ -5,7 +5,13 @@ use std::{
 };
 
 use assert_cmd::cargo::CommandCargoExt;
+use influxdb3_client::Precision;
 use influxdb_iox_client::flightsql::FlightSqlClient;
+use reqwest::Response;
+
+mod auth;
+mod flight;
+mod query;
 
 /// A running instance of the `influxdb3 serve` process
 pub struct TestServer {
@@ -25,6 +31,7 @@ impl TestServer {
         let command = command
             .arg("serve")
             .args(["--http-bind", &bind_addr.to_string()])
+            .args(["--object-store", "memory"])
             // TODO - other configuration can be passed through
             .stdout(Stdio::null())
             .stderr(Stdio::null());
@@ -79,6 +86,32 @@ impl TestServer {
 impl Drop for TestServer {
     fn drop(&mut self) {
         self.kill();
+    }
+}
+
+impl TestServer {
+    /// Write some line protocol to the server
+    pub async fn write_lp_to_db(&self, database: &str, lp: &'static str, precision: Precision) {
+        let client = influxdb3_client::Client::new(self.client_addr()).unwrap();
+        client
+            .api_v3_write_lp(database)
+            .body(lp)
+            .precision(precision)
+            .send()
+            .await
+            .unwrap();
+    }
+
+    pub async fn api_v3_query_influxql(&self, params: &[(&str, &str)]) -> Response {
+        self.http_client
+            .get(format!(
+                "{base}/api/v3/query_influxql",
+                base = self.client_addr()
+            ))
+            .query(params)
+            .send()
+            .await
+            .expect("send /api/v3/query_influxql request to server")
     }
 }
 

@@ -37,4 +37,5 @@ futures-util.workspace = true
 [dev-dependencies]
 # Core Crates
 arrow_util.workspace = true
+pretty_assertions.workspace = true
 test_helpers.workspace = true

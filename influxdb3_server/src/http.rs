@@ -1,16 +1,20 @@
 //! HTTP API service implementations for `server`
 
+use crate::{query_executor, QueryKind};
 use crate::{CommonServerState, QueryExecutor};
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
 use authz::http::AuthorizationHeaderExtension;
 use bytes::{Bytes, BytesMut};
 use data_types::NamespaceName;
+use datafusion::error::DataFusionError;
 use datafusion::execution::memory_pool::UnboundedMemoryPool;
-use futures::StreamExt;
+use datafusion::execution::RecordBatchStream;
+use futures::{StreamExt, TryStreamExt};
 use hyper::header::ACCEPT;
 use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
+use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
 use hyper::{Body, Method, Request, Response, StatusCode};
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
@@ -18,8 +22,10 @@ use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
 use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
+use iox_query_influxql_rewrite as rewrite;
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, error, info};
+use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
 use sha2::Digest;
@@ -27,7 +33,9 @@ use sha2::Sha256;
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::num::NonZeroI32;
+use std::pin::Pin;
 use std::str::Utf8Error;
+use std::string::FromUtf8Error;
 use std::sync::Arc;
 use thiserror::Error;
 use unicode_segmentation::UnicodeSegmentation;
@@ -111,6 +119,9 @@ pub enum Error {
     #[error("serde error: {0}")]
     Serde(#[from] serde_urlencoded::de::Error),
 
+    #[error("error in query parameters: {0}")]
+    QueryParams(#[from] QueryParamsError),
+
     /// Arrow error
     #[error("arrow error: {0}")]
     Arrow(#[from] arrow::error::ArrowError),
@@ -139,6 +150,15 @@ pub enum Error {
     #[error("serde json error: {0}")]
     Influxdb3Write(#[from] influxdb3_write::Error),
 
+    #[error("datafusion error: {0}")]
+    Datafusion(#[from] DataFusionError),
+
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("query error: {0}")]
+    Query(#[from] query_executor::Error),
+
     // Invalid Start Character for a Database Name
     #[error("db name did not start with a number or letter")]
     DbNameInvalidStartChar,
@@ -149,6 +169,26 @@ pub enum Error {
 
     #[error("partial write of line protocol ocurred")]
     PartialLpWrite(BufferedWriteRequest),
+
+    #[error("error in InfluxQL statement: {0}")]
+    InfluxqlRewrite(#[from] rewrite::Error),
+
+    #[error("must provide only one InfluxQl statement per query")]
+    InfluxqlSingleStatement,
+
+    #[error(
+        "must specify a 'database' parameter, or provide the database\
+        in the InfluxQL query, for queries that support ON clauses"
+    )]
+    InfluxqlNoDatabase,
+
+    #[error(
+        "provided a database in both the parameters ({param_db}) and\
+        query string ({query_db}) that do not match, if providing a query\
+        with an ON clause, you can omit the 'database' parameter from your\
+        request"
+    )]
+    InfluxqlDatabaseMismatch { param_db: String, query_db: String },
 }
 
 #[derive(Debug, Error)]
@@ -246,6 +286,7 @@ impl<W, Q> HttpApi<W, Q>
 where
     W: WriteBuffer,
     Q: QueryExecutor,
+    Error: From<<Q as QueryExecutor>::Error>,
 {
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
@@ -280,119 +321,79 @@ where
     }
 
     async fn query_sql(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let query = req.uri().query().ok_or(Error::MissingQueryParams)?;
-        let params: QuerySqlParams = serde_urlencoded::from_str(query)?;
+        let QueryParams {
+            database,
+            query_str,
+            format,
+        } = QueryParams::<String, _>::from_request(&req)?;
 
-        println!("query_sql {:?}", params);
+        info!(%database, %query_str, ?format, "handling query_sql");
 
-        let result = self
+        let stream = self
             .query_executor
-            .query(&params.db, &params.q, None, None)
-            .await
-            .unwrap();
+            .query(&database, &query_str, QueryKind::Sql, None, None)
+            .await?;
 
-        let batches: Vec<RecordBatch> = result
-            .collect::<Vec<datafusion::common::Result<RecordBatch>>>()
-            .await
-            .into_iter()
-            .map(|b| b.unwrap())
-            .collect();
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, format.as_content_type())
+            .body(record_batch_stream_to_body(stream, format).await?)
+            .map_err(Into::into)
+    }
 
-        fn to_json(batches: Vec<RecordBatch>) -> Result<Bytes> {
-            let batches: Vec<&RecordBatch> = batches.iter().collect();
-            Ok(Bytes::from(serde_json::to_string(
-                &arrow_json::writer::record_batches_to_json_rows(batches.as_slice())?,
-            )?))
+    async fn query_influxql(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let QueryParams {
+            database,
+            query_str,
+            format,
+        } = QueryParams::<Option<String>, _>::from_request(&req)?;
+
+        info!(?database, %query_str, ?format, "handling query_influxql");
+
+        let mut statements = rewrite::parse_statements(&query_str)?;
+
+        if statements.len() != 1 {
+            return Err(Error::InfluxqlSingleStatement);
         }
 
-        fn to_csv(batches: Vec<RecordBatch>) -> Result<Bytes> {
-            let mut writer = arrow_csv::writer::Writer::new(Vec::new());
-            for batch in batches {
-                writer.write(&batch)?;
-            }
+        let statement = statements.pop().unwrap();
 
-            Ok(Bytes::from(writer.into_inner()))
-        }
-
-        fn to_pretty(batches: Vec<RecordBatch>) -> Result<Bytes> {
-            Ok(Bytes::from(format!(
-                "{}",
-                pretty::pretty_format_batches(&batches)?
-            )))
-        }
-
-        fn to_parquet(batches: Vec<RecordBatch>) -> Result<Bytes> {
-            let mut bytes = Vec::new();
-            let mem_pool = Arc::new(UnboundedMemoryPool::default());
-            let mut writer =
-                TrackedMemoryArrowWriter::try_new(&mut bytes, batches[0].schema(), mem_pool)?;
-            for batch in batches {
-                writer.write(batch)?;
-            }
-            writer.close()?;
-            Ok(Bytes::from(bytes))
-        }
-
-        enum Format {
-            Parquet,
-            Csv,
-            Pretty,
-            Json,
-            Error,
-        }
-
-        let (body, format) = match params.format {
-            None => match req
-                .headers()
-                .get(ACCEPT)
-                .map(HeaderValue::to_str)
-                .transpose()?
-            {
-                // Accept Headers use the MIME types maintained by IANA here:
-                // https://www.iana.org/assignments/media-types/media-types.xhtml
-                // Note parquet hasn't been accepted yet just Arrow, but there
-                // is the possibility it will be:
-                // https://issues.apache.org/jira/browse/PARQUET-1889
-                Some("application/vnd.apache.parquet") => {
-                    (to_parquet(batches)?, Format::Parquet)
+        let stream = if statement.statement().is_show_databases() {
+            self.query_executor.show_databases()?
+        } else {
+            let database = match (database, statement.resolve_dbrp()) {
+                (None, None) => return Err(Error::InfluxqlNoDatabase),
+                (None, Some(s)) | (Some(s), None) => s,
+                (Some(p), Some(q)) => {
+                    if p == q {
+                        p
+                    } else {
+                        return Err(Error::InfluxqlDatabaseMismatch {
+                            param_db: p,
+                            query_db: q,
+                        });
+                    }
                 }
-                Some("text/csv") => (to_csv(batches)?, Format::Csv),
-                Some("text/plain") => (to_pretty(batches)?, Format::Pretty),
-                Some("application/json") => (to_json(batches)?, Format::Json),
-                Some("*/*") | None => (to_json(batches)?, Format::Json),
-                Some(_) => (Bytes::from("{ \"error\": \"Available mime types are: application/vnd.apache.parquet, text/csv, text/plain, and application/json\" }"), Format::Error),
-            },
-            Some(format) => match format.as_str() {
-                "parquet" => (to_parquet(batches)?, Format::Parquet),
-                "csv" => (to_csv(batches)?, Format::Csv),
-                "pretty" => (to_pretty(batches)?, Format::Pretty),
-                "json" => (to_json(batches)?, Format::Json),
-                _ => (Bytes::from("{ \"error\": \"Available formats are: parquet, csv, pretty, and json\" }"), Format::Error),
-            },
+            };
+
+            self.query_executor
+                .query(
+                    &database,
+                    // TODO - implement an interface that takes the statement directly,
+                    // so we don't need to double down on the parsing
+                    &statement.to_statement().to_string(),
+                    QueryKind::InfluxQl,
+                    None,
+                    None,
+                )
+                .await?
         };
 
-        match format {
-            Format::Parquet => Ok(Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "application/vnd.apache.parquet")
-                .body(Body::from(body))?),
-            Format::Csv => Ok(Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "text/csv")
-                .body(Body::from(body))?),
-            Format::Pretty => Ok(Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "text/plain; charset=utf-8")
-                .body(Body::from(body))?),
-            Format::Json => Ok(Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "application/json")
-                .body(Body::from(body))?),
-            Format::Error => Ok(Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(Body::from(body))?),
-        }
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, format.as_content_type())
+            .body(record_batch_stream_to_body(stream, format).await?)
+            .map_err(Into::into)
     }
 
     fn health(&self) -> Result<Response<Body>> {
@@ -534,10 +535,126 @@ fn validate_db_name(name: &str) -> Result<()> {
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct QuerySqlParams {
-    pub(crate) db: String,
-    pub(crate) q: String,
-    pub(crate) format: Option<String>,
+pub(crate) struct QueryParams<D, F> {
+    #[serde(rename = "db")]
+    pub(crate) database: D,
+    #[serde(rename = "q")]
+    pub(crate) query_str: String,
+    pub(crate) format: F,
+}
+
+impl<D> QueryParams<D, QueryFormat>
+where
+    D: DeserializeOwned,
+{
+    fn from_request(req: &Request<Body>) -> Result<Self> {
+        let query = req.uri().query().ok_or(Error::MissingQueryParams)?;
+        let params = serde_urlencoded::from_str::<QueryParams<D, Option<QueryFormat>>>(query)?;
+        let format = match params.format {
+            None => match req.headers().get(ACCEPT).map(HeaderValue::as_bytes) {
+                // Accept Headers use the MIME types maintained by IANA here:
+                // https://www.iana.org/assignments/media-types/media-types.xhtml
+                // Note parquet hasn't been accepted yet just Arrow, but there
+                // is the possibility it will be:
+                // https://issues.apache.org/jira/browse/PARQUET-1889
+                Some(b"application/vnd.apache.parquet") => QueryFormat::Parquet,
+                Some(b"text/csv") => QueryFormat::Csv,
+                Some(b"text/plain") => QueryFormat::Pretty,
+                Some(b"application/json" | b"*/*") | None => QueryFormat::Json,
+                Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
+                    Ok(s) => return Err(QueryParamsError::InvalidMimeType(s).into()),
+                    Err(e) => return Err(QueryParamsError::NonUtf8MimeType(e).into()),
+                },
+            },
+            Some(f) => f,
+        };
+        Ok(Self {
+            database: params.database,
+            query_str: params.query_str,
+            format,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum QueryParamsError {
+    #[error(
+        "invalid mime type ({0}), available types are \
+        application/vnd.apache.parquet, text/csv, text/plain, and application/json"
+    )]
+    InvalidMimeType(String),
+    #[error("the mime type specified was not valid UTF8: {0}")]
+    NonUtf8MimeType(#[from] FromUtf8Error),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum QueryFormat {
+    Parquet,
+    Csv,
+    Pretty,
+    Json,
+}
+
+impl QueryFormat {
+    fn as_content_type(&self) -> &str {
+        match self {
+            Self::Parquet => "application/vnd.apache.parquet",
+            Self::Csv => "text/csv",
+            Self::Pretty => "text/plain; charset=utf-8",
+            Self::Json => "application/json",
+        }
+    }
+}
+
+async fn record_batch_stream_to_body(
+    stream: Pin<Box<dyn RecordBatchStream + Send>>,
+    format: QueryFormat,
+) -> Result<Body, Error> {
+    fn to_json(batches: Vec<RecordBatch>) -> Result<Bytes> {
+        let batches: Vec<&RecordBatch> = batches.iter().collect();
+        Ok(Bytes::from(serde_json::to_string(
+            &arrow_json::writer::record_batches_to_json_rows(batches.as_slice())?,
+        )?))
+    }
+
+    fn to_csv(batches: Vec<RecordBatch>) -> Result<Bytes> {
+        let mut writer = arrow_csv::writer::Writer::new(Vec::new());
+        for batch in batches {
+            writer.write(&batch)?;
+        }
+
+        Ok(Bytes::from(writer.into_inner()))
+    }
+
+    fn to_pretty(batches: Vec<RecordBatch>) -> Result<Bytes> {
+        Ok(Bytes::from(format!(
+            "{}",
+            pretty::pretty_format_batches(&batches)?
+        )))
+    }
+
+    fn to_parquet(batches: Vec<RecordBatch>) -> Result<Bytes> {
+        let mut bytes = Vec::new();
+        let mem_pool = Arc::new(UnboundedMemoryPool::default());
+        let mut writer =
+            TrackedMemoryArrowWriter::try_new(&mut bytes, batches[0].schema(), mem_pool)?;
+        for batch in batches {
+            writer.write(batch)?;
+        }
+        writer.close()?;
+        Ok(Bytes::from(bytes))
+    }
+
+    let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
+
+    match format {
+        QueryFormat::Pretty => to_pretty(batches),
+        QueryFormat::Parquet => to_parquet(batches),
+        QueryFormat::Csv => to_csv(batches),
+        QueryFormat::Json => to_json(batches),
+    }
+    .map(Body::from)
 }
 
 // This is a hack around the fact that bool default is false not true
@@ -553,10 +670,15 @@ pub(crate) struct WriteParams {
     pub(crate) precision: Precision,
 }
 
-pub(crate) async fn route_request<W: WriteBuffer, Q: QueryExecutor>(
+pub(crate) async fn route_request<W, Q>(
     http_server: Arc<HttpApi<W, Q>>,
     mut req: Request<Body>,
-) -> Result<Response<Body>, Infallible> {
+) -> Result<Response<Body>, Infallible>
+where
+    W: WriteBuffer,
+    Q: QueryExecutor,
+    Error: From<<Q as QueryExecutor>::Error>,
+{
     if let Err(e) = http_server.authorize_request(&mut req) {
         match e {
             AuthorizationError::Unauthorized => {
@@ -592,6 +714,9 @@ pub(crate) async fn route_request<W: WriteBuffer, Q: QueryExecutor>(
     let response = match (method.clone(), uri.path()) {
         (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,
         (Method::GET | Method::POST, "/api/v3/query_sql") => http_server.query_sql(req).await,
+        (Method::GET | Method::POST, "/api/v3/query_influxql") => {
+            http_server.query_influxql(req).await
+        }
         (Method::GET, "/health") => http_server.health(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
         (Method::GET, "/debug/pprof") => pprof_home(req).await,

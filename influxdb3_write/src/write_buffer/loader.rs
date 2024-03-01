@@ -127,6 +127,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use object_store::memory::InMemory;
     use object_store::ObjectStore;
+    use pretty_assertions::assert_eq;
     use std::collections::HashMap;
 
     #[tokio::test]
@@ -335,7 +336,7 @@ mod tests {
             PersistedSegment {
                 segment_id,
                 segment_wal_size_bytes: 201,
-                segment_parquet_size_bytes: 3398,
+                segment_parquet_size_bytes: 3458,
                 segment_row_count: 3,
                 segment_min_time: 10,
                 segment_max_time: 20,
@@ -350,7 +351,7 @@ mod tests {
                                     parquet_files: vec![ParquetFile {
                                         path: "dbs/db1/cpu/1970-01-01/4294967294.parquet"
                                             .to_string(),
-                                        size_bytes: 1690,
+                                        size_bytes: 1721,
                                         row_count: 1,
                                         min_time: 10,
                                         max_time: 10,
@@ -365,7 +366,7 @@ mod tests {
                                     parquet_files: vec![ParquetFile {
                                         path: "dbs/db1/mem/1970-01-01/4294967294.parquet"
                                             .to_string(),
-                                        size_bytes: 1708,
+                                        size_bytes: 1737,
                                         row_count: 2,
                                         min_time: 15,
                                         max_time: 20,

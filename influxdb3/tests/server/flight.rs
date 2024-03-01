@@ -4,24 +4,21 @@ use arrow_util::assert_batches_sorted_eq;
 use futures::TryStreamExt;
 use influxdb3_client::Precision;
 
-use crate::common::TestServer;
-
-mod common;
+use crate::TestServer;
 
 #[tokio::test]
 async fn flight() {
     let server = TestServer::spawn().await;
 
-    // use the influxdb3_client to write in some data
-    write_lp_to_db(
-        &server,
-        "foo",
-        "cpu,host=s1,region=us-east usage=0.9 1\n\
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=s1,region=us-east usage=0.9 1\n\
         cpu,host=s1,region=us-east usage=0.89 2\n\
         cpu,host=s1,region=us-east usage=0.85 3",
-        Precision::Nanosecond,
-    )
-    .await;
+            Precision::Nanosecond,
+        )
+        .await;
 
     let mut client = server.flight_client("foo").await;
 
@@ -109,6 +106,7 @@ async fn flight() {
                 "+--------------+--------------------+-------------+------------+",
                 "| public       | information_schema | columns     | VIEW       |",
                 "| public       | information_schema | df_settings | VIEW       |",
+                "| public       | information_schema | schemata    | VIEW       |",
                 "| public       | information_schema | tables      | VIEW       |",
                 "| public       | information_schema | views       | VIEW       |",
                 "| public       | iox                | cpu         | BASE TABLE |",
@@ -133,22 +131,6 @@ async fn flight() {
             &batches
         );
     }
-}
-
-async fn write_lp_to_db(
-    server: &TestServer,
-    database: &str,
-    lp: &'static str,
-    precision: Precision,
-) {
-    let client = influxdb3_client::Client::new(server.client_addr()).unwrap();
-    client
-        .api_v3_write_lp(database)
-        .body(lp)
-        .precision(precision)
-        .send()
-        .await
-        .unwrap();
 }
 
 async fn collect_stream(stream: FlightRecordBatchStream) -> Vec<RecordBatch> {

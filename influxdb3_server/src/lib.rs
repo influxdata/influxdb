@@ -125,13 +125,24 @@ pub struct Server<W, Q, P> {
 
 #[async_trait]
 pub trait QueryExecutor: QueryNamespaceProvider + Debug + Send + Sync + 'static {
+    type Error;
+
     async fn query(
         &self,
         database: &str,
         q: &str,
+        kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
-    ) -> Result<SendableRecordBatchStream>;
+    ) -> Result<SendableRecordBatchStream, Self::Error>;
+
+    fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error>;
+}
+
+#[derive(Debug)]
+pub enum QueryKind {
+    Sql,
+    InfluxQl,
 }
 
 impl<W, Q, P> Server<W, Q, P>
@@ -165,6 +176,7 @@ pub async fn serve<W, Q, P>(server: Server<W, Q, P>, shutdown: CancellationToken
 where
     W: WriteBuffer,
     Q: QueryExecutor,
+    http::Error: From<<Q as QueryExecutor>::Error>,
     P: Persister,
 {
     // TODO:
