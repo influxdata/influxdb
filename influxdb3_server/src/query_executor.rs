@@ -10,7 +10,6 @@ use datafusion::catalog::schema::SchemaProvider;
 use datafusion::catalog::CatalogProvider;
 use datafusion::common::arrow::array::StringArray;
 use datafusion::common::arrow::datatypes::{DataType, Field, Schema as DatafusionSchema};
-use datafusion::common::ParamValues;
 use datafusion::common::Statistics;
 use datafusion::datasource::{TableProvider, TableType};
 use datafusion::error::DataFusionError;
@@ -24,7 +23,7 @@ use influxdb3_write::{
     catalog::{Catalog, DatabaseSchema},
     WriteBuffer,
 };
-use iox_query::exec::{Executor, ExecutorType, IOxSessionContext};
+use iox_query::exec::{Executor, ExecutorType, IOxSessionContext, QueryConfig};
 use iox_query::frontend::sql::SqlQueryPlanner;
 use iox_query::provider::ProviderBuilder;
 use iox_query::query_log::QueryCompletedToken;
@@ -34,6 +33,7 @@ use iox_query::query_log::StateReceived;
 use iox_query::QueryNamespaceProvider;
 use iox_query::{QueryChunk, QueryChunkData, QueryNamespace};
 use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
+use iox_query_params::StatementParams;
 use metric::Registry;
 use observability_deps::tracing::{debug, info, trace};
 use schema::sort::SortKey;
@@ -99,11 +99,15 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         let db = self
             .db(database, span_ctx.child_span("get database"), false)
             .await
+            .map_err(|_| Error::DatabaseNotFound {
+                db_name: database.to_string(),
+            })?
             .ok_or_else(|| Error::DatabaseNotFound {
                 db_name: database.to_string(),
             })?;
 
-        let ctx = db.new_query_context(span_ctx);
+        // TODO - configure query here?
+        let ctx = db.new_query_context(span_ctx, Default::default());
 
         let token = db.record_query(
             external_span_ctx.as_ref().map(RequestLogContext::ctx),
@@ -114,7 +118,7 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         info!("plan");
         // TODO: Figure out if we want to support parameter values in SQL
         // queries
-        let params = ParamValues::List(Vec::new());
+        let params = StatementParams::default();
         let plan = match kind {
             QueryKind::Sql => {
                 let planner = SqlQueryPlanner::new();
@@ -174,17 +178,21 @@ impl<W: WriteBuffer> QueryNamespaceProvider for QueryExecutorImpl<W> {
         name: &str,
         span: Option<Span>,
         _include_debug_info_tables: bool,
-    ) -> Option<Arc<dyn QueryNamespace>> {
+    ) -> Result<Option<Arc<dyn QueryNamespace>>, DataFusionError> {
         let _span_recorder = SpanRecorder::new(span);
 
-        let db_schema = self.catalog.db_schema(name)?;
+        let db_schema = self.catalog.db_schema(name).ok_or_else(|| {
+            DataFusionError::External(Box::new(Error::DatabaseNotFound {
+                db_name: name.into(),
+            }))
+        })?;
 
-        Some(Arc::new(QueryDatabase::new(
+        Ok(Some(Arc::new(QueryDatabase::new(
             db_schema,
             Arc::clone(&self.write_buffer) as _,
             Arc::clone(&self.exec),
             Arc::clone(&self.datafusion_config),
-        )))
+        ))))
     }
 
     async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
@@ -280,7 +288,11 @@ impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
         )
     }
 
-    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext {
+    fn new_query_context(
+        &self,
+        span_ctx: Option<SpanContext>,
+        _config: Option<&QueryConfig>,
+    ) -> IOxSessionContext {
         let qdb = Self::new(
             Arc::clone(&self.db_schema),
             Arc::clone(&self.write_buffer),

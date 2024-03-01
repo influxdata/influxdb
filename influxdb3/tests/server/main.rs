@@ -31,6 +31,7 @@ impl TestServer {
         let command = command
             .arg("serve")
             .args(["--http-bind", &bind_addr.to_string()])
+            .args(["--object-store", "memory"])
             // TODO - other configuration can be passed through
             .stdout(Stdio::null())
             .stderr(Stdio::null());

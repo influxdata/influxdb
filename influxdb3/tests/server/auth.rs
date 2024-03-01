@@ -38,6 +38,8 @@ async fn auth() {
         Command::new(bin_path)
             .args([
                 "serve",
+                "--object-store",
+                "memory",
                 "--bearer-token",
                 "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae", // foo as a sha256
             ])

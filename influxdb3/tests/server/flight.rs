@@ -106,6 +106,7 @@ async fn flight() {
                 "+--------------+--------------------+-------------+------------+",
                 "| public       | information_schema | columns     | VIEW       |",
                 "| public       | information_schema | df_settings | VIEW       |",
+                "| public       | information_schema | schemata    | VIEW       |",
                 "| public       | information_schema | tables      | VIEW       |",
                 "| public       | information_schema | views       | VIEW       |",
                 "| public       | iox                | cpu         | BASE TABLE |",

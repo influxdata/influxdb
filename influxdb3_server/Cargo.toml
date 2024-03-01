@@ -13,6 +13,8 @@ datafusion_util.workspace = true
 influxdb-line-protocol.workspace = true
 iox_catalog.workspace = true
 iox_query.workspace = true
+iox_query_params.workspace = true
+iox_query_influxql.workspace = true
 iox_time.workspace = true
 metric.workspace = true
 metric_exporters.workspace = true
@@ -27,6 +29,7 @@ tracker.workspace = true
 
 # Local Deps
 influxdb3_write = { path = "../influxdb3_write" }
+iox_query_influxql_rewrite = { path = "../iox_query_influxql_rewrite" }
 
 # crates.io Dependencies
 arrow.workspace = true
