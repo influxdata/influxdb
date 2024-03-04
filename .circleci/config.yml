@@ -225,7 +225,7 @@ jobs:
     # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
     # kinda small node)
     machine:
-      image: ubuntu-2004:2022.04.2
+      image: default
     resource_class: 2xlarge # CPU bound, so make it fast
     steps:
       - checkout
