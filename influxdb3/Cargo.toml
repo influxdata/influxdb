@@ -49,7 +49,7 @@ tikv-jemalloc-ctl = { version = "0.5.4", optional = true }
 tikv-jemalloc-sys = { version = "0.5.4", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
 
 [features]
-default = ["jemalloc_replacing_malloc"]
+default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]
 
 azure = ["clap_blocks/azure"] # Optional Azure Object store support
 gcp = ["clap_blocks/gcp"] # Optional GCP object store support
