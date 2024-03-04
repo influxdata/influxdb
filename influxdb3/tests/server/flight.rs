@@ -1,13 +1,12 @@
-use arrow::record_batch::RecordBatch;
-use arrow_flight::{decode::FlightRecordBatchStream, sql::SqlInfo};
+use arrow_flight::sql::SqlInfo;
 use arrow_util::assert_batches_sorted_eq;
-use futures::TryStreamExt;
 use influxdb3_client::Precision;
 
+use crate::collect_stream;
 use crate::TestServer;
 
 #[tokio::test]
-async fn flight() {
+async fn flight() -> Result<(), influxdb3_client::Error> {
     let server = TestServer::spawn().await;
 
     server
@@ -18,7 +17,7 @@ async fn flight() {
         cpu,host=s1,region=us-east usage=0.85 3",
             Precision::Nanosecond,
         )
-        .await;
+        .await?;
 
     let mut client = server.flight_client("foo").await;
 
@@ -131,11 +130,6 @@ async fn flight() {
             &batches
         );
     }
-}
 
-async fn collect_stream(stream: FlightRecordBatchStream) -> Vec<RecordBatch> {
-    stream
-        .try_collect()
-        .await
-        .expect("gather record batch stream")
+    Ok(())
 }

@@ -17,6 +17,7 @@ use hyper::header::CONTENT_ENCODING;
 use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
 use hyper::{Body, Method, Request, Response, StatusCode};
+use influxdb3_write::catalog::Error as CatalogError;
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
@@ -209,6 +210,22 @@ impl Error {
             data: Option<T>,
         }
         match self {
+            Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
+                err @ (CatalogError::TooManyDbs
+                | CatalogError::TooManyColumns
+                | CatalogError::TooManyTables),
+            )) => {
+                let err: ErrorMessage<()> = ErrorMessage {
+                    error: err.to_string(),
+                    data: None,
+                };
+                let serialized = serde_json::to_string(&err).unwrap();
+                let body = Body::from(serialized);
+                Response::builder()
+                    .status(StatusCode::UNPROCESSABLE_ENTITY)
+                    .body(body)
+                    .unwrap()
+            }
             Self::WriteBuffer(WriteBufferError::ParseError(err)) => {
                 let err = ErrorMessage {
                     error: "parsing failed for write_lp endpoint".into(),

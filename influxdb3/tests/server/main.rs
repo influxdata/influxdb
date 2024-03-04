@@ -4,13 +4,17 @@ use std::{
     time::Duration,
 };
 
+use arrow::record_batch::RecordBatch;
+use arrow_flight::decode::FlightRecordBatchStream;
 use assert_cmd::cargo::CommandCargoExt;
+use futures::TryStreamExt;
 use influxdb3_client::Precision;
 use influxdb_iox_client::flightsql::FlightSqlClient;
 use reqwest::Response;
 
 mod auth;
 mod flight;
+mod limits;
 mod query;
 
 /// A running instance of the `influxdb3 serve` process
@@ -54,6 +58,7 @@ impl TestServer {
     }
 
     /// Get a [`FlightSqlClient`] for making requests to the running service over gRPC
+    #[allow(dead_code)]
     pub async fn flight_client(&self, database: &str) -> FlightSqlClient {
         let channel = tonic::transport::Channel::from_shared(self.client_addr())
             .expect("create tonic channel")
@@ -91,15 +96,19 @@ impl Drop for TestServer {
 
 impl TestServer {
     /// Write some line protocol to the server
-    pub async fn write_lp_to_db(&self, database: &str, lp: &'static str, precision: Precision) {
+    pub async fn write_lp_to_db(
+        &self,
+        database: &str,
+        lp: impl ToString,
+        precision: Precision,
+    ) -> Result<(), influxdb3_client::Error> {
         let client = influxdb3_client::Client::new(self.client_addr()).unwrap();
         client
             .api_v3_write_lp(database)
-            .body(lp)
+            .body(lp.to_string())
             .precision(precision)
             .send()
             .await
-            .unwrap();
     }
 
     pub async fn api_v3_query_influxql(&self, params: &[(&str, &str)]) -> Response {
@@ -129,4 +138,28 @@ fn get_local_bind_addr() -> SocketAddr {
         .expect("bind to a socket address")
         .local_addr()
         .expect("get local address")
+}
+
+/// Write to the server with the line protocol
+pub async fn write_lp_to_db(
+    server: &TestServer,
+    database: &str,
+    lp: &str,
+    precision: Precision,
+) -> Result<(), influxdb3_client::Error> {
+    let client = influxdb3_client::Client::new(server.client_addr()).unwrap();
+    client
+        .api_v3_write_lp(database)
+        .body(lp.to_string())
+        .precision(precision)
+        .send()
+        .await
+}
+
+#[allow(dead_code)]
+pub async fn collect_stream(stream: FlightRecordBatchStream) -> Vec<RecordBatch> {
+    stream
+        .try_collect()
+        .await
+        .expect("gather record batch stream")
 }

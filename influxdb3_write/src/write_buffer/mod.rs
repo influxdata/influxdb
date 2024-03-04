@@ -353,7 +353,7 @@ pub(crate) fn parse_validate_and_update_catalog(
     accept_partial: bool,
     precision: Precision,
 ) -> Result<ValidationResult> {
-    let (sequence, db) = catalog.db_or_create(db_name);
+    let (sequence, db) = catalog.db_or_create(db_name)?;
     let mut result = parse_validate_and_update_schema(
         lp,
         &db,
