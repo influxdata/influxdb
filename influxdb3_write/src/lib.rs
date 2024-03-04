@@ -410,7 +410,7 @@ mod test_helpers {
         lp: &str,
     ) -> WriteBatch {
         let mut write_batch = WriteBatch::default();
-        let (seq, db) = catalog.db_or_create(db_name);
+        let (seq, db) = catalog.db_or_create(db_name).unwrap();
         let partitioner = Partitioner::new_per_day_partitioner();
         let result = parse_validate_and_update_schema(
             lp,

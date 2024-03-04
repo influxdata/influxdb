@@ -14,7 +14,8 @@ async fn api_v3_query_sql() {
             cpu,host=s1,region=us-east usage=0.85 3",
             Precision::Nanosecond,
         )
-        .await;
+        .await
+        .unwrap();
 
     let client = reqwest::Client::new();
 
@@ -62,7 +63,8 @@ async fn api_v3_query_influxql() {
             mem,host=s1,region=us-east usage=0.7 6",
             Precision::Nanosecond,
         )
-        .await;
+        .await
+        .unwrap();
 
     struct TestCase<'a> {
         database: Option<&'a str>,
