@@ -1,6 +1,8 @@
 use arrow_flight::sql::SqlInfo;
+use arrow_flight::Ticket;
 use arrow_util::assert_batches_sorted_eq;
 use influxdb3_client::Precision;
+use test_helpers::assert_contains;
 
 use crate::collect_stream;
 use crate::TestServer;
@@ -19,7 +21,7 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
         )
         .await?;
 
-    let mut client = server.flight_client("foo").await;
+    let mut client = server.flight_sql_client("foo").await;
 
     // Ad-hoc Query:
     {
@@ -132,4 +134,89 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
     }
 
     Ok(())
+}
+
+#[tokio::test]
+async fn flight_influxql() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=s1,region=us-east usage=0.9 1\n\
+        cpu,host=s1,region=us-east usage=0.89 2\n\
+        cpu,host=s1,region=us-east usage=0.85 3",
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+    let mut client = server.flight_client().await;
+
+    // Ad-hoc query, using qualified measurement name:
+    {
+        let ticket = Ticket::new(
+            r#"{
+                    "database": "foo",
+                    "sql_query": "SELECT * FROM foo.autogen.cpu",
+                    "query_type": "influxql"
+                }"#,
+        );
+        let response = client.do_get(ticket).await.unwrap();
+
+        let batches = collect_stream(response).await;
+        assert_batches_sorted_eq!(
+            [
+                "+------------------+--------------------------------+------+---------+-------+",
+                "| iox::measurement | time                           | host | region  | usage |",
+                "+------------------+--------------------------------+------+---------+-------+",
+                "| cpu              | 1970-01-01T00:00:00.000000001Z | s1   | us-east | 0.9   |",
+                "| cpu              | 1970-01-01T00:00:00.000000002Z | s1   | us-east | 0.89  |",
+                "| cpu              | 1970-01-01T00:00:00.000000003Z | s1   | us-east | 0.85  |",
+                "+------------------+--------------------------------+------+---------+-------+",
+            ],
+            &batches
+        );
+    }
+
+    // InfluxQL-specific query to show measurements:
+    {
+        let ticket = Ticket::new(
+            r#"{
+                    "database": "foo",
+                    "sql_query": "SHOW MEASUREMENTS",
+                    "query_type": "influxql"
+                }"#,
+        );
+        let response = client.do_get(ticket).await.unwrap();
+
+        let batches = collect_stream(response).await;
+        assert_batches_sorted_eq!(
+            [
+                "+------------------+------+",
+                "| iox::measurement | name |",
+                "+------------------+------+",
+                "| measurements     | cpu  |",
+                "+------------------+------+",
+            ],
+            &batches
+        );
+    }
+
+    // An InfluxQL query that is not supported over Flight:
+    {
+        let ticket = Ticket::new(
+            r#"{
+                    "database": "foo",
+                    "sql_query": "SHOW DATABASES",
+                    "query_type": "influxql"
+                }"#,
+        );
+        let response = client.do_get(ticket).await.unwrap_err();
+
+        assert_contains!(
+            response.to_string(),
+            "This feature is not implemented: SHOW DATABASES"
+        );
+    }
 }
