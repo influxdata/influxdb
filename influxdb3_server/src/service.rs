@@ -1,3 +1,18 @@
+//! Code for generating a hybrid REST/gRPC service
+//!
+//! This module houses the [`HybridService`] which is used to serve HTTP
+//! traffic, for both a REST API and a gRPC API on the same port.
+//!
+//! This is accomplished via the [`hybrid`] method, which accepts a REST
+//! service in the form of `hyper`'s [`MakeServiceFn`][make-svc-fn], as well
+//! as a gRPC service from `tonic`, and produces a [`HybridMakeService`] that
+//! can be served with `hyper`'s [`Server`][hyper-server].
+//!
+//! Reccomended reading: [Combining Axum, Hyper, Tonic, and Tower for hybrid web/gRPC apps][article]
+//!
+//! [make-svc-fn]: https://docs.rs/hyper/0.14.28/src/hyper/service/make.rs.html#149-151
+//! [hyper-server]: https://docs.rs/hyper/0.14.28/hyper/server/struct.Server.html
+//! [article]: https://www.fpcomplete.com/blog/axum-hyper-tonic-tower-part1/
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -9,6 +24,7 @@ use tower::Service;
 
 type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
+/// Generate a [`HybridMakeService`]
 pub(crate) fn hybrid<MakeRest, Grpc>(
     make_rest: MakeRest,
     grpc: Grpc,
@@ -16,6 +32,13 @@ pub(crate) fn hybrid<MakeRest, Grpc>(
     HybridMakeService { make_rest, grpc }
 }
 
+/// A hybrid of a "make service", i.e., a service that accepts connection info and returns
+/// a service that will serve a request over that connection as its output, and a gRPC service
+///
+/// Can be used with `hyper`'s [`Server`][hyper-server] to serve both kinds of requests
+/// on a single port.
+///
+/// [hyper-server]: https://docs.rs/hyper/0.14.28/hyper/server/struct.Server.html
 pub struct HybridMakeService<MakeRest, Grpc> {
     make_rest: MakeRest,
     grpc: Grpc,
@@ -43,6 +66,7 @@ where
 }
 
 pin_project! {
+    /// A future that builds a new `Service` for serving REST requests or gRPC requests
     pub struct HybridMakeServiceFuture<RestFuture, Grpc> {
         #[pin]
         rest_future: RestFuture,
@@ -69,6 +93,7 @@ where
     }
 }
 
+/// The service that can serve both gRPC and REST HTTP Requests
 pub struct HybridService<Rest, Grpc> {
     rest: Rest,
     grpc: Grpc,
@@ -97,6 +122,9 @@ where
         }
     }
 
+    /// When calling the service, gRPC is served if the HTTP request version is HTTP/2
+    /// and if the Content-Type is "application/grpc"; otherwise, the request is served
+    /// as a REST request
     fn call(&mut self, req: Request<Body>) -> Self::Future {
         match (
             req.version(),
@@ -117,6 +145,8 @@ where
 }
 
 pin_project! {
+    /// A hybrid HTTP body that will be used in the response type for the
+    /// [`HybridFuture`], i.e., the output of the [`HybridService`]
     #[project = HybridBodyProj]
     pub enum HybridBody<RestBody, GrpcBody> {
         Rest {
@@ -169,6 +199,8 @@ where
 }
 
 pin_project! {
+    /// A future that accepts an HTTP request as input and returns an HTTP
+    /// response as output for the [`HybridService`]
     #[project = HybridFutureProj]
     pub enum HybridFuture<RestFuture, GrpcFuture> {
         Rest {
