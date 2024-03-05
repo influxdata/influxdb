@@ -2472,6 +2472,7 @@ dependencies = [
  "parking_lot",
  "parquet_file",
  "pretty_assertions",
+ "rand",
  "reqwest",
  "secrecy",
  "sha2",

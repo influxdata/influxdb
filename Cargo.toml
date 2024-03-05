@@ -70,6 +70,7 @@ pretty_assertions = "1.4.0"
 prost = "0.12.3"
 prost-build = "0.12.2"
 prost-types = "0.12.3"
+rand = "0.8.5"
 reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls"] }
 secrecy = "0.8.0"
 serde = { version = "1.0", features = ["derive"] }

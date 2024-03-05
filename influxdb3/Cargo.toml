@@ -35,6 +35,7 @@ libc.workspace = true
 num_cpus.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
+rand.workspace = true
 secrecy.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
