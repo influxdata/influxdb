@@ -22,13 +22,16 @@ use datafusion::execution::context::SessionState;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::Expr;
 use iox_query::QueryChunk;
+use iox_time::Time;
 use parquet::format::FileMetaData;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::ops::Add;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -126,19 +129,133 @@ pub trait ChunkContainer: Debug + Send + Sync + 'static {
     Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
 pub struct SegmentId(u32);
-pub type SegmentIdBytes = [u8; 4];
+
+const RANGE_KEY_TIME_FORMAT: &str = "%Y-%m-%dT%H-%M";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SegmentRange {
+    /// inclusive of this start time
+    pub start_time: Time,
+    /// exclusive of this end time
+    pub end_time: Time,
+    /// data in segment is outside this range of time
+    pub contains_data_outside_range: bool,
+}
+
+/// The duration of a segment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SegmentDuration {
+    FiveMinutes,
+    TenMinutes,
+    FifteenMinutes,
+    ThirtyMinutes,
+    OneHour,
+    TwoHours,
+    FourHours,
+}
+
+impl SegmentDuration {
+    pub fn duration_seconds(&self) -> i64 {
+        match self {
+            Self::FiveMinutes => 5 * 60,
+            Self::TenMinutes => 10 * 60,
+            Self::FifteenMinutes => 15 * 60,
+            Self::ThirtyMinutes => 30 * 60,
+            Self::OneHour => 60 * 60,
+            Self::TwoHours => 2 * 60 * 60,
+            Self::FourHours => 4 * 60 * 60,
+        }
+    }
+}
+
+impl SegmentRange {
+    /// Given the time will find the appropriate start and end time for the given duration.
+    pub fn from_time_and_duration(
+        clock_time: Time,
+        segment_duration: SegmentDuration,
+        data_outside: bool,
+    ) -> Self {
+        let duration_seconds = segment_duration.duration_seconds();
+        let timestamp_seconds = clock_time.timestamp();
+        let rounded_seconds = (timestamp_seconds / duration_seconds) * duration_seconds;
+        let rounded_dt = Time::from_timestamp(rounded_seconds, 0).unwrap();
+
+        Self {
+            start_time: rounded_dt,
+            end_time: rounded_dt.add(Duration::from_secs(duration_seconds as u64)),
+            contains_data_outside_range: data_outside,
+        }
+    }
+
+    /// Returns the string key for the segment range
+    pub fn key(&self) -> String {
+        format!(
+            "{}",
+            self.start_time.date_time().format(RANGE_KEY_TIME_FORMAT)
+        )
+    }
+
+    /// Returns a segment range for the next block of time based on the range of this segment.
+    pub fn next(&self) -> Self {
+        Self {
+            start_time: self.end_time,
+            end_time: self.end_time.add(self.duration()),
+            contains_data_outside_range: self.contains_data_outside_range,
+        }
+    }
+
+    pub fn duration(&self) -> Duration {
+        self.end_time
+            .checked_duration_since(self.start_time)
+            .unwrap()
+    }
+
+    #[cfg(test)]
+    pub fn test_range() -> Self {
+        Self {
+            start_time: Time::from_rfc3339("1970-01-01T00:00:00Z").unwrap(),
+            end_time: Time::from_rfc3339("1970-01-01T00:05:00Z").unwrap(),
+            contains_data_outside_range: false,
+        }
+    }
+}
+
+impl Serialize for SegmentRange {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let start_time = self.start_time.timestamp();
+        let end_time = self.end_time.timestamp();
+        let times = (start_time, end_time, self.contains_data_outside_range);
+        times.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SegmentRange {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let (start_time, end_time, contains_data_outside_range) =
+            <(i64, i64, bool)>::deserialize(deserializer)?;
+
+        let start_time = Time::from_timestamp(start_time, 0)
+            .ok_or_else(|| serde::de::Error::custom("start_time is not a valid timestamp"))?;
+        let end_time = Time::from_timestamp(end_time, 0)
+            .ok_or_else(|| serde::de::Error::custom("end_time is not a valid timestamp"))?;
+
+        Ok(SegmentRange {
+            start_time,
+            end_time,
+            contains_data_outside_range,
+        })
+    }
+}
 
 impl SegmentId {
     pub fn new(id: u32) -> Self {
         Self(id)
-    }
-
-    pub fn as_bytes(&self) -> SegmentIdBytes {
-        self.0.to_be_bytes()
-    }
-
-    pub fn from_bytes(bytes: SegmentIdBytes) -> Self {
-        Self(u32::from_be_bytes(bytes))
     }
 
     pub fn next(&self) -> Self {
@@ -206,7 +323,17 @@ pub trait Persister: Debug + Send + Sync + 'static {
 }
 
 pub trait Wal: Debug + Send + Sync + 'static {
-    /// Opens a writer to a segment, either creating a new file or appending to an existing file.
+    /// Opens a writer to a new segment with the given id, start time (inclusive), and end_time
+    /// (exclusive). data_outside_range specifies if data in the segment has data that is in the
+    /// provided range or outside it.
+    fn new_segment_writer(
+        &self,
+        segment_id: SegmentId,
+        range: SegmentRange,
+    ) -> wal::Result<Box<dyn WalSegmentWriter>>;
+
+    /// Opens a writer to an existing segment, reading its last sequence number and making it
+    /// ready to append new writes.
     fn open_segment_writer(&self, segment_id: SegmentId) -> wal::Result<Box<dyn WalSegmentWriter>>;
 
     /// Opens a reader to a segment file.
@@ -238,9 +365,9 @@ pub trait WalSegmentWriter: Debug + Send + Sync + 'static {
 }
 
 pub trait WalSegmentReader: Debug + Send + Sync + 'static {
-    fn id(&self) -> SegmentId;
-
     fn next_batch(&mut self) -> wal::Result<Option<WalOpBatch>>;
+
+    fn header(&self) -> &wal::SegmentHeader;
 }
 
 /// Individual WalOps get batched into the WAL asynchronously. The batch is then written to the segment file.
@@ -398,7 +525,7 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
 mod test_helpers {
     use crate::catalog::{Catalog, DatabaseSchema};
     use crate::write_buffer::buffer_segment::WriteBatch;
-    use crate::write_buffer::{parse_validate_and_update_schema, Partitioner, TableBatch};
+    use crate::write_buffer::{parse_validate_and_update_schema, TableBatch};
     use crate::Precision;
     use data_types::NamespaceName;
     use std::collections::HashMap;
@@ -411,16 +538,8 @@ mod test_helpers {
     ) -> WriteBatch {
         let mut write_batch = WriteBatch::default();
         let (seq, db) = catalog.db_or_create(db_name).unwrap();
-        let partitioner = Partitioner::new_per_day_partitioner();
-        let result = parse_validate_and_update_schema(
-            lp,
-            &db,
-            &partitioner,
-            0,
-            false,
-            Precision::Nanosecond,
-        )
-        .unwrap();
+        let result =
+            parse_validate_and_update_schema(lp, &db, 0, false, Precision::Nanosecond).unwrap();
         if let Some(db) = result.schema {
             catalog.replace_database(seq, Arc::new(db)).unwrap();
         }
@@ -431,17 +550,65 @@ mod test_helpers {
 
     pub(crate) fn lp_to_table_batches(lp: &str, default_time: i64) -> HashMap<String, TableBatch> {
         let db = Arc::new(DatabaseSchema::new("foo"));
-        let partitioner = Partitioner::new_per_day_partitioner();
-        let result = parse_validate_and_update_schema(
-            lp,
-            &db,
-            &partitioner,
-            default_time,
-            false,
-            Precision::Nanosecond,
-        )
-        .unwrap();
+        let result =
+            parse_validate_and_update_schema(lp, &db, default_time, false, Precision::Nanosecond)
+                .unwrap();
 
         result.table_batches
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn segment_range_initialization() {
+        let t = Time::from_rfc3339("2024-03-01T13:46:00Z").unwrap();
+
+        let expected = SegmentRange {
+            start_time: Time::from_rfc3339("2024-03-01T13:45:00Z").unwrap(),
+            end_time: Time::from_rfc3339("2024-03-01T14:00:00Z").unwrap(),
+            contains_data_outside_range: false,
+        };
+        let actual =
+            SegmentRange::from_time_and_duration(t, SegmentDuration::FifteenMinutes, false);
+
+        assert_eq!(expected, actual);
+
+        let expected = SegmentRange {
+            start_time: Time::from_rfc3339("2024-03-01T13:00:00Z").unwrap(),
+            end_time: Time::from_rfc3339("2024-03-01T14:00:00Z").unwrap(),
+            contains_data_outside_range: false,
+        };
+        let actual = SegmentRange::from_time_and_duration(t, SegmentDuration::OneHour, false);
+
+        assert_eq!(expected, actual);
+
+        let expected = SegmentRange {
+            start_time: Time::from_rfc3339("2024-03-01T14:00:00Z").unwrap(),
+            end_time: Time::from_rfc3339("2024-03-01T15:00:00Z").unwrap(),
+            contains_data_outside_range: false,
+        };
+
+        assert_eq!(expected, actual.next());
+
+        let expected = SegmentRange {
+            start_time: Time::from_rfc3339("2024-03-01T12:00:00Z").unwrap(),
+            end_time: Time::from_rfc3339("2024-03-01T14:00:00Z").unwrap(),
+            contains_data_outside_range: false,
+        };
+        let actual = SegmentRange::from_time_and_duration(t, SegmentDuration::TwoHours, false);
+
+        assert_eq!(expected, actual);
+
+        let expected = SegmentRange {
+            start_time: Time::from_rfc3339("2024-03-01T12:00:00Z").unwrap(),
+            end_time: Time::from_rfc3339("2024-03-01T16:00:00Z").unwrap(),
+            contains_data_outside_range: false,
+        };
+        let actual = SegmentRange::from_time_and_duration(t, SegmentDuration::FourHours, false);
+
+        assert_eq!(expected, actual);
     }
 }

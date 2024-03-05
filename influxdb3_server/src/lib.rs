@@ -230,7 +230,9 @@ mod tests {
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_write::persister::PersisterImpl;
+    use influxdb3_write::SegmentDuration;
     use iox_query::exec::{Executor, ExecutorConfig};
+    use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
@@ -271,6 +273,8 @@ mod tests {
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
+                Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+                SegmentDuration::FiveMinutes,
             )
             .await
             .unwrap(),
@@ -403,6 +407,8 @@ mod tests {
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
+                Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+                SegmentDuration::FiveMinutes,
             )
             .await
             .unwrap(),
@@ -571,6 +577,8 @@ mod tests {
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
+                Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+                SegmentDuration::FiveMinutes,
             )
             .await
             .unwrap(),

@@ -198,13 +198,14 @@ mod tests {
     use crate::test_helpers::lp_to_table_batches;
     use crate::wal::WalSegmentWriterNoopImpl;
     use crate::write_buffer::buffer_segment::OpenBufferSegment;
-    use crate::{LpWriteOp, SegmentId};
+    use crate::{LpWriteOp, SegmentId, SegmentRange};
 
     #[tokio::test]
     async fn flushes_to_open_segment() {
         let segment_id = SegmentId::new(3);
         let open_segment = OpenBufferSegment::new(
             segment_id,
+            SegmentRange::test_range(),
             SequenceNumber::new(0),
             Box::new(WalSegmentWriterNoopImpl::new(segment_id)),
             None,
@@ -247,7 +248,6 @@ mod tests {
             .open_segment
             .table_buffer(db_name.as_str(), "cpu")
             .unwrap();
-        let partition_buffer = table_buffer.partition_buffer("1970-01-01").unwrap();
-        assert_eq!(partition_buffer.row_count(), 2);
+        assert_eq!(table_buffer.row_count(), 2);
     }
 }

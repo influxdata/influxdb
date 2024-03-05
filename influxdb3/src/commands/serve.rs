@@ -14,7 +14,9 @@ use influxdb3_server::{
 use influxdb3_write::persister::PersisterImpl;
 use influxdb3_write::wal::WalImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
+use influxdb3_write::SegmentDuration;
 use iox_query::exec::{Executor, ExecutorConfig};
+use iox_time::SystemProvider;
 use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
@@ -250,8 +252,17 @@ pub async fn command(config: Config) -> Result<()> {
         .wal_directory
         .map(|dir| WalImpl::new(dir).map(Arc::new))
         .transpose()?;
-    // TODO: the next segment ID should be loaded from the persister
-    let write_buffer = Arc::new(WriteBufferImpl::new(Arc::clone(&persister), wal).await?);
+
+    let time_provider = Arc::new(SystemProvider::new());
+    let write_buffer = Arc::new(
+        WriteBufferImpl::new(
+            Arc::clone(&persister),
+            wal,
+            time_provider,
+            SegmentDuration::FiveMinutes,
+        )
+        .await?,
+    );
     let query_executor = Arc::new(QueryExecutorImpl::new(
         write_buffer.catalog(),
         Arc::clone(&write_buffer),
@@ -260,8 +271,6 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::new(config.datafusion_config),
         10,
     ));
-
-    let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
 
     let builder = ServerBuilder::new(common_state)
         .max_request_size(config.max_http_request_size)

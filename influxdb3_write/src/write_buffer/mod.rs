@@ -10,13 +10,12 @@ use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
 use crate::{
     BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister, Precision,
-    SegmentId, Wal, WalOp, WriteBuffer, WriteLineError,
+    SegmentDuration, SegmentId, Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
-use chrono::{TimeZone, Utc};
 use data_types::{
-    column_type_from_field, ChunkId, ChunkOrder, ColumnType, NamespaceName, PartitionKey, TableId,
+    column_type_from_field, ChunkId, ChunkOrder, ColumnType, NamespaceName, TableId,
     TransitionPartitionId,
 };
 use datafusion::common::{DataFusionError, Statistics};
@@ -25,6 +24,7 @@ use datafusion::logical_expr::Expr;
 use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::{QueryChunk, QueryChunkData};
+use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, info};
 use parking_lot::RwLock;
 use schema::sort::SortKey;
@@ -76,6 +76,8 @@ pub struct WriteBufferImpl<W> {
     #[allow(dead_code)]
     wal: Option<Arc<W>>,
     write_buffer_flusher: WriteBufferFlusher,
+    segment_duration: SegmentDuration,
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 #[derive(Debug)]
@@ -95,12 +97,19 @@ impl SegmentState {
 }
 
 impl<W: Wal> WriteBufferImpl<W> {
-    pub async fn new<P>(persister: Arc<P>, wal: Option<Arc<W>>) -> Result<Self>
+    pub async fn new<P>(
+        persister: Arc<P>,
+        wal: Option<Arc<W>>,
+        time_provider: Arc<dyn TimeProvider>,
+        segment_duration: SegmentDuration,
+    ) -> Result<Self>
     where
         P: Persister,
         Error: From<P::Error>,
     {
-        let loaded_state = load_starting_state(persister, wal.clone()).await?;
+        let now = time_provider.now();
+        let loaded_state =
+            load_starting_state(persister, wal.clone(), now, segment_duration).await?;
         let segment_state = Arc::new(RwLock::new(SegmentState::new(loaded_state.open_segment)));
 
         let write_buffer_flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
@@ -110,6 +119,8 @@ impl<W: Wal> WriteBufferImpl<W> {
             segment_state,
             wal,
             write_buffer_flusher,
+            time_provider,
+            segment_duration,
         })
     }
 
@@ -177,34 +188,33 @@ impl<W: Wal> WriteBufferImpl<W> {
             .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
         let schema = table.schema.clone();
 
-        let table_buffer = self
-            .clone_table_buffer(database_name, table_name)
-            .unwrap_or_default();
-
-        let mut chunks = Vec::with_capacity(table_buffer.partition_buffers.len());
-
-        for (partition_key, partition_buffer) in table_buffer.partition_buffers {
-            let partition_key: PartitionKey = partition_key.into();
-            let batch = partition_buffer.rows_to_record_batch(&schema, table.columns());
+        let chunks = if let Some(table_buffer) = self.clone_table_buffer(database_name, table_name)
+        {
+            let batch = table_buffer.rows_to_record_batch(&schema, table.columns());
             let batch_stats = create_chunk_statistics(
-                Some(partition_buffer.row_count()),
+                Some(table_buffer.row_count()),
                 &schema,
-                Some(partition_buffer.timestamp_min_max()),
+                Some(table_buffer.timestamp_min_max()),
                 None,
             );
 
-            let chunk = BufferChunk {
+            let chunk: Arc<dyn QueryChunk> = Arc::new(BufferChunk {
                 batches: vec![batch],
                 schema: schema.clone(),
                 stats: Arc::new(batch_stats),
-                partition_id: TransitionPartitionId::new(TableId::new(0), &partition_key),
+                partition_id: TransitionPartitionId::new(
+                    TableId::new(0),
+                    &table_buffer.segment_key,
+                ),
                 sort_key: None,
                 id: ChunkId::new(),
                 chunk_order: ChunkOrder::new(0),
-            };
+            });
 
-            chunks.push(Arc::new(chunk) as _);
-        }
+            vec![chunk]
+        } else {
+            vec![]
+        };
 
         Ok(chunks)
     }
@@ -221,15 +231,9 @@ impl<W: Wal> WriteBufferImpl<W> {
         let schema = table.schema.clone();
 
         let table_buffer = self.clone_table_buffer(datbase_name, table_name).unwrap();
+        let batch = table_buffer.rows_to_record_batch(&schema, table.columns());
 
-        let mut batches = Vec::with_capacity(table_buffer.partition_buffers.len());
-
-        for (_, partition_buffer) in table_buffer.partition_buffers {
-            let batch = partition_buffer.rows_to_record_batch(&schema, table.columns());
-            batches.push(batch);
-        }
-
-        batches
+        vec![batch]
     }
 }
 
@@ -343,8 +347,6 @@ impl QueryChunk for BufferChunk {
     }
 }
 
-const YEAR_MONTH_DAY_TIME_FORMAT: &str = "%Y-%m-%d";
-
 pub(crate) fn parse_validate_and_update_catalog(
     db_name: &str,
     lp: &str,
@@ -354,14 +356,8 @@ pub(crate) fn parse_validate_and_update_catalog(
     precision: Precision,
 ) -> Result<ValidationResult> {
     let (sequence, db) = catalog.db_or_create(db_name)?;
-    let mut result = parse_validate_and_update_schema(
-        lp,
-        &db,
-        &Partitioner::new_per_day_partitioner(),
-        default_time,
-        accept_partial,
-        precision,
-    )?;
+    let mut result =
+        parse_validate_and_update_schema(lp, &db, default_time, accept_partial, precision)?;
 
     if let Some(schema) = result.schema.take() {
         debug!("replacing schema for {:?}", schema);
@@ -377,7 +373,6 @@ pub(crate) fn parse_validate_and_update_catalog(
 pub(crate) fn parse_validate_and_update_schema(
     lp: &str,
     schema: &DatabaseSchema,
-    partitioner: &Partitioner,
     default_time: i64,
     accept_partial: bool,
     precision: Precision,
@@ -417,12 +412,13 @@ pub(crate) fn parse_validate_and_update_schema(
         lines.push(line);
     }
 
-    validate_or_insert_schema_and_partitions(lines, schema, partitioner, default_time, precision)
-        .map(move |mut result| {
+    validate_or_insert_schema_and_partitions(lines, schema, default_time, precision).map(
+        move |mut result| {
             result.lp_valid = valid_lines.join("\n");
             result.errors = errors;
             result
-        })
+        },
+    )
 }
 
 /// Takes parsed lines, validates their schema. If new tables or columns are defined, they
@@ -432,7 +428,6 @@ pub(crate) fn parse_validate_and_update_schema(
 pub(crate) fn validate_or_insert_schema_and_partitions(
     lines: Vec<ParsedLine<'_>>,
     schema: &DatabaseSchema,
-    partitioner: &Partitioner,
     default_time: i64,
     precision: Precision,
 ) -> Result<ValidationResult> {
@@ -454,7 +449,6 @@ pub(crate) fn validate_or_insert_schema_and_partitions(
             line,
             &mut table_batches,
             &mut schema,
-            partitioner,
             default_time,
             precision,
         )?;
@@ -482,7 +476,6 @@ fn validate_and_convert_parsed_line(
     line: ParsedLine<'_>,
     table_batches: &mut HashMap<String, TableBatch>,
     schema: &mut Cow<'_, DatabaseSchema>,
-    partitioner: &Partitioner,
     default_time: i64,
     precision: Precision,
 ) -> Result<()> {
@@ -536,8 +529,6 @@ fn validate_and_convert_parsed_line(
                 .is_none());
         }
     };
-
-    let partition_key = partitioner.partition_key_for_line(&line, default_time);
 
     // now that we've ensured all columns exist in the schema, construct the actual row and values
     // while validating the column types match.
@@ -598,13 +589,7 @@ fn validate_and_convert_parsed_line(
     });
 
     let table_batch = table_batches.entry(table_name.to_string()).or_default();
-    let partition_batch = table_batch
-        .partition_batches
-        .entry(partition_key)
-        .or_default();
-
-    // insert the row into the partition batch
-    partition_batch.rows.push(Row {
+    table_batch.rows.push(Row {
         time: time_value,
         fields: values,
     });
@@ -616,12 +601,6 @@ fn validate_and_convert_parsed_line(
 pub(crate) struct TableBatch {
     #[allow(dead_code)]
     pub(crate) name: String,
-    // map of partition key to partition batch
-    pub(crate) partition_batches: HashMap<String, PartitionBatch>,
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct PartitionBatch {
     pub(crate) rows: Vec<Row>,
 }
 
@@ -687,35 +666,6 @@ pub(crate) struct ValidationResult {
     pub(crate) lp_valid: String,
 }
 
-/// Generates the partition key for a given line or row
-#[derive(Debug)]
-pub struct Partitioner {
-    time_format: String,
-}
-
-impl Partitioner {
-    /// Create a new time based partitioner using the time format
-    pub fn new_time_partitioner(time_format: impl Into<String>) -> Self {
-        Self {
-            time_format: time_format.into(),
-        }
-    }
-
-    /// Create a new time based partitioner that partitions by day
-    pub fn new_per_day_partitioner() -> Self {
-        Self::new_time_partitioner(YEAR_MONTH_DAY_TIME_FORMAT)
-    }
-
-    /// Given a parsed line and a default time, generate the string partition key
-    pub fn partition_key_for_line(&self, line: &ParsedLine<'_>, default_time: i64) -> String {
-        let timestamp = line.timestamp.unwrap_or(default_time);
-        format!(
-            "{}",
-            Utc.timestamp_nanos(timestamp).format(&self.time_format)
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -723,23 +673,16 @@ mod tests {
     use crate::wal::WalImpl;
     use crate::{SequenceNumber, WalOpBatch};
     use arrow_util::assert_batches_eq;
+    use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
     use object_store::ObjectStore;
 
     #[test]
     fn parse_lp_into_buffer() {
         let db = Arc::new(DatabaseSchema::new("foo"));
-        let partitioner = Partitioner::new_per_day_partitioner();
         let lp = "cpu,region=west user=23.2 100\nfoo f1=1i";
-        let result = parse_validate_and_update_schema(
-            lp,
-            &db,
-            &partitioner,
-            0,
-            false,
-            Precision::Nanosecond,
-        )
-        .unwrap();
+        let result =
+            parse_validate_and_update_schema(lp, &db, 0, false, Precision::Nanosecond).unwrap();
 
         let db = result.schema.unwrap();
 
@@ -754,9 +697,16 @@ mod tests {
         let wal = WalImpl::new(dir.clone()).unwrap();
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
-        let write_buffer = WriteBufferImpl::new(Arc::clone(&persister), Some(Arc::new(wal)))
-            .await
-            .unwrap();
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(Time::MIN));
+        let segment_duration = SegmentDuration::FiveMinutes;
+        let write_buffer = WriteBufferImpl::new(
+            Arc::clone(&persister),
+            Some(Arc::new(wal)),
+            Arc::clone(&time_provider),
+            segment_duration,
+        )
+        .await
+        .unwrap();
 
         let summary = write_buffer
             .write_lp(
@@ -801,9 +751,14 @@ mod tests {
         assert_eq!(batch, expected_batch);
 
         // ensure we load state from the persister
-        let write_buffer = WriteBufferImpl::new(persister, Some(Arc::new(wal)))
-            .await
-            .unwrap();
+        let write_buffer = WriteBufferImpl::new(
+            persister,
+            Some(Arc::new(wal)),
+            time_provider,
+            segment_duration,
+        )
+        .await
+        .unwrap();
         let actual = write_buffer.get_table_record_batches("foo", "cpu");
         assert_batches_eq!(&expected, &actual);
     }
