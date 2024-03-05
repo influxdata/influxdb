@@ -177,10 +177,7 @@ pub enum Error {
     #[error("must provide only one InfluxQl statement per query")]
     InfluxqlSingleStatement,
 
-    #[error(
-        "must specify a 'database' parameter, or provide the database \
-        in the InfluxQL query"
-    )]
+    #[error("must specify a 'db' parameter, or provide the database in the InfluxQL query")]
     InfluxqlNoDatabase,
 
     #[error(
@@ -393,7 +390,7 @@ where
             self.query_executor.show_databases()?
         } else if statement.statement().is_show_retention_policies() {
             self.query_executor
-                .show_retention_policies(database.as_ref().map(|db| db.as_str()), None)
+                .show_retention_policies(database.as_deref(), None)
                 .await?
         } else {
             let Some(database) = database else {
