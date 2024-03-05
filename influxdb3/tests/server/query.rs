@@ -66,6 +66,21 @@ async fn api_v3_query_influxql() {
         .await
         .unwrap();
 
+    // write to another database for `SHOW DATABASES` and `SHOW RETENTION POLICIES`
+    server
+        .write_lp_to_db(
+            "bar",
+            "cpu,host=s1,region=us-east usage=0.9 1\n\
+            cpu,host=s1,region=us-east usage=0.89 2\n\
+            cpu,host=s1,region=us-east usage=0.85 3\n\
+            mem,host=s1,region=us-east usage=0.5 4\n\
+            mem,host=s1,region=us-east usage=0.6 5\n\
+            mem,host=s1,region=us-east usage=0.7 6",
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
     struct TestCase<'a> {
         database: Option<&'a str>,
         query: &'a str,
@@ -202,8 +217,37 @@ async fn api_v3_query_influxql() {
             expected: "+---------------+\n\
                     | iox::database |\n\
                     +---------------+\n\
+                    | bar           |\n\
                     | foo           |\n\
                     +---------------+",
+        },
+        TestCase {
+            database: None,
+            query: "SHOW RETENTION POLICIES",
+            expected: "+---------------+---------+----------+\n\
+                    | iox::database | name    | duration |\n\
+                    +---------------+---------+----------+\n\
+                    | bar           | autogen |          |\n\
+                    | foo           | autogen |          |\n\
+                    +---------------+---------+----------+",
+        },
+        TestCase {
+            database: None,
+            query: "SHOW RETENTION POLICIES ON foo",
+            expected: "+---------------+---------+----------+\n\
+                    | iox::database | name    | duration |\n\
+                    +---------------+---------+----------+\n\
+                    | foo           | autogen |          |\n\
+                    +---------------+---------+----------+",
+        },
+        TestCase {
+            database: Some("foo"),
+            query: "SHOW RETENTION POLICIES",
+            expected: "+---------------+---------+----------+\n\
+                    | iox::database | name    | duration |\n\
+                    +---------------+---------+----------+\n\
+                    | foo           | autogen |          |\n\
+                    +---------------+---------+----------+",
         },
     ];
 

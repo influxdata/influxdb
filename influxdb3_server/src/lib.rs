@@ -137,6 +137,12 @@ pub trait QueryExecutor: QueryNamespaceProvider + Debug + Send + Sync + 'static 
     ) -> Result<SendableRecordBatchStream, Self::Error>;
 
     fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error>;
+
+    async fn show_retention_policies(
+        &self,
+        database: Option<&str>,
+        span_ctx: Option<SpanContext>,
+    ) -> Result<SendableRecordBatchStream, Self::Error>;
 }
 
 #[derive(Debug)]

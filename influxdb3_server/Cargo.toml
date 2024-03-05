@@ -49,6 +49,7 @@ object_store.workspace = true
 parking_lot.workspace = true
 pin-project-lite.workspace = true
 serde.workspace = true
+serde_arrow.workspace = true
 serde_json.workspace = true
 serde_urlencoded.workspace = true
 sha2.workspace = true
