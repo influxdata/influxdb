@@ -5,7 +5,7 @@ use std::{
 };
 
 use arrow::record_batch::RecordBatch;
-use arrow_flight::decode::FlightRecordBatchStream;
+use arrow_flight::{decode::FlightRecordBatchStream, FlightClient};
 use assert_cmd::cargo::CommandCargoExt;
 use futures::TryStreamExt;
 use influxdb3_client::Precision;
@@ -58,8 +58,7 @@ impl TestServer {
     }
 
     /// Get a [`FlightSqlClient`] for making requests to the running service over gRPC
-    #[allow(dead_code)]
-    pub async fn flight_client(&self, database: &str) -> FlightSqlClient {
+    pub async fn flight_sql_client(&self, database: &str) -> FlightSqlClient {
         let channel = tonic::transport::Channel::from_shared(self.client_addr())
             .expect("create tonic channel")
             .connect()
@@ -69,6 +68,16 @@ impl TestServer {
         client.add_header("database", database).unwrap();
         client.add_header("iox-debug", "true").unwrap();
         client
+    }
+
+    /// Get a raw [`FlightClient`] for performing Flight actions directly
+    pub async fn flight_client(&self) -> FlightClient {
+        let channel = tonic::transport::Channel::from_shared(self.client_addr())
+            .expect("create tonic channel")
+            .connect()
+            .await
+            .expect("connect to gRPC client");
+        FlightClient::new(channel)
     }
 
     fn kill(&mut self) {
