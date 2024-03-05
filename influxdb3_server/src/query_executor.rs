@@ -38,6 +38,8 @@ use metric::Registry;
 use observability_deps::tracing::{debug, info, trace};
 use schema::sort::SortKey;
 use schema::Schema;
+use serde::{Deserialize, Serialize};
+use serde_arrow::schema::SchemaLike;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -149,13 +151,74 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
     }
 
     fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error> {
-        let databases = StringArray::from(self.catalog.list_databases());
+        let mut databases = self.catalog.list_databases();
+        databases.sort_unstable();
+        let databases = StringArray::from(databases);
         let schema =
             DatafusionSchema::new(vec![Field::new("iox::database", DataType::Utf8, false)]);
         let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(databases)])
             .map_err(Error::DatabasesToRecordBatch)?;
         Ok(Box::pin(MemoryStream::new(vec![batch])))
     }
+
+    async fn show_retention_policies(
+        &self,
+        database: Option<&str>,
+        span_ctx: Option<SpanContext>,
+    ) -> Result<SendableRecordBatchStream, Self::Error> {
+        let mut databases = if let Some(db) = database {
+            vec![db.to_owned()]
+        } else {
+            self.catalog.list_databases()
+        };
+        // sort them to ensure consistent order:
+        databases.sort_unstable();
+
+        let mut records = Vec::with_capacity(databases.len());
+        for database in databases {
+            let db = self
+                .db(&database, span_ctx.child_span("get database"), false)
+                .await
+                .map_err(|_| Error::DatabaseNotFound {
+                    db_name: database.to_string(),
+                })?
+                .ok_or_else(|| Error::DatabaseNotFound {
+                    db_name: database.to_string(),
+                })?;
+            let duration = db.retention_time_ns();
+            let (db_name, rp_name) = split_database_name(&database);
+            records.push(RetentionPolicyRecord {
+                database: db_name,
+                name: rp_name,
+                duration,
+            });
+        }
+
+        let fields = Vec::<Field>::from_type::<RetentionPolicyRecord>(Default::default())?;
+        let arrays = serde_arrow::to_arrow(&fields, &records)?;
+        let schema = DatafusionSchema::new(fields);
+        let batch = RecordBatch::try_new(Arc::new(schema), arrays)
+            .map_err(Error::RetentionPoliciesToRecordBatch)?;
+        Ok(Box::pin(MemoryStream::new(vec![batch])))
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RetentionPolicyRecord {
+    #[serde(rename = "iox::database")]
+    database: String,
+    name: String,
+    duration: Option<i64>,
+}
+
+const AUTOGEN_RETENTION_POLICY: &str = "autogen";
+
+fn split_database_name(db_name: &str) -> (String, String) {
+    let mut split = db_name.split('/');
+    (
+        split.next().unwrap().to_owned(),
+        split.next().unwrap_or(AUTOGEN_RETENTION_POLICY).to_owned(),
+    )
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -168,6 +231,10 @@ pub enum Error {
     ExecuteStream(#[source] DataFusionError),
     #[error("unable to compose record batches from databases: {0}")]
     DatabasesToRecordBatch(#[source] ArrowError),
+    #[error("unable to compose record batches from retention policies: {0}")]
+    RetentionPoliciesToRecordBatch(#[source] ArrowError),
+    #[error("serde_arrow error: {0}")]
+    SerdeArrow(#[from] serde_arrow::Error),
 }
 
 // This implementation is for the Flight service

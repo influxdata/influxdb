@@ -178,16 +178,16 @@ pub enum Error {
     InfluxqlSingleStatement,
 
     #[error(
-        "must specify a 'database' parameter, or provide the database\
-        in the InfluxQL query, for queries that support ON clauses"
+        "must specify a 'database' parameter, or provide the database \
+        in the InfluxQL query"
     )]
     InfluxqlNoDatabase,
 
     #[error(
-        "provided a database in both the parameters ({param_db}) and\
-        query string ({query_db}) that do not match, if providing a query\
-        with an ON clause, you can omit the 'database' parameter from your\
-        request"
+        "provided a database in both the parameters ({param_db}) and \
+        query string ({query_db}) that do not match, if providing a query \
+        that specifies the database, you can omit the 'database' parameter \
+        from your request"
     )]
     InfluxqlDatabaseMismatch { param_db: String, query_db: String },
 }
@@ -372,25 +372,32 @@ where
         if statements.len() != 1 {
             return Err(Error::InfluxqlSingleStatement);
         }
-
         let statement = statements.pop().unwrap();
+
+        let database = match (database, statement.resolve_dbrp()) {
+            (None, None) => None,
+            (None, Some(db)) | (Some(db), None) => Some(db),
+            (Some(p), Some(q)) => {
+                if p == q {
+                    Some(p)
+                } else {
+                    return Err(Error::InfluxqlDatabaseMismatch {
+                        param_db: p,
+                        query_db: q,
+                    });
+                }
+            }
+        };
 
         let stream = if statement.statement().is_show_databases() {
             self.query_executor.show_databases()?
+        } else if statement.statement().is_show_retention_policies() {
+            self.query_executor
+                .show_retention_policies(database.as_ref().map(|db| db.as_str()), None)
+                .await?
         } else {
-            let database = match (database, statement.resolve_dbrp()) {
-                (None, None) => return Err(Error::InfluxqlNoDatabase),
-                (None, Some(s)) | (Some(s), None) => s,
-                (Some(p), Some(q)) => {
-                    if p == q {
-                        p
-                    } else {
-                        return Err(Error::InfluxqlDatabaseMismatch {
-                            param_db: p,
-                            query_db: q,
-                        });
-                    }
-                }
+            let Some(database) = database else {
+                return Err(Error::InfluxqlNoDatabase);
             };
 
             self.query_executor
