@@ -152,6 +152,7 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
 
     fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error> {
         let mut databases = self.catalog.list_databases();
+        // sort them to ensure consistent order:
         databases.sort_unstable();
         let databases = StringArray::from(databases);
         let schema =
