@@ -159,9 +159,8 @@ jobs:
       - checkout
       - rust_components
       - run:
-          name: cargo test --workspace
-          command: cargo test --workspace
-
+          name: cargo test --workspace --features=limits
+          command: cargo test --workspace --features=limits
 
   # end to end tests with Heappy (heap profiling enabled)
   test_heappy:
