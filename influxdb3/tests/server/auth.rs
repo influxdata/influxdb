@@ -27,8 +27,9 @@ static COMMAND: Mutex<Option<DropCommand>> = parking_lot::const_mutex(None);
 
 #[tokio::test]
 async fn auth() {
-    const HASHED_TOKEN: &str = "784e3a542d6e29ff4b74548b24a9adb31752e15010a430dc214f7acf1a701cb9ec58bbc4b1bc6620c070e778144c8c9129d4e51e1bb5ee29f0f460fa002a1694";
-    const TOKEN: &str = "apiv3_1be71c8fd444ef4139348e551bb4beb343079b0e9f316bacccc8355ee27078abf362158f0c7fd24b840f5c6ecc38de7eadb995a7d41b312f253ac3f147ce4d6b";
+    const HASHED_TOKEN: &str =
+        "k-CL9sJ78p0n6TSnQ6z1-zfQo4Qwb8Lxl1ULQ1qwWSbRrgfbvxHd3m6t42jd46EgvJOsbuW_RCoBRXljmkoZ8g";
+    const TOKEN: &str = "apiv3_YpmcqSLB2wa5VkNbtIGvVe4BHVa4LcrhnhmTT9sEUNOpS96v_rdRR0P-81JV2xQGQ_3N3fd61xZYQc6ZTTHA2Q";
     // The binary is made before testing so we have access to it
     let bin_path = {
         let mut bin_path = env::current_exe().unwrap();

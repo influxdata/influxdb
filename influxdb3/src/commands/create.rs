@@ -1,3 +1,5 @@
+use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
+use base64::Engine as _;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use sha2::Digest;
@@ -22,7 +24,7 @@ pub fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 let mut token = String::from("apiv3_");
                 let mut key = [0u8; 64];
                 OsRng.fill_bytes(&mut key);
-                token.push_str(&hex::encode(key));
+                token.push_str(&B64.encode(key));
                 token
             };
             println!(
@@ -33,7 +35,7 @@ pub fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
                 This will grant you access to every HTTP endpoint or deny it otherwise
             ",
-                hashed = hex::encode(&Sha512::digest(&token)[..])
+                hashed = B64.encode(&Sha512::digest(&token)[..])
             );
         }
     }
