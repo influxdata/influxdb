@@ -146,7 +146,7 @@ async fn auth() {
     assert_eq!(
         client
             .get("http://127.0.0.1:8181/api/v3/query_sql?db=foo&q=select+*+from+cpu")
-            .header("Authorizon", format!("Bearer {TOKEN}"))
+            .header("auth", format!("Bearer {TOKEN}"))
             .send()
             .await
             .unwrap()
