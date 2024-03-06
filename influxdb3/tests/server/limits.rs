@@ -4,6 +4,7 @@ use influxdb3_client::Error;
 use influxdb3_client::Precision;
 
 #[tokio::test]
+#[cfg_attr(not(feature = "limits"), ignore)]
 async fn limits() -> Result<(), Error> {
     let server = TestServer::spawn().await;
 
