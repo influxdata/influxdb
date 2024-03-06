@@ -30,7 +30,7 @@ use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
 use sha2::Digest;
-use sha2::Sha256;
+use sha2::Sha512;
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::num::NonZeroI32;
@@ -516,7 +516,7 @@ where
             }
 
             // Check that the hashed token is acceptable
-            let authorized = &Sha256::digest(token)[..] == bearer_token;
+            let authorized = &Sha512::digest(token)[..] == bearer_token;
             if !authorized {
                 return Err(AuthorizationError::Unauthorized);
             }
