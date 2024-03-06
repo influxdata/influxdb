@@ -17,6 +17,36 @@ mod flight;
 mod limits;
 mod query;
 
+/// Configuration for a [`TestServer`]
+#[derive(Debug, Default)]
+pub struct TestConfig {
+    auth_token: Option<String>,
+}
+
+impl TestConfig {
+    /// Set the auth token for this [`TestServer`]
+    pub fn auth_token<S: Into<String>>(mut self, token: S) -> Self {
+        self.auth_token = Some(token.into());
+        self
+    }
+
+    /// Spawn a new [`TestServer`] with this configuration
+    ///
+    /// This will run the `influxdb3 serve` command, and bind its HTTP
+    /// address to a random port on localhost.
+    pub async fn spawn(self) -> TestServer {
+        TestServer::spawn_inner(self).await
+    }
+
+    fn as_args(&self) -> Vec<&str> {
+        let mut args = vec![];
+        if let Some(token) = &self.auth_token {
+            args.append(&mut vec!["--bearer-token", token]);
+        }
+        args
+    }
+}
+
 /// A running instance of the `influxdb3 serve` process
 pub struct TestServer {
     bind_addr: SocketAddr,
@@ -30,13 +60,22 @@ impl TestServer {
     /// This will run the `influxdb3 serve` command, and bind its HTTP
     /// address to a random port on localhost.
     pub async fn spawn() -> Self {
+        Self::spawn_inner(Default::default()).await
+    }
+
+    /// Configure a [`TestServer`] before spawning
+    pub fn configure() -> TestConfig {
+        TestConfig::default()
+    }
+
+    async fn spawn_inner(config: TestConfig) -> Self {
         let bind_addr = get_local_bind_addr();
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
         let command = command
             .arg("serve")
             .args(["--http-bind", &bind_addr.to_string()])
             .args(["--object-store", "memory"])
-            // TODO - other configuration can be passed through
+            .args(config.as_args())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
 
