@@ -29,6 +29,7 @@ influxdb3_write = { path = "../influxdb3_write" }
 
 # Crates.io dependencies
 backtrace.workspace = true
+base64.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
 hex.workspace = true
@@ -36,6 +37,7 @@ libc.workspace = true
 num_cpus.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
+rand.workspace = true
 secrecy.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
@@ -51,6 +53,7 @@ tikv-jemalloc-sys = { version = "0.5.4", optional = true, features = ["unprefixe
 
 [features]
 default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]
+limits = []
 
 azure = ["clap_blocks/azure"] # Optional Azure Object store support
 gcp = ["clap_blocks/gcp"] # Optional GCP object store support

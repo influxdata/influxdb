@@ -27,6 +27,8 @@ static COMMAND: Mutex<Option<DropCommand>> = parking_lot::const_mutex(None);
 
 #[tokio::test]
 async fn auth() {
+    const HASHED_TOKEN: &str = "5315f0c4714537843face80cca8c18e27ce88e31e9be7a5232dc4dc8444f27c0227a9bd64831d3ab58f652bd0262dd8558dd08870ac9e5c650972ce9e4259439";
+    const TOKEN: &str = "apiv3_mp75KQAhbqv0GeQXk8MPuZ3ztaLEaR5JzS8iifk1FwuroSVyXXyrJK1c4gEr1kHkmbgzDV-j3MvQpaIMVJBAiA";
     // The binary is made before testing so we have access to it
     let bin_path = {
         let mut bin_path = env::current_exe().unwrap();
@@ -41,10 +43,10 @@ async fn auth() {
                 "--object-store",
                 "memory",
                 "--bearer-token",
-                "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae", // foo as a sha256
+                HASHED_TOKEN,
             ])
-            .stderr(Stdio::null())
             .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .spawn()
             .expect("Was able to spawn a server"),
     );
@@ -62,7 +64,7 @@ async fn auth() {
     // Wait for the server to come up
     while client
         .get("http://127.0.0.1:8181/health")
-        .bearer_auth("foo")
+        .bearer_auth(TOKEN)
         .send()
         .await
         .is_err()
@@ -91,7 +93,7 @@ async fn auth() {
         client
             .post("http://127.0.0.1:8181/api/v3/write_lp?db=foo")
             .body("cpu,host=a val=1i 123")
-            .bearer_auth("foo")
+            .bearer_auth(TOKEN)
             .send()
             .await
             .unwrap()
@@ -101,7 +103,7 @@ async fn auth() {
     assert_eq!(
         client
             .get("http://127.0.0.1:8181/api/v3/query_sql?db=foo&q=select+*+from+cpu")
-            .bearer_auth("foo")
+            .bearer_auth(TOKEN)
             .send()
             .await
             .unwrap()
@@ -113,7 +115,7 @@ async fn auth() {
     assert_eq!(
         client
             .get("http://127.0.0.1:8181/api/v3/query_sql?db=foo&q=select+*+from+cpu")
-            .header("Authorization", "Bearer foo whee")
+            .header("Authorization", format!("Bearer {TOKEN} whee"))
             .send()
             .await
             .unwrap()
@@ -123,7 +125,7 @@ async fn auth() {
     assert_eq!(
         client
             .get("http://127.0.0.1:8181/api/v3/query_sql?db=foo&q=select+*+from+cpu")
-            .header("Authorization", "bearer foo")
+            .header("Authorization", format!("bearer {TOKEN}"))
             .send()
             .await
             .unwrap()
@@ -143,7 +145,7 @@ async fn auth() {
     assert_eq!(
         client
             .get("http://127.0.0.1:8181/api/v3/query_sql?db=foo&q=select+*+from+cpu")
-            .header("Authorizon", "Bearer foo")
+            .header("auth", format!("Bearer {TOKEN}"))
             .send()
             .await
             .unwrap()

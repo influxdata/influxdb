@@ -1,6 +1,11 @@
+use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
+use base64::Engine as _;
+use rand::rngs::OsRng;
+use rand::RngCore;
 use sha2::Digest;
-use sha2::Sha256;
+use sha2::Sha512;
 use std::error::Error;
+use std::str;
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
@@ -10,25 +15,28 @@ pub struct Config {
 
 #[derive(Debug, clap::Parser)]
 pub enum SubCommand {
-    Token { token: String },
+    Token,
 }
 
 pub fn command(config: Config) -> Result<(), Box<dyn Error>> {
     match config.cmd {
-        SubCommand::Token { token } => {
-            if token.is_empty() {
-                return Err("Token argument must not be empty".into());
-            }
-
+        SubCommand::Token => {
+            let token = {
+                let mut token = String::from("apiv3_");
+                let mut key = [0u8; 64];
+                OsRng.fill_bytes(&mut key);
+                token.push_str(&B64.encode(key));
+                token
+            };
             println!(
                 "\
-                Token Input: {token}\n\
-                Hashed Output: {hashed}\n\n\
+                Token: {token}\n\
+                Hashed Token: {hashed}\n\n\
                 Start the server with `influxdb3 serve --bearer-token {hashed}`\n\n\
                 HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
                 This will grant you access to every HTTP endpoint or deny it otherwise
             ",
-                hashed = hex::encode(&Sha256::digest(&token)[..])
+                hashed = hex::encode(&Sha512::digest(&token)[..])
             );
         }
     }

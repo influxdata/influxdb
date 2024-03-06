@@ -38,6 +38,7 @@ arrow-flight.workspace = true
 arrow-json.workspace = true
 arrow-schema.workspace = true
 async-trait.workspace = true
+base64.workspace = true
 bytes.workspace = true
 chrono.workspace = true
 datafusion.workspace = true
