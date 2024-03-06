@@ -5,6 +5,7 @@ use rand::RngCore;
 use sha2::Digest;
 use sha2::Sha512;
 use std::error::Error;
+use std::str;
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
@@ -35,7 +36,7 @@ pub fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
                 This will grant you access to every HTTP endpoint or deny it otherwise
             ",
-                hashed = B64.encode(&Sha512::digest(&token)[..])
+                hashed = hex::encode(&Sha512::digest(&token)[..])
             );
         }
     }

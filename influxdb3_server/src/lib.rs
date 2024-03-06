@@ -20,8 +20,6 @@ use crate::grpc::make_flight_server;
 use crate::http::route_request;
 use crate::http::HttpApi;
 use async_trait::async_trait;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
-use base64::Engine as _;
 use datafusion::execution::SendableRecordBatchStream;
 use hyper::service::service_fn;
 use influxdb3_write::{Persister, WriteBuffer};
@@ -62,8 +60,8 @@ pub enum Error {
     #[error("influxdb3_write error: {0}")]
     InfluxDB3Write(#[from] influxdb3_write::Error),
 
-    #[error("base64 decode error: {0}")]
-    Base64(#[from] base64::DecodeError),
+    #[error("from hex error: {0}")]
+    FromHex(#[from] hex::FromHexError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -90,7 +88,7 @@ impl CommonServerState {
             trace_exporter,
             trace_header_parser,
             http_addr,
-            bearer_token: bearer_token.map(|t| B64.decode(t)).transpose()?,
+            bearer_token: bearer_token.map(hex::decode).transpose()?,
         })
     }
 
