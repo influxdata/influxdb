@@ -2463,6 +2463,7 @@ dependencies = [
  "arrow-flight",
  "arrow_util",
  "assert_cmd",
+ "authz",
  "backtrace",
  "clap",
  "clap_blocks",

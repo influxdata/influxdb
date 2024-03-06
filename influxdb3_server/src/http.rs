@@ -4,7 +4,7 @@ use crate::{query_executor, QueryKind};
 use crate::{CommonServerState, QueryExecutor};
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
-use authz::http::AuthorizationHeaderExtension;
+use authz::Authorizer;
 use bytes::{Bytes, BytesMut};
 use data_types::NamespaceName;
 use datafusion::error::DataFusionError;
@@ -195,6 +195,8 @@ pub enum AuthorizationError {
     Unauthorized,
     #[error("the request was not in the form of 'Authorization: Bearer <token>'")]
     MalformedRequest,
+    #[error("requestor is forbidden from requested resource")]
+    Forbidden,
     #[error("to str error: {0}")]
     ToStr(#[from] hyper::header::ToStrError),
 }
@@ -273,34 +275,48 @@ impl Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
-pub(crate) struct HttpApi<W, Q> {
+pub(crate) struct HttpApi<W, Q, A> {
     common_state: CommonServerState,
     write_buffer: Arc<W>,
     pub(crate) query_executor: Arc<Q>,
     max_request_bytes: usize,
+    authorizer: Arc<A>,
 }
 
-impl<W, Q> HttpApi<W, Q> {
+impl<W, Q, A> HttpApi<W, Q, A> {
     pub(crate) fn new(
         common_state: CommonServerState,
         write_buffer: Arc<W>,
         query_executor: Arc<Q>,
         max_request_bytes: usize,
+        authorizer: Arc<A>,
     ) -> Self {
         Self {
             common_state,
             write_buffer,
             query_executor,
             max_request_bytes,
+            authorizer,
+        }
+    }
+
+    pub(crate) fn with_authorizer<B: Authorizer>(self, authorizer: Arc<B>) -> HttpApi<W, Q, B> {
+        HttpApi {
+            common_state: self.common_state,
+            write_buffer: self.write_buffer,
+            query_executor: self.query_executor,
+            max_request_bytes: self.max_request_bytes,
+            authorizer,
         }
     }
 }
 
-impl<W, Q> HttpApi<W, Q>
+impl<W, Q, A> HttpApi<W, Q, A>
 where
     W: WriteBuffer,
     Q: QueryExecutor,
     Error: From<<Q as QueryExecutor>::Error>,
+    A: Authorizer,
 {
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
@@ -487,44 +503,54 @@ where
         Ok(decoded_data.into())
     }
 
-    fn authorize_request(&self, req: &mut Request<Body>) -> Result<(), AuthorizationError> {
+    async fn authorize_request(&self, req: &mut Request<Body>) -> Result<(), AuthorizationError> {
         // We won't need the authorization header anymore and we don't want to accidentally log it.
         // Take it out so we can use it and not log it later by accident.
-        let auth = req.headers_mut().remove(AUTHORIZATION);
+        let auth = req
+            .headers_mut()
+            .remove(AUTHORIZATION)
+            .map(validate_auth_header)
+            .transpose()?;
 
-        if let Some(bearer_token) = self.common_state.bearer_token() {
-            let Some(header) = &auth else {
-                return Err(AuthorizationError::Unauthorized);
-            };
+        // Currently we pass an empty permissions list, but in future we may be able to derive
+        // the permissions based on the incoming request
+        let permissions = self.authorizer.permissions(auth, &[]).await?;
 
-            // Split the header value into two parts
-            let mut header = header.to_str()?.split(' ');
+        // Extend the request with the permissions, which may be useful in future
+        req.extensions_mut().insert(permissions);
 
-            // Check that the header is the 'Bearer' auth scheme
-            let bearer = header.next().ok_or(AuthorizationError::MalformedRequest)?;
-            if bearer != "Bearer" {
-                return Err(AuthorizationError::MalformedRequest);
-            }
-
-            // Get the token that we want to hash to check the request is valid
-            let token = header.next().ok_or(AuthorizationError::MalformedRequest)?;
-
-            // There should only be two parts the 'Bearer' scheme and the actual
-            // token, error otherwise
-            if header.next().is_some() {
-                return Err(AuthorizationError::MalformedRequest);
-            }
-
-            // Check that the hashed token is acceptable
-            let authorized = &Sha256::digest(token)[..] == bearer_token;
-            if !authorized {
-                return Err(AuthorizationError::Unauthorized);
-            }
-        }
-
-        req.extensions_mut()
-            .insert(AuthorizationHeaderExtension::new(auth));
         Ok(())
+    }
+}
+
+fn validate_auth_header(header: HeaderValue) -> Result<Vec<u8>, AuthorizationError> {
+    // Split the header value into two parts
+    let mut header = header.to_str()?.split(' ');
+
+    // Check that the header is the 'Bearer' auth scheme
+    let bearer = header.next().ok_or(AuthorizationError::MalformedRequest)?;
+    if bearer != "Bearer" {
+        return Err(AuthorizationError::MalformedRequest);
+    }
+
+    // Get the token that we want to hash to check the request is valid
+    let token = header.next().ok_or(AuthorizationError::MalformedRequest)?;
+
+    // There should only be two parts the 'Bearer' scheme and the actual
+    // token, error otherwise
+    if header.next().is_some() {
+        return Err(AuthorizationError::MalformedRequest);
+    }
+
+    Ok(Sha256::digest(token).to_vec())
+}
+
+impl From<authz::Error> for AuthorizationError {
+    fn from(auth_error: authz::Error) -> Self {
+        match auth_error {
+            authz::Error::Forbidden => Self::Forbidden,
+            _ => Self::Unauthorized,
+        }
     }
 }
 
@@ -691,16 +717,17 @@ pub(crate) struct WriteParams {
     pub(crate) precision: Precision,
 }
 
-pub(crate) async fn route_request<W, Q>(
-    http_server: Arc<HttpApi<W, Q>>,
+pub(crate) async fn route_request<W, Q, A>(
+    http_server: Arc<HttpApi<W, Q, A>>,
     mut req: Request<Body>,
 ) -> Result<Response<Body>, Infallible>
 where
     W: WriteBuffer,
     Q: QueryExecutor,
     Error: From<<Q as QueryExecutor>::Error>,
+    A: Authorizer,
 {
-    if let Err(e) = http_server.authorize_request(&mut req) {
+    if let Err(e) = http_server.authorize_request(&mut req).await {
         match e {
             AuthorizationError::Unauthorized => {
                 return Ok(Response::builder()
@@ -715,6 +742,12 @@ where
                         \"Authorization header was malformed and should be in the form 'Authorization: Bearer <token>'\"\
                     }"))
                     .unwrap());
+            }
+            AuthorizationError::Forbidden => {
+                return Ok(Response::builder()
+                    .status(StatusCode::FORBIDDEN)
+                    .body(Body::empty())
+                    .unwrap())
             }
             // We don't expect this to happen, but if the header is messed up
             // better to handle it then not at all
