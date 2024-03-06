@@ -12,14 +12,9 @@ pub struct ServerBuilder<W, Q, P, A> {
     authorizer: Arc<A>,
 }
 
-pub type DefaultServerBuilder =
-    ServerBuilder<NoWriteBuf, NoQueryExec, NoPersister, DefaultAuthorizer>;
-
 impl ServerBuilder<NoWriteBuf, NoQueryExec, NoPersister, DefaultAuthorizer> {
-    pub fn new(
-        common_state: CommonServerState,
-    ) -> ServerBuilder<NoWriteBuf, NoQueryExec, NoPersister, DefaultAuthorizer> {
-        ServerBuilder {
+    pub fn new(common_state: CommonServerState) -> Self {
+        Self {
             common_state,
             max_request_size: usize::MAX,
             write_buffer: NoWriteBuf,

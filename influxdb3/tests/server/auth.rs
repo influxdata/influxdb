@@ -132,31 +132,68 @@ async fn auth_grpc() {
         .await
         .unwrap();
 
-    // Spin up a FlightSQL client
-    let mut client = server.flight_sql_client("foo").await;
+    {
+        // Spin up a FlightSQL client
+        let mut client = server.flight_sql_client("foo").await;
 
-    // Make a query using the client, without providing any authorization header:
-    let error = client.query("SELECT * FROM cpu").await.unwrap_err();
-    assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
+        // Make a query using the client, without providing any authorization header:
+        let error = client.query("SELECT * FROM cpu").await.unwrap_err();
+        assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
 
-    // Set the authorization header on the client:
-    client
-        .add_header("authorization", &format!("Bearer {TOKEN}"))
-        .unwrap();
+        // Set the authorization header on the client:
+        client
+            .add_header("authorization", &format!("Bearer {TOKEN}"))
+            .unwrap();
 
-    // Make the query again, this time it should work:
-    let response = client.query("SELECT * FROM cpu").await.unwrap();
-    let batches = collect_stream(response).await;
-    assert_batches_sorted_eq!(
-        [
-            "+------+---------+--------------------------------+-------+",
-            "| host | region  | time                           | usage |",
-            "+------+---------+--------------------------------+-------+",
-            "| s1   | us-east | 1970-01-01T00:00:00.000000001Z | 0.9   |",
-            "| s1   | us-east | 1970-01-01T00:00:00.000000002Z | 0.89  |",
-            "| s1   | us-east | 1970-01-01T00:00:00.000000003Z | 0.85  |",
-            "+------+---------+--------------------------------+-------+",
-        ],
-        &batches
-    );
+        // Make the query again, this time it should work:
+        let response = client.query("SELECT * FROM cpu").await.unwrap();
+        let batches = collect_stream(response).await;
+        assert_batches_sorted_eq!(
+            [
+                "+------+---------+--------------------------------+-------+",
+                "| host | region  | time                           | usage |",
+                "+------+---------+--------------------------------+-------+",
+                "| s1   | us-east | 1970-01-01T00:00:00.000000001Z | 0.9   |",
+                "| s1   | us-east | 1970-01-01T00:00:00.000000002Z | 0.89  |",
+                "| s1   | us-east | 1970-01-01T00:00:00.000000003Z | 0.85  |",
+                "+------+---------+--------------------------------+-------+",
+            ],
+            &batches
+        );
+    }
+
+    // create some new clients that set the authorization header incorrectly to
+    // ensure errors are returned:
+
+    // mispelled "Bearer"
+    {
+        let mut client = server.flight_sql_client("foo").await;
+        client
+            .add_header("authorization", &format!("bearer {TOKEN}"))
+            .unwrap();
+        let error = client.query("SELECT * FROM cpu").await.unwrap_err();
+        assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
+    }
+
+    // invalid token, this actually gives Permission denied
+    {
+        let mut client = server.flight_sql_client("foo").await;
+        client
+            .add_header("authorization", &format!("Bearer invalid-token"))
+            .unwrap();
+        let error = client.query("SELECT * FROM cpu").await.unwrap_err();
+        assert!(
+            matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::PermissionDenied)
+        );
+    }
+
+    // mispelled header token, this also gives
+    {
+        let mut client = server.flight_sql_client("foo").await;
+        client
+            .add_header("authorizon", &format!("Bearer {TOKEN}"))
+            .unwrap();
+        let error = client.query("SELECT * FROM cpu").await.unwrap_err();
+        assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
+    }
 }
