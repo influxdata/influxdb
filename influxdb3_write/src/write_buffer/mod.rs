@@ -58,6 +58,9 @@ pub enum Error {
 
     #[error("error from persister: {0}")]
     PersisterError(#[from] crate::persister::Error),
+
+    #[error("corrupt load state: {0}")]
+    CorruptLoadState(String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -82,15 +85,19 @@ pub struct WriteBufferImpl<W> {
 
 #[derive(Debug)]
 struct SegmentState {
-    open_segment: OpenBufferSegment,
+    current_segment: OpenBufferSegment,
+    next_segment: OpenBufferSegment,
+    outside_segment: Option<OpenBufferSegment>,
     #[allow(dead_code)]
     persisting_segments: Vec<ClosedBufferSegment>,
 }
 
 impl SegmentState {
-    pub fn new(open_segment: OpenBufferSegment) -> Self {
+    pub fn new(current_segment: OpenBufferSegment, next_segment: OpenBufferSegment) -> Self {
         Self {
-            open_segment,
+            current_segment,
+            next_segment,
+            outside_segment: None,
             persisting_segments: vec![],
         }
     }
@@ -110,7 +117,10 @@ impl<W: Wal> WriteBufferImpl<W> {
         let now = time_provider.now();
         let loaded_state =
             load_starting_state(persister, wal.clone(), now, segment_duration).await?;
-        let segment_state = Arc::new(RwLock::new(SegmentState::new(loaded_state.open_segment)));
+        let segment_state = Arc::new(RwLock::new(SegmentState::new(
+            loaded_state.current_segment,
+            loaded_state.next_segment,
+        )));
 
         let write_buffer_flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
 
@@ -221,7 +231,9 @@ impl<W: Wal> WriteBufferImpl<W> {
 
     fn clone_table_buffer(&self, database_name: &str, table_name: &str) -> Option<TableBuffer> {
         let state = self.segment_state.read();
-        state.open_segment.table_buffer(database_name, table_name)
+        state
+            .current_segment
+            .table_buffer(database_name, table_name)
     }
 
     #[cfg(test)]

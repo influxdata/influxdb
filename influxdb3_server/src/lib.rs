@@ -232,6 +232,7 @@ mod tests {
     use influxdb3_write::persister::PersisterImpl;
     use influxdb3_write::SegmentDuration;
     use iox_query::exec::{Executor, ExecutorConfig};
+    use iox_time::SystemProvider;
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};

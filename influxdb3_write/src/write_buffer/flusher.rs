@@ -137,7 +137,7 @@ async fn run_wal_op_buffer(
 
                 let res = match io_flush_notify_rx.recv().expect("wal io thread is dead") {
                   Ok(sequence_number) => {
-                    let open_segment = &mut segment_state.write().open_segment;
+                    let open_segment = &mut segment_state.write().current_segment;
 
                         match open_segment.buffer_writes(write_batch) {
                             Ok(buffer_size) => BufferedWriteResult::Success(WriteSummary {
@@ -186,7 +186,7 @@ fn run_io_flush(
         };
 
         let mut state = segment_state.write();
-        let res = state.open_segment.write_batch(batch);
+        let res = state.current_segment.write_batch(batch);
 
         buffer_notify.send(res).expect("buffer flusher is dead");
     }
@@ -210,7 +210,17 @@ mod tests {
             Box::new(WalSegmentWriterNoopImpl::new(segment_id)),
             None,
         );
-        let segment_state = Arc::new(RwLock::new(SegmentState::new(open_segment)));
+        let next_segment_id = segment_id.next();
+        let next_segment_range = SegmentRange::test_range().next();
+
+        let next_segment = OpenBufferSegment::new(
+            next_segment_id,
+            next_segment_range,
+            SequenceNumber::new(0),
+            Box::new(WalSegmentWriterNoopImpl::new(next_segment_id)),
+            None,
+        );
+        let segment_state = Arc::new(RwLock::new(SegmentState::new(open_segment, next_segment)));
         let flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
 
         let db_name = NamespaceName::new("db1").unwrap();
@@ -242,10 +252,10 @@ mod tests {
         assert_eq!(write_summary.sequence_number, SequenceNumber::new(2));
 
         let state = segment_state.read();
-        assert_eq!(state.open_segment.segment_id(), segment_id);
+        assert_eq!(state.current_segment.segment_id(), segment_id);
 
         let table_buffer = state
-            .open_segment
+            .current_segment
             .table_buffer(db_name.as_str(), "cpu")
             .unwrap();
         assert_eq!(table_buffer.row_count(), 2);

@@ -79,6 +79,9 @@ pub enum Error {
 
     #[error("file exists: {0}")]
     FileExists(PathBuf),
+
+    #[error("file doens't exist: {0}")]
+    FileDoesntExist(PathBuf),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -188,7 +191,7 @@ impl Wal for WalImpl {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct SegmentHeader {
     pub id: SegmentId,
     pub range: SegmentRange,
@@ -259,10 +262,7 @@ impl WalSegmentWriterImpl {
                 buffer: Vec::with_capacity(8 * 1204), // 8kiB initial size
             });
         } else {
-            return Err(Error::InvalidSegmentFile {
-                path: path.to_path_buf(),
-                reason: "file doesn't exist".to_string(),
-            });
+            return Err(Error::FileDoesntExist(path.to_path_buf()));
         }
     }
 
@@ -451,7 +451,10 @@ impl WalSegmentReaderImpl {
                 bytes_written,
             }))
         } else {
-            Ok(None)
+            Ok(Some(ExistingSegmentFileInfo {
+                last_sequence_number: SequenceNumber::new(0),
+                bytes_written,
+            }))
         }
     }
 
