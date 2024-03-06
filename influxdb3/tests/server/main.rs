@@ -20,13 +20,17 @@ mod query;
 /// Configuration for a [`TestServer`]
 #[derive(Debug, Default)]
 pub struct TestConfig {
-    auth_token: Option<String>,
+    auth_token: Option<(String, String)>,
 }
 
 impl TestConfig {
     /// Set the auth token for this [`TestServer`]
-    pub fn auth_token<S: Into<String>>(mut self, token: S) -> Self {
-        self.auth_token = Some(token.into());
+    pub fn auth_token<S: Into<String>, R: Into<String>>(
+        mut self,
+        hashed_token: S,
+        raw_token: R,
+    ) -> Self {
+        self.auth_token = Some((hashed_token.into(), raw_token.into()));
         self
     }
 
@@ -40,7 +44,7 @@ impl TestConfig {
 
     fn as_args(&self) -> Vec<&str> {
         let mut args = vec![];
-        if let Some(token) = &self.auth_token {
+        if let Some((token, _)) = &self.auth_token {
             args.append(&mut vec!["--bearer-token", token]);
         }
         args
@@ -49,6 +53,7 @@ impl TestConfig {
 
 /// A running instance of the `influxdb3 serve` process
 pub struct TestServer {
+    config: TestConfig,
     bind_addr: SocketAddr,
     server_process: Child,
     http_client: reqwest::Client,
@@ -82,6 +87,7 @@ impl TestServer {
         let server_process = command.spawn().expect("spawn the influxdb3 server process");
 
         let server = Self {
+            config,
             bind_addr,
             server_process,
             http_client: reqwest::Client::new(),
@@ -150,7 +156,10 @@ impl TestServer {
         lp: impl ToString,
         precision: Precision,
     ) -> Result<(), influxdb3_client::Error> {
-        let client = influxdb3_client::Client::new(self.client_addr()).unwrap();
+        let mut client = influxdb3_client::Client::new(self.client_addr()).unwrap();
+        if let Some((_, token)) = &self.config.auth_token {
+            client = client.with_auth_token(token);
+        }
         client
             .api_v3_write_lp(database)
             .body(lp.to_string())

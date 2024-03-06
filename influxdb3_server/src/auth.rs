@@ -1,5 +1,7 @@
 use async_trait::async_trait;
 use authz::{Authorizer, Error, Permission};
+use observability_deps::tracing::{debug, warn};
+use sha2::{Digest, Sha512};
 
 #[derive(Debug)]
 pub struct AllOrNothingAuthorizer {
@@ -19,10 +21,12 @@ impl Authorizer for AllOrNothingAuthorizer {
         token: Option<Vec<u8>>,
         perms: &[Permission],
     ) -> Result<Vec<Permission>, Error> {
+        debug!(?perms, "requesting permissions");
         let Some(provided) = token.as_deref() else {
             return Err(Error::NoToken);
         };
-        if provided == self.token.as_slice() {
+        if Sha512::digest(provided)[..] == self.token {
+            warn!("invalid token provided");
             Ok(perms.to_vec())
         } else {
             Err(Error::InvalidToken)

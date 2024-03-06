@@ -29,8 +29,6 @@ use observability_deps::tracing::{debug, error, info};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
-use sha2::Digest;
-use sha2::Sha512;
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::num::NonZeroI32;
@@ -542,7 +540,7 @@ fn validate_auth_header(header: HeaderValue) -> Result<Vec<u8>, AuthorizationErr
         return Err(AuthorizationError::MalformedRequest);
     }
 
-    Ok(Sha512::digest(token).to_vec())
+    Ok(token.as_bytes().to_vec())
 }
 
 impl From<authz::Error> for AuthorizationError {
