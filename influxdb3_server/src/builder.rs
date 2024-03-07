@@ -33,7 +33,7 @@ impl<W, Q, P> ServerBuilder<W, Q, P> {
         self
     }
 
-    pub fn authorizer(mut self, a: Arc<dyn Authorizer>) -> ServerBuilder<W, Q, P> {
+    pub fn authorizer(mut self, a: Arc<dyn Authorizer>) -> Self {
         self.authorizer = a;
         self
     }
