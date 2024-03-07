@@ -125,8 +125,8 @@ async fn auth_grpc() {
         .write_lp_to_db(
             "foo",
             "cpu,host=s1,region=us-east usage=0.9 1\n\
-        cpu,host=s1,region=us-east usage=0.89 2\n\
-        cpu,host=s1,region=us-east usage=0.85 3",
+            cpu,host=s1,region=us-east usage=0.89 2\n\
+            cpu,host=s1,region=us-east usage=0.85 3",
             Precision::Nanosecond,
         )
         .await
@@ -162,10 +162,10 @@ async fn auth_grpc() {
         );
     }
 
-    // create some new clients that set the authorization header incorrectly to
+    // Create some new clients that set the authorization header incorrectly to
     // ensure errors are returned:
 
-    // mispelled "Bearer"
+    // Mispelled "Bearer"
     {
         let mut client = server.flight_sql_client("foo").await;
         client
@@ -175,7 +175,7 @@ async fn auth_grpc() {
         assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
     }
 
-    // invalid token, this actually gives Permission denied
+    // Invalid token, this actually gives Permission denied
     {
         let mut client = server.flight_sql_client("foo").await;
         client
@@ -187,7 +187,7 @@ async fn auth_grpc() {
         );
     }
 
-    // mispelled header token, this also gives
+    // Mispelled header key
     {
         let mut client = server.flight_sql_client("foo").await;
         client

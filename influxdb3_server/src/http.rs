@@ -297,16 +297,6 @@ impl<W, Q, A> HttpApi<W, Q, A> {
             authorizer,
         }
     }
-
-    pub(crate) fn with_authorizer<B: Authorizer>(self, authorizer: Arc<B>) -> HttpApi<W, Q, B> {
-        HttpApi {
-            common_state: self.common_state,
-            write_buffer: self.write_buffer,
-            query_executor: self.query_executor,
-            max_request_bytes: self.max_request_bytes,
-            authorizer,
-        }
-    }
 }
 
 impl<W, Q, A> HttpApi<W, Q, A>

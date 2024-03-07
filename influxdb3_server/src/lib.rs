@@ -22,7 +22,6 @@ use crate::grpc::make_flight_server;
 use crate::http::route_request;
 use crate::http::HttpApi;
 use async_trait::async_trait;
-use auth::DefaultAuthorizer;
 use authz::Authorizer;
 use datafusion::execution::SendableRecordBatchStream;
 use hyper::service::service_fn;
@@ -180,20 +179,6 @@ where
     }
 }
 
-impl<W, Q, P> Server<W, Q, P, DefaultAuthorizer> {
-    pub fn with_authorizer<A: Authorizer>(self, authorizer: Arc<A>) -> Server<W, Q, P, A> {
-        let http = Arc::into_inner(self.http)
-            .expect("no other references to HttpApi")
-            .with_authorizer(Arc::clone(&authorizer));
-        Server {
-            common_state: self.common_state,
-            http: Arc::new(http),
-            persister: self.persister,
-            authorizer,
-        }
-    }
-}
-
 impl<W, Q, P, A> Server<W, Q, P, A> {
     pub fn authorizer(&self) -> Arc<A> {
         Arc::clone(&self.authorizer)
@@ -341,13 +326,6 @@ mod tests {
             .persister(Arc::clone(&persister))
             .authorizer(Arc::new(DefaultAuthorizer))
             .build();
-        // let server = crate::Server::new(
-        //     common_state,
-        //     persister,
-        //     Arc::clone(&write_buffer),
-        //     Arc::new(query_executor),
-        //     usize::MAX,
-        // );
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
 

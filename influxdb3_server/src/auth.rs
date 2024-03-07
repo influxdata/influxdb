@@ -3,6 +3,8 @@ use authz::{Authorizer, Error, Permission};
 use observability_deps::tracing::{debug, warn};
 use sha2::{Digest, Sha512};
 
+/// An [`Authorizer`] implementation that will grant access to all
+/// requests that provide `token`
 #[derive(Debug)]
 pub struct AllOrNothingAuthorizer {
     token: Vec<u8>,
@@ -38,6 +40,7 @@ impl Authorizer for AllOrNothingAuthorizer {
     }
 }
 
+/// The defult [`Authorizer`] implementation that will authorize all requests
 #[derive(Debug)]
 pub struct DefaultAuthorizer;
 
