@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
 	"github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
@@ -137,6 +138,12 @@ func (s *Store) validateArgs(orgID, bucketID uint64, start, end int64) (string, 
 		return "", "", 0, 0, errors.New("invalid retention policy")
 	}
 
+	if start <= models.MinNanoTime {
+		start = models.MinNanoTime
+	}
+	if end >= models.MaxNanoTime {
+		end = models.MaxNanoTime
+	}
 	return database, rp, start, end, nil
 }
 
