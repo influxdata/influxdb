@@ -179,7 +179,7 @@ async fn auth_grpc() {
     {
         let mut client = server.flight_sql_client("foo").await;
         client
-            .add_header("authorization", &format!("Bearer invalid-token"))
+            .add_header("authorization", "Bearer invalid-token")
             .unwrap();
         let error = client.query("SELECT * FROM cpu").await.unwrap_err();
         assert!(
