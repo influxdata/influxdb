@@ -273,21 +273,21 @@ impl Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
-pub(crate) struct HttpApi<W, Q, A> {
+pub(crate) struct HttpApi<W, Q> {
     common_state: CommonServerState,
     write_buffer: Arc<W>,
     pub(crate) query_executor: Arc<Q>,
     max_request_bytes: usize,
-    authorizer: Arc<A>,
+    authorizer: Arc<dyn Authorizer>,
 }
 
-impl<W, Q, A> HttpApi<W, Q, A> {
+impl<W, Q> HttpApi<W, Q> {
     pub(crate) fn new(
         common_state: CommonServerState,
         write_buffer: Arc<W>,
         query_executor: Arc<Q>,
         max_request_bytes: usize,
-        authorizer: Arc<A>,
+        authorizer: Arc<dyn Authorizer>,
     ) -> Self {
         Self {
             common_state,
@@ -299,12 +299,11 @@ impl<W, Q, A> HttpApi<W, Q, A> {
     }
 }
 
-impl<W, Q, A> HttpApi<W, Q, A>
+impl<W, Q> HttpApi<W, Q>
 where
     W: WriteBuffer,
     Q: QueryExecutor,
     Error: From<<Q as QueryExecutor>::Error>,
-    A: Authorizer,
 {
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
@@ -705,15 +704,14 @@ pub(crate) struct WriteParams {
     pub(crate) precision: Precision,
 }
 
-pub(crate) async fn route_request<W, Q, A>(
-    http_server: Arc<HttpApi<W, Q, A>>,
+pub(crate) async fn route_request<W, Q>(
+    http_server: Arc<HttpApi<W, Q>>,
     mut req: Request<Body>,
 ) -> Result<Response<Body>, Infallible>
 where
     W: WriteBuffer,
     Q: QueryExecutor,
     Error: From<<Q as QueryExecutor>::Error>,
-    A: Authorizer,
 {
     if let Err(e) = http_server.authorize_request(&mut req).await {
         match e {

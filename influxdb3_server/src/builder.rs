@@ -1,18 +1,20 @@
 use std::sync::Arc;
 
+use authz::Authorizer;
+
 use crate::{auth::DefaultAuthorizer, http::HttpApi, CommonServerState, Server};
 
 #[derive(Debug)]
-pub struct ServerBuilder<W, Q, P, A> {
+pub struct ServerBuilder<W, Q, P> {
     common_state: CommonServerState,
     max_request_size: usize,
     write_buffer: W,
     query_executor: Q,
     persister: P,
-    authorizer: Arc<A>,
+    authorizer: Arc<dyn Authorizer>,
 }
 
-impl ServerBuilder<NoWriteBuf, NoQueryExec, NoPersister, DefaultAuthorizer> {
+impl ServerBuilder<NoWriteBuf, NoQueryExec, NoPersister> {
     pub fn new(common_state: CommonServerState) -> Self {
         Self {
             common_state,
@@ -25,27 +27,15 @@ impl ServerBuilder<NoWriteBuf, NoQueryExec, NoPersister, DefaultAuthorizer> {
     }
 }
 
-impl<W, Q, P, A> ServerBuilder<W, Q, P, A> {
-    pub fn max_request_size(self, max_request_size: usize) -> Self {
-        Self {
-            common_state: self.common_state,
-            max_request_size,
-            write_buffer: self.write_buffer,
-            query_executor: self.query_executor,
-            persister: self.persister,
-            authorizer: self.authorizer,
-        }
+impl<W, Q, P> ServerBuilder<W, Q, P> {
+    pub fn max_request_size(mut self, max_request_size: usize) -> Self {
+        self.max_request_size = max_request_size;
+        self
     }
 
-    pub fn authorizer<B>(self, a: Arc<B>) -> ServerBuilder<W, Q, P, B> {
-        ServerBuilder {
-            common_state: self.common_state,
-            max_request_size: self.max_request_size,
-            write_buffer: self.write_buffer,
-            query_executor: self.query_executor,
-            persister: self.persister,
-            authorizer: a,
-        }
+    pub fn authorizer(mut self, a: Arc<dyn Authorizer>) -> ServerBuilder<W, Q, P> {
+        self.authorizer = a;
+        self
     }
 }
 
@@ -62,8 +52,8 @@ pub struct NoPersister;
 #[derive(Debug)]
 pub struct WithPersister<P>(Arc<P>);
 
-impl<Q, P, A> ServerBuilder<NoWriteBuf, Q, P, A> {
-    pub fn write_buffer<W>(self, wb: Arc<W>) -> ServerBuilder<WithWriteBuf<W>, Q, P, A> {
+impl<Q, P> ServerBuilder<NoWriteBuf, Q, P> {
+    pub fn write_buffer<W>(self, wb: Arc<W>) -> ServerBuilder<WithWriteBuf<W>, Q, P> {
         ServerBuilder {
             common_state: self.common_state,
             max_request_size: self.max_request_size,
@@ -75,8 +65,8 @@ impl<Q, P, A> ServerBuilder<NoWriteBuf, Q, P, A> {
     }
 }
 
-impl<W, P, A> ServerBuilder<W, NoQueryExec, P, A> {
-    pub fn query_executor<Q>(self, qe: Arc<Q>) -> ServerBuilder<W, WithQueryExec<Q>, P, A> {
+impl<W, P> ServerBuilder<W, NoQueryExec, P> {
+    pub fn query_executor<Q>(self, qe: Arc<Q>) -> ServerBuilder<W, WithQueryExec<Q>, P> {
         ServerBuilder {
             common_state: self.common_state,
             max_request_size: self.max_request_size,
@@ -88,8 +78,8 @@ impl<W, P, A> ServerBuilder<W, NoQueryExec, P, A> {
     }
 }
 
-impl<W, Q, A> ServerBuilder<W, Q, NoPersister, A> {
-    pub fn persister<P>(self, p: Arc<P>) -> ServerBuilder<W, Q, WithPersister<P>, A> {
+impl<W, Q> ServerBuilder<W, Q, NoPersister> {
+    pub fn persister<P>(self, p: Arc<P>) -> ServerBuilder<W, Q, WithPersister<P>> {
         ServerBuilder {
             common_state: self.common_state,
             max_request_size: self.max_request_size,
@@ -101,8 +91,8 @@ impl<W, Q, A> ServerBuilder<W, Q, NoPersister, A> {
     }
 }
 
-impl<W, Q, P, A> ServerBuilder<WithWriteBuf<W>, WithQueryExec<Q>, WithPersister<P>, A> {
-    pub fn build(self) -> Server<W, Q, P, A> {
+impl<W, Q, P> ServerBuilder<WithWriteBuf<W>, WithQueryExec<Q>, WithPersister<P>> {
+    pub fn build(self) -> Server<W, Q, P> {
         let persister = Arc::clone(&self.persister.0);
         let authorizer = Arc::clone(&self.authorizer);
         let http = Arc::new(HttpApi::new(
