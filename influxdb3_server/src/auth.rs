@@ -24,9 +24,7 @@ impl Authorizer for AllOrNothingAuthorizer {
         perms: &[Permission],
     ) -> Result<Vec<Permission>, Error> {
         debug!(?perms, "requesting permissions");
-        let Some(provided) = token.as_deref() else {
-            return Err(Error::NoToken);
-        };
+        let provided = token.as_deref().ok_or(Error::NoToken)?;
         if Sha512::digest(provided)[..] == self.token {
             warn!("invalid token provided");
             Ok(perms.to_vec())

@@ -17,11 +17,15 @@ async fn auth() {
 
     let client = reqwest::Client::new();
     let base = server.client_addr();
+    let write_lp_url = format!("{base}/api/v3/write_lp");
+    let write_lp_params = [("db", "foo")];
+    let query_sql_url = format!("{base}/api/v3/query_sql");
+    let query_sql_params = [("db", "foo"), ("q", "select * from cpu")];
 
     assert_eq!(
         client
-            .post(format!("{base}/api/v3/write_lp"))
-            .query(&[("db", "foo")])
+            .post(&write_lp_url)
+            .query(&write_lp_params)
             .body("cpu,host=a val=1i 123")
             .send()
             .await
@@ -31,8 +35,8 @@ async fn auth() {
     );
     assert_eq!(
         client
-            .get(format!("{base}/api/v3/query_sql"))
-            .query(&[("db", "foo"), ("q", "select * from cpu")])
+            .get(&query_sql_url)
+            .query(&query_sql_params)
             .send()
             .await
             .unwrap()
@@ -41,8 +45,8 @@ async fn auth() {
     );
     assert_eq!(
         client
-            .post(format!("{base}/api/v3/write_lp"))
-            .query(&[("db", "foo")])
+            .post(&write_lp_url)
+            .query(&write_lp_params)
             .body("cpu,host=a val=1i 123")
             .bearer_auth(TOKEN)
             .send()
@@ -53,8 +57,8 @@ async fn auth() {
     );
     assert_eq!(
         client
-            .get(format!("{base}/api/v3/query_sql"))
-            .query(&[("db", "foo"), ("q", "select * from cpu")])
+            .get(&query_sql_url)
+            .query(&query_sql_params)
             .bearer_auth(TOKEN)
             .send()
             .await
@@ -66,8 +70,8 @@ async fn auth() {
     // Test that there is an extra string after the token foo
     assert_eq!(
         client
-            .get(format!("{base}/api/v3/query_sql"))
-            .query(&[("db", "foo"), ("q", "select * from cpu")])
+            .get(&query_sql_url)
+            .query(&query_sql_params)
             .header("Authorization", format!("Bearer {TOKEN} whee"))
             .send()
             .await
@@ -77,8 +81,8 @@ async fn auth() {
     );
     assert_eq!(
         client
-            .get(format!("{base}/api/v3/query_sql"))
-            .query(&[("db", "foo"), ("q", "select * from cpu")])
+            .get(&query_sql_url)
+            .query(&query_sql_params)
             .header("Authorization", format!("bearer {TOKEN}"))
             .send()
             .await
@@ -88,8 +92,8 @@ async fn auth() {
     );
     assert_eq!(
         client
-            .get(format!("{base}/api/v3/query_sql"))
-            .query(&[("db", "foo"), ("q", "select * from cpu")])
+            .get(&query_sql_url)
+            .query(&query_sql_params)
             .header("Authorization", "Bearer")
             .send()
             .await
@@ -99,8 +103,8 @@ async fn auth() {
     );
     assert_eq!(
         client
-            .get(format!("{base}/api/v3/query_sql"))
-            .query(&[("db", "foo"), ("q", "select * from cpu")])
+            .get(&query_sql_url)
+            .query(&query_sql_params)
             .header("auth", format!("Bearer {TOKEN}"))
             .send()
             .await
@@ -132,17 +136,14 @@ async fn auth_grpc() {
         .await
         .unwrap();
 
-    {
+    // Check that with a valid authorization header, it succeeds:
+    for header in ["authorization", "Authorization"] {
         // Spin up a FlightSQL client
         let mut client = server.flight_sql_client("foo").await;
 
-        // Make a query using the client, without providing any authorization header:
-        let error = client.query("SELECT * FROM cpu").await.unwrap_err();
-        assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
-
         // Set the authorization header on the client:
         client
-            .add_header("authorization", &format!("Bearer {TOKEN}"))
+            .add_header(header, &format!("Bearer {TOKEN}"))
             .unwrap();
 
         // Make the query again, this time it should work:
@@ -160,6 +161,14 @@ async fn auth_grpc() {
             ],
             &batches
         );
+    }
+
+    // Check that without providing an Authentication header, it gives back
+    // an Unauthenticated error:
+    {
+        let mut client = server.flight_sql_client("foo").await;
+        let error = client.query("SELECT * FROM cpu").await.unwrap_err();
+        assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
     }
 
     // Create some new clients that set the authorization header incorrectly to
@@ -191,7 +200,7 @@ async fn auth_grpc() {
     {
         let mut client = server.flight_sql_client("foo").await;
         client
-            .add_header("authorizon", &format!("Bearer {TOKEN}"))
+            .add_header("auth", &format!("Bearer {TOKEN}"))
             .unwrap();
         let error = client.query("SELECT * FROM cpu").await.unwrap_err();
         assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));

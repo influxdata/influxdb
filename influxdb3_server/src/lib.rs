@@ -215,7 +215,6 @@ where
 
     let grpc_service = trace_layer.clone().layer(make_flight_server(
         Arc::clone(&server.http.query_executor),
-        // TODO - need to configure authz here:
         Some(server.authorizer()),
     ));
     let rest_service = hyper::service::make_service_fn(|_| {
