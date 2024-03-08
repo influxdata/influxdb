@@ -2469,6 +2469,7 @@ dependencies = [
  "arrow-flight",
  "arrow_util",
  "assert_cmd",
+ "authz",
  "backtrace",
  "base64 0.22.0",
  "clap",

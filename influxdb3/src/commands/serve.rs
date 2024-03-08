@@ -7,7 +7,10 @@ use clap_blocks::{
     object_store::{make_object_store, ObjectStoreConfig},
     socket_addr::SocketAddr,
 };
-use influxdb3_server::{query_executor::QueryExecutorImpl, serve, CommonServerState, Server};
+use influxdb3_server::{
+    auth::AllOrNothingAuthorizer, builder::ServerBuilder, query_executor::QueryExecutorImpl, serve,
+    CommonServerState,
+};
 use influxdb3_write::persister::PersisterImpl;
 use influxdb3_write::wal::WalImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
@@ -51,6 +54,9 @@ pub enum Error {
 
     #[error("Write buffer error: {0}")]
     WriteBuffer(#[from] influxdb3_write::write_buffer::Error),
+
+    #[error("invalid token: {0}")]
+    InvalidToken(#[from] hex::FromHexError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -238,32 +244,38 @@ pub async fn command(config: Config) -> Result<()> {
         trace_exporter,
         trace_header_parser,
         *config.http_bind_address,
-        config.bearer_token,
     )?;
-    let persister = PersisterImpl::new(Arc::clone(&object_store));
+    let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
     let wal: Option<Arc<WalImpl>> = config
         .wal_directory
         .map(|dir| WalImpl::new(dir).map(Arc::new))
         .transpose()?;
     // TODO: the next segment ID should be loaded from the persister
-    let write_buffer = Arc::new(WriteBufferImpl::new(Arc::new(persister), wal).await?);
-    let query_executor = QueryExecutorImpl::new(
+    let write_buffer = Arc::new(WriteBufferImpl::new(Arc::clone(&persister), wal).await?);
+    let query_executor = Arc::new(QueryExecutorImpl::new(
         write_buffer.catalog(),
         Arc::clone(&write_buffer),
         Arc::clone(&exec),
         Arc::clone(&metrics),
         Arc::new(config.datafusion_config),
         10,
-    );
+    ));
 
     let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
-    let server = Server::new(
-        common_state,
-        persister,
-        Arc::clone(&write_buffer),
-        Arc::new(query_executor),
-        config.max_http_request_size,
-    );
+
+    let builder = ServerBuilder::new(common_state)
+        .max_request_size(config.max_http_request_size)
+        .write_buffer(write_buffer)
+        .query_executor(query_executor)
+        .persister(persister);
+
+    let server = if let Some(token) = config.bearer_token.map(hex::decode).transpose()? {
+        builder
+            .authorizer(Arc::new(AllOrNothingAuthorizer::new(token)))
+            .build()
+    } else {
+        builder.build()
+    };
     serve(server, frontend_shutdown).await?;
 
     Ok(())

@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 # Core Crates
+authz.workspace = true
 clap_blocks.workspace = true
 iox_query.workspace = true
 iox_time.workspace = true
