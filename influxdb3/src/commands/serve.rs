@@ -269,15 +269,14 @@ pub async fn command(config: Config) -> Result<()> {
         .query_executor(query_executor)
         .persister(persister);
 
-    if let Some(token) = config.bearer_token.map(hex::decode).transpose()? {
-        let server = builder
+    let server = if let Some(token) = config.bearer_token.map(hex::decode).transpose()? {
+        builder
             .authorizer(Arc::new(AllOrNothingAuthorizer::new(token)))
-            .build();
-        serve(server, frontend_shutdown).await?;
+            .build()
     } else {
-        let server = builder.build();
-        serve(server, frontend_shutdown).await?;
-    }
+        builder.build()
+    };
+    serve(server, frontend_shutdown).await?;
 
     Ok(())
 }

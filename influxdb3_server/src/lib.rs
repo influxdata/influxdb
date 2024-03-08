@@ -113,11 +113,11 @@ impl CommonServerState {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct Server<W, Q, P, A> {
+pub struct Server<W, Q, P> {
     common_state: CommonServerState,
-    http: Arc<HttpApi<W, Q, A>>,
+    http: Arc<HttpApi<W, Q>>,
     persister: Arc<P>,
-    authorizer: Arc<A>,
+    authorizer: Arc<dyn Authorizer>,
 }
 
 #[async_trait]
@@ -148,53 +148,18 @@ pub enum QueryKind {
     InfluxQl,
 }
 
-impl<W, Q, P, A> Server<W, Q, P, A>
-where
-    Q: QueryExecutor,
-    P: Persister,
-    A: Authorizer,
-{
-    pub fn new(
-        common_state: CommonServerState,
-        persister: Arc<P>,
-        write_buffer: Arc<W>,
-        query_executor: Arc<Q>,
-        max_http_request_size: usize,
-        authorizer: Arc<A>,
-    ) -> Self {
-        let http = Arc::new(HttpApi::new(
-            common_state.clone(),
-            Arc::clone(&write_buffer),
-            Arc::clone(&query_executor),
-            max_http_request_size,
-            Arc::clone(&authorizer),
-        ));
-
-        Self {
-            common_state,
-            http,
-            persister,
-            authorizer,
-        }
-    }
-}
-
-impl<W, Q, P, A> Server<W, Q, P, A> {
-    pub fn authorizer(&self) -> Arc<A> {
+impl<W, Q, P> Server<W, Q, P> {
+    pub fn authorizer(&self) -> Arc<dyn Authorizer> {
         Arc::clone(&self.authorizer)
     }
 }
 
-pub async fn serve<W, Q, P, A>(
-    server: Server<W, Q, P, A>,
-    shutdown: CancellationToken,
-) -> Result<()>
+pub async fn serve<W, Q, P>(server: Server<W, Q, P>, shutdown: CancellationToken) -> Result<()>
 where
     W: WriteBuffer,
     Q: QueryExecutor,
     http::Error: From<<Q as QueryExecutor>::Error>,
     P: Persister,
-    A: Authorizer + 'static,
 {
     // TODO:
     //  1. load the persisted catalog and segments from the persister
