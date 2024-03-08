@@ -240,8 +240,8 @@ mod tests {
             SegmentDuration::new_5m(),
             next_segment_id,
             Arc::clone(&catalog),
-            open_segment,
-            next_segment,
+            vec![open_segment, next_segment],
+            vec![],
             None,
         )));
         let flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
@@ -259,7 +259,7 @@ mod tests {
         )
         .unwrap();
 
-        let _ = flusher
+        flusher
             .write_to_open_segment(res.valid_segmented_data)
             .await
             .unwrap();
@@ -274,18 +274,17 @@ mod tests {
             Precision::Nanosecond,
         )
         .unwrap();
-        let _ = flusher
+        flusher
             .write_to_open_segment(res.valid_segmented_data)
             .await
             .unwrap();
 
         let state = segment_state.read();
-        assert_eq!(state.current_segment.segment_id(), segment_id);
+        let segment = state.segment_for_time(ingest_time).unwrap();
 
-        let table_buffer = state
-            .current_segment
-            .table_buffer(db_name.as_str(), "cpu")
-            .unwrap();
+        assert_eq!(segment.segment_id(), segment_id);
+
+        let table_buffer = segment.table_buffer(db_name.as_str(), "cpu").unwrap();
         assert_eq!(table_buffer.row_count(), 2);
     }
 }

@@ -97,10 +97,10 @@ struct SegmentState<W> {
     segment_duration: SegmentDuration,
     last_segment_id: SegmentId,
     catalog: Arc<Catalog>,
-    current_segment: OpenBufferSegment,
-    next_segment: OpenBufferSegment,
     wal: Option<Arc<W>>,
-    other_segments: HashMap<Time, OpenBufferSegment>,
+    // Map of segment start times to open segments. Should always have a segment open for the
+    // start time that time.now falls into.
+    segments: BTreeMap<Time, OpenBufferSegment>,
     #[allow(dead_code)]
     persisting_segments: Vec<ClosedBufferSegment>,
 }
@@ -110,19 +110,22 @@ impl<W: Wal> SegmentState<W> {
         segment_duration: SegmentDuration,
         last_segment_id: SegmentId,
         catalog: Arc<Catalog>,
-        current_segment: OpenBufferSegment,
-        next_segment: OpenBufferSegment,
+        open_segments: Vec<OpenBufferSegment>,
+        persisting_segments: Vec<ClosedBufferSegment>,
         wal: Option<Arc<W>>,
     ) -> Self {
+        let mut segments = BTreeMap::new();
+        for segment in open_segments {
+            segments.insert(segment.segment_range().start_time, segment);
+        }
+
         Self {
             segment_duration,
             last_segment_id,
             catalog,
-            current_segment,
-            next_segment,
             wal,
-            other_segments: HashMap::new(),
-            persisting_segments: vec![],
+            segments,
+            persisting_segments,
         }
     }
 
@@ -131,7 +134,7 @@ impl<W: Wal> SegmentState<W> {
         segment_start: Time,
         ops: Vec<WalOp>,
     ) -> wal::Result<()> {
-        let segment = self.segment_for_time(segment_start)?;
+        let segment = self.get_or_create_segment_for_time(segment_start)?;
         segment.write_wal_ops(ops)
     }
 
@@ -140,43 +143,46 @@ impl<W: Wal> SegmentState<W> {
         segment_start: Time,
         write_batch: WriteBatch,
     ) -> Result<()> {
-        let segment = self.segment_for_time(segment_start)?;
+        let segment = self.get_or_create_segment_for_time(segment_start)?;
         segment.buffer_writes(write_batch)
     }
 
-    fn segment_for_time(&mut self, time: Time) -> wal::Result<&mut OpenBufferSegment> {
-        if self.current_segment.start_time_matches(time) {
-            Ok(&mut self.current_segment)
-        } else if self.next_segment.start_time_matches(time) {
-            Ok(&mut self.next_segment)
-        } else {
-            if !self.other_segments.contains_key(&time) {
-                if self.other_segments.len() >= OPEN_SEGMENT_LIMIT {
-                    return Err(wal::Error::OpenSegmentLimitReached(OPEN_SEGMENT_LIMIT));
-                }
+    #[allow(dead_code)]
+    pub(crate) fn segment_for_time(&self, time: Time) -> Option<&OpenBufferSegment> {
+        self.segments.get(&time)
+    }
 
-                self.last_segment_id = self.last_segment_id.next();
-                let segment_id = self.last_segment_id;
-                let segment_range =
-                    SegmentRange::from_time_and_duration(time, self.segment_duration, false);
-
-                let segment_writer = match &self.wal {
-                    Some(wal) => wal.new_segment_writer(segment_id, segment_range)?,
-                    None => Box::new(WalSegmentWriterNoopImpl::new(segment_id)),
-                };
-
-                let segment = OpenBufferSegment::new(
-                    segment_id,
-                    segment_range,
-                    self.catalog.sequence_number(),
-                    segment_writer,
-                    None,
-                );
-                self.other_segments.insert(time, segment);
+    // return the segment with this start time or open up a new one if it isn't currently open.
+    fn get_or_create_segment_for_time(
+        &mut self,
+        time: Time,
+    ) -> wal::Result<&mut OpenBufferSegment> {
+        if !self.segments.contains_key(&time) {
+            if self.segments.len() >= OPEN_SEGMENT_LIMIT {
+                return Err(wal::Error::OpenSegmentLimitReached(OPEN_SEGMENT_LIMIT));
             }
 
-            Ok(self.other_segments.get_mut(&time).unwrap())
+            self.last_segment_id = self.last_segment_id.next();
+            let segment_id = self.last_segment_id;
+            let segment_range =
+                SegmentRange::from_time_and_duration(time, self.segment_duration, false);
+
+            let segment_writer = match &self.wal {
+                Some(wal) => wal.new_segment_writer(segment_id, segment_range)?,
+                None => Box::new(WalSegmentWriterNoopImpl::new(segment_id)),
+            };
+
+            let segment = OpenBufferSegment::new(
+                segment_id,
+                segment_range,
+                self.catalog.sequence_number(),
+                segment_writer,
+                None,
+            );
+            self.segments.insert(time, segment);
         }
+
+        Ok(self.segments.get_mut(&time).unwrap())
     }
 }
 
@@ -198,8 +204,8 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             segment_duration,
             loaded_state.last_segment_id,
             Arc::clone(&loaded_state.catalog),
-            loaded_state.current_segment,
-            loaded_state.next_segment,
+            loaded_state.open_segments,
+            loaded_state.persisting_buffer_segments,
             wal.clone(),
         )));
 
@@ -239,8 +245,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             precision,
         )?;
 
-        let _ = self
-            .write_buffer_flusher
+        self.write_buffer_flusher
             .write_to_open_segment(result.valid_segmented_data)
             .await?;
 
@@ -306,24 +311,11 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
     fn clone_table_buffers(&self, database_name: &str, table_name: &str) -> Vec<TableBuffer> {
         let state = self.segment_state.read();
 
-        let mut buffers = state
-            .other_segments
+        state
+            .segments
             .values()
             .filter_map(|segment| segment.table_buffer(database_name, table_name))
-            .collect::<Vec<_>>();
-
-        if let Some(buffer) = state
-            .current_segment
-            .table_buffer(database_name, table_name)
-        {
-            buffers.push(buffer);
-        }
-
-        if let Some(buffer) = state.next_segment.table_buffer(database_name, table_name) {
-            buffers.push(buffer);
-        }
-
-        buffers
+            .collect::<Vec<_>>()
     }
 
     #[cfg(test)]

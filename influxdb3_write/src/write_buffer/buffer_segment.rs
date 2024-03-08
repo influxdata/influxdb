@@ -63,12 +63,17 @@ impl OpenBufferSegment {
         }
     }
 
+    #[allow(dead_code)]
     pub fn start_time_matches(&self, t: Time) -> bool {
         self.segment_range.start_time == t
     }
 
     pub fn segment_id(&self) -> SegmentId {
         self.segment_id
+    }
+
+    pub fn segment_range(&self) -> &SegmentRange {
+        &self.segment_range
     }
     pub fn write_wal_ops(&mut self, write_batch: Vec<WalOp>) -> wal::Result<()> {
         self.segment_writer.write_batch(write_batch)
@@ -385,6 +390,7 @@ pub struct ClosedBufferSegment {
 
 impl ClosedBufferSegment {
     #[allow(dead_code)]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         segment_id: SegmentId,
         segment_range: SegmentRange,

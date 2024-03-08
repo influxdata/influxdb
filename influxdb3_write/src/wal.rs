@@ -258,7 +258,7 @@ impl WalSegmentWriterImpl {
         {
             let f = OpenOptions::new().write(true).append(true).open(&path)?;
 
-            return Ok(Self {
+            Ok(Self {
                 segment_id,
                 f,
                 bytes_written: file_info
@@ -267,9 +267,9 @@ impl WalSegmentWriterImpl {
                     .expect("file length must fit in usize"),
                 sequence_number: file_info.last_sequence_number,
                 buffer: Vec::with_capacity(8 * 1204), // 8kiB initial size
-            });
+            })
         } else {
-            return Err(Error::FileDoesntExist(path.to_path_buf()));
+            Err(Error::FileDoesntExist(path.to_path_buf()))
         }
     }
 

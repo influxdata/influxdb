@@ -20,8 +20,7 @@ const SEGMENTS_TO_LOAD: usize = 1000;
 #[derive(Debug)]
 pub struct LoadedState {
     pub catalog: Arc<Catalog>,
-    pub current_segment: OpenBufferSegment,
-    pub next_segment: OpenBufferSegment,
+    pub open_segments: Vec<OpenBufferSegment>,
     pub persisting_buffer_segments: Vec<ClosedBufferSegment>,
     pub persisted_segments: Vec<PersistedSegment>,
     pub last_segment_id: SegmentId,
@@ -49,29 +48,17 @@ where
         .unwrap_or(SegmentId::new(0));
     let mut persisting_buffer_segments = Vec::new();
 
-    let mut last_segment_id = last_persisted_segment_id;
-
     let current_segment_range =
         SegmentRange::from_time_and_duration(server_load_time, segment_duration, false);
     let next_segment_range = current_segment_range.next();
 
-    let (current_segment, next_segment) = if let Some(wal) = wal {
-        // read any segments that don't show up in the list of persisted segments
+    let mut open_segments = Vec::new();
 
-        // first load up any segments from the wal that haven't been persisted yet
+    if let Some(wal) = wal {
+        // read any segments that don't show up in the list of persisted segments
         let wal_segments = wal.segment_files()?;
-        let mut current_segment = None;
-        let mut next_segment = None;
-        let max_segment_id = last_persisted_segment_id.max(
-            wal_segments
-                .last()
-                .map(|s| s.segment_id)
-                .unwrap_or(SegmentId::new(0)),
-        );
 
         for segment_file in wal_segments {
-            last_segment_id = last_segment_id.max(segment_file.segment_id);
-
             // if persisted segemnts is empty, load all segments from the wal, otherwise
             // only load segments that haven't been persisted yet
             if segment_file.segment_id <= last_persisted_segment_id
@@ -93,62 +80,34 @@ where
                 Some(buffer),
             );
 
-            if segment_header.range == current_segment_range {
-                current_segment = Some(segment);
-            } else if segment_header.range == next_segment_range {
-                next_segment = Some(segment);
+            // if it's the current or next segment, we want to keep it open rather than move it to
+            // a persisting state
+            if segment_header.range == current_segment_range
+                || segment_header.range == next_segment_range
+            {
+                open_segments.push(segment);
             } else {
                 persisting_buffer_segments.push(segment.into_closed_segment(Arc::clone(&catalog)));
             }
         }
 
-        match (current_segment, next_segment) {
-            (Some(current_segment), Some(next_segment)) => (current_segment, next_segment),
-            (Some(current_segment), None) => {
-                let next_segment = OpenBufferSegment::new(
-                    current_segment.segment_id().next(),
-                    next_segment_range,
-                    catalog.sequence_number(),
-                    wal.new_segment_writer(
-                        current_segment.segment_id().next(),
-                        next_segment_range,
-                    )?,
-                    None,
-                );
-                (current_segment, next_segment)
-            }
-            (None, Some(next_segment)) => {
-                return Err(Error::CorruptLoadState(format!(
-                    "Found next segment {:?} without current segment",
-                    next_segment.segment_id()
-                )))
-            }
-            (None, None) => {
-                let current_segment_id = max_segment_id.next();
-                let next_segment_id = current_segment_id.next();
+        if open_segments.is_empty() {
+            // ensure that we open up a segment for the "now" period of time
+            let current_segment_id = last_persisted_segment_id.next();
 
-                let current_segment = OpenBufferSegment::new(
-                    current_segment_id,
-                    current_segment_range,
-                    catalog.sequence_number(),
-                    wal.new_segment_writer(current_segment_id, current_segment_range)?,
-                    None,
-                );
+            let current_segment = OpenBufferSegment::new(
+                current_segment_id,
+                current_segment_range,
+                catalog.sequence_number(),
+                wal.new_segment_writer(current_segment_id, current_segment_range)?,
+                None,
+            );
 
-                let next_segment = OpenBufferSegment::new(
-                    next_segment_id,
-                    next_segment_range,
-                    catalog.sequence_number(),
-                    wal.new_segment_writer(next_segment_id, next_segment_range)?,
-                    None,
-                );
-
-                (current_segment, next_segment)
-            }
+            open_segments.push(current_segment);
         }
     } else {
+        // ensure that we open up a segment for the "now" period of time
         let current_segment_id = last_persisted_segment_id.next();
-        let next_segment_id = current_segment_id.next();
 
         let current_segment = OpenBufferSegment::new(
             current_segment_id,
@@ -158,26 +117,26 @@ where
             None,
         );
 
-        let next_segment = OpenBufferSegment::new(
-            next_segment_id,
-            next_segment_range,
-            catalog.sequence_number(),
-            Box::new(WalSegmentWriterNoopImpl::new(next_segment_id)),
-            None,
-        );
-
-        (current_segment, next_segment)
+        open_segments.push(current_segment);
     };
 
-    last_segment_id = last_segment_id.max(last_persisted_segment_id);
-    last_segment_id = last_segment_id.max(current_segment.segment_id());
-    last_segment_id = last_segment_id.max(next_segment.segment_id());
+    let last_segment_id = open_segments
+        .iter()
+        .map(|s| s.segment_id())
+        .max()
+        .unwrap_or(SegmentId::new(0))
+        .max(last_persisted_segment_id)
+        .max(
+            persisted_segments
+                .last()
+                .map(|s| s.segment_id)
+                .unwrap_or(SegmentId::new(0)),
+        );
 
     Ok(LoadedState {
         catalog,
         last_segment_id,
-        current_segment,
-        next_segment,
+        open_segments,
         persisting_buffer_segments,
         persisted_segments,
     })
@@ -250,8 +209,10 @@ mod tests {
 
         assert_eq!(expected_catalog, loaded_catalog);
         // the open segment it creates should be the next value in line
-        assert_eq!(loaded_state.current_segment.segment_id(), SegmentId::new(5));
-        assert_eq!(loaded_state.next_segment.segment_id(), SegmentId::new(6));
+        assert_eq!(
+            loaded_state.open_segments[0].segment_id(),
+            SegmentId::new(5)
+        );
         let persisted_segment = loaded_state.persisted_segments.first().unwrap();
         assert_eq!(persisted_segment.segment_id, segment_id);
         assert_eq!(persisted_segment.segment_row_count, 3);
@@ -276,7 +237,7 @@ mod tests {
             1
         );
 
-        assert_eq!(loaded_state.last_segment_id, SegmentId::new(6));
+        assert_eq!(loaded_state.last_segment_id, SegmentId::new(5));
     }
 
     #[tokio::test]
@@ -289,7 +250,7 @@ mod tests {
 
         let LoadedState {
             catalog,
-            mut current_segment,
+            mut open_segments,
             ..
         } = load_starting_state(
             Arc::clone(&persister),
@@ -299,6 +260,8 @@ mod tests {
         )
         .await
         .unwrap();
+
+        let mut current_segment = open_segments.pop().unwrap();
 
         let lp = "cpu,tag1=cupcakes bar=1 10\nmem,tag2=turtles bar=3 15\nmem,tag2=snakes bar=2 20";
 
@@ -321,6 +284,7 @@ mod tests {
         )
         .await
         .unwrap();
+        let current_segment = loaded_state.open_segments.first().unwrap();
 
         assert!(loaded_state.persisting_buffer_segments.is_empty());
         assert!(loaded_state.persisted_segments.is_empty());
@@ -330,8 +294,7 @@ mod tests {
         assert!(db.tables.contains_key("mem"));
 
         let cpu_table = db.get_table("cpu").unwrap();
-        let cpu_data = loaded_state
-            .current_segment
+        let cpu_data = current_segment
             .table_buffer(db_name, "cpu")
             .unwrap()
             .rows_to_record_batch(&cpu_table.schema, cpu_table.columns());
@@ -345,8 +308,7 @@ mod tests {
         assert_batches_eq!(&expected, &[cpu_data]);
 
         let mem_table = db.get_table("mem").unwrap();
-        let mem_data = loaded_state
-            .current_segment
+        let mem_data = current_segment
             .table_buffer(db_name, "mem")
             .unwrap()
             .rows_to_record_batch(&mem_table.schema, mem_table.columns());
@@ -360,7 +322,7 @@ mod tests {
         ];
         assert_batches_eq!(&expected, &[mem_data]);
 
-        assert_eq!(loaded_state.last_segment_id, SegmentId::new(2));
+        assert_eq!(loaded_state.last_segment_id, SegmentId::new(1));
     }
 
     #[tokio::test]
@@ -373,8 +335,7 @@ mod tests {
 
         let LoadedState {
             catalog,
-            mut current_segment,
-            mut next_segment,
+            mut open_segments,
             ..
         } = load_starting_state(
             Arc::clone(&persister),
@@ -384,6 +345,8 @@ mod tests {
         )
         .await
         .unwrap();
+
+        let mut current_segment = open_segments.pop().unwrap();
 
         let lp = "cpu,tag1=cupcakes bar=1 10\nmem,tag2=turtles bar=3 15\nmem,tag2=snakes bar=2 20";
 
@@ -399,6 +362,9 @@ mod tests {
         current_segment.buffer_writes(write_batch).unwrap();
 
         let segment_id = current_segment.segment_id();
+
+        let next_segment_id = segment_id.next();
+        let next_segment_range = current_segment.segment_range().next();
 
         // close and persist the current segment
         current_segment
@@ -417,6 +383,17 @@ mod tests {
         });
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+
+        let segment_writer = wal
+            .new_segment_writer(next_segment_id, next_segment_range)
+            .unwrap();
+        let mut next_segment = OpenBufferSegment::new(
+            SegmentId::new(2),
+            SegmentRange::test_range().next(),
+            catalog.sequence_number(),
+            segment_writer,
+            None,
+        );
 
         next_segment.write_wal_ops(vec![wal_op]).unwrap();
         next_segment.buffer_writes(write_batch).unwrap();
@@ -490,8 +467,7 @@ mod tests {
         assert!(db.tables.contains_key("foo"));
 
         let cpu_table = db.get_table("cpu").unwrap();
-        let cpu_data = loaded_state
-            .current_segment
+        let cpu_data = loaded_state.open_segments[0]
             .table_buffer(db_name, "cpu")
             .unwrap()
             .rows_to_record_batch(&cpu_table.schema, cpu_table.columns());
@@ -505,8 +481,7 @@ mod tests {
         assert_batches_eq!(&expected, &[cpu_data]);
 
         let foo_table = db.get_table("foo").unwrap();
-        let foo_data = loaded_state
-            .current_segment
+        let foo_data = loaded_state.open_segments[0]
             .table_buffer(db_name, "foo")
             .unwrap()
             .rows_to_record_batch(&foo_table.schema, foo_table.columns());
@@ -519,7 +494,7 @@ mod tests {
         ];
         assert_batches_eq!(&expected, &[foo_data]);
 
-        assert_eq!(loaded_state.last_segment_id, SegmentId::new(3));
+        assert_eq!(loaded_state.last_segment_id, SegmentId::new(2));
     }
 
     #[tokio::test]
@@ -532,8 +507,7 @@ mod tests {
 
         let LoadedState {
             catalog,
-            mut current_segment,
-            mut next_segment,
+            mut open_segments,
             ..
         } = load_starting_state(
             Arc::clone(&persister),
@@ -543,6 +517,7 @@ mod tests {
         )
         .await
         .unwrap();
+        let mut current_segment = open_segments.pop().unwrap();
 
         let lp = "cpu,tag1=cupcakes bar=1 10\nmem,tag2=turtles bar=3 15\nmem,tag2=snakes bar=2 20";
 
@@ -557,6 +532,9 @@ mod tests {
         current_segment.write_wal_ops(vec![wal_op]).unwrap();
         current_segment.buffer_writes(write_batch).unwrap();
 
+        let next_segment_id = current_segment.segment_id().next();
+        let next_segment_range = current_segment.segment_range().next();
+
         // close the current segment
         let closed_segment = current_segment.into_closed_segment(Arc::clone(&catalog));
 
@@ -570,6 +548,17 @@ mod tests {
         });
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+
+        let segment_writer = wal
+            .new_segment_writer(next_segment_id, next_segment_range)
+            .unwrap();
+        let mut next_segment = OpenBufferSegment::new(
+            SegmentId::new(2),
+            SegmentRange::test_range().next(),
+            catalog.sequence_number(),
+            segment_writer,
+            None,
+        );
 
         next_segment.write_wal_ops(vec![wal_op]).unwrap();
         next_segment.buffer_writes(write_batch).unwrap();
@@ -609,7 +598,7 @@ mod tests {
         assert!(db.tables.contains_key("foo"));
 
         let cpu_table = db.get_table("cpu").unwrap();
-        let cpu_data = next_segment
+        let cpu_data = loaded_state.open_segments[0]
             .table_buffer(db_name, "cpu")
             .unwrap()
             .rows_to_record_batch(&cpu_table.schema, cpu_table.columns());
@@ -623,7 +612,7 @@ mod tests {
         assert_batches_eq!(&expected, &[cpu_data]);
 
         let foo_table = db.get_table("foo").unwrap();
-        let foo_data = next_segment
+        let foo_data = loaded_state.open_segments[0]
             .table_buffer(db_name, "foo")
             .unwrap()
             .rows_to_record_batch(&foo_table.schema, foo_table.columns());
@@ -636,6 +625,6 @@ mod tests {
         ];
         assert_batches_eq!(&expected, &[foo_data]);
 
-        assert_eq!(loaded_state.last_segment_id, SegmentId::new(3));
+        assert_eq!(loaded_state.last_segment_id, SegmentId::new(2));
     }
 }
