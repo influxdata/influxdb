@@ -24,6 +24,7 @@ pub struct LoadedState {
     pub next_segment: OpenBufferSegment,
     pub persisting_buffer_segments: Vec<ClosedBufferSegment>,
     pub persisted_segments: Vec<PersistedSegment>,
+    pub last_segment_id: SegmentId,
 }
 
 pub async fn load_starting_state<W, P>(
@@ -49,6 +50,8 @@ where
         .unwrap_or(SegmentId::new(0));
     let mut persisting_buffer_segments = Vec::new();
 
+    let mut last_segment_id = last_persisted_segment_id;
+
     let current_segment_range =
         SegmentRange::from_time_and_duration(server_load_time, segment_duration, false);
     let next_segment_range = current_segment_range.next();
@@ -68,6 +71,8 @@ where
         );
 
         for segment_file in wal_segments {
+            last_segment_id = last_segment_id.max(segment_file.segment_id);
+
             // if persisted segemnts is empty, load all segments from the wal, otherwise
             // only load segments that haven't been persisted yet
             if segment_file.segment_id <= last_persisted_segment_id
@@ -168,8 +173,13 @@ where
         (current_segment, next_segment)
     };
 
+    last_segment_id = last_segment_id.max(last_persisted_segment_id);
+    last_segment_id = last_segment_id.max(current_segment.segment_id());
+    last_segment_id = last_segment_id.max(next_segment.segment_id());
+
     Ok(LoadedState {
         catalog,
+        last_segment_id,
         current_segment,
         next_segment,
         persisting_buffer_segments,
@@ -269,6 +279,8 @@ mod tests {
                 .len(),
             1
         );
+
+        assert_eq!(loaded_state.last_segment_id, SegmentId::new(6));
     }
 
     #[tokio::test]
@@ -351,6 +363,8 @@ mod tests {
             "+-----+---------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[mem_data]);
+
+        assert_eq!(loaded_state.last_segment_id, SegmentId::new(2));
     }
 
     #[tokio::test]
@@ -508,6 +522,8 @@ mod tests {
             "+--------------------------------+-----+",
         ];
         assert_batches_eq!(&expected, &[foo_data]);
+
+        assert_eq!(loaded_state.last_segment_id, SegmentId::new(3));
     }
 
     #[tokio::test]
@@ -623,5 +639,7 @@ mod tests {
             "+--------------------------------+-----+",
         ];
         assert_batches_eq!(&expected, &[foo_data]);
+
+        assert_eq!(loaded_state.last_segment_id, SegmentId::new(3));
     }
 }

@@ -5,6 +5,7 @@ mod flusher;
 mod loader;
 
 use crate::catalog::{Catalog, DatabaseSchema, TableDefinition, TIME_COLUMN_NAME};
+use crate::wal::WalSegmentWriterNoopImpl;
 use crate::write_buffer::buffer_segment::{
     ClosedBufferSegment, OpenBufferSegment, TableBuffer, WriteBatch,
 };
@@ -12,7 +13,7 @@ use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
 use crate::{
     wal, BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister,
-    Precision, SegmentDuration, SegmentId, Wal, WalOp, WriteBuffer, WriteLineError,
+    Precision, SegmentDuration, SegmentId, SegmentRange, Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -70,6 +71,8 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+const OPEN_SEGMENT_LIMIT: usize = 98;
+
 #[derive(Debug)]
 pub struct WriteRequest<'a> {
     pub db_name: NamespaceName<'static>,
@@ -80,7 +83,7 @@ pub struct WriteRequest<'a> {
 #[derive(Debug)]
 pub struct WriteBufferImpl<W, T> {
     catalog: Arc<Catalog>,
-    segment_state: Arc<RwLock<SegmentState>>,
+    segment_state: Arc<RwLock<SegmentState<W>>>,
     #[allow(dead_code)]
     wal: Option<Arc<W>>,
     write_buffer_flusher: WriteBufferFlusher,
@@ -90,21 +93,35 @@ pub struct WriteBufferImpl<W, T> {
 }
 
 #[derive(Debug)]
-struct SegmentState {
+struct SegmentState<W> {
+    segment_duration: SegmentDuration,
+    last_segment_id: SegmentId,
+    catalog: Arc<Catalog>,
     current_segment: OpenBufferSegment,
     next_segment: OpenBufferSegment,
-    #[allow(dead_code)]
-    outside_segment: Option<OpenBufferSegment>,
+    wal: Option<Arc<W>>,
+    other_segments: HashMap<Time, OpenBufferSegment>,
     #[allow(dead_code)]
     persisting_segments: Vec<ClosedBufferSegment>,
 }
 
-impl SegmentState {
-    pub fn new(current_segment: OpenBufferSegment, next_segment: OpenBufferSegment) -> Self {
+impl<W: Wal> SegmentState<W> {
+    pub fn new(
+        segment_duration: SegmentDuration,
+        last_segment_id: SegmentId,
+        catalog: Arc<Catalog>,
+        current_segment: OpenBufferSegment,
+        next_segment: OpenBufferSegment,
+        wal: Option<Arc<W>>,
+    ) -> Self {
         Self {
+            segment_duration,
+            last_segment_id,
+            catalog,
             current_segment,
             next_segment,
-            outside_segment: None,
+            wal,
+            other_segments: HashMap::new(),
             persisting_segments: vec![],
         }
     }
@@ -114,14 +131,8 @@ impl SegmentState {
         segment_start: Time,
         ops: Vec<WalOp>,
     ) -> wal::Result<()> {
-        if self.current_segment.start_time_matches(segment_start) {
-            self.current_segment.write_wal_ops(ops)
-        } else if self.next_segment.start_time_matches(segment_start) {
-            self.next_segment.write_wal_ops(ops)
-        } else {
-            error!("segment_start not open!: {:?}", segment_start);
-            Err(wal::Error::SegmentStartTimeNotOpen(segment_start))
-        }
+        let segment = self.segment_for_time(segment_start)?;
+        segment.write_wal_ops(ops)
     }
 
     pub(crate) fn write_batch_to_segment(
@@ -129,12 +140,42 @@ impl SegmentState {
         segment_start: Time,
         write_batch: WriteBatch,
     ) -> Result<()> {
-        if self.current_segment.start_time_matches(segment_start) {
-            self.current_segment.buffer_writes(write_batch)
-        } else if self.next_segment.start_time_matches(segment_start) {
-            self.next_segment.buffer_writes(write_batch)
+        let segment = self.segment_for_time(segment_start)?;
+        segment.buffer_writes(write_batch)
+    }
+
+    fn segment_for_time(&mut self, time: Time) -> wal::Result<&mut OpenBufferSegment> {
+        if self.current_segment.start_time_matches(time) {
+            Ok(&mut self.current_segment)
+        } else if self.next_segment.start_time_matches(time) {
+            Ok(&mut self.next_segment)
         } else {
-            panic!("Tried to write to a segment that is not open")
+            if !self.other_segments.contains_key(&time) {
+                if self.other_segments.len() >= OPEN_SEGMENT_LIMIT {
+                    return Err(wal::Error::OpenSegmentLimitReached(OPEN_SEGMENT_LIMIT));
+                }
+
+                self.last_segment_id = self.last_segment_id.next();
+                let segment_id = self.last_segment_id;
+                let segment_range =
+                    SegmentRange::from_time_and_duration(time, self.segment_duration, false);
+
+                let segment_writer = match &self.wal {
+                    Some(wal) => wal.new_segment_writer(segment_id, segment_range)?,
+                    None => Box::new(WalSegmentWriterNoopImpl::new(segment_id)),
+                };
+
+                let segment = OpenBufferSegment::new(
+                    segment_id,
+                    segment_range,
+                    self.catalog.sequence_number(),
+                    segment_writer,
+                    None,
+                );
+                self.other_segments.insert(time, segment);
+            }
+
+            Ok(self.other_segments.get_mut(&time).unwrap())
         }
     }
 }
@@ -154,8 +195,12 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         let loaded_state =
             load_starting_state(persister, wal.clone(), now, segment_duration).await?;
         let segment_state = Arc::new(RwLock::new(SegmentState::new(
+            segment_duration,
+            loaded_state.last_segment_id,
+            Arc::clone(&loaded_state.catalog),
             loaded_state.current_segment,
             loaded_state.next_segment,
+            wal.clone(),
         )));
 
         let write_buffer_flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
@@ -226,42 +271,59 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
         let schema = table.schema.clone();
 
-        let chunks = if let Some(table_buffer) = self.clone_table_buffer(database_name, table_name)
-        {
-            let batch = table_buffer.rows_to_record_batch(&schema, table.columns());
-            let batch_stats = create_chunk_statistics(
-                Some(table_buffer.row_count()),
-                &schema,
-                Some(table_buffer.timestamp_min_max()),
-                None,
-            );
+        let table_buffers = self.clone_table_buffers(database_name, table_name);
+        let chunks = table_buffers
+            .into_iter()
+            .map(|table_buffer| {
+                let batch = table_buffer.rows_to_record_batch(&schema, table.columns());
+                let batch_stats = create_chunk_statistics(
+                    Some(table_buffer.row_count()),
+                    &schema,
+                    Some(table_buffer.timestamp_min_max()),
+                    None,
+                );
 
-            let chunk: Arc<dyn QueryChunk> = Arc::new(BufferChunk {
-                batches: vec![batch],
-                schema: schema.clone(),
-                stats: Arc::new(batch_stats),
-                partition_id: TransitionPartitionId::new(
-                    TableId::new(0),
-                    &table_buffer.segment_key,
-                ),
-                sort_key: None,
-                id: ChunkId::new(),
-                chunk_order: ChunkOrder::new(0),
-            });
+                let chunk: Arc<dyn QueryChunk> = Arc::new(BufferChunk {
+                    batches: vec![batch],
+                    schema: schema.clone(),
+                    stats: Arc::new(batch_stats),
+                    partition_id: TransitionPartitionId::new(
+                        TableId::new(0),
+                        &table_buffer.segment_key,
+                    ),
+                    sort_key: None,
+                    id: ChunkId::new(),
+                    chunk_order: ChunkOrder::new(0),
+                });
 
-            vec![chunk]
-        } else {
-            vec![]
-        };
+                chunk
+            })
+            .collect();
 
         Ok(chunks)
     }
 
-    fn clone_table_buffer(&self, database_name: &str, table_name: &str) -> Option<TableBuffer> {
+    fn clone_table_buffers(&self, database_name: &str, table_name: &str) -> Vec<TableBuffer> {
         let state = self.segment_state.read();
-        state
+
+        let mut buffers = state
+            .other_segments
+            .values()
+            .filter_map(|segment| segment.table_buffer(database_name, table_name))
+            .collect::<Vec<_>>();
+
+        if let Some(buffer) = state
             .current_segment
             .table_buffer(database_name, table_name)
+        {
+            buffers.push(buffer);
+        }
+
+        if let Some(buffer) = state.next_segment.table_buffer(database_name, table_name) {
+            buffers.push(buffer);
+        }
+
+        buffers
     }
 
     #[cfg(test)]
@@ -270,10 +332,11 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         let table = db_schema.tables.get(table_name).unwrap();
         let schema = table.schema.clone();
 
-        let table_buffer = self.clone_table_buffer(datbase_name, table_name).unwrap();
-        let batch = table_buffer.rows_to_record_batch(&schema, table.columns());
-
-        vec![batch]
+        let table_buffer = self.clone_table_buffers(datbase_name, table_name);
+        table_buffer
+            .into_iter()
+            .map(|table_buffer| table_buffer.rows_to_record_batch(&schema, table.columns()))
+            .collect()
     }
 }
 

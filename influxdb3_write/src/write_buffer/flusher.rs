@@ -2,7 +2,7 @@
 
 use crate::write_buffer::buffer_segment::{BufferedWrite, WriteBatch};
 use crate::write_buffer::{Error, SegmentState, ValidSegmentedData};
-use crate::{wal, WalOp};
+use crate::{wal, Wal, WalOp};
 use crossbeam_channel::{bounded, Receiver as CrossbeamReceiver, Sender as CrossbeamSender};
 use iox_time::Time;
 use observability_deps::tracing::debug;
@@ -43,7 +43,7 @@ pub struct WriteBufferFlusher {
 }
 
 impl WriteBufferFlusher {
-    pub fn new(segment_state: Arc<RwLock<SegmentState>>) -> Self {
+    pub fn new<W: Wal>(segment_state: Arc<RwLock<SegmentState<W>>>) -> Self {
         let (shutdown_tx, shutdown_rx) = watch::channel(());
         let (buffer_tx, buffer_rx) = mpsc::channel(BUFFER_CHANNEL_LIMIT);
         let (io_flush_tx, io_flush_rx) = bounded(1);
@@ -104,8 +104,8 @@ impl WriteBufferFlusher {
     }
 }
 
-async fn run_wal_op_buffer(
-    segment_state: Arc<RwLock<SegmentState>>,
+async fn run_wal_op_buffer<W: Wal>(
+    segment_state: Arc<RwLock<SegmentState<W>>>,
     mut buffer_rx: mpsc::Receiver<BufferedWrite>,
     io_flush_tx: CrossbeamSender<SegmentedWalOps>,
     io_flush_notify_rx: CrossbeamReceiver<wal::Result<()>>,
@@ -175,8 +175,8 @@ async fn run_wal_op_buffer(
     }
 }
 
-fn run_io_flush(
-    segment_state: Arc<RwLock<SegmentState>>,
+fn run_io_flush<W: Wal>(
+    segment_state: Arc<RwLock<SegmentState<W>>>,
     buffer_rx: CrossbeamReceiver<SegmentedWalOps>,
     buffer_notify: CrossbeamSender<wal::Result<()>>,
 ) {
@@ -209,7 +209,7 @@ fn run_io_flush(
 mod tests {
     use super::*;
     use crate::catalog::Catalog;
-    use crate::wal::WalSegmentWriterNoopImpl;
+    use crate::wal::{WalImpl, WalSegmentWriterNoopImpl};
     use crate::write_buffer::buffer_segment::OpenBufferSegment;
     use crate::write_buffer::parse_validate_and_update_catalog;
     use crate::{Precision, SegmentDuration, SegmentId, SegmentRange, SequenceNumber};
@@ -235,10 +235,17 @@ mod tests {
             Box::new(WalSegmentWriterNoopImpl::new(next_segment_id)),
             None,
         );
-        let segment_state = Arc::new(RwLock::new(SegmentState::new(open_segment, next_segment)));
+        let catalog = Arc::new(Catalog::new());
+        let segment_state = Arc::new(RwLock::new(SegmentState::<WalImpl>::new(
+            SegmentDuration::FiveMinutes,
+            next_segment_id,
+            Arc::clone(&catalog),
+            open_segment,
+            next_segment,
+            None,
+        )));
         let flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
 
-        let catalog = Catalog::new();
         let db_name = NamespaceName::new("db1").unwrap();
         let ingest_time = Time::from_timestamp_nanos(0);
         let res = parse_validate_and_update_catalog(

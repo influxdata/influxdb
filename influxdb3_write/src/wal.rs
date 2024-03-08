@@ -86,6 +86,9 @@ pub enum Error {
 
     #[error("segment start time not open: {0}")]
     SegmentStartTimeNotOpen(Time),
+
+    #[error("open segment limit reached: {0}")]
+    OpenSegmentLimitReached(usize),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
