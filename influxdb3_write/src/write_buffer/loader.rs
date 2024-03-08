@@ -40,7 +40,6 @@ where
 {
     let PersistedCatalog { catalog, .. } = persister.load_catalog().await?.unwrap_or_default();
     let catalog = Arc::new(Catalog::from_inner(catalog));
-    println!("catalog sN {:?}", catalog.sequence_number());
 
     let persisted_segments = persister.load_segments(SEGMENTS_TO_LOAD).await?;
 
@@ -78,15 +77,12 @@ where
             if segment_file.segment_id <= last_persisted_segment_id
                 && !persisted_segments.is_empty()
             {
-                println!("skipping segment {:?}", segment_file.segment_id);
                 continue;
             }
 
-            println!("loading segment {:?}", segment_file.segment_id);
             let starting_sequence_number = catalog.sequence_number();
             let segment_reader = wal.open_segment_reader(segment_file.segment_id)?;
             let segment_header = *segment_reader.header();
-            println!("segment header {:?}", segment_header);
             let buffer = load_buffer_from_segment(&catalog, segment_reader)?;
 
             let segment = OpenBufferSegment::new(
@@ -245,7 +241,7 @@ mod tests {
             persister,
             None::<Arc<crate::wal::WalImpl>>,
             Time::from_timestamp_nanos(0),
-            SegmentDuration::FiveMinutes,
+            SegmentDuration::new_5m(),
         )
         .await
         .unwrap();
@@ -299,7 +295,7 @@ mod tests {
             Arc::clone(&persister),
             Some(Arc::clone(&wal)),
             Time::from_timestamp_nanos(0),
-            SegmentDuration::FiveMinutes,
+            SegmentDuration::new_5m(),
         )
         .await
         .unwrap();
@@ -321,7 +317,7 @@ mod tests {
             persister,
             Some(wal),
             Time::from_timestamp_nanos(0),
-            SegmentDuration::FiveMinutes,
+            SegmentDuration::new_5m(),
         )
         .await
         .unwrap();
@@ -384,7 +380,7 @@ mod tests {
             Arc::clone(&persister),
             Some(Arc::clone(&wal)),
             Time::from_timestamp_nanos(0),
-            SegmentDuration::FiveMinutes,
+            SegmentDuration::new_5m(),
         )
         .await
         .unwrap();
@@ -430,7 +426,7 @@ mod tests {
             persister,
             Some(wal),
             Time::from_timestamp(6 * 60, 0).unwrap(),
-            SegmentDuration::FiveMinutes,
+            SegmentDuration::new_5m(),
         )
         .await
         .unwrap();
@@ -543,7 +539,7 @@ mod tests {
             Arc::clone(&persister),
             Some(Arc::clone(&wal)),
             Time::from_timestamp_nanos(0),
-            SegmentDuration::FiveMinutes,
+            SegmentDuration::new_5m(),
         )
         .await
         .unwrap();
@@ -585,7 +581,7 @@ mod tests {
             persister,
             Some(wal),
             Time::from_timestamp(6 * 60, 0).unwrap(),
-            SegmentDuration::FiveMinutes,
+            SegmentDuration::new_5m(),
         )
         .await
         .unwrap();

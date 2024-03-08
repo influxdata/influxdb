@@ -846,7 +846,7 @@ mod tests {
             &db,
             db_name,
             Time::from_timestamp_nanos(0),
-            SegmentDuration::FiveMinutes,
+            SegmentDuration::new_5m(),
             false,
             Precision::Nanosecond,
         )
@@ -866,7 +866,7 @@ mod tests {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let segment_duration = SegmentDuration::FiveMinutes;
+        let segment_duration = SegmentDuration::new_5m();
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
             Some(Arc::new(wal)),

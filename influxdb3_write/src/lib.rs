@@ -30,6 +30,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Add;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
@@ -47,6 +48,9 @@ pub enum Error {
 
     #[error("persister error: {0}")]
     Persister(#[from] persister::Error),
+
+    #[error("invalid segment duration {0}. Must be one of 1m, 5m, 10m, 15m, 30m, 1h, 2h, 4h")]
+    InvalidSegmentDuration(String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -144,27 +148,11 @@ pub struct SegmentRange {
 
 /// The duration of a segment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SegmentDuration {
-    FiveMinutes,
-    TenMinutes,
-    FifteenMinutes,
-    ThirtyMinutes,
-    OneHour,
-    TwoHours,
-    FourHours,
-}
+pub struct SegmentDuration(Duration);
 
 impl SegmentDuration {
     pub fn duration_seconds(&self) -> i64 {
-        match self {
-            Self::FiveMinutes => 5 * 60,
-            Self::TenMinutes => 10 * 60,
-            Self::FifteenMinutes => 15 * 60,
-            Self::ThirtyMinutes => 30 * 60,
-            Self::OneHour => 60 * 60,
-            Self::TwoHours => 2 * 60 * 60,
-            Self::FourHours => 4 * 60 * 60,
-        }
+        self.0.as_secs() as i64
     }
 
     /// Given a time, returns the start time of the segment that contains the time.
@@ -175,20 +163,35 @@ impl SegmentDuration {
     }
 
     pub fn as_duration(&self) -> Duration {
-        Duration::from_secs(self.duration_seconds() as u64)
+        self.0
     }
 
+    /// Returns the segment duration from a given `SegmentRange`
     pub fn from_range(segment_range: SegmentRange) -> Self {
         let duration = segment_range.duration();
-        match duration.as_secs() {
-            300 => Self::FiveMinutes,
-            600 => Self::TenMinutes,
-            900 => Self::FifteenMinutes,
-            1800 => Self::ThirtyMinutes,
-            3600 => Self::OneHour,
-            7200 => Self::TwoHours,
-            14400 => Self::FourHours,
-            _ => panic!("Invalid segment duration"),
+        Self(duration)
+    }
+
+    /// Returns a five minute segment duration, mostly used for teesting purposes.
+    pub fn new_5m() -> Self {
+        Self(Duration::from_secs(300))
+    }
+}
+
+impl FromStr for SegmentDuration {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "1m" => Ok(Self(Duration::from_secs(60))),
+            "5m" => Ok(Self(Duration::from_secs(300))),
+            "10m" => Ok(Self(Duration::from_secs(600))),
+            "15m" => Ok(Self(Duration::from_secs(900))),
+            "30m" => Ok(Self(Duration::from_secs(1800))),
+            "1h" => Ok(Self(Duration::from_secs(3600))),
+            "2h" => Ok(Self(Duration::from_secs(7200))),
+            "4h" => Ok(Self(Duration::from_secs(14400))),
+            _ => Err(Error::InvalidSegmentDuration(s.to_string())),
         }
     }
 }
@@ -564,7 +567,7 @@ mod test_helpers {
             &db,
             db_name.clone(),
             Time::from_timestamp_nanos(0),
-            SegmentDuration::FiveMinutes,
+            SegmentDuration::new_5m(),
             false,
             Precision::Nanosecond,
         )
@@ -588,7 +591,7 @@ mod test_helpers {
             &db,
             db_name,
             Time::from_timestamp_nanos(default_time),
-            SegmentDuration::FiveMinutes,
+            SegmentDuration::new_5m(),
             false,
             Precision::Nanosecond,
         )
@@ -611,8 +614,11 @@ mod tests {
             end_time: Time::from_rfc3339("2024-03-01T14:00:00Z").unwrap(),
             contains_data_outside_range: false,
         };
-        let actual =
-            SegmentRange::from_time_and_duration(t, SegmentDuration::FifteenMinutes, false);
+        let actual = SegmentRange::from_time_and_duration(
+            t,
+            SegmentDuration::from_str("15m").unwrap(),
+            false,
+        );
 
         assert_eq!(expected, actual);
 
@@ -621,7 +627,11 @@ mod tests {
             end_time: Time::from_rfc3339("2024-03-01T14:00:00Z").unwrap(),
             contains_data_outside_range: false,
         };
-        let actual = SegmentRange::from_time_and_duration(t, SegmentDuration::OneHour, false);
+        let actual = SegmentRange::from_time_and_duration(
+            t,
+            SegmentDuration::from_str("1h").unwrap(),
+            false,
+        );
 
         assert_eq!(expected, actual);
 
@@ -638,7 +648,11 @@ mod tests {
             end_time: Time::from_rfc3339("2024-03-01T14:00:00Z").unwrap(),
             contains_data_outside_range: false,
         };
-        let actual = SegmentRange::from_time_and_duration(t, SegmentDuration::TwoHours, false);
+        let actual = SegmentRange::from_time_and_duration(
+            t,
+            SegmentDuration::from_str("2h").unwrap(),
+            false,
+        );
 
         assert_eq!(expected, actual);
 
@@ -647,7 +661,11 @@ mod tests {
             end_time: Time::from_rfc3339("2024-03-01T16:00:00Z").unwrap(),
             contains_data_outside_range: false,
         };
-        let actual = SegmentRange::from_time_and_duration(t, SegmentDuration::FourHours, false);
+        let actual = SegmentRange::from_time_and_duration(
+            t,
+            SegmentDuration::from_str("4h").unwrap(),
+            false,
+        );
 
         assert_eq!(expected, actual);
     }

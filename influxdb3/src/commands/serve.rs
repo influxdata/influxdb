@@ -135,6 +135,16 @@ pub struct Config {
     /// bearer token to be set for requests
     #[clap(long = "bearer-token", env = "INFLUXDB3_BEARER_TOKEN", action)]
     pub bearer_token: Option<String>,
+
+    /// Duration of wal segments that are persisted to object storage. Valid values: 1m, 5m, 10m,
+    /// 15m, 30m, 1h, 2h, 4h.
+    #[clap(
+        long = "segment-duration",
+        env = "INFLUXDB3_SEGMENT_DURATION",
+        default_value = "1h",
+        action
+    )]
+    pub segment_duration: SegmentDuration,
 }
 
 #[cfg(all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")))]
@@ -259,7 +269,7 @@ pub async fn command(config: Config) -> Result<()> {
             Arc::clone(&persister),
             wal,
             Arc::clone(&time_provider),
-            SegmentDuration::FiveMinutes,
+            config.segment_duration,
         )
         .await?,
     );

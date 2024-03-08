@@ -273,7 +273,7 @@ mod tests {
                 Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
                 Arc::clone(&time_provider),
-                SegmentDuration::FiveMinutes,
+                SegmentDuration::new_5m(),
             )
             .await
             .unwrap(),
@@ -409,7 +409,7 @@ mod tests {
                 Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
                 Arc::clone(&time_provider),
-                SegmentDuration::FiveMinutes,
+                SegmentDuration::new_5m(),
             )
             .await
             .unwrap(),
@@ -583,7 +583,7 @@ mod tests {
                 Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
                 Arc::clone(&time_provider),
-                SegmentDuration::FiveMinutes,
+                SegmentDuration::new_5m(),
             )
             .await
             .unwrap(),

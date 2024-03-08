@@ -237,7 +237,7 @@ mod tests {
         );
         let catalog = Arc::new(Catalog::new());
         let segment_state = Arc::new(RwLock::new(SegmentState::<WalImpl>::new(
-            SegmentDuration::FiveMinutes,
+            SegmentDuration::new_5m(),
             next_segment_id,
             Arc::clone(&catalog),
             open_segment,
@@ -253,7 +253,7 @@ mod tests {
             "cpu bar=1 10",
             &catalog,
             ingest_time,
-            SegmentDuration::FiveMinutes,
+            SegmentDuration::new_5m(),
             false,
             Precision::Nanosecond,
         )
@@ -269,7 +269,7 @@ mod tests {
             "cpu bar=1 20",
             &catalog,
             ingest_time,
-            SegmentDuration::FiveMinutes,
+            SegmentDuration::new_5m(),
             false,
             Precision::Nanosecond,
         )
