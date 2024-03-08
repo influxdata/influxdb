@@ -5,18 +5,20 @@ mod flusher;
 mod loader;
 
 use crate::catalog::{Catalog, DatabaseSchema, TableDefinition, TIME_COLUMN_NAME};
-use crate::write_buffer::buffer_segment::{ClosedBufferSegment, OpenBufferSegment, TableBuffer};
+use crate::write_buffer::buffer_segment::{
+    ClosedBufferSegment, OpenBufferSegment, TableBuffer, WriteBatch,
+};
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
 use crate::{
-    BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister, Precision,
-    SegmentDuration, SegmentId, Wal, WalOp, WriteBuffer, WriteLineError,
+    wal, BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister,
+    Precision, SegmentDuration, SegmentId, Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::{
-    column_type_from_field, ChunkId, ChunkOrder, ColumnType, NamespaceName, TableId,
-    TransitionPartitionId,
+    column_type_from_field, ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError,
+    TableId, TransitionPartitionId,
 };
 use datafusion::common::{DataFusionError, Statistics};
 use datafusion::execution::context::SessionState;
@@ -24,8 +26,8 @@ use datafusion::logical_expr::Expr;
 use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::{QueryChunk, QueryChunkData};
-use iox_time::TimeProvider;
-use observability_deps::tracing::{debug, info};
+use iox_time::{Time, TimeProvider};
+use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
 use schema::sort::SortKey;
 use schema::Schema;
@@ -61,6 +63,9 @@ pub enum Error {
 
     #[error("corrupt load state: {0}")]
     CorruptLoadState(String),
+
+    #[error("database name error: {0}")]
+    DatabaseNameError(#[from] NamespaceNameError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -73,20 +78,22 @@ pub struct WriteRequest<'a> {
 }
 
 #[derive(Debug)]
-pub struct WriteBufferImpl<W> {
+pub struct WriteBufferImpl<W, T> {
     catalog: Arc<Catalog>,
     segment_state: Arc<RwLock<SegmentState>>,
     #[allow(dead_code)]
     wal: Option<Arc<W>>,
     write_buffer_flusher: WriteBufferFlusher,
     segment_duration: SegmentDuration,
-    time_provider: Arc<dyn TimeProvider>,
+    #[allow(dead_code)]
+    time_provider: Arc<T>,
 }
 
 #[derive(Debug)]
 struct SegmentState {
     current_segment: OpenBufferSegment,
     next_segment: OpenBufferSegment,
+    #[allow(dead_code)]
     outside_segment: Option<OpenBufferSegment>,
     #[allow(dead_code)]
     persisting_segments: Vec<ClosedBufferSegment>,
@@ -101,13 +108,42 @@ impl SegmentState {
             persisting_segments: vec![],
         }
     }
+
+    pub(crate) fn write_ops_to_segment(
+        &mut self,
+        segment_start: Time,
+        ops: Vec<WalOp>,
+    ) -> wal::Result<()> {
+        if self.current_segment.start_time_matches(segment_start) {
+            self.current_segment.write_wal_ops(ops)
+        } else if self.next_segment.start_time_matches(segment_start) {
+            self.next_segment.write_wal_ops(ops)
+        } else {
+            error!("segment_start not open!: {:?}", segment_start);
+            Err(wal::Error::SegmentStartTimeNotOpen(segment_start))
+        }
+    }
+
+    pub(crate) fn write_batch_to_segment(
+        &mut self,
+        segment_start: Time,
+        write_batch: WriteBatch,
+    ) -> Result<()> {
+        if self.current_segment.start_time_matches(segment_start) {
+            self.current_segment.buffer_writes(write_batch)
+        } else if self.next_segment.start_time_matches(segment_start) {
+            self.next_segment.buffer_writes(write_batch)
+        } else {
+            panic!("Tried to write to a segment that is not open")
+        }
+    }
 }
 
-impl<W: Wal> WriteBufferImpl<W> {
+impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
     pub async fn new<P>(
         persister: Arc<P>,
         wal: Option<Arc<W>>,
-        time_provider: Arc<dyn TimeProvider>,
+        time_provider: Arc<T>,
         segment_duration: SegmentDuration,
     ) -> Result<Self>
     where
@@ -142,30 +178,25 @@ impl<W: Wal> WriteBufferImpl<W> {
         &self,
         db_name: NamespaceName<'static>,
         lp: &str,
-        default_time: i64,
+        ingest_time: Time,
         accept_partial: bool,
         precision: Precision,
     ) -> Result<BufferedWriteRequest> {
         debug!("write_lp to {} in writebuffer", db_name);
 
         let result = parse_validate_and_update_catalog(
-            db_name.as_str(),
+            db_name.clone(),
             lp,
             &self.catalog,
-            default_time,
+            ingest_time,
+            self.segment_duration,
             accept_partial,
             precision,
         )?;
 
-        let wal_op = WalOp::LpWrite(LpWriteOp {
-            db_name: db_name.to_string(),
-            lp: result.lp_valid,
-            default_time,
-        });
-
-        let write_summary = self
+        let _ = self
             .write_buffer_flusher
-            .write_to_open_segment(db_name.clone(), result.table_batches, wal_op)
+            .write_to_open_segment(result.valid_segmented_data)
             .await?;
 
         Ok(BufferedWriteRequest {
@@ -174,9 +205,6 @@ impl<W: Wal> WriteBufferImpl<W> {
             line_count: result.line_count,
             field_count: result.field_count,
             tag_count: result.tag_count,
-            total_buffer_memory_used: write_summary.buffer_size,
-            segment_id: write_summary.segment_id,
-            sequence_number: write_summary.sequence_number,
         })
     }
 
@@ -250,16 +278,16 @@ impl<W: Wal> WriteBufferImpl<W> {
 }
 
 #[async_trait]
-impl<W: Wal> Bufferer for WriteBufferImpl<W> {
+impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
     async fn write_lp(
         &self,
         database: NamespaceName<'static>,
         lp: &str,
-        default_time: i64,
+        ingest_time: Time,
         accept_partial: bool,
         precision: Precision,
     ) -> Result<BufferedWriteRequest> {
-        self.write_lp(database, lp, default_time, accept_partial, precision)
+        self.write_lp(database, lp, ingest_time, accept_partial, precision)
             .await
     }
 
@@ -284,7 +312,7 @@ impl<W: Wal> Bufferer for WriteBufferImpl<W> {
     }
 }
 
-impl<W: Wal> ChunkContainer for WriteBufferImpl<W> {
+impl<W: Wal, T: TimeProvider> ChunkContainer for WriteBufferImpl<W, T> {
     fn get_table_chunks(
         &self,
         database_name: &str,
@@ -297,7 +325,7 @@ impl<W: Wal> ChunkContainer for WriteBufferImpl<W> {
     }
 }
 
-impl<W: Wal> WriteBuffer for WriteBufferImpl<W> {}
+impl<W: Wal, T: TimeProvider> WriteBuffer for WriteBufferImpl<W, T> {}
 
 #[derive(Debug)]
 pub struct BufferChunk {
@@ -360,16 +388,24 @@ impl QueryChunk for BufferChunk {
 }
 
 pub(crate) fn parse_validate_and_update_catalog(
-    db_name: &str,
+    db_name: NamespaceName<'static>,
     lp: &str,
     catalog: &Catalog,
-    default_time: i64,
+    ingest_time: Time,
+    segment_duration: SegmentDuration,
     accept_partial: bool,
     precision: Precision,
 ) -> Result<ValidationResult> {
-    let (sequence, db) = catalog.db_or_create(db_name)?;
-    let mut result =
-        parse_validate_and_update_schema(lp, &db, default_time, accept_partial, precision)?;
+    let (sequence, db) = catalog.db_or_create(db_name.as_str())?;
+    let mut result = parse_validate_and_update_schema(
+        lp,
+        &db,
+        db_name,
+        ingest_time,
+        segment_duration,
+        accept_partial,
+        precision,
+    )?;
 
     if let Some(schema) = result.schema.take() {
         debug!("replacing schema for {:?}", schema);
@@ -381,18 +417,20 @@ pub(crate) fn parse_validate_and_update_catalog(
 }
 
 /// Takes &str of line protocol, parses lines, validates the schema, and inserts new columns
-/// and partitions if present. Assigns the default time to any lines that do not include a time
+/// if present. Assigns the default time to any lines that do not include a time
 pub(crate) fn parse_validate_and_update_schema(
     lp: &str,
     schema: &DatabaseSchema,
-    default_time: i64,
+    db_name: NamespaceName<'static>,
+    ingest_time: Time,
+    segment_duration: SegmentDuration,
     accept_partial: bool,
     precision: Precision,
 ) -> Result<ValidationResult> {
-    let mut lines = vec![];
     let mut errors = vec![];
-    let mut valid_lines = vec![];
     let mut lp_lines = lp.lines();
+
+    let mut valid_parsed_and_raw_lines: Vec<(ParsedLine, &str)> = vec![];
 
     for (line_idx, maybe_line) in parse_lines(lp).enumerate() {
         let line = match maybe_line {
@@ -420,17 +458,21 @@ pub(crate) fn parse_validate_and_update_schema(
         };
         // This unwrap is fine because we're moving line by line
         // alongside the output from parse_lines
-        valid_lines.push(lp_lines.next().unwrap());
-        lines.push(line);
+        valid_parsed_and_raw_lines.push((line, lp_lines.next().unwrap()));
     }
 
-    validate_or_insert_schema_and_partitions(lines, schema, default_time, precision).map(
-        move |mut result| {
-            result.lp_valid = valid_lines.join("\n");
-            result.errors = errors;
-            result
-        },
+    validate_or_insert_schema_and_partitions(
+        valid_parsed_and_raw_lines,
+        schema,
+        db_name,
+        ingest_time,
+        segment_duration,
+        precision,
     )
+    .map(move |mut result| {
+        result.errors = errors;
+        result
+    })
 }
 
 /// Takes parsed lines, validates their schema. If new tables or columns are defined, they
@@ -438,30 +480,34 @@ pub(crate) fn parse_validate_and_update_schema(
 /// into partitions and the validation result contains the data that can then be serialized
 /// into the WAL.
 pub(crate) fn validate_or_insert_schema_and_partitions(
-    lines: Vec<ParsedLine<'_>>,
+    lines: Vec<(ParsedLine<'_>, &str)>,
     schema: &DatabaseSchema,
-    default_time: i64,
+    db_name: NamespaceName<'static>,
+    ingest_time: Time,
+    segment_duration: SegmentDuration,
     precision: Precision,
 ) -> Result<ValidationResult> {
     // The (potentially updated) DatabaseSchema to return to the caller.
     let mut schema = Cow::Borrowed(schema);
 
     // The parsed and validated table_batches
-    let mut table_batches: HashMap<String, TableBatch> = HashMap::new();
+    let mut segment_table_batches: HashMap<Time, TableBatchMap> = HashMap::new();
 
     let line_count = lines.len();
     let mut field_count = 0;
     let mut tag_count = 0;
 
-    for line in lines.into_iter() {
+    for (line, raw_line) in lines.into_iter() {
         field_count += line.field_set.len();
         tag_count += line.series.tag_set.as_ref().map(|t| t.len()).unwrap_or(0);
 
         validate_and_convert_parsed_line(
             line,
-            &mut table_batches,
+            raw_line,
+            &mut segment_table_batches,
             &mut schema,
-            default_time,
+            ingest_time,
+            segment_duration,
             precision,
         )?;
     }
@@ -471,24 +517,39 @@ pub(crate) fn validate_or_insert_schema_and_partitions(
         Cow::Borrowed(_) => None,
     };
 
+    let valid_segmented_data = segment_table_batches
+        .into_iter()
+        .map(|(segment_start, table_batches)| ValidSegmentedData {
+            database_name: db_name.clone(),
+            segment_start,
+            table_batches: table_batches.table_batches,
+            wal_op: WalOp::LpWrite(LpWriteOp {
+                db_name: db_name.to_string(),
+                lp: table_batches.lines.join("\n"),
+                default_time: ingest_time.timestamp_nanos(),
+            }),
+        })
+        .collect();
+
     Ok(ValidationResult {
         schema,
-        table_batches,
         line_count,
         field_count,
         tag_count,
         errors: vec![],
-        lp_valid: String::new(),
+        valid_segmented_data,
     })
 }
 
 // &mut Cow is used to avoid a copy, so allow it
 #[allow(clippy::ptr_arg)]
-fn validate_and_convert_parsed_line(
+fn validate_and_convert_parsed_line<'a>(
     line: ParsedLine<'_>,
-    table_batches: &mut HashMap<String, TableBatch>,
+    raw_line: &'a str,
+    segment_table_batches: &mut HashMap<Time, TableBatchMap<'a>>,
     schema: &mut Cow<'_, DatabaseSchema>,
-    default_time: i64,
+    ingest_time: Time,
+    segment_duration: SegmentDuration,
     precision: Precision,
 ) -> Result<()> {
     let table_name = line.series.measurement.as_str();
@@ -574,7 +635,7 @@ fn validate_and_convert_parsed_line(
     }
 
     // set the time value
-    let time_value = line
+    let time_value_nanos = line
         .timestamp
         .map(|ts| {
             let multiplier = match precision {
@@ -594,17 +655,27 @@ fn validate_and_convert_parsed_line(
 
             ts * multiplier
         })
-        .unwrap_or(default_time);
+        .unwrap_or(ingest_time.timestamp_nanos());
+
+    let segment_start = segment_duration.start_time(time_value_nanos / 1_000_000_000);
+
     values.push(Field {
         name: TIME_COLUMN_NAME.to_string(),
-        value: FieldData::Timestamp(time_value),
+        value: FieldData::Timestamp(time_value_nanos),
     });
 
-    let table_batch = table_batches.entry(table_name.to_string()).or_default();
+    let table_batch_map = segment_table_batches.entry(segment_start).or_default();
+
+    let table_batch = table_batch_map
+        .table_batches
+        .entry(table_name.to_string())
+        .or_default();
     table_batch.rows.push(Row {
-        time: time_value,
+        time: time_value_nanos,
         fields: values,
     });
+
+    table_batch_map.lines.push(raw_line);
 
     Ok(())
 }
@@ -664,8 +735,6 @@ pub(crate) struct ValidationResult {
     /// If the namespace schema is updated with new tables or columns it will be here, which
     /// can be used to update the cache.
     pub(crate) schema: Option<DatabaseSchema>,
-    /// Map of table name to TableBatch
-    pub(crate) table_batches: HashMap<String, TableBatch>,
     /// Number of lines passed in
     pub(crate) line_count: usize,
     /// Number of fields passed in
@@ -674,8 +743,23 @@ pub(crate) struct ValidationResult {
     pub(crate) tag_count: usize,
     /// Any errors that ocurred while parsing the lines
     pub(crate) errors: Vec<crate::WriteLineError>,
-    /// Only valid lines from what was passed in to validate
-    pub(crate) lp_valid: String,
+    /// Only valid lines from what was passed in to validate, segmented based on the
+    /// timestamps of the data.
+    pub(crate) valid_segmented_data: Vec<ValidSegmentedData>,
+}
+
+#[derive(Debug)]
+pub(crate) struct ValidSegmentedData {
+    pub(crate) database_name: NamespaceName<'static>,
+    pub(crate) segment_start: Time,
+    pub(crate) table_batches: HashMap<String, TableBatch>,
+    pub(crate) wal_op: WalOp,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct TableBatchMap<'a> {
+    pub(crate) lines: Vec<&'a str>,
+    pub(crate) table_batches: HashMap<String, TableBatch>,
 }
 
 #[cfg(test)]
@@ -692,9 +776,18 @@ mod tests {
     #[test]
     fn parse_lp_into_buffer() {
         let db = Arc::new(DatabaseSchema::new("foo"));
+        let db_name = NamespaceName::new("foo").unwrap();
         let lp = "cpu,region=west user=23.2 100\nfoo f1=1i";
-        let result =
-            parse_validate_and_update_schema(lp, &db, 0, false, Precision::Nanosecond).unwrap();
+        let result = parse_validate_and_update_schema(
+            lp,
+            &db,
+            db_name,
+            Time::from_timestamp_nanos(0),
+            SegmentDuration::FiveMinutes,
+            false,
+            Precision::Nanosecond,
+        )
+        .unwrap();
 
         let db = result.schema.unwrap();
 
@@ -709,7 +802,7 @@ mod tests {
         let wal = WalImpl::new(dir.clone()).unwrap();
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
-        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(Time::MIN));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let segment_duration = SegmentDuration::FiveMinutes;
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
@@ -724,7 +817,7 @@ mod tests {
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu bar=1 10",
-                123,
+                Time::from_timestamp_nanos(123),
                 false,
                 Precision::Nanosecond,
             )
@@ -733,9 +826,6 @@ mod tests {
         assert_eq!(summary.line_count, 1);
         assert_eq!(summary.field_count, 1);
         assert_eq!(summary.tag_count, 0);
-        assert_eq!(summary.total_buffer_memory_used, 1);
-        assert_eq!(summary.segment_id, SegmentId::new(1));
-        assert_eq!(summary.sequence_number, SequenceNumber::new(1));
 
         // ensure the data is in the buffer
         let actual = write_buffer.get_table_record_batches("foo", "cpu");

@@ -221,7 +221,7 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, "db1", lp);
 
-        open_segment.write_batch(vec![wal_op]).unwrap();
+        open_segment.write_wal_ops(vec![wal_op]).unwrap();
         open_segment.buffer_writes(write_batch).unwrap();
 
         let catalog = Arc::new(catalog);
@@ -302,7 +302,7 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
 
-        current_segment.write_batch(vec![wal_op.clone()]).unwrap();
+        current_segment.write_wal_ops(vec![wal_op.clone()]).unwrap();
         current_segment.buffer_writes(write_batch).unwrap();
 
         let loaded_state = load_starting_state(
@@ -385,7 +385,7 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
 
-        current_segment.write_batch(vec![wal_op]).unwrap();
+        current_segment.write_wal_ops(vec![wal_op]).unwrap();
         current_segment.buffer_writes(write_batch).unwrap();
 
         let segment_id = current_segment.segment_id();
@@ -408,7 +408,7 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
 
-        next_segment.write_batch(vec![wal_op]).unwrap();
+        next_segment.write_wal_ops(vec![wal_op]).unwrap();
         next_segment.buffer_writes(write_batch).unwrap();
 
         // now load up with a start time that puts us in next segment period
@@ -542,7 +542,7 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
 
-        current_segment.write_batch(vec![wal_op]).unwrap();
+        current_segment.write_wal_ops(vec![wal_op]).unwrap();
         current_segment.buffer_writes(write_batch).unwrap();
 
         // close the current segment
@@ -559,7 +559,7 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
 
-        next_segment.write_batch(vec![wal_op]).unwrap();
+        next_segment.write_wal_ops(vec![wal_op]).unwrap();
         next_segment.buffer_writes(write_batch).unwrap();
 
         // now load up with a start time that puts us in next segment period. we should now

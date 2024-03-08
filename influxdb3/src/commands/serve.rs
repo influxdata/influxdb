@@ -258,7 +258,7 @@ pub async fn command(config: Config) -> Result<()> {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             wal,
-            time_provider,
+            Arc::clone(&time_provider),
             SegmentDuration::FiveMinutes,
         )
         .await?,
@@ -276,6 +276,7 @@ pub async fn command(config: Config) -> Result<()> {
         .max_request_size(config.max_http_request_size)
         .write_buffer(write_buffer)
         .query_executor(query_executor)
+        .time_provider(time_provider)
         .persister(persister);
 
     let server = if let Some(token) = config.bearer_token.map(hex::decode).transpose()? {

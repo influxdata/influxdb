@@ -24,7 +24,7 @@ use influxdb3_write::BufferedWriteRequest;
 use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
 use iox_query_influxql_rewrite as rewrite;
-use iox_time::{SystemProvider, TimeProvider};
+use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, info};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -273,17 +273,19 @@ impl Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
-pub(crate) struct HttpApi<W, Q> {
+pub(crate) struct HttpApi<W, Q, T> {
     common_state: CommonServerState,
     write_buffer: Arc<W>,
+    time_provider: Arc<T>,
     pub(crate) query_executor: Arc<Q>,
     max_request_bytes: usize,
     authorizer: Arc<dyn Authorizer>,
 }
 
-impl<W, Q> HttpApi<W, Q> {
+impl<W, Q, T> HttpApi<W, Q, T> {
     pub(crate) fn new(
         common_state: CommonServerState,
+        time_provider: Arc<T>,
         write_buffer: Arc<W>,
         query_executor: Arc<Q>,
         max_request_bytes: usize,
@@ -291,6 +293,7 @@ impl<W, Q> HttpApi<W, Q> {
     ) -> Self {
         Self {
             common_state,
+            time_provider,
             write_buffer,
             query_executor,
             max_request_bytes,
@@ -299,10 +302,11 @@ impl<W, Q> HttpApi<W, Q> {
     }
 }
 
-impl<W, Q> HttpApi<W, Q>
+impl<W, Q, T> HttpApi<W, Q, T>
 where
     W: WriteBuffer,
     Q: QueryExecutor,
+    T: TimeProvider,
     Error: From<<Q as QueryExecutor>::Error>,
 {
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
@@ -316,8 +320,7 @@ where
 
         let database = NamespaceName::new(params.db)?;
 
-        // TODO: use the time provider
-        let default_time = SystemProvider::new().now().timestamp_nanos();
+        let default_time = self.time_provider.now();
 
         let result = self
             .write_buffer
@@ -704,8 +707,8 @@ pub(crate) struct WriteParams {
     pub(crate) precision: Precision,
 }
 
-pub(crate) async fn route_request<W, Q>(
-    http_server: Arc<HttpApi<W, Q>>,
+pub(crate) async fn route_request<W: WriteBuffer, Q: QueryExecutor, T: TimeProvider>(
+    http_server: Arc<HttpApi<W, Q, T>>,
     mut req: Request<Body>,
 ) -> Result<Response<Body>, Infallible>
 where

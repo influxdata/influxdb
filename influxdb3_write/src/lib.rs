@@ -70,7 +70,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         &self,
         database: NamespaceName<'static>,
         lp: &str,
-        default_time: i64,
+        ingest_time: Time,
         accept_partial: bool,
         precision: Precision,
     ) -> write_buffer::Result<BufferedWriteRequest>;
@@ -166,6 +166,31 @@ impl SegmentDuration {
             Self::FourHours => 4 * 60 * 60,
         }
     }
+
+    /// Given a time, returns the start time of the segment that contains the time.
+    pub fn start_time(&self, timestamp_seconds: i64) -> Time {
+        let duration_seconds = self.duration_seconds();
+        let rounded_seconds = (timestamp_seconds / duration_seconds) * duration_seconds;
+        Time::from_timestamp(rounded_seconds, 0).unwrap()
+    }
+
+    pub fn as_duration(&self) -> Duration {
+        Duration::from_secs(self.duration_seconds() as u64)
+    }
+
+    pub fn from_range(segment_range: SegmentRange) -> Self {
+        let duration = segment_range.duration();
+        match duration.as_secs() {
+            300 => Self::FiveMinutes,
+            600 => Self::TenMinutes,
+            900 => Self::FifteenMinutes,
+            1800 => Self::ThirtyMinutes,
+            3600 => Self::OneHour,
+            7200 => Self::TwoHours,
+            14400 => Self::FourHours,
+            _ => panic!("Invalid segment duration"),
+        }
+    }
 }
 
 impl SegmentRange {
@@ -175,14 +200,11 @@ impl SegmentRange {
         segment_duration: SegmentDuration,
         data_outside: bool,
     ) -> Self {
-        let duration_seconds = segment_duration.duration_seconds();
-        let timestamp_seconds = clock_time.timestamp();
-        let rounded_seconds = (timestamp_seconds / duration_seconds) * duration_seconds;
-        let rounded_dt = Time::from_timestamp(rounded_seconds, 0).unwrap();
+        let start_time = segment_duration.start_time(clock_time.timestamp());
 
         Self {
-            start_time: rounded_dt,
-            end_time: rounded_dt.add(Duration::from_secs(duration_seconds as u64)),
+            start_time,
+            end_time: start_time.add(segment_duration.as_duration()),
             contains_data_outside_range: data_outside,
         }
     }
@@ -359,7 +381,7 @@ pub trait WalSegmentWriter: Debug + Send + Sync + 'static {
 
     fn bytes_written(&self) -> u64;
 
-    fn write_batch(&mut self, ops: Vec<WalOp>) -> wal::Result<SequenceNumber>;
+    fn write_batch(&mut self, ops: Vec<WalOp>) -> wal::Result<()>;
 
     fn last_sequence_number(&self) -> SequenceNumber;
 }
@@ -413,9 +435,6 @@ pub struct BufferedWriteRequest {
     pub line_count: usize,
     pub field_count: usize,
     pub tag_count: usize,
-    pub total_buffer_memory_used: usize,
-    pub segment_id: SegmentId,
-    pub sequence_number: SequenceNumber,
 }
 
 /// A persisted Catalog that contains the database, table, and column schemas.
@@ -526,8 +545,9 @@ mod test_helpers {
     use crate::catalog::{Catalog, DatabaseSchema};
     use crate::write_buffer::buffer_segment::WriteBatch;
     use crate::write_buffer::{parse_validate_and_update_schema, TableBatch};
-    use crate::Precision;
+    use crate::{Precision, SegmentDuration};
     use data_types::NamespaceName;
+    use iox_time::Time;
     use std::collections::HashMap;
     use std::sync::Arc;
 
@@ -536,25 +556,45 @@ mod test_helpers {
         db_name: &'static str,
         lp: &str,
     ) -> WriteBatch {
+        let db_name = NamespaceName::new(db_name).unwrap();
         let mut write_batch = WriteBatch::default();
-        let (seq, db) = catalog.db_or_create(db_name).unwrap();
-        let result =
-            parse_validate_and_update_schema(lp, &db, 0, false, Precision::Nanosecond).unwrap();
+        let (seq, db) = catalog.db_or_create(db_name.as_str()).unwrap();
+        let mut result = parse_validate_and_update_schema(
+            lp,
+            &db,
+            db_name.clone(),
+            Time::from_timestamp_nanos(0),
+            SegmentDuration::FiveMinutes,
+            false,
+            Precision::Nanosecond,
+        )
+        .unwrap();
         if let Some(db) = result.schema {
             catalog.replace_database(seq, Arc::new(db)).unwrap();
         }
-        let db_name = NamespaceName::new(db_name).unwrap();
-        write_batch.add_db_write(db_name, result.table_batches);
+
+        write_batch.add_db_write(
+            db_name,
+            result.valid_segmented_data.pop().unwrap().table_batches,
+        );
         write_batch
     }
 
     pub(crate) fn lp_to_table_batches(lp: &str, default_time: i64) -> HashMap<String, TableBatch> {
         let db = Arc::new(DatabaseSchema::new("foo"));
-        let result =
-            parse_validate_and_update_schema(lp, &db, default_time, false, Precision::Nanosecond)
-                .unwrap();
+        let db_name = NamespaceName::new("foo").unwrap();
+        let mut result = parse_validate_and_update_schema(
+            lp,
+            &db,
+            db_name,
+            Time::from_timestamp_nanos(default_time),
+            SegmentDuration::FiveMinutes,
+            false,
+            Precision::Nanosecond,
+        )
+        .unwrap();
 
-        result.table_batches
+        result.valid_segmented_data.pop().unwrap().table_batches
     }
 }
 

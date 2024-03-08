@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use crc32fast::Hasher;
 use datafusion::parquet::file::reader::Length;
+use iox_time::Time;
 use observability_deps::tracing::{info, warn};
 use serde::{Deserialize, Serialize};
 use snap::read::FrameDecoder;
@@ -82,6 +83,9 @@ pub enum Error {
 
     #[error("file doens't exist: {0}")]
     FileDoesntExist(PathBuf),
+
+    #[error("segment start time not open: {0}")]
+    SegmentStartTimeNotOpen(Time),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -266,8 +270,7 @@ impl WalSegmentWriterImpl {
         }
     }
 
-    fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<SequenceNumber> {
-        println!("write batch in impl");
+    fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<()> {
         // Ensure the write buffer is always empty before using it.
         self.buffer.clear();
 
@@ -285,7 +288,7 @@ impl WalSegmentWriterImpl {
         self.bytes_written += bytes_written;
         self.sequence_number = sequence_number;
 
-        Ok(self.sequence_number)
+        Ok(())
     }
 
     fn write_bytes(&mut self, data: Vec<u8>) -> Result<usize> {
@@ -342,7 +345,7 @@ impl WalSegmentWriter for WalSegmentWriterImpl {
         self.bytes_written as u64
     }
 
-    fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<SequenceNumber> {
+    fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<()> {
         self.write_batch(ops)
     }
 
@@ -377,15 +380,11 @@ impl WalSegmentWriter for WalSegmentWriterNoopImpl {
         self.wal_ops_written as u64
     }
 
-    fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<SequenceNumber> {
+    fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<()> {
         let sequence_number = self.sequence_number.next();
         self.sequence_number = sequence_number;
         self.wal_ops_written += ops.len();
-        println!(
-            "write_batch called: wal_ops_written: {}",
-            self.wal_ops_written
-        );
-        Ok(sequence_number)
+        Ok(())
     }
 
     fn last_sequence_number(&self) -> SequenceNumber {

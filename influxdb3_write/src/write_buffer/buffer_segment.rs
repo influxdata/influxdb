@@ -5,11 +5,13 @@
 use crate::catalog::Catalog;
 use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
-use crate::write_buffer::{parse_validate_and_update_catalog, FieldData, Row, TableBatch};
+use crate::write_buffer::{
+    parse_validate_and_update_catalog, FieldData, Row, TableBatch, ValidSegmentedData,
+};
 use crate::{
     wal, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment, Persister, Precision,
-    SegmentId, SegmentRange, SequenceNumber, TableParquetFiles, WalOp, WalSegmentReader,
-    WalSegmentWriter,
+    SegmentDuration, SegmentId, SegmentRange, SequenceNumber, TableParquetFiles, WalOp,
+    WalSegmentReader, WalSegmentWriter,
 };
 use arrow::array::{
     ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, StringDictionaryBuilder,
@@ -19,6 +21,7 @@ use arrow::datatypes::Int32Type;
 use arrow::record_batch::RecordBatch;
 use data_types::{ColumnType, NamespaceName, PartitionKey, TimestampMinMax};
 use datafusion_util::stream_from_batch;
+use iox_time::Time;
 use schema::Schema;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
@@ -60,10 +63,14 @@ impl OpenBufferSegment {
         }
     }
 
+    pub fn start_time_matches(&self, t: Time) -> bool {
+        self.segment_range.start_time == t
+    }
+
     pub fn segment_id(&self) -> SegmentId {
         self.segment_id
     }
-    pub fn write_batch(&mut self, write_batch: Vec<WalOp>) -> wal::Result<SequenceNumber> {
+    pub fn write_wal_ops(&mut self, write_batch: Vec<WalOp>) -> wal::Result<()> {
         self.segment_writer.write_batch(write_batch)
     }
 
@@ -74,8 +81,8 @@ impl OpenBufferSegment {
             .and_then(|db_buffer| db_buffer.table_buffers.get(table_name).cloned())
     }
 
-    /// Adds the batch into the in memory buffer. Returns the number of rows in the segment after the write.
-    pub(crate) fn buffer_writes(&mut self, write_batch: WriteBatch) -> Result<usize> {
+    /// Adds the batch into the in memory buffer.
+    pub(crate) fn buffer_writes(&mut self, write_batch: WriteBatch) -> Result<()> {
         for (db_name, db_batch) in write_batch.database_batches {
             let db_buffer = self
                 .buffered_data
@@ -100,7 +107,7 @@ impl OpenBufferSegment {
             }
         }
 
-        Ok(self.segment_size)
+        Ok(())
     }
 
     #[allow(dead_code)]
@@ -125,16 +132,18 @@ pub(crate) fn load_buffer_from_segment(
     let mut segment_size = 0;
     let mut buffered_data = BufferedData::default();
     let segment_key = PartitionKey::from(segment_reader.header().range.key());
+    let segment_duration = SegmentDuration::from_range(segment_reader.header().range);
 
     while let Some(batch) = segment_reader.next_batch()? {
         for wal_op in batch.ops {
             match wal_op {
                 WalOp::LpWrite(write) => {
-                    let validated_write = parse_validate_and_update_catalog(
-                        &write.db_name,
+                    let mut validated_write = parse_validate_and_update_catalog(
+                        NamespaceName::new(write.db_name.clone())?,
                         &write.lp,
                         catalog,
-                        write.default_time,
+                        Time::from_timestamp_nanos(write.default_time),
+                        segment_duration,
                         false,
                         Precision::Nanosecond,
                     )?;
@@ -144,7 +153,12 @@ pub(crate) fn load_buffer_from_segment(
                         .entry(write.db_name)
                         .or_default();
 
-                    for (table_name, table_batch) in validated_write.table_batches {
+                    // there should only ever be data for a single segment as this is all read
+                    // from one segment file
+                    assert!(validated_write.valid_segmented_data.len() == 1);
+                    let segment_data = validated_write.valid_segmented_data.pop().unwrap();
+
+                    for (table_name, table_batch) in segment_data.table_batches {
                         let table_buffer = db_buffer
                             .table_buffers
                             .entry(table_name)
@@ -200,33 +214,8 @@ impl DatabaseBatch {
 }
 
 pub struct BufferedWrite {
-    pub wal_op: WalOp,
-    pub database_write: DatabaseWrite,
+    pub segmented_data: Vec<ValidSegmentedData>,
     pub response_tx: oneshot::Sender<BufferedWriteResult>,
-}
-
-pub struct DatabaseWrite {
-    pub(crate) db_name: NamespaceName<'static>,
-    pub(crate) table_batches: HashMap<String, TableBatch>,
-}
-
-impl DatabaseWrite {
-    pub fn new(
-        db_name: NamespaceName<'static>,
-        table_batches: HashMap<String, TableBatch>,
-    ) -> Self {
-        Self {
-            db_name,
-            table_batches,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct WriteSummary {
-    pub segment_id: SegmentId,
-    pub sequence_number: SequenceNumber,
-    pub buffer_size: usize,
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -584,7 +573,7 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, "db1", lp);
 
-        open_segment.write_batch(vec![wal_op]).unwrap();
+        open_segment.write_wal_ops(vec![wal_op]).unwrap();
         open_segment.buffer_writes(write_batch).unwrap();
 
         let catalog = Arc::new(catalog);
