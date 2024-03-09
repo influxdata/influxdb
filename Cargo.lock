@@ -2533,6 +2533,7 @@ dependencies = [
 name = "influxdb3_server"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arrow",
  "arrow-csv",
  "arrow-flight",
@@ -2569,6 +2570,7 @@ dependencies = [
  "pin-project-lite",
  "pretty_assertions",
  "schema",
+ "secrecy",
  "serde",
  "serde_arrow",
  "serde_json",

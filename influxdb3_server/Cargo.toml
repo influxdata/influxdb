@@ -32,6 +32,7 @@ influxdb3_write = { path = "../influxdb3_write" }
 iox_query_influxql_rewrite = { path = "../iox_query_influxql_rewrite" }
 
 # crates.io Dependencies
+anyhow.workspace = true
 arrow.workspace = true
 arrow-csv.workspace = true
 arrow-flight.workspace = true
@@ -49,6 +50,7 @@ hyper.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 pin-project-lite.workspace = true
+secrecy.workspace = true
 serde.workspace = true
 serde_arrow.workspace = true
 serde_json.workspace = true
