@@ -23,3 +23,23 @@ rustflags = [
     # Enable framepointers because profiling and debugging is a nightmare w/o it and it is generally not considered a performance advantage on modern x86_64 CPUs.
     "-C", "force-frame-pointers=yes",
 ]
+
+[target.x86_64-apple-darwin]
+rustflags = [
+  "--cfg", "tokio_unstable",
+  "-C", "link-arg=-fuse-ld=lld",
+  "-C", "link-arg=-undefined",
+
+  "-C", "link-arg=dynamic_lookup",
+  "-C", "force-frame-pointers=yes",
+]
+
+[target.aarch64-apple-darwin]
+rustflags = [
+  "--cfg", "tokio_unstable",
+  "-C", "link-arg=-fuse-ld=lld",
+  "-C", "force-frame-pointers=yes",
+
+  "-C", "link-arg=-undefined",
+  "-C", "link-arg=dynamic_lookup",
+]
