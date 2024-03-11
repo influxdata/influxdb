@@ -24,9 +24,11 @@ exclude = [
 
 [workspace.package]
 version = "0.1.0"
-authors = ["influxdata Edge Developers"]
+authors = ["InfluxData Edge Developers"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/influxdata/influxdb"
+description = "InfluxDB 3.0 Edge"
 
 [workspace.dependencies]
 arrow = { version = "50.0.0", features = ["prettyprint", "chrono-tz"] }
@@ -142,6 +144,23 @@ future_not_send = "deny"
 broken_intra_doc_links = "deny"
 bare_urls = "deny"
 
+# Config for 'cargo dist'
+[workspace.metadata.dist]
+# The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.11.1"
+# CI backends to support
+ci = ["github"]
+# The installers to generate for each app
+installers = ["shell", "powershell", "homebrew", "msi"]
+# A GitHub repo to push Homebrew formulas to
+tap = "influxdata/homebrew-tap"
+# Target platforms to build apps for (Rust target-triple syntax)
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl", "x86_64-pc-windows-msvc"]
+# Publish jobs to run in CI
+publish-jobs = ["homebrew"]
+# Publish jobs to run in CI
+pr-run-mode = "upload"
+
 # This profile optimizes for runtime performance and small binary size at the expense of longer
 # build times. It's most suitable for final release builds.
 [profile.release]
@@ -166,3 +185,8 @@ opt-level = 3
 
 [profile.dev.package.similar]
 opt-level = 3
+
+# The profile that 'cargo dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

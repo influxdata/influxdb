@@ -4,6 +4,14 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+[package.metadata.wix]
+upgrade-guid = "8156E7ED-72AE-4A36-A0E0-3B5E68EAF61D"
+path-guid = "32BA068C-517A-4FA1-8D87-906082ADD9E0"
+license = false
+eula = false
 
 [dependencies]
 # Core Crates
