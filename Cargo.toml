@@ -160,8 +160,10 @@ targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-
 publish-jobs = ["homebrew"]
 # Publish jobs to run in CI
 pr-run-mode = "upload"
-# Workaround for the fact that we need protoc from Ubuntu > 20.04
-allow-dirty = ["ci"]
+
+[workspace.metadata.dist.github-custom-runners]
+x86_64-unknown-linux-gnu = "ubuntu-latest"
+x86_64-unknown-linux-musl = "ubuntu-latest"
 
 [workspace.metadata.dist.dependencies.homebrew]
 protobuf = "3.21"
