@@ -110,6 +110,12 @@ impl SegmentWalFilePath {
     }
 }
 
+impl ToString for SegmentWalFilePath {
+    fn to_string(&self) -> String {
+        self.0.to_string_lossy().into_owned()
+    }
+}
+
 impl Deref for SegmentWalFilePath {
     type Target = Path;
 
