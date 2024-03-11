@@ -72,6 +72,10 @@ jobs:
         run: |
           cargo dist ${{ (!github.event.pull_request && format('host --steps=create --tag={0}', github.ref_name)) || 'plan' }} --output-format=json > plan-dist-manifest.json
           echo "cargo dist ran successfully"
+          # Hack around the fact that cargo-dist can't let us choose the runner
+          # version yet. We need this for protoc, but it's set to 20.04 to link
+          # against an old glibc for compatibility
+          sed -i 's/ubuntu-20.04/ubuntu-latest/' plan-dist-manifest.json
           cat plan-dist-manifest.json
           echo "manifest=$(jq -c "." plan-dist-manifest.json)" >> "$GITHUB_OUTPUT"
       - name: "Upload dist-manifest.json"
