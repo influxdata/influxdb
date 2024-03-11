@@ -162,7 +162,7 @@ publish-jobs = ["homebrew"]
 pr-run-mode = "upload"
 
 [workspace.metadata.dist.dependencies.homebrew]
-protobuf = "*"
+protobuf = "3.21"
 llvm = "*"
 gcc = "*"
 
@@ -170,11 +170,11 @@ gcc = "*"
 clang = "*"
 lld = "*"
 'g++' = "*"
-protobuf-compiler = "*"
-libprotobuf-dev = "*"
+protobuf-compiler = "3.21"
+libprotobuf-dev = "3.21"
 
 [workspace.metadata.dist.dependencies.chocolatey]
-protoc = "*"
+protoc = "3.21"
 llvm = "*"
 
 

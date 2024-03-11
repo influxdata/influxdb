@@ -56,6 +56,8 @@ uuid.workspace = true
 
 # Optional Dependencies
 console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemalloc-ctl = { version = "0.5.4", optional = true }
 tikv-jemalloc-sys = { version = "0.5.4", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
 

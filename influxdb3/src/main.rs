@@ -32,7 +32,11 @@ mod commands {
     pub mod write;
 }
 
-#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+#[cfg(all(
+    not(feature = "heappy"),
+    feature = "jemalloc_replacing_malloc",
+    not(target_env = "msvc")
+))]
 mod jemalloc;
 
 mod process_info;
