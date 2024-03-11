@@ -166,25 +166,13 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
     ) -> Vec<ParquetFile> {
         let mut parquet_files = vec![];
 
-        println!(
-            "Getting parquet files for database: {} and table: {}",
-            database_name, table_name
-        );
-
         for segment in self.persisted_segments.values() {
-            println!("Segment: {:?}", segment.segment_min_time);
-
-            if let Some(db) = segment.databases.get(database_name) {
-                println!("Got database: {:?}", db);
-                if let Some(table) = db.tables.get(table_name) {
-                    println!("Got table: {:?}", table);
-                    let segment_parquet_files = table.parquet_files.clone();
-                    parquet_files.extend(segment_parquet_files);
-                }
-            }
+            segment.databases.get(database_name).map(|db| {
+                db.tables.get(table_name).map(|table| {
+                    parquet_files.extend(table.parquet_files.clone());
+                })
+            });
         }
-
-        println!("Got parquet files: {:?}", parquet_files);
 
         parquet_files
     }

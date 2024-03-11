@@ -12,7 +12,6 @@ use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use bytes::Bytes;
 use datafusion::common::DataFusionError;
-use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::execution::memory_pool::MemoryConsumer;
 use datafusion::execution::memory_pool::MemoryPool;
 use datafusion::execution::memory_pool::MemoryReservation;
@@ -255,14 +254,6 @@ impl Persister for PersisterImpl {
 
     fn object_store(&self) -> Arc<dyn ObjectStore> {
         self.object_store.clone()
-    }
-
-    // This is used by the query engine to know where to read parquet files from. This assumes
-    // that there is a `ParquetStorage` with an id of `influxdb3` and that this url has been
-    // registered with the query execution context. Kind of ugly here, but not sure where else
-    // to keep this.
-    fn object_store_url(&self) -> ObjectStoreUrl {
-        ObjectStoreUrl::parse("iox://influxdb3/").unwrap()
     }
 
     fn as_any(&self) -> &dyn Any {

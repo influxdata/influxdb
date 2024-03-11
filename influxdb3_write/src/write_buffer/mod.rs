@@ -25,6 +25,7 @@ use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
+use object_store::path::Path as ObjPath;
 use object_store::ObjectMeta;
 use observability_deps::tracing::{debug, error};
 use parking_lot::{Mutex, RwLock};
@@ -127,12 +128,12 @@ impl<W: Wal, T: TimeProvider, P: Persister> WriteBufferImpl<W, T, P> {
         let segment_state_persister = Arc::clone(&segment_state);
         let time_provider_persister = Arc::clone(&time_provider);
         let wal_perister = wal.clone();
-        let persister_persister = Arc::clone(&persister);
+        let cloned_persister = Arc::clone(&persister);
 
         let (shutdown_segment_persist_tx, shutdown_rx) = watch::channel(());
         let segment_persist_handle = tokio::task::spawn(async move {
             run_buffer_segment_persist_and_cleanup(
-                persister_persister,
+                cloned_persister,
                 segment_state_persister,
                 shutdown_rx,
                 time_provider_persister,
@@ -238,7 +239,7 @@ impl<W: Wal, T: TimeProvider, P: Persister> WriteBufferImpl<W, T, P> {
                 None,
             );
 
-            let location = object_store::path::Path::from(parquet_file.path.clone());
+            let location = ObjPath::from(parquet_file.path.clone());
 
             let parquet_exec = ParquetExecInput {
                 object_store_url: object_store_url.clone(),

@@ -35,7 +35,7 @@ serde_json.workspace = true
 snap.workspace = true
 bytes.workspace = true
 futures-util.workspace = true
-url = "2.5.0"
+url.workspace = true
 
 [dev-dependencies]
 # Core Crates

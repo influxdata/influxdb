@@ -190,7 +190,6 @@ pub(crate) fn load_buffer_from_segment(
                             segment_reader.path().to_string(),
                         ));
                     }
-
                     let segment_data = validated_write.valid_segmented_data.pop().unwrap();
 
                     for (table_name, table_batch) in segment_data.table_batches {
@@ -539,7 +538,6 @@ pub(crate) mod tests {
     use crate::wal::WalSegmentWriterNoopImpl;
     use crate::{persister, LpWriteOp, PersistedCatalog};
     use bytes::Bytes;
-    use datafusion::datasource::object_store::ObjectStoreUrl;
     use datafusion::execution::SendableRecordBatchStream;
     use object_store::ObjectStore;
     use parking_lot::Mutex;
@@ -776,10 +774,6 @@ pub(crate) mod tests {
 
         fn object_store(&self) -> Arc<dyn ObjectStore> {
             todo!()
-        }
-
-        fn object_store_url(&self) -> ObjectStoreUrl {
-            ObjectStoreUrl::parse("iox://influxdb3/").unwrap()
         }
     }
 }

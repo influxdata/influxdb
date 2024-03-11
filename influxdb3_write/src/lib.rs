@@ -308,6 +308,8 @@ impl SequenceNumber {
     }
 }
 
+pub const DEFAULT_OBJECT_STORE_URL: &str = "iox://influxdb3/";
+
 #[async_trait]
 pub trait Persister: Debug + Send + Sync + 'static {
     type Error;
@@ -350,8 +352,13 @@ pub trait Persister: Debug + Send + Sync + 'static {
     /// Returns the configured `ObjectStore` that data is loaded from and persisted to.
     fn object_store(&self) -> Arc<dyn object_store::ObjectStore>;
 
-    /// Returns the Url for the object store that can be used by the query engine to load parquet files.
-    fn object_store_url(&self) -> ObjectStoreUrl;
+    // This is used by the query engine to know where to read parquet files from. This assumes
+    // that there is a `ParquetStorage` with an id of `influxdb3` and that this url has been
+    // registered with the query execution context. Kind of ugly here, but not sure where else
+    // to keep this.
+    fn object_store_url(&self) -> ObjectStoreUrl {
+        ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap()
+    }
 
     fn as_any(&self) -> &dyn Any;
 }
