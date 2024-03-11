@@ -152,7 +152,7 @@ jobs:
     needs:
       - plan
       - build-local-artifacts
-    runs-on: "ubuntu-20.04"
+    runs-on: "ubuntu-latest"
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BUILD_MANIFEST_NAME: target/distrib/global-dist-manifest.json
@@ -199,7 +199,7 @@ jobs:
     if: ${{ always() && needs.plan.outputs.publishing == 'true' && (needs.build-global-artifacts.result == 'skipped' || needs.build-global-artifacts.result == 'success') && (needs.build-local-artifacts.result == 'skipped' || needs.build-local-artifacts.result == 'success') }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    runs-on: "ubuntu-20.04"
+    runs-on: "ubuntu-latest"
     outputs:
       val: ${{ steps.host.outputs.manifest }}
     steps:
@@ -234,7 +234,7 @@ jobs:
     needs:
       - plan
       - host
-    runs-on: "ubuntu-20.04"
+    runs-on: "ubuntu-latest"
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PLAN: ${{ needs.plan.outputs.val }}
@@ -280,7 +280,7 @@ jobs:
     # still allowing individual publish jobs to skip themselves (for prereleases).
     # "host" however must run to completion, no skipping allowed!
     if: ${{ always() && needs.host.result == 'success' && (needs.publish-homebrew-formula.result == 'skipped' || needs.publish-homebrew-formula.result == 'success') }}
-    runs-on: "ubuntu-20.04"
+    runs-on: "ubuntu-latest"
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
