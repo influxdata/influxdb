@@ -3,17 +3,16 @@
 pub(crate) mod buffer_segment;
 mod flusher;
 mod loader;
+mod segment_state;
 
 use crate::catalog::{Catalog, DatabaseSchema, TableDefinition, TIME_COLUMN_NAME};
-use crate::wal::WalSegmentWriterNoopImpl;
-use crate::write_buffer::buffer_segment::{
-    ClosedBufferSegment, OpenBufferSegment, TableBuffer, WriteBatch,
-};
+use crate::write_buffer::buffer_segment::TableBuffer;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
+use crate::write_buffer::segment_state::{run_buffer_segment_persist_and_cleanup, SegmentState};
 use crate::{
-    wal, BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister,
-    Precision, SegmentDuration, SegmentId, SegmentRange, Wal, WalOp, WriteBuffer, WriteLineError,
+    persister, BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister,
+    Precision, SegmentDuration, SegmentId, Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -29,7 +28,7 @@ use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::{QueryChunk, QueryChunkData};
 use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::{debug, error, info};
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use schema::sort::SortKey;
 use schema::Schema;
 use std::any::Any;
@@ -37,6 +36,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use thiserror::Error;
+use tokio::sync::watch;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -74,8 +74,6 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-const OPEN_SEGMENT_LIMIT: usize = 98;
-
 #[derive(Debug)]
 pub struct WriteRequest<'a> {
     pub db_name: NamespaceName<'static>,
@@ -86,107 +84,17 @@ pub struct WriteRequest<'a> {
 #[derive(Debug)]
 pub struct WriteBufferImpl<W, T> {
     catalog: Arc<Catalog>,
-    segment_state: Arc<RwLock<SegmentState<W>>>,
+    segment_state: Arc<RwLock<SegmentState<T, W>>>,
     #[allow(dead_code)]
     wal: Option<Arc<W>>,
     write_buffer_flusher: WriteBufferFlusher,
     segment_duration: SegmentDuration,
     #[allow(dead_code)]
     time_provider: Arc<T>,
-}
-
-#[derive(Debug)]
-struct SegmentState<W> {
-    segment_duration: SegmentDuration,
-    last_segment_id: SegmentId,
-    catalog: Arc<Catalog>,
-    wal: Option<Arc<W>>,
-    // Map of segment start times to open segments. Should always have a segment open for the
-    // start time that time.now falls into.
-    segments: BTreeMap<Time, OpenBufferSegment>,
     #[allow(dead_code)]
-    persisting_segments: Vec<ClosedBufferSegment>,
-}
-
-impl<W: Wal> SegmentState<W> {
-    pub fn new(
-        segment_duration: SegmentDuration,
-        last_segment_id: SegmentId,
-        catalog: Arc<Catalog>,
-        open_segments: Vec<OpenBufferSegment>,
-        persisting_segments: Vec<ClosedBufferSegment>,
-        wal: Option<Arc<W>>,
-    ) -> Self {
-        let segments = open_segments
-            .into_iter()
-            .map(|s| (s.segment_range().start_time, s))
-            .collect();
-
-        Self {
-            segment_duration,
-            last_segment_id,
-            catalog,
-            wal,
-            segments,
-            persisting_segments,
-        }
-    }
-
-    pub(crate) fn write_ops_to_segment(
-        &mut self,
-        segment_start: Time,
-        ops: Vec<WalOp>,
-    ) -> wal::Result<()> {
-        let segment = self.get_or_create_segment_for_time(segment_start)?;
-        segment.write_wal_ops(ops)
-    }
-
-    pub(crate) fn write_batch_to_segment(
-        &mut self,
-        segment_start: Time,
-        write_batch: WriteBatch,
-    ) -> Result<()> {
-        let segment = self.get_or_create_segment_for_time(segment_start)?;
-        segment.buffer_writes(write_batch)
-    }
-
+    segment_persist_handle: Mutex<tokio::task::JoinHandle<()>>,
     #[allow(dead_code)]
-    pub(crate) fn segment_for_time(&self, time: Time) -> Option<&OpenBufferSegment> {
-        self.segments.get(&time)
-    }
-
-    // return the segment with this start time or open up a new one if it isn't currently open.
-    fn get_or_create_segment_for_time(
-        &mut self,
-        time: Time,
-    ) -> wal::Result<&mut OpenBufferSegment> {
-        if !self.segments.contains_key(&time) {
-            if self.segments.len() >= OPEN_SEGMENT_LIMIT {
-                return Err(wal::Error::OpenSegmentLimitReached(OPEN_SEGMENT_LIMIT));
-            }
-
-            self.last_segment_id = self.last_segment_id.next();
-            let segment_id = self.last_segment_id;
-            let segment_range =
-                SegmentRange::from_time_and_duration(time, self.segment_duration, false);
-
-            let segment_writer = match &self.wal {
-                Some(wal) => wal.new_segment_writer(segment_id, segment_range)?,
-                None => Box::new(WalSegmentWriterNoopImpl::new(segment_id)),
-            };
-
-            let segment = OpenBufferSegment::new(
-                segment_id,
-                segment_range,
-                self.catalog.sequence_number(),
-                segment_writer,
-                None,
-            );
-            self.segments.insert(time, segment);
-        }
-
-        Ok(self.segments.get_mut(&time).unwrap())
-    }
+    shutdown_segment_persist_tx: watch::Sender<()>,
 }
 
 impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
@@ -198,21 +106,39 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
     ) -> Result<Self>
     where
         P: Persister,
-        Error: From<P::Error>,
+        Error: From<<P as Persister>::Error>,
+        persister::Error: From<<P as Persister>::Error>,
     {
         let now = time_provider.now();
         let loaded_state =
-            load_starting_state(persister, wal.clone(), now, segment_duration).await?;
+            load_starting_state(Arc::clone(&persister), wal.clone(), now, segment_duration).await?;
         let segment_state = Arc::new(RwLock::new(SegmentState::new(
             segment_duration,
             loaded_state.last_segment_id,
             Arc::clone(&loaded_state.catalog),
+            Arc::clone(&time_provider),
             loaded_state.open_segments,
             loaded_state.persisting_buffer_segments,
             wal.clone(),
         )));
 
         let write_buffer_flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
+
+        let segment_state_persister = Arc::clone(&segment_state);
+        let time_provider_persister = Arc::clone(&time_provider);
+        let wal_perister = wal.clone();
+
+        let (shutdown_segment_persist_tx, shutdown_rx) = watch::channel(());
+        let segment_persist_handle = tokio::task::spawn(async move {
+            run_buffer_segment_persist_and_cleanup(
+                persister,
+                segment_state_persister,
+                shutdown_rx,
+                time_provider_persister,
+                wal_perister,
+            )
+            .await;
+        });
 
         Ok(Self {
             catalog: loaded_state.catalog,
@@ -221,6 +147,8 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             write_buffer_flusher,
             time_provider,
             segment_duration,
+            segment_persist_handle: Mutex::new(segment_persist_handle),
+            shutdown_segment_persist_tx,
         })
     }
 
@@ -314,11 +242,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
     fn clone_table_buffers(&self, database_name: &str, table_name: &str) -> Vec<TableBuffer> {
         let state = self.segment_state.read();
 
-        state
-            .segments
-            .values()
-            .filter_map(|segment| segment.table_buffer(database_name, table_name))
-            .collect::<Vec<_>>()
+        state.clone_table_buffers(database_name, table_name)
     }
 
     #[cfg(test)]

@@ -51,6 +51,9 @@ pub enum Error {
 
     #[error("invalid segment duration {0}. Must be one of 1m, 5m, 10m, 15m, 30m, 1h, 2h, 4h")]
     InvalidSegmentDuration(String),
+
+    #[error("wal error: {0}")]
+    Wal(#[from] wal::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -329,8 +332,10 @@ pub trait Persister: Debug + Send + Sync + 'static {
 
     /// Writes a single file to object storage that contains the information for the parquet files persisted
     /// for this segment.
-    async fn persist_segment(&self, persisted_segment: PersistedSegment)
-        -> Result<(), Self::Error>;
+    async fn persist_segment(
+        &self,
+        persisted_segment: &PersistedSegment,
+    ) -> Result<(), Self::Error>;
 
     // Writes a SendableRecorgBatchStream to the Parquet format and persists it
     // to Object Store at the given path. Returns the number of bytes written and the file metadata.
@@ -368,6 +373,8 @@ pub trait Wal: Debug + Send + Sync + 'static {
 
     /// Deletes the WAL segment file from disk.
     fn delete_wal_segment(&self, segment_id: SegmentId) -> wal::Result<()>;
+
+    fn as_any(&self) -> &dyn Any;
 }
 
 #[derive(Debug)]
@@ -451,7 +458,7 @@ pub struct PersistedCatalog {
 }
 
 /// The collection of Parquet files that were persisted for a segment.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PersistedSegment {
     /// The segment_id that these parquet files were persisted with.
     pub segment_id: SegmentId,
@@ -470,13 +477,13 @@ pub struct PersistedSegment {
     pub databases: HashMap<String, DatabaseTables>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
 pub struct DatabaseTables {
     pub tables: HashMap<String, TableParquetFiles>,
 }
 
 /// A collection of parquet files persisted in a segment for a specific table.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct TableParquetFiles {
     /// The table name.
     pub table_name: String,
@@ -487,7 +494,7 @@ pub struct TableParquetFiles {
 }
 
 /// The summary data for a persisted parquet file in a segment.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct ParquetFile {
     pub path: String,
     pub size_bytes: u64,

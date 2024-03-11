@@ -231,9 +231,9 @@ impl Persister for PersisterImpl {
         Ok(())
     }
 
-    async fn persist_segment(&self, persisted_segment: PersistedSegment) -> Result<()> {
+    async fn persist_segment(&self, persisted_segment: &PersistedSegment) -> Result<()> {
         let segment_file_path = SegmentInfoFilePath::new(persisted_segment.segment_id);
-        let json = serde_json::to_vec_pretty(&persisted_segment)?;
+        let json = serde_json::to_vec_pretty(persisted_segment)?;
         self.object_store
             .put(segment_file_path.as_ref(), Bytes::from(json))
             .await?;
@@ -390,7 +390,7 @@ mod tests {
             segment_parquet_size_bytes: 0,
         };
 
-        persister.persist_segment(info_file).await.unwrap();
+        persister.persist_segment(&info_file).await.unwrap();
     }
 
     #[tokio::test]
@@ -426,9 +426,9 @@ mod tests {
             segment_parquet_size_bytes: 0,
         };
 
-        persister.persist_segment(info_file).await.unwrap();
-        persister.persist_segment(info_file_2).await.unwrap();
-        persister.persist_segment(info_file_3).await.unwrap();
+        persister.persist_segment(&info_file).await.unwrap();
+        persister.persist_segment(&info_file_2).await.unwrap();
+        persister.persist_segment(&info_file_3).await.unwrap();
 
         let segments = persister.load_segments(2).await.unwrap();
         assert_eq!(segments.len(), 2);
@@ -451,7 +451,7 @@ mod tests {
             segment_row_count: 0,
             segment_parquet_size_bytes: 0,
         };
-        persister.persist_segment(info_file).await.unwrap();
+        persister.persist_segment(&info_file).await.unwrap();
         let segments = persister.load_segments(2).await.unwrap();
         // We asked for the most recent 2 but there should only be 1
         assert_eq!(segments.len(), 1);
@@ -474,7 +474,7 @@ mod tests {
                 segment_row_count: 0,
                 segment_parquet_size_bytes: 0,
             };
-            persister.persist_segment(info_file).await.unwrap();
+            persister.persist_segment(&info_file).await.unwrap();
         }
         let segments = persister.load_segments(9500).await.unwrap();
         // We asked for the most recent 9500 so there should be 9001 of them

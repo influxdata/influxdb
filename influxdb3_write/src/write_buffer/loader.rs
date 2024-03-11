@@ -7,12 +7,10 @@ use crate::write_buffer::{
     buffer_segment::{load_buffer_from_segment, ClosedBufferSegment, OpenBufferSegment},
     Result,
 };
-use crate::{PersistedCatalog, PersistedSegment, Persister, SegmentId};
+use crate::{persister, write_buffer, PersistedCatalog, PersistedSegment, Persister, SegmentId};
 use crate::{SegmentDuration, SegmentRange, Wal};
 use iox_time::Time;
 use std::sync::Arc;
-
-use super::Error;
 
 const SEGMENTS_TO_LOAD: usize = 1000;
 
@@ -26,16 +24,17 @@ pub struct LoadedState {
     pub last_segment_id: SegmentId,
 }
 
-pub async fn load_starting_state<W, P>(
+pub async fn load_starting_state<P, W>(
     persister: Arc<P>,
     wal: Option<Arc<W>>,
     server_load_time: Time,
     segment_duration: SegmentDuration,
 ) -> Result<LoadedState>
 where
-    W: Wal,
     P: Persister,
-    Error: From<P::Error>,
+    persister::Error: From<<P as Persister>::Error>,
+    W: Wal,
+    write_buffer::Error: From<<P as Persister>::Error>,
 {
     let PersistedCatalog { catalog, .. } = persister.load_catalog().await?.unwrap_or_default();
     let catalog = Arc::new(Catalog::from_inner(catalog));
@@ -75,6 +74,7 @@ where
             let segment = OpenBufferSegment::new(
                 segment_header.id,
                 segment_header.range,
+                server_load_time,
                 starting_sequence_number,
                 wal.open_segment_writer(segment_file.segment_id)?,
                 Some(buffer),
@@ -98,6 +98,7 @@ where
             let current_segment = OpenBufferSegment::new(
                 current_segment_id,
                 current_segment_range,
+                server_load_time,
                 catalog.sequence_number(),
                 wal.new_segment_writer(current_segment_id, current_segment_range)?,
                 None,
@@ -112,6 +113,7 @@ where
         let current_segment = OpenBufferSegment::new(
             current_segment_id,
             current_segment_range,
+            server_load_time,
             catalog.sequence_number(),
             Box::new(WalSegmentWriterNoopImpl::new(current_segment_id)),
             None,
@@ -169,6 +171,7 @@ mod tests {
         let mut open_segment = OpenBufferSegment::new(
             segment_id,
             SegmentRange::test_range(),
+            Time::from_timestamp_nanos(0),
             SequenceNumber::new(0),
             segment_writer,
             None,
@@ -367,8 +370,9 @@ mod tests {
         let next_segment_range = current_segment.segment_range().next();
 
         // close and persist the current segment
-        current_segment
-            .into_closed_segment(Arc::clone(&catalog))
+        let closed_segment = Arc::new(current_segment.into_closed_segment(Arc::clone(&catalog)));
+
+        closed_segment
             .persist(Arc::clone(&persister))
             .await
             .unwrap();
@@ -390,6 +394,7 @@ mod tests {
         let mut next_segment = OpenBufferSegment::new(
             SegmentId::new(2),
             SegmentRange::test_range().next(),
+            Time::from_timestamp_nanos(0),
             catalog.sequence_number(),
             segment_writer,
             None,
@@ -555,6 +560,7 @@ mod tests {
         let mut next_segment = OpenBufferSegment::new(
             SegmentId::new(2),
             SegmentRange::test_range().next(),
+            Time::from_timestamp_nanos(0),
             catalog.sequence_number(),
             segment_writer,
             None,

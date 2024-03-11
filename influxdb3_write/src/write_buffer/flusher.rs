@@ -4,7 +4,7 @@ use crate::write_buffer::buffer_segment::{BufferedWrite, WriteBatch};
 use crate::write_buffer::{Error, SegmentState, ValidSegmentedData};
 use crate::{wal, Wal, WalOp};
 use crossbeam_channel::{bounded, Receiver as CrossbeamReceiver, Sender as CrossbeamSender};
-use iox_time::Time;
+use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::debug;
 use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
@@ -43,7 +43,7 @@ pub struct WriteBufferFlusher {
 }
 
 impl WriteBufferFlusher {
-    pub fn new<W: Wal>(segment_state: Arc<RwLock<SegmentState<W>>>) -> Self {
+    pub fn new<T: TimeProvider, W: Wal>(segment_state: Arc<RwLock<SegmentState<T, W>>>) -> Self {
         let (shutdown_tx, shutdown_rx) = watch::channel(());
         let (buffer_tx, buffer_rx) = mpsc::channel(BUFFER_CHANNEL_LIMIT);
         let (io_flush_tx, io_flush_rx) = bounded(1);
@@ -104,8 +104,8 @@ impl WriteBufferFlusher {
     }
 }
 
-async fn run_wal_op_buffer<W: Wal>(
-    segment_state: Arc<RwLock<SegmentState<W>>>,
+async fn run_wal_op_buffer<T: TimeProvider, W: Wal>(
+    segment_state: Arc<RwLock<SegmentState<T, W>>>,
     mut buffer_rx: mpsc::Receiver<BufferedWrite>,
     io_flush_tx: CrossbeamSender<SegmentedWalOps>,
     io_flush_notify_rx: CrossbeamReceiver<wal::Result<()>>,
@@ -175,8 +175,8 @@ async fn run_wal_op_buffer<W: Wal>(
     }
 }
 
-fn run_io_flush<W: Wal>(
-    segment_state: Arc<RwLock<SegmentState<W>>>,
+fn run_io_flush<T: TimeProvider, W: Wal>(
+    segment_state: Arc<RwLock<SegmentState<T, W>>>,
     buffer_rx: CrossbeamReceiver<SegmentedWalOps>,
     buffer_notify: CrossbeamSender<wal::Result<()>>,
 ) {
@@ -214,6 +214,7 @@ mod tests {
     use crate::write_buffer::parse_validate_and_update_catalog;
     use crate::{Precision, SegmentDuration, SegmentId, SegmentRange, SequenceNumber};
     use data_types::NamespaceName;
+    use iox_time::MockProvider;
 
     #[tokio::test]
     async fn flushes_to_open_segment() {
@@ -221,6 +222,7 @@ mod tests {
         let open_segment = OpenBufferSegment::new(
             segment_id,
             SegmentRange::test_range(),
+            Time::from_timestamp_nanos(0),
             SequenceNumber::new(0),
             Box::new(WalSegmentWriterNoopImpl::new(segment_id)),
             None,
@@ -231,15 +233,17 @@ mod tests {
         let next_segment = OpenBufferSegment::new(
             next_segment_id,
             next_segment_range,
+            Time::from_timestamp_nanos(0),
             SequenceNumber::new(0),
             Box::new(WalSegmentWriterNoopImpl::new(next_segment_id)),
             None,
         );
         let catalog = Arc::new(Catalog::new());
-        let segment_state = Arc::new(RwLock::new(SegmentState::<WalImpl>::new(
+        let segment_state = Arc::new(RwLock::new(SegmentState::<MockProvider, WalImpl>::new(
             SegmentDuration::new_5m(),
             next_segment_id,
             Arc::clone(&catalog),
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             vec![open_segment, next_segment],
             vec![],
             None,
