@@ -170,11 +170,11 @@ gcc = "*"
 clang = "*"
 lld = "*"
 'g++' = "*"
-protobuf-compiler = "3.21"
-libprotobuf-dev = "3.21"
+protobuf-compiler = "3.21.12"
+libprotobuf-dev = "3.21.12"
 
 [workspace.metadata.dist.dependencies.chocolatey]
-protoc = "3.21"
+protoc = "*"
 llvm = "*"
 
 
