@@ -9,9 +9,9 @@ use crate::write_buffer::{
     parse_validate_and_update_catalog, Error, FieldData, Row, TableBatch, ValidSegmentedData,
 };
 use crate::{
-    wal, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment, Persister, Precision,
-    SegmentDuration, SegmentId, SegmentRange, SequenceNumber, TableParquetFiles, WalOp,
-    WalSegmentReader, WalSegmentWriter,
+    wal, write_buffer, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment,
+    Persister, Precision, SegmentDuration, SegmentId, SegmentRange, SequenceNumber,
+    TableParquetFiles, WalOp, WalSegmentReader, WalSegmentWriter,
 };
 use arrow::array::{
     ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, StringDictionaryBuilder,
@@ -25,6 +25,7 @@ use iox_time::Time;
 use schema::Schema;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::oneshot;
 
 #[derive(Debug)]
@@ -32,8 +33,10 @@ pub struct OpenBufferSegment {
     segment_writer: Box<dyn WalSegmentWriter>,
     segment_id: SegmentId,
     segment_range: SegmentRange,
+    segment_duration: SegmentDuration,
     segment_key: PartitionKey,
     buffered_data: BufferedData,
+    segment_open_time: Time,
     #[allow(dead_code)]
     starting_catalog_sequence_number: SequenceNumber,
     // TODO: This is temporarily just the number of rows in the segment. When the buffer gets refactored to use
@@ -45,17 +48,21 @@ impl OpenBufferSegment {
     pub fn new(
         segment_id: SegmentId,
         segment_range: SegmentRange,
+        segment_open_time: Time,
         starting_catalog_sequence_number: SequenceNumber,
         segment_writer: Box<dyn WalSegmentWriter>,
         buffered_data: Option<(BufferedData, usize)>,
     ) -> Self {
         let (buffered_data, segment_size) = buffered_data.unwrap_or_default();
         let segment_key = PartitionKey::from(segment_range.key());
+        let segment_duration = SegmentDuration::from_range(segment_range);
 
         Self {
             segment_writer,
             segment_id,
             segment_range,
+            segment_duration,
+            segment_open_time,
             segment_key,
             starting_catalog_sequence_number,
             segment_size,
@@ -115,6 +122,24 @@ impl OpenBufferSegment {
         Ok(())
     }
 
+    /// Returns true if the segment should be persisted. A segment should be persisted if both of
+    /// the following are true:
+    /// 1. The segment has been open longer than half its duration
+    /// 2. The current time is past the end time of the segment + half its duration
+    pub fn should_persist(&self, current_time: Time) -> bool {
+        let half_duration_seconds = self.segment_duration.duration_seconds() / 2;
+        let open_duration_seconds = current_time
+            .checked_duration_since(self.segment_open_time)
+            .unwrap_or(Duration::from_secs(0))
+            .as_secs() as i64;
+
+        let segment_end_epoch = self.segment_range.end_time.timestamp();
+        let end_time_age_out_epoch = segment_end_epoch + half_duration_seconds;
+
+        open_duration_seconds > half_duration_seconds
+            && current_time.timestamp() > end_time_age_out_epoch
+    }
+
     #[allow(dead_code)]
     pub fn into_closed_segment(self, catalog: Arc<Catalog>) -> ClosedBufferSegment {
         ClosedBufferSegment::new(
@@ -123,8 +148,8 @@ impl OpenBufferSegment {
             self.segment_key,
             self.starting_catalog_sequence_number,
             catalog.sequence_number(),
-            self.segment_writer,
             self.buffered_data,
+            self.segment_writer.bytes_written(),
             catalog,
         )
     }
@@ -378,8 +403,8 @@ pub struct ClosedBufferSegment {
     pub segment_key: PartitionKey,
     pub catalog_start_sequence_number: SequenceNumber,
     pub catalog_end_sequence_number: SequenceNumber,
-    segment_writer: Box<dyn WalSegmentWriter>,
     pub buffered_data: BufferedData,
+    pub segment_wal_bytes: u64,
     catalog: Arc<Catalog>,
 }
 
@@ -392,8 +417,8 @@ impl ClosedBufferSegment {
         segment_key: PartitionKey,
         catalog_start_sequence_number: SequenceNumber,
         catalog_end_sequence_number: SequenceNumber,
-        segment_writer: Box<dyn WalSegmentWriter>,
         buffered_data: BufferedData,
+        segment_wal_bytes: u64,
         catalog: Arc<Catalog>,
     ) -> Self {
         Self {
@@ -402,17 +427,16 @@ impl ClosedBufferSegment {
             segment_key,
             catalog_start_sequence_number,
             catalog_end_sequence_number,
-            segment_writer,
             buffered_data,
+            segment_wal_bytes,
             catalog,
         }
     }
 
-    #[allow(dead_code)]
-    pub async fn persist<P>(&self, persister: Arc<P>) -> crate::Result<()>
+    pub(crate) async fn persist<P>(&self, persister: Arc<P>) -> Result<PersistedSegment>
     where
         P: Persister,
-        crate::Error: From<P::Error>,
+        write_buffer::Error: From<<P as Persister>::Error>,
     {
         if self.catalog_start_sequence_number != self.catalog_end_sequence_number {
             let inner_catalog = self.catalog.clone_inner();
@@ -487,7 +511,7 @@ impl ClosedBufferSegment {
 
         let persisted_segment = PersistedSegment {
             segment_id: self.segment_id,
-            segment_wal_size_bytes: self.segment_writer.bytes_written(),
+            segment_wal_size_bytes: self.segment_wal_bytes,
             segment_parquet_size_bytes,
             segment_row_count,
             segment_min_time,
@@ -495,14 +519,14 @@ impl ClosedBufferSegment {
             databases: persisted_database_files,
         };
 
-        persister.persist_segment(persisted_segment).await?;
+        persister.persist_segment(&persisted_segment).await?;
 
-        Ok(())
+        Ok(persisted_segment)
     }
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::test_helpers::{lp_to_table_batches, lp_to_write_batch};
     use crate::wal::WalSegmentWriterNoopImpl;
@@ -513,12 +537,14 @@ mod tests {
     use parking_lot::Mutex;
     use parquet::format::FileMetaData;
     use std::any::Any;
+    use std::str::FromStr;
 
     #[test]
     fn buffers_rows() {
         let mut open_segment = OpenBufferSegment::new(
             SegmentId::new(0),
             SegmentRange::test_range(),
+            Time::from_timestamp_nanos(0),
             SequenceNumber::new(0),
             Box::new(WalSegmentWriterNoopImpl::new(SegmentId::new(0))),
             None,
@@ -557,6 +583,7 @@ mod tests {
         let mut open_segment = OpenBufferSegment::new(
             segment_id,
             SegmentRange::test_range(),
+            Time::from_timestamp_nanos(0),
             SequenceNumber::new(0),
             segment_writer,
             None,
@@ -593,10 +620,10 @@ mod tests {
             .state
             .lock();
         assert_eq!(
-            persisted_state.catalog.as_ref().unwrap().clone_inner(),
+            persisted_state.catalog.first().unwrap().clone_inner(),
             catalog.clone_inner()
         );
-        let segment_info = persisted_state.segment.as_ref().unwrap();
+        let segment_info = persisted_state.segments.first().unwrap();
 
         assert_eq!(segment_info.segment_id, segment_id);
         assert_eq!(segment_info.segment_min_time, 10);
@@ -636,16 +663,60 @@ mod tests {
         assert_eq!(mem_parqet.max_time, 20);
     }
 
-    #[derive(Debug, Default)]
-    struct TestPersister {
-        state: Mutex<PersistedState>,
+    #[test]
+    fn should_persist() {
+        let segment = OpenBufferSegment::new(
+            SegmentId::new(0),
+            SegmentRange::from_time_and_duration(
+                Time::from_timestamp_nanos(0),
+                SegmentDuration::from_str("1m").unwrap(),
+                false,
+            ),
+            Time::from_timestamp_nanos(0),
+            SequenceNumber::new(0),
+            Box::new(WalSegmentWriterNoopImpl::new(SegmentId::new(0))),
+            None,
+        );
+
+        // time is in current segment
+        assert!(!segment.should_persist(Time::from_timestamp(30, 0).unwrap()));
+
+        // time is in next segment, but before half duration
+        assert!(!segment.should_persist(Time::from_timestamp(61, 0).unwrap()));
+
+        // time is in next segment, and after half duration
+        assert!(segment.should_persist(Time::from_timestamp(61 + 30, 0).unwrap()));
+
+        let segment = OpenBufferSegment::new(
+            SegmentId::new(0),
+            SegmentRange::from_time_and_duration(
+                Time::from_timestamp_nanos(0),
+                SegmentDuration::from_str("1m").unwrap(),
+                false,
+            ),
+            Time::from_timestamp(500, 0).unwrap(),
+            SequenceNumber::new(0),
+            Box::new(WalSegmentWriterNoopImpl::new(SegmentId::new(0))),
+            None,
+        );
+
+        // time has advanced from segment open time, but is still less than half duration away
+        assert!(!segment.should_persist(Time::from_timestamp(500 + 29, 0).unwrap()));
+
+        // time has advanced from segment open time, and is now half duration away
+        assert!(segment.should_persist(Time::from_timestamp(500 + 31, 0).unwrap()));
     }
 
     #[derive(Debug, Default)]
-    struct PersistedState {
-        catalog: Option<Catalog>,
-        segment: Option<PersistedSegment>,
-        parquet_files: Vec<ParquetFilePath>,
+    pub(crate) struct TestPersister {
+        pub(crate) state: Mutex<PersistedState>,
+    }
+
+    #[derive(Debug, Default)]
+    pub(crate) struct PersistedState {
+        pub(crate) catalog: Vec<Catalog>,
+        pub(crate) segments: Vec<PersistedSegment>,
+        pub(crate) parquet_files: Vec<ParquetFilePath>,
     }
 
     #[async_trait::async_trait]
@@ -657,7 +728,7 @@ mod tests {
             _segment_id: SegmentId,
             catalog: Catalog,
         ) -> persister::Result<()> {
-            self.state.lock().catalog = Some(catalog);
+            self.state.lock().catalog.push(catalog);
             Ok(())
         }
 
@@ -671,8 +742,8 @@ mod tests {
             Ok((1, meta))
         }
 
-        async fn persist_segment(&self, segment: PersistedSegment) -> persister::Result<()> {
-            self.state.lock().segment = Some(segment);
+        async fn persist_segment(&self, segment: &PersistedSegment) -> persister::Result<()> {
+            self.state.lock().segments.push(segment.clone());
             Ok(())
         }
 

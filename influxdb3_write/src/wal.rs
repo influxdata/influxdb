@@ -14,6 +14,7 @@ use iox_time::Time;
 use observability_deps::tracing::{info, warn};
 use serde::{Deserialize, Serialize};
 use snap::read::FrameDecoder;
+use std::any::Any;
 use std::fmt::Debug;
 use std::{
     fs::{File, OpenOptions},
@@ -195,6 +196,10 @@ impl Wal for WalImpl {
 
     fn delete_wal_segment(&self, _segment_id: SegmentId) -> Result<()> {
         self.delete_wal_segment(_segment_id)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
     }
 }
 
