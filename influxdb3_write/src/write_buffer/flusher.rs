@@ -246,6 +246,7 @@ mod tests {
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             vec![open_segment, next_segment],
             vec![],
+            vec![],
             None,
         )));
         let flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));

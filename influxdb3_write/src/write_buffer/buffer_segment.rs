@@ -523,6 +523,13 @@ impl ClosedBufferSegment {
 
         Ok(persisted_segment)
     }
+
+    pub fn table_buffer(&self, db_name: &str, table_name: &str) -> Option<TableBuffer> {
+        self.buffered_data
+            .database_buffers
+            .get(db_name)
+            .and_then(|db_buffer| db_buffer.table_buffers.get(table_name).cloned())
+    }
 }
 
 #[cfg(test)]
@@ -532,6 +539,7 @@ pub(crate) mod tests {
     use crate::wal::WalSegmentWriterNoopImpl;
     use crate::{persister, LpWriteOp, PersistedCatalog};
     use bytes::Bytes;
+    use datafusion::datasource::object_store::ObjectStoreUrl;
     use datafusion::execution::SendableRecordBatchStream;
     use object_store::ObjectStore;
     use parking_lot::Mutex;
@@ -768,6 +776,10 @@ pub(crate) mod tests {
 
         fn object_store(&self) -> Arc<dyn ObjectStore> {
             todo!()
+        }
+
+        fn object_store_url(&self) -> ObjectStoreUrl {
+            ObjectStoreUrl::parse("iox://influxdb3/").unwrap()
         }
     }
 }
