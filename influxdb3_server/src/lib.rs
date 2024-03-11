@@ -28,6 +28,7 @@ use hyper::service::service_fn;
 use influxdb3_write::{Persister, WriteBuffer};
 use iox_query::QueryNamespaceProvider;
 use observability_deps::tracing::error;
+use iox_time::TimeProvider;
 use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
@@ -113,9 +114,9 @@ impl CommonServerState {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct Server<W, Q, P> {
+pub struct Server<W, Q, P, T> {
     common_state: CommonServerState,
-    http: Arc<HttpApi<W, Q>>,
+    http: Arc<HttpApi<W, Q, T>>,
     persister: Arc<P>,
     authorizer: Arc<dyn Authorizer>,
 }
@@ -147,26 +148,23 @@ pub enum QueryKind {
     Sql,
     InfluxQl,
 }
-
-impl<W, Q, P> Server<W, Q, P> {
+impl<W, Q, P, T> Server<W, Q, P, T> {
     pub fn authorizer(&self) -> Arc<dyn Authorizer> {
         Arc::clone(&self.authorizer)
     }
 }
 
-pub async fn serve<W, Q, P>(server: Server<W, Q, P>, shutdown: CancellationToken) -> Result<()>
+pub async fn serve<W, Q, P, T>(
+    server: Server<W, Q, P, T>,
+    shutdown: CancellationToken,
+) -> Result<()>
 where
     W: WriteBuffer,
     Q: QueryExecutor,
     http::Error: From<<Q as QueryExecutor>::Error>,
     P: Persister,
+    T: TimeProvider,
 {
-    // TODO:
-    //  1. load the persisted catalog and segments from the persister
-    //  2. load semgments into the buffer
-    //  3. persist any segments from the buffer that are closed and haven't yet been persisted
-    //  4. start serving
-
     let req_metrics = RequestMetrics::new(
         Arc::clone(&server.common_state.metrics),
         MetricFamily::HttpServer,
@@ -231,7 +229,9 @@ mod tests {
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_write::persister::PersisterImpl;
+    use influxdb3_write::SegmentDuration;
     use iox_query::exec::{Executor, ExecutorConfig};
+    use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
@@ -267,11 +267,14 @@ mod tests {
             mem_pool_size: usize::MAX,
         }));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
+                Arc::clone(&time_provider),
+                SegmentDuration::new_5m(),
             )
             .await
             .unwrap(),
@@ -290,6 +293,7 @@ mod tests {
             .query_executor(Arc::clone(&query_executor))
             .persister(Arc::clone(&persister))
             .authorizer(Arc::new(DefaultAuthorizer))
+            .time_provider(Arc::clone(&time_provider))
             .build();
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
@@ -399,11 +403,14 @@ mod tests {
             mem_pool_size: usize::MAX,
         }));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
+                Arc::clone(&time_provider),
+                SegmentDuration::new_5m(),
             )
             .await
             .unwrap(),
@@ -422,6 +429,7 @@ mod tests {
             .query_executor(Arc::new(query_executor))
             .persister(persister)
             .authorizer(Arc::new(DefaultAuthorizer))
+            .time_provider(Arc::clone(&time_provider))
             .build();
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
@@ -567,11 +575,16 @@ mod tests {
             mem_pool_size: usize::MAX,
         }));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(
+            1708473607000000000,
+        )));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
+                Arc::clone(&time_provider),
+                SegmentDuration::new_5m(),
             )
             .await
             .unwrap(),
@@ -590,6 +603,7 @@ mod tests {
             .query_executor(Arc::new(query_executor))
             .persister(persister)
             .authorizer(Arc::new(DefaultAuthorizer))
+            .time_provider(Arc::clone(&time_provider))
             .build();
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
