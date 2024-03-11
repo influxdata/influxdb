@@ -13,7 +13,7 @@ pub mod wal;
 pub mod write_buffer;
 
 use crate::catalog::Catalog;
-use crate::paths::ParquetFilePath;
+use crate::paths::{ParquetFilePath, SegmentWalFilePath};
 use async_trait::async_trait;
 use bytes::Bytes;
 use data_types::NamespaceName;
@@ -172,7 +172,6 @@ impl SegmentDuration {
         Self(duration)
     }
 
-    /// Returns a five minute segment duration, mostly used for teesting purposes.
     pub fn new_5m() -> Self {
         Self(Duration::from_secs(300))
     }
@@ -393,6 +392,8 @@ pub trait WalSegmentReader: Debug + Send + Sync + 'static {
     fn next_batch(&mut self) -> wal::Result<Option<WalOpBatch>>;
 
     fn header(&self) -> &wal::SegmentHeader;
+
+    fn path(&self) -> &SegmentWalFilePath;
 }
 
 /// Individual WalOps get batched into the WAL asynchronously. The batch is then written to the segment file.

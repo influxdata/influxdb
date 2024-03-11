@@ -67,6 +67,9 @@ pub enum Error {
 
     #[error("database name error: {0}")]
     DatabaseNameError(#[from] NamespaceNameError),
+
+    #[error("walop in file {0} contained data for more than one segment, which is invalid")]
+    WalOpForMultipleSegments(String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -114,10 +117,10 @@ impl<W: Wal> SegmentState<W> {
         persisting_segments: Vec<ClosedBufferSegment>,
         wal: Option<Arc<W>>,
     ) -> Self {
-        let mut segments = BTreeMap::new();
-        for segment in open_segments {
-            segments.insert(segment.segment_range().start_time, segment);
-        }
+        let segments = open_segments
+            .into_iter()
+            .map(|s| (s.segment_range().start_time, s))
+            .collect();
 
         Self {
             segment_duration,

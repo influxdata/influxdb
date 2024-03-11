@@ -59,7 +59,7 @@ where
         let wal_segments = wal.segment_files()?;
 
         for segment_file in wal_segments {
-            // if persisted segemnts is empty, load all segments from the wal, otherwise
+            // if persisted segments is empty, load all segments from the wal, otherwise
             // only load segments that haven't been persisted yet
             if segment_file.segment_id <= last_persisted_segment_id
                 && !persisted_segments.is_empty()

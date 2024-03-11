@@ -235,7 +235,12 @@ impl WalSegmentWriterImpl {
         };
 
         let header_bytes = serde_json::to_vec(&header)?;
-        f.write_u16::<BigEndian>(header_bytes.len() as u16)?;
+        f.write_u16::<BigEndian>(
+            header_bytes
+                .len()
+                .try_into()
+                .expect("header byes longer than u16"),
+        )?;
         f.write_all(&header_bytes)?;
 
         f.sync_all().expect("fsync failure");
@@ -398,6 +403,7 @@ impl WalSegmentWriter for WalSegmentWriterNoopImpl {
 #[derive(Debug)]
 pub struct WalSegmentReaderImpl {
     f: BufReader<File>,
+    path: SegmentWalFilePath,
     segment_header: SegmentHeader,
 }
 
@@ -418,7 +424,11 @@ impl WalSegmentReaderImpl {
             });
         }
 
-        let reader = Self { f, segment_header };
+        let reader = Self {
+            f,
+            path,
+            segment_header,
+        };
 
         Ok(reader)
     }
@@ -437,7 +447,11 @@ impl WalSegmentReaderImpl {
         let mut f = BufReader::new(f);
         let segment_header = read_header(&path, &mut f)?;
 
-        let mut reader = Self { f, segment_header };
+        let mut reader = Self {
+            f,
+            path,
+            segment_header,
+        };
 
         let mut last_block = None;
 
@@ -548,6 +562,10 @@ impl WalSegmentReader for WalSegmentReaderImpl {
 
     fn header(&self) -> &SegmentHeader {
         &self.segment_header
+    }
+
+    fn path(&self) -> &SegmentWalFilePath {
+        &self.path
     }
 }
 

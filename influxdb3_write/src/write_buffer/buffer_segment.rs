@@ -6,7 +6,7 @@ use crate::catalog::Catalog;
 use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
 use crate::write_buffer::{
-    parse_validate_and_update_catalog, FieldData, Row, TableBatch, ValidSegmentedData,
+    parse_validate_and_update_catalog, Error, FieldData, Row, TableBatch, ValidSegmentedData,
 };
 use crate::{
     wal, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment, Persister, Precision,
@@ -160,7 +160,12 @@ pub(crate) fn load_buffer_from_segment(
 
                     // there should only ever be data for a single segment as this is all read
                     // from one segment file
-                    assert!(validated_write.valid_segmented_data.len() == 1);
+                    if validated_write.valid_segmented_data.len() != 1 {
+                        return Err(Error::WalOpForMultipleSegments(
+                            segment_reader.path().to_string(),
+                        ));
+                    }
+
                     let segment_data = validated_write.valid_segmented_data.pop().unwrap();
 
                     for (table_name, table_batch) in segment_data.table_batches {
@@ -340,16 +345,6 @@ impl TableBuffer {
         RecordBatch::try_new(schema, cols).unwrap()
     }
 }
-
-// impl Default for TableBuffer {
-//     fn default() -> Self {
-//         Self {
-//             rows: Vec::new(),
-//             timestamp_min: i64::MAX,
-//             timestamp_max: i64::MIN,
-//         }
-//     }
-// }
 
 enum Builder {
     Bool(BooleanBuilder),
