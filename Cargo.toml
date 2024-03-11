@@ -161,6 +161,23 @@ publish-jobs = ["homebrew"]
 # Publish jobs to run in CI
 pr-run-mode = "upload"
 
+[workspace.metadata.dist.dependencies.homebrew]
+protobuf = "*"
+llvm = "*"
+gcc = "*"
+
+[workspace.metadata.dist.dependencies.apt]
+clang = "*"
+lld = "*"
+'g++' = "*"
+protobuf-compiler = "*"
+libprotobuf-dev = "*"
+
+[workspace.metadata.dist.dependencies.chocolatey]
+protoc = "*"
+llvm = "*"
+
+
 # This profile optimizes for runtime performance and small binary size at the expense of longer
 # build times. It's most suitable for final release builds.
 [profile.release]
