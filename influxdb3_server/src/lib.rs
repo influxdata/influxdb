@@ -27,7 +27,7 @@ use datafusion::execution::SendableRecordBatchStream;
 use hyper::service::service_fn;
 use influxdb3_write::{Persister, WriteBuffer};
 use iox_query::QueryNamespaceProvider;
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::error;
 use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
@@ -205,6 +205,7 @@ where
 /// This method returns if either are signalled
 #[cfg(unix)]
 pub async fn wait_for_signal() {
+    use observability_deps::tracing::info;
     use tokio::signal::unix::{signal, SignalKind};
     let mut term = signal(SignalKind::terminate()).expect("failed to register signal handler");
     let mut int = signal(SignalKind::interrupt()).expect("failed to register signal handler");
