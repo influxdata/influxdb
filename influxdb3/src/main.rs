@@ -106,6 +106,7 @@ enum Command {
 }
 
 fn main() -> Result<(), std::io::Error> {
+    #[cfg(unix)]
     install_crash_handler(); // attempt to render a useful stacktrace to stderr
 
     // load all environment variables from .env before doing anything
