@@ -2475,6 +2475,7 @@ dependencies = [
  "clap",
  "clap_blocks",
  "console-subscriber",
+ "datafusion_util",
  "dotenvy",
  "futures",
  "hex",
@@ -2616,6 +2617,7 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "parquet",
+ "parquet_file",
  "pretty_assertions",
  "schema",
  "serde",
@@ -2624,6 +2626,7 @@ dependencies = [
  "test_helpers",
  "thiserror",
  "tokio",
+ "url",
 ]
 
 [[package]]

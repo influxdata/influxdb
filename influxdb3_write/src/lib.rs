@@ -7,6 +7,7 @@
 //! to be persisted. A new open segment will be created and new writes will be written to that segment.
 
 pub mod catalog;
+mod chunk;
 pub mod paths;
 pub mod persister;
 pub mod wal;
@@ -16,7 +17,8 @@ use crate::catalog::Catalog;
 use crate::paths::{ParquetFilePath, SegmentWalFilePath};
 use async_trait::async_trait;
 use bytes::Bytes;
-use data_types::NamespaceName;
+use data_types::{NamespaceName, TimestampMinMax};
+use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -306,6 +308,8 @@ impl SequenceNumber {
     }
 }
 
+pub const DEFAULT_OBJECT_STORE_URL: &str = "iox://influxdb3/";
+
 #[async_trait]
 pub trait Persister: Debug + Send + Sync + 'static {
     type Error;
@@ -347,6 +351,14 @@ pub trait Persister: Debug + Send + Sync + 'static {
 
     /// Returns the configured `ObjectStore` that data is loaded from and persisted to.
     fn object_store(&self) -> Arc<dyn object_store::ObjectStore>;
+
+    // This is used by the query engine to know where to read parquet files from. This assumes
+    // that there is a `ParquetStorage` with an id of `influxdb3` and that this url has been
+    // registered with the query execution context. Kind of ugly here, but not sure where else
+    // to keep this.
+    fn object_store_url(&self) -> ObjectStoreUrl {
+        ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap()
+    }
 
     fn as_any(&self) -> &dyn Any;
 }
@@ -501,6 +513,15 @@ pub struct ParquetFile {
     pub row_count: u64,
     pub min_time: i64,
     pub max_time: i64,
+}
+
+impl ParquetFile {
+    pub fn timestamp_min_max(&self) -> TimestampMinMax {
+        TimestampMinMax {
+            min: self.min_time,
+            max: self.max_time,
+        }
+    }
 }
 
 /// The summary data for a persisted parquet file in a segment.

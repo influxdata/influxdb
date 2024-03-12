@@ -7,6 +7,7 @@ use clap_blocks::{
     object_store::{make_object_store, ObjectStoreConfig},
     socket_addr::SocketAddr,
 };
+use datafusion_util::config::register_iox_object_store;
 use influxdb3_server::{
     auth::AllOrNothingAuthorizer, builder::ServerBuilder, query_executor::QueryExecutorImpl, serve,
     CommonServerState,
@@ -15,7 +16,7 @@ use influxdb3_write::persister::PersisterImpl;
 use influxdb3_write::wal::WalImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
 use influxdb3_write::SegmentDuration;
-use iox_query::exec::{Executor, ExecutorConfig};
+use iox_query::exec::{Executor, ExecutorConfig, ExecutorType};
 use iox_time::SystemProvider;
 use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use object_store::DynObjectStore;
@@ -242,6 +243,8 @@ pub async fn command(config: Config) -> Result<()> {
         metric_registry: Arc::clone(&metrics),
         mem_pool_size: config.exec_mem_pool_bytes.bytes(),
     }));
+    let runtime_env = exec.new_context(ExecutorType::Query).inner().runtime_env();
+    register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
 
     let trace_header_parser = TraceHeaderParser::new()
         .with_jaeger_trace_context_header_name(

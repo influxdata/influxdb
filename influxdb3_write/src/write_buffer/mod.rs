@@ -6,7 +6,7 @@ mod loader;
 mod segment_state;
 
 use crate::catalog::{Catalog, DatabaseSchema, TableDefinition, TIME_COLUMN_NAME};
-use crate::write_buffer::buffer_segment::TableBuffer;
+use crate::chunk::ParquetChunk;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
 use crate::write_buffer::segment_state::{run_buffer_segment_persist_and_cleanup, SegmentState};
@@ -14,24 +14,22 @@ use crate::{
     persister, BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister,
     Precision, SegmentDuration, SegmentId, Wal, WalOp, WriteBuffer, WriteLineError,
 };
-use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::{
     column_type_from_field, ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError,
-    TableId, TransitionPartitionId,
 };
-use datafusion::common::{DataFusionError, Statistics};
+use datafusion::common::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
 use iox_query::chunk_statistics::create_chunk_statistics;
-use iox_query::{QueryChunk, QueryChunkData};
+use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
-use observability_deps::tracing::{debug, error, info};
+use object_store::path::Path as ObjPath;
+use object_store::ObjectMeta;
+use observability_deps::tracing::{debug, error};
 use parking_lot::{Mutex, RwLock};
-use schema::sort::SortKey;
-use schema::Schema;
-use std::any::Any;
+use parquet_file::storage::ParquetExecInput;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -82,9 +80,10 @@ pub struct WriteRequest<'a> {
 }
 
 #[derive(Debug)]
-pub struct WriteBufferImpl<W, T> {
+pub struct WriteBufferImpl<W, T, P> {
     catalog: Arc<Catalog>,
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
+    persister: Arc<P>,
     #[allow(dead_code)]
     wal: Option<Arc<W>>,
     write_buffer_flusher: WriteBufferFlusher,
@@ -97,8 +96,8 @@ pub struct WriteBufferImpl<W, T> {
     shutdown_segment_persist_tx: watch::Sender<()>,
 }
 
-impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
-    pub async fn new<P>(
+impl<W: Wal, T: TimeProvider, P: Persister> WriteBufferImpl<W, T, P> {
+    pub async fn new(
         persister: Arc<P>,
         wal: Option<Arc<W>>,
         time_provider: Arc<T>,
@@ -112,6 +111,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         let now = time_provider.now();
         let loaded_state =
             load_starting_state(Arc::clone(&persister), wal.clone(), now, segment_duration).await?;
+
         let segment_state = Arc::new(RwLock::new(SegmentState::new(
             segment_duration,
             loaded_state.last_segment_id,
@@ -119,6 +119,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             Arc::clone(&time_provider),
             loaded_state.open_segments,
             loaded_state.persisting_buffer_segments,
+            loaded_state.persisted_segments,
             wal.clone(),
         )));
 
@@ -127,11 +128,12 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         let segment_state_persister = Arc::clone(&segment_state);
         let time_provider_persister = Arc::clone(&time_provider);
         let wal_perister = wal.clone();
+        let cloned_persister = Arc::clone(&persister);
 
         let (shutdown_segment_persist_tx, shutdown_rx) = watch::channel(());
         let segment_persist_handle = tokio::task::spawn(async move {
             run_buffer_segment_persist_and_cleanup(
-                persister,
+                cloned_persister,
                 segment_state_persister,
                 shutdown_rx,
                 time_provider_persister,
@@ -143,6 +145,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         Ok(Self {
             catalog: loaded_state.catalog,
             segment_state,
+            persister,
             wal,
             write_buffer_flusher,
             time_provider,
@@ -193,66 +196,95 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         &self,
         database_name: &str,
         table_name: &str,
-        _filters: &[Expr],
-        _projection: Option<&Vec<usize>>,
-        _ctx: &SessionState,
+        filters: &[Expr],
+        projection: Option<&Vec<usize>>,
+        ctx: &SessionState,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         let db_schema = self
             .catalog
             .db_schema(database_name)
             .ok_or_else(|| DataFusionError::Execution(format!("db {} not found", database_name)))?;
-        let table = db_schema
-            .tables
-            .get(table_name)
-            .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
-        let schema = table.schema.clone();
 
-        let table_buffers = self.clone_table_buffers(database_name, table_name);
-        let chunks = table_buffers
-            .into_iter()
-            .map(|table_buffer| {
-                let batch = table_buffer.rows_to_record_batch(&schema, table.columns());
-                let batch_stats = create_chunk_statistics(
-                    Some(table_buffer.row_count()),
-                    &schema,
-                    Some(table_buffer.timestamp_min_max()),
-                    None,
-                );
+        let table_schema = {
+            let table = db_schema.tables.get(table_name).ok_or_else(|| {
+                DataFusionError::Execution(format!(
+                    "table {} not found in db {}",
+                    table_name, database_name
+                ))
+            })?;
 
-                let chunk: Arc<dyn QueryChunk> = Arc::new(BufferChunk {
-                    batches: vec![batch],
-                    schema: schema.clone(),
-                    stats: Arc::new(batch_stats),
-                    partition_id: TransitionPartitionId::new(
-                        TableId::new(0),
-                        &table_buffer.segment_key,
-                    ),
-                    sort_key: None,
-                    id: ChunkId::new(),
-                    chunk_order: ChunkOrder::new(0),
-                });
+            table.schema.clone()
+        };
 
-                chunk
-            })
-            .collect();
+        let segment_state = self.segment_state.read();
+        let mut chunks =
+            segment_state.get_table_chunks(db_schema, table_name, filters, projection, ctx)?;
+        let parquet_files = segment_state.get_parquet_files(database_name, table_name);
+
+        let mut chunk_order = chunks.len() as i64;
+        let object_store_url = self.persister.object_store_url();
+
+        for parquet_file in parquet_files {
+            // TODO: update persisted segments to serialize their key to use here
+            let partition_key = data_types::PartitionKey::from(parquet_file.path.clone());
+            let partition_id = data_types::partition::TransitionPartitionId::new(
+                data_types::TableId::new(0),
+                &partition_key,
+            );
+
+            let chunk_stats = create_chunk_statistics(
+                Some(parquet_file.row_count as usize),
+                &table_schema,
+                Some(parquet_file.timestamp_min_max()),
+                None,
+            );
+
+            let location = ObjPath::from(parquet_file.path.clone());
+
+            let parquet_exec = ParquetExecInput {
+                object_store_url: object_store_url.clone(),
+                object_meta: ObjectMeta {
+                    location,
+                    last_modified: Default::default(),
+                    size: parquet_file.size_bytes as usize,
+                    e_tag: None,
+                    version: None,
+                },
+            };
+
+            let parquet_chunk = ParquetChunk {
+                schema: table_schema.clone(),
+                stats: Arc::new(chunk_stats),
+                partition_id,
+                sort_key: None,
+                id: ChunkId::new(),
+                chunk_order: ChunkOrder::new(chunk_order),
+                parquet_exec,
+            };
+
+            chunk_order += 1;
+
+            chunks.push(Arc::new(parquet_chunk));
+        }
 
         Ok(chunks)
     }
 
-    fn clone_table_buffers(&self, database_name: &str, table_name: &str) -> Vec<TableBuffer> {
-        let state = self.segment_state.read();
-
-        state.clone_table_buffers(database_name, table_name)
-    }
-
     #[cfg(test)]
-    fn get_table_record_batches(&self, datbase_name: &str, table_name: &str) -> Vec<RecordBatch> {
+    fn get_table_record_batches(
+        &self,
+        datbase_name: &str,
+        table_name: &str,
+    ) -> Vec<arrow::record_batch::RecordBatch> {
         let db_schema = self.catalog.db_schema(datbase_name).unwrap();
         let table = db_schema.tables.get(table_name).unwrap();
         let schema = table.schema.clone();
 
-        let table_buffer = self.clone_table_buffers(datbase_name, table_name);
-        table_buffer
+        let table_buffers = self
+            .segment_state
+            .read()
+            .clone_table_buffers(datbase_name, table_name);
+        table_buffers
             .into_iter()
             .map(|table_buffer| table_buffer.rows_to_record_batch(&schema, table.columns()))
             .collect()
@@ -260,7 +292,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
 }
 
 #[async_trait]
-impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
+impl<W: Wal, T: TimeProvider, P: Persister> Bufferer for WriteBufferImpl<W, T, P> {
     async fn write_lp(
         &self,
         database: NamespaceName<'static>,
@@ -294,7 +326,7 @@ impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
     }
 }
 
-impl<W: Wal, T: TimeProvider> ChunkContainer for WriteBufferImpl<W, T> {
+impl<W: Wal, T: TimeProvider, P: Persister> ChunkContainer for WriteBufferImpl<W, T, P> {
     fn get_table_chunks(
         &self,
         database_name: &str,
@@ -307,67 +339,7 @@ impl<W: Wal, T: TimeProvider> ChunkContainer for WriteBufferImpl<W, T> {
     }
 }
 
-impl<W: Wal, T: TimeProvider> WriteBuffer for WriteBufferImpl<W, T> {}
-
-#[derive(Debug)]
-pub struct BufferChunk {
-    batches: Vec<RecordBatch>,
-    schema: Schema,
-    stats: Arc<Statistics>,
-    partition_id: data_types::partition::TransitionPartitionId,
-    sort_key: Option<SortKey>,
-    id: data_types::ChunkId,
-    chunk_order: data_types::ChunkOrder,
-}
-
-impl QueryChunk for BufferChunk {
-    fn stats(&self) -> Arc<Statistics> {
-        info!("BufferChunk stats {}", self.id);
-        Arc::clone(&self.stats)
-    }
-
-    fn schema(&self) -> &Schema {
-        info!("BufferChunk schema {}", self.id);
-        &self.schema
-    }
-
-    fn partition_id(&self) -> &data_types::partition::TransitionPartitionId {
-        info!("BufferChunk partition_id {}", self.id);
-        &self.partition_id
-    }
-
-    fn sort_key(&self) -> Option<&SortKey> {
-        info!("BufferChunk sort_key {}", self.id);
-        self.sort_key.as_ref()
-    }
-
-    fn id(&self) -> data_types::ChunkId {
-        info!("BufferChunk id {}", self.id);
-        self.id
-    }
-
-    fn may_contain_pk_duplicates(&self) -> bool {
-        false
-    }
-
-    fn data(&self) -> QueryChunkData {
-        info!("BufferChunk data {}", self.id);
-        QueryChunkData::in_mem(self.batches.clone(), Arc::clone(self.schema.inner()))
-    }
-
-    fn chunk_type(&self) -> &str {
-        "BufferChunk"
-    }
-
-    fn order(&self) -> data_types::ChunkOrder {
-        info!("BufferChunk order {}", self.id);
-        self.chunk_order
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
+impl<W: Wal, T: TimeProvider, P: Persister> WriteBuffer for WriteBufferImpl<W, T, P> {}
 
 pub(crate) fn parse_validate_and_update_catalog(
     db_name: NamespaceName<'static>,
@@ -750,7 +722,10 @@ mod tests {
     use crate::persister::PersisterImpl;
     use crate::wal::WalImpl;
     use crate::{SequenceNumber, WalOpBatch};
+    use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
+    use datafusion_util::config::register_iox_object_store;
+    use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
     use object_store::ObjectStore;
@@ -845,5 +820,144 @@ mod tests {
         .unwrap();
         let actual = write_buffer.get_table_record_batches("foo", "cpu");
         assert_batches_eq!(&expected, &actual);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn returns_chunks_across_buffered_persisted_and_persisting_data() {
+        let dir = test_helpers::tmp_dir().unwrap().into_path();
+        let wal = Some(Arc::new(WalImpl::new(dir.clone()).unwrap()));
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let segment_duration = SegmentDuration::new_5m();
+        let write_buffer = WriteBufferImpl::new(
+            Arc::clone(&persister),
+            wal.clone(),
+            Arc::clone(&time_provider),
+            segment_duration,
+        )
+        .await
+        .unwrap();
+        let session_context = IOxSessionContext::with_testing();
+        let runtime_env = session_context.inner().runtime_env();
+        register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&object_store));
+
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=1 10",
+                Time::from_timestamp_nanos(123),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        let expected = vec![
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1.0 | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+--------------------------------+",
+        ];
+        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        assert_batches_eq!(&expected, &actual);
+
+        // advance the time and wait for it to persist
+        time_provider.set(Time::from_timestamp(800, 0).unwrap());
+        loop {
+            let segment_state = write_buffer.segment_state.read();
+            if !segment_state.persisted_segments().is_empty() {
+                break;
+            }
+        }
+
+        // nothing should be open at this point
+        assert!(write_buffer
+            .segment_state
+            .read()
+            .open_segment_times()
+            .is_empty());
+
+        // verify we get the persisted data
+        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        assert_batches_eq!(&expected, &actual);
+
+        // now write some into the next segment we're in and verify we get both buffer and persisted
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=2",
+                Time::from_timestamp(900, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+        let expected = vec![
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 2.0 | 1970-01-01T00:15:00Z           |",
+            "| 1.0 | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+--------------------------------+",
+        ];
+        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        assert_batches_eq!(&expected, &actual);
+
+        // and now reload the buffer and verify that we get persisted and the buffer again
+        let write_buffer = WriteBufferImpl::new(
+            Arc::clone(&persister),
+            wal,
+            Arc::clone(&time_provider),
+            segment_duration,
+        )
+        .await
+        .unwrap();
+        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        assert_batches_eq!(&expected, &actual);
+
+        // and now add to the buffer and verify that we still only get two chunks
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=3",
+                Time::from_timestamp(950, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+        let expected = vec![
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 2.0 | 1970-01-01T00:15:00Z           |",
+            "| 3.0 | 1970-01-01T00:15:50Z           |",
+            "| 1.0 | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+--------------------------------+",
+        ];
+        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        assert_batches_eq!(&expected, &actual);
+    }
+
+    async fn get_table_batches(
+        write_buffer: &WriteBufferImpl<WalImpl, MockProvider, PersisterImpl>,
+        database_name: &str,
+        table_name: &str,
+        ctx: &IOxSessionContext,
+    ) -> Vec<RecordBatch> {
+        let chunks = write_buffer
+            .get_table_chunks(database_name, table_name, &[], None, &ctx.inner().state())
+            .unwrap();
+        let mut batches = vec![];
+        for chunk in chunks {
+            let chunk = chunk
+                .data()
+                .read_to_batches(chunk.schema(), ctx.inner())
+                .await;
+            batches.extend(chunk);
+        }
+        batches
     }
 }

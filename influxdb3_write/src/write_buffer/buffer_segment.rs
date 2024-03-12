@@ -190,7 +190,6 @@ pub(crate) fn load_buffer_from_segment(
                             segment_reader.path().to_string(),
                         ));
                     }
-
                     let segment_data = validated_write.valid_segmented_data.pop().unwrap();
 
                     for (table_name, table_batch) in segment_data.table_batches {
@@ -522,6 +521,13 @@ impl ClosedBufferSegment {
         persister.persist_segment(&persisted_segment).await?;
 
         Ok(persisted_segment)
+    }
+
+    pub fn table_buffer(&self, db_name: &str, table_name: &str) -> Option<TableBuffer> {
+        self.buffered_data
+            .database_buffers
+            .get(db_name)
+            .and_then(|db_buffer| db_buffer.table_buffers.get(table_name).cloned())
     }
 }
 

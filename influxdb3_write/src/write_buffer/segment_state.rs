@@ -1,14 +1,21 @@
 //! State for the write buffer segments.
 
-use crate::catalog::Catalog;
+use crate::catalog::{Catalog, DatabaseSchema};
+use crate::chunk::BufferChunk;
 use crate::wal::WalSegmentWriterNoopImpl;
 use crate::write_buffer::buffer_segment::{
     ClosedBufferSegment, OpenBufferSegment, TableBuffer, WriteBatch,
 };
 use crate::{
-    persister, wal, write_buffer, PersistedSegment, Persister, SegmentDuration, SegmentId,
-    SegmentRange, Wal, WalOp,
+    persister, wal, write_buffer, ParquetFile, PersistedSegment, Persister, SegmentDuration,
+    SegmentId, SegmentRange, Wal, WalOp,
 };
+use data_types::{ChunkId, ChunkOrder, TableId, TransitionPartitionId};
+use datafusion::common::DataFusionError;
+use datafusion::execution::context::SessionState;
+use datafusion::logical_expr::Expr;
+use iox_query::chunk_statistics::create_chunk_statistics;
+use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::error;
 use parking_lot::RwLock;
@@ -36,6 +43,7 @@ pub(crate) struct SegmentState<T, W> {
 }
 
 impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         segment_duration: SegmentDuration,
         last_segment_id: SegmentId,
@@ -43,6 +51,7 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         time_provider: Arc<T>,
         open_segments: Vec<OpenBufferSegment>,
         persisting_segments: Vec<ClosedBufferSegment>,
+        persisted_segments: Vec<PersistedSegment>,
         wal: Option<Arc<W>>,
     ) -> Self {
         let mut segments = BTreeMap::new();
@@ -55,6 +64,14 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
             persisting_segments_map.insert(segment.segment_range.start_time, Arc::new(segment));
         }
 
+        let mut persisted_segments_map = BTreeMap::new();
+        for segment in persisted_segments {
+            persisted_segments_map.insert(
+                Time::from_timestamp_nanos(segment.segment_min_time),
+                Arc::new(segment),
+            );
+        }
+
         Self {
             segment_duration,
             last_segment_id,
@@ -63,7 +80,7 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
             wal,
             segments,
             persisting_segments: persisting_segments_map,
-            persisted_segments: BTreeMap::new(),
+            persisted_segments: persisted_segments_map,
         }
     }
 
@@ -85,6 +102,81 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         segment.buffer_writes(write_batch)
     }
 
+    pub(crate) fn get_table_chunks(
+        &self,
+        db_schema: Arc<DatabaseSchema>,
+        table_name: &str,
+        _filters: &[Expr],
+        _projection: Option<&Vec<usize>>,
+        _ctx: &SessionState,
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+        let table = db_schema
+            .tables
+            .get(table_name)
+            .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
+        let schema = table.schema.clone();
+
+        let mut table_buffers = self.clone_table_buffers(&db_schema.name, table_name);
+        table_buffers.extend(
+            self.persisting_segments
+                .values()
+                .filter_map(|segment| segment.table_buffer(&db_schema.name, table_name))
+                .collect::<Vec<_>>(),
+        );
+
+        let mut chunk_order = 0;
+
+        let chunks = table_buffers
+            .into_iter()
+            .map(|table_buffer| {
+                let batch = table_buffer.rows_to_record_batch(&schema, table.columns());
+                let batch_stats = create_chunk_statistics(
+                    Some(table_buffer.row_count()),
+                    &schema,
+                    Some(table_buffer.timestamp_min_max()),
+                    None,
+                );
+
+                let chunk: Arc<dyn QueryChunk> = Arc::new(BufferChunk {
+                    batches: vec![batch],
+                    schema: schema.clone(),
+                    stats: Arc::new(batch_stats),
+                    partition_id: TransitionPartitionId::new(
+                        TableId::new(0),
+                        &table_buffer.segment_key,
+                    ),
+                    sort_key: None,
+                    id: ChunkId::new(),
+                    chunk_order: ChunkOrder::new(chunk_order),
+                });
+
+                chunk_order += 1;
+
+                chunk
+            })
+            .collect();
+
+        Ok(chunks)
+    }
+
+    pub(crate) fn get_parquet_files(
+        &self,
+        database_name: &str,
+        table_name: &str,
+    ) -> Vec<ParquetFile> {
+        let mut parquet_files = vec![];
+
+        for segment in self.persisted_segments.values() {
+            segment.databases.get(database_name).map(|db| {
+                db.tables.get(table_name).map(|table| {
+                    parquet_files.extend(table.parquet_files.clone());
+                })
+            });
+        }
+
+        parquet_files
+    }
+
     pub(crate) fn clone_table_buffers(
         &self,
         database_name: &str,
@@ -94,6 +186,16 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
             .values()
             .filter_map(|segment| segment.table_buffer(database_name, table_name))
             .collect::<Vec<_>>()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn persisted_segments(&self) -> Vec<Arc<PersistedSegment>> {
+        self.persisted_segments.values().cloned().collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn open_segment_times(&self) -> Vec<Time> {
+        self.segments.keys().cloned().collect()
     }
 
     #[allow(dead_code)]
@@ -364,6 +466,7 @@ mod tests {
             Arc::clone(&time_provider),
             vec![open_segment1, open_segment2, open_segment3],
             vec![],
+            vec![],
             None,
         );
 
@@ -443,6 +546,7 @@ mod tests {
             Arc::clone(&time_provider),
             vec![open_segment2, open_segment3],
             vec![open_segment1.into_closed_segment(Arc::clone(&catalog))],
+            vec![],
             Some(Arc::clone(&wal)),
         );
         let segment_state = Arc::new(RwLock::new(segment_state));

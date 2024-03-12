@@ -9,6 +9,7 @@ license.workspace = true
 # Core Crates
 authz.workspace = true
 clap_blocks.workspace = true
+datafusion_util.workspace = true
 iox_query.workspace = true
 iox_time.workspace = true
 ioxd_common.workspace = true
