@@ -4,10 +4,6 @@ use influxdb3_client::Error;
 use influxdb3_client::Precision;
 
 #[tokio::test]
-#[cfg_attr(
-    not(feature = "limits"),
-    ignore = "long running test, test with 'cargo test --features=limits'"
-)]
 async fn limits() -> Result<(), Error> {
     let server = TestServer::spawn().await;
 
@@ -36,15 +32,16 @@ async fn limits() -> Result<(), Error> {
 
     // Test that the server can't have more than 2000 tables
     // First create the other needed 1995 tables
-    for table in (0..1995).map(|i| format!("cpu{i}")) {
-        server
-            .write_lp_to_db(
-                "one",
-                &format!("{table},host=s1,region=us-east usage=0.9 1\n"),
-                Precision::Nanosecond,
-            )
-            .await?;
-    }
+    let table_lp = (0..1995).fold(String::new(), |mut acc, i| {
+        acc.push_str("cpu");
+        acc.push_str(&i.to_string());
+        acc.push_str(",host=s1,region=us-east usage=0.9 1\n");
+        acc
+    });
+
+    server
+        .write_lp_to_db("one", &table_lp, Precision::Nanosecond)
+        .await?;
 
     let Err(Error::ApiError { code, .. }) = server
         .write_lp_to_db(
