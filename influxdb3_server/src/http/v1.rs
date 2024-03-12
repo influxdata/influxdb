@@ -10,7 +10,11 @@ use arrow::record_batch::RecordBatch;
 use arrow_json::writer::record_batches_to_json_rows;
 use bytes::{Bytes, BytesMut};
 use datafusion::physical_plan::SendableRecordBatchStream;
-use futures::{ready, Stream, StreamExt};
+use futures::{
+    ready,
+    stream::{Fuse, FusedStream},
+    Stream, StreamExt,
+};
 use hyper::{Body, Request, Response};
 use influxdb3_write::WriteBuffer;
 use observability_deps::tracing::debug;
@@ -150,7 +154,7 @@ struct StatementResultStream {
     chunk_pos: usize,
     chunk_size: usize,
     current_batch: Option<RecordBatch>,
-    input: SendableRecordBatchStream,
+    input: Fuse<SendableRecordBatchStream>,
     statement_id: usize,
 }
 
@@ -178,7 +182,7 @@ impl StatementResultStream {
             chunk_pos: 0,
             chunk_size,
             current_batch: None,
-            input,
+            input: input.fuse(),
             statement_id,
         })
     }
@@ -260,8 +264,8 @@ impl Stream for StatementResultStream {
     type Item = Result<StatementResult, anyhow::Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        // Check if there is any records left in the current batch, we want to stream them
-        // before polling the input stream for more...
+        // Check if there are any records left in the current batch, we want to stream them
+        // or buffer them into the current chunk before polling the input stream for more...
         if let Some(batch) = self.current_batch.take() {
             if let Err(e) = self.stream_batch(batch) {
                 return Poll::Ready(Some(Err(e)));
@@ -285,7 +289,12 @@ impl Stream for StatementResultStream {
             }
             Some(Err(e)) => Poll::Ready(Some(Err(e.into()))),
             None => {
-                // If the input stream is done, make sure to flush what is left in the buffer:
+                // If we have data remaining in the buffer, we need to flush one more time,
+                // returning Some(...), and then when the stream gets polled again, the chunk
+                // buffer will be empty, and we return None.
+                //
+                // This is the reason the input stream is fused, because we may end up polling
+                // again after it has finished.
                 if !self.chunk_buffer.is_empty() {
                     Poll::Ready(Some(Ok(self.flush())))
                 } else {
