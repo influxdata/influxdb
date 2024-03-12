@@ -241,7 +241,9 @@ async fn v1_password_parameter() {
     );
 
     // TODO - The following assertions will break when the actual APIs get implemented,
-    //        so will need to revisit these at that time:
+    //        so will need to revisit these at that time. Right now, they just assert
+    //        that the returned status code is 404 Not Found, as that would indicate
+    //        the request made it past the authorize step in the HTTP router.
 
     // Send requests with the token in the v1 `p` parameter:
     assert_eq!(
