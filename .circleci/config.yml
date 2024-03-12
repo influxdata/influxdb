@@ -1,7 +1,7 @@
 version: 2.1
 orbs:
   aws-cli: circleci/aws-cli@4.1.2
-  aws-s3: circleci/aws-s3@4.0.0
+  aws-s3: circleci/aws-s3@2.0.0
 parameters:
   cross-container-tag:
     # when updating the go version, should also update the go version in go.mod
@@ -12,15 +12,6 @@ parameters:
   workflow:
     type: string
     default: build
-
-commands:
-  install_rust:
-    steps:
-      - run:
-          name: Install Rust toolchain
-          command: |
-            ./scripts/ci/install-rust.sh
-            echo 'export PATH=${HOME}/.cargo/bin:${PATH}' >> $BASH_ENV
 
 jobs:
   build_binaries:
@@ -108,43 +99,27 @@ jobs:
             - /go/pkg/mod
             - /root/.cargo
             - /root/.cache/go-build
+
   build_packages:
-    machine:
-      enabled: true
-      docker_layer_caching: true
-      image: ubuntu-2204:current
+    docker:
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager:latest
+        auth:
+          username: _json_key
+          password: $CISUPPORT_GCS_AUTHORIZATION
     steps:
+      - checkout
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
       - run: |
-          export DEBIAN_FRONTEND=noninteractive
-          sudo -E apt-get update
-          sudo -E apt-get install --no-install-recommends --yes \
-            build-essential \
-            git             \
-            python3         \
-            rpm             \
-            ruby-dev        \
-            xmlto
-
-          sudo gem install fpm
-
-          python3 -m venv venv ; source venv/bin/activate
-
-          python3 -m pip install -r .circleci/scripts/package/requirements.txt
-
           ( cd man ; make build ; gzip -9 ./*.1 )
 
-          # Unfortunately, this must be executed as root. This is so permission
-          # modifying commands (chown, chmod, etc.) succeed.
-          sudo --preserve-env=CIRCLE_TAG,CIRCLE_SHA1 .circleci/scripts/package/build.py
-      - store_artifacts:
-          path: packages/
+          packager .circleci/packages/config.yaml
       - persist_to_workspace:
           root: .
           paths:
             - packages
+      - store_artifacts:
+          path: packages
 
   sign_packages:
     circleci_ip_ranges: true
@@ -176,9 +151,11 @@ jobs:
             then
               # Since all artifacts are present, sign them here. This saves Circle
               # credits over spinning up another instance just to separate out the
-              # checksum job. Individual checksums are written by the
-              # "build_packages" script.
+              # checksum job.
               sha256sum "${target}" >> "/tmp/workspace/packages/influxdb.${CIRCLE_TAG}.digests"
+
+              md5sum    "${target}" >"${target}.md5"
+              sha256sum "${target}" >"${target}.sha256"
             fi
           done
       - persist_to_workspace:
@@ -322,47 +299,63 @@ jobs:
             - changelog_artifacts
 
   publish_changelog:
-    docker:
-      - image: cimg/base:current
     parameters:
-      build_type:
+      workflow:
         type: string
+    docker:
+      - image: cimg/python:3.6
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - aws-cli/setup:
-          aws_access_key_id: INFLUXDB1X_AWS_ACCESS_KEY_ID
-          aws_secret_access_key: INFLUXDB1X_AWS_SECRET_ACCESS_KEY
-          region: us-east-1
       - when:
           condition:
-            equal: [ << parameters.build_type >>, nightly ]
+            equal: [ << parameters.workflow >>, release ]
           steps:
             - aws-s3/copy:
-                from: /tmp/workspace/changelog_artifacts/CHANGELOG.md
-                to: s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/1.11/CHANGELOG.nightly.md
+                aws-region:            INFLUXDB1X_AWS_REGION
+                aws-access-key-id:     INFLUXDB1X_AWS_ACCESS_KEY_ID
+                aws-secret-access-key: INFLUXDB1X_AWS_SECRET_ACCESS_KEY
+                from:                  /tmp/workspace/changelog_artifacts/CHANGELOG.md
+                to:                    s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/releases/<< pipeline.git.tag >>/CHANGELOG.<< pipeline.git.tag >>.md
       - when:
           condition:
-            equal: [ << parameters.build_type >>, release ]
+            equal: [ << parameters.workflow >>, nightly ]
           steps:
             - aws-s3/copy:
-                from: /tmp/workspace/changelog_artifacts/CHANGELOG.md
-                to: s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/1.11/CHANGELOG.<< pipeline.git.tag >>.md
+                aws-region:            INFLUXDB1X_AWS_REGION
+                aws-access-key-id:     INFLUXDB1X_AWS_ACCESS_KEY_ID
+                aws-secret-access-key: INFLUXDB1X_AWS_SECRET_ACCESS_KEY
+                from:                  /tmp/workspace/changelog_artifacts/CHANGELOG.md
+                to:                    s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/nightlies/<< pipeline.git.branch >>/CHANGELOG.md
 
   publish_packages:
     docker:
-      - image: cimg/base:current
+      - image: cimg/python:3.6
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
-      - aws-cli/setup:
-          aws_access_key_id: INFLUXDB1X_AWS_ACCESS_KEY_ID
-          aws_secret_access_key: INFLUXDB1X_AWS_SECRET_ACCESS_KEY
-          region: us-east-1
       - aws-s3/sync:
-          from: /tmp/workspace/packages
-          to: s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/1.11/
+          aws-region:            INFLUXDB1X_AWS_REGION
+          aws-access-key-id:     INFLUXDB1X_AWS_ACCESS_KEY_ID
+          aws-secret-access-key: INFLUXDB1X_AWS_SECRET_ACCESS_KEY
+          from:                  /tmp/workspace/packages
+          to:                    s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/releases/<< pipeline.git.tag >>
+
+  slack:
+    docker:
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-slack:latest
+        auth:
+          username: _json_key
+          password: $CISUPPORT_GCS_AUTHORIZATION
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - run:
+          command: |
+            SLACK_ARTIFACT_URL=s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/releases/<< pipeline.git.tag >> slack
+          environment:
+            SLACK_ARTIFACT_ROOT:   /tmp/workspace/packages
+            SLACK_RELEASE_MESSAGE: New InfluxDB Release
 
 release_filter: &release_filter
   filters:
@@ -399,13 +392,17 @@ workflows:
           <<: *release_filter
       - publish_changelog:
           <<: *release_filter
-          build_type: release
+          workflow: release
           requires:
             - changelog
       - publish_packages:
           <<: *release_filter
           requires:
             - sign_packages
+      - slack:
+          <<: *release_filter
+          requires:
+            - publish_packages
       - static_code_checks:
           <<: *release_filter
       - fluxtest:
@@ -447,7 +444,7 @@ workflows:
     jobs:
       - changelog
       - publish_changelog:
-          build_type: nightly
+          workflow: nightly
           requires:
             - changelog
       - static_code_checks
