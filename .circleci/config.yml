@@ -7,7 +7,7 @@ parameters:
     # when updating the go version, should also update the go version in go.mod
     description: docker tag for cross build container from quay.io . Created by https://github.com/influxdata/edge/tree/master/dockerfiles/cross-builder .
     type: string
-    default: go1.21.6-latest
+    default: go1.21.8-latest
 
   workflow:
     type: string
@@ -129,6 +129,8 @@ jobs:
             ruby-dev        \
             xmlto
 
+          # The Ruby version in the Ubuntu 20.04 repositories is 2. We need to install compatible versions of dotenv.
+          sudo gem install dotenv -v 2.8.1
           sudo gem install fpm
 
           ( cd man ; make build ; gzip -9 ./*.1 )
