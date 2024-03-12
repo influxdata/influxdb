@@ -494,13 +494,16 @@ where
     }
 
     async fn authorize_request(&self, req: &mut Request<Body>) -> Result<(), AuthorizationError> {
-        // We won't need the authorization header anymore and we don't want to accidentally log it.
-        // Take it out so we can use it and not log it later by accident.
-        let auth = req
-            .headers_mut()
-            .remove(AUTHORIZATION)
-            .map(validate_auth_header)
-            .transpose()?;
+        let auth = if let Some(p) = extract_v1_auth_token(req) {
+            Some(p)
+        } else {
+            // We won't need the authorization header anymore and we don't want to accidentally log it.
+            // Take it out so we can use it and not log it later by accident.
+            req.headers_mut()
+                .remove(AUTHORIZATION)
+                .map(validate_auth_header)
+                .transpose()?
+        };
 
         // Currently we pass an empty permissions list, but in future we may be able to derive
         // the permissions based on the incoming request
@@ -511,6 +514,29 @@ where
 
         Ok(())
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct V1AuthParameters {
+    #[serde(rename = "p")]
+    password: Option<String>,
+}
+
+/// Extract the authentication token for v1 API requests, which may use the `p` query
+/// parameter to pass the authentication token.
+fn extract_v1_auth_token(req: &mut Request<Body>) -> Option<Vec<u8>> {
+    req.uri()
+        .path_and_query()
+        .and_then(|pq| match pq.path() {
+            "/api/v1/query" | "/api/v1/write" => pq.query(),
+            _ => None,
+        })
+        .map(serde_urlencoded::from_str::<V1AuthParameters>)
+        .transpose()
+        .ok()
+        .flatten()
+        .and_then(|params| params.password)
+        .map(String::into_bytes)
 }
 
 fn validate_auth_header(header: HeaderValue) -> Result<Vec<u8>, AuthorizationError> {

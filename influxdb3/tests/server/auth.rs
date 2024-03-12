@@ -206,3 +206,84 @@ async fn auth_grpc() {
         assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
     }
 }
+
+#[tokio::test]
+async fn v1_password_parameter() {
+    const HASHED_TOKEN: &str = "5315f0c4714537843face80cca8c18e27ce88e31e9be7a5232dc4dc8444f27c0227a9bd64831d3ab58f652bd0262dd8558dd08870ac9e5c650972ce9e4259439";
+    const TOKEN: &str = "apiv3_mp75KQAhbqv0GeQXk8MPuZ3ztaLEaR5JzS8iifk1FwuroSVyXXyrJK1c4gEr1kHkmbgzDV-j3MvQpaIMVJBAiA";
+
+    let server = TestServer::configure()
+        .auth_token(HASHED_TOKEN, TOKEN)
+        .spawn()
+        .await;
+
+    let client = reqwest::Client::new();
+    let query_url = format!("{base}/api/v1/query", base = server.client_addr());
+    let write_url = format!("{base}/api/v1/write", base = server.client_addr());
+    // Send requests without any authentication:
+    assert_eq!(
+        client
+            .get(&query_url)
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_eq!(
+        client
+            .get(&write_url)
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::UNAUTHORIZED,
+    );
+
+    // TODO - The following assertions will break when the actual APIs get implemented,
+    //        so will need to revisit these at that time:
+
+    // Send requests with the token in the v1 `p` parameter:
+    assert_eq!(
+        client
+            .get(&query_url)
+            .query(&[("p", TOKEN)])
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(
+        client
+            .get(&write_url)
+            .query(&[("p", TOKEN)])
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::NOT_FOUND,
+    );
+
+    // Send requests with the token in auth header:
+    assert_eq!(
+        client
+            .get(&query_url)
+            .bearer_auth(TOKEN)
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(
+        client
+            .get(&write_url)
+            .bearer_auth(TOKEN)
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::NOT_FOUND,
+    );
+}
