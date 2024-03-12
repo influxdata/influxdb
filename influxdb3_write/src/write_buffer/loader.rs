@@ -7,11 +7,10 @@ use crate::write_buffer::{
     buffer_segment::{load_buffer_from_segment, ClosedBufferSegment, OpenBufferSegment},
     Result,
 };
-use crate::Wal;
-use crate::{PersistedCatalog, PersistedSegment, Persister, SegmentId};
+use crate::{persister, write_buffer, PersistedCatalog, PersistedSegment, Persister, SegmentId};
+use crate::{SegmentDuration, SegmentRange, Wal};
+use iox_time::Time;
 use std::sync::Arc;
-
-use super::Error;
 
 const SEGMENTS_TO_LOAD: usize = 1000;
 
@@ -19,19 +18,23 @@ const SEGMENTS_TO_LOAD: usize = 1000;
 #[derive(Debug)]
 pub struct LoadedState {
     pub catalog: Arc<Catalog>,
-    pub open_segment: OpenBufferSegment,
+    pub open_segments: Vec<OpenBufferSegment>,
     pub persisting_buffer_segments: Vec<ClosedBufferSegment>,
     pub persisted_segments: Vec<PersistedSegment>,
+    pub last_segment_id: SegmentId,
 }
 
-pub async fn load_starting_state<W, P>(
+pub async fn load_starting_state<P, W>(
     persister: Arc<P>,
     wal: Option<Arc<W>>,
+    server_load_time: Time,
+    segment_duration: SegmentDuration,
 ) -> Result<LoadedState>
 where
-    W: Wal,
     P: Persister,
-    Error: From<P::Error>,
+    persister::Error: From<<P as Persister>::Error>,
+    W: Wal,
+    write_buffer::Error: From<<P as Persister>::Error>,
 {
     let PersistedCatalog { catalog, .. } = persister.load_catalog().await?.unwrap_or_default();
     let catalog = Arc::new(Catalog::from_inner(catalog));
@@ -42,76 +45,100 @@ where
         .last()
         .map(|s| s.segment_id)
         .unwrap_or(SegmentId::new(0));
-    let mut open_segment_id = last_persisted_segment_id.next();
     let mut persisting_buffer_segments = Vec::new();
 
-    let open_segment = if let Some(wal) = wal {
+    let current_segment_range =
+        SegmentRange::from_time_and_duration(server_load_time, segment_duration, false);
+    let next_segment_range = current_segment_range.next();
+
+    let mut open_segments = Vec::new();
+
+    if let Some(wal) = wal {
         // read any segments that don't show up in the list of persisted segments
-
-        // first load up any segments from the wal that haven't been persisted yet, except for the
-        // last one, which is the open segment.
         let wal_segments = wal.segment_files()?;
-        if !wal_segments.is_empty() {
-            // update the segment_id of the open segment to be for the last wal file
-            open_segment_id = wal_segments.last().unwrap().segment_id;
 
-            for segment_file in wal_segments.iter().take(wal_segments.len() - 1) {
-                // if persisted segemnts is empty, load all segments from the wal, otherwise
-                // only load segments that haven't been persisted yet
-                if segment_file.segment_id >= last_persisted_segment_id
-                    && !persisted_segments.is_empty()
-                {
-                    continue;
-                }
+        for segment_file in wal_segments {
+            // if persisted segments is empty, load all segments from the wal, otherwise
+            // only load segments that haven't been persisted yet
+            if segment_file.segment_id <= last_persisted_segment_id
+                && !persisted_segments.is_empty()
+            {
+                continue;
+            }
 
-                let segment_reader = wal.open_segment_reader(segment_file.segment_id)?;
-                let starting_sequence_number = catalog.sequence_number();
-                let buffer = load_buffer_from_segment(&catalog, segment_reader)?;
+            let starting_sequence_number = catalog.sequence_number();
+            let segment_reader = wal.open_segment_reader(segment_file.segment_id)?;
+            let segment_header = *segment_reader.header();
+            let buffer = load_buffer_from_segment(&catalog, segment_reader)?;
 
-                let segment = OpenBufferSegment::new(
-                    segment_file.segment_id,
-                    starting_sequence_number,
-                    Box::new(WalSegmentWriterNoopImpl::new(segment_file.segment_id)),
-                    Some(buffer),
-                );
-                let closed_segment = segment.into_closed_segment(Arc::clone(&catalog));
-                persisting_buffer_segments.push(closed_segment);
+            let segment = OpenBufferSegment::new(
+                segment_header.id,
+                segment_header.range,
+                server_load_time,
+                starting_sequence_number,
+                wal.open_segment_writer(segment_file.segment_id)?,
+                Some(buffer),
+            );
+
+            // if it's the current or next segment, we want to keep it open rather than move it to
+            // a persisting state
+            if segment_header.range == current_segment_range
+                || segment_header.range == next_segment_range
+            {
+                open_segments.push(segment);
+            } else {
+                persisting_buffer_segments.push(segment.into_closed_segment(Arc::clone(&catalog)));
             }
         }
 
-        // read the last segment into an open segment
-        let segment_reader = match wal.open_segment_reader(open_segment_id) {
-            Ok(reader) => Some(reader),
-            Err(crate::wal::Error::Io { source, .. })
-                if source.kind() == std::io::ErrorKind::NotFound =>
-            {
-                None
-            }
-            Err(e) => return Err(e.into()),
-        };
-        let buffered = match segment_reader {
-            Some(reader) => Some(load_buffer_from_segment(&catalog, reader)?),
-            None => None,
-        };
-        let segment_writer = wal.open_segment_writer(open_segment_id)?;
-        OpenBufferSegment::new(
-            open_segment_id,
-            catalog.sequence_number(),
-            segment_writer,
-            buffered,
-        )
+        if open_segments.is_empty() {
+            // ensure that we open up a segment for the "now" period of time
+            let current_segment_id = last_persisted_segment_id.next();
+
+            let current_segment = OpenBufferSegment::new(
+                current_segment_id,
+                current_segment_range,
+                server_load_time,
+                catalog.sequence_number(),
+                wal.new_segment_writer(current_segment_id, current_segment_range)?,
+                None,
+            );
+
+            open_segments.push(current_segment);
+        }
     } else {
-        OpenBufferSegment::new(
-            open_segment_id,
+        // ensure that we open up a segment for the "now" period of time
+        let current_segment_id = last_persisted_segment_id.next();
+
+        let current_segment = OpenBufferSegment::new(
+            current_segment_id,
+            current_segment_range,
+            server_load_time,
             catalog.sequence_number(),
-            Box::new(WalSegmentWriterNoopImpl::new(open_segment_id)),
+            Box::new(WalSegmentWriterNoopImpl::new(current_segment_id)),
             None,
-        )
+        );
+
+        open_segments.push(current_segment);
     };
+
+    let last_segment_id = open_segments
+        .iter()
+        .map(|s| s.segment_id())
+        .max()
+        .unwrap_or(SegmentId::new(0))
+        .max(last_persisted_segment_id)
+        .max(
+            persisted_segments
+                .last()
+                .map(|s| s.segment_id)
+                .unwrap_or(SegmentId::new(0)),
+        );
 
     Ok(LoadedState {
         catalog,
-        open_segment,
+        last_segment_id,
+        open_segments,
         persisting_buffer_segments,
         persisted_segments,
     })
@@ -123,8 +150,12 @@ mod tests {
     use crate::persister::PersisterImpl;
     use crate::test_helpers::lp_to_write_batch;
     use crate::wal::{WalImpl, WalSegmentWriterNoopImpl};
-    use crate::{DatabaseTables, LpWriteOp, ParquetFile, SequenceNumber, TableParquetFiles, WalOp};
+    use crate::{
+        DatabaseTables, LpWriteOp, ParquetFile, SegmentRange, SequenceNumber, TableParquetFiles,
+        WalOp,
+    };
     use arrow_util::assert_batches_eq;
+    use iox_time::Time;
     use object_store::memory::InMemory;
     use object_store::ObjectStore;
     use pretty_assertions::assert_eq;
@@ -137,8 +168,14 @@ mod tests {
 
         let segment_id = SegmentId::new(4);
         let segment_writer = Box::new(WalSegmentWriterNoopImpl::new(segment_id));
-        let mut open_segment =
-            OpenBufferSegment::new(segment_id, SequenceNumber::new(0), segment_writer, None);
+        let mut open_segment = OpenBufferSegment::new(
+            segment_id,
+            SegmentRange::test_range(),
+            Time::from_timestamp_nanos(0),
+            SequenceNumber::new(0),
+            segment_writer,
+            None,
+        );
 
         let catalog = Catalog::new();
 
@@ -152,7 +189,7 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, "db1", lp);
 
-        open_segment.write_batch(vec![wal_op]).unwrap();
+        open_segment.write_wal_ops(vec![wal_op]).unwrap();
         open_segment.buffer_writes(write_batch).unwrap();
 
         let catalog = Arc::new(catalog);
@@ -162,15 +199,23 @@ mod tests {
             .await
             .unwrap();
 
-        let loaded_state = load_starting_state(persister, None::<Arc<crate::wal::WalImpl>>)
-            .await
-            .unwrap();
+        let loaded_state = load_starting_state(
+            persister,
+            None::<Arc<crate::wal::WalImpl>>,
+            Time::from_timestamp_nanos(0),
+            SegmentDuration::new_5m(),
+        )
+        .await
+        .unwrap();
         let expected_catalog = catalog.clone_inner();
         let loaded_catalog = loaded_state.catalog.clone_inner();
 
         assert_eq!(expected_catalog, loaded_catalog);
         // the open segment it creates should be the next value in line
-        assert_eq!(loaded_state.open_segment.segment_id(), SegmentId::new(5));
+        assert_eq!(
+            loaded_state.open_segments[0].segment_id(),
+            SegmentId::new(5)
+        );
         let persisted_segment = loaded_state.persisted_segments.first().unwrap();
         assert_eq!(persisted_segment.segment_id, segment_id);
         assert_eq!(persisted_segment.segment_row_count, 3);
@@ -194,6 +239,8 @@ mod tests {
                 .len(),
             1
         );
+
+        assert_eq!(loaded_state.last_segment_id, SegmentId::new(5));
     }
 
     #[tokio::test]
@@ -206,11 +253,18 @@ mod tests {
 
         let LoadedState {
             catalog,
-            mut open_segment,
+            mut open_segments,
             ..
-        } = load_starting_state(Arc::clone(&persister), Some(Arc::clone(&wal)))
-            .await
-            .unwrap();
+        } = load_starting_state(
+            Arc::clone(&persister),
+            Some(Arc::clone(&wal)),
+            Time::from_timestamp_nanos(0),
+            SegmentDuration::new_5m(),
+        )
+        .await
+        .unwrap();
+
+        let mut current_segment = open_segments.pop().unwrap();
 
         let lp = "cpu,tag1=cupcakes bar=1 10\nmem,tag2=turtles bar=3 15\nmem,tag2=snakes bar=2 20";
 
@@ -222,10 +276,18 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
 
-        open_segment.write_batch(vec![wal_op]).unwrap();
-        open_segment.buffer_writes(write_batch).unwrap();
+        current_segment.write_wal_ops(vec![wal_op.clone()]).unwrap();
+        current_segment.buffer_writes(write_batch).unwrap();
 
-        let loaded_state = load_starting_state(persister, Some(wal)).await.unwrap();
+        let loaded_state = load_starting_state(
+            persister,
+            Some(wal),
+            Time::from_timestamp_nanos(0),
+            SegmentDuration::new_5m(),
+        )
+        .await
+        .unwrap();
+        let current_segment = loaded_state.open_segments.first().unwrap();
 
         assert!(loaded_state.persisting_buffer_segments.is_empty());
         assert!(loaded_state.persisted_segments.is_empty());
@@ -235,11 +297,8 @@ mod tests {
         assert!(db.tables.contains_key("mem"));
 
         let cpu_table = db.get_table("cpu").unwrap();
-        let cpu_data = open_segment
+        let cpu_data = current_segment
             .table_buffer(db_name, "cpu")
-            .unwrap()
-            .partition_buffers
-            .get("1970-01-01")
             .unwrap()
             .rows_to_record_batch(&cpu_table.schema, cpu_table.columns());
         let expected = vec![
@@ -252,11 +311,8 @@ mod tests {
         assert_batches_eq!(&expected, &[cpu_data]);
 
         let mem_table = db.get_table("mem").unwrap();
-        let mem_data = open_segment
+        let mem_data = current_segment
             .table_buffer(db_name, "mem")
-            .unwrap()
-            .partition_buffers
-            .get("1970-01-01")
             .unwrap()
             .rows_to_record_batch(&mem_table.schema, mem_table.columns());
         let expected = vec![
@@ -268,6 +324,8 @@ mod tests {
             "+-----+---------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[mem_data]);
+
+        assert_eq!(loaded_state.last_segment_id, SegmentId::new(1));
     }
 
     #[tokio::test]
@@ -280,11 +338,18 @@ mod tests {
 
         let LoadedState {
             catalog,
-            mut open_segment,
+            mut open_segments,
             ..
-        } = load_starting_state(Arc::clone(&persister), Some(Arc::clone(&wal)))
-            .await
-            .unwrap();
+        } = load_starting_state(
+            Arc::clone(&persister),
+            Some(Arc::clone(&wal)),
+            Time::from_timestamp_nanos(0),
+            SegmentDuration::new_5m(),
+        )
+        .await
+        .unwrap();
+
+        let mut current_segment = open_segments.pop().unwrap();
 
         let lp = "cpu,tag1=cupcakes bar=1 10\nmem,tag2=turtles bar=3 15\nmem,tag2=snakes bar=2 20";
 
@@ -296,25 +361,23 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
 
-        open_segment.write_batch(vec![wal_op]).unwrap();
-        open_segment.buffer_writes(write_batch).unwrap();
+        current_segment.write_wal_ops(vec![wal_op]).unwrap();
+        current_segment.buffer_writes(write_batch).unwrap();
 
-        let segment_id = open_segment.segment_id();
-        let next_segment_id = open_segment.segment_id().next();
+        let segment_id = current_segment.segment_id();
 
-        open_segment
-            .into_closed_segment(Arc::clone(&catalog))
+        let next_segment_id = segment_id.next();
+        let next_segment_range = current_segment.segment_range().next();
+
+        // close and persist the current segment
+        let closed_segment = Arc::new(current_segment.into_closed_segment(Arc::clone(&catalog)));
+
+        closed_segment
             .persist(Arc::clone(&persister))
             .await
             .unwrap();
 
-        let mut open_segment = OpenBufferSegment::new(
-            next_segment_id,
-            catalog.sequence_number(),
-            wal.open_segment_writer(next_segment_id).unwrap(),
-            None,
-        );
-
+        // write data into the next segment
         let lp = "cpu,tag1=cupcakes bar=3 20\nfoo val=1 123";
 
         let wal_op = WalOp::LpWrite(LpWriteOp {
@@ -325,17 +388,40 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
 
-        open_segment.write_batch(vec![wal_op]).unwrap();
-        open_segment.buffer_writes(write_batch).unwrap();
+        let segment_writer = wal
+            .new_segment_writer(next_segment_id, next_segment_range)
+            .unwrap();
+        let mut next_segment = OpenBufferSegment::new(
+            SegmentId::new(2),
+            SegmentRange::test_range().next(),
+            Time::from_timestamp_nanos(0),
+            catalog.sequence_number(),
+            segment_writer,
+            None,
+        );
 
-        let loaded_state = load_starting_state(persister, Some(wal)).await.unwrap();
+        next_segment.write_wal_ops(vec![wal_op]).unwrap();
+        next_segment.buffer_writes(write_batch).unwrap();
 
+        // now load up with a start time that puts us in next segment period
+        let loaded_state = load_starting_state(
+            persister,
+            Some(wal),
+            Time::from_timestamp(6 * 60, 0).unwrap(),
+            SegmentDuration::new_5m(),
+        )
+        .await
+        .unwrap();
+
+        // verify that the persisted segment doesn't show up as one that should be persisting
         assert!(loaded_state.persisting_buffer_segments.is_empty());
+
+        // verify the data was persisted
         assert_eq!(
             loaded_state.persisted_segments[0],
             PersistedSegment {
                 segment_id,
-                segment_wal_size_bytes: 201,
+                segment_wal_size_bytes: 227,
                 segment_parquet_size_bytes: 3458,
                 segment_row_count: 3,
                 segment_min_time: 10,
@@ -349,7 +435,7 @@ mod tests {
                                 TableParquetFiles {
                                     table_name: "cpu".to_string(),
                                     parquet_files: vec![ParquetFile {
-                                        path: "dbs/db1/cpu/1970-01-01/4294967294.parquet"
+                                        path: "dbs/db1/cpu/1970-01-01T00-00/4294967294.parquet"
                                             .to_string(),
                                         size_bytes: 1721,
                                         row_count: 1,
@@ -364,7 +450,7 @@ mod tests {
                                 TableParquetFiles {
                                     table_name: "mem".to_string(),
                                     parquet_files: vec![ParquetFile {
-                                        path: "dbs/db1/mem/1970-01-01/4294967294.parquet"
+                                        path: "dbs/db1/mem/1970-01-01T00-00/4294967294.parquet"
                                             .to_string(),
                                         size_bytes: 1737,
                                         row_count: 2,
@@ -386,11 +472,8 @@ mod tests {
         assert!(db.tables.contains_key("foo"));
 
         let cpu_table = db.get_table("cpu").unwrap();
-        let cpu_data = open_segment
+        let cpu_data = loaded_state.open_segments[0]
             .table_buffer(db_name, "cpu")
-            .unwrap()
-            .partition_buffers
-            .get("1970-01-01")
             .unwrap()
             .rows_to_record_batch(&cpu_table.schema, cpu_table.columns());
         let expected = vec![
@@ -403,11 +486,8 @@ mod tests {
         assert_batches_eq!(&expected, &[cpu_data]);
 
         let foo_table = db.get_table("foo").unwrap();
-        let foo_data = open_segment
+        let foo_data = loaded_state.open_segments[0]
             .table_buffer(db_name, "foo")
-            .unwrap()
-            .partition_buffers
-            .get("1970-01-01")
             .unwrap()
             .rows_to_record_batch(&foo_table.schema, foo_table.columns());
         let expected = vec![
@@ -418,6 +498,8 @@ mod tests {
             "+--------------------------------+-----+",
         ];
         assert_batches_eq!(&expected, &[foo_data]);
+
+        assert_eq!(loaded_state.last_segment_id, SegmentId::new(2));
     }
 
     #[tokio::test]
@@ -430,11 +512,17 @@ mod tests {
 
         let LoadedState {
             catalog,
-            mut open_segment,
+            mut open_segments,
             ..
-        } = load_starting_state(Arc::clone(&persister), Some(Arc::clone(&wal)))
-            .await
-            .unwrap();
+        } = load_starting_state(
+            Arc::clone(&persister),
+            Some(Arc::clone(&wal)),
+            Time::from_timestamp_nanos(0),
+            SegmentDuration::new_5m(),
+        )
+        .await
+        .unwrap();
+        let mut current_segment = open_segments.pop().unwrap();
 
         let lp = "cpu,tag1=cupcakes bar=1 10\nmem,tag2=turtles bar=3 15\nmem,tag2=snakes bar=2 20";
 
@@ -446,20 +534,16 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
 
-        open_segment.write_batch(vec![wal_op]).unwrap();
-        open_segment.buffer_writes(write_batch).unwrap();
+        current_segment.write_wal_ops(vec![wal_op]).unwrap();
+        current_segment.buffer_writes(write_batch).unwrap();
 
-        let next_segment_id = open_segment.segment_id().next();
+        let next_segment_id = current_segment.segment_id().next();
+        let next_segment_range = current_segment.segment_range().next();
 
-        let closed_segment = open_segment.into_closed_segment(Arc::clone(&catalog));
+        // close the current segment
+        let closed_segment = current_segment.into_closed_segment(Arc::clone(&catalog));
 
-        let mut open_segment = OpenBufferSegment::new(
-            next_segment_id,
-            catalog.sequence_number(),
-            wal.open_segment_writer(next_segment_id).unwrap(),
-            None,
-        );
-
+        // write data into the next segment
         let lp = "cpu,tag1=apples bar=3 20\nfoo val=1 123";
 
         let wal_op = WalOp::LpWrite(LpWriteOp {
@@ -470,10 +554,32 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
 
-        open_segment.write_batch(vec![wal_op]).unwrap();
-        open_segment.buffer_writes(write_batch).unwrap();
+        let segment_writer = wal
+            .new_segment_writer(next_segment_id, next_segment_range)
+            .unwrap();
+        let mut next_segment = OpenBufferSegment::new(
+            SegmentId::new(2),
+            SegmentRange::test_range().next(),
+            Time::from_timestamp_nanos(0),
+            catalog.sequence_number(),
+            segment_writer,
+            None,
+        );
 
-        let loaded_state = load_starting_state(persister, Some(wal)).await.unwrap();
+        next_segment.write_wal_ops(vec![wal_op]).unwrap();
+        next_segment.buffer_writes(write_batch).unwrap();
+
+        // now load up with a start time that puts us in next segment period. we should now
+        // have the previous current_segment in persisting, the previous next_segment as the
+        // new current_segment, and a brand new next_segment
+        let loaded_state = load_starting_state(
+            persister,
+            Some(wal),
+            Time::from_timestamp(6 * 60, 0).unwrap(),
+            SegmentDuration::new_5m(),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(loaded_state.persisting_buffer_segments.len(), 1);
         let loaded_closed_segment = &loaded_state.persisting_buffer_segments[0];
@@ -498,11 +604,8 @@ mod tests {
         assert!(db.tables.contains_key("foo"));
 
         let cpu_table = db.get_table("cpu").unwrap();
-        let cpu_data = open_segment
+        let cpu_data = loaded_state.open_segments[0]
             .table_buffer(db_name, "cpu")
-            .unwrap()
-            .partition_buffers
-            .get("1970-01-01")
             .unwrap()
             .rows_to_record_batch(&cpu_table.schema, cpu_table.columns());
         let expected = vec![
@@ -515,11 +618,8 @@ mod tests {
         assert_batches_eq!(&expected, &[cpu_data]);
 
         let foo_table = db.get_table("foo").unwrap();
-        let foo_data = open_segment
+        let foo_data = loaded_state.open_segments[0]
             .table_buffer(db_name, "foo")
-            .unwrap()
-            .partition_buffers
-            .get("1970-01-01")
             .unwrap()
             .rows_to_record_batch(&foo_table.schema, foo_table.columns());
         let expected = vec![
@@ -530,5 +630,7 @@ mod tests {
             "+--------------------------------+-----+",
         ];
         assert_batches_eq!(&expected, &[foo_data]);
+
+        assert_eq!(loaded_state.last_segment_id, SegmentId::new(2));
     }
 }

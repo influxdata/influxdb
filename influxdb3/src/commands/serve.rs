@@ -7,11 +7,17 @@ use clap_blocks::{
     object_store::{make_object_store, ObjectStoreConfig},
     socket_addr::SocketAddr,
 };
-use influxdb3_server::{query_executor::QueryExecutorImpl, serve, CommonServerState, Server};
+use datafusion_util::config::register_iox_object_store;
+use influxdb3_server::{
+    auth::AllOrNothingAuthorizer, builder::ServerBuilder, query_executor::QueryExecutorImpl, serve,
+    CommonServerState,
+};
 use influxdb3_write::persister::PersisterImpl;
 use influxdb3_write::wal::WalImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
-use iox_query::exec::{Executor, ExecutorConfig};
+use influxdb3_write::SegmentDuration;
+use iox_query::exec::{Executor, ExecutorConfig, ExecutorType};
+use iox_time::SystemProvider;
 use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
@@ -51,6 +57,9 @@ pub enum Error {
 
     #[error("Write buffer error: {0}")]
     WriteBuffer(#[from] influxdb3_write::write_buffer::Error),
+
+    #[error("invalid token: {0}")]
+    InvalidToken(#[from] hex::FromHexError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -127,6 +136,16 @@ pub struct Config {
     /// bearer token to be set for requests
     #[clap(long = "bearer-token", env = "INFLUXDB3_BEARER_TOKEN", action)]
     pub bearer_token: Option<String>,
+
+    /// Duration of wal segments that are persisted to object storage. Valid values: 1m, 5m, 10m,
+    /// 15m, 30m, 1h, 2h, 4h.
+    #[clap(
+        long = "segment-duration",
+        env = "INFLUXDB3_SEGMENT_DURATION",
+        default_value = "1h",
+        action
+    )]
+    pub segment_duration: SegmentDuration,
 }
 
 #[cfg(all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")))]
@@ -224,6 +243,8 @@ pub async fn command(config: Config) -> Result<()> {
         metric_registry: Arc::clone(&metrics),
         mem_pool_size: config.exec_mem_pool_bytes.bytes(),
     }));
+    let runtime_env = exec.new_context(ExecutorType::Query).inner().runtime_env();
+    register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
 
     let trace_header_parser = TraceHeaderParser::new()
         .with_jaeger_trace_context_header_name(
@@ -238,32 +259,46 @@ pub async fn command(config: Config) -> Result<()> {
         trace_exporter,
         trace_header_parser,
         *config.http_bind_address,
-        config.bearer_token,
     )?;
-    let persister = PersisterImpl::new(Arc::clone(&object_store));
+    let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
     let wal: Option<Arc<WalImpl>> = config
         .wal_directory
         .map(|dir| WalImpl::new(dir).map(Arc::new))
         .transpose()?;
-    // TODO: the next segment ID should be loaded from the persister
-    let write_buffer = Arc::new(WriteBufferImpl::new(Arc::new(persister), wal).await?);
-    let query_executor = QueryExecutorImpl::new(
+
+    let time_provider = Arc::new(SystemProvider::new());
+    let write_buffer = Arc::new(
+        WriteBufferImpl::new(
+            Arc::clone(&persister),
+            wal,
+            Arc::clone(&time_provider),
+            config.segment_duration,
+        )
+        .await?,
+    );
+    let query_executor = Arc::new(QueryExecutorImpl::new(
         write_buffer.catalog(),
         Arc::clone(&write_buffer),
         Arc::clone(&exec),
         Arc::clone(&metrics),
         Arc::new(config.datafusion_config),
         10,
-    );
+    ));
 
-    let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
-    let server = Server::new(
-        common_state,
-        persister,
-        Arc::clone(&write_buffer),
-        Arc::new(query_executor),
-        config.max_http_request_size,
-    );
+    let builder = ServerBuilder::new(common_state)
+        .max_request_size(config.max_http_request_size)
+        .write_buffer(write_buffer)
+        .query_executor(query_executor)
+        .time_provider(time_provider)
+        .persister(persister);
+
+    let server = if let Some(token) = config.bearer_token.map(hex::decode).transpose()? {
+        builder
+            .authorizer(Arc::new(AllOrNothingAuthorizer::new(token)))
+            .build()
+    } else {
+        builder.build()
+    };
     serve(server, frontend_shutdown).await?;
 
     Ok(())

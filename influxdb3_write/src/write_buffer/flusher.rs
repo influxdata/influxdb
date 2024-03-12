@@ -1,10 +1,10 @@
 //! Buffers writes and flushes them to the configured wal
 
-use crate::write_buffer::buffer_segment::{BufferedWrite, DatabaseWrite, WriteBatch, WriteSummary};
-use crate::write_buffer::{Error, SegmentState, TableBatch};
-use crate::{wal, SequenceNumber, WalOp};
+use crate::write_buffer::buffer_segment::{BufferedWrite, WriteBatch};
+use crate::write_buffer::{Error, SegmentState, ValidSegmentedData};
+use crate::{wal, Wal, WalOp};
 use crossbeam_channel::{bounded, Receiver as CrossbeamReceiver, Sender as CrossbeamSender};
-use data_types::NamespaceName;
+use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::debug;
 use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
@@ -23,9 +23,12 @@ const BUFFER_CHANNEL_LIMIT: usize = 10_000;
 // are buffered. If there is an error, it'll be here
 #[derive(Debug, Clone)]
 pub enum BufferedWriteResult {
-    Success(WriteSummary),
+    Success(()),
     Error(String),
 }
+
+type SegmentedWalOps = HashMap<Time, Vec<WalOp>>;
+type SegmentedWriteBatch = HashMap<Time, WriteBatch>;
 
 /// The WriteBufferFlusher buffers writes and flushes them to the configured wal. The wal IO is done in a native
 /// thread rather than a tokio task to avoid blocking the tokio runtime. As referenced in this post, continuous
@@ -40,7 +43,7 @@ pub struct WriteBufferFlusher {
 }
 
 impl WriteBufferFlusher {
-    pub fn new(segment_state: Arc<RwLock<SegmentState>>) -> Self {
+    pub fn new<T: TimeProvider, W: Wal>(segment_state: Arc<RwLock<SegmentState<T, W>>>) -> Self {
         let (shutdown_tx, shutdown_rx) = watch::channel(());
         let (buffer_tx, buffer_rx) = mpsc::channel(BUFFER_CHANNEL_LIMIT);
         let (io_flush_tx, io_flush_rx) = bounded(1);
@@ -80,16 +83,13 @@ impl WriteBufferFlusher {
 
     pub async fn write_to_open_segment(
         &self,
-        db_name: NamespaceName<'static>,
-        table_batches: HashMap<String, TableBatch>,
-        wal_op: WalOp,
-    ) -> crate::write_buffer::Result<WriteSummary> {
+        segmented_data: Vec<ValidSegmentedData>,
+    ) -> crate::write_buffer::Result<()> {
         let (response_tx, response_rx) = oneshot::channel();
 
         self.buffer_tx
             .send(BufferedWrite {
-                wal_op,
-                database_write: DatabaseWrite::new(db_name, table_batches),
+                segmented_data,
                 response_tx,
             })
             .await
@@ -98,21 +98,21 @@ impl WriteBufferFlusher {
         let summary = response_rx.await.expect("wal op buffer thread is dead");
 
         match summary {
-            BufferedWriteResult::Success(summary) => Ok(summary),
+            BufferedWriteResult::Success(_) => Ok(()),
             BufferedWriteResult::Error(e) => Err(Error::BufferSegmentError(e)),
         }
     }
 }
 
-async fn run_wal_op_buffer(
-    segment_state: Arc<RwLock<SegmentState>>,
+async fn run_wal_op_buffer<T: TimeProvider, W: Wal>(
+    segment_state: Arc<RwLock<SegmentState<T, W>>>,
     mut buffer_rx: mpsc::Receiver<BufferedWrite>,
-    io_flush_tx: CrossbeamSender<Vec<WalOp>>,
-    io_flush_notify_rx: CrossbeamReceiver<wal::Result<SequenceNumber>>,
+    io_flush_tx: CrossbeamSender<SegmentedWalOps>,
+    io_flush_notify_rx: CrossbeamReceiver<wal::Result<()>>,
     mut shutdown: watch::Receiver<()>,
 ) {
-    let mut ops = Vec::new();
-    let mut write_batch = crate::write_buffer::buffer_segment::WriteBatch::default();
+    let mut ops = SegmentedWalOps::new();
+    let mut write_batch = SegmentedWriteBatch::new();
     let mut notifies = Vec::new();
     let mut interval = tokio::time::interval(BUFFER_FLUSH_INTERVAL);
     interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
@@ -121,8 +121,13 @@ async fn run_wal_op_buffer(
         // select on either buffering an op, ticking the flush interval, or shutting down
         select! {
             Some(buffered_write) = buffer_rx.recv() => {
-                ops.push(buffered_write.wal_op);
-                write_batch.add_db_write(buffered_write.database_write.db_name, buffered_write.database_write.table_batches);
+                for segmented_data in buffered_write.segmented_data {
+                    let segment_ops = ops.entry(segmented_data.segment_start).or_default();
+                    segment_ops.push(segmented_data.wal_op);
+
+                    let segment_write_batch = write_batch.entry(segmented_data.segment_start).or_default();
+                    segment_write_batch.add_db_write(segmented_data.database_name, segmented_data.table_batches);
+                }
                 notifies.push(buffered_write.response_tx);
             },
             _ = interval.tick() => {
@@ -130,23 +135,23 @@ async fn run_wal_op_buffer(
                     continue;
                 }
 
-                let ops_written = ops.len();
-
                 // send ops into IO flush channel and wait for response
                 io_flush_tx.send(ops).expect("wal io thread is dead");
 
                 let res = match io_flush_notify_rx.recv().expect("wal io thread is dead") {
-                  Ok(sequence_number) => {
-                    let open_segment = &mut segment_state.write().open_segment;
+                  Ok(()) => {
+                       let mut err = BufferedWriteResult::Success(());
 
-                        match open_segment.buffer_writes(write_batch) {
-                            Ok(buffer_size) => BufferedWriteResult::Success(WriteSummary {
-                                segment_id: open_segment.segment_id(),
-                                sequence_number,
-                                buffer_size,
-                            }),
-                            Err(e) => BufferedWriteResult::Error(e.to_string()),
+                        let mut segment_state = segment_state.write();
+
+                        for (time, write_batch) in write_batch {
+                            if let Err(e) = segment_state.write_batch_to_segment(time, write_batch) {
+                                err = BufferedWriteResult::Error(e.to_string());
+                                break;
+                            }
                         }
+
+                        err
                     },
                     Err(e) => BufferedWriteResult::Error(e.to_string()),
                 };
@@ -157,9 +162,9 @@ async fn run_wal_op_buffer(
                 }
 
                 // reset the buffers
-                ops = Vec::with_capacity(ops_written);
-                write_batch = WriteBatch::default();
-                notifies = Vec::with_capacity(ops_written);
+                ops = SegmentedWalOps::new();
+                write_batch = SegmentedWriteBatch::new();
+                notifies = Vec::new();
             },
             _ = shutdown.changed() => {
                 // shutdown has been requested
@@ -170,13 +175,13 @@ async fn run_wal_op_buffer(
     }
 }
 
-fn run_io_flush(
-    segment_state: Arc<RwLock<SegmentState>>,
-    buffer_rx: CrossbeamReceiver<Vec<WalOp>>,
-    buffer_notify: CrossbeamSender<wal::Result<SequenceNumber>>,
+fn run_io_flush<T: TimeProvider, W: Wal>(
+    segment_state: Arc<RwLock<SegmentState<T, W>>>,
+    buffer_rx: CrossbeamReceiver<SegmentedWalOps>,
+    buffer_notify: CrossbeamSender<wal::Result<()>>,
 ) {
     loop {
-        let batch = match buffer_rx.recv() {
+        let segmented_wal_ops = match buffer_rx.recv() {
             Ok(batch) => batch,
             Err(_) => {
                 // the buffer channel has closed, it's shutdown
@@ -186,68 +191,105 @@ fn run_io_flush(
         };
 
         let mut state = segment_state.write();
-        let res = state.open_segment.write_batch(batch);
 
-        buffer_notify.send(res).expect("buffer flusher is dead");
+        // write the ops to the segment files, or return on first error
+        for (time, wal_ops) in segmented_wal_ops {
+            let res = state.write_ops_to_segment(time, wal_ops);
+            if res.is_err() {
+                buffer_notify.send(res).expect("buffer flusher is dead");
+                continue;
+            }
+        }
+
+        buffer_notify.send(Ok(())).expect("buffer flusher is dead");
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::lp_to_table_batches;
-    use crate::wal::WalSegmentWriterNoopImpl;
+    use crate::catalog::Catalog;
+    use crate::wal::{WalImpl, WalSegmentWriterNoopImpl};
     use crate::write_buffer::buffer_segment::OpenBufferSegment;
-    use crate::{LpWriteOp, SegmentId};
+    use crate::write_buffer::parse_validate_and_update_catalog;
+    use crate::{Precision, SegmentDuration, SegmentId, SegmentRange, SequenceNumber};
+    use data_types::NamespaceName;
+    use iox_time::MockProvider;
 
     #[tokio::test]
     async fn flushes_to_open_segment() {
         let segment_id = SegmentId::new(3);
         let open_segment = OpenBufferSegment::new(
             segment_id,
+            SegmentRange::test_range(),
+            Time::from_timestamp_nanos(0),
             SequenceNumber::new(0),
             Box::new(WalSegmentWriterNoopImpl::new(segment_id)),
             None,
         );
-        let segment_state = Arc::new(RwLock::new(SegmentState::new(open_segment)));
+        let next_segment_id = segment_id.next();
+        let next_segment_range = SegmentRange::test_range().next();
+
+        let next_segment = OpenBufferSegment::new(
+            next_segment_id,
+            next_segment_range,
+            Time::from_timestamp_nanos(0),
+            SequenceNumber::new(0),
+            Box::new(WalSegmentWriterNoopImpl::new(next_segment_id)),
+            None,
+        );
+        let catalog = Arc::new(Catalog::new());
+        let segment_state = Arc::new(RwLock::new(SegmentState::<MockProvider, WalImpl>::new(
+            SegmentDuration::new_5m(),
+            next_segment_id,
+            Arc::clone(&catalog),
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+            vec![open_segment, next_segment],
+            vec![],
+            vec![],
+            None,
+        )));
         let flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
 
         let db_name = NamespaceName::new("db1").unwrap();
-        let wal_op = WalOp::LpWrite(LpWriteOp {
-            db_name: db_name.to_string(),
-            lp: "cpu bar=1 10".to_string(),
-            default_time: 0,
-        });
-        let data = lp_to_table_batches("cpu bar=1 10", 0);
-        let write_summary = flusher
-            .write_to_open_segment(db_name.clone(), data, wal_op)
+        let ingest_time = Time::from_timestamp_nanos(0);
+        let res = parse_validate_and_update_catalog(
+            db_name.clone(),
+            "cpu bar=1 10",
+            &catalog,
+            ingest_time,
+            SegmentDuration::new_5m(),
+            false,
+            Precision::Nanosecond,
+        )
+        .unwrap();
+
+        flusher
+            .write_to_open_segment(res.valid_segmented_data)
             .await
             .unwrap();
 
-        assert_eq!(write_summary.segment_id, segment_id);
-        assert_eq!(write_summary.sequence_number, SequenceNumber::new(1));
-
-        let wal_op = WalOp::LpWrite(LpWriteOp {
-            db_name: db_name.to_string(),
-            lp: "cpu bar=1 20".to_string(),
-            default_time: 0,
-        });
-        let data = lp_to_table_batches("cpu bar=1 20", 0);
-        let write_summary = flusher
-            .write_to_open_segment(db_name.clone(), data, wal_op)
+        let res = parse_validate_and_update_catalog(
+            db_name.clone(),
+            "cpu bar=1 20",
+            &catalog,
+            ingest_time,
+            SegmentDuration::new_5m(),
+            false,
+            Precision::Nanosecond,
+        )
+        .unwrap();
+        flusher
+            .write_to_open_segment(res.valid_segmented_data)
             .await
             .unwrap();
-
-        assert_eq!(write_summary.sequence_number, SequenceNumber::new(2));
 
         let state = segment_state.read();
-        assert_eq!(state.open_segment.segment_id(), segment_id);
+        let segment = state.segment_for_time(ingest_time).unwrap();
 
-        let table_buffer = state
-            .open_segment
-            .table_buffer(db_name.as_str(), "cpu")
-            .unwrap();
-        let partition_buffer = table_buffer.partition_buffer("1970-01-01").unwrap();
-        assert_eq!(partition_buffer.row_count(), 2);
+        assert_eq!(segment.segment_id(), segment_id);
+
+        let table_buffer = segment.table_buffer(db_name.as_str(), "cpu").unwrap();
+        assert_eq!(table_buffer.row_count(), 2);
     }
 }

@@ -5,10 +5,13 @@
 use crate::catalog::Catalog;
 use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
-use crate::write_buffer::{parse_validate_and_update_catalog, FieldData, Row, TableBatch};
+use crate::write_buffer::{
+    parse_validate_and_update_catalog, Error, FieldData, Row, TableBatch, ValidSegmentedData,
+};
 use crate::{
-    wal, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment, Persister, Precision,
-    SegmentId, SequenceNumber, TableParquetFiles, WalOp, WalSegmentReader, WalSegmentWriter,
+    wal, write_buffer, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment,
+    Persister, Precision, SegmentDuration, SegmentId, SegmentRange, SequenceNumber,
+    TableParquetFiles, WalOp, WalSegmentReader, WalSegmentWriter,
 };
 use arrow::array::{
     ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, StringDictionaryBuilder,
@@ -16,18 +19,24 @@ use arrow::array::{
 };
 use arrow::datatypes::Int32Type;
 use arrow::record_batch::RecordBatch;
-use data_types::{ColumnType, NamespaceName, TimestampMinMax};
+use data_types::{ColumnType, NamespaceName, PartitionKey, TimestampMinMax};
 use datafusion_util::stream_from_batch;
+use iox_time::Time;
 use schema::Schema;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::oneshot;
 
 #[derive(Debug)]
 pub struct OpenBufferSegment {
     segment_writer: Box<dyn WalSegmentWriter>,
     segment_id: SegmentId,
+    segment_range: SegmentRange,
+    segment_duration: SegmentDuration,
+    segment_key: PartitionKey,
     buffered_data: BufferedData,
+    segment_open_time: Time,
     #[allow(dead_code)]
     starting_catalog_sequence_number: SequenceNumber,
     // TODO: This is temporarily just the number of rows in the segment. When the buffer gets refactored to use
@@ -38,25 +47,42 @@ pub struct OpenBufferSegment {
 impl OpenBufferSegment {
     pub fn new(
         segment_id: SegmentId,
+        segment_range: SegmentRange,
+        segment_open_time: Time,
         starting_catalog_sequence_number: SequenceNumber,
         segment_writer: Box<dyn WalSegmentWriter>,
         buffered_data: Option<(BufferedData, usize)>,
     ) -> Self {
         let (buffered_data, segment_size) = buffered_data.unwrap_or_default();
+        let segment_key = PartitionKey::from(segment_range.key());
+        let segment_duration = SegmentDuration::from_range(segment_range);
 
         Self {
             segment_writer,
             segment_id,
+            segment_range,
+            segment_duration,
+            segment_open_time,
+            segment_key,
             starting_catalog_sequence_number,
             segment_size,
             buffered_data,
         }
     }
 
+    #[allow(dead_code)]
+    pub fn start_time_matches(&self, t: Time) -> bool {
+        self.segment_range.start_time == t
+    }
+
     pub fn segment_id(&self) -> SegmentId {
         self.segment_id
     }
-    pub fn write_batch(&mut self, write_batch: Vec<WalOp>) -> wal::Result<SequenceNumber> {
+
+    pub fn segment_range(&self) -> &SegmentRange {
+        &self.segment_range
+    }
+    pub fn write_wal_ops(&mut self, write_batch: Vec<WalOp>) -> wal::Result<()> {
         self.segment_writer.write_batch(write_batch)
     }
 
@@ -67,8 +93,8 @@ impl OpenBufferSegment {
             .and_then(|db_buffer| db_buffer.table_buffers.get(table_name).cloned())
     }
 
-    /// Adds the batch into the in memory buffer. Returns the number of rows in the segment after the write.
-    pub(crate) fn buffer_writes(&mut self, write_batch: WriteBatch) -> Result<usize> {
+    /// Adds the batch into the in memory buffer.
+    pub(crate) fn buffer_writes(&mut self, write_batch: WriteBatch) -> Result<()> {
         for (db_name, db_batch) in write_batch.database_batches {
             let db_buffer = self
                 .buffered_data
@@ -77,34 +103,53 @@ impl OpenBufferSegment {
                 .or_default();
 
             for (table_name, table_batch) in db_batch.table_batches {
-                let table_buffer = db_buffer.table_buffers.entry(table_name).or_default();
-
-                for (partition_key, partition_batch) in table_batch.partition_batches {
-                    let partition_buffer = table_buffer
-                        .partition_buffers
-                        .entry(partition_key)
-                        .or_default();
-
-                    // TODO: for now we'll just have the number of rows represent the segment size. The entire
-                    //       buffer is going to get refactored to use different structures, so this will change.
-                    self.segment_size += partition_batch.rows.len();
-
-                    partition_buffer.add_rows(partition_batch.rows);
-                }
+                let table_buffer = db_buffer
+                    .table_buffers
+                    .entry(table_name)
+                    .or_insert_with(|| TableBuffer {
+                        segment_key: self.segment_key.clone(),
+                        rows: vec![],
+                        timestamp_min: i64::MAX,
+                        timestamp_max: i64::MIN,
+                    });
+                // TODO: for now we'll just have the number of rows represent the segment size. The entire
+                //       buffer is going to get refactored to use different structures, so this will change.
+                self.segment_size += table_batch.rows.len();
+                table_buffer.add_rows(table_batch.rows);
             }
         }
 
-        Ok(self.segment_size)
+        Ok(())
+    }
+
+    /// Returns true if the segment should be persisted. A segment should be persisted if both of
+    /// the following are true:
+    /// 1. The segment has been open longer than half its duration
+    /// 2. The current time is past the end time of the segment + half its duration
+    pub fn should_persist(&self, current_time: Time) -> bool {
+        let half_duration_seconds = self.segment_duration.duration_seconds() / 2;
+        let open_duration_seconds = current_time
+            .checked_duration_since(self.segment_open_time)
+            .unwrap_or(Duration::from_secs(0))
+            .as_secs() as i64;
+
+        let segment_end_epoch = self.segment_range.end_time.timestamp();
+        let end_time_age_out_epoch = segment_end_epoch + half_duration_seconds;
+
+        open_duration_seconds > half_duration_seconds
+            && current_time.timestamp() > end_time_age_out_epoch
     }
 
     #[allow(dead_code)]
     pub fn into_closed_segment(self, catalog: Arc<Catalog>) -> ClosedBufferSegment {
         ClosedBufferSegment::new(
             self.segment_id,
+            self.segment_range,
+            self.segment_key,
             self.starting_catalog_sequence_number,
             catalog.sequence_number(),
-            self.segment_writer,
             self.buffered_data,
+            self.segment_writer.bytes_written(),
             catalog,
         )
     }
@@ -116,43 +161,53 @@ pub(crate) fn load_buffer_from_segment(
 ) -> Result<(BufferedData, usize)> {
     let mut segment_size = 0;
     let mut buffered_data = BufferedData::default();
+    let segment_key = PartitionKey::from(segment_reader.header().range.key());
+    let segment_duration = SegmentDuration::from_range(segment_reader.header().range);
 
     while let Some(batch) = segment_reader.next_batch()? {
         for wal_op in batch.ops {
-            println!("wal_op: {:?}", wal_op);
             match wal_op {
                 WalOp::LpWrite(write) => {
-                    let validated_write = parse_validate_and_update_catalog(
-                        &write.db_name,
+                    let mut validated_write = parse_validate_and_update_catalog(
+                        NamespaceName::new(write.db_name.clone())?,
                         &write.lp,
                         catalog,
-                        write.default_time,
+                        Time::from_timestamp_nanos(write.default_time),
+                        segment_duration,
                         false,
                         Precision::Nanosecond,
                     )?;
-                    println!("validated_write: {:?}", validated_write);
+
                     let db_buffer = buffered_data
                         .database_buffers
                         .entry(write.db_name)
                         .or_default();
 
-                    for (table_name, table_batch) in validated_write.table_batches {
-                        let table_buffer = db_buffer.table_buffers.entry(table_name).or_default();
+                    // there should only ever be data for a single segment as this is all read
+                    // from one segment file
+                    if validated_write.valid_segmented_data.len() != 1 {
+                        return Err(Error::WalOpForMultipleSegments(
+                            segment_reader.path().to_string(),
+                        ));
+                    }
+                    let segment_data = validated_write.valid_segmented_data.pop().unwrap();
 
-                        for (partition_key, partition_batch) in table_batch.partition_batches {
-                            let partition_buffer = table_buffer
-                                .partition_buffers
-                                .entry(partition_key)
-                                .or_default();
+                    for (table_name, table_batch) in segment_data.table_batches {
+                        let table_buffer = db_buffer
+                            .table_buffers
+                            .entry(table_name)
+                            .or_insert_with(|| TableBuffer {
+                                segment_key: segment_key.clone(),
+                                rows: vec![],
+                                timestamp_min: i64::MAX,
+                                timestamp_max: i64::MIN,
+                            });
 
-                            // TODO: for now we'll just have the number of rows represent the segment size. The entire
-                            //       buffer is going to get refactored to use different structures, so this will change.
-                            segment_size += partition_batch.rows.len();
+                        // TODO: for now we'll just have the number of rows represent the segment size. The entire
+                        //       buffer is going to get refactored to use different structures, so this will change.
+                        segment_size += table_batch.rows.len();
 
-                            println!("partition_batch: {:?}", partition_batch);
-
-                            partition_buffer.add_rows(partition_batch.rows);
-                        }
+                        table_buffer.add_rows(table_batch.rows);
                     }
                 }
             }
@@ -187,46 +242,14 @@ impl DatabaseBatch {
     fn add_table_batches(&mut self, table_batches: HashMap<String, TableBatch>) {
         for (table_name, table_batch) in table_batches {
             let write_table_batch = self.table_batches.entry(table_name).or_default();
-
-            for (partition_key, partition_batch) in table_batch.partition_batches {
-                let write_partition_batch = write_table_batch
-                    .partition_batches
-                    .entry(partition_key)
-                    .or_default();
-                write_partition_batch.rows.extend(partition_batch.rows);
-            }
+            write_table_batch.rows.extend(table_batch.rows);
         }
     }
 }
 
 pub struct BufferedWrite {
-    pub wal_op: WalOp,
-    pub database_write: DatabaseWrite,
+    pub segmented_data: Vec<ValidSegmentedData>,
     pub response_tx: oneshot::Sender<BufferedWriteResult>,
-}
-
-pub struct DatabaseWrite {
-    pub(crate) db_name: NamespaceName<'static>,
-    pub(crate) table_batches: HashMap<String, TableBatch>,
-}
-
-impl DatabaseWrite {
-    pub fn new(
-        db_name: NamespaceName<'static>,
-        table_batches: HashMap<String, TableBatch>,
-    ) -> Self {
-        Self {
-            db_name,
-            table_batches,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct WriteSummary {
-    pub segment_id: SegmentId,
-    pub sequence_number: SequenceNumber,
-    pub buffer_size: usize,
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -239,36 +262,15 @@ struct DatabaseBuffer {
     table_buffers: HashMap<String, TableBuffer>,
 }
 
-#[derive(Debug, Default, Clone, Eq, PartialEq)]
-pub struct TableBuffer {
-    pub partition_buffers: HashMap<String, PartitionBuffer>,
-}
-
-impl TableBuffer {
-    #[allow(dead_code)]
-    pub fn partition_buffer(&self, partition_key: &str) -> Option<&PartitionBuffer> {
-        self.partition_buffers.get(partition_key)
-    }
-}
-
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct PartitionBuffer {
+pub struct TableBuffer {
+    pub segment_key: PartitionKey,
     rows: Vec<Row>,
     timestamp_min: i64,
     timestamp_max: i64,
 }
 
-impl Default for PartitionBuffer {
-    fn default() -> Self {
-        Self {
-            rows: Vec::new(),
-            timestamp_min: i64::MAX,
-            timestamp_max: i64::MIN,
-        }
-    }
-}
-
-impl PartitionBuffer {
+impl TableBuffer {
     pub fn add_rows(&mut self, rows: Vec<Row>) {
         self.rows.reserve(rows.len());
         for row in rows {
@@ -396,38 +398,44 @@ impl Builder {
 #[derive(Debug)]
 pub struct ClosedBufferSegment {
     pub segment_id: SegmentId,
+    pub segment_range: SegmentRange,
+    pub segment_key: PartitionKey,
     pub catalog_start_sequence_number: SequenceNumber,
     pub catalog_end_sequence_number: SequenceNumber,
-    segment_writer: Box<dyn WalSegmentWriter>,
     pub buffered_data: BufferedData,
+    pub segment_wal_bytes: u64,
     catalog: Arc<Catalog>,
 }
 
 impl ClosedBufferSegment {
     #[allow(dead_code)]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         segment_id: SegmentId,
+        segment_range: SegmentRange,
+        segment_key: PartitionKey,
         catalog_start_sequence_number: SequenceNumber,
         catalog_end_sequence_number: SequenceNumber,
-        segment_writer: Box<dyn WalSegmentWriter>,
         buffered_data: BufferedData,
+        segment_wal_bytes: u64,
         catalog: Arc<Catalog>,
     ) -> Self {
         Self {
             segment_id,
+            segment_range,
+            segment_key,
             catalog_start_sequence_number,
             catalog_end_sequence_number,
-            segment_writer,
             buffered_data,
+            segment_wal_bytes,
             catalog,
         }
     }
 
-    #[allow(dead_code)]
-    pub async fn persist<P>(&self, persister: Arc<P>) -> crate::Result<()>
+    pub(crate) async fn persist<P>(&self, persister: Arc<P>) -> Result<PersistedSegment>
     where
         P: Persister,
-        crate::Error: From<P::Error>,
+        write_buffer::Error: From<<P as Persister>::Error>,
     {
         if self.catalog_start_sequence_number != self.catalog_end_sequence_number {
             let inner_catalog = self.catalog.clone_inner();
@@ -456,37 +464,35 @@ impl ClosedBufferSegment {
                             sort_key: vec![],
                         };
 
-                        // persist every partition buffer
-                        for (partition_key, partition_buffer) in &table_buffer.partition_buffers {
-                            let data = partition_buffer
-                                .rows_to_record_batch(table.schema(), table.columns());
-                            let row_count = data.num_rows();
-                            let batch_stream = stream_from_batch(table.schema().as_arrow(), data);
-                            let parquet_file_path = ParquetFilePath::new_with_parititon_key(
-                                db_name,
-                                &table.name,
-                                partition_key,
-                                self.segment_id.0,
-                            );
-                            let path = parquet_file_path.to_string();
-                            let (size_bytes, meta) = persister
-                                .persist_parquet_file(parquet_file_path, batch_stream)
-                                .await?;
+                        // persist every table buffer
+                        let data =
+                            table_buffer.rows_to_record_batch(table.schema(), table.columns());
+                        let row_count = data.num_rows();
+                        let batch_stream = stream_from_batch(table.schema().as_arrow(), data);
+                        let parquet_file_path = ParquetFilePath::new_with_parititon_key(
+                            db_name,
+                            &table.name,
+                            &table_buffer.segment_key.to_string(),
+                            self.segment_id.0,
+                        );
+                        let path = parquet_file_path.to_string();
+                        let (size_bytes, meta) = persister
+                            .persist_parquet_file(parquet_file_path, batch_stream)
+                            .await?;
 
-                            let parquet_file = ParquetFile {
-                                path,
-                                size_bytes,
-                                row_count: row_count as u64,
-                                min_time: partition_buffer.timestamp_min,
-                                max_time: partition_buffer.timestamp_max,
-                            };
-                            table_parquet_files.parquet_files.push(parquet_file);
+                        let parquet_file = ParquetFile {
+                            path,
+                            size_bytes,
+                            row_count: row_count as u64,
+                            min_time: table_buffer.timestamp_min,
+                            max_time: table_buffer.timestamp_max,
+                        };
+                        table_parquet_files.parquet_files.push(parquet_file);
 
-                            segment_parquet_size_bytes += size_bytes;
-                            segment_row_count += meta.num_rows as u64;
-                            segment_max_time = segment_max_time.max(partition_buffer.timestamp_max);
-                            segment_min_time = segment_min_time.min(partition_buffer.timestamp_min);
-                        }
+                        segment_parquet_size_bytes += size_bytes;
+                        segment_row_count += meta.num_rows as u64;
+                        segment_max_time = segment_max_time.max(table_buffer.timestamp_max);
+                        segment_min_time = segment_min_time.min(table_buffer.timestamp_min);
 
                         if !table_parquet_files.parquet_files.is_empty() {
                             database_tables
@@ -504,7 +510,7 @@ impl ClosedBufferSegment {
 
         let persisted_segment = PersistedSegment {
             segment_id: self.segment_id,
-            segment_wal_size_bytes: self.segment_writer.bytes_written(),
+            segment_wal_size_bytes: self.segment_wal_bytes,
             segment_parquet_size_bytes,
             segment_row_count,
             segment_min_time,
@@ -512,14 +518,21 @@ impl ClosedBufferSegment {
             databases: persisted_database_files,
         };
 
-        persister.persist_segment(persisted_segment).await?;
+        persister.persist_segment(&persisted_segment).await?;
 
-        Ok(())
+        Ok(persisted_segment)
+    }
+
+    pub fn table_buffer(&self, db_name: &str, table_name: &str) -> Option<TableBuffer> {
+        self.buffered_data
+            .database_buffers
+            .get(db_name)
+            .and_then(|db_buffer| db_buffer.table_buffers.get(table_name).cloned())
     }
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::test_helpers::{lp_to_table_batches, lp_to_write_batch};
     use crate::wal::WalSegmentWriterNoopImpl;
@@ -530,11 +543,14 @@ mod tests {
     use parking_lot::Mutex;
     use parquet::format::FileMetaData;
     use std::any::Any;
+    use std::str::FromStr;
 
     #[test]
     fn buffers_rows() {
         let mut open_segment = OpenBufferSegment::new(
             SegmentId::new(0),
+            SegmentRange::test_range(),
+            Time::from_timestamp_nanos(0),
             SequenceNumber::new(0),
             Box::new(WalSegmentWriterNoopImpl::new(SegmentId::new(0))),
             None,
@@ -554,24 +570,30 @@ mod tests {
         open_segment.buffer_writes(write_batch).unwrap();
 
         let cpu_table = open_segment.table_buffer(&db_name, "cpu").unwrap();
-        let cpu_partition = cpu_table.partition_buffers.get("1970-01-01").unwrap();
-        assert_eq!(cpu_partition.rows.len(), 2);
-        assert_eq!(cpu_partition.timestamp_min, 10);
-        assert_eq!(cpu_partition.timestamp_max, 30);
+        assert_eq!(cpu_table.rows.len(), 2);
+        assert_eq!(cpu_table.timestamp_min, 10);
+        assert_eq!(cpu_table.timestamp_max, 30);
 
         let mem_table = open_segment.table_buffer(&db_name, "mem").unwrap();
-        let mem_partition = mem_table.partition_buffers.get("1970-01-01").unwrap();
-        assert_eq!(mem_partition.rows.len(), 1);
-        assert_eq!(mem_partition.timestamp_min, 20);
-        assert_eq!(mem_partition.timestamp_max, 20);
+        assert_eq!(mem_table.rows.len(), 1);
+        assert_eq!(mem_table.timestamp_min, 20);
+        assert_eq!(mem_table.timestamp_max, 20);
     }
 
     #[tokio::test]
     async fn persist_closed_buffer() {
+        const SEGMENT_KEY: &str = "1970-01-01T00-00";
+
         let segment_id = SegmentId::new(4);
         let segment_writer = Box::new(WalSegmentWriterNoopImpl::new(segment_id));
-        let mut open_segment =
-            OpenBufferSegment::new(segment_id, SequenceNumber::new(0), segment_writer, None);
+        let mut open_segment = OpenBufferSegment::new(
+            segment_id,
+            SegmentRange::test_range(),
+            Time::from_timestamp_nanos(0),
+            SequenceNumber::new(0),
+            segment_writer,
+            None,
+        );
 
         let catalog = Catalog::new();
 
@@ -585,7 +607,7 @@ mod tests {
 
         let write_batch = lp_to_write_batch(&catalog, "db1", lp);
 
-        open_segment.write_batch(vec![wal_op]).unwrap();
+        open_segment.write_wal_ops(vec![wal_op]).unwrap();
         open_segment.buffer_writes(write_batch).unwrap();
 
         let catalog = Arc::new(catalog);
@@ -604,10 +626,10 @@ mod tests {
             .state
             .lock();
         assert_eq!(
-            persisted_state.catalog.as_ref().unwrap().clone_inner(),
+            persisted_state.catalog.first().unwrap().clone_inner(),
             catalog.clone_inner()
         );
-        let segment_info = persisted_state.segment.as_ref().unwrap();
+        let segment_info = persisted_state.segments.first().unwrap();
 
         assert_eq!(segment_info.segment_id, segment_id);
         assert_eq!(segment_info.segment_min_time, 10);
@@ -628,7 +650,7 @@ mod tests {
         // file number of the path should match the segment id
         assert_eq!(
             cpu_parqet.path,
-            ParquetFilePath::new_with_parititon_key("db1", "cpu", "1970-01-01", 4).to_string()
+            ParquetFilePath::new_with_parititon_key("db1", "cpu", SEGMENT_KEY, 4).to_string()
         );
         assert_eq!(cpu_parqet.row_count, 1);
         assert_eq!(cpu_parqet.min_time, 10);
@@ -640,23 +662,67 @@ mod tests {
         // file number of the path should match the segment id
         assert_eq!(
             mem_parqet.path,
-            ParquetFilePath::new_with_parititon_key("db1", "mem", "1970-01-01", 4).to_string()
+            ParquetFilePath::new_with_parititon_key("db1", "mem", SEGMENT_KEY, 4).to_string()
         );
         assert_eq!(mem_parqet.row_count, 2);
         assert_eq!(mem_parqet.min_time, 15);
         assert_eq!(mem_parqet.max_time, 20);
     }
 
-    #[derive(Debug, Default)]
-    struct TestPersister {
-        state: Mutex<PersistedState>,
+    #[test]
+    fn should_persist() {
+        let segment = OpenBufferSegment::new(
+            SegmentId::new(0),
+            SegmentRange::from_time_and_duration(
+                Time::from_timestamp_nanos(0),
+                SegmentDuration::from_str("1m").unwrap(),
+                false,
+            ),
+            Time::from_timestamp_nanos(0),
+            SequenceNumber::new(0),
+            Box::new(WalSegmentWriterNoopImpl::new(SegmentId::new(0))),
+            None,
+        );
+
+        // time is in current segment
+        assert!(!segment.should_persist(Time::from_timestamp(30, 0).unwrap()));
+
+        // time is in next segment, but before half duration
+        assert!(!segment.should_persist(Time::from_timestamp(61, 0).unwrap()));
+
+        // time is in next segment, and after half duration
+        assert!(segment.should_persist(Time::from_timestamp(61 + 30, 0).unwrap()));
+
+        let segment = OpenBufferSegment::new(
+            SegmentId::new(0),
+            SegmentRange::from_time_and_duration(
+                Time::from_timestamp_nanos(0),
+                SegmentDuration::from_str("1m").unwrap(),
+                false,
+            ),
+            Time::from_timestamp(500, 0).unwrap(),
+            SequenceNumber::new(0),
+            Box::new(WalSegmentWriterNoopImpl::new(SegmentId::new(0))),
+            None,
+        );
+
+        // time has advanced from segment open time, but is still less than half duration away
+        assert!(!segment.should_persist(Time::from_timestamp(500 + 29, 0).unwrap()));
+
+        // time has advanced from segment open time, and is now half duration away
+        assert!(segment.should_persist(Time::from_timestamp(500 + 31, 0).unwrap()));
     }
 
     #[derive(Debug, Default)]
-    struct PersistedState {
-        catalog: Option<Catalog>,
-        segment: Option<PersistedSegment>,
-        parquet_files: Vec<ParquetFilePath>,
+    pub(crate) struct TestPersister {
+        pub(crate) state: Mutex<PersistedState>,
+    }
+
+    #[derive(Debug, Default)]
+    pub(crate) struct PersistedState {
+        pub(crate) catalog: Vec<Catalog>,
+        pub(crate) segments: Vec<PersistedSegment>,
+        pub(crate) parquet_files: Vec<ParquetFilePath>,
     }
 
     #[async_trait::async_trait]
@@ -668,7 +734,7 @@ mod tests {
             _segment_id: SegmentId,
             catalog: Catalog,
         ) -> persister::Result<()> {
-            self.state.lock().catalog = Some(catalog);
+            self.state.lock().catalog.push(catalog);
             Ok(())
         }
 
@@ -682,8 +748,8 @@ mod tests {
             Ok((1, meta))
         }
 
-        async fn persist_segment(&self, segment: PersistedSegment) -> persister::Result<()> {
-            self.state.lock().segment = Some(segment);
+        async fn persist_segment(&self, segment: &PersistedSegment) -> persister::Result<()> {
+            self.state.lock().segments.push(segment.clone());
             Ok(())
         }
 

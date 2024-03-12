@@ -7,28 +7,34 @@
 //! to be persisted. A new open segment will be created and new writes will be written to that segment.
 
 pub mod catalog;
+mod chunk;
 pub mod paths;
 pub mod persister;
 pub mod wal;
 pub mod write_buffer;
 
 use crate::catalog::Catalog;
-use crate::paths::ParquetFilePath;
+use crate::paths::{ParquetFilePath, SegmentWalFilePath};
 use async_trait::async_trait;
 use bytes::Bytes;
-use data_types::NamespaceName;
+use data_types::{NamespaceName, TimestampMinMax};
+use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::Expr;
 use iox_query::QueryChunk;
+use iox_time::Time;
 use parquet::format::FileMetaData;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::ops::Add;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -44,6 +50,12 @@ pub enum Error {
 
     #[error("persister error: {0}")]
     Persister(#[from] persister::Error),
+
+    #[error("invalid segment duration {0}. Must be one of 1m, 5m, 10m, 15m, 30m, 1h, 2h, 4h")]
+    InvalidSegmentDuration(String),
+
+    #[error("wal error: {0}")]
+    Wal(#[from] wal::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -67,7 +79,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         &self,
         database: NamespaceName<'static>,
         lp: &str,
-        default_time: i64,
+        ingest_time: Time,
         accept_partial: bool,
         precision: Precision,
     ) -> write_buffer::Result<BufferedWriteRequest>;
@@ -126,19 +138,153 @@ pub trait ChunkContainer: Debug + Send + Sync + 'static {
     Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
 pub struct SegmentId(u32);
-pub type SegmentIdBytes = [u8; 4];
+
+const RANGE_KEY_TIME_FORMAT: &str = "%Y-%m-%dT%H-%M";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SegmentRange {
+    /// inclusive of this start time
+    pub start_time: Time,
+    /// exclusive of this end time
+    pub end_time: Time,
+    /// data in segment is outside this range of time
+    pub contains_data_outside_range: bool,
+}
+
+/// The duration of a segment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SegmentDuration(Duration);
+
+impl SegmentDuration {
+    pub fn duration_seconds(&self) -> i64 {
+        self.0.as_secs() as i64
+    }
+
+    /// Given a time, returns the start time of the segment that contains the time.
+    pub fn start_time(&self, timestamp_seconds: i64) -> Time {
+        let duration_seconds = self.duration_seconds();
+        let rounded_seconds = (timestamp_seconds / duration_seconds) * duration_seconds;
+        Time::from_timestamp(rounded_seconds, 0).unwrap()
+    }
+
+    pub fn as_duration(&self) -> Duration {
+        self.0
+    }
+
+    /// Returns the segment duration from a given `SegmentRange`
+    pub fn from_range(segment_range: SegmentRange) -> Self {
+        let duration = segment_range.duration();
+        Self(duration)
+    }
+
+    pub fn new_5m() -> Self {
+        Self(Duration::from_secs(300))
+    }
+}
+
+impl FromStr for SegmentDuration {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "1m" => Ok(Self(Duration::from_secs(60))),
+            "5m" => Ok(Self(Duration::from_secs(300))),
+            "10m" => Ok(Self(Duration::from_secs(600))),
+            "15m" => Ok(Self(Duration::from_secs(900))),
+            "30m" => Ok(Self(Duration::from_secs(1800))),
+            "1h" => Ok(Self(Duration::from_secs(3600))),
+            "2h" => Ok(Self(Duration::from_secs(7200))),
+            "4h" => Ok(Self(Duration::from_secs(14400))),
+            _ => Err(Error::InvalidSegmentDuration(s.to_string())),
+        }
+    }
+}
+
+impl SegmentRange {
+    /// Given the time will find the appropriate start and end time for the given duration.
+    pub fn from_time_and_duration(
+        clock_time: Time,
+        segment_duration: SegmentDuration,
+        data_outside: bool,
+    ) -> Self {
+        let start_time = segment_duration.start_time(clock_time.timestamp());
+
+        Self {
+            start_time,
+            end_time: start_time.add(segment_duration.as_duration()),
+            contains_data_outside_range: data_outside,
+        }
+    }
+
+    /// Returns the string key for the segment range
+    pub fn key(&self) -> String {
+        format!(
+            "{}",
+            self.start_time.date_time().format(RANGE_KEY_TIME_FORMAT)
+        )
+    }
+
+    /// Returns a segment range for the next block of time based on the range of this segment.
+    pub fn next(&self) -> Self {
+        Self {
+            start_time: self.end_time,
+            end_time: self.end_time.add(self.duration()),
+            contains_data_outside_range: self.contains_data_outside_range,
+        }
+    }
+
+    pub fn duration(&self) -> Duration {
+        self.end_time
+            .checked_duration_since(self.start_time)
+            .unwrap()
+    }
+
+    #[cfg(test)]
+    pub fn test_range() -> Self {
+        Self {
+            start_time: Time::from_rfc3339("1970-01-01T00:00:00Z").unwrap(),
+            end_time: Time::from_rfc3339("1970-01-01T00:05:00Z").unwrap(),
+            contains_data_outside_range: false,
+        }
+    }
+}
+
+impl Serialize for SegmentRange {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let start_time = self.start_time.timestamp();
+        let end_time = self.end_time.timestamp();
+        let times = (start_time, end_time, self.contains_data_outside_range);
+        times.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SegmentRange {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let (start_time, end_time, contains_data_outside_range) =
+            <(i64, i64, bool)>::deserialize(deserializer)?;
+
+        let start_time = Time::from_timestamp(start_time, 0)
+            .ok_or_else(|| serde::de::Error::custom("start_time is not a valid timestamp"))?;
+        let end_time = Time::from_timestamp(end_time, 0)
+            .ok_or_else(|| serde::de::Error::custom("end_time is not a valid timestamp"))?;
+
+        Ok(SegmentRange {
+            start_time,
+            end_time,
+            contains_data_outside_range,
+        })
+    }
+}
 
 impl SegmentId {
     pub fn new(id: u32) -> Self {
         Self(id)
-    }
-
-    pub fn as_bytes(&self) -> SegmentIdBytes {
-        self.0.to_be_bytes()
-    }
-
-    pub fn from_bytes(bytes: SegmentIdBytes) -> Self {
-        Self(u32::from_be_bytes(bytes))
     }
 
     pub fn next(&self) -> Self {
@@ -161,6 +307,8 @@ impl SequenceNumber {
         Self(self.0 + 1)
     }
 }
+
+pub const DEFAULT_OBJECT_STORE_URL: &str = "iox://influxdb3/";
 
 #[async_trait]
 pub trait Persister: Debug + Send + Sync + 'static {
@@ -188,8 +336,10 @@ pub trait Persister: Debug + Send + Sync + 'static {
 
     /// Writes a single file to object storage that contains the information for the parquet files persisted
     /// for this segment.
-    async fn persist_segment(&self, persisted_segment: PersistedSegment)
-        -> Result<(), Self::Error>;
+    async fn persist_segment(
+        &self,
+        persisted_segment: &PersistedSegment,
+    ) -> Result<(), Self::Error>;
 
     // Writes a SendableRecorgBatchStream to the Parquet format and persists it
     // to Object Store at the given path. Returns the number of bytes written and the file metadata.
@@ -202,11 +352,29 @@ pub trait Persister: Debug + Send + Sync + 'static {
     /// Returns the configured `ObjectStore` that data is loaded from and persisted to.
     fn object_store(&self) -> Arc<dyn object_store::ObjectStore>;
 
+    // This is used by the query engine to know where to read parquet files from. This assumes
+    // that there is a `ParquetStorage` with an id of `influxdb3` and that this url has been
+    // registered with the query execution context. Kind of ugly here, but not sure where else
+    // to keep this.
+    fn object_store_url(&self) -> ObjectStoreUrl {
+        ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap()
+    }
+
     fn as_any(&self) -> &dyn Any;
 }
 
 pub trait Wal: Debug + Send + Sync + 'static {
-    /// Opens a writer to a segment, either creating a new file or appending to an existing file.
+    /// Opens a writer to a new segment with the given id, start time (inclusive), and end_time
+    /// (exclusive). data_outside_range specifies if data in the segment has data that is in the
+    /// provided range or outside it.
+    fn new_segment_writer(
+        &self,
+        segment_id: SegmentId,
+        range: SegmentRange,
+    ) -> wal::Result<Box<dyn WalSegmentWriter>>;
+
+    /// Opens a writer to an existing segment, reading its last sequence number and making it
+    /// ready to append new writes.
     fn open_segment_writer(&self, segment_id: SegmentId) -> wal::Result<Box<dyn WalSegmentWriter>>;
 
     /// Opens a reader to a segment file.
@@ -217,6 +385,8 @@ pub trait Wal: Debug + Send + Sync + 'static {
 
     /// Deletes the WAL segment file from disk.
     fn delete_wal_segment(&self, segment_id: SegmentId) -> wal::Result<()>;
+
+    fn as_any(&self) -> &dyn Any;
 }
 
 #[derive(Debug)]
@@ -232,15 +402,17 @@ pub trait WalSegmentWriter: Debug + Send + Sync + 'static {
 
     fn bytes_written(&self) -> u64;
 
-    fn write_batch(&mut self, ops: Vec<WalOp>) -> wal::Result<SequenceNumber>;
+    fn write_batch(&mut self, ops: Vec<WalOp>) -> wal::Result<()>;
 
     fn last_sequence_number(&self) -> SequenceNumber;
 }
 
 pub trait WalSegmentReader: Debug + Send + Sync + 'static {
-    fn id(&self) -> SegmentId;
-
     fn next_batch(&mut self) -> wal::Result<Option<WalOpBatch>>;
+
+    fn header(&self) -> &wal::SegmentHeader;
+
+    fn path(&self) -> &SegmentWalFilePath;
 }
 
 /// Individual WalOps get batched into the WAL asynchronously. The batch is then written to the segment file.
@@ -286,9 +458,6 @@ pub struct BufferedWriteRequest {
     pub line_count: usize,
     pub field_count: usize,
     pub tag_count: usize,
-    pub total_buffer_memory_used: usize,
-    pub segment_id: SegmentId,
-    pub sequence_number: SequenceNumber,
 }
 
 /// A persisted Catalog that contains the database, table, and column schemas.
@@ -301,7 +470,7 @@ pub struct PersistedCatalog {
 }
 
 /// The collection of Parquet files that were persisted for a segment.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PersistedSegment {
     /// The segment_id that these parquet files were persisted with.
     pub segment_id: SegmentId,
@@ -320,13 +489,13 @@ pub struct PersistedSegment {
     pub databases: HashMap<String, DatabaseTables>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
 pub struct DatabaseTables {
     pub tables: HashMap<String, TableParquetFiles>,
 }
 
 /// A collection of parquet files persisted in a segment for a specific table.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct TableParquetFiles {
     /// The table name.
     pub table_name: String,
@@ -337,13 +506,22 @@ pub struct TableParquetFiles {
 }
 
 /// The summary data for a persisted parquet file in a segment.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct ParquetFile {
     pub path: String,
     pub size_bytes: u64,
     pub row_count: u64,
     pub min_time: i64,
     pub max_time: i64,
+}
+
+impl ParquetFile {
+    pub fn timestamp_min_max(&self) -> TimestampMinMax {
+        TimestampMinMax {
+            min: self.min_time,
+            max: self.max_time,
+        }
+    }
 }
 
 /// The summary data for a persisted parquet file in a segment.
@@ -398,9 +576,10 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
 mod test_helpers {
     use crate::catalog::{Catalog, DatabaseSchema};
     use crate::write_buffer::buffer_segment::WriteBatch;
-    use crate::write_buffer::{parse_validate_and_update_schema, Partitioner, TableBatch};
-    use crate::Precision;
+    use crate::write_buffer::{parse_validate_and_update_schema, TableBatch};
+    use crate::{Precision, SegmentDuration};
     use data_types::NamespaceName;
+    use iox_time::Time;
     use std::collections::HashMap;
     use std::sync::Arc;
 
@@ -409,14 +588,15 @@ mod test_helpers {
         db_name: &'static str,
         lp: &str,
     ) -> WriteBatch {
+        let db_name = NamespaceName::new(db_name).unwrap();
         let mut write_batch = WriteBatch::default();
-        let (seq, db) = catalog.db_or_create(db_name).unwrap();
-        let partitioner = Partitioner::new_per_day_partitioner();
-        let result = parse_validate_and_update_schema(
+        let (seq, db) = catalog.db_or_create(db_name.as_str()).unwrap();
+        let mut result = parse_validate_and_update_schema(
             lp,
             &db,
-            &partitioner,
-            0,
+            db_name.clone(),
+            Time::from_timestamp_nanos(0),
+            SegmentDuration::new_5m(),
             false,
             Precision::Nanosecond,
         )
@@ -424,24 +604,98 @@ mod test_helpers {
         if let Some(db) = result.schema {
             catalog.replace_database(seq, Arc::new(db)).unwrap();
         }
-        let db_name = NamespaceName::new(db_name).unwrap();
-        write_batch.add_db_write(db_name, result.table_batches);
+
+        write_batch.add_db_write(
+            db_name,
+            result.valid_segmented_data.pop().unwrap().table_batches,
+        );
         write_batch
     }
 
     pub(crate) fn lp_to_table_batches(lp: &str, default_time: i64) -> HashMap<String, TableBatch> {
         let db = Arc::new(DatabaseSchema::new("foo"));
-        let partitioner = Partitioner::new_per_day_partitioner();
-        let result = parse_validate_and_update_schema(
+        let db_name = NamespaceName::new("foo").unwrap();
+        let mut result = parse_validate_and_update_schema(
             lp,
             &db,
-            &partitioner,
-            default_time,
+            db_name,
+            Time::from_timestamp_nanos(default_time),
+            SegmentDuration::new_5m(),
             false,
             Precision::Nanosecond,
         )
         .unwrap();
 
-        result.table_batches
+        result.valid_segmented_data.pop().unwrap().table_batches
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn segment_range_initialization() {
+        let t = Time::from_rfc3339("2024-03-01T13:46:00Z").unwrap();
+
+        let expected = SegmentRange {
+            start_time: Time::from_rfc3339("2024-03-01T13:45:00Z").unwrap(),
+            end_time: Time::from_rfc3339("2024-03-01T14:00:00Z").unwrap(),
+            contains_data_outside_range: false,
+        };
+        let actual = SegmentRange::from_time_and_duration(
+            t,
+            SegmentDuration::from_str("15m").unwrap(),
+            false,
+        );
+
+        assert_eq!(expected, actual);
+
+        let expected = SegmentRange {
+            start_time: Time::from_rfc3339("2024-03-01T13:00:00Z").unwrap(),
+            end_time: Time::from_rfc3339("2024-03-01T14:00:00Z").unwrap(),
+            contains_data_outside_range: false,
+        };
+        let actual = SegmentRange::from_time_and_duration(
+            t,
+            SegmentDuration::from_str("1h").unwrap(),
+            false,
+        );
+
+        assert_eq!(expected, actual);
+
+        let expected = SegmentRange {
+            start_time: Time::from_rfc3339("2024-03-01T14:00:00Z").unwrap(),
+            end_time: Time::from_rfc3339("2024-03-01T15:00:00Z").unwrap(),
+            contains_data_outside_range: false,
+        };
+
+        assert_eq!(expected, actual.next());
+
+        let expected = SegmentRange {
+            start_time: Time::from_rfc3339("2024-03-01T12:00:00Z").unwrap(),
+            end_time: Time::from_rfc3339("2024-03-01T14:00:00Z").unwrap(),
+            contains_data_outside_range: false,
+        };
+        let actual = SegmentRange::from_time_and_duration(
+            t,
+            SegmentDuration::from_str("2h").unwrap(),
+            false,
+        );
+
+        assert_eq!(expected, actual);
+
+        let expected = SegmentRange {
+            start_time: Time::from_rfc3339("2024-03-01T12:00:00Z").unwrap(),
+            end_time: Time::from_rfc3339("2024-03-01T16:00:00Z").unwrap(),
+            contains_data_outside_range: false,
+        };
+        let actual = SegmentRange::from_time_and_duration(
+            t,
+            SegmentDuration::from_str("4h").unwrap(),
+            false,
+        );
+
+        assert_eq!(expected, actual);
     }
 }

@@ -3,15 +3,18 @@
 
 use crate::paths::SegmentWalFilePath;
 use crate::{
-    SegmentFile, SegmentId, SegmentIdBytes, SequenceNumber, Wal, WalOp, WalOpBatch,
-    WalSegmentReader, WalSegmentWriter,
+    SegmentFile, SegmentId, SegmentRange, SequenceNumber, Wal, WalOp, WalOpBatch, WalSegmentReader,
+    WalSegmentWriter,
 };
 use async_trait::async_trait;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use crc32fast::Hasher;
 use datafusion::parquet::file::reader::Length;
+use iox_time::Time;
 use observability_deps::tracing::{info, warn};
+use serde::{Deserialize, Serialize};
 use snap::read::FrameDecoder;
+use std::any::Any;
 use std::fmt::Debug;
 use std::{
     fs::{File, OpenOptions},
@@ -44,12 +47,8 @@ pub enum Error {
         #[from]
         source: std::num::TryFromIntError,
     },
-    #[error("invalid segment file {segment_id:?} at {path:?}: {reason}")]
-    InvalidSegmentFile {
-        segment_id: SegmentId,
-        path: SegmentWalFilePath,
-        reason: String,
-    },
+    #[error("invalid segment file {path:?}: {reason}")]
+    InvalidSegmentFile { path: PathBuf, reason: String },
 
     #[error("unable to read crc for segment {segment_id:?}")]
     UnableToReadCrc { segment_id: SegmentId },
@@ -79,6 +78,18 @@ pub enum Error {
         file_name: String,
         source: std::num::ParseIntError,
     },
+
+    #[error("file exists: {0}")]
+    FileExists(PathBuf),
+
+    #[error("file doens't exist: {0}")]
+    FileDoesntExist(PathBuf),
+
+    #[error("segment start time not open: {0}")]
+    SegmentStartTimeNotOpen(Time),
+
+    #[error("open segment limit reached: {0}")]
+    OpenSegmentLimitReached(usize),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -102,11 +113,6 @@ impl WalImpl {
             .expect("fsync failure");
 
         Ok(Self { root })
-    }
-
-    fn open_segment_writer(&self, segment_id: SegmentId) -> Result<Box<dyn WalSegmentWriter>> {
-        let writer = WalSegmentWriterImpl::new_or_open(self.root.clone(), segment_id)?;
-        Ok(Box::new(writer))
     }
 
     fn open_segment_reader(&self, segment_id: SegmentId) -> Result<Box<dyn WalSegmentReader>> {
@@ -166,8 +172,18 @@ impl WalImpl {
 }
 
 impl Wal for WalImpl {
+    fn new_segment_writer(
+        &self,
+        segment_id: SegmentId,
+        range: SegmentRange,
+    ) -> Result<Box<dyn WalSegmentWriter>> {
+        let writer = WalSegmentWriterImpl::new(self.root.clone(), segment_id, range)?;
+        Ok(Box::new(writer))
+    }
+
     fn open_segment_writer(&self, segment_id: SegmentId) -> Result<Box<dyn WalSegmentWriter>> {
-        self.open_segment_writer(segment_id)
+        let writer = WalSegmentWriterImpl::open(self.root.clone(), segment_id)?;
+        Ok(Box::new(writer))
     }
 
     fn open_segment_reader(&self, segment_id: SegmentId) -> Result<Box<dyn WalSegmentReader>> {
@@ -181,6 +197,16 @@ impl Wal for WalImpl {
     fn delete_wal_segment(&self, _segment_id: SegmentId) -> Result<()> {
         self.delete_wal_segment(_segment_id)
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct SegmentHeader {
+    pub id: SegmentId,
+    pub range: SegmentRange,
 }
 
 #[derive(Debug)]
@@ -194,33 +220,12 @@ pub struct WalSegmentWriterImpl {
 }
 
 impl WalSegmentWriterImpl {
-    pub fn new_or_open(root: PathBuf, segment_id: SegmentId) -> Result<Self> {
+    pub fn new(root: PathBuf, segment_id: SegmentId, range: SegmentRange) -> Result<Self> {
         let path = SegmentWalFilePath::new(root, segment_id);
 
-        // if there's already a file there, validate its header and pull the sequence number from the last entry
+        // if there's already a file there, error out
         if path.exists() {
-            if let Some(file_info) =
-                WalSegmentReaderImpl::read_segment_file_info_if_exists(path.clone(), segment_id)?
-            {
-                let f = OpenOptions::new().write(true).append(true).open(&path)?;
-
-                return Ok(Self {
-                    segment_id,
-                    f,
-                    bytes_written: file_info
-                        .bytes_written
-                        .try_into()
-                        .expect("file length must fit in usize"),
-                    sequence_number: file_info.last_sequence_number,
-                    buffer: Vec::with_capacity(8 * 1204), // 8kiB initial size
-                });
-            } else {
-                return Err(Error::InvalidSegmentFile {
-                    segment_id,
-                    path,
-                    reason: "file exists but is invalid".to_string(),
-                });
-            }
+            return Err(Error::FileExists(path.to_path_buf()));
         }
 
         // it's a new file, initialize it with the header and get ready to start writing
@@ -229,13 +234,23 @@ impl WalSegmentWriterImpl {
         f.write_all(FILE_TYPE_IDENTIFIER)?;
         let file_type_bytes_written = FILE_TYPE_IDENTIFIER.len();
 
-        let id_bytes = segment_id.as_bytes();
-        f.write_all(&id_bytes)?;
-        let id_bytes_written = id_bytes.len();
+        let header = SegmentHeader {
+            id: segment_id,
+            range,
+        };
+
+        let header_bytes = serde_json::to_vec(&header)?;
+        f.write_u16::<BigEndian>(
+            header_bytes
+                .len()
+                .try_into()
+                .expect("header byes longer than u16"),
+        )?;
+        f.write_all(&header_bytes)?;
 
         f.sync_all().expect("fsync failure");
 
-        let bytes_written = file_type_bytes_written + id_bytes_written;
+        let bytes_written = file_type_bytes_written + header_bytes.len();
 
         Ok(Self {
             segment_id,
@@ -245,9 +260,30 @@ impl WalSegmentWriterImpl {
             buffer: Vec::with_capacity(8 * 1204), // 8kiB initial size
         })
     }
+    pub fn open(root: PathBuf, segment_id: SegmentId) -> Result<Self> {
+        let path = SegmentWalFilePath::new(root, segment_id);
 
-    fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<SequenceNumber> {
-        println!("write batch in impl");
+        if let Some(file_info) =
+            WalSegmentReaderImpl::read_segment_file_info_if_exists(path.clone())?
+        {
+            let f = OpenOptions::new().write(true).append(true).open(&path)?;
+
+            Ok(Self {
+                segment_id,
+                f,
+                bytes_written: file_info
+                    .bytes_written
+                    .try_into()
+                    .expect("file length must fit in usize"),
+                sequence_number: file_info.last_sequence_number,
+                buffer: Vec::with_capacity(8 * 1204), // 8kiB initial size
+            })
+        } else {
+            Err(Error::FileDoesntExist(path.to_path_buf()))
+        }
+    }
+
+    fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<()> {
         // Ensure the write buffer is always empty before using it.
         self.buffer.clear();
 
@@ -265,7 +301,7 @@ impl WalSegmentWriterImpl {
         self.bytes_written += bytes_written;
         self.sequence_number = sequence_number;
 
-        Ok(self.sequence_number)
+        Ok(())
     }
 
     fn write_bytes(&mut self, data: Vec<u8>) -> Result<usize> {
@@ -322,7 +358,7 @@ impl WalSegmentWriter for WalSegmentWriterImpl {
         self.bytes_written as u64
     }
 
-    fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<SequenceNumber> {
+    fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<()> {
         self.write_batch(ops)
     }
 
@@ -357,15 +393,11 @@ impl WalSegmentWriter for WalSegmentWriterNoopImpl {
         self.wal_ops_written as u64
     }
 
-    fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<SequenceNumber> {
+    fn write_batch(&mut self, ops: Vec<WalOp>) -> Result<()> {
         let sequence_number = self.sequence_number.next();
         self.sequence_number = sequence_number;
         self.wal_ops_written += ops.len();
-        println!(
-            "write_batch called: wal_ops_written: {}",
-            self.wal_ops_written
-        );
-        Ok(sequence_number)
+        Ok(())
     }
 
     fn last_sequence_number(&self) -> SequenceNumber {
@@ -376,47 +408,38 @@ impl WalSegmentWriter for WalSegmentWriterNoopImpl {
 #[derive(Debug)]
 pub struct WalSegmentReaderImpl {
     f: BufReader<File>,
-    segment_id: SegmentId,
+    path: SegmentWalFilePath,
+    segment_header: SegmentHeader,
 }
 
 impl WalSegmentReaderImpl {
     pub fn new(root: impl Into<PathBuf>, segment_id: SegmentId) -> Result<Self> {
         let path = SegmentWalFilePath::new(root, segment_id);
-        let f = BufReader::new(File::open(path.clone())?);
+        let mut f = BufReader::new(File::open(path.clone())?);
 
-        let mut reader = Self { f, segment_id };
+        let segment_header = read_header(&path, &mut f)?;
 
-        let (file_type, id) = reader.read_header()?;
-
-        if file_type != FILE_TYPE_IDENTIFIER {
+        if segment_id != segment_header.id {
             return Err(Error::InvalidSegmentFile {
-                segment_id,
-                path,
-                reason: format!(
-                    "expected file type identifier {:?}, got {:?}",
-                    FILE_TYPE_IDENTIFIER, file_type
-                ),
-            });
-        }
-
-        if id != segment_id.as_bytes() {
-            return Err(Error::InvalidSegmentFile {
-                segment_id,
-                path,
+                path: path.to_path_buf(),
                 reason: format!(
                     "expected segment id {:?} in file, got {:?}",
-                    segment_id.as_bytes(),
-                    id
+                    segment_id, segment_header.id,
                 ),
             });
         }
+
+        let reader = Self {
+            f,
+            path,
+            segment_header,
+        };
 
         Ok(reader)
     }
 
     fn read_segment_file_info_if_exists(
         path: SegmentWalFilePath,
-        segment_id: SegmentId,
     ) -> Result<Option<ExistingSegmentFileInfo>> {
         let f = match File::open(path.clone()) {
             Ok(f) => f,
@@ -426,23 +449,14 @@ impl WalSegmentReaderImpl {
 
         let bytes_written = f.len().try_into()?;
 
+        let mut f = BufReader::new(f);
+        let segment_header = read_header(&path, &mut f)?;
+
         let mut reader = Self {
-            f: BufReader::new(f),
-            segment_id,
+            f,
+            path,
+            segment_header,
         };
-
-        let (file_type, _id) = reader.read_header()?;
-
-        if file_type != FILE_TYPE_IDENTIFIER {
-            return Err(Error::InvalidSegmentFile {
-                segment_id,
-                path,
-                reason: format!(
-                    "expected file type identifier {:?}, got {:?}",
-                    FILE_TYPE_IDENTIFIER, file_type
-                ),
-            });
-        }
 
         let mut last_block = None;
 
@@ -458,7 +472,10 @@ impl WalSegmentReaderImpl {
                 bytes_written,
             }))
         } else {
-            Ok(None)
+            Ok(Some(ExistingSegmentFileInfo {
+                last_sequence_number: SequenceNumber::new(0),
+                bytes_written,
+            }))
         }
     }
 
@@ -493,7 +510,7 @@ impl WalSegmentReaderImpl {
 
         if expected_len != actual_compressed_len {
             return Err(Error::LengthMismatch {
-                segment_id: self.segment_id,
+                segment_id: self.segment_header.id,
                 expected: expected_len,
                 actual: actual_compressed_len,
             });
@@ -501,7 +518,7 @@ impl WalSegmentReaderImpl {
 
         if expected_checksum != actual_checksum {
             return Err(Error::ChecksumMismatch {
-                segment_id: self.segment_id,
+                segment_id: self.segment_header.id,
                 expected: expected_checksum,
                 actual: actual_checksum,
             });
@@ -509,16 +526,33 @@ impl WalSegmentReaderImpl {
 
         Ok(Some(data))
     }
+}
 
-    fn read_array<const N: usize>(&mut self) -> Result<[u8; N]> {
-        let mut data = [0u8; N];
-        self.f.read_exact(&mut data)?;
-        Ok(data)
+fn read_header(path: &SegmentWalFilePath, f: &mut BufReader<File>) -> Result<SegmentHeader> {
+    let file_type: FileTypeIdentifier = read_array(f)?;
+
+    if file_type != FILE_TYPE_IDENTIFIER {
+        return Err(Error::InvalidSegmentFile {
+            path: path.to_path_buf(),
+            reason: format!(
+                "expected file type identifier {:?}, got {:?}",
+                FILE_TYPE_IDENTIFIER, file_type
+            ),
+        });
     }
 
-    fn read_header(&mut self) -> Result<(FileTypeIdentifier, SegmentIdBytes)> {
-        Ok((self.read_array()?, self.read_array()?))
-    }
+    let len = f.read_u16::<BigEndian>()?;
+    let mut data = vec![0u8; len.into()];
+    f.read_exact(&mut data)?;
+    let header: SegmentHeader = serde_json::from_slice(&data)?;
+
+    Ok(header)
+}
+
+fn read_array<const N: usize>(f: &mut BufReader<File>) -> Result<[u8; N]> {
+    let mut data = [0u8; N];
+    f.read_exact(&mut data)?;
+    Ok(data)
 }
 
 struct ExistingSegmentFileInfo {
@@ -527,12 +561,16 @@ struct ExistingSegmentFileInfo {
 }
 
 impl WalSegmentReader for WalSegmentReaderImpl {
-    fn id(&self) -> SegmentId {
-        self.segment_id
-    }
-
     fn next_batch(&mut self) -> Result<Option<WalOpBatch>> {
         self.next_batch()
+    }
+
+    fn header(&self) -> &SegmentHeader {
+        &self.segment_header
+    }
+
+    fn path(&self) -> &SegmentWalFilePath {
+        &self.path
     }
 }
 
@@ -624,7 +662,9 @@ mod tests {
     fn segment_writer_reader() {
         let dir = test_helpers::tmp_dir().unwrap().into_path();
 
-        let mut writer = WalSegmentWriterImpl::new_or_open(dir.clone(), SegmentId::new(0)).unwrap();
+        let mut writer =
+            WalSegmentWriterImpl::new(dir.clone(), SegmentId::new(0), SegmentRange::test_range())
+                .unwrap();
         let wal_op = WalOp::LpWrite(LpWriteOp {
             db_name: "foo".to_string(),
             lp: "cpu host=a val=10i 10".to_string(),
@@ -650,15 +690,18 @@ mod tests {
 
         // open the file, write and close it
         {
-            let mut writer =
-                WalSegmentWriterImpl::new_or_open(dir.clone(), SegmentId::new(0)).unwrap();
+            let mut writer = WalSegmentWriterImpl::new(
+                dir.clone(),
+                SegmentId::new(0),
+                SegmentRange::test_range(),
+            )
+            .unwrap();
             writer.write_batch(vec![wal_op.clone()]).unwrap();
         }
 
         // open it again, send a new write in and close it
         {
-            let mut writer =
-                WalSegmentWriterImpl::new_or_open(dir.clone(), SegmentId::new(0)).unwrap();
+            let mut writer = WalSegmentWriterImpl::open(dir.clone(), SegmentId::new(0)).unwrap();
             writer.write_batch(vec![wal_op.clone()]).unwrap();
         }
 
@@ -685,10 +728,14 @@ mod tests {
         });
 
         let wal = WalImpl::new(dir.clone()).unwrap();
-        let mut writer = wal.open_segment_writer(SegmentId::new(0)).unwrap();
+        let mut writer = wal
+            .new_segment_writer(SegmentId::new(0), SegmentRange::test_range())
+            .unwrap();
         writer.write_batch(vec![wal_op.clone()]).unwrap();
 
-        let mut writer2 = wal.open_segment_writer(SegmentId::new(1)).unwrap();
+        let mut writer2 = wal
+            .new_segment_writer(SegmentId::new(1), SegmentRange::test_range())
+            .unwrap();
         writer2.write_batch(vec![wal_op.clone()]).unwrap();
 
         let segments = wal.segment_files().unwrap();

@@ -5,12 +5,10 @@ use arrow::record_batch::RecordBatch;
 use arrow_schema::ArrowError;
 use async_trait::async_trait;
 use data_types::NamespaceId;
-use data_types::{ChunkId, ChunkOrder, TransitionPartitionId};
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::catalog::CatalogProvider;
 use datafusion::common::arrow::array::StringArray;
 use datafusion::common::arrow::datatypes::{DataType, Field, Schema as DatafusionSchema};
-use datafusion::common::Statistics;
 use datafusion::datasource::{TableProvider, TableType};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
@@ -31,12 +29,11 @@ use iox_query::query_log::QueryLog;
 use iox_query::query_log::QueryText;
 use iox_query::query_log::StateReceived;
 use iox_query::QueryNamespaceProvider;
-use iox_query::{QueryChunk, QueryChunkData, QueryNamespace};
+use iox_query::{QueryChunk, QueryNamespace};
 use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
 use iox_query_params::StatementParams;
 use metric::Registry;
 use observability_deps::tracing::{debug, info, trace};
-use schema::sort::SortKey;
 use schema::Schema;
 use serde::{Deserialize, Serialize};
 use serde_arrow::schema::SchemaLike;
@@ -493,50 +490,5 @@ impl<B: WriteBuffer> TableProvider for QueryTable<B> {
         };
 
         provider.scan(ctx, projection, &filters, limit).await
-    }
-}
-
-#[derive(Debug)]
-pub struct ParquetChunk {}
-
-impl QueryChunk for ParquetChunk {
-    fn stats(&self) -> Arc<Statistics> {
-        todo!()
-    }
-
-    fn schema(&self) -> &Schema {
-        todo!()
-    }
-
-    fn partition_id(&self) -> &TransitionPartitionId {
-        todo!()
-    }
-
-    fn sort_key(&self) -> Option<&SortKey> {
-        todo!()
-    }
-
-    fn id(&self) -> ChunkId {
-        todo!()
-    }
-
-    fn may_contain_pk_duplicates(&self) -> bool {
-        todo!()
-    }
-
-    fn data(&self) -> QueryChunkData {
-        todo!()
-    }
-
-    fn chunk_type(&self) -> &str {
-        todo!()
-    }
-
-    fn order(&self) -> ChunkOrder {
-        todo!()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        todo!()
     }
 }

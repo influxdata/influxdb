@@ -11,6 +11,8 @@ clippy::clone_on_ref_ptr,
 clippy::future_not_send
 )]
 
+pub mod auth;
+pub mod builder;
 mod grpc;
 mod http;
 pub mod query_executor;
@@ -20,10 +22,12 @@ use crate::grpc::make_flight_server;
 use crate::http::route_request;
 use crate::http::HttpApi;
 use async_trait::async_trait;
+use authz::Authorizer;
 use datafusion::execution::SendableRecordBatchStream;
 use hyper::service::service_fn;
 use influxdb3_write::{Persister, WriteBuffer};
 use iox_query::QueryNamespaceProvider;
+use iox_time::TimeProvider;
 use observability_deps::tracing::{error, info};
 use service::hybrid;
 use std::convert::Infallible;
@@ -72,7 +76,6 @@ pub struct CommonServerState {
     trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
     trace_header_parser: TraceHeaderParser,
     http_addr: SocketAddr,
-    bearer_token: Option<Vec<u8>>,
 }
 
 impl CommonServerState {
@@ -81,14 +84,12 @@ impl CommonServerState {
         trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
         trace_header_parser: TraceHeaderParser,
         http_addr: SocketAddr,
-        bearer_token: Option<String>,
     ) -> Result<Self> {
         Ok(Self {
             metrics,
             trace_exporter,
             trace_header_parser,
             http_addr,
-            bearer_token: bearer_token.map(hex::decode).transpose()?,
         })
     }
 
@@ -109,18 +110,15 @@ impl CommonServerState {
     pub fn metric_registry(&self) -> Arc<metric::Registry> {
         Arc::<metric::Registry>::clone(&self.metrics)
     }
-
-    pub fn bearer_token(&self) -> Option<&[u8]> {
-        self.bearer_token.as_deref()
-    }
 }
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct Server<W, Q, P> {
+pub struct Server<W, Q, P, T> {
     common_state: CommonServerState,
-    http: Arc<HttpApi<W, Q>>,
+    http: Arc<HttpApi<W, Q, T>>,
     persister: Arc<P>,
+    authorizer: Arc<dyn Authorizer>,
 }
 
 #[async_trait]
@@ -150,47 +148,23 @@ pub enum QueryKind {
     Sql,
     InfluxQl,
 }
-
-impl<W, Q, P> Server<W, Q, P>
-where
-    Q: QueryExecutor,
-    P: Persister,
-{
-    pub fn new(
-        common_state: CommonServerState,
-        persister: Arc<P>,
-        write_buffer: Arc<W>,
-        query_executor: Arc<Q>,
-        max_http_request_size: usize,
-    ) -> Self {
-        let http = Arc::new(HttpApi::new(
-            common_state.clone(),
-            Arc::clone(&write_buffer),
-            Arc::clone(&query_executor),
-            max_http_request_size,
-        ));
-
-        Self {
-            common_state,
-            http,
-            persister,
-        }
+impl<W, Q, P, T> Server<W, Q, P, T> {
+    pub fn authorizer(&self) -> Arc<dyn Authorizer> {
+        Arc::clone(&self.authorizer)
     }
 }
 
-pub async fn serve<W, Q, P>(server: Server<W, Q, P>, shutdown: CancellationToken) -> Result<()>
+pub async fn serve<W, Q, P, T>(
+    server: Server<W, Q, P, T>,
+    shutdown: CancellationToken,
+) -> Result<()>
 where
     W: WriteBuffer,
     Q: QueryExecutor,
     http::Error: From<<Q as QueryExecutor>::Error>,
     P: Persister,
+    T: TimeProvider,
 {
-    // TODO:
-    //  1. load the persisted catalog and segments from the persister
-    //  2. load semgments into the buffer
-    //  3. persist any segments from the buffer that are closed and haven't yet been persisted
-    //  4. start serving
-
     let req_metrics = RequestMetrics::new(
         Arc::clone(&server.common_state.metrics),
         MetricFamily::HttpServer,
@@ -204,8 +178,7 @@ where
 
     let grpc_service = trace_layer.clone().layer(make_flight_server(
         Arc::clone(&server.http.query_executor),
-        // TODO - need to configure authz here:
-        None,
+        Some(server.authorizer()),
     ));
     let rest_service = hyper::service::make_service_fn(|_| {
         let http_server = Arc::clone(&server.http);
@@ -249,11 +222,15 @@ pub async fn wait_for_signal() {
 
 #[cfg(test)]
 mod tests {
+    use crate::auth::DefaultAuthorizer;
+    use crate::builder::ServerBuilder;
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_write::persister::PersisterImpl;
+    use influxdb3_write::SegmentDuration;
     use iox_query::exec::{Executor, ExecutorConfig};
+    use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
@@ -271,14 +248,9 @@ mod tests {
         let addr = get_free_port();
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
-        let common_state = crate::CommonServerState::new(
-            Arc::clone(&metrics),
-            None,
-            trace_header_parser,
-            addr,
-            None,
-        )
-        .unwrap();
+        let common_state =
+            crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser, addr)
+                .unwrap();
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
@@ -293,33 +265,35 @@ mod tests {
             metric_registry: Arc::clone(&metrics),
             mem_pool_size: usize::MAX,
         }));
-        let persister = PersisterImpl::new(Arc::clone(&object_store));
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
-                Arc::new(persister),
+                Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
+                Arc::clone(&time_provider),
+                SegmentDuration::new_5m(),
             )
             .await
             .unwrap(),
         );
-        let query_executor = crate::query_executor::QueryExecutorImpl::new(
+        let query_executor = Arc::new(crate::query_executor::QueryExecutorImpl::new(
             write_buffer.catalog(),
             Arc::clone(&write_buffer),
             Arc::clone(&exec),
             Arc::clone(&metrics),
             Arc::new(HashMap::new()),
             10,
-        );
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        ));
 
-        let server = crate::Server::new(
-            common_state,
-            persister,
-            Arc::clone(&write_buffer),
-            Arc::new(query_executor),
-            usize::MAX,
-        );
+        let server = ServerBuilder::new(common_state)
+            .write_buffer(Arc::clone(&write_buffer))
+            .query_executor(Arc::clone(&query_executor))
+            .persister(Arc::clone(&persister))
+            .authorizer(Arc::new(DefaultAuthorizer))
+            .time_provider(Arc::clone(&time_provider))
+            .build();
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
 
@@ -410,14 +384,9 @@ mod tests {
         let addr = get_free_port();
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
-        let common_state = crate::CommonServerState::new(
-            Arc::clone(&metrics),
-            None,
-            trace_header_parser,
-            addr,
-            None,
-        )
-        .unwrap();
+        let common_state =
+            crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser, addr)
+                .unwrap();
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
@@ -433,11 +402,14 @@ mod tests {
             mem_pool_size: usize::MAX,
         }));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
+                Arc::clone(&time_provider),
+                SegmentDuration::new_5m(),
             )
             .await
             .unwrap(),
@@ -451,13 +423,13 @@ mod tests {
             10,
         );
 
-        let server = crate::Server::new(
-            common_state,
-            persister,
-            Arc::clone(&write_buffer),
-            Arc::new(query_executor),
-            usize::MAX,
-        );
+        let server = ServerBuilder::new(common_state)
+            .write_buffer(Arc::clone(&write_buffer))
+            .query_executor(Arc::new(query_executor))
+            .persister(persister)
+            .authorizer(Arc::new(DefaultAuthorizer))
+            .time_provider(Arc::clone(&time_provider))
+            .build();
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
 
@@ -584,14 +556,9 @@ mod tests {
         let addr = get_free_port();
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
-        let common_state = crate::CommonServerState::new(
-            Arc::clone(&metrics),
-            None,
-            trace_header_parser,
-            addr,
-            None,
-        )
-        .unwrap();
+        let common_state =
+            crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser, addr)
+                .unwrap();
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
@@ -607,11 +574,16 @@ mod tests {
             mem_pool_size: usize::MAX,
         }));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(
+            1708473607000000000,
+        )));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
                 None::<Arc<influxdb3_write::wal::WalImpl>>,
+                Arc::clone(&time_provider),
+                SegmentDuration::new_5m(),
             )
             .await
             .unwrap(),
@@ -625,13 +597,13 @@ mod tests {
             10,
         );
 
-        let server = crate::Server::new(
-            common_state,
-            persister,
-            Arc::clone(&write_buffer),
-            Arc::new(query_executor),
-            usize::MAX,
-        );
+        let server = ServerBuilder::new(common_state)
+            .write_buffer(Arc::clone(&write_buffer))
+            .query_executor(Arc::new(query_executor))
+            .persister(persister)
+            .authorizer(Arc::new(DefaultAuthorizer))
+            .time_provider(Arc::clone(&time_provider))
+            .build();
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
 

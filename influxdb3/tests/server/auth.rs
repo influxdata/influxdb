@@ -1,78 +1,31 @@
-use parking_lot::Mutex;
+use arrow_flight::error::FlightError;
+use arrow_util::assert_batches_sorted_eq;
+use influxdb3_client::Precision;
 use reqwest::StatusCode;
-use std::env;
-use std::mem;
-use std::panic;
-use std::process::Child;
-use std::process::Command;
-use std::process::Stdio;
 
-struct DropCommand {
-    cmd: Option<Child>,
-}
-
-impl DropCommand {
-    const fn new(cmd: Child) -> Self {
-        Self { cmd: Some(cmd) }
-    }
-
-    fn kill(&mut self) {
-        let mut cmd = self.cmd.take().unwrap();
-        cmd.kill().unwrap();
-        mem::drop(cmd);
-    }
-}
-
-static COMMAND: Mutex<Option<DropCommand>> = parking_lot::const_mutex(None);
+use crate::{collect_stream, TestServer};
 
 #[tokio::test]
 async fn auth() {
     const HASHED_TOKEN: &str = "5315f0c4714537843face80cca8c18e27ce88e31e9be7a5232dc4dc8444f27c0227a9bd64831d3ab58f652bd0262dd8558dd08870ac9e5c650972ce9e4259439";
     const TOKEN: &str = "apiv3_mp75KQAhbqv0GeQXk8MPuZ3ztaLEaR5JzS8iifk1FwuroSVyXXyrJK1c4gEr1kHkmbgzDV-j3MvQpaIMVJBAiA";
-    // The binary is made before testing so we have access to it
-    let bin_path = {
-        let mut bin_path = env::current_exe().unwrap();
-        bin_path.pop();
-        bin_path.pop();
-        bin_path.join("influxdb3")
-    };
-    let server = DropCommand::new(
-        Command::new(bin_path)
-            .args([
-                "serve",
-                "--object-store",
-                "memory",
-                "--bearer-token",
-                HASHED_TOKEN,
-            ])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .expect("Was able to spawn a server"),
-    );
 
-    *COMMAND.lock() = Some(server);
-
-    let current_hook = panic::take_hook();
-    panic::set_hook(Box::new(move |info| {
-        COMMAND.lock().take().unwrap().kill();
-        current_hook(info);
-    }));
+    let server = TestServer::configure()
+        .auth_token(HASHED_TOKEN, TOKEN)
+        .spawn()
+        .await;
 
     let client = reqwest::Client::new();
-
-    // Wait for the server to come up
-    while client
-        .get("http://127.0.0.1:8181/health")
-        .bearer_auth(TOKEN)
-        .send()
-        .await
-        .is_err()
-    {}
+    let base = server.client_addr();
+    let write_lp_url = format!("{base}/api/v3/write_lp");
+    let write_lp_params = [("db", "foo")];
+    let query_sql_url = format!("{base}/api/v3/query_sql");
+    let query_sql_params = [("db", "foo"), ("q", "select * from cpu")];
 
     assert_eq!(
         client
-            .post("http://127.0.0.1:8181/api/v3/write_lp?db=foo")
+            .post(&write_lp_url)
+            .query(&write_lp_params)
             .body("cpu,host=a val=1i 123")
             .send()
             .await
@@ -82,7 +35,8 @@ async fn auth() {
     );
     assert_eq!(
         client
-            .get("http://127.0.0.1:8181/api/v3/query_sql?db=foo&q=select+*+from+cpu")
+            .get(&query_sql_url)
+            .query(&query_sql_params)
             .send()
             .await
             .unwrap()
@@ -91,7 +45,8 @@ async fn auth() {
     );
     assert_eq!(
         client
-            .post("http://127.0.0.1:8181/api/v3/write_lp?db=foo")
+            .post(&write_lp_url)
+            .query(&write_lp_params)
             .body("cpu,host=a val=1i 123")
             .bearer_auth(TOKEN)
             .send()
@@ -102,7 +57,8 @@ async fn auth() {
     );
     assert_eq!(
         client
-            .get("http://127.0.0.1:8181/api/v3/query_sql?db=foo&q=select+*+from+cpu")
+            .get(&query_sql_url)
+            .query(&query_sql_params)
             .bearer_auth(TOKEN)
             .send()
             .await
@@ -114,7 +70,8 @@ async fn auth() {
     // Test that there is an extra string after the token foo
     assert_eq!(
         client
-            .get("http://127.0.0.1:8181/api/v3/query_sql?db=foo&q=select+*+from+cpu")
+            .get(&query_sql_url)
+            .query(&query_sql_params)
             .header("Authorization", format!("Bearer {TOKEN} whee"))
             .send()
             .await
@@ -124,7 +81,8 @@ async fn auth() {
     );
     assert_eq!(
         client
-            .get("http://127.0.0.1:8181/api/v3/query_sql?db=foo&q=select+*+from+cpu")
+            .get(&query_sql_url)
+            .query(&query_sql_params)
             .header("Authorization", format!("bearer {TOKEN}"))
             .send()
             .await
@@ -134,7 +92,8 @@ async fn auth() {
     );
     assert_eq!(
         client
-            .get("http://127.0.0.1:8181/api/v3/query_sql?db=foo&q=select+*+from+cpu")
+            .get(&query_sql_url)
+            .query(&query_sql_params)
             .header("Authorization", "Bearer")
             .send()
             .await
@@ -144,7 +103,8 @@ async fn auth() {
     );
     assert_eq!(
         client
-            .get("http://127.0.0.1:8181/api/v3/query_sql?db=foo&q=select+*+from+cpu")
+            .get(&query_sql_url)
+            .query(&query_sql_params)
             .header("auth", format!("Bearer {TOKEN}"))
             .send()
             .await
@@ -152,5 +112,202 @@ async fn auth() {
             .status(),
         StatusCode::UNAUTHORIZED
     );
-    COMMAND.lock().take().unwrap().kill();
+}
+
+#[tokio::test]
+async fn auth_grpc() {
+    const HASHED_TOKEN: &str = "5315f0c4714537843face80cca8c18e27ce88e31e9be7a5232dc4dc8444f27c0227a9bd64831d3ab58f652bd0262dd8558dd08870ac9e5c650972ce9e4259439";
+    const TOKEN: &str = "apiv3_mp75KQAhbqv0GeQXk8MPuZ3ztaLEaR5JzS8iifk1FwuroSVyXXyrJK1c4gEr1kHkmbgzDV-j3MvQpaIMVJBAiA";
+
+    let server = TestServer::configure()
+        .auth_token(HASHED_TOKEN, TOKEN)
+        .spawn()
+        .await;
+
+    // Write some data to the server, this will be authorized through the HTTP API
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=s1,region=us-east usage=0.9 1\n\
+            cpu,host=s1,region=us-east usage=0.89 2\n\
+            cpu,host=s1,region=us-east usage=0.85 3",
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+    // Check that with a valid authorization header, it succeeds:
+    for header in ["authorization", "Authorization"] {
+        // Spin up a FlightSQL client
+        let mut client = server.flight_sql_client("foo").await;
+
+        // Set the authorization header on the client:
+        client
+            .add_header(header, &format!("Bearer {TOKEN}"))
+            .unwrap();
+
+        // Make the query again, this time it should work:
+        let response = client.query("SELECT * FROM cpu").await.unwrap();
+        let batches = collect_stream(response).await;
+        assert_batches_sorted_eq!(
+            [
+                "+------+---------+--------------------------------+-------+",
+                "| host | region  | time                           | usage |",
+                "+------+---------+--------------------------------+-------+",
+                "| s1   | us-east | 1970-01-01T00:00:00.000000001Z | 0.9   |",
+                "| s1   | us-east | 1970-01-01T00:00:00.000000002Z | 0.89  |",
+                "| s1   | us-east | 1970-01-01T00:00:00.000000003Z | 0.85  |",
+                "+------+---------+--------------------------------+-------+",
+            ],
+            &batches
+        );
+    }
+
+    // Check that without providing an Authentication header, it gives back
+    // an Unauthenticated error:
+    {
+        let mut client = server.flight_sql_client("foo").await;
+        let error = client.query("SELECT * FROM cpu").await.unwrap_err();
+        assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
+    }
+
+    // Create some new clients that set the authorization header incorrectly to
+    // ensure errors are returned:
+
+    // Mispelled "Bearer"
+    {
+        let mut client = server.flight_sql_client("foo").await;
+        client
+            .add_header("authorization", &format!("bearer {TOKEN}"))
+            .unwrap();
+        let error = client.query("SELECT * FROM cpu").await.unwrap_err();
+        assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
+    }
+
+    // Invalid token, this actually gives Permission denied
+    {
+        let mut client = server.flight_sql_client("foo").await;
+        client
+            .add_header("authorization", "Bearer invalid-token")
+            .unwrap();
+        let error = client.query("SELECT * FROM cpu").await.unwrap_err();
+        assert!(
+            matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::PermissionDenied)
+        );
+    }
+
+    // Mispelled header key
+    {
+        let mut client = server.flight_sql_client("foo").await;
+        client
+            .add_header("auth", &format!("Bearer {TOKEN}"))
+            .unwrap();
+        let error = client.query("SELECT * FROM cpu").await.unwrap_err();
+        assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
+    }
+}
+
+#[tokio::test]
+async fn v1_password_parameter() {
+    const HASHED_TOKEN: &str = "5315f0c4714537843face80cca8c18e27ce88e31e9be7a5232dc4dc8444f27c0227a9bd64831d3ab58f652bd0262dd8558dd08870ac9e5c650972ce9e4259439";
+    const TOKEN: &str = "apiv3_mp75KQAhbqv0GeQXk8MPuZ3ztaLEaR5JzS8iifk1FwuroSVyXXyrJK1c4gEr1kHkmbgzDV-j3MvQpaIMVJBAiA";
+
+    let server = TestServer::configure()
+        .auth_token(HASHED_TOKEN, TOKEN)
+        .spawn()
+        .await;
+
+    let client = reqwest::Client::new();
+    let query_url = format!("{base}/api/v1/query", base = server.client_addr());
+    let write_url = format!("{base}/api/v1/write", base = server.client_addr());
+    // Send requests without any authentication:
+    assert_eq!(
+        client
+            .get(&query_url)
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_eq!(
+        client
+            .get(&write_url)
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::UNAUTHORIZED,
+    );
+
+    // TODO - The following assertions will break when the actual APIs get implemented,
+    //        so will need to revisit these at that time. Right now, they just assert
+    //        that the returned status code is 404 Not Found, as that would indicate
+    //        the request made it past the authorize step in the HTTP router.
+
+    // Send requests with the token in the v1 `p` parameter:
+    assert_eq!(
+        client
+            .get(&query_url)
+            .query(&[("p", TOKEN)])
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(
+        client
+            .get(&write_url)
+            .query(&[("p", TOKEN)])
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::NOT_FOUND,
+    );
+
+    // Send requests with the token in auth header:
+    assert_eq!(
+        client
+            .get(&query_url)
+            .bearer_auth(TOKEN)
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(
+        client
+            .get(&write_url)
+            .bearer_auth(TOKEN)
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::NOT_FOUND,
+    );
+
+    // Ensure that an invalid token passed in the `p` parameter is still unauthorized:
+    assert_eq!(
+        client
+            .get(&query_url)
+            .query(&[("p", "not-the-token-you-were-looking-for")])
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_eq!(
+        client
+            .get(&write_url)
+            .query(&[("p", "not-the-token-you-were-looking-for")])
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::UNAUTHORIZED,
+    );
 }
