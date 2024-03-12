@@ -288,4 +288,26 @@ async fn v1_password_parameter() {
             .status(),
         StatusCode::NOT_FOUND,
     );
+
+    // Ensure that an invalid token passed in the `p` parameter is still unauthorized:
+    assert_eq!(
+        client
+            .get(&query_url)
+            .query(&[("p", "not-the-token-you-were-looking-for")])
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_eq!(
+        client
+            .get(&write_url)
+            .query(&[("p", "not-the-token-you-were-looking-for")])
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::UNAUTHORIZED,
+    );
 }
