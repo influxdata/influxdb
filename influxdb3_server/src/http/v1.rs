@@ -8,17 +8,13 @@ use std::{
 use anyhow::Context as AnyhowContext;
 use arrow::record_batch::RecordBatch;
 use arrow_json::writer::record_batches_to_json_rows;
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
 use datafusion::physical_plan::SendableRecordBatchStream;
-use futures::{
-    ready,
-    stream::{Fuse, FusedStream},
-    Stream, StreamExt,
-};
+use futures::{ready, stream::Fuse, Stream, StreamExt};
 use hyper::{Body, Request, Response};
 use influxdb3_write::WriteBuffer;
+use iox_time::TimeProvider;
 use observability_deps::tracing::debug;
-use secrecy::Secret;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -28,21 +24,20 @@ use super::{Error, HttpApi, Result};
 
 const DEFAULT_CHUNK_SIZE: usize = 10_000;
 
-impl<W, Q> HttpApi<W, Q>
+impl<W, Q, T> HttpApi<W, Q, T>
 where
     W: WriteBuffer,
     Q: QueryExecutor,
+    T: TimeProvider,
     Error: From<<Q as QueryExecutor>::Error>,
 {
     pub(super) async fn v1_query(&self, req: Request<Body>) -> Result<Response<Body>> {
-        // TODO - password should be validated upstream of this, and not be
-        // available here.
         let QueryParams {
             chunk_size,
             chunked,
             database,
-            epoch,
-            password,
+            // TODO - support conversion to epoch times
+            epoch: _,
             pretty,
             query,
         } = QueryParams::from_request(&req)?;
@@ -61,8 +56,8 @@ where
         };
 
         let stream = self.query_influxql_inner(database, &query).await?;
-        let stream =
-            StatementResultStream::new(0, stream, chunk_size).map_err(QueryError::Unexpected)?;
+        let stream = StatementResultStream::new(0, stream, chunk_size, pretty)
+            .map_err(QueryError::Unexpected)?;
         let body = Body::wrap_stream(stream);
 
         Ok(Response::builder().status(200).body(body).unwrap())
@@ -71,8 +66,8 @@ where
 
 /// Query parameters for the v1/query API
 ///
-/// The original API supports a `u` parameter, for "username", but
-/// we ignore this.
+/// The original API supports a `u` parameter, for "username", as well as a `p`,
+/// for "password". The password is extracted upstream, and username is ignored.
 #[derive(Debug, Deserialize)]
 struct QueryParams {
     #[serde(default)]
@@ -80,9 +75,8 @@ struct QueryParams {
     chunk_size: Option<usize>,
     #[serde(rename = "db")]
     database: Option<String>,
+    #[allow(dead_code)]
     epoch: Option<Precision>,
-    #[serde(rename = "p")]
-    password: Option<Secret<String>>,
     #[serde(default)]
     pretty: bool,
     #[serde(rename = "q")]
@@ -127,13 +121,23 @@ struct QueryResponse {
 struct StatementResult {
     statement_id: usize,
     series: Vec<Series>,
+    #[serde(skip_serializing)]
+    pretty: bool,
 }
 
 impl From<StatementResult> for Bytes {
     fn from(s: StatementResult) -> Self {
-        let mut b = serde_json::to_vec(&s).unwrap();
-        b.extend_from_slice(b"\n");
-        b.into()
+        if s.pretty {
+            serde_json::to_vec_pretty(&s)
+        } else {
+            serde_json::to_vec(&s)
+        }
+        .map(|mut b| {
+            b.extend_from_slice(b"\r\n");
+            b
+        })
+        .expect("valid bytes in statement result")
+        .into()
     }
 }
 
@@ -156,6 +160,7 @@ struct StatementResultStream {
     current_batch: Option<RecordBatch>,
     input: Fuse<SendableRecordBatchStream>,
     statement_id: usize,
+    pretty: bool,
 }
 
 impl StatementResultStream {
@@ -163,6 +168,7 @@ impl StatementResultStream {
         statement_id: usize,
         input: SendableRecordBatchStream,
         chunk_size: Option<usize>,
+        pretty: bool,
     ) -> Result<Self, anyhow::Error> {
         let chunk_buffer = chunk_size
             .map(|size| Vec::with_capacity(size))
@@ -184,6 +190,7 @@ impl StatementResultStream {
             current_batch: None,
             input: input.fuse(),
             statement_id,
+            pretty,
         })
     }
 
@@ -256,6 +263,7 @@ impl StatementResultStream {
         StatementResult {
             statement_id: self.statement_id,
             series,
+            pretty: self.pretty,
         }
     }
 }
