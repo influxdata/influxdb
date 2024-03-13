@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::Context as AnyhowContext;
-use arrow::record_batch::RecordBatch;
+use arrow::{compute::cast_with_options, record_batch::RecordBatch};
 use arrow_json::writer::record_batches_to_json_rows;
 
 use bytes::Bytes;
@@ -57,7 +57,7 @@ where
         };
 
         let stream = self.query_influxql_inner(database, &query).await?;
-        let stream = QueryResponseStream::new(0, stream, chunk_size, pretty)
+        let stream = QueryResponseStream::new(0, stream, chunk_size, pretty, epoch)
             .map_err(QueryError::Unexpected)?;
         let body = Body::wrap_stream(stream);
 
@@ -91,7 +91,7 @@ impl QueryParams {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone, Copy)]
 enum Precision {
     #[serde(rename = "ns")]
     Nanoseconds,
@@ -163,6 +163,7 @@ struct QueryResponseStream {
     column_map: HashMap<String, usize>,
     statement_id: usize,
     pretty: bool,
+    epoch: Option<Precision>,
 }
 
 const IOX_MEASUREMENT_KEY: &str = "iox::measurement";
@@ -173,6 +174,7 @@ impl QueryResponseStream {
         input: SendableRecordBatchStream,
         chunk_size: Option<usize>,
         pretty: bool,
+        epoch: Option<Precision>,
     ) -> Result<Self, anyhow::Error> {
         let chunk_buffer = chunk_size
             .map(|size| Vec::with_capacity(size))
@@ -203,6 +205,7 @@ impl QueryResponseStream {
             input: input.fuse(),
             pretty,
             statement_id,
+            epoch,
         })
     }
 
@@ -210,8 +213,28 @@ impl QueryResponseStream {
     fn stream_batch(&mut self, batch: RecordBatch) -> Result<bool, anyhow::Error> {
         let batch_row_count = batch.num_rows();
         let batch_slice_length = (self.chunk_size - self.chunk_pos).min(batch_row_count);
-        let batch_slice = batch.slice(0, batch_slice_length);
+        let mut batch_slice = batch.slice(0, batch_slice_length);
         self.chunk_pos = self.chunk_pos + batch_slice_length;
+        if self.epoch.is_some() {
+            batch_slice = RecordBatch::try_from_iter(batch_slice.schema().fields.iter().map(|f| {
+                let name = f.name();
+                let column = batch.column_by_name(name).unwrap();
+                (
+                    name,
+                    if name == "time" {
+                        cast_with_options(
+                            column,
+                            &arrow_schema::DataType::Int64,
+                            &Default::default(),
+                        )
+                        .unwrap()
+                    } else {
+                        column.clone()
+                    },
+                )
+            }))
+            .context("failed to cast batch time column")?;
+        }
         let json_rows = record_batches_to_json_rows(&[&batch_slice])
             .context("failed to convert RecordBatch slice to JSON")?;
         for (i, json_row) in json_rows.into_iter().enumerate() {
@@ -241,7 +264,11 @@ impl QueryResponseStream {
                 } else {
                     trace!(k, ?v, "setting column value");
                     let j = self.column_map.get(&k).unwrap();
-                    row[*j] = v;
+                    row[*j] = if let (Some(precision), "time") = (self.epoch, k.as_str()) {
+                        convert_ns_epoch(v, precision)?
+                    } else {
+                        v
+                    };
                 }
             }
             self.chunk_buffer.push(Row(row));
@@ -279,6 +306,21 @@ impl QueryResponseStream {
             pretty: self.pretty,
         })
     }
+}
+
+fn convert_ns_epoch(value: Value, precision: Precision) -> Result<Value, anyhow::Error> {
+    let epoch_ns = value
+        .as_i64()
+        .context("the provided nanosecond epoch time was not a valid i64")?;
+    Ok(match precision {
+        Precision::Nanoseconds => epoch_ns,
+        Precision::Microseconds => epoch_ns / 1_000,
+        Precision::Milliseconds => epoch_ns / 1_000_000,
+        Precision::Seconds => epoch_ns / 1_000_000_000,
+        Precision::Minutes => epoch_ns / (1_000_000_000 * 60),
+        Precision::Hours => epoch_ns / (1_000_000_000 * 60 * 60),
+    }
+    .into())
 }
 
 impl Stream for QueryResponseStream {
