@@ -806,7 +806,7 @@ where
             http_server.query_influxql(req).await
         }
         (Method::GET, "/api/v1/query") => http_server.v1_query(req).await,
-        (Method::GET, "/health") => http_server.health(),
+        (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
         (Method::GET, "/debug/pprof") => pprof_home(req).await,
         (Method::GET, "/debug/pprof/profile") => pprof_profile(req).await,

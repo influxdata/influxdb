@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    iter,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -8,13 +7,14 @@ use std::{
 use anyhow::Context as AnyhowContext;
 use arrow::record_batch::RecordBatch;
 use arrow_json::writer::record_batches_to_json_rows;
+
 use bytes::Bytes;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{ready, stream::Fuse, Stream, StreamExt};
 use hyper::{Body, Request, Response};
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{self, debug, trace};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -37,7 +37,7 @@ where
             chunked,
             database,
             // TODO - support conversion to epoch times
-            epoch: _,
+            epoch,
             pretty,
             query,
         } = QueryParams::from_request(&req)?;
@@ -46,6 +46,7 @@ where
             chunked,
             ?database,
             query,
+            ?epoch,
             "handle v1 query API"
         );
 
@@ -56,7 +57,7 @@ where
         };
 
         let stream = self.query_influxql_inner(database, &query).await?;
-        let stream = StatementResultStream::new(0, stream, chunk_size, pretty)
+        let stream = QueryResponseStream::new(0, stream, chunk_size, pretty)
             .map_err(QueryError::Unexpected)?;
         let body = Body::wrap_stream(stream);
 
@@ -114,19 +115,19 @@ pub enum QueryError {
 
 #[derive(Debug, Serialize)]
 struct QueryResponse {
-    results: Vec<StatementResult>,
-}
-
-#[derive(Debug, Serialize)]
-struct StatementResult {
-    statement_id: usize,
-    series: Vec<Series>,
+    results: Vec<StatementResponse>,
     #[serde(skip_serializing)]
     pretty: bool,
 }
 
-impl From<StatementResult> for Bytes {
-    fn from(s: StatementResult) -> Self {
+#[derive(Debug, Serialize)]
+struct StatementResponse {
+    statement_id: usize,
+    series: Vec<Series>,
+}
+
+impl From<QueryResponse> for Bytes {
+    fn from(s: QueryResponse) -> Self {
         if s.pretty {
             serde_json::to_vec_pretty(&s)
         } else {
@@ -151,19 +152,22 @@ struct Series {
 #[derive(Debug, Serialize)]
 struct Row(Vec<Value>);
 
-struct StatementResultStream {
+struct QueryResponseStream {
     chunk_name: Option<String>,
-    chunk_columns: Vec<String>,
+    chunk_name_next: Option<String>,
     chunk_buffer: Vec<Row>,
     chunk_pos: usize,
     chunk_size: usize,
     current_batch: Option<RecordBatch>,
     input: Fuse<SendableRecordBatchStream>,
+    column_map: HashMap<String, usize>,
     statement_id: usize,
     pretty: bool,
 }
 
-impl StatementResultStream {
+const IOX_MEASUREMENT_KEY: &str = "iox::measurement";
+
+impl QueryResponseStream {
     fn new(
         statement_id: usize,
         input: SendableRecordBatchStream,
@@ -175,128 +179,146 @@ impl StatementResultStream {
             .unwrap_or_else(|| Vec::new());
         let chunk_size = chunk_size.unwrap_or(usize::MAX);
         let schema = input.schema();
-        debug!(?schema, "input schema");
-        let chunk_columns = schema
-            .fields()
-            .into_iter()
-            .map(|f| f.name().to_string())
+        let column_map = schema
+            .fields
+            .iter()
+            .map(|f| f.name().to_owned())
+            .enumerate()
+            .flat_map(|(i, n)| {
+                if n != IOX_MEASUREMENT_KEY && i > 0 {
+                    Some((n, i - 1))
+                } else {
+                    None
+                }
+            })
             .collect();
         Ok(Self {
-            chunk_name: None,
-            chunk_columns,
             chunk_buffer,
+            chunk_name: None,
+            chunk_name_next: None,
             chunk_pos: 0,
             chunk_size,
+            column_map,
             current_batch: None,
             input: input.fuse(),
-            statement_id,
             pretty,
+            statement_id,
         })
     }
 
-    fn stream_batch(&mut self, batch: RecordBatch) -> Result<(), anyhow::Error> {
+    #[tracing::instrument(level = "TRACE", skip_all, ret, err)]
+    fn stream_batch(&mut self, batch: RecordBatch) -> Result<bool, anyhow::Error> {
         let batch_row_count = batch.num_rows();
-        let batch_offset = 0;
-        let batch_slice_length =
-            (self.chunk_size - self.chunk_pos).min(batch_row_count - batch_offset);
-        let base = self.chunk_pos;
-        debug!(?batch, %batch_offset, %batch_row_count, %batch_slice_length, %base, "stream batch");
-        let batch_slice = batch.slice(batch_offset, batch_slice_length);
+        let batch_slice_length = (self.chunk_size - self.chunk_pos).min(batch_row_count);
+        let batch_slice = batch.slice(0, batch_slice_length);
         self.chunk_pos = self.chunk_pos + batch_slice_length;
         let json_rows = record_batches_to_json_rows(&[&batch_slice])
             .context("failed to convert RecordBatch slice to JSON")?;
-        let column_positions =
-            self.chunk_columns
-                .iter()
-                .enumerate()
-                .fold(HashMap::new(), |mut acc, (j, name)| {
-                    acc.insert(name.to_owned(), j);
-                    acc
-                });
-        let mut name = None;
-        for json_row in json_rows {
-            let mut row: Vec<Value> = iter::repeat(Value::Null)
-                .take(column_positions.len().checked_sub(1).unwrap_or(0))
-                .collect();
-            debug!(?row, "new row");
-            json_row.into_iter().for_each(|(k, v)| {
-                debug!(key = %k, value = %v, ?column_positions, "JSON Row");
-                if k == "iox::measurement" {
-                    name.replace(v.as_str().unwrap().to_owned());
+        for (i, json_row) in json_rows.into_iter().enumerate() {
+            let mut row = vec![Value::Null; self.column_map.len()];
+            for (k, v) in json_row {
+                if k == IOX_MEASUREMENT_KEY && self.chunk_name.is_none() {
+                    trace!(k, ?v, "setting measurement name for first time");
+                    self.chunk_name.replace(
+                        v.as_str()
+                            .context("iox::measurement value was not a string")?
+                            .to_string(),
+                    );
+                } else if k == IOX_MEASUREMENT_KEY
+                    && self.chunk_name.as_ref().is_some_and(|n| *n != v)
+                {
+                    trace!(k, ?v, "updating measurement name");
+                    // we are starting a new measurement, so we want to stop here, and flush
+                    // what is currently in the buffer for the previous measurement before
+                    // streaming from this point on
+                    self.current_batch
+                        .replace(batch.slice(i, batch.num_rows() - i));
+                    self.chunk_name_next.replace(v.as_str().unwrap().to_owned());
+                    return Ok(true);
+                } else if k == IOX_MEASUREMENT_KEY {
+                    trace!(k, ?v, "ignoring measurement name");
+                    continue;
                 } else {
-                    let j = column_positions.get(&k).unwrap();
-                    row[*j - 1] = v;
+                    trace!(k, ?v, "setting column value");
+                    let j = self.column_map.get(&k).unwrap();
+                    row[*j] = v;
                 }
-            });
-            debug!(?row, "updated row");
+            }
             self.chunk_buffer.push(Row(row));
         }
-        if let Some(name) = name {
-            self.chunk_name.replace(name);
-        }
-        let new_batch_offset = batch_offset + batch_slice_length;
-        if new_batch_offset < batch.num_rows() {
+        if batch_slice_length < batch.num_rows() {
             self.current_batch
-                .replace(batch.slice(new_batch_offset, batch.num_rows() - new_batch_offset));
+                .replace(batch.slice(batch_slice_length, batch.num_rows() - batch_slice_length));
         }
-        Ok(())
+        Ok(false)
     }
 
-    fn flush(&mut self) -> StatementResult {
+    fn flush(&mut self) -> Result<QueryResponse, anyhow::Error> {
+        let mut columns = vec!["".to_string(); self.column_map.len()];
+        self.column_map
+            .iter()
+            .for_each(|(k, i)| columns[*i] = k.to_owned());
+        let name = if let Some(n) = self.chunk_name_next.take() {
+            self.chunk_name.replace(n)
+        } else {
+            self.chunk_name.clone()
+        }
+        .context("missing iox::measurement name on flush")?;
         let series = vec![Series {
-            name: self.chunk_name.clone().unwrap(),
-            columns: self
-                .chunk_columns
-                .iter()
-                .filter_map(|c| {
-                    if c == "iox::measurement" {
-                        None
-                    } else {
-                        Some(c)
-                    }
-                })
-                .cloned()
-                .collect(),
+            name,
+            columns,
             values: self.chunk_buffer.drain(..).collect(),
         }];
+        // reset the chunk position:
         self.chunk_pos = 0;
-        StatementResult {
-            statement_id: self.statement_id,
-            series,
+        Ok(QueryResponse {
+            results: vec![StatementResponse {
+                statement_id: self.statement_id,
+                series,
+            }],
             pretty: self.pretty,
-        }
+        })
     }
 }
 
-impl Stream for StatementResultStream {
-    type Item = Result<StatementResult, anyhow::Error>;
+impl Stream for QueryResponseStream {
+    type Item = Result<QueryResponse, anyhow::Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        // Check if there are any records left in the current batch, we want to stream them
-        // or buffer them into the current chunk before polling the input stream for more...
+        // Check if there are any records left in the current batch, we want to buffer them
+        // into the current chunk and potentially stream them before polling the input stream
         if let Some(batch) = self.current_batch.take() {
-            if let Err(e) = self.stream_batch(batch) {
-                return Poll::Ready(Some(Err(e)));
+            match self.stream_batch(batch) {
+                Ok(true) => return Poll::Ready(Some(self.flush())),
+                Ok(false) => (),
+                Err(e) => return Poll::Ready(Some(Err(e))),
             }
             if !self.chunk_buffer.is_empty() && self.chunk_buffer.len() == self.chunk_size {
-                return Poll::Ready(Some(Ok(self.flush())));
+                return Poll::Ready(Some(self.flush()));
             }
         }
         match ready!(self.input.poll_next_unpin(cx)) {
             Some(Ok(batch)) => {
-                if let Err(e) = self.stream_batch(batch) {
-                    return Poll::Ready(Some(Err(e)));
+                debug!(?batch, "received batch from input stream");
+                match self.stream_batch(batch) {
+                    Ok(true) => return Poll::Ready(Some(self.flush())),
+                    Ok(false) => (),
+                    Err(e) => return Poll::Ready(Some(Err(e))),
                 }
                 if self.chunk_buffer.len() < self.chunk_size {
+                    debug!("chunk buffer is not full yet");
                     // We don't have a full chunk yet, hold data in the buffer and continue polling:
+                    cx.waker().wake_by_ref();
                     Poll::Pending
                 } else {
+                    debug!("chunk buffer is ready to flush");
                     // We have a full chunk, so flush and return it:
-                    Poll::Ready(Some(Ok(self.flush())))
+                    Poll::Ready(Some(self.flush()))
                 }
             }
             Some(Err(e)) => Poll::Ready(Some(Err(e.into()))),
             None => {
+                debug!("input stream is empty");
                 // If we have data remaining in the buffer, we need to flush one more time,
                 // returning Some(...), and then when the stream gets polled again, the chunk
                 // buffer will be empty, and we return None.
@@ -304,8 +326,10 @@ impl Stream for StatementResultStream {
                 // This is the reason the input stream is fused, because we may end up polling
                 // again after it has finished.
                 if !self.chunk_buffer.is_empty() {
-                    Poll::Ready(Some(Ok(self.flush())))
+                    debug!("flushing buffer");
+                    Poll::Ready(Some(self.flush()))
                 } else {
+                    debug!("we are done");
                     Poll::Ready(None)
                 }
             }
