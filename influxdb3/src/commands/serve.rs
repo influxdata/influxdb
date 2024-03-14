@@ -40,7 +40,7 @@ use trogging::cli::LoggingConfig;
 pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 
 /// The default bind address for the HTTP API.
-pub const DEFAULT_HTTP_BIND_ADDR: &str = "127.0.0.1:8181";
+pub const DEFAULT_HTTP_BIND_ADDR: &str = "0.0.0.0:8181";
 
 #[derive(Debug, Error)]
 pub enum Error {
