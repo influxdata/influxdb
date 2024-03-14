@@ -295,7 +295,7 @@ impl QueryResponseStream {
                 (
                     name,
                     if name == TIME_COLUMN_NAME {
-                        // unwrap is safe here because the time column can cast cheaply to Int64
+                        // unwrap should be safe here because the time column cast to Int64
                         cast_with_options(column, &DataType::Int64, &CastOptions::default())
                             .unwrap()
                     } else {
