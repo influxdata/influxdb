@@ -7,13 +7,20 @@ use once_cell::sync::Lazy;
 /// The process name on the local OS running `influxdb3`
 pub const INFLUXDB3_PROCESS_NAME: &str = "influxdb3";
 
-#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+#[cfg(all(
+    not(feature = "heappy"),
+    feature = "jemalloc_replacing_malloc",
+    not(target_env = "msvc")
+))]
 pub mod jemalloc;
 
 #[cfg(tokio_unstable)]
 use tokio_metrics_bridge::setup_tokio_metrics;
 
-#[cfg(all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")))]
+#[cfg(any(
+    all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")),
+    target_env = "msvc"
+))]
 pub fn build_malloc_conf() -> String {
     "system".to_string()
 }
@@ -23,7 +30,11 @@ pub fn build_malloc_conf() -> String {
     "heappy".to_string()
 }
 
-#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+#[cfg(all(
+    not(feature = "heappy"),
+    feature = "jemalloc_replacing_malloc",
+    not(target_env = "msvc")
+))]
 pub fn build_malloc_conf() -> String {
     tikv_jemalloc_ctl::config::malloc_conf::mib()
         .unwrap()
@@ -100,7 +111,11 @@ pub fn setup_metric_registry() -> Arc<metric::Registry> {
         .set(PROCESS_START_TIME.timestamp() as u64);
 
     // Register jemalloc metrics
-    #[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+    #[cfg(all(
+        not(feature = "heappy"),
+        feature = "jemalloc_replacing_malloc",
+        not(target_env = "msvc")
+    ))]
     registry.register_instrument("jemalloc_metrics", crate::jemalloc::JemallocMetrics::new);
 
     // Register tokio metric for main runtime

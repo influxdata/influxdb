@@ -1,0 +1,51 @@
+
+version:
+  release:
+    match: '^v[0-9]+.[0-9]+.[0-9]+'
+    value: '{{env.CIRCLE_TAG[1:]}}'
+  default:
+    value: '3.x-{{env.CIRCLE_SHA1[:8]}}'
+
+sources:
+  - binary: /tmp/workspace/artifacts/influxdb3-edge_x86_64-unknown-linux-musl.tar.gz
+    target: artifacts/
+    arch:   amd64
+    plat:   linux
+
+  - binary: /tmp/workspace/artifacts/influxdb3-edge_aarch64-unknown-linux-musl.tar.gz
+    target: artifacts/
+    arch:   arm64
+    plat:   linux
+
+  - binary: /tmp/workspace/artifacts/influxdb3-edge_aarch64-apple-darwin.tar.gz
+    target: artifacts/
+    arch:   amd64
+    plat:   darwin
+
+  - binary: /tmp/workspace/artifacts/influxdb3-edge_x86_64-pc-windows-gnu.tar.gz
+    target: artifacts/
+    arch:   amd64
+    plat:   windows
+
+packages:
+  - name:        influxdb3
+    description: Monolithic time-series database.
+    license:     MIT/Apache-2.0
+    binaries:
+      - influxdb3
+      - influxdb3.exe
+    extras:
+      - source: LICENSE-APACHE
+        target: usr/share/influxdb3/LICENSE-APACHE
+
+      - source: LICENSE-MIT
+        target: usr/share/influxdb3/LICENSE-MIT
+
+      - source: README.md
+        target: usr/share/influxdb3/README.md
+    #perm_overrides:
+    deb_recommends:
+      - influxdb3-cli
+    #conflicts:
+    #depends:
+    source: .circleci/packages/influxdb3

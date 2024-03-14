@@ -97,6 +97,7 @@ enum Command {
 }
 
 fn main() -> Result<(), std::io::Error> {
+    #[cfg(unix)]
     install_crash_handler(); // attempt to render a useful stacktrace to stderr
 
     // load all environment variables from .env before doing anything
@@ -208,6 +209,7 @@ fn load_dotenv() {
 
 // Based on ideas from
 // https://github.com/servo/servo/blob/f03ddf6c6c6e94e799ab2a3a89660aea4a01da6f/ports/servo/main.rs#L58-L79
+#[cfg(unix)]
 fn install_crash_handler() {
     unsafe {
         set_signal_handler(libc::SIGSEGV, signal_handler); // handle segfaults
@@ -216,6 +218,7 @@ fn install_crash_handler() {
     }
 }
 
+#[cfg(unix)]
 unsafe extern "C" fn signal_handler(sig: i32) {
     use backtrace::Backtrace;
     use std::process::abort;
@@ -233,6 +236,7 @@ unsafe extern "C" fn signal_handler(sig: i32) {
 }
 
 // based on https://github.com/adjivas/sig/blob/master/src/lib.rs#L34-L52
+#[cfg(unix)]
 unsafe fn set_signal_handler(signal: libc::c_int, handler: unsafe extern "C" fn(libc::c_int)) {
     use libc::{sigaction, sigfillset, sighandler_t};
     let mut sigset = std::mem::zeroed();
