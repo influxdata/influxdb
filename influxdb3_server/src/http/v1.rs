@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, VecDeque},
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
 };
 
@@ -298,7 +299,7 @@ impl QueryResponseStream {
                         cast_with_options(column, &DataType::Int64, &CastOptions::default())
                             .unwrap()
                     } else {
-                        column.clone()
+                        Arc::clone(column)
                     },
                 )
             }))
