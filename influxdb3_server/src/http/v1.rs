@@ -412,11 +412,12 @@ impl Stream for QueryResponseStream {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         // check for data in the buffer that can be flushed, if we are operating in chunked mode,
-        // this will drain the buffer as much as possible before the input future is polled again:
+        // this will drain the buffer as much as possible  by repeatedly returning Ready here
+        // until the buffer can no longer flush, and before the input stream is polled again:
         if self.buffer.can_flush() {
             return Poll::Ready(Some(Ok(self.flush_one())));
         }
-        // poll the inner recrod batch stream:
+        // poll the input record batch stream:
         match ready!(self.input.poll_next_unpin(cx)) {
             Some(Ok(batch)) => {
                 // stream the resulting batch into the buffer:
@@ -436,8 +437,9 @@ impl Stream for QueryResponseStream {
             Some(Err(e)) => Poll::Ready(Some(Err(e.into()))),
             None => {
                 if !self.buffer.is_empty() {
-                    // we only get here if we are not operating in chunked mode,
-                    // and we need to flush the entire buffer at once
+                    // we only get here if we are not operating in chunked mode, and
+                    // we need to flush the entire buffer at once OR if we are in chunked
+                    // mode, and there is less than a chunk's worth of records left
                     //
                     // this is why the input stream is fused, because we will end up
                     // polling the input stream again if we end up here.
