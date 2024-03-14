@@ -54,11 +54,7 @@ where
             "handle v1 query API"
         );
 
-        let chunk_size = if chunked {
-            chunk_size.or(Some(DEFAULT_CHUNK_SIZE))
-        } else {
-            None
-        };
+        let chunk_size = chunked.then(|| chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE));
 
         let stream = self.query_influxql_inner(database, &query).await?;
         let stream = QueryResponseStream::new(0, stream, chunk_size, pretty, epoch)
