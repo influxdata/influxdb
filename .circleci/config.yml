@@ -38,6 +38,7 @@ version: 2.1
 orbs:
   aws-s3:    circleci/aws-s3@2.0.0
   terraform: circleci/terraform@2.1.0
+  rust: circleci/rust@1.6.1
 
 executors:
   linux-amd64:
@@ -49,7 +50,7 @@ executors:
       image: ubuntu-2204:current
       resource_class: arm.2xlarge
   darwin:
-    resource_class: macos.m1.2xlarge.gen1
+    resource_class: macos.m1.large.gen1
     macos:
       xcode: 15.0.0
     shell: /bin/bash -eo pipefail
@@ -87,6 +88,8 @@ nofork_filter: &nofork_filter
 
 
 commands:
+  install_rust:
+
   rust_components:
     description: Verify installed components
     steps:
@@ -256,6 +259,7 @@ jobs:
       CARGO_BUILD_JOBS: "12"
     steps:
       - checkout
+      - rust/install
       - rust_components
       - run:
           name: Cargo build
