@@ -56,6 +56,12 @@ COPY docker/entrypoint.sh /usr/bin/entrypoint.sh
 
 EXPOSE 8080 8082
 
+RUN mkdir /usr/local/share/influxdb3
+
+# TODO: Make this and other env vars not specific to IOx
+ENV INFLUXDB_IOX_OBJECT_STORE=file
+ENV INFLUXDB_IOX_DB_DIR=/usr/local/share/influxdb3
+
 ENTRYPOINT ["/usr/bin/entrypoint.sh"]
 
 CMD ["serve"]

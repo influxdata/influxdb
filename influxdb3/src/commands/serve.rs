@@ -148,7 +148,10 @@ pub struct Config {
     pub segment_duration: SegmentDuration,
 }
 
-#[cfg(all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")))]
+#[cfg(any(
+    all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")),
+    target_env = "msvc"
+))]
 fn build_malloc_conf() -> String {
     "system".to_string()
 }
@@ -158,7 +161,11 @@ fn build_malloc_conf() -> String {
     "heappy".to_string()
 }
 
-#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+#[cfg(all(
+    not(feature = "heappy"),
+    feature = "jemalloc_replacing_malloc",
+    not(target_env = "msvc")
+))]
 fn build_malloc_conf() -> String {
     tikv_jemalloc_ctl::config::malloc_conf::mib()
         .unwrap()
