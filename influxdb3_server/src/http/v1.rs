@@ -18,7 +18,7 @@ use futures::{ready, stream::Fuse, Stream, StreamExt};
 use hyper::{Body, Request, Response};
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::info;
 use schema::{INFLUXQL_MEASUREMENT_COLUMN_NAME, TIME_COLUMN_NAME};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -45,7 +45,7 @@ where
             pretty,
             query,
         } = QueryParams::from_request(&req)?;
-        debug!(
+        info!(
             ?chunk_size,
             chunked,
             ?database,
@@ -124,12 +124,6 @@ struct QueryResponse {
     pretty: bool,
 }
 
-#[derive(Debug, Serialize)]
-struct StatementResponse {
-    statement_id: usize,
-    series: Vec<Series>,
-}
-
 impl From<QueryResponse> for Bytes {
     fn from(s: QueryResponse) -> Self {
         if s.pretty {
@@ -147,6 +141,12 @@ impl From<QueryResponse> for Bytes {
 }
 
 #[derive(Debug, Serialize)]
+struct StatementResponse {
+    statement_id: usize,
+    series: Vec<Series>,
+}
+
+#[derive(Debug, Serialize)]
 struct Series {
     name: String,
     columns: Vec<String>,
@@ -156,6 +156,11 @@ struct Series {
 #[derive(Debug, Serialize)]
 struct Row(Vec<Value>);
 
+/// A buffer for storing records from a stream of [`RecordBatch`]es
+///
+/// The optional `size` indicates whether this is operating in `chunked` mode (see
+/// [`QueryResponseStream`]), and when specified, gives the size of chunks that will
+/// be emitted.
 struct ChunkBuffer {
     size: Option<usize>,
     series: VecDeque<(String, Vec<Row>)>,
@@ -169,14 +174,18 @@ impl ChunkBuffer {
         }
     }
 
+    /// Get the name of the current measurement [`Series`] being streamed
     fn current_measurement_name(&self) -> Option<&str> {
         self.series.front().map(|(n, _)| n.as_str())
     }
 
+    /// For queries that produce multiple [`Series`], this will be called when
+    /// the current series is completed streaming
     fn push_next_measurement<S: Into<String>>(&mut self, name: S) {
         self.series.push_front((name.into(), vec![]));
     }
 
+    /// Push a new [`Row`] into the current measurement [`Series`]
     fn push_row(&mut self, row: Row) -> Result<(), anyhow::Error> {
         self.series
             .front_mut()
@@ -186,36 +195,58 @@ impl ChunkBuffer {
         Ok(())
     }
 
-    fn flush_measurement(&mut self) -> Option<(String, Vec<Row>)> {
-        self.series.pop_back()
+    /// Flush a single chunk from the [`ChunkBuffer`], if possible
+    fn flush_one(&mut self) -> Option<(String, Vec<Row>)> {
+        if !self.can_flush() {
+            return None;
+        }
+        // we can flush, so unwrap is safe:
+        let size = self.size.unwrap();
+        if self
+            .series
+            .back()
+            .is_some_and(|(_, rows)| rows.len() <= size)
+        {
+            // the back series is smaller than the chunk size, so we just
+            // pop and take the whole thing:
+            self.series.pop_back()
+        } else {
+            // only drain a chunk's worth from the back series:
+            self.series
+                .back_mut()
+                .map(|(name, rows)| (name.to_owned(), rows.drain(..size).collect()))
+        }
     }
 
-    fn should_flush(&self) -> bool {
-        if let (Some(size), Some(m)) = (self.size, self.series.front()) {
+    /// The [`ChunkBuffer`] is operating in chunked mode, and can flush a chunk
+    fn can_flush(&self) -> bool {
+        if let (Some(size), Some(m)) = (self.size, self.series.back()) {
             m.1.len() >= size || self.series.len() > 1
         } else {
             false
         }
     }
 
+    /// The [`ChunkBuffer`] is empty
     fn is_empty(&self) -> bool {
         self.series.is_empty()
     }
-
-    fn calculate_batch_slice_len(&self, batch_row_count: usize) -> usize {
-        if let (Some(size), Some(m)) = (self.size, self.series.front()) {
-            size.checked_sub(m.1.len())
-                .unwrap_or(batch_row_count)
-                .min(batch_row_count)
-        } else {
-            batch_row_count
-        }
-    }
 }
 
+/// A wrapper around a [`SendableRecordBatchStream`] that buffers streamed
+/// [`RecordBatches`] and outputs [`QueryResponse`]s
+///
+/// Can operate in `chunked` mode, in which case, the `chunk_size` provided
+/// will determine how often [`QueryResponse`]s are emitted. When not in
+/// `chunked` mode, the entire input stream of [`RecordBatch`]es will be buffered
+/// into memory before being emitted.
+///
+/// `pretty` will emit pretty formatted JSON.
+///
+/// Providing an `epoch` [`Precision`] will have the `time` column values emitted
+/// as UNIX epoch times with the given precision.
 struct QueryResponseStream {
     buffer: ChunkBuffer,
-    current_batch: Option<RecordBatch>,
     input: Fuse<SendableRecordBatchStream>,
     column_map: HashMap<String, usize>,
     statement_id: usize,
@@ -224,6 +255,9 @@ struct QueryResponseStream {
 }
 
 impl QueryResponseStream {
+    /// Create a new [`QueryResponseStream`]
+    ///
+    /// Specifying a `chunk_size` will have the stream operate in `chunked` mode.
     fn new(
         statement_id: usize,
         input: SendableRecordBatchStream,
@@ -249,7 +283,6 @@ impl QueryResponseStream {
         Ok(Self {
             buffer,
             column_map,
-            current_batch: None,
             input: input.fuse(),
             pretty,
             statement_id,
@@ -257,11 +290,9 @@ impl QueryResponseStream {
         })
     }
 
-    fn stream_batch(&mut self, batch: RecordBatch) -> Result<(), anyhow::Error> {
-        let batch_slice_length = self.buffer.calculate_batch_slice_len(batch.num_rows());
-        let mut batch_slice = batch.slice(0, batch_slice_length);
+    fn stream_batch(&mut self, mut batch: RecordBatch) -> Result<(), anyhow::Error> {
         if self.epoch.is_some() {
-            batch_slice = RecordBatch::try_from_iter(batch_slice.schema().fields.iter().map(|f| {
+            batch = RecordBatch::try_from_iter(batch.schema().fields.iter().map(|f| {
                 let name = f.name();
                 let column = batch.column_by_name(name).unwrap();
                 (
@@ -277,7 +308,7 @@ impl QueryResponseStream {
             }))
             .context("failed to cast batch time column")?;
         }
-        let json_rows = record_batches_to_json_rows(&[&batch_slice])
+        let json_rows = record_batches_to_json_rows(&[&batch])
             .context("failed to convert RecordBatch slice to JSON")?;
         for json_row in json_rows {
             let mut row = vec![Value::Null; self.column_map.len()];
@@ -312,56 +343,48 @@ impl QueryResponseStream {
             }
             self.buffer.push_row(Row(row))?;
         }
-        debug!(
-            batch_slice_length,
-            batch_num_rows = batch.num_rows(),
-            "done streaming"
-        );
-        if batch_slice_length < batch.num_rows() {
-            debug!("replacing");
-            self.current_batch
-                .replace(batch.slice(batch_slice_length, batch.num_rows() - batch_slice_length));
-        }
         Ok(())
     }
 
-    fn flush(&mut self) -> Result<QueryResponse, anyhow::Error> {
+    fn columns(&self) -> Vec<String> {
         let mut columns = vec!["".to_string(); self.column_map.len()];
         self.column_map
             .iter()
             .for_each(|(k, i)| columns[*i] = k.to_owned());
-        let (name, values) = self
-            .buffer
-            .flush_measurement()
-            .context("no values to flush")?;
+        columns
+    }
+
+    fn flush_one(&mut self) -> QueryResponse {
+        let columns = self.columns();
+        // this unwrap is okay because we only ever call flush_one
+        // after calling can_flush on the buffer:
+        let (name, values) = self.buffer.flush_one().unwrap();
         let series = vec![Series {
             name,
             columns,
             values,
         }];
-        // reset the chunk position:
-        Ok(QueryResponse {
+        QueryResponse {
             results: vec![StatementResponse {
                 statement_id: self.statement_id,
                 series,
             }],
             pretty: self.pretty,
-        })
+        }
     }
 
     fn flush_all(&mut self) -> Result<QueryResponse, anyhow::Error> {
-        let mut columns = vec!["".to_string(); self.column_map.len()];
-        self.column_map
-            .iter()
-            .for_each(|(k, i)| columns[*i] = k.to_owned());
-        let mut series = Vec::new();
-        while let Some((name, values)) = self.buffer.flush_measurement() {
-            series.push(Series {
+        let columns = self.columns();
+        let series = self
+            .buffer
+            .series
+            .drain(..)
+            .map(|(name, values)| Series {
                 name,
                 columns: columns.clone(),
                 values,
-            });
-        }
+            })
+            .collect();
         Ok(QueryResponse {
             results: vec![StatementResponse {
                 statement_id: self.statement_id,
@@ -391,46 +414,38 @@ impl Stream for QueryResponseStream {
     type Item = Result<QueryResponse, anyhow::Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        // Check if there are any records left in the current batch, we want to buffer them
-        // into the current chunk and potentially stream them before polling the input stream
-        if let Some(batch) = self.current_batch.take() {
-            debug!(?batch, "stream current batch");
-            if let Err(e) = self.stream_batch(batch) {
-                return Poll::Ready(Some(Err(e)));
-            }
-            if self.buffer.should_flush() {
-                debug!("flush current batch");
-                return Poll::Ready(Some(self.flush()));
-            }
+        // check for data in the buffer that can be flushed, if we are operating in chunked mode,
+        // this will drain the buffer as much as possible before the input future is polled again:
+        if self.buffer.can_flush() {
+            return Poll::Ready(Some(Ok(self.flush_one())));
         }
+        // poll the inner recrod batch stream:
         match ready!(self.input.poll_next_unpin(cx)) {
             Some(Ok(batch)) => {
-                debug!(?batch, "stream input batch");
+                // stream the resulting batch into the buffer:
                 if let Err(e) = self.stream_batch(batch) {
                     return Poll::Ready(Some(Err(e)));
                 }
-                if self.buffer.should_flush() {
-                    debug!("flush recent batch");
-                    Poll::Ready(Some(self.flush()))
+                if self.buffer.can_flush() {
+                    // if we can flush the buffer, do so now, and return
+                    Poll::Ready(Some(Ok(self.flush_one())))
                 } else {
-                    debug!("pending");
+                    // otherwise, we want to poll again in order to pull more
+                    // batches from the input record batch stream:
                     cx.waker().wake_by_ref();
                     Poll::Pending
                 }
             }
             Some(Err(e)) => Poll::Ready(Some(Err(e.into()))),
             None => {
-                // If we have data remaining in the buffer, we need to flush one more time,
-                // returning Some(...), and then when the stream gets polled again, the chunk
-                // buffer will be empty, and we return None.
-                //
-                // This is the reason the input stream is fused, because we may end up polling
-                // again after it has finished.
                 if !self.buffer.is_empty() {
-                    debug!("flushing buffer");
+                    // we only get here if we are not operating in chunked mode,
+                    // and we need to flush the entire buffer at once
+                    //
+                    // this is why the input stream is fused, because we will end up
+                    // polling the input stream again if we end up here.
                     Poll::Ready(Some(self.flush_all()))
                 } else {
-                    debug!("we are done");
                     Poll::Ready(None)
                 }
             }
