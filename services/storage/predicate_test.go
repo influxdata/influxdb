@@ -103,7 +103,7 @@ func TestRewriteExprRemoveFieldKeyAndValue(t *testing.T) {
 
 	expr, err := reads.NodeToExpr(node, nil)
 	assert.NoError(t, err, "NodeToExpr failed")
-	assert.Equal(t, expr.String(), `host::tag = 'host1' AND _field::tag =~ /^us-west/ AND "$" = 0.500`)
+	assert.Equal(t, expr.String(), `host::tag = 'host1' AND _field::tag =~ /^us-west/ AND "$" = 0.5`)
 
 	expr = storage.RewriteExprRemoveFieldKeyAndValue(expr)
 	assert.Equal(t, expr.String(), `host::tag = 'host1' AND true AND true`)
