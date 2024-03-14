@@ -51,7 +51,11 @@ pub fn setup_metric_registry() -> Arc<metric::Registry> {
         .set(PROCESS_START_TIME.timestamp() as u64);
 
     // Register jemalloc metrics
-    #[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+    #[cfg(all(
+        not(feature = "heappy"),
+        feature = "jemalloc_replacing_malloc",
+        not(target_env = "msvc")
+    ))]
     registry.register_instrument("jemalloc_metrics", crate::jemalloc::JemallocMetrics::new);
 
     // Register tokio metric for main runtime
