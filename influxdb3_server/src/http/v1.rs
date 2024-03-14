@@ -242,6 +242,9 @@ impl ChunkBuffer {
 ///
 /// Providing an `epoch` [`Precision`] will have the `time` column values emitted
 /// as UNIX epoch times with the given precision.
+///
+/// The input stream is wrapped in [`Fuse`], because of the [`Stream`] implementation
+/// below, it is possible that the input stream is polled after completion.
 struct QueryResponseStream {
     buffer: ChunkBuffer,
     input: Fuse<SendableRecordBatchStream>,
@@ -412,7 +415,7 @@ impl Stream for QueryResponseStream {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         // check for data in the buffer that can be flushed, if we are operating in chunked mode,
-        // this will drain the buffer as much as possible  by repeatedly returning Ready here
+        // this will drain the buffer as much as possible by repeatedly returning Ready here
         // until the buffer can no longer flush, and before the input stream is polled again:
         if self.buffer.can_flush() {
             return Poll::Ready(Some(Ok(self.flush_one())));
