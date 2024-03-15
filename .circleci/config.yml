@@ -195,83 +195,77 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace
       - checkout
-      - run:
-          name: checkfmt
-          command: ./checkfmt.sh
-      - run:
-          name: codegen
-          command: ./generate.sh
-      - run:
-          name: go vet
-          command: go vet ./...
+      - run: ./checkfmt.sh
+      - run: ./generate.sh
+      - run: go vet ./...
+
   unit_test:
     docker:
       - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
-    steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - influxdb-cache-v1-{{ checksum "go.mod" }}
-            - influxdb-cache-v1
-      - run:
-          name: Execute tests
-          command: |
-            set -x
-            mkdir -p junit
-            gotestsum --junitfile junit/influxdb.junit.xml -- ./...
-          no_output_timeout: 1500s
-      - store_test_results:
-          path: junit/
-  unit_test_tsi:
-    docker:
-      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
-    resource_class: large
-    steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - influxdb-cache-v1-{{ checksum "go.mod" }}
-            - influxdb-cache-v1
-      - run:
-          name: Execute tests
-          command: |
-            set -x
-            mkdir -p junit-tsi
-            export INFLUXDB_DATA_INDEX_VERSION="tsi1"
-            gotestsum --junitfile junit-tsi/influxdb.junit.xml -- ./...
-          no_output_timeout: 1500s
-      - store_test_results:
-          path: junit-tsi/
-  unit_test_race:
-    docker:
-      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
     resource_class: xlarge
+    parameters:
+      data:
+        type: string
+        default: inmem
+      race:
+        type: boolean
+        default: false
+    environment:
+      INFLUXDB_DATA_INDEX_VERSION: << parameters.data >>
+      GORACE: halt_on_error=1
     steps:
       - checkout
       - restore_cache:
           keys:
             - influxdb-cache-v1-{{ checksum "go.mod" }}
             - influxdb-cache-v1
-      - run:
-          name: Execute tests
-          command: |
-            set -x
-            mkdir -p junit-race/
-            export GORACE="halt_on_error=1"
-            # "resource_class: xlarge" creates a Docker container with eight
-            # virtual cpu cores. However, applications like "nproc" return
-            # the host machine's core count (which in this case is 36).
-            # When less cores are available than advertised, the
-            # race-tests fail.
-            #
-            # We'll manually reduce the number of available cores to what
-            # is specified by the CircleCI documentation:
-            # https://circleci.com/product/features/resource-classes/
-            taskset -c 0-7 \
-              gotestsum --junitfile junit-race/influxdb.junit.xml -- -race ./...
-          no_output_timeout: 1500s
-      - store_test_results:
-          path: junit-race/
+      - when:
+          condition: << parameters.race >>
+          steps:
+            - run:
+                name: Execute Tests
+                command: |
+                  mkdir -p junit-race-<< parameters.data >>
+                  # "resource_class: xlarge" creates a Docker container with eight
+                  # virtual cpu cores. However, applications like "nproc" return
+                  # the host machine's core count (which in this case is 36).
+                  # When less cores are available than advertised, the tests
+                  # sometimes fail.
+                  #
+                  # We'll manually reduce the number of available cores to what
+                  # is specified by the CircleCI documentation:
+                  # https://circleci.com/product/features/resource-classes/
+                  taskset -c 0-7 \
+                    gotestsum \
+                      --format=standard-verbose \
+                      --junitfile=junit-race-<< parameters.data >>/influxdb.junit.xml \
+                      -- -race ./...
+            - store_test_results:
+                path: junit-race-<< parameters.data >>/
+      - when:
+          condition: { not: << parameters.race >> }
+          steps:
+            - run:
+                name: Execute Tests
+                command: |
+                    mkdir -p junit-<< parameters.data >>
+                    # "resource_class: xlarge" creates a Docker container with eight
+                    # virtual cpu cores. However, applications like "nproc" return
+                    # the host machine's core count (which in this case is 36).
+                    # When less cores are available than advertised, the tests
+                    # sometimes fail.
+                    #
+                    # We'll manually reduce the number of available cores to what
+                    # is specified by the CircleCI documentation:
+                    # https://circleci.com/product/features/resource-classes/
+                    taskset -c 0-7 \
+                      gotestsum \
+                        --format=standard-verbose \
+                        --junitfile=junit-<< parameters.data >>/influxdb.junit.xml \
+                        -- ./...
+            - store_test_results:
+                path: junit-<< parameters.data >>/
+
   fluxtest:
     docker:
       - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
@@ -409,10 +403,16 @@ workflows:
           <<: *release_filter
       - unit_test:
           <<: *release_filter
-      - unit_test_tsi:
+          name: unit_test_inmem
+          data: inmem
+      - unit_test:
           <<: *release_filter
-      - unit_test_race:
+          name: unit_test_tsi1
+          data: tsi1
+      - unit_test:
           <<: *release_filter
+          name: unit_test_race
+          race: true
   on_push:
     when:
       equal: [ << pipeline.parameters.workflow >>, build ]
@@ -426,9 +426,15 @@ workflows:
             - build_packages
       - static_code_checks
       - fluxtest
-      - unit_test
-      - unit_test_tsi
-      - unit_test_race
+      - unit_test:
+          name: unit_test_inmem
+          data: inmem
+      - unit_test:
+          name: unit_test_tsi1
+          data: tsi1
+      - unit_test:
+          name: unit_test_race
+          race: true
   nightly:
     when:
       and:
@@ -449,17 +455,23 @@ workflows:
             - changelog
       - static_code_checks
       - fluxtest
-      - unit_test
-      - unit_test_tsi
-      - unit_test_race
+      - unit_test:
+          name: unit_test_inmem
+          data: inmem
+      - unit_test:
+          name: unit_test_tsi1
+          data: tsi1
+      - unit_test:
+          name: unit_test_race
+          race: true
       - build_binaries:
           requires:
             - changelog
             - static_code_checks
             - fluxtest
-            - unit_test
-            - unit_test_tsi
+            - unit_test_inmem
             - unit_test_race
+            - unit_test_tsi1
       - build_packages:
           requires:
             - build_binaries
