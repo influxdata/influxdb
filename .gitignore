@@ -44,10 +44,6 @@ gosym
 gocode
 inspect-raft
 
-# dependencies
-out_rpm/
-packages/
-
 # autconf
 autom4te.cache/
 config.log
