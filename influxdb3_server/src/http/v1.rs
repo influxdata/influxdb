@@ -37,7 +37,16 @@ where
     T: TimeProvider,
     Error: From<<Q as QueryExecutor>::Error>,
 {
+    /// Implements the v1 query API for InfluxDB
+    ///
+    /// Accepts the URL parameters, defined by [`QueryParams`]), and returns a stream
+    /// of [`QueryResponse`]s. If the `chunked` parameter is set to `true`, then the
+    /// response stream will be chunked into chunks of size `chunk_size`, if provided,
+    /// or 10,000. For InfluxQL queries that select from multiple measurements, chunks
+    /// will be split on the `chunk_size`, or series, whichever comes first.
     pub(super) async fn v1_query(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let params = QueryParams::from_request(&req)?;
+        info!(?params, "handle v1 query API");
         let QueryParams {
             chunk_size,
             chunked,
@@ -45,21 +54,13 @@ where
             epoch,
             pretty,
             query,
-        } = QueryParams::from_request(&req)?;
-        info!(
-            ?chunk_size,
-            chunked,
-            ?database,
-            query,
-            ?epoch,
-            "handle v1 query API"
-        );
+        } = params;
 
         let chunk_size = chunked.then(|| chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE));
 
         let stream = self.query_influxql_inner(database, &query).await?;
-        let stream = QueryResponseStream::new(0, stream, chunk_size, pretty, epoch)
-            .map_err(QueryError::Unexpected)?;
+        let stream =
+            QueryResponseStream::new(0, stream, chunk_size, pretty, epoch).map_err(QueryError)?;
         let body = Body::wrap_stream(stream);
 
         Ok(Response::builder().status(200).body(body).unwrap())
@@ -72,26 +73,36 @@ where
 /// for "password". The password is extracted upstream, and username is ignored.
 #[derive(Debug, Deserialize)]
 struct QueryParams {
+    /// Chunk the response into chunks of size `chunk_size`, or 10,000, or by series
     #[serde(default)]
     chunked: bool,
+    /// Define the number of records that will go into a chunk
     chunk_size: Option<usize>,
+    /// Database to perform the query against
+    ///
+    /// This is optional because the query string may specify the database
     #[serde(rename = "db")]
     database: Option<String>,
+    /// Map timestamps to UNIX epoch time, with the given precision
     #[allow(dead_code)]
     epoch: Option<Precision>,
+    /// Format the JSON outputted in pretty format
     #[serde(default)]
     pretty: bool,
+    /// The InfluxQL query string
     #[serde(rename = "q")]
     query: String,
 }
 
 impl QueryParams {
+    /// Extract [`QueryParams`] from an HTTP [`Request`]
     fn from_request(req: &Request<Body>) -> Result<Self> {
         let query = req.uri().query().ok_or(Error::MissingQueryParams)?;
         serde_urlencoded::from_str(query).map_err(Into::into)
     }
 }
 
+/// UNIX epoch precision
 #[derive(Debug, Deserialize, Clone, Copy)]
 enum Precision {
     #[serde(rename = "ns")]
@@ -108,12 +119,19 @@ enum Precision {
     Hours,
 }
 
+/// Error type for the v1 API
+///
+/// This is used to catch errors that occur during the streaming process.
+/// [`anyhow::Error`] is used as a catch-all because if anything fails during
+/// that process it will result in a 500 INTERNAL ERROR.
 #[derive(Debug, thiserror::Error)]
-pub enum QueryError {
-    #[error("unexpected query error: {0}")]
-    Unexpected(#[from] anyhow::Error),
-}
+#[error("unexpected query error: {0}")]
+pub struct QueryError(#[from] anyhow::Error);
 
+/// The response structure returned by the v1 query API
+///
+/// The `pretty` parameter is used during serizliaztion to determine if JSON
+/// is pretty formatted or not.
 #[derive(Debug, Serialize)]
 struct QueryResponse {
     results: Vec<StatementResponse>,
@@ -121,6 +139,7 @@ struct QueryResponse {
     pretty: bool,
 }
 
+/// Convert [`QueryResponse`] to [`Bytes`] for `hyper`'s [`Body::wrap_stream`] method
 impl From<QueryResponse> for Bytes {
     fn from(s: QueryResponse) -> Self {
         if s.pretty {
@@ -137,12 +156,14 @@ impl From<QueryResponse> for Bytes {
     }
 }
 
+/// The response to an individual InfluxQL query
 #[derive(Debug, Serialize)]
 struct StatementResponse {
     statement_id: usize,
     series: Vec<Series>,
 }
 
+/// The records produced for a single time series (measurement)
 #[derive(Debug, Serialize)]
 struct Series {
     name: String,
@@ -150,6 +171,7 @@ struct Series {
     values: Vec<Row>,
 }
 
+/// A single row, or record in a time series
 #[derive(Debug, Serialize)]
 struct Row(Vec<Value>);
 
@@ -290,8 +312,11 @@ impl QueryResponseStream {
         })
     }
 
-    fn stream_batch(&mut self, mut batch: RecordBatch) -> Result<(), anyhow::Error> {
+    fn buffer_record_batch(&mut self, mut batch: RecordBatch) -> Result<(), anyhow::Error> {
         if self.epoch.is_some() {
+            // If the `epoch` is specified, then we cast the `time` column into an Int64.
+            // This will be in nanoseconds. The conversion to the given epoch precision
+            // happens below, when processing the JSON rows
             batch = RecordBatch::try_from_iter(batch.schema().fields.iter().map(|f| {
                 let name = f.name();
                 let column = batch.column_by_name(name).unwrap();
@@ -306,35 +331,36 @@ impl QueryResponseStream {
                     },
                 )
             }))
-            .context("failed to cast batch time column")?;
+            .context("failed to cast batch time column with `epoch` parameter specified")?;
         }
         let json_rows = record_batches_to_json_rows(&[&batch])
-            .context("failed to convert RecordBatch slice to JSON")?;
+            .context("failed to convert RecordBatch to JSON rows")?;
         for json_row in json_rows {
             let mut row = vec![Value::Null; self.column_map.len()];
             for (k, v) in json_row {
                 if k == INFLUXQL_MEASUREMENT_COLUMN_NAME
-                    && self.buffer.current_measurement_name().is_none()
+                    && (self.buffer.current_measurement_name().is_none()
+                        || self
+                            .buffer
+                            .current_measurement_name()
+                            .is_some_and(|n| *n != v))
                 {
-                    self.buffer.push_next_measurement(
-                        v.as_str()
-                            .context("iox::measurement value was not a string")?,
-                    );
-                } else if k == INFLUXQL_MEASUREMENT_COLUMN_NAME
-                    && self
-                        .buffer
-                        .current_measurement_name()
-                        .is_some_and(|n| *n != v)
-                {
-                    // here we are starting on the next measurement, so push it into the buffer
+                    // we are on the "iox::measurement" column, which gives the name of the time series
+                    // if we are on the first row, or if the measurement changes, we push into the
+                    // buffer queue
                     self.buffer
-                        .push_next_measurement(v.as_str().unwrap().to_owned());
+                        .push_next_measurement(v.as_str().with_context(|| {
+                            format!("{INFLUXQL_MEASUREMENT_COLUMN_NAME} value was not a string")
+                        })?);
                 } else if k == INFLUXQL_MEASUREMENT_COLUMN_NAME {
+                    // we are still working on the current measurement in the buffer, so ignore
                     continue;
                 } else {
+                    // this is a column value that is part of the time series, add it to the row
                     let j = self.column_map.get(&k).unwrap();
                     row[*j] = if let (Some(precision), TIME_COLUMN_NAME) = (self.epoch, k.as_str())
                     {
+                        // specially handle the time column if `epoch` parameter provided
                         convert_ns_epoch(v, precision)?
                     } else {
                         v
@@ -354,6 +380,7 @@ impl QueryResponseStream {
         columns
     }
 
+    /// Flush a single chunk, or time series, when operating in chunked mode
     fn flush_one(&mut self) -> QueryResponse {
         let columns = self.columns();
         // this unwrap is okay because we only ever call flush_one
@@ -373,6 +400,7 @@ impl QueryResponseStream {
         }
     }
 
+    /// Flush the entire buffer
     fn flush_all(&mut self) -> Result<QueryResponse, anyhow::Error> {
         let columns = self.columns();
         let series = self
@@ -395,6 +423,7 @@ impl QueryResponseStream {
     }
 }
 
+/// Convert an epoch time in nanoseconds to the provided precision
 fn convert_ns_epoch(value: Value, precision: Precision) -> Result<Value, anyhow::Error> {
     let epoch_ns = value
         .as_i64()
@@ -423,8 +452,8 @@ impl Stream for QueryResponseStream {
         // poll the input record batch stream:
         match ready!(self.input.poll_next_unpin(cx)) {
             Some(Ok(batch)) => {
-                // stream the resulting batch into the buffer:
-                if let Err(e) = self.stream_batch(batch) {
+                // buffer the yielded batch:
+                if let Err(e) = self.buffer_record_batch(batch) {
                     return Poll::Ready(Some(Err(e)));
                 }
                 if self.buffer.can_flush() {
@@ -440,8 +469,8 @@ impl Stream for QueryResponseStream {
             Some(Err(e)) => Poll::Ready(Some(Err(e.into()))),
             None => {
                 if !self.buffer.is_empty() {
-                    // we only get here if we are not operating in chunked mode, and
-                    // we need to flush the entire buffer at once OR if we are in chunked
+                    // we only get here if we are not operating in chunked mode and
+                    // we need to flush the entire buffer at once, OR if we are in chunked
                     // mode, and there is less than a chunk's worth of records left
                     //
                     // this is why the input stream is fused, because we will end up
