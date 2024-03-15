@@ -1,4 +1,11 @@
 ---
+version:
+  release:
+    match: '^v[0-9]+.[0-9]+.[0-9]+'
+    value: '{{env.CIRCLE_TAG[1:]}}'
+  default:
+    value: '1.x-{{env.CIRCLE_SHA1[:8]}}'
+
 sources:
   - binary: /tmp/workspace/bins/influxdb_bin_linux_amd64-*.tar.gz
     target: packages/
@@ -6,7 +13,9 @@ sources:
     plat:   linux
 
 packages:
-  - name: influxdb
+  - name:        influxdb
+    description: Distributed time-series database.
+    license:     MIT
     binaries:
       - influx
       - influx_inspect
@@ -48,4 +57,7 @@ packages:
         group:  root
         perms:  0755
         target: usr/lib/influxdb/scripts/influxd-systemd-start.sh
-    source: .circleci/scripts/package/influxdb
+    rpm_attributes:
+      - 750,influxdb,influxdb:/var/log/influxdb
+      - 750,influxdb,influxdb:/var/lib/influxdb
+    source: .circleci/packages/influxdb
