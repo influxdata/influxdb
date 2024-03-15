@@ -1,4 +1,5 @@
 use crate::TestServer;
+use futures::StreamExt;
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
@@ -439,5 +440,234 @@ async fn api_v1_query() {
         println!("\n{q}", q = t.query);
         println!("{resp:#}");
         assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
+    }
+}
+
+#[tokio::test]
+async fn api_v1_query_chunked() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=a usage=0.9 1\n\
+            cpu,host=a usage=0.89 2\n\
+            cpu,host=a usage=0.85 3\n\
+            mem,host=a usage=0.5 4\n\
+            mem,host=a usage=0.6 5\n\
+            mem,host=a usage=0.7 6",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    struct TestCase<'a> {
+        chunk_size: Option<&'a str>,
+        query: &'a str,
+        expected: Vec<Value>,
+    }
+
+    let test_cases = [
+        // Basic Query with default chunking:
+        TestCase {
+            chunk_size: None,
+            query: "SELECT * FROM cpu",
+            expected: vec![json!({
+              "results": [
+                {
+                  "series": [
+                    {
+                      "name": "cpu",
+                      "columns": ["time","host","usage"],
+                      "values": [
+                        [1, "a", 0.9],
+                        [2, "a", 0.89],
+                        [3, "a", 0.85]
+                      ]
+                    }
+                  ],
+                  "statement_id": 0
+                }
+              ]
+            })],
+        },
+        // Basic Query with chunk size:
+        TestCase {
+            chunk_size: Some("2"),
+            query: "SELECT * FROM cpu",
+            expected: vec![
+                json!({
+                  "results": [
+                    {
+                      "series": [
+                        {
+                          "name": "cpu",
+                          "columns": ["time","host","usage"],
+                          "values": [
+                            [1, "a", 0.9],
+                            [2, "a", 0.89],
+                          ]
+                        }
+                      ],
+                      "statement_id": 0
+                    }
+                  ]
+                }),
+                json!({
+                  "results": [
+                    {
+                      "series": [
+                        {
+                          "name": "cpu",
+                          "columns": ["time","host","usage"],
+                          "values": [
+                            [3, "a", 0.85]
+                          ]
+                        }
+                      ],
+                      "statement_id": 0
+                    }
+                  ]
+                }),
+            ],
+        },
+        // Query with multiple measurements and default chunking:
+        TestCase {
+            chunk_size: None,
+            query: "SELECT * FROM cpu, mem",
+            expected: vec![
+                json!({
+                  "results": [
+                    {
+                      "series": [
+                        {
+                          "name": "cpu",
+                          "columns": ["time","host","usage"],
+                          "values": [
+                            [1, "a", 0.9],
+                            [2, "a", 0.89],
+                            [3, "a", 0.85]
+                          ]
+                        }
+                      ],
+                      "statement_id": 0
+                    }
+                  ]
+                }),
+                json!({
+                  "results": [
+                    {
+                      "series": [
+                        {
+                          "name": "mem",
+                          "columns": ["time","host","usage"],
+                          "values": [
+                            [4, "a", 0.5],
+                            [5, "a", 0.6],
+                            [6, "a", 0.7]
+                          ]
+                        }
+                      ],
+                      "statement_id": 0
+                    }
+                  ]
+                }),
+            ],
+        },
+        // Query with multiple measurements and chunk_size specified:
+        TestCase {
+            chunk_size: Some("2"),
+            query: "SELECT * FROM cpu, mem",
+            expected: vec![
+                json!({
+                  "results": [
+                    {
+                      "series": [
+                        {
+                          "name": "cpu",
+                          "columns": ["time","host","usage"],
+                          "values": [
+                            [1, "a", 0.9],
+                            [2, "a", 0.89],
+                          ]
+                        }
+                      ],
+                      "statement_id": 0
+                    }
+                  ]
+                }),
+                json!({
+                  "results": [
+                    {
+                      "series": [
+                        {
+                          "name": "cpu",
+                          "columns": ["time","host","usage"],
+                          "values": [
+                            [3, "a", 0.85]
+                          ]
+                        }
+                      ],
+                      "statement_id": 0
+                    }
+                  ]
+                }),
+                json!({
+                  "results": [
+                    {
+                      "series": [
+                        {
+                          "name": "mem",
+                          "columns": ["time","host","usage"],
+                          "values": [
+                            [4, "a", 0.5],
+                            [5, "a", 0.6],
+                          ]
+                        }
+                      ],
+                      "statement_id": 0
+                    }
+                  ]
+                }),
+                json!({
+                  "results": [
+                    {
+                      "series": [
+                        {
+                          "name": "mem",
+                          "columns": ["time","host","usage"],
+                          "values": [
+                            [6, "a", 0.7]
+                          ]
+                        }
+                      ],
+                      "statement_id": 0
+                    }
+                  ]
+                }),
+            ],
+        },
+    ];
+
+    for t in test_cases {
+        let mut params = vec![
+            ("db", "foo"),
+            ("q", t.query),
+            ("epoch", "s"),
+            ("chunked", "true"),
+        ];
+        if let Some(chunk_size) = t.chunk_size {
+            params.push(("chunk_size", chunk_size));
+        }
+        let stream = server.api_v1_query(&params).await.bytes_stream();
+        let values = stream
+            .map(|chunk| {
+                println!("{chunk:?}");
+                serde_json::from_slice(chunk.unwrap().as_ref()).unwrap()
+            })
+            .collect::<Vec<Value>>()
+            .await;
+        println!("\n{q}", q = t.query);
+        assert_eq!(t.expected, values, "query failed: {q}", q = t.query);
     }
 }
