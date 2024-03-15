@@ -240,55 +240,6 @@ async fn v1_password_parameter() {
         StatusCode::UNAUTHORIZED,
     );
 
-    // TODO - The following assertions will break when the actual APIs get implemented,
-    //        so will need to revisit these at that time. Right now, they just assert
-    //        that the returned status code is 404 Not Found, as that would indicate
-    //        the request made it past the authorize step in the HTTP router.
-
-    // Send requests with the token in the v1 `p` parameter:
-    assert_eq!(
-        client
-            .get(&query_url)
-            .query(&[("p", TOKEN)])
-            .send()
-            .await
-            .expect("send request")
-            .status(),
-        StatusCode::NOT_FOUND,
-    );
-    assert_eq!(
-        client
-            .get(&write_url)
-            .query(&[("p", TOKEN)])
-            .send()
-            .await
-            .expect("send request")
-            .status(),
-        StatusCode::NOT_FOUND,
-    );
-
-    // Send requests with the token in auth header:
-    assert_eq!(
-        client
-            .get(&query_url)
-            .bearer_auth(TOKEN)
-            .send()
-            .await
-            .expect("send request")
-            .status(),
-        StatusCode::NOT_FOUND,
-    );
-    assert_eq!(
-        client
-            .get(&write_url)
-            .bearer_auth(TOKEN)
-            .send()
-            .await
-            .expect("send request")
-            .status(),
-        StatusCode::NOT_FOUND,
-    );
-
     // Ensure that an invalid token passed in the `p` parameter is still unauthorized:
     assert_eq!(
         client
@@ -309,5 +260,63 @@ async fn v1_password_parameter() {
             .expect("send request")
             .status(),
         StatusCode::UNAUTHORIZED,
+    );
+
+    // make some writes so that the query API will work below:
+    server
+        .write_lp_to_db("foo", "cpu,host=a usage=0.9", Precision::Second)
+        .await
+        .unwrap();
+
+    // Send request to query API with the token in the v1 `p` parameter:
+    assert_eq!(
+        client
+            .get(&query_url)
+            .query(&[("p", TOKEN), ("q", "SELECT * FROM cpu"), ("db", "foo")])
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::OK,
+    );
+    // Send request to query API with the token in auth header:
+    assert_eq!(
+        client
+            .get(&query_url)
+            .query(&[("q", "SELECT * FROM cpu"), ("db", "foo")])
+            .bearer_auth(TOKEN)
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::OK,
+    );
+
+    // TODO - The following assertions will break when the write API gets implemented,
+    //        so will need to revisit these at that time. Right now, they just assert
+    //        that the returned status code is 404 Not Found, as that would indicate
+    //        the request made it past the authorize step in the HTTP router.
+
+    // Send request to write API with the token in the v1 `p` parameter:
+    assert_eq!(
+        client
+            .get(&write_url)
+            .query(&[("p", TOKEN)])
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::NOT_FOUND,
+    );
+    // Send request to write API with the token in auth header:
+    assert_eq!(
+        client
+            .get(&write_url)
+            .bearer_auth(TOKEN)
+            .send()
+            .await
+            .expect("send request")
+            .status(),
+        StatusCode::NOT_FOUND,
     );
 }

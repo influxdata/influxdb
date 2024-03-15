@@ -179,6 +179,15 @@ impl TestServer {
             .await
             .expect("send /api/v3/query_influxql request to server")
     }
+
+    pub async fn api_v1_query(&self, params: &[(&str, &str)]) -> Response {
+        self.http_client
+            .get(format!("{base}/api/v1/query", base = self.client_addr(),))
+            .query(params)
+            .send()
+            .await
+            .expect("send /api/v1/query request to server")
+    }
 }
 
 /// Get an available bind address on localhost

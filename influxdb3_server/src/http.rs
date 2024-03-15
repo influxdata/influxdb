@@ -10,6 +10,7 @@ use data_types::NamespaceName;
 use datafusion::error::DataFusionError;
 use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::execution::RecordBatchStream;
+use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{StreamExt, TryStreamExt};
 use hyper::header::ACCEPT;
 use hyper::header::AUTHORIZATION;
@@ -38,6 +39,8 @@ use std::string::FromUtf8Error;
 use std::sync::Arc;
 use thiserror::Error;
 use unicode_segmentation::UnicodeSegmentation;
+
+mod v1;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -185,6 +188,9 @@ pub enum Error {
         from your request"
     )]
     InfluxqlDatabaseMismatch { param_db: String, query_db: String },
+
+    #[error("v1 query API error: {0}")]
+    V1Query(#[from] v1::QueryError),
 }
 
 #[derive(Debug, Error)]
@@ -370,51 +376,7 @@ where
 
         info!(?database, %query_str, ?format, "handling query_influxql");
 
-        let mut statements = rewrite::parse_statements(&query_str)?;
-
-        if statements.len() != 1 {
-            return Err(Error::InfluxqlSingleStatement);
-        }
-        let statement = statements.pop().unwrap();
-
-        let database = match (database, statement.resolve_dbrp()) {
-            (None, None) => None,
-            (None, Some(db)) | (Some(db), None) => Some(db),
-            (Some(p), Some(q)) => {
-                if p == q {
-                    Some(p)
-                } else {
-                    return Err(Error::InfluxqlDatabaseMismatch {
-                        param_db: p,
-                        query_db: q,
-                    });
-                }
-            }
-        };
-
-        let stream = if statement.statement().is_show_databases() {
-            self.query_executor.show_databases()?
-        } else if statement.statement().is_show_retention_policies() {
-            self.query_executor
-                .show_retention_policies(database.as_deref(), None)
-                .await?
-        } else {
-            let Some(database) = database else {
-                return Err(Error::InfluxqlNoDatabase);
-            };
-
-            self.query_executor
-                .query(
-                    &database,
-                    // TODO - implement an interface that takes the statement directly,
-                    // so we don't need to double down on the parsing
-                    &statement.to_statement().to_string(),
-                    QueryKind::InfluxQl,
-                    None,
-                    None,
-                )
-                .await?
-        };
+        let stream = self.query_influxql_inner(database, &query_str).await?;
 
         Response::builder()
             .status(StatusCode::OK)
@@ -513,6 +475,63 @@ where
         req.extensions_mut().insert(permissions);
 
         Ok(())
+    }
+
+    /// Inner function for performing InfluxQL queries
+    ///
+    /// This is used by both the `/api/v3/query_influxql` and `/api/v1/query`
+    /// APIs.
+    async fn query_influxql_inner(
+        &self,
+        database: Option<String>,
+        query_str: &str,
+    ) -> Result<SendableRecordBatchStream> {
+        let mut statements = rewrite::parse_statements(query_str)?;
+
+        if statements.len() != 1 {
+            return Err(Error::InfluxqlSingleStatement);
+        }
+        let statement = statements.pop().unwrap();
+
+        let database = match (database, statement.resolve_dbrp()) {
+            (None, None) => None,
+            (None, Some(db)) | (Some(db), None) => Some(db),
+            (Some(p), Some(q)) => {
+                if p == q {
+                    Some(p)
+                } else {
+                    return Err(Error::InfluxqlDatabaseMismatch {
+                        param_db: p,
+                        query_db: q,
+                    });
+                }
+            }
+        };
+
+        if statement.statement().is_show_databases() {
+            self.query_executor.show_databases()
+        } else if statement.statement().is_show_retention_policies() {
+            self.query_executor
+                .show_retention_policies(database.as_deref(), None)
+                .await
+        } else {
+            let Some(database) = database else {
+                return Err(Error::InfluxqlNoDatabase);
+            };
+
+            self.query_executor
+                .query(
+                    &database,
+                    // TODO - implement an interface that takes the statement directly,
+                    // so we don't need to double down on the parsing
+                    &statement.to_statement().to_string(),
+                    QueryKind::InfluxQl,
+                    None,
+                    None,
+                )
+                .await
+        }
+        .map_err(Into::into)
     }
 }
 
@@ -786,7 +805,8 @@ where
         (Method::GET | Method::POST, "/api/v3/query_influxql") => {
             http_server.query_influxql(req).await
         }
-        (Method::GET, "/health") => http_server.health(),
+        (Method::GET, "/api/v1/query") => http_server.v1_query(req).await,
+        (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
         (Method::GET, "/debug/pprof") => pprof_home(req).await,
         (Method::GET, "/debug/pprof/profile") => pprof_profile(req).await,

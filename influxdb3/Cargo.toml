@@ -90,6 +90,7 @@ futures.workspace = true
 hyper.workspace = true
 pretty_assertions.workspace = true
 reqwest.workspace = true
+serde_json.workspace = true
 test_helpers.workspace = true
 tonic.workspace = true
 tower.workspace = true
