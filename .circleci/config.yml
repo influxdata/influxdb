@@ -302,7 +302,7 @@ jobs:
           at: /tmp/workspace
       - when:
           condition:
-            equals: [ << parameters.workflow >>, release ]
+            equal: [ << parameters.workflow >>, release ]
           steps:
             - aws-s3/copy:
                 aws-region:            INFLUXDB1X_AWS_REGION
@@ -312,7 +312,7 @@ jobs:
                 to:                    s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/releases/<< pipeline.git.tag >>/CHANGELOG.<< pipeline.git.tag >>.md
       - when:
           condition:
-            equals: [ << parameters.workflow >>, nightly ]
+            equal: [ << parameters.workflow >>, nightly ]
           steps:
             - aws-s3/copy:
                 aws-region:            INFLUXDB1X_AWS_REGION
