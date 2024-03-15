@@ -240,7 +240,13 @@ async fn v1_password_parameter() {
         StatusCode::UNAUTHORIZED,
     );
 
-    // TODO - The following assertions will break when the actual APIs get implemented,
+    // make some writes so that the query API will work below:
+    server
+        .write_lp_to_db("foo", "cpu,host=a usage=0.9", Precision::Second)
+        .await
+        .unwrap();
+
+    // TODO - The following assertions will break when the write API gets implemented,
     //        so will need to revisit these at that time. Right now, they just assert
     //        that the returned status code is 404 Not Found, as that would indicate
     //        the request made it past the authorize step in the HTTP router.
@@ -249,12 +255,12 @@ async fn v1_password_parameter() {
     assert_eq!(
         client
             .get(&query_url)
-            .query(&[("p", TOKEN)])
+            .query(&[("p", TOKEN), ("q", "SELECT * FROM cpu"), ("db", "foo")])
             .send()
             .await
             .expect("send request")
             .status(),
-        StatusCode::NOT_FOUND,
+        StatusCode::OK,
     );
     assert_eq!(
         client
@@ -271,12 +277,13 @@ async fn v1_password_parameter() {
     assert_eq!(
         client
             .get(&query_url)
+            .query(&[("q", "SELECT * FROM cpu"), ("db", "foo")])
             .bearer_auth(TOKEN)
             .send()
             .await
             .expect("send request")
             .status(),
-        StatusCode::NOT_FOUND,
+        StatusCode::OK,
     );
     assert_eq!(
         client

@@ -231,7 +231,7 @@ impl ChunkBuffer {
 }
 
 /// A wrapper around a [`SendableRecordBatchStream`] that buffers streamed
-/// [`RecordBatches`] and outputs [`QueryResponse`]s
+/// [`RecordBatch`]es and outputs [`QueryResponse`]s
 ///
 /// Can operate in `chunked` mode, in which case, the `chunk_size` provided
 /// will determine how often [`QueryResponse`]s are emitted. When not in
