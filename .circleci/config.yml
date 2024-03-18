@@ -303,6 +303,35 @@ jobs:
           command: target-env cargo build --target=<< parameters.target >> --workspace --release
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
+  build-docker-release:
+    # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
+    # kinda small node)
+    machine:
+      image: default
+    resource_class: 2xlarge+ # CPU bound, so make it fast
+    steps:
+      - checkout
+      - run:
+          name: Cargo release build
+          command: |
+            COMMIT_SHA="$(git rev-parse HEAD)"
+
+            .circleci/docker_build_release.bash \
+              "influxdb3" \
+              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
+              "quay.io/influxdb/influxdb3:$COMMIT_SHA"
+
+            mkdir /tmp/images
+            docker save quay.io/influxdb/influxdb3:"$COMMIT_SHA" | gzip > /tmp/images/influxdb3.tar.gz
+            docker save quay.io/influxdb/influxdb3:latest | gzip > /tmp/images/influxdb3.tar.gz
+          # linking might take a while and doesn't produce CLI output
+          no_output_timeout: 30m
+      - store_artifacts:
+          path: /tmp/images
+      - persist_to_workspace:
+          root: /tmp/images
+          paths:
+            - "*.tar.gz"
   sign-packages:
     circleci_ip_ranges: true
     docker:
@@ -403,15 +432,20 @@ workflows:
                 - x86_64-pc-windows-gnu
                 - x86_64-unknown-linux-gnu
                 - x86_64-unknown-linux-musl
+      - build-docker-release:
+          # <<: *release_filter
+          <<: *any_filter
       - sign-packages:
           <<: *release_filter
           requires:
             - build-release
+            - build-docker-release
             - test
       - publish-packages:
           <<: *release_filter
           requires:
             - build-release
+            - build-docker-release
             - sign-packages
             - test
 
