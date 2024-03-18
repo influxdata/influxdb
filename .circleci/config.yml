@@ -323,7 +323,6 @@ jobs:
 
             mkdir /tmp/images
             docker save quay.io/influxdb/influxdb3:"$COMMIT_SHA" | gzip > /tmp/images/influxdb3.tar.gz
-            docker save quay.io/influxdb/influxdb3:latest | gzip > /tmp/images/influxdb3.tar.gz
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
       - store_artifacts:
@@ -436,16 +435,18 @@ workflows:
           # <<: *release_filter
           <<: *any_filter
       - sign-packages:
-          <<: *release_filter
+          # <<: *release_filter
+          <<: *any_filter
           requires:
             - build-release
-            - build-docker-release
+            #- build-docker-release
             - test
       - publish-packages:
-          <<: *release_filter
+          # <<: *release_filter
+          <<: *any_filter
           requires:
             - build-release
-            - build-docker-release
+            #- build-docker-release
             - sign-packages
             - test
 
