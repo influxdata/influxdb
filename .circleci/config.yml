@@ -149,7 +149,7 @@ jobs:
       - run:
           name: Yamllint
           command: yamllint --config-file .circleci/yamllint.yml --strict .
-  cargo_audit:
+  cargo-audit:
     docker:
       - image: quay.io/influxdb/rust:ci
     environment:
@@ -217,7 +217,7 @@ jobs:
           command: cargo test --workspace
 
   # end to end tests with Heappy (heap profiling enabled)
-  test_heappy:
+  test-heappy:
     docker:
       - image: quay.io/influxdb/rust:ci
     resource_class: xlarge # use of a smaller executor tends crashes on link
@@ -242,7 +242,7 @@ jobs:
   # Compiles a binary with the default ("dev") cargo profile from the influxdb3 source
   # using the latest ci_image (influxdb/rust) and ensures various targets compile successfully
   # Build a dev binary.
-  build_dev:
+  build-dev:
     docker:
       - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3:latest
         auth:
@@ -291,7 +291,7 @@ jobs:
               command: target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console"
 
   # Compile cargo "release" profile binaries for influxdb3 edge releases
-  build_release:
+  build-release:
     docker:
       - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3:latest
         auth:
@@ -322,6 +322,64 @@ jobs:
           command: target-env cargo build --target=<< parameters.target >> --workspace --release
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
+  sign-packages:
+    circleci_ip_ranges: true
+    docker:
+      - image: quay.io/influxdb/rsign:latest
+        auth:
+          username: $QUAY_RSIGN_USERNAME
+          password: $QUAY_RSIGN_PASSWORD
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - fc:7b:6e:a6:38:7c:63:5a:13:be:cb:bb:fa:33:b3:3c
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: |
+          for target in /tmp/workspace/artifacts/*
+          do
+            case "${target}"
+            in
+              # rsign is shipped on Alpine Linux which uses "busybox ash" instead
+              # of bash. ash is somewhat more posix compliant and is missing some
+              # extensions and niceties from bash.
+              *.deb|*.rpm|*.tar.gz|*.zip)
+                rsign "${target}"
+              ;;
+            esac
+
+            if [ -f "${target}" ]
+            then
+              # Since all artifacts are present, sign them here. This saves Circle
+              # credits over spinning up another instance just to separate out the
+              # checksum job.
+              sha256sum "${target}" >> "/tmp/workspace/artifacts/influxdb2.${CIRCLE_TAG}.digests"
+
+              # write individual checksums
+              md5sum    "${target}" >> "${target}.md5"
+              sha256sum "${target}" >> "${target}.sha256"
+            fi
+          done
+      - persist_to_workspace:
+          root: /tmp/workspace
+          paths:
+            - artifacts
+      - store_artifacts:
+          path: /tmp/workspace/artifacts
+  publish-packages:
+    docker:
+      - image: cimg/python:3.6
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - aws-s3/sync:
+          arguments:             --acl public-read
+          aws-region:            RELEASE_AWS_REGION
+          aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
+          aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
+          from:                  /tmp/workspace/artifacts
+          to:                    s3://dl.influxdata.com/influxdb/releases
+
 
 workflows:
   version: 2
@@ -331,15 +389,15 @@ workflows:
           <<: *any_filter
       - lint:
           <<: *any_filter
-      - cargo_audit:
+      - cargo-audit:
           <<: *any_filter
       - test:
           <<: *any_filter
-      - test_heappy:
+      - test-heappy:
           <<: *any_filter
-      - build_dev:
+      - build-dev:
           <<: *any_filter
-          name: build_dev-<< matrix.target >>
+          name: build-dev-<< matrix.target >>
           matrix:
             parameters:
               target:
@@ -351,10 +409,10 @@ workflows:
                 - x86_64-unknown-linux-musl
       - doc:
           <<: *any_filter
-      - build_release:
+      - build-release:
           # <<: *release_filter
           <<: *any_filter
-          name: build_release-<< matrix.target >>
+          name: build-release-<< matrix.target >>
           matrix:
             parameters:
               target:
@@ -364,3 +422,15 @@ workflows:
                 - x86_64-pc-windows-gnu
                 - x86_64-unknown-linux-gnu
                 - x86_64-unknown-linux-musl
+      - sign-packages:
+          <<: *release_filter
+          requires:
+            - build-release
+            - test
+      - publish-packages:
+          <<: *release_filter
+          requires:
+            - build-release
+            - sign-packages
+            - test
+
