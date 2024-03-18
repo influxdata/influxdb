@@ -290,14 +290,8 @@ jobs:
               name: Check extra features (like prod image)
               command: target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console"
 
-  # Compile cargo "release" profile binaries for influxdb3 & data generator
-  #
-  # Uses the latest ci_image (influxdb/rust) to build a release binary and
-  # copies it to a minimal container image based upon `rust:slim-buster`. This
-  # minimal image is then pushed to `quay.io/influxdb/influxdb3:${BRANCH}`.
+  # Compile cargo "release" profile binaries for influxdb3 edge releases
   build_release:
-    # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
-    # kinda small node)
     docker:
       - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3:latest
         auth:
@@ -329,20 +323,9 @@ jobs:
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
 
-          #parameters:
-  #release_branch:
-    #description: "Build and push container image for non-main branch"
-    #type: boolean
-    #default: false
-
 workflows:
   version: 2
-
-  # CI for all pull requests.
   ci:
-    #when:
-      #and:
-        #- not: << pipeline.parameters.release_branch >>
     jobs:
       - fmt:
           <<: *any_filter
@@ -369,9 +352,7 @@ workflows:
       - doc:
           <<: *any_filter
       - build_release:
-          #filters:
-            #branches:
-              #only: main
+          # <<: *release_filter
           <<: *any_filter
           name: build_release-<< matrix.target >>
           matrix:
@@ -383,10 +364,3 @@ workflows:
                 - x86_64-pc-windows-gnu
                 - x86_64-unknown-linux-gnu
                 - x86_64-unknown-linux-musl
-
-  # Force build and push of container image for non-main branch.
-  # See instructions at the top of this file
-  #release_branch:
-    #when: << pipeline.parameters.release_branch >>
-    #jobs:
-      #- build_release
