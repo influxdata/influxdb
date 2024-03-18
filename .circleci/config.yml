@@ -111,24 +111,6 @@ commands:
             rm -f /tmp/gcloud.json
             gcloud auth configure-docker us-docker.pkg.dev
 
-build-dev-ref: &build-dev-ref
-    docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3:latest
-        auth:
-          username: _json_key
-          password: $CISUPPORT_GCS_AUTHORIZATION
-    environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      CARGO_PROFILE_DEV_DEBUG: "1"
-      # https://github.com/rust-lang/cargo/issues/10280
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-      # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
-      # avarage. At peak this is a bit tight, so lower the CPU count for cargo a bit.
-      CARGO_BUILD_JOBS: "12"
-
 jobs:
   fmt:
     docker:
@@ -261,7 +243,23 @@ jobs:
   # using the latest ci_image (influxdb/rust) and ensures various targets compile successfully
   # Build a dev binary.
   build_dev:
-    <<: *build-dev-ref
+    docker:
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3:latest
+        auth:
+          username: _json_key
+          password: $CISUPPORT_GCS_AUTHORIZATION
+    environment:
+      TARGET: << parameters.target >>
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
+      # avarage. At peak this is a bit tight, so lower the CPU count for cargo a bit.
+      CARGO_BUILD_JOBS: "12"
     parameters:
       target:
         type: string
@@ -272,53 +270,25 @@ jobs:
           command: rustup target add << parameters.target >>
       - run:
           name: Cargo build
-          command: cargo build --target=<< parameters.target >> --workspace
-      - run:
-          name: Check benches compile
-          command: cargo check --target=<< parameters.target >> --workspace --benches
-      - run:
-          name: Check extra features (like prod image)
-          command: cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof"
-
-  build_dev-x86_64-pc-windows-gnu:
-    <<: *build-dev-ref
-    steps:
-      - checkout
-      - run: |
-          cat \<<'EOF' >>$BASH_ENV || true
-            export JEMALLOC_OVERRIDE=/jemalloc/x86_64-pc-windows-gnu/libjemalloc.a
-          EOF
-      - run:
-          name: Install Target
-          command: rustup target add x86_64-pc-windows-gnu
-      - run:
-          name: Cargo build
-          command: cargo build --target=x86_64-pc-windows-gnu --workspace
-      - run:
-          name: Check extra features (like prod image)
-          command: cargo check --target=x86_64-pc-windows-gnu --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console"
-
-  build_dev-aarch64-apple-darwin:
-    <<: *build-dev-ref
-    steps:
-      - checkout
-      - run: |
-          cat \<<'EOF' >>$BASH_ENV || true
-            export JEMALLOC_OVERRIDE=/jemalloc/aarch64-apple-darwin/libjemalloc.a
-            export TARGET_CC=aarch64-apple-darwin22.2-clang
-          EOF
-      - run:
-          name: Install Target
-          command: rustup target add aarch64-apple-darwin
-      - run:
-          name: Cargo build
-          command: cargo build --target=aarch64-apple-darwin --workspace
-      - run:
-          name: Check benches compile
-          command: cargo check --target=aarch64-apple-darwin --workspace --benches
-      - run:
-          name: Check extra features (like prod image)
-          command: cargo check --target=aarch64-apple-darwin --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof"
+          command: target-env cargo build --target=<< parameters.target >> --workspace
+      - when:
+          condition:
+            not:
+              equal: [ << parameters.target >>, x86_64-pc-windows-gnu ]
+          steps:
+          - run:
+              name: Check benches compile
+              command: target-env cargo check --target=<< parameters.target >> --workspace --benches
+          - run:
+              name: Check extra features (like prod image)
+              command: target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof"
+      - when:
+          condition:
+            equal: [ << parameters.target >>, x86_64-pc-windows-gnu ]
+          steps:
+          - run:
+              name: Check extra features (like prod image)
+              command: target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console"
 
   # Compile cargo "release" profile binaries for influxdb3 & data generator
   #
@@ -385,10 +355,12 @@ workflows:
           matrix:
             parameters:
               target:
+                - aarch64-apple-darwin
                 - aarch64-unknown-linux-gnu
+                - aarch64-unknown-linux-musl
+                - x86_64-pc-windows-gnu
                 - x86_64-unknown-linux-gnu
-      - build_dev-aarch64-apple-darwin
-      - build_dev-x86_64-pc-windows-gnu
+                - x86_64-unknown-linux-musl
       - doc:
           <<: *any_filter
       - build_release:
