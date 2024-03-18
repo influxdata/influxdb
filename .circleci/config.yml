@@ -40,26 +40,6 @@ orbs:
   terraform: circleci/terraform@2.1.0
   rust: circleci/rust@1.6.1
 
-executors:
-  linux-amd64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: 2xlarge
-  linux-arm64:
-    machine:
-      image: ubuntu-2204:current
-      resource_class: arm.2xlarge
-  darwin:
-    resource_class: macos.m1.large.gen1
-    macos:
-      xcode: 15.0.0
-    shell: /bin/bash -eo pipefail
-  windows:
-    machine:
-      image: windows-server-2019-vs2019:stable
-      resource_class: windows.2xlarge
-    shell: bash.exe -eo pipefail
-
 # Unlike when a commit is pushed to a branch, CircleCI does not automatically
 # execute a workflow when a tag is pushed to a repository. These filters
 # allow the corresponding workflow to execute on any branch or tag.
@@ -297,6 +277,7 @@ jobs:
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
+    resource_class: 2xlarge+
     environment:
       TARGET: << parameters.target >>
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
