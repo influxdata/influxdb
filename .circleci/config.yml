@@ -298,46 +298,51 @@ jobs:
   build_release:
     # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
     # kinda small node)
-    machine:
-      image: default
-    resource_class: 2xlarge # CPU bound, so make it fast
+    docker:
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3:latest
+        auth:
+          username: _json_key
+          password: $CISUPPORT_GCS_AUTHORIZATION
+    environment:
+      TARGET: << parameters.target >>
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
+      # avarage. At peak this is a bit tight, so lower the CPU count for cargo a bit.
+      CARGO_BUILD_JOBS: "12"
+    parameters:
+      target:
+        type: string
     steps:
       - checkout
       - run:
+          name: Install Target
+          command: rustup target add << parameters.target >>
+      - run:
           name: Cargo release build
-          command: |
-            COMMIT_SHA="$(git rev-parse HEAD)"
-
-            .circleci/docker_build_release.bash \
-              "influxdb3" \
-              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
-              "quay.io/influxdb/influxdb3:$COMMIT_SHA"
-
-            mkdir /tmp/images
-            docker save quay.io/influxdb/influxdb3:"$COMMIT_SHA" | gzip > /tmp/images/influxdb3.tar.gz
+          command: target-env cargo build --target=<< parameters.target >> --workspace --release
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
-      - store_artifacts:
-          path: /tmp/images
-      - persist_to_workspace:
-          root: /tmp/images
-          paths:
-            - "*.tar.gz"
 
-parameters:
-  release_branch:
-    description: "Build and push container image for non-main branch"
-    type: boolean
-    default: false
+          #parameters:
+  #release_branch:
+    #description: "Build and push container image for non-main branch"
+    #type: boolean
+    #default: false
 
 workflows:
   version: 2
 
   # CI for all pull requests.
   ci:
-    when:
-      and:
-        - not: << pipeline.parameters.release_branch >>
+    #when:
+      #and:
+        #- not: << pipeline.parameters.release_branch >>
     jobs:
       - fmt:
           <<: *any_filter
@@ -364,13 +369,24 @@ workflows:
       - doc:
           <<: *any_filter
       - build_release:
-          filters:
-            branches:
-              only: main
+          #filters:
+            #branches:
+              #only: main
+          <<: *any_filter
+          name: build_dev-<< matrix.target >>
+          matrix:
+            parameters:
+              target:
+                - aarch64-apple-darwin
+                - aarch64-unknown-linux-gnu
+                - aarch64-unknown-linux-musl
+                - x86_64-pc-windows-gnu
+                - x86_64-unknown-linux-gnu
+                - x86_64-unknown-linux-musl
 
   # Force build and push of container image for non-main branch.
   # See instructions at the top of this file
-  release_branch:
-    when: << pipeline.parameters.release_branch >>
-    jobs:
-      - build_release
+  #release_branch:
+    #when: << pipeline.parameters.release_branch >>
+    #jobs:
+      #- build_release
