@@ -373,7 +373,7 @@ workflows:
             #branches:
               #only: main
           <<: *any_filter
-          name: build_dev-<< matrix.target >>
+          name: build_release-<< matrix.target >>
           matrix:
             parameters:
               target:
