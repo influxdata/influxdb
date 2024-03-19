@@ -218,8 +218,8 @@ async fn v1_password_parameter() {
         .await;
 
     let client = reqwest::Client::new();
-    let query_url = format!("{base}/api/v1/query", base = server.client_addr());
-    let write_url = format!("{base}/api/v1/write", base = server.client_addr());
+    let query_url = format!("{base}/query", base = server.client_addr());
+    let write_url = format!("{base}/write", base = server.client_addr());
     // Send requests without any authentication:
     assert_eq!(
         client

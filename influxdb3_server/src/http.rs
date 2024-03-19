@@ -547,7 +547,7 @@ fn extract_v1_auth_token(req: &mut Request<Body>) -> Option<Vec<u8>> {
     req.uri()
         .path_and_query()
         .and_then(|pq| match pq.path() {
-            "/api/v1/query" | "/api/v1/write" => pq.query(),
+            "/query" | "/write" => pq.query(),
             _ => None,
         })
         .map(serde_urlencoded::from_str::<V1AuthParameters>)
@@ -805,7 +805,7 @@ where
         (Method::GET | Method::POST, "/api/v3/query_influxql") => {
             http_server.query_influxql(req).await
         }
-        (Method::GET, "/query" | "/api/v1/query") => http_server.v1_query(req).await,
+        (Method::GET, "/query") => http_server.v1_query(req).await,
         (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
         (Method::GET, "/debug/pprof") => pprof_home(req).await,
