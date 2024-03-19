@@ -27,7 +27,11 @@ func (a *FloatArray) MaxTime() int64 {
 }
 
 func (a *FloatArray) Len() int {
-	return len(a.Timestamps)
+	if a != nil {
+		return len(a.Timestamps)
+	} else {
+		return 0
+	}
 }
 
 // search performs a binary search for UnixNano() v in a
@@ -224,7 +228,11 @@ func (a *IntegerArray) MaxTime() int64 {
 }
 
 func (a *IntegerArray) Len() int {
-	return len(a.Timestamps)
+	if a != nil {
+		return len(a.Timestamps)
+	} else {
+		return 0
+	}
 }
 
 // search performs a binary search for UnixNano() v in a
@@ -421,7 +429,11 @@ func (a *UnsignedArray) MaxTime() int64 {
 }
 
 func (a *UnsignedArray) Len() int {
-	return len(a.Timestamps)
+	if a != nil {
+		return len(a.Timestamps)
+	} else {
+		return 0
+	}
 }
 
 // search performs a binary search for UnixNano() v in a
@@ -618,7 +630,11 @@ func (a *StringArray) MaxTime() int64 {
 }
 
 func (a *StringArray) Len() int {
-	return len(a.Timestamps)
+	if a != nil {
+		return len(a.Timestamps)
+	} else {
+		return 0
+	}
 }
 
 // search performs a binary search for UnixNano() v in a
@@ -815,7 +831,11 @@ func (a *BooleanArray) MaxTime() int64 {
 }
 
 func (a *BooleanArray) Len() int {
-	return len(a.Timestamps)
+	if a != nil {
+		return len(a.Timestamps)
+	} else {
+		return 0
+	}
 }
 
 // search performs a binary search for UnixNano() v in a
@@ -1010,7 +1030,11 @@ func (a *TimestampArray) MaxTime() int64 {
 }
 
 func (a *TimestampArray) Len() int {
-	return len(a.Timestamps)
+	if a != nil {
+		return len(a.Timestamps)
+	} else {
+		return 0
+	}
 }
 
 // search performs a binary search for UnixNano() v in a
