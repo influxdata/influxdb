@@ -305,7 +305,7 @@ jobs:
           no_output_timeout: 30m
       - run:
           name: tar and gzip build artifacts
-          command: ls -al target/<< parameters.target >>/release && mv target/<< parameters.target >>/release/influxdb3 . && tar -czvf influxdb3-<< parameters.target >>.tar.gz influxdb3
+          command: cd target/<< parameters.target >>/release && tar -czvf influxdb3-<< parameters.target >>.tar.gz influxdb3 && mv influxdb3-<< parameters.target >>.tar.gz ../../..
       - store_artifacts:
           path: /tmp/workspace/artifacts
       - persist_to_workspace:
