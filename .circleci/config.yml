@@ -305,13 +305,15 @@ jobs:
           no_output_timeout: 30m
       - run:
           name: tar and gzip build artifacts
-          command: cd target/<< parameters.target >>/release && tar -czvf influxdb3-<< parameters.target >>.tar.gz influxdb3 && mv influxdb3-<< parameters.target >>.tar.gz ../../..
+          command: |
+            mkdir -p artifacts
+            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/release" influxdb3{,.exe}
       - store_artifacts:
-          path: /tmp/workspace/artifacts
+          path: artifacts
       - persist_to_workspace:
-          root: /tmp/workspace/artifacts
+          root: .
           paths:
-            - "*.tar.gz"
+            - artifacts
   build-docker-release:
     # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
     # kinda small node)
