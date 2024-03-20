@@ -1,6 +1,7 @@
 use arrow::array::RecordBatch;
 use data_types::{ChunkId, ChunkOrder, TransitionPartitionId};
 use datafusion::common::Statistics;
+use iox_query::chunk_statistics::ChunkStatistics;
 use iox_query::{QueryChunk, QueryChunkData};
 use parquet_file::storage::ParquetExecInput;
 use schema::sort::SortKey;
@@ -12,7 +13,7 @@ use std::sync::Arc;
 pub struct BufferChunk {
     pub(crate) batches: Vec<RecordBatch>,
     pub(crate) schema: Schema,
-    pub(crate) stats: Arc<Statistics>,
+    pub(crate) stats: Arc<ChunkStatistics>,
     pub(crate) partition_id: data_types::partition::TransitionPartitionId,
     pub(crate) sort_key: Option<SortKey>,
     pub(crate) id: data_types::ChunkId,
@@ -21,7 +22,7 @@ pub struct BufferChunk {
 
 impl QueryChunk for BufferChunk {
     fn stats(&self) -> Arc<Statistics> {
-        Arc::clone(&self.stats)
+        Arc::clone(&self.stats.statistics())
     }
 
     fn schema(&self) -> &Schema {
@@ -64,7 +65,7 @@ impl QueryChunk for BufferChunk {
 #[derive(Debug)]
 pub struct ParquetChunk {
     pub(crate) schema: Schema,
-    pub(crate) stats: Arc<Statistics>,
+    pub(crate) stats: Arc<ChunkStatistics>,
     pub(crate) partition_id: TransitionPartitionId,
     pub(crate) sort_key: Option<SortKey>,
     pub(crate) id: ChunkId,
@@ -74,7 +75,7 @@ pub struct ParquetChunk {
 
 impl QueryChunk for ParquetChunk {
     fn stats(&self) -> Arc<Statistics> {
-        Arc::clone(&self.stats)
+        Arc::clone(&self.stats.statistics())
     }
 
     fn schema(&self) -> &Schema {
