@@ -260,7 +260,7 @@ mod tests {
             ingest_time,
             SegmentDuration::new_5m(),
             false,
-            Precision::Nanosecond,
+            Precision::Nanoseconds,
         )
         .unwrap();
 
@@ -276,7 +276,7 @@ mod tests {
             ingest_time,
             SegmentDuration::new_5m(),
             false,
-            Precision::Nanosecond,
+            Precision::Nanoseconds,
         )
         .unwrap();
         flusher

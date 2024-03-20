@@ -175,7 +175,7 @@ pub(crate) fn load_buffer_from_segment(
                         Time::from_timestamp_nanos(write.default_time),
                         segment_duration,
                         false,
-                        Precision::Nanosecond,
+                        Precision::Nanoseconds,
                     )?;
 
                     let db_buffer = buffered_data

@@ -24,6 +24,8 @@ use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
 use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
+use iox_http::write::single_tenant::SingleTenantRequestUnifier;
+use iox_http::write::{WriteParseError, WriteRequestUnifier};
 use iox_query_influxql_rewrite as rewrite;
 use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, info};
@@ -286,6 +288,7 @@ pub(crate) struct HttpApi<W, Q, T> {
     pub(crate) query_executor: Arc<Q>,
     max_request_bytes: usize,
     authorizer: Arc<dyn Authorizer>,
+    legacy_write_param_unifier: SingleTenantRequestUnifier,
 }
 
 impl<W, Q, T> HttpApi<W, Q, T> {
@@ -297,6 +300,7 @@ impl<W, Q, T> HttpApi<W, Q, T> {
         max_request_bytes: usize,
         authorizer: Arc<dyn Authorizer>,
     ) -> Self {
+        let legacy_write_param_unifier = SingleTenantRequestUnifier::new(Arc::clone(&authorizer));
         Self {
             common_state,
             time_provider,
@@ -304,6 +308,7 @@ impl<W, Q, T> HttpApi<W, Q, T> {
             query_executor,
             max_request_bytes,
             authorizer,
+            legacy_write_param_unifier,
         }
     }
 }
@@ -318,6 +323,14 @@ where
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
+        self.write_lp_inner(params, req).await
+    }
+
+    async fn write_lp_inner(
+        &self,
+        params: WriteParams,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
         validate_db_name(&params.db)?;
         info!("write_lp to {}", params.db);
 
@@ -752,6 +765,17 @@ pub(crate) struct WriteParams {
     pub(crate) precision: Precision,
 }
 
+impl From<iox_http::write::WriteParams> for WriteParams {
+    fn from(legacy: iox_http::write::WriteParams) -> Self {
+        Self {
+            db: legacy.namespace.to_string(),
+            // legacy behaviour was to not accept partial:
+            accept_partial: false,
+            precision: legacy.precision.into(),
+        }
+    }
+}
+
 pub(crate) async fn route_request<W: WriteBuffer, Q: QueryExecutor, T: TimeProvider>(
     http_server: Arc<HttpApi<W, Q, T>>,
     mut req: Request<Body>,
@@ -800,6 +824,22 @@ where
     let content_length = req.headers().get("content-length").cloned();
 
     let response = match (method.clone(), uri.path()) {
+        (Method::POST, "/write") => {
+            let params = match http_server.legacy_write_param_unifier.parse_v1(&req).await {
+                Ok(p) => p.into(),
+                Err(e) => return Ok(legacy_write_error_to_response(e)),
+            };
+
+            http_server.write_lp_inner(params, req).await
+        }
+        (Method::POST, "/api/v2/write") => {
+            let params = match http_server.legacy_write_param_unifier.parse_v2(&req).await {
+                Ok(p) => p.into(),
+                Err(e) => return Ok(legacy_write_error_to_response(e)),
+            };
+
+            http_server.write_lp_inner(params, req).await
+        }
         (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,
         (Method::GET | Method::POST, "/api/v3/query_sql") => http_server.query_sql(req).await,
         (Method::GET | Method::POST, "/api/v3/query_influxql") => {
@@ -831,6 +871,15 @@ where
             Ok(error.response())
         }
     }
+}
+
+fn legacy_write_error_to_response(error: WriteParseError) -> Response<Body> {
+    let (body, status) = match error {
+        WriteParseError::NotImplemented => (Body::from("not found"), StatusCode::NOT_FOUND),
+        WriteParseError::SingleTenantError(e) => (Body::from(e.to_string()), StatusCode::from(&e)),
+        WriteParseError::MultiTenantError(e) => (Body::from(e.to_string()), StatusCode::from(&e)),
+    };
+    Response::builder().status(status).body(body).unwrap()
 }
 
 async fn pprof_home(req: Request<Body>) -> Result<Response<Body>> {

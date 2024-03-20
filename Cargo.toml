@@ -105,6 +105,7 @@ influxdb-line-protocol = { git = "https://github.com/influxdata/influxdb3_core",
 influxdb_influxql_parser = { git = "https://github.com/influxdata/influxdb3_core", branch = "2024-03-20-iox-sync" }
 influxdb_iox_client = { git = "https://github.com/influxdata/influxdb3_core", branch = "2024-03-20-iox-sync" }
 iox_catalog = { git = "https://github.com/influxdata/influxdb3_core", branch = "2024-03-20-iox-sync" }
+iox_http = { git = "https://github.com/influxdata/influxdb3_core", branch = "2024-03-20-iox-sync" }
 iox_query = { git = "https://github.com/influxdata/influxdb3_core", branch = "2024-03-20-iox-sync" }
 iox_query_params = { git = "https://github.com/influxdata/influxdb3_core", branch = "2024-03-20-iox-sync" }
 iox_query_influxql = { git = "https://github.com/influxdata/influxdb3_core", branch = "2024-03-20-iox-sync" }
