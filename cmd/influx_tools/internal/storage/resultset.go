@@ -72,13 +72,14 @@ func (ci *CursorIterator) Next() bool {
 	}
 
 	var shard tsdb.CursorIterator
+	var err error
 	ci.cur = nil
-	for ci.cur == nil && len(ci.itrs) > 0 {
+	for ci.cur == nil && len(ci.itrs) > 0 && err == nil {
 		shard, ci.itrs = ci.itrs[0], ci.itrs[1:]
-		ci.cur, _ = shard.Next(ci.ctx, &ci.req)
+		ci.cur, err = shard.Next(ci.ctx, &ci.req)
 	}
 
-	return ci.cur != nil
+	return ci.cur != nil && err == nil
 }
 
 func (ci *CursorIterator) Cursor() tsdb.Cursor {

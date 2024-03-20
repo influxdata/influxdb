@@ -282,13 +282,15 @@ func (c *{{.name}}MultiShardArrayCursor) nextArrayCursor() bool {
 
 	var itr cursors.CursorIterator
 	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
+	var err error
+	for cur == nil && len(c.itrs) > 0 && err == nil {
 		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
+		cur, err = itr.Next(c.ctx, c.req)
 	}
 
+    c.err = err
 	var ok bool
-	if cur != nil {
+	if cur != nil && err == nil {
 		var next cursors.{{.Name}}ArrayCursor
 		next, ok = cur.(cursors.{{.Name}}ArrayCursor)
 		if !ok {

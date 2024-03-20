@@ -11,7 +11,8 @@ import (
 {{range .}}
 
 // build{{.Name}}ArrayCursor creates an array cursor for a {{.name}} field.
-func (q *arrayCursorIterator) build{{.Name}}ArrayCursor(ctx context.Context, name []byte, tags models.Tags, field string, opt query.IteratorOptions) tsdb.{{.Name}}ArrayCursor {
+func (q *arrayCursorIterator) build{{.Name}}ArrayCursor(ctx context.Context, name []byte, tags models.Tags, field string, opt query.IteratorOptions) (tsdb.{{.Name}}ArrayCursor, error) {
+    var err error
 	key := q.seriesFieldKeyBytes(name, tags, field)
 	cacheValues := q.e.Cache.Values(key)
 	keyCursor := q.e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
@@ -19,14 +20,20 @@ func (q *arrayCursorIterator) build{{.Name}}ArrayCursor(ctx context.Context, nam
 		if q.asc.{{.Name}} == nil {
 			q.asc.{{.Name}} = new{{.Name}}ArrayAscendingCursor()
 		}
-		q.asc.{{.Name}}.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
-		return q.asc.{{.Name}}
+		err = q.asc.{{.Name}}.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
+		if err != nil {
+		    return nil, err
+		}
+		return q.asc.{{.Name}}, nil
 	} else {
 		if q.desc.{{.Name}} == nil {
 			q.desc.{{.Name}} = new{{.Name}}ArrayDescendingCursor()
 		}
-		q.desc.{{.Name}}.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
-		return q.desc.{{.Name}}
+		err = q.desc.{{.Name}}.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
+		if err != nil {
+		    return nil, err
+		}
+		return q.desc.{{.Name}}, nil
 	}
 }
 

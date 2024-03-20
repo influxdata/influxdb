@@ -38,18 +38,23 @@ func new{{$Type}}() *{{$type}} {
 	return c
 }
 
-func (c *{{$type}}) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
-c.end = end
+func (c *{{$type}}) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
+    var err error
+    c.end = end
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
 		return c.cache.values[i].UnixNano() >= seek
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}ArrayBlock(c.tsm.buf)
+	c.tsm.values, err = c.tsm.keyCursor.Read{{.Name}}ArrayBlock(c.tsm.buf)
+	if err != nil {
+	    return err
+	}
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] >= seek
 	})
+	return nil
 }
 
 func (c *{{$type}}) Err() error        { return nil }
@@ -184,7 +189,8 @@ func new{{$Type}}() *{{$type}} {
 	return c
 }
 
-func (c *{{$type}}) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+func (c *{{$type}}) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
+    var err error
 	// Search for the time value greater than the seek time (not included)
 	// and then move our position back one which will include the values in
 	// our time range.
@@ -196,11 +202,15 @@ func (c *{{$type}}) reset(seek, end int64, cacheValues Values, tsmKeyCursor *Key
 	c.cache.pos--
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}ArrayBlock(c.tsm.buf)
+	c.tsm.values, err = c.tsm.keyCursor.Read{{.Name}}ArrayBlock(c.tsm.buf)
+	if err != nil {
+	    return err
+	}
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] > seek
 	})
 	c.tsm.pos--
+	return nil
 }
 
 func (c *{{$type}}) Err() error        { return nil }
