@@ -228,6 +228,7 @@ jobs:
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
+    resource_class: 2xlarge+ # use of a smaller executor tends crashes on link
     environment:
       TARGET: << parameters.target >>
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
