@@ -612,6 +612,9 @@ impl From<authz::Error> for AuthorizationError {
 /// - Is ASCII not UTF-8
 /// - Contains only letters, numbers, underscores or hyphens
 fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameError> {
+    if name.is_empty() {
+        return Err(ValidateDbNameError::Empty);
+    }
     let mut is_first_char = true;
     let mut rp_seperator_found = false;
     for grapheme in name.graphemes(true) {
@@ -660,6 +663,8 @@ pub enum ValidateDbNameError {
     InvalidStartChar,
     #[error("db name did not start with a number or letter")]
     OnlyOneRpSeparatorAllowed,
+    #[error("db name cannot be empty")]
+    Empty,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1094,5 +1099,6 @@ mod tests {
         assert_validate_db_name!("foo/bar", false, Err(ValidateDbNameError::InvalidChar));
         assert_validate_db_name!("foo/bar/baz", false, Err(ValidateDbNameError::InvalidChar));
         assert_validate_db_name!("_foo", false, Err(ValidateDbNameError::InvalidStartChar));
+        assert_validate_db_name!("", false, Err(ValidateDbNameError::Empty));
     }
 }
