@@ -25,6 +25,7 @@ use influxdb3_write::BufferedWriteRequest;
 use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
 use iox_http::write::single_tenant::SingleTenantRequestUnifier;
+use iox_http::write::v1::V1_NAMESPACE_RP_SEPARATOR;
 use iox_http::write::{WriteParseError, WriteRequestUnifier};
 use iox_query_influxql_rewrite as rewrite;
 use iox_time::TimeProvider;
@@ -162,6 +163,9 @@ pub enum Error {
 
     #[error("query error: {0}")]
     Query(#[from] query_executor::Error),
+
+    #[error(transparent)]
+    DbName(#[from] ValidateDbNameError),
 
     // Invalid Start Character for a Database Name
     #[error("db name did not start with a number or letter")]
@@ -323,15 +327,16 @@ where
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
-        self.write_lp_inner(params, req).await
+        self.write_lp_inner(params, req, false).await
     }
 
     async fn write_lp_inner(
         &self,
         params: WriteParams,
         req: Request<Body>,
+        accept_rp: bool,
     ) -> Result<Response<Body>> {
-        validate_db_name(&params.db)?;
+        validate_db_name(&params.db, accept_rp)?;
         info!("write_lp to {}", params.db);
 
         let body = self.read_body(req).await?;
@@ -606,27 +611,55 @@ impl From<authz::Error> for AuthorizationError {
 /// - Starts with a letter or a number
 /// - Is ASCII not UTF-8
 /// - Contains only letters, numbers, underscores or hyphens
-fn validate_db_name(name: &str) -> Result<()> {
+fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameError> {
     let mut is_first_char = true;
+    let mut rp_seperator_found = false;
     for grapheme in name.graphemes(true) {
         if grapheme.as_bytes().len() > 1 {
             // In the case of a unicode we need to handle multibyte chars
-            return Err(Error::DbNameInvalidChar);
+            return Err(ValidateDbNameError::InvalidChar);
         }
         let char = grapheme.as_bytes()[0] as char;
         if !is_first_char {
-            if !(char.is_ascii_alphanumeric() || char == '_' || char == '-') {
-                return Err(Error::DbNameInvalidChar);
+            match (accept_rp, rp_seperator_found, char) {
+                (true, true, V1_NAMESPACE_RP_SEPARATOR) => {
+                    return Err(ValidateDbNameError::OnlyOneRpSeparatorAllowed)
+                }
+                (true, false, V1_NAMESPACE_RP_SEPARATOR) => {
+                    rp_seperator_found = true;
+                }
+                (false, _, char)
+                    if !(char.is_ascii_alphanumeric() || char == '_' || char == '-') =>
+                {
+                    return Err(ValidateDbNameError::InvalidChar)
+                }
+                _ => continue,
             }
         } else {
             if !char.is_ascii_alphanumeric() {
-                return Err(Error::DbNameInvalidStartChar);
+                return Err(ValidateDbNameError::InvalidStartChar);
             }
             is_first_char = false;
         }
     }
 
     Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ValidateDbNameError {
+    #[error(
+        "invalid character in database name: must be ASCII, \
+        containing only letters, numbers, underscores, or hyphens"
+    )]
+    InvalidChar,
+    #[error(
+        "db name must use ASCII letters, numbers, underscores \
+        and hyphens only"
+    )]
+    InvalidStartChar,
+    #[error("db name did not start with a number or letter")]
+    OnlyOneRpSeparatorAllowed,
 }
 
 #[derive(Debug, Deserialize)]
@@ -830,7 +863,7 @@ where
                 Err(e) => return Ok(legacy_write_error_to_response(e)),
             };
 
-            http_server.write_lp_inner(params, req).await
+            http_server.write_lp_inner(params, req, true).await
         }
         (Method::POST, "/api/v2/write") => {
             let params = match http_server.legacy_write_param_unifier.parse_v2(&req).await {
@@ -838,7 +871,7 @@ where
                 Err(e) => return Ok(legacy_write_error_to_response(e)),
             };
 
-            http_server.write_lp_inner(params, req).await
+            http_server.write_lp_inner(params, req, false).await
         }
         (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,
         (Method::GET | Method::POST, "/api/v3/query_sql") => http_server.query_sql(req).await,
@@ -1036,4 +1069,30 @@ async fn pprof_heappy_profile(req: Request<Body>) -> Result<Response<Body>> {
 #[cfg(not(feature = "heappy"))]
 async fn pprof_heappy_profile(_req: Request<Body>) -> Result<Response<Body>> {
     Err(Error::HeappyIsNotCompiled)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_db_name;
+    use super::ValidateDbNameError;
+
+    macro_rules! assert_validate_db_name {
+        ($name:literal, $accept_rp:literal, $expected:pat) => {
+            assert!(matches!(validate_db_name($name, $accept_rp), $expected,));
+        };
+    }
+
+    #[test]
+    fn test_validate_db_name() {
+        assert_validate_db_name!("foo/bar", false, Err(ValidateDbNameError::InvalidChar));
+        assert_validate_db_name!("foo/bar", true, Ok(_));
+        assert_validate_db_name!(
+            "foo/bar/baz",
+            true,
+            Err(ValidateDbNameError::OnlyOneRpSeparatorAllowed)
+        );
+        assert_validate_db_name!("foo/bar", false, Err(ValidateDbNameError::InvalidChar));
+        assert_validate_db_name!("foo/bar/baz", false, Err(ValidateDbNameError::InvalidChar));
+        assert_validate_db_name!("_foo", false, Err(ValidateDbNameError::InvalidStartChar));
+    }
 }
