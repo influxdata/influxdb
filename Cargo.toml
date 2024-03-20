@@ -145,9 +145,7 @@ bare_urls = "deny"
 # This profile optimizes for runtime performance and small binary size at the expense of longer
 # build times. It's most suitable for final release builds.
 [profile.release]
-codegen-units = 16
-debug = true
-lto = "thin"
+lto = "fat"
 
 [profile.bench]
 debug = true
