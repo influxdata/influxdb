@@ -182,11 +182,11 @@ impl TestServer {
 
     pub async fn api_v1_query(&self, params: &[(&str, &str)]) -> Response {
         self.http_client
-            .get(format!("{base}/api/v1/query", base = self.client_addr(),))
+            .get(format!("{base}/query", base = self.client_addr(),))
             .query(params)
             .send()
             .await
-            .expect("send /api/v1/query request to server")
+            .expect("send /query request to server")
     }
 }
 
