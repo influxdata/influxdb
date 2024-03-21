@@ -131,6 +131,7 @@ pub(crate) async fn command(config: Config) -> Result<()> {
         let mut f = OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .await?;
         f.write_all_buf(&mut resp_bytes).await?;
