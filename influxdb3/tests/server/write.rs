@@ -1,4 +1,5 @@
 use hyper::StatusCode;
+use pretty_assertions::assert_eq;
 
 use crate::TestServer;
 
@@ -107,6 +108,43 @@ async fn api_v1_write_request_parsing() {
 }
 
 #[tokio::test]
+async fn api_v1_write_round_trip() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let write_url = format!("{base}/write", base = server.client_addr());
+
+    client
+        .post(write_url)
+        .query(&[("db", "foo")])
+        .body(
+            "cpu,host=a usage=0.5 1
+            cpu,host=a usage=0.6 2
+            cpu,host=a usage=0.7 3",
+        )
+        .send()
+        .await
+        .expect("send /write request");
+
+    let resp = server
+        .api_v3_query_influxql(&[("q", "SELECT * FROM foo.autogen.cpu"), ("format", "pretty")])
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp,
+        "+------------------+-------------------------------+------+-------+\n\
+        | iox::measurement | time                          | host | usage |\n\
+        +------------------+-------------------------------+------+-------+\n\
+        | cpu              | 1970-01-01T00:00:00.000000001 | a    | 0.5   |\n\
+        | cpu              | 1970-01-01T00:00:00.000000002 | a    | 0.6   |\n\
+        | cpu              | 1970-01-01T00:00:00.000000003 | a    | 0.7   |\n\
+        +------------------+-------------------------------+------+-------+"
+    );
+}
+
+#[tokio::test]
 async fn api_v2_write_request_parsing() {
     let server = TestServer::spawn().await;
     let client = reqwest::Client::new();
@@ -190,4 +228,41 @@ async fn api_v2_write_request_parsing() {
         println!("Response [{status}]:\n{body}");
         assert_eq!(t.expected, status);
     }
+}
+
+#[tokio::test]
+async fn api_v2_write_round_trip() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let write_url = format!("{base}/api/v2/write", base = server.client_addr());
+
+    client
+        .post(write_url)
+        .query(&[("bucket", "foo")])
+        .body(
+            "cpu,host=a usage=0.5 1
+            cpu,host=a usage=0.6 2
+            cpu,host=a usage=0.7 3",
+        )
+        .send()
+        .await
+        .expect("send /write request");
+
+    let resp = server
+        .api_v3_query_influxql(&[("q", "SELECT * FROM foo.autogen.cpu"), ("format", "pretty")])
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp,
+        "+------------------+-------------------------------+------+-------+\n\
+        | iox::measurement | time                          | host | usage |\n\
+        +------------------+-------------------------------+------+-------+\n\
+        | cpu              | 1970-01-01T00:00:00.000000001 | a    | 0.5   |\n\
+        | cpu              | 1970-01-01T00:00:00.000000002 | a    | 0.6   |\n\
+        | cpu              | 1970-01-01T00:00:00.000000003 | a    | 0.7   |\n\
+        +------------------+-------------------------------+------+-------+"
+    );
 }
