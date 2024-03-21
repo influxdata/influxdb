@@ -469,6 +469,11 @@ workflows:
             - build-release
             - sign-packages
             - test
+            - test-heappy
+            - doc
+            - lint
+            - fmt
+            - cargo-audit
       - build-docker:
           <<: *any_filter
           # <<: *release_filter
