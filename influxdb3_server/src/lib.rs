@@ -255,16 +255,19 @@ mod tests {
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
         let num_threads = NonZeroUsize::new(2).unwrap();
-        let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
-            num_threads,
-            target_query_partitions: NonZeroUsize::new(1).unwrap(),
-            object_stores: [&parquet_store]
-                .into_iter()
-                .map(|store| (store.id(), Arc::clone(store.object_store())))
-                .collect(),
-            metric_registry: Arc::clone(&metrics),
-            mem_pool_size: usize::MAX,
-        }));
+        let exec = Arc::new(Executor::new_with_config(
+            "datafusion",
+            ExecutorConfig {
+                num_threads,
+                target_query_partitions: NonZeroUsize::new(1).unwrap(),
+                object_stores: [&parquet_store]
+                    .into_iter()
+                    .map(|store| (store.id(), Arc::clone(store.object_store())))
+                    .collect(),
+                metric_registry: Arc::clone(&metrics),
+                mem_pool_size: usize::MAX,
+            },
+        ));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
@@ -391,16 +394,19 @@ mod tests {
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
         let num_threads = NonZeroUsize::new(2).unwrap();
-        let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
-            num_threads,
-            target_query_partitions: NonZeroUsize::new(1).unwrap(),
-            object_stores: [&parquet_store]
-                .into_iter()
-                .map(|store| (store.id(), Arc::clone(store.object_store())))
-                .collect(),
-            metric_registry: Arc::clone(&metrics),
-            mem_pool_size: usize::MAX,
-        }));
+        let exec = Arc::new(Executor::new_with_config(
+            "datafusion",
+            ExecutorConfig {
+                num_threads,
+                target_query_partitions: NonZeroUsize::new(1).unwrap(),
+                object_stores: [&parquet_store]
+                    .into_iter()
+                    .map(|store| (store.id(), Arc::clone(store.object_store())))
+                    .collect(),
+                metric_registry: Arc::clone(&metrics),
+                mem_pool_size: usize::MAX,
+            },
+        ));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
@@ -563,16 +569,19 @@ mod tests {
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
         let num_threads = NonZeroUsize::new(2).unwrap();
-        let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
-            num_threads,
-            target_query_partitions: NonZeroUsize::new(1).unwrap(),
-            object_stores: [&parquet_store]
-                .into_iter()
-                .map(|store| (store.id(), Arc::clone(store.object_store())))
-                .collect(),
-            metric_registry: Arc::clone(&metrics),
-            mem_pool_size: usize::MAX,
-        }));
+        let exec = Arc::new(Executor::new_with_config(
+            "datafusion",
+            ExecutorConfig {
+                num_threads,
+                target_query_partitions: NonZeroUsize::new(1).unwrap(),
+                object_stores: [&parquet_store]
+                    .into_iter()
+                    .map(|store| (store.id(), Arc::clone(store.object_store())))
+                    .collect(),
+                metric_registry: Arc::clone(&metrics),
+                mem_pool_size: usize::MAX,
+            },
+        ));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(
             1708473607000000000,

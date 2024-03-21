@@ -21,7 +21,7 @@ use influxdb3_write::{
     catalog::{Catalog, DatabaseSchema},
     WriteBuffer,
 };
-use iox_query::exec::{Executor, ExecutorType, IOxSessionContext, QueryConfig};
+use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
 use iox_query::frontend::sql::SqlQueryPlanner;
 use iox_query::provider::ProviderBuilder;
 use iox_query::query_log::QueryCompletedToken;
@@ -371,7 +371,7 @@ impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
 
         let mut cfg = self
             .exec
-            .new_execution_config(ExecutorType::Query)
+            .new_execution_config()
             .with_default_catalog(Arc::new(qdb))
             .with_span_context(span_ctx);
 
