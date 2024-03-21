@@ -16,15 +16,15 @@ exec docker buildx build \
   --build-arg CARGO_NET_GIT_FETCH_WITH_CLI="true" \
   --build-arg FEATURES="$FEATURES" \
   --build-arg RUST_VERSION="$RUST_VERSION" \
-  --build-arg PACKAGE="$PACKAGE" \
+  --build-arg PACKAGE="influxdb3-edge" \
   --label org.opencontainers.image.created="$NOW" \
   --label org.opencontainers.image.url="$REPO_URL" \
   --label org.opencontainers.image.revision="$COMMIT_SHA" \
   --label org.opencontainers.image.vendor="InfluxData Inc." \
-  --label org.opencontainers.image.title="InfluxDB3 Edge'" \
+  --label org.opencontainers.image.title="InfluxDB3 Edge" \
   --label org.opencontainers.image.description="InfluxDB3 Edge image" \
   --label com.influxdata.image.commit-date="$COMMIT_TS" \
-  --label com.influxdata.image.package="$PACKAGE" \
+  --label com.influxdata.image.package="influxdb3-edge" \
   --progress plain \
   --tag "$TAG" \
   .

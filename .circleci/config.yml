@@ -142,7 +142,7 @@ jobs:
       - rust_components
       - run:
           name: Install cargo-deny
-          command: cargo install cargo-deny
+          command: cargo install cargo-deny --locked
       - run:
           name: cargo-deny Checks
           command: cargo deny check -s
