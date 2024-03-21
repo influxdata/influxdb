@@ -86,7 +86,7 @@ commands:
           name: configure-gar
           command: |
             gcloud auth activate-service-account "${GCLOUD_SERVICE_ACCOUNT_EMAIL}" --key-file <(echo "${GCLOUD_SERVICE_ACCOUNT_KEY}")
-            gcloud auth configure-docker us-east1-docker.pkg.dev
+            gcloud auth configure-docker us-docker.pkg.dev
 
 jobs:
   fmt:
