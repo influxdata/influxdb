@@ -656,12 +656,12 @@ pub enum ValidateDbNameError {
         containing only letters, numbers, underscores, or hyphens"
     )]
     InvalidChar,
-    #[error(
-        "db name must use ASCII letters, numbers, underscores \
-        and hyphens only"
-    )]
-    InvalidStartChar,
     #[error("db name did not start with a number or letter")]
+    InvalidStartChar,
+    #[error(
+        "db name contained more than one '/', if providing a \
+        retention policy name, must be of form '<db_name>/<rp_name>'"
+    )]
     OnlyOneRpSeparatorAllowed,
     #[error("db name cannot be empty")]
     Empty,

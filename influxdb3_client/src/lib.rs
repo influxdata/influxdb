@@ -90,7 +90,7 @@ impl Client {
     /// let client = Client::new("http://localhost:8181")?;
     /// client
     ///     .api_v3_write_lp("db_name")
-    ///     .precision(Precision::Milliseconds)
+    ///     .precision(Precision::Millisecond)
     ///     .accept_partial(true)
     ///     .body("cpu,host=s1 usage=0.5")
     ///     .send()

@@ -554,6 +554,29 @@ mod tests {
             }"
         );
 
+        let resp = write_lp(
+            &server,
+            "",
+            "cpu,host=b val=2 155\n",
+            None,
+            true,
+            "nanosecond",
+        )
+        .await;
+
+        let status = resp.status();
+        let body =
+            String::from_utf8(body::to_bytes(resp.into_body()).await.unwrap().to_vec()).unwrap();
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body,
+            "{\
+                \"error\":\"db name cannot be empty\",\
+                \"data\":null\
+            }"
+        );
+
         shutdown.cancel();
     }
 
