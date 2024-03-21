@@ -80,7 +80,7 @@ impl TestServer {
         let command = command
             .arg("serve")
             .args(["--http-bind", &bind_addr.to_string()])
-            .args(["--object-store", "memory", "-vv"])
+            .args(["--object-store", "memory"])
             .args(config.as_args())
             .stdout(Stdio::null())
             .stderr(Stdio::null());

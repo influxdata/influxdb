@@ -204,14 +204,15 @@ pub enum AuthorizationError {
     ToStr(#[from] hyper::header::ToStrError),
 }
 
+#[derive(Debug, Serialize)]
+struct ErrorMessage<T: Serialize> {
+    error: String,
+    data: Option<T>,
+}
+
 impl Error {
     /// Convert this error into an HTTP [`Response`]
     fn into_response(self) -> Response<Body> {
-        #[derive(Debug, Serialize)]
-        struct ErrorMessage<T: Serialize> {
-            error: String,
-            data: Option<T>,
-        }
         match self {
             Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
                 err @ (CatalogError::TooManyDbs
@@ -607,16 +608,21 @@ impl From<authz::Error> for AuthorizationError {
     }
 }
 
+/// Validate a database name
+///
 /// A valid name:
 /// - Starts with a letter or a number
 /// - Is ASCII not UTF-8
 /// - Contains only letters, numbers, underscores or hyphens
+/// - if `accept_rp` is true, then a single slash ('/') is allowed, separating the
+///   the database name from the retention policy name, e.g., '<db_name>/<rp_name>'
 fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameError> {
     if name.is_empty() {
         return Err(ValidateDbNameError::Empty);
     }
     let mut is_first_char = true;
     let mut rp_seperator_found = false;
+    let mut last_char = None;
     for grapheme in name.graphemes(true) {
         if grapheme.as_bytes().len() > 1 {
             // In the case of a unicode we need to handle multibyte chars
@@ -626,7 +632,7 @@ fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameErr
         if !is_first_char {
             match (accept_rp, rp_seperator_found, char) {
                 (true, true, V1_NAMESPACE_RP_SEPARATOR) => {
-                    return Err(ValidateDbNameError::OnlyOneRpSeparatorAllowed)
+                    return Err(ValidateDbNameError::InvalidRetentionPolicy)
                 }
                 (true, false, V1_NAMESPACE_RP_SEPARATOR) => {
                     rp_seperator_found = true;
@@ -636,7 +642,7 @@ fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameErr
                 {
                     return Err(ValidateDbNameError::InvalidChar)
                 }
-                _ => continue,
+                _ => (),
             }
         } else {
             if !char.is_ascii_alphanumeric() {
@@ -644,6 +650,11 @@ fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameErr
             }
             is_first_char = false;
         }
+        last_char.replace(char);
+    }
+
+    if last_char.is_some_and(|c| c == '/') {
+        return Err(ValidateDbNameError::InvalidRetentionPolicy);
     }
 
     Ok(())
@@ -659,10 +670,10 @@ pub enum ValidateDbNameError {
     #[error("db name did not start with a number or letter")]
     InvalidStartChar,
     #[error(
-        "db name contained more than one '/', if providing a \
+        "db name with invalid retention policy, if providing a \
         retention policy name, must be of form '<db_name>/<rp_name>'"
     )]
-    OnlyOneRpSeparatorAllowed,
+    InvalidRetentionPolicy,
     #[error("db name cannot be empty")]
     Empty,
 }
@@ -911,11 +922,17 @@ where
     }
 }
 
-fn legacy_write_error_to_response(error: WriteParseError) -> Response<Body> {
-    let (body, status) = match error {
-        WriteParseError::NotImplemented => (Body::from("not found"), StatusCode::NOT_FOUND),
-        WriteParseError::SingleTenantError(e) => (Body::from(e.to_string()), StatusCode::from(&e)),
-        WriteParseError::MultiTenantError(e) => (Body::from(e.to_string()), StatusCode::from(&e)),
+fn legacy_write_error_to_response(e: WriteParseError) -> Response<Body> {
+    let err: ErrorMessage<()> = ErrorMessage {
+        error: e.to_string(),
+        data: None,
+    };
+    let serialized = serde_json::to_string(&err).unwrap();
+    let body = Body::from(serialized);
+    let status = match e {
+        WriteParseError::NotImplemented => StatusCode::NOT_FOUND,
+        WriteParseError::SingleTenantError(e) => StatusCode::from(&e),
+        WriteParseError::MultiTenantError(e) => StatusCode::from(&e),
     };
     Response::builder().status(status).body(body).unwrap()
 }
@@ -1083,7 +1100,8 @@ mod tests {
 
     macro_rules! assert_validate_db_name {
         ($name:literal, $accept_rp:literal, $expected:pat) => {
-            assert!(matches!(validate_db_name($name, $accept_rp), $expected,));
+            let actual = validate_db_name($name, $accept_rp);
+            assert!(matches!(&actual, $expected), "got: {actual:?}",);
         };
     }
 
@@ -1094,7 +1112,12 @@ mod tests {
         assert_validate_db_name!(
             "foo/bar/baz",
             true,
-            Err(ValidateDbNameError::OnlyOneRpSeparatorAllowed)
+            Err(ValidateDbNameError::InvalidRetentionPolicy)
+        );
+        assert_validate_db_name!(
+            "foo/",
+            true,
+            Err(ValidateDbNameError::InvalidRetentionPolicy)
         );
         assert_validate_db_name!("foo/bar", false, Err(ValidateDbNameError::InvalidChar));
         assert_validate_db_name!("foo/bar/baz", false, Err(ValidateDbNameError::InvalidChar));

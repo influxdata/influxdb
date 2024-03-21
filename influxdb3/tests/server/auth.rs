@@ -292,12 +292,14 @@ async fn v1_password_parameter() {
         StatusCode::OK,
     );
 
+    let valid_write_body = "cpu,host=val usage=0.5";
+
     // Send request to write API with the token in the v1 `p` parameter:
     assert_eq!(
         client
             .post(&write_url)
             .query(&[("p", TOKEN), ("db", "foo")])
-            .body("cpu,host=val usage=0.5")
+            .body(valid_write_body)
             .send()
             .await
             .expect("send request")
@@ -310,7 +312,7 @@ async fn v1_password_parameter() {
             .post(&write_url)
             .bearer_auth(TOKEN)
             .query(&[("db", "foo")])
-            .body("cpu,host=val usage=0.5")
+            .body(valid_write_body)
             .send()
             .await
             .expect("send request")
