@@ -380,7 +380,7 @@ jobs:
       - run:
           name: Build the docker image
           command: |
-            .circleci/docker_build_release.bash \
+            .circleci/scripts/docker_build_release.bash \
               "influxdb3-edge" \
               "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
               "influxdb3-edge:latest"
