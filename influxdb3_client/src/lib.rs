@@ -90,7 +90,7 @@ impl Client {
     /// let client = Client::new("http://localhost:8181")?;
     /// client
     ///     .api_v3_write_lp("db_name")
-    ///     .precision(Precision::Millisecond)
+    ///     .precision(Precision::Milliseconds)
     ///     .accept_partial(true)
     ///     .body("cpu,host=s1 usage=0.5")
     ///     .send()
@@ -194,7 +194,7 @@ impl<'a, B> From<&'a WriteRequestBuilder<'a, B>> for WriteParams<'a> {
 // TODO - this should re-use a type defined in the server code, or a separate crate,
 //        central to both.
 #[derive(Debug, Copy, Clone, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "lowercase")]
 pub enum Precision {
     Second,
     Millisecond,

@@ -16,7 +16,7 @@ use influxdb3_write::persister::PersisterImpl;
 use influxdb3_write::wal::WalImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
 use influxdb3_write::SegmentDuration;
-use iox_query::exec::{Executor, ExecutorConfig, ExecutorType};
+use iox_query::exec::{Executor, ExecutorConfig};
 use iox_time::SystemProvider;
 use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use object_store::DynObjectStore;
@@ -233,17 +233,20 @@ pub async fn command(config: Config) -> Result<()> {
     info!(%num_threads, "Creating shared query executor");
     let parquet_store =
         ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-    let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
-        num_threads,
-        target_query_partitions: num_threads,
-        object_stores: [&parquet_store]
-            .into_iter()
-            .map(|store| (store.id(), Arc::clone(store.object_store())))
-            .collect(),
-        metric_registry: Arc::clone(&metrics),
-        mem_pool_size: config.exec_mem_pool_bytes.bytes(),
-    }));
-    let runtime_env = exec.new_context(ExecutorType::Query).inner().runtime_env();
+    let exec = Arc::new(Executor::new_with_config(
+        "datafusion",
+        ExecutorConfig {
+            num_threads,
+            target_query_partitions: num_threads,
+            object_stores: [&parquet_store]
+                .into_iter()
+                .map(|store| (store.id(), Arc::clone(store.object_store())))
+                .collect(),
+            metric_registry: Arc::clone(&metrics),
+            mem_pool_size: config.exec_mem_pool_bytes.bytes(),
+        },
+    ));
+    let runtime_env = exec.new_context().inner().runtime_env();
     register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
 
     let trace_header_parser = TraceHeaderParser::new()

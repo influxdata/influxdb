@@ -529,10 +529,10 @@ impl ParquetFile {
 #[serde(rename_all = "lowercase")]
 pub enum Precision {
     Auto,
-    Seconds,
-    Milliseconds,
-    Microseconds,
-    Nanoseconds,
+    Second,
+    Millisecond,
+    Microsecond,
+    Nanosecond,
 }
 
 impl Default for Precision {
@@ -544,10 +544,10 @@ impl Default for Precision {
 impl From<iox_http::write::Precision> for Precision {
     fn from(legacy: iox_http::write::Precision) -> Self {
         match legacy {
-            iox_http::write::Precision::Seconds => Precision::Seconds,
-            iox_http::write::Precision::Milliseconds => Precision::Milliseconds,
-            iox_http::write::Precision::Microseconds => Precision::Microseconds,
-            iox_http::write::Precision::Nanoseconds => Precision::Nanoseconds,
+            iox_http::write::Precision::Second => Precision::Second,
+            iox_http::write::Precision::Millisecond => Precision::Millisecond,
+            iox_http::write::Precision::Microsecond => Precision::Microsecond,
+            iox_http::write::Precision::Nanosecond => Precision::Nanosecond,
         }
     }
 }
@@ -564,22 +564,22 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
         // If the time sent to us is in seconds then this will be a number less than
         // 5 so for example if the time in seconds is 1_708_976_567 then it will be
         // 1 (due to integer truncation) and be less than 5
-        Precision::Seconds
+        Precision::Second
     } else if val < 5_000 {
         // If however the value is milliseconds and not seconds than the same number
         // for time but now in milliseconds 1_708_976_567_000 when divided will now
         // be 1708 which is bigger than the previous if statement but less than this
         // one and so we return milliseconds
-        Precision::Milliseconds
+        Precision::Millisecond
     } else if val < 5_000_000 {
         // If we do the same thing here by going up another order of magnitude then
         // 1_708_976_567_000_000 when divided will be 1708976 which is large enough
         // for this if statement
-        Precision::Microseconds
+        Precision::Microsecond
     } else {
         // Anything else we can assume is large enough of a number that it must
         // be nanoseconds
-        Precision::Nanoseconds
+        Precision::Nanosecond
     }
 }
 
@@ -609,7 +609,7 @@ mod test_helpers {
             Time::from_timestamp_nanos(0),
             SegmentDuration::new_5m(),
             false,
-            Precision::Nanoseconds,
+            Precision::Nanosecond,
         )
         .unwrap();
         if let Some(db) = result.schema {
@@ -633,7 +633,7 @@ mod test_helpers {
             Time::from_timestamp_nanos(default_time),
             SegmentDuration::new_5m(),
             false,
-            Precision::Nanoseconds,
+            Precision::Nanosecond,
         )
         .unwrap();
 

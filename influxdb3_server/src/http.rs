@@ -4,6 +4,7 @@ use crate::{query_executor, QueryKind};
 use crate::{CommonServerState, QueryExecutor};
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
+use authz::http::AuthorizationHeaderExtension;
 use authz::Authorizer;
 use bytes::{Bytes, BytesMut};
 use data_types::NamespaceName;
@@ -167,14 +168,6 @@ pub enum Error {
     #[error(transparent)]
     DbName(#[from] ValidateDbNameError),
 
-    // Invalid Start Character for a Database Name
-    #[error("db name did not start with a number or letter")]
-    DbNameInvalidStartChar,
-
-    // Invalid Character for a Database Name
-    #[error("db name must use ASCII letters, numbers, underscores and hyphens only")]
-    DbNameInvalidChar,
-
     #[error("partial write of line protocol ocurred")]
     PartialLpWrite(BufferedWriteRequest),
 
@@ -212,7 +205,8 @@ pub enum AuthorizationError {
 }
 
 impl Error {
-    fn response(self) -> Response<Body> {
+    /// Convert this error into an HTTP [`Response`]
+    fn into_response(self) -> Response<Body> {
         #[derive(Debug, Serialize)]
         struct ErrorMessage<T: Serialize> {
             error: String,
@@ -247,9 +241,9 @@ impl Error {
                     .body(body)
                     .unwrap()
             }
-            Self::DbNameInvalidStartChar | Self::DbNameInvalidChar => {
+            Self::DbName(e) => {
                 let err: ErrorMessage<()> = ErrorMessage {
-                    error: self.to_string(),
+                    error: e.to_string(),
                     data: None,
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
@@ -474,6 +468,12 @@ where
     }
 
     async fn authorize_request(&self, req: &mut Request<Body>) -> Result<(), AuthorizationError> {
+        // Extend the request with the authorization token; this is used downstream in some
+        // APIs, such as write, that need the full header value to authorize a request.
+        let auth_header = req.headers().get(AUTHORIZATION).cloned();
+        req.extensions_mut()
+            .insert(AuthorizationHeaderExtension::new(auth_header));
+
         let auth = if let Some(p) = extract_v1_auth_token(req) {
             Some(p)
         } else {
@@ -906,7 +906,7 @@ where
         }
         Err(error) => {
             error!(%error, %method, %uri, ?content_length, "Error while handling request");
-            Ok(error.response())
+            Ok(error.into_response())
         }
     }
 }
@@ -1090,7 +1090,7 @@ mod tests {
     #[test]
     fn test_validate_db_name() {
         assert_validate_db_name!("foo/bar", false, Err(ValidateDbNameError::InvalidChar));
-        assert_validate_db_name!("foo/bar", true, Ok(_));
+        assert!(validate_db_name("foo/bar", true).is_ok());
         assert_validate_db_name!(
             "foo/bar/baz",
             true,

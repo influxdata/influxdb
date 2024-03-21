@@ -595,17 +595,17 @@ fn validate_and_convert_parsed_line<'a>(
         .map(|ts| {
             let multiplier = match precision {
                 Precision::Auto => match crate::guess_precision(ts) {
-                    Precision::Seconds => 1_000_000_000,
-                    Precision::Milliseconds => 1_000_000,
-                    Precision::Microseconds => 1_000,
-                    Precision::Nanoseconds => 1,
+                    Precision::Second => 1_000_000_000,
+                    Precision::Millisecond => 1_000_000,
+                    Precision::Microsecond => 1_000,
+                    Precision::Nanosecond => 1,
 
                     Precision::Auto => unreachable!(),
                 },
-                Precision::Seconds => 1_000_000_000,
-                Precision::Milliseconds => 1_000_000,
-                Precision::Microseconds => 1_000,
-                Precision::Nanoseconds => 1,
+                Precision::Second => 1_000_000_000,
+                Precision::Millisecond => 1_000_000,
+                Precision::Microsecond => 1_000,
+                Precision::Nanosecond => 1,
             };
 
             ts * multiplier
@@ -743,7 +743,7 @@ mod tests {
             Time::from_timestamp_nanos(0),
             SegmentDuration::new_5m(),
             false,
-            Precision::Nanoseconds,
+            Precision::Nanosecond,
         )
         .unwrap();
 
@@ -777,7 +777,7 @@ mod tests {
                 "cpu bar=1 10",
                 Time::from_timestamp_nanos(123),
                 false,
-                Precision::Nanoseconds,
+                Precision::Nanosecond,
             )
             .await
             .unwrap();
@@ -849,7 +849,7 @@ mod tests {
                 "cpu bar=1 10",
                 Time::from_timestamp_nanos(123),
                 false,
-                Precision::Nanoseconds,
+                Precision::Nanosecond,
             )
             .await
             .unwrap();
@@ -891,7 +891,7 @@ mod tests {
                 "cpu bar=2",
                 Time::from_timestamp(900, 0).unwrap(),
                 false,
-                Precision::Nanoseconds,
+                Precision::Nanosecond,
             )
             .await
             .unwrap();
@@ -925,7 +925,7 @@ mod tests {
                 "cpu bar=3",
                 Time::from_timestamp(950, 0).unwrap(),
                 false,
-                Precision::Nanoseconds,
+                Precision::Nanosecond,
             )
             .await
             .unwrap();

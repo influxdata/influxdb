@@ -292,31 +292,29 @@ async fn v1_password_parameter() {
         StatusCode::OK,
     );
 
-    // TODO - The following assertions will break when the write API gets implemented,
-    //        so will need to revisit these at that time. Right now, they just assert
-    //        that the returned status code is 404 Not Found, as that would indicate
-    //        the request made it past the authorize step in the HTTP router.
-
     // Send request to write API with the token in the v1 `p` parameter:
     assert_eq!(
         client
-            .get(&write_url)
-            .query(&[("p", TOKEN)])
+            .post(&write_url)
+            .query(&[("p", TOKEN), ("db", "foo")])
+            .body("cpu,host=val usage=0.5")
             .send()
             .await
             .expect("send request")
             .status(),
-        StatusCode::NOT_FOUND,
+        StatusCode::OK,
     );
     // Send request to write API with the token in auth header:
     assert_eq!(
         client
-            .get(&write_url)
+            .post(&write_url)
             .bearer_auth(TOKEN)
+            .query(&[("db", "foo")])
+            .body("cpu,host=val usage=0.5")
             .send()
             .await
             .expect("send request")
             .status(),
-        StatusCode::NOT_FOUND,
+        StatusCode::OK,
     );
 }
