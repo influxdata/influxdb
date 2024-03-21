@@ -405,7 +405,7 @@ jobs:
           at: .
       - run: |
           docker load <influxdb3-edge.tar
-          .circleci/scripts/publish influxdb3-edge
+          .circleci/scripts/publish.bash influxdb3-edge
 
   wait-for-docker:
     resource_class: small
