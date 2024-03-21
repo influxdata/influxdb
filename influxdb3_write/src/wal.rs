@@ -229,7 +229,11 @@ impl WalSegmentWriterImpl {
         }
 
         // it's a new file, initialize it with the header and get ready to start writing
-        let mut f = OpenOptions::new().write(true).create(true).open(&path)?;
+        let mut f = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)?;
 
         f.write_all(FILE_TYPE_IDENTIFIER)?;
         let file_type_bytes_written = FILE_TYPE_IDENTIFIER.len();
@@ -266,7 +270,7 @@ impl WalSegmentWriterImpl {
         if let Some(file_info) =
             WalSegmentReaderImpl::read_segment_file_info_if_exists(path.clone())?
         {
-            let f = OpenOptions::new().write(true).append(true).open(&path)?;
+            let f = OpenOptions::new().append(true).open(&path)?;
 
             Ok(Self {
                 segment_id,
