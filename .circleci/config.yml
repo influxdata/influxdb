@@ -80,23 +80,13 @@ commands:
             rustup show
             cargo fmt --version
             cargo clippy --version
-
-  login_to_gcloud:
+  gcloud-docker-login:
     steps:
       - run:
-          name: Login to gcloud
+          name: configure-gar
           command: |
-            echo "${GCLOUD_SERVICE_ACCOUNT_KEY}" >/tmp/gcloud.json
-            gcloud auth activate-service-account "${GCLOUD_SERVICE_ACCOUNT_EMAIL}" --key-file /tmp/gcloud.json --quiet
-            rm -f /tmp/gcloud.json
-            gcloud auth configure-docker us-docker.pkg.dev
-
-  quay_login:
-    steps:
-      - run:
-          name: Log in to Quay
-          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-
+            gcloud auth activate-service-account "${GCLOUD_SERVICE_ACCOUNT_EMAIL}" --key-file <(echo "${GCLOUD_SERVICE_ACCOUNT_KEY}")
+            gcloud auth configure-docker us-east1-docker.pkg.dev
 
 jobs:
   fmt:
@@ -315,42 +305,13 @@ jobs:
           name: tar and gzip build artifacts
           command: |
             mkdir -p artifacts
-            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/release" influxdb3{,.exe}
+            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-edge<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/release" influxdb3{,.exe}
       - store_artifacts:
           path: artifacts
       - persist_to_workspace:
           root: .
           paths:
             - artifacts
-  build-docker-release:
-    # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
-    # kinda small node)
-    machine:
-      image: default
-    resource_class: 2xlarge+ # CPU bound, so make it fast
-    steps:
-      - checkout
-      - quay_login
-      - run:
-          name: Cargo release build
-          command: |
-            COMMIT_SHA="$(git rev-parse HEAD)"
-
-            .circleci/docker_build_release.bash \
-              "influxdb3" \
-              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
-              "quay.io/influxdb/influxdb3:$COMMIT_SHA"
-
-            .circleci/docker_build_release.bash \
-              "influxdb3" \
-              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
-              "quay.io/influxdb/influxdb3:latest"
-
-            docker push quay.io/influxdb/influxdb3:$COMMIT_SHA
-            docker push quay.io/influxdb/influxdb3:latest
-          # linking might take a while and doesn't produce CLI output
-          no_output_timeout: 30m
-
   sign-packages:
     circleci_ip_ranges: true
     docker:
@@ -382,7 +343,7 @@ jobs:
               # Since all artifacts are present, sign them here. This saves Circle
               # credits over spinning up another instance just to separate out the
               # checksum job.
-              sha256sum "${target}" >> "/tmp/workspace/artifacts/influxdb3.${CIRCLE_TAG}.digests"
+              sha256sum "${target}" >> "/tmp/workspace/artifacts/influxdb3-edge.${CIRCLE_TAG}.digests"
 
               # write individual checksums
               md5sum    "${target}" >> "${target}.md5"
@@ -408,6 +369,50 @@ jobs:
           aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
           from:                  /tmp/workspace/artifacts
           to:                    s3://dl.influxdata.com/influxdb/releases
+  build-docker:
+    # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
+    # kinda small node)
+    machine:
+      image: default
+    resource_class: 2xlarge+ # CPU bound, so make it fast
+    steps:
+      - checkout
+      - run:
+          name: Build the docker image
+          command: |
+            .circleci/scripts/docker_build_release.bash \
+              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
+              "influxdb3-edge:latest"
+
+          # linking might take a while and doesn't produce CLI output
+          no_output_timeout: 30m
+      - run: |
+          docker save influxdb3-edge:latest >influxdb3-edge.tar
+      - persist_to_workspace:
+          root: .
+          paths:
+            - influxdb3-edge.tar
+  publish-docker:
+    docker:
+      - image: cimg/gcp:2023.02
+    resource_class: medium
+    steps:
+      - checkout
+      - setup_remote_docker
+      - gcloud-docker-login
+      - attach_workspace:
+          at: .
+      - run: |
+          docker load <influxdb3-edge.tar
+          .circleci/scripts/publish influxdb3-edge
+
+  wait-for-docker:
+    resource_class: small
+    docker:
+      - image: busybox
+    steps:
+      - run: |
+          echo build executed successfully
 
 
 workflows:
@@ -451,22 +456,30 @@ workflows:
                 - x86_64-pc-windows-gnu
                 - x86_64-unknown-linux-gnu
                 - x86_64-unknown-linux-musl
-      - build-docker-release:
-          # <<: *release_filter
-          <<: *any_filter
       - sign-packages:
           # <<: *release_filter
           <<: *any_filter
           requires:
             - build-release
-            #- build-docker-release
             - test
       - publish-packages:
           # <<: *release_filter
           <<: *any_filter
           requires:
             - build-release
-            #- build-docker-release
             - sign-packages
             - test
-
+      - build-docker:
+          <<: *any_filter
+          # <<: *release_filter
+      - publish-docker:
+          <<: *any_filter
+          # <<: *release_filter
+          requires:
+            - build-docker
+      - wait-for-docker:
+          <<: *any_filter
+          # <<: *release_filter
+          requires:
+            - build-docker
+            - publish-docker
