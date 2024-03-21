@@ -250,6 +250,7 @@ impl<W: Wal, T: TimeProvider, P: Persister> WriteBufferImpl<W, T, P> {
                     e_tag: None,
                     version: None,
                 },
+                object_store: self.persister.object_store(),
             };
 
             let parquet_chunk = ParquetChunk {

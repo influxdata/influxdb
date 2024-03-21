@@ -21,7 +21,7 @@ use influxdb3_write::{
     catalog::{Catalog, DatabaseSchema},
     WriteBuffer,
 };
-use iox_query::exec::{Executor, ExecutorType, IOxSessionContext, QueryConfig};
+use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
 use iox_query::frontend::sql::SqlQueryPlanner;
 use iox_query::provider::ProviderBuilder;
 use iox_query::query_log::QueryCompletedToken;
@@ -112,6 +112,8 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
             external_span_ctx.as_ref().map(RequestLogContext::ctx),
             "sql",
             Box::new(q.to_string()),
+            // TODO - ignoring params for now:
+            StatementParams::default(),
         );
 
         info!("plan");
@@ -129,7 +131,7 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
             }
         }
         .map_err(Error::QueryPlanning)?;
-        let token = token.planned(Arc::clone(&plan));
+        let token = token.planned(&ctx, Arc::clone(&plan));
 
         // TODO: Enforce concurrency limit here
         let token = token.permit();
@@ -341,6 +343,7 @@ impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
         span_ctx: Option<&SpanContext>,
         query_type: &'static str,
         query_text: QueryText,
+        query_params: StatementParams,
     ) -> QueryCompletedToken<StateReceived> {
         let trace_id = span_ctx.map(|ctx| ctx.trace_id);
         let namespace_name: Arc<str> = Arc::from("influxdb3 edge");
@@ -349,6 +352,7 @@ impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
             namespace_name,
             query_type,
             query_text,
+            query_params,
             trace_id,
         )
     }
@@ -367,7 +371,7 @@ impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
 
         let mut cfg = self
             .exec
-            .new_execution_config(ExecutorType::Query)
+            .new_execution_config()
             .with_default_catalog(Arc::new(qdb))
             .with_span_context(span_ctx);
 
@@ -415,8 +419,8 @@ impl<B: WriteBuffer> SchemaProvider for QueryDatabase<B> {
         self.db_schema.table_names()
     }
 
-    async fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
-        self.query_table(name).await.map(|qt| qt as _)
+    async fn table(&self, name: &str) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {
+        Ok(self.query_table(name).await.map(|qt| qt as _))
     }
 
     fn table_exist(&self, name: &str) -> bool {
