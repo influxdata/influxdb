@@ -64,7 +64,7 @@ pub trait WriteBuffer: Bufferer + ChunkContainer {}
 
 /// The buffer is for buffering data in memory before it is persisted to object storage. The buffer is queryable and
 /// aims to use as little memory as possible, converting data into in-memory Parquet data periodically as it arrives
-/// and is queried out. The buffer is repsonsible for keeping a consistent view of the catalog and  is also responsible
+/// and is queried out. The buffer is responsible for keeping a consistent view of the catalog and  is also responsible
 /// for writing data into the WAL if it is configured.
 ///
 /// Data in the buffer is organized into monotonically increasing segments, each associated with a single WAL file, if

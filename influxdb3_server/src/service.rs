@@ -8,7 +8,7 @@
 //! as a gRPC service from `tonic`, and produces a [`HybridMakeService`] that
 //! can be served with `hyper`'s [`Server`][hyper-server].
 //!
-//! Reccomended reading: [Combining Axum, Hyper, Tonic, and Tower for hybrid web/gRPC apps][article]
+//! Recommended reading: [Combining Axum, Hyper, Tonic, and Tower for hybrid web/gRPC apps][article]
 //!
 //! [make-svc-fn]: https://docs.rs/hyper/0.14.28/src/hyper/service/make.rs.html#149-151
 //! [hyper-server]: https://docs.rs/hyper/0.14.28/hyper/server/struct.Server.html
