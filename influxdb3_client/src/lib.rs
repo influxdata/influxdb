@@ -1,7 +1,7 @@
-use std::{fmt::Display, string::FromUtf8Error};
+use std::{collections::HashMap, fmt::Display, string::FromUtf8Error};
 
 use bytes::Bytes;
-use iox_query_params::{StatementParam, StatementParams};
+use iox_query_params::StatementParam;
 use reqwest::{Body, IntoUrl, StatusCode};
 use secrecy::{ExposeSecret, Secret};
 use serde::Serialize;
@@ -299,7 +299,7 @@ pub struct QueryRequestBuilder<'c> {
     db: String,
     query: String,
     format: Option<Format>,
-    params: Option<StatementParams>,
+    params: Option<HashMap<String, StatementParam>>,
 }
 
 // TODO - for now the send method just returns the bytes from the response.
@@ -335,15 +335,9 @@ impl<'c> QueryRequestBuilder<'c> {
         name: S,
         param: P,
     ) -> Self {
-        // TODO - need API on StatementParams to insert parameter, for now we clone and replace
-        let mut params = if let Some(p) = self.params.clone() {
-            p
-        } else {
-            StatementParams::default()
-        }
-        .into_hashmap();
-        params.insert(name.into(), param.into());
-        self.params = Some(params.into());
+        self.params
+            .get_or_insert_with(|| Default::default())
+            .insert(name.into(), param.into());
         self
     }
 
@@ -370,14 +364,6 @@ impl<'c> QueryRequestBuilder<'c> {
         S: Into<String> + Clone,
         P: TryInto<StatementParam, Error = iox_query_params::Error>,
     {
-        // TODO - need API on StatementParams to insert parameter, for now we clone and replace
-        let mut params = if let Some(p) = self.params.clone() {
-            p
-        } else {
-            StatementParams::default()
-        }
-        .into_hashmap();
-
         let name = name.into();
         let param = param
             .try_into()
@@ -385,9 +371,9 @@ impl<'c> QueryRequestBuilder<'c> {
                 name: name.clone(),
                 source,
             })?;
-
-        params.insert(name, param);
-        self.params = Some(params.into());
+        self.params
+            .get_or_insert_with(|| Default::default())
+            .insert(name, param);
         Ok(self)
     }
 
@@ -426,7 +412,7 @@ pub struct QueryParams<'a> {
     #[serde(rename = "q")]
     query: &'a str,
     format: Option<Format>,
-    params: Option<&'a StatementParams>,
+    params: Option<&'a HashMap<String, StatementParam>>,
 }
 
 impl<'a> From<&'a QueryRequestBuilder<'a>> for QueryParams<'a> {
