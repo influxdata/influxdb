@@ -488,7 +488,7 @@ mod tests {
         assert_eq!(
             body,
             "{\
-                \"error\":\"partial write of line protocol ocurred\",\
+                \"error\":\"partial write of line protocol occurred\",\
                 \"data\":[{\
                     \"original_line\":\"cpu,host=a val= 123\",\
                     \"line_number\":2,\

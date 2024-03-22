@@ -174,7 +174,7 @@ async fn auth_grpc() {
     // Create some new clients that set the authorization header incorrectly to
     // ensure errors are returned:
 
-    // Mispelled "Bearer"
+    // Misspelled "Bearer"
     {
         let mut client = server.flight_sql_client("foo").await;
         client
@@ -196,7 +196,7 @@ async fn auth_grpc() {
         );
     }
 
-    // Mispelled header key
+    // Misspelled header key
     {
         let mut client = server.flight_sql_client("foo").await;
         client

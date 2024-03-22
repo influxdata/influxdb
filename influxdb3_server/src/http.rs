@@ -110,11 +110,11 @@ pub enum Error {
     ServingHttp(#[from] hyper::Error),
 
     /// Missing parameters for query
-    #[error("missing query paramters 'db' and 'q'")]
+    #[error("missing query parameters 'db' and 'q'")]
     MissingQueryParams,
 
     /// MIssing parameters for write
-    #[error("missing query paramter 'db'")]
+    #[error("missing query parameter 'db'")]
     MissingWriteParams,
 
     /// Serde decode error
@@ -169,7 +169,7 @@ pub enum Error {
     #[error("db name must use ASCII letters, numbers, underscores and hyphens only")]
     DbNameInvalidChar,
 
-    #[error("partial write of line protocol ocurred")]
+    #[error("partial write of line protocol occurred")]
     PartialLpWrite(BufferedWriteRequest),
 
     #[error("error in InfluxQL statement: {0}")]
@@ -255,7 +255,7 @@ impl Error {
             }
             Self::PartialLpWrite(data) => {
                 let err = ErrorMessage {
-                    error: "partial write of line protocol ocurred".into(),
+                    error: "partial write of line protocol occurred".into(),
                     data: Some(data.invalid_lines),
                 };
                 let serialized = serde_json::to_string(&err).unwrap();

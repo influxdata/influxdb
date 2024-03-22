@@ -696,7 +696,7 @@ pub(crate) struct ValidationResult {
     pub(crate) field_count: usize,
     /// Number of tags passed in
     pub(crate) tag_count: usize,
-    /// Any errors that ocurred while parsing the lines
+    /// Any errors that occurred while parsing the lines
     pub(crate) errors: Vec<crate::WriteLineError>,
     /// Only valid lines from what was passed in to validate, segmented based on the
     /// timestamps of the data.
