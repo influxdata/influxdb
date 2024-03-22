@@ -488,8 +488,8 @@ where
         req: Request<Body>,
     ) -> Result<QueryRequest<D, QueryFormat, StatementParams>> {
         let header_format = QueryFormat::try_from_headers(req.headers())?;
-        let request = match req.method() {
-            &Method::GET => {
+        let request = match *req.method() {
+            Method::GET => {
                 let query = req.uri().query().ok_or(Error::MissingQueryParams)?;
                 let r = serde_urlencoded::from_str::<QueryRequest<D, Option<QueryFormat>, String>>(
                     query,
@@ -501,7 +501,7 @@ where
                     params: r.params.map(|s| serde_json::from_str(&s)).transpose()?,
                 }
             }
-            &Method::POST => {
+            Method::POST => {
                 let body = self.read_body(req).await?;
                 serde_json::from_slice(body.as_ref())?
             }
@@ -704,10 +704,10 @@ impl QueryFormat {
             // Note parquet hasn't been accepted yet just Arrow, but there
             // is the possibility it will be:
             // https://issues.apache.org/jira/browse/PARQUET-1889
-            Some(b"application/vnd.apache.parquet") => Ok(QueryFormat::Parquet),
-            Some(b"text/csv") => Ok(QueryFormat::Csv),
-            Some(b"text/plain") => Ok(QueryFormat::Pretty),
-            Some(b"application/json" | b"*/*") | None => Ok(QueryFormat::Json),
+            Some(b"application/vnd.apache.parquet") => Ok(Self::Parquet),
+            Some(b"text/csv") => Ok(Self::Csv),
+            Some(b"text/plain") => Ok(Self::Pretty),
+            Some(b"application/json" | b"*/*") | None => Ok(Self::Json),
             Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
                 Ok(s) => Err(QueryParamsError::InvalidMimeType(s).into()),
                 Err(e) => Err(QueryParamsError::NonUtf8MimeType(e).into()),
