@@ -95,6 +95,10 @@ pub enum Error {
     #[error("access denied")]
     Forbidden,
 
+    /// The HTTP request method is not supported for this resource
+    #[error("unsupported method")]
+    UnsupportedMethod,
+
     /// PProf support is not compiled
     #[error("pprof support is not compiled")]
     PProfIsNotCompiled,
@@ -264,6 +268,18 @@ impl Error {
                 let body = Body::from(serialized);
                 Response::builder()
                     .status(StatusCode::BAD_REQUEST)
+                    .body(body)
+                    .unwrap()
+            }
+            Self::UnsupportedMethod => {
+                let err: ErrorMessage<()> = ErrorMessage {
+                    error: self.to_string(),
+                    data: None,
+                };
+                let serialized = serde_json::to_string(&err).unwrap();
+                let body = Body::from(serialized);
+                Response::builder()
+                    .status(StatusCode::METHOD_NOT_ALLOWED)
                     .body(body)
                     .unwrap()
             }
