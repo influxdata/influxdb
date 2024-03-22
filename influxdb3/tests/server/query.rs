@@ -3,6 +3,7 @@ use futures::StreamExt;
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
+use test_helpers::assert_contains;
 
 #[tokio::test]
 async fn api_v3_query_sql() {
@@ -48,6 +49,126 @@ async fn api_v3_query_sql() {
         +------+---------+-------------------------------+-------+",
         resp,
     );
+}
+
+#[tokio::test]
+async fn api_v3_query_sql_params() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=a,region=us-east usage=0.9 1
+            cpu,host=b,region=us-east usage=0.50 1
+            cpu,host=a,region=us-east usage=0.80 2
+            cpu,host=b,region=us-east usage=0.60 2
+            cpu,host=a,region=us-east usage=0.70 3
+            cpu,host=b,region=us-east usage=0.70 3
+            cpu,host=a,region=us-east usage=0.50 4
+            cpu,host=b,region=us-east usage=0.80 4",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    let client = reqwest::Client::new();
+    let url = format!("{base}/api/v3/query_sql", base = server.client_addr());
+
+    // Use a POST request
+    {
+        let resp = client
+            .post(&url)
+            .json(&json!({
+                "db": "foo",
+                "q": "SELECT * FROM cpu WHERE host = $host AND usage > $usage",
+                "params": {
+                    "host": "b",
+                    "usage": 0.60,
+                },
+                "format": "pretty",
+            }))
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            "+------+---------+---------------------+-------+\n\
+            | host | region  | time                | usage |\n\
+            +------+---------+---------------------+-------+\n\
+            | b    | us-east | 1970-01-01T00:00:03 | 0.7   |\n\
+            | b    | us-east | 1970-01-01T00:00:04 | 0.8   |\n\
+            +------+---------+---------------------+-------+",
+            resp
+        );
+    }
+
+    // Use a GET request
+    {
+        let params = serde_json::to_string(&json!({
+            "host": "b",
+            "usage": 0.60,
+        }))
+        .unwrap();
+        let resp = client
+            .get(&url)
+            .query(&[
+                ("db", "foo"),
+                (
+                    "q",
+                    "SELECT * FROM cpu WHERE host = $host AND usage > $usage",
+                ),
+                ("format", "pretty"),
+                ("params", params.as_str()),
+            ])
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            "+------+---------+---------------------+-------+\n\
+            | host | region  | time                | usage |\n\
+            +------+---------+---------------------+-------+\n\
+            | b    | us-east | 1970-01-01T00:00:03 | 0.7   |\n\
+            | b    | us-east | 1970-01-01T00:00:04 | 0.8   |\n\
+            +------+---------+---------------------+-------+",
+            resp
+        );
+    }
+
+    // Check for errors
+    {
+        let resp = client
+            .post(&url)
+            .json(&json!({
+                "db": "foo",
+                "q": "SELECT * FROM cpu WHERE host = $host",
+                "params": {
+                    "not_host": "a"
+                },
+                "format": "pretty",
+            }))
+            .send()
+            .await
+            .unwrap();
+        let status = resp.status();
+        let body = resp.text().await.unwrap();
+
+        // TODO - it would be nice if this was a 4xx error, because this is really
+        //   a user error; however, the underlying error that occurs when Logical
+        //   planning is Datafusion::Internal, and is not so convenient to deal with.
+        //
+        //   I filed https://github.com/apache/arrow-datafusion/issues/9738 to see
+        //   if we can get some more granular errors for parameter replacement issues
+        //   during logical planning.
+        assert!(status.is_server_error());
+        assert_contains!(body, "No value found for placeholder with name $host");
+    }
 }
 
 #[tokio::test]
@@ -267,6 +388,130 @@ async fn api_v3_query_influxql() {
         println!("\n{q}", q = t.query);
         println!("{resp}");
         assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
+    }
+}
+
+#[tokio::test]
+async fn api_v3_query_influxql_params() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=a,region=us-east usage=0.9 1
+            cpu,host=b,region=us-east usage=0.50 1
+            cpu,host=a,region=us-east usage=0.80 2
+            cpu,host=b,region=us-east usage=0.60 2
+            cpu,host=a,region=us-east usage=0.70 3
+            cpu,host=b,region=us-east usage=0.70 3
+            cpu,host=a,region=us-east usage=0.50 4
+            cpu,host=b,region=us-east usage=0.80 4",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    let client = reqwest::Client::new();
+    let url = format!("{base}/api/v3/query_influxql", base = server.client_addr());
+
+    // Use a POST request
+    {
+        let resp = client
+            .post(&url)
+            .json(&json!({
+                "db": "foo",
+                "q": "SELECT * FROM cpu WHERE host = $host AND usage > $usage",
+                "params": {
+                    "host": "b",
+                    "usage": 0.60,
+                },
+                "format": "pretty",
+            }))
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            "+------------------+---------------------+------+---------+-------+\n\
+            | iox::measurement | time                | host | region  | usage |\n\
+            +------------------+---------------------+------+---------+-------+\n\
+            | cpu              | 1970-01-01T00:00:03 | b    | us-east | 0.7   |\n\
+            | cpu              | 1970-01-01T00:00:04 | b    | us-east | 0.8   |\n\
+            +------------------+---------------------+------+---------+-------+",
+            resp
+        );
+    }
+
+    // Use a GET request
+    {
+        let params = serde_json::to_string(&json!({
+            "host": "b",
+            "usage": 0.60,
+        }))
+        .unwrap();
+        let resp = client
+            .get(&url)
+            .query(&[
+                ("db", "foo"),
+                (
+                    "q",
+                    "SELECT * FROM cpu WHERE host = $host AND usage > $usage",
+                ),
+                ("format", "pretty"),
+                ("params", params.as_str()),
+            ])
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            "+------------------+---------------------+------+---------+-------+\n\
+            | iox::measurement | time                | host | region  | usage |\n\
+            +------------------+---------------------+------+---------+-------+\n\
+            | cpu              | 1970-01-01T00:00:03 | b    | us-east | 0.7   |\n\
+            | cpu              | 1970-01-01T00:00:04 | b    | us-east | 0.8   |\n\
+            +------------------+---------------------+------+---------+-------+",
+            resp
+        );
+    }
+
+    // Check for errors
+    {
+        let resp = client
+            .post(&url)
+            .json(&json!({
+                "db": "foo",
+                "q": "SELECT * FROM cpu WHERE host = $host",
+                "params": {
+                    "not_host": "a"
+                },
+                "format": "pretty",
+            }))
+            .send()
+            .await
+            .unwrap();
+        let status = resp.status();
+        let body = resp.text().await.unwrap();
+
+        // TODO - it would be nice if this was a 4xx error, because this is really
+        //   a user error; however, the underlying error that occurs when Logical
+        //   planning is Datafusion::Internal, and is not so convenient to deal with.
+        //
+        //   I filed https://github.com/apache/arrow-datafusion/issues/9738 to see
+        //   if we can get some more granular errors for parameter replacement issues
+        //   during logical planning.
+        assert!(status.is_server_error());
+        assert_contains!(
+            body,
+            "Bind parameter '$host' was referenced in the InfluxQL \
+            statement but its value is undefined"
+        );
     }
 }
 

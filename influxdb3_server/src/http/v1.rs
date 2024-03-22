@@ -58,7 +58,8 @@ where
 
         let chunk_size = chunked.then(|| chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE));
 
-        let stream = self.query_influxql_inner(database, &query).await?;
+        // TODO - params, currently passing None here:
+        let stream = self.query_influxql_inner(database, &query, None).await?;
         let stream =
             QueryResponseStream::new(0, stream, chunk_size, pretty, epoch).map_err(QueryError)?;
         let body = Body::wrap_stream(stream);

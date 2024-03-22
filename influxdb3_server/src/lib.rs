@@ -27,6 +27,7 @@ use datafusion::execution::SendableRecordBatchStream;
 use hyper::service::service_fn;
 use influxdb3_write::{Persister, WriteBuffer};
 use iox_query::QueryNamespaceProvider;
+use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
 use observability_deps::tracing::{error, info};
 use service::hybrid;
@@ -129,6 +130,7 @@ pub trait QueryExecutor: QueryNamespaceProvider + Debug + Send + Sync + 'static 
         &self,
         database: &str,
         q: &str,
+        params: Option<StatementParams>,
         kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
