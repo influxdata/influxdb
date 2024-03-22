@@ -336,7 +336,7 @@ impl<'c> QueryRequestBuilder<'c> {
         param: P,
     ) -> Self {
         self.params
-            .get_or_insert_with(|| Default::default())
+            .get_or_insert_with(Default::default)
             .insert(name.into(), param.into());
         self
     }
@@ -372,7 +372,7 @@ impl<'c> QueryRequestBuilder<'c> {
                 source,
             })?;
         self.params
-            .get_or_insert_with(|| Default::default())
+            .get_or_insert_with(Default::default)
             .insert(name, param);
         Ok(self)
     }
