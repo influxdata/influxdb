@@ -161,11 +161,10 @@ async fn api_v3_query_sql_params() {
 
         // TODO - it would be nice if this was a 4xx error, because this is really
         //   a user error; however, the underlying error that occurs when Logical
-        //   planning is Datafusion::Internal, and is not so convenient to deal with.
+        //   planning is DatafusionError::Internal, and is not so convenient to deal
+        //   with. This may get addressed in:
         //
-        //   I filed https://github.com/apache/arrow-datafusion/issues/9738 to see
-        //   if we can get some more granular errors for parameter replacement issues
-        //   during logical planning.
+        //   https://github.com/apache/arrow-datafusion/issues/9738
         assert!(status.is_server_error());
         assert_contains!(body, "No value found for placeholder with name $host");
     }

@@ -58,7 +58,8 @@ where
 
         let chunk_size = chunked.then(|| chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE));
 
-        // TODO - params, currently passing None here:
+        // TODO - Currently not supporting parameterized queries, see
+        //        https://github.com/influxdata/influxdb/issues/24805
         let stream = self.query_influxql_inner(database, &query, None).await?;
         let stream =
             QueryResponseStream::new(0, stream, chunk_size, pretty, epoch).map_err(QueryError)?;
