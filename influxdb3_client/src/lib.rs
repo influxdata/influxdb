@@ -313,6 +313,23 @@ impl<'c> QueryRequestBuilder<'c> {
     }
 
     /// Set a query parameter value with the given `name`
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use influxdb3_client::Client;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// let client = Client::new("http://localhost:8181")?;
+    /// let response_bytes = client
+    ///     .api_v3_query_sql("db_name", "SELECT * FROM foo WHERE bar = $bar AND baz > $baz")
+    ///     .with_param("bar", "bop")
+    ///     .with_param("baz", 0.5)
+    ///     .send()
+    ///     .await
+    ///     .expect("send query_sql request");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn with_param<S: Into<String>, P: Into<StatementParam>>(
         mut self,
         name: S,
@@ -331,6 +348,23 @@ impl<'c> QueryRequestBuilder<'c> {
     }
 
     /// Try to set a query parameter value with the given `name`
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use influxdb3_client::Client;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// use serde_json::json;
+    ///
+    /// let client = Client::new("http://localhost:8181")?;
+    /// let response_bytes = client
+    ///     .api_v3_query_sql("db_name", "SELECT * FROM foo WHERE bar = $bar AND baz > $baz")
+    ///     .with_try_param("bar", json!("baz"))?
+    ///     .send()
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn with_try_param<S, P>(mut self, name: S, param: P) -> Result<Self>
     where
         S: Into<String> + Clone,
@@ -406,6 +440,7 @@ impl<'a> From<&'a QueryRequestBuilder<'a>> for QueryParams<'a> {
     }
 }
 
+/// The type of query, SQL or InfluxQL
 #[derive(Debug, Copy, Clone)]
 pub enum QueryKind {
     Sql,
