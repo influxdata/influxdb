@@ -521,7 +521,7 @@ where
                 let body = self.read_body(req).await?;
                 serde_json::from_slice(body.as_ref())?
             }
-            _ => todo!(),
+            _ => return Err(Error::UnsupportedMethod),
         };
 
         Ok(QueryRequest {
