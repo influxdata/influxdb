@@ -17,6 +17,7 @@ use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
 use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
+use hyper::HeaderMap;
 use hyper::{Body, Method, Request, Response, StatusCode};
 use influxdb3_write::catalog::Error as CatalogError;
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
@@ -25,6 +26,7 @@ use influxdb3_write::BufferedWriteRequest;
 use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
 use iox_query_influxql_rewrite as rewrite;
+use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, info};
 use serde::de::DeserializeOwned;
@@ -92,6 +94,10 @@ pub enum Error {
     /// The provided authorization is not sufficient to perform the request.
     #[error("access denied")]
     Forbidden,
+
+    /// The HTTP request method is not supported for this resource
+    #[error("unsupported method")]
+    UnsupportedMethod,
 
     /// PProf support is not compiled
     #[error("pprof support is not compiled")]
@@ -265,6 +271,18 @@ impl Error {
                     .body(body)
                     .unwrap()
             }
+            Self::UnsupportedMethod => {
+                let err: ErrorMessage<()> = ErrorMessage {
+                    error: self.to_string(),
+                    data: None,
+                };
+                let serialized = serde_json::to_string(&err).unwrap();
+                let body = Body::from(serialized);
+                Response::builder()
+                    .status(StatusCode::METHOD_NOT_ALLOWED)
+                    .body(body)
+                    .unwrap()
+            }
             _ => {
                 let body = Body::from(self.to_string());
                 Response::builder()
@@ -347,17 +365,18 @@ where
     }
 
     async fn query_sql(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let QueryParams {
+        let QueryRequest {
             database,
             query_str,
             format,
-        } = QueryParams::<String, _>::from_request(&req)?;
+            params,
+        } = self.extract_query_request::<String>(req).await?;
 
         info!(%database, %query_str, ?format, "handling query_sql");
 
         let stream = self
             .query_executor
-            .query(&database, &query_str, QueryKind::Sql, None, None)
+            .query(&database, &query_str, params, QueryKind::Sql, None, None)
             .await?;
 
         Response::builder()
@@ -368,15 +387,18 @@ where
     }
 
     async fn query_influxql(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let QueryParams {
+        let QueryRequest {
             database,
             query_str,
             format,
-        } = QueryParams::<Option<String>, _>::from_request(&req)?;
+            params,
+        } = self.extract_query_request::<Option<String>>(req).await?;
 
         info!(?database, %query_str, ?format, "handling query_influxql");
 
-        let stream = self.query_influxql_inner(database, &query_str).await?;
+        let stream = self
+            .query_influxql_inner(database, &query_str, params)
+            .await?;
 
         Response::builder()
             .status(StatusCode::OK)
@@ -477,6 +499,39 @@ where
         Ok(())
     }
 
+    async fn extract_query_request<D: DeserializeOwned>(
+        &self,
+        req: Request<Body>,
+    ) -> Result<QueryRequest<D, QueryFormat, StatementParams>> {
+        let header_format = QueryFormat::try_from_headers(req.headers())?;
+        let request = match *req.method() {
+            Method::GET => {
+                let query = req.uri().query().ok_or(Error::MissingQueryParams)?;
+                let r = serde_urlencoded::from_str::<QueryRequest<D, Option<QueryFormat>, String>>(
+                    query,
+                )?;
+                QueryRequest {
+                    database: r.database,
+                    query_str: r.query_str,
+                    format: r.format,
+                    params: r.params.map(|s| serde_json::from_str(&s)).transpose()?,
+                }
+            }
+            Method::POST => {
+                let body = self.read_body(req).await?;
+                serde_json::from_slice(body.as_ref())?
+            }
+            _ => return Err(Error::UnsupportedMethod),
+        };
+
+        Ok(QueryRequest {
+            database: request.database,
+            query_str: request.query_str,
+            format: request.format.unwrap_or(header_format),
+            params: request.params,
+        })
+    }
+
     /// Inner function for performing InfluxQL queries
     ///
     /// This is used by both the `/api/v3/query_influxql` and `/api/v1/query`
@@ -485,6 +540,7 @@ where
         &self,
         database: Option<String>,
         query_str: &str,
+        params: Option<StatementParams>,
     ) -> Result<SendableRecordBatchStream> {
         let mut statements = rewrite::parse_statements(query_str)?;
 
@@ -525,6 +581,7 @@ where
                     // TODO - implement an interface that takes the statement directly,
                     // so we don't need to double down on the parsing
                     &statement.to_statement().to_string(),
+                    params,
                     QueryKind::InfluxQl,
                     None,
                     None,
@@ -617,45 +674,13 @@ fn validate_db_name(name: &str) -> Result<()> {
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct QueryParams<D, F> {
+pub(crate) struct QueryRequest<D, F, P> {
     #[serde(rename = "db")]
     pub(crate) database: D,
     #[serde(rename = "q")]
     pub(crate) query_str: String,
     pub(crate) format: F,
-}
-
-impl<D> QueryParams<D, QueryFormat>
-where
-    D: DeserializeOwned,
-{
-    fn from_request(req: &Request<Body>) -> Result<Self> {
-        let query = req.uri().query().ok_or(Error::MissingQueryParams)?;
-        let params = serde_urlencoded::from_str::<QueryParams<D, Option<QueryFormat>>>(query)?;
-        let format = match params.format {
-            None => match req.headers().get(ACCEPT).map(HeaderValue::as_bytes) {
-                // Accept Headers use the MIME types maintained by IANA here:
-                // https://www.iana.org/assignments/media-types/media-types.xhtml
-                // Note parquet hasn't been accepted yet just Arrow, but there
-                // is the possibility it will be:
-                // https://issues.apache.org/jira/browse/PARQUET-1889
-                Some(b"application/vnd.apache.parquet") => QueryFormat::Parquet,
-                Some(b"text/csv") => QueryFormat::Csv,
-                Some(b"text/plain") => QueryFormat::Pretty,
-                Some(b"application/json" | b"*/*") | None => QueryFormat::Json,
-                Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
-                    Ok(s) => return Err(QueryParamsError::InvalidMimeType(s).into()),
-                    Err(e) => return Err(QueryParamsError::NonUtf8MimeType(e).into()),
-                },
-            },
-            Some(f) => f,
-        };
-        Ok(Self {
-            database: params.database,
-            query_str: params.query_str,
-            format,
-        })
-    }
+    pub(crate) params: Option<P>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -685,6 +710,24 @@ impl QueryFormat {
             Self::Csv => "text/csv",
             Self::Pretty => "text/plain; charset=utf-8",
             Self::Json => "application/json",
+        }
+    }
+
+    fn try_from_headers(headers: &HeaderMap) -> Result<Self> {
+        match headers.get(ACCEPT).map(HeaderValue::as_bytes) {
+            // Accept Headers use the MIME types maintained by IANA here:
+            // https://www.iana.org/assignments/media-types/media-types.xhtml
+            // Note parquet hasn't been accepted yet just Arrow, but there
+            // is the possibility it will be:
+            // https://issues.apache.org/jira/browse/PARQUET-1889
+            Some(b"application/vnd.apache.parquet") => Ok(Self::Parquet),
+            Some(b"text/csv") => Ok(Self::Csv),
+            Some(b"text/plain") => Ok(Self::Pretty),
+            Some(b"application/json" | b"*/*") | None => Ok(Self::Json),
+            Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
+                Ok(s) => Err(QueryParamsError::InvalidMimeType(s).into()),
+                Err(e) => Err(QueryParamsError::NonUtf8MimeType(e).into()),
+            },
         }
     }
 }

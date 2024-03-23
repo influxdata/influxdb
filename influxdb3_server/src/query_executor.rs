@@ -90,6 +90,7 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         &self,
         database: &str,
         q: &str,
+        params: Option<StatementParams>,
         kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
@@ -117,9 +118,7 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         );
 
         info!("plan");
-        // TODO: Figure out if we want to support parameter values in SQL
-        // queries
-        let params = StatementParams::default();
+        let params = params.unwrap_or_default();
         let plan = match kind {
             QueryKind::Sql => {
                 let planner = SqlQueryPlanner::new();
