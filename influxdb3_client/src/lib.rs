@@ -455,6 +455,7 @@ pub enum Format {
 #[cfg(test)]
 mod tests {
     use mockito::{Matcher, Server};
+    use serde_json::json;
 
     use crate::{Client, Format, Precision};
 
@@ -589,9 +590,6 @@ mod tests {
                 "params": null,
             })))
             .with_status(200)
-            // TODO - could add content-type header but that may be too brittle
-            //        at the moment
-            //      - this will be JSON Lines at some point
             .with_body(body)
             .create_async()
             .await;
@@ -608,5 +606,48 @@ mod tests {
         assert_eq!(&r, body);
 
         mock.assert_async().await;
+    }
+    #[tokio::test]
+    async fn api_v3_query_influxql_params() {
+        let db = "stats";
+        let query = "SELECT * FROM foo WHERE a = $a AND b < $b AND c > $c AND d = $d";
+        let body = r#"[{"host": "foo", "time": "1990-07-23T06:00:00:000", "val": 1}]"#;
+
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v3/query_influxql")
+            .match_body(Matcher::Json(serde_json::json!({
+                "db": db,
+                "q": query,
+                "params": {
+                    "a": "bar",
+                    "b": 123,
+                    "c": 1.5,
+                    "d": false
+                },
+                "format": null
+            })))
+            .with_status(200)
+            .with_body(body)
+            .create_async()
+            .await;
+
+        let client = Client::new(mock_server.url()).expect("create client");
+
+        let mut builder = client.api_v3_query_influxql(db, query);
+
+        for (name, value) in [
+            ("a", json!("bar")),
+            ("b", json!(123)),
+            ("c", json!(1.5)),
+            ("d", json!(false)),
+        ] {
+            builder = builder.with_try_param(name, value).unwrap();
+        }
+        let r = builder.send().await;
+
+        mock.assert_async().await;
+
+        r.expect("sent request successfully");
     }
 }
