@@ -2543,6 +2543,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb3_load_generator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "csv",
+ "dotenvy",
+ "humantime",
+ "influxdb3_client",
+ "observability_deps",
+ "parking_lot",
+ "rand",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "trogging",
+ "url",
+]
+
+[[package]]
 name = "influxdb3_server"
 version = "0.1.0"
 dependencies = [
