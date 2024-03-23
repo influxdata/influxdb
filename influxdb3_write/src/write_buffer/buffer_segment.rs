@@ -86,6 +86,11 @@ impl OpenBufferSegment {
         self.segment_writer.write_batch(write_batch)
     }
 
+    #[cfg(test)]
+    pub fn starting_catalog_sequence_number(&self) -> SequenceNumber {
+        self.starting_catalog_sequence_number
+    }
+
     pub fn table_buffer(&self, db_name: &str, table_name: &str) -> Option<TableBuffer> {
         self.buffered_data
             .database_buffers
