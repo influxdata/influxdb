@@ -1,6 +1,7 @@
-use std::{fmt::Display, string::FromUtf8Error};
+use std::{collections::HashMap, fmt::Display, string::FromUtf8Error};
 
 use bytes::Bytes;
+use iox_query_params::StatementParam;
 use reqwest::{Body, IntoUrl, StatusCode};
 use secrecy::{ExposeSecret, Secret};
 use serde::Serialize;
@@ -26,6 +27,16 @@ pub enum Error {
         kind: QueryKind,
         #[source]
         source: reqwest::Error,
+    },
+
+    #[error(
+        "provided parameter ('{name}') could not be converted \
+        to a statment parameter"
+    )]
+    ConvertQueryParam {
+        name: String,
+        #[source]
+        source: iox_query_params::Error,
     },
 
     #[error("invalid UTF8 in response: {0}")]
@@ -136,6 +147,7 @@ impl Client {
             db: db.into(),
             query: query.into(),
             format: None,
+            params: None,
         }
     }
 
@@ -166,6 +178,7 @@ impl Client {
             db: db.into(),
             query: query.into(),
             format: None,
+            params: None,
         }
     }
 }
@@ -286,6 +299,7 @@ pub struct QueryRequestBuilder<'c> {
     db: String,
     query: String,
     format: Option<Format>,
+    params: Option<HashMap<String, StatementParam>>,
 }
 
 // TODO - for now the send method just returns the bytes from the response.
@@ -298,6 +312,71 @@ impl<'c> QueryRequestBuilder<'c> {
         self
     }
 
+    /// Set a query parameter value with the given `name`
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use influxdb3_client::Client;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// let client = Client::new("http://localhost:8181")?;
+    /// let response_bytes = client
+    ///     .api_v3_query_sql("db_name", "SELECT * FROM foo WHERE bar = $bar AND baz > $baz")
+    ///     .with_param("bar", "bop")
+    ///     .with_param("baz", 0.5)
+    ///     .send()
+    ///     .await
+    ///     .expect("send query_sql request");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_param<S: Into<String>, P: Into<StatementParam>>(
+        mut self,
+        name: S,
+        param: P,
+    ) -> Self {
+        self.params
+            .get_or_insert_with(Default::default)
+            .insert(name.into(), param.into());
+        self
+    }
+
+    /// Try to set a query parameter value with the given `name`
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use influxdb3_client::Client;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// use serde_json::json;
+    ///
+    /// let client = Client::new("http://localhost:8181")?;
+    /// let response_bytes = client
+    ///     .api_v3_query_sql("db_name", "SELECT * FROM foo WHERE bar = $bar AND baz > $baz")
+    ///     .with_try_param("bar", json!("baz"))?
+    ///     .send()
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_try_param<S, P>(mut self, name: S, param: P) -> Result<Self>
+    where
+        S: Into<String> + Clone,
+        P: TryInto<StatementParam, Error = iox_query_params::Error>,
+    {
+        let name = name.into();
+        let param = param
+            .try_into()
+            .map_err(|source| Error::ConvertQueryParam {
+                name: name.clone(),
+                source,
+            })?;
+        self.params
+            .get_or_insert_with(Default::default)
+            .insert(name, param);
+        Ok(self)
+    }
+
     /// Send the request to `/api/v3/query_sql` or `/api/v3/query_influxql`
     pub async fn send(self) -> Result<Bytes> {
         let url = match self.kind {
@@ -305,7 +384,7 @@ impl<'c> QueryRequestBuilder<'c> {
             QueryKind::InfluxQl => self.client.base_url.join("/api/v3/query_influxql")?,
         };
         let params = QueryParams::from(&self);
-        let mut req = self.client.http_client.get(url).query(&params);
+        let mut req = self.client.http_client.post(url).json(&params);
         if let Some(token) = &self.client.auth_token {
             req = req.bearer_auth(token.expose_secret());
         }
@@ -333,6 +412,7 @@ pub struct QueryParams<'a> {
     #[serde(rename = "q")]
     query: &'a str,
     format: Option<Format>,
+    params: Option<&'a HashMap<String, StatementParam>>,
 }
 
 impl<'a> From<&'a QueryRequestBuilder<'a>> for QueryParams<'a> {
@@ -341,10 +421,12 @@ impl<'a> From<&'a QueryRequestBuilder<'a>> for QueryParams<'a> {
             db: &builder.db,
             query: &builder.query,
             format: builder.format,
+            params: builder.params.as_ref(),
         }
     }
 }
 
+/// The type of query, SQL or InfluxQL
 #[derive(Debug, Copy, Clone)]
 pub enum QueryKind {
     Sql,
@@ -373,6 +455,7 @@ pub enum Format {
 #[cfg(test)]
 mod tests {
     use mockito::{Matcher, Server};
+    use serde_json::json;
 
     use crate::{Client, Format, Precision};
 
@@ -422,13 +505,14 @@ mod tests {
 
         let mut mock_server = Server::new_async().await;
         let mock = mock_server
-            .mock("GET", "/api/v3/query_sql")
+            .mock("POST", "/api/v3/query_sql")
             .match_header("Authorization", format!("Bearer {token}").as_str())
-            .match_query(Matcher::AllOf(vec![
-                Matcher::UrlEncoded("db".into(), db.into()),
-                Matcher::UrlEncoded("q".into(), query.into()),
-                Matcher::UrlEncoded("format".into(), "json".into()),
-            ]))
+            .match_body(Matcher::Json(serde_json::json!({
+                "db": db,
+                "q": query,
+                "format": "json",
+                "params": null,
+            })))
             .with_status(200)
             // TODO - could add content-type header but that may be too brittle
             //        at the moment
@@ -454,6 +538,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn api_v3_query_sql_params() {
+        let db = "stats";
+        let query = "SELECT * FROM foo WHERE bar = $bar";
+        let body = r#"[{"host": "foo", "time": "1990-07-23T06:00:00:000", "val": 1}]"#;
+
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v3/query_sql")
+            .match_body(Matcher::Json(serde_json::json!({
+                "db": db,
+                "q": query,
+                "params": {
+                    "bar": "baz",
+                    "baz": false,
+                },
+                "format": null
+            })))
+            .with_status(200)
+            .with_body(body)
+            .create_async()
+            .await;
+
+        let client = Client::new(mock_server.url()).expect("create client");
+
+        let r = client
+            .api_v3_query_sql(db, query)
+            .with_param("bar", "baz")
+            .with_param("baz", false)
+            .send()
+            .await;
+
+        mock.assert_async().await;
+
+        r.expect("sent request successfully");
+    }
+
+    #[tokio::test]
     async fn api_v3_query_influxql() {
         let db = "stats";
         let query = "SELECT * FROM foo";
@@ -461,16 +582,14 @@ mod tests {
 
         let mut mock_server = Server::new_async().await;
         let mock = mock_server
-            .mock("GET", "/api/v3/query_influxql")
-            .match_query(Matcher::AllOf(vec![
-                Matcher::UrlEncoded("db".into(), db.into()),
-                Matcher::UrlEncoded("q".into(), query.into()),
-                Matcher::UrlEncoded("format".into(), "json".into()),
-            ]))
+            .mock("POST", "/api/v3/query_influxql")
+            .match_body(Matcher::Json(serde_json::json!({
+                "db": db,
+                "q": query,
+                "format": "json",
+                "params": null,
+            })))
             .with_status(200)
-            // TODO - could add content-type header but that may be too brittle
-            //        at the moment
-            //      - this will be JSON Lines at some point
             .with_body(body)
             .create_async()
             .await;
@@ -487,5 +606,48 @@ mod tests {
         assert_eq!(&r, body);
 
         mock.assert_async().await;
+    }
+    #[tokio::test]
+    async fn api_v3_query_influxql_params() {
+        let db = "stats";
+        let query = "SELECT * FROM foo WHERE a = $a AND b < $b AND c > $c AND d = $d";
+        let body = r#"[{"host": "foo", "time": "1990-07-23T06:00:00:000", "val": 1}]"#;
+
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v3/query_influxql")
+            .match_body(Matcher::Json(serde_json::json!({
+                "db": db,
+                "q": query,
+                "params": {
+                    "a": "bar",
+                    "b": 123,
+                    "c": 1.5,
+                    "d": false
+                },
+                "format": null
+            })))
+            .with_status(200)
+            .with_body(body)
+            .create_async()
+            .await;
+
+        let client = Client::new(mock_server.url()).expect("create client");
+
+        let mut builder = client.api_v3_query_influxql(db, query);
+
+        for (name, value) in [
+            ("a", json!("bar")),
+            ("b", json!(123)),
+            ("c", json!(1.5)),
+            ("d", json!(false)),
+        ] {
+            builder = builder.with_try_param(name, value).unwrap();
+        }
+        let r = builder.send().await;
+
+        mock.assert_async().await;
+
+        r.expect("sent request successfully");
     }
 }

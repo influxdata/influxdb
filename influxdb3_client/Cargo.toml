@@ -6,6 +6,9 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+# core dependencies
+iox_query_params.workspace = true
+
 # crates.io dependencies
 bytes.workspace = true
 reqwest.workspace = true
@@ -17,6 +20,7 @@ url.workspace = true
 [dev-dependencies]
 # crates.io dependencies
 mockito.workspace = true
+serde_json.workspace = true
 tokio.workspace = true
 
 [lints]
