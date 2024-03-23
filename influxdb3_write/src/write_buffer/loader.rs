@@ -52,12 +52,15 @@ where
     let next_segment_range = current_segment_range.next();
 
     let mut open_segments = Vec::new();
+    let mut max_segment_id = last_persisted_segment_id;
 
     if let Some(wal) = wal {
         // read any segments that don't show up in the list of persisted segments
         let wal_segments = wal.segment_files()?;
 
         for segment_file in wal_segments {
+            max_segment_id = max_segment_id.max(segment_file.segment_id);
+
             // if persisted segments is empty, load all segments from the wal, otherwise
             // only load segments that haven't been persisted yet
             if segment_file.segment_id <= last_persisted_segment_id
@@ -93,7 +96,8 @@ where
 
         if open_segments.is_empty() {
             // ensure that we open up a segment for the "now" period of time
-            let current_segment_id = last_persisted_segment_id.next();
+            let current_segment_id = max_segment_id.next();
+            max_segment_id = current_segment_id;
 
             let current_segment = OpenBufferSegment::new(
                 current_segment_id,
@@ -109,6 +113,7 @@ where
     } else {
         // ensure that we open up a segment for the "now" period of time
         let current_segment_id = last_persisted_segment_id.next();
+        max_segment_id = current_segment_id;
 
         let current_segment = OpenBufferSegment::new(
             current_segment_id,
@@ -122,22 +127,9 @@ where
         open_segments.push(current_segment);
     };
 
-    let last_segment_id = open_segments
-        .iter()
-        .map(|s| s.segment_id())
-        .max()
-        .unwrap_or(SegmentId::new(0))
-        .max(last_persisted_segment_id)
-        .max(
-            persisted_segments
-                .last()
-                .map(|s| s.segment_id)
-                .unwrap_or(SegmentId::new(0)),
-        );
-
     Ok(LoadedState {
         catalog,
-        last_segment_id,
+        last_segment_id: max_segment_id,
         open_segments,
         persisting_buffer_segments,
         persisted_segments,
@@ -632,5 +624,50 @@ mod tests {
         assert_batches_eq!(&expected, &[foo_data]);
 
         assert_eq!(loaded_state.last_segment_id, SegmentId::new(2));
+    }
+
+    #[tokio::test]
+    async fn loads_with_persisting_wal_file_and_no_open_segment() {
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let dir = test_helpers::tmp_dir().unwrap().into_path();
+        let wal = Arc::new(WalImpl::new(dir.clone()).unwrap());
+
+        let LoadedState {
+            mut open_segments, ..
+        } = load_starting_state(
+            Arc::clone(&persister),
+            Some(Arc::clone(&wal)),
+            Time::from_timestamp_nanos(0),
+            SegmentDuration::new_5m(),
+        )
+        .await
+        .unwrap();
+
+        let current_segment = open_segments.pop().unwrap();
+        let segment_id = current_segment.segment_id();
+        let next_segment_id = segment_id.next();
+
+        let mut loaded_state = load_starting_state(
+            persister,
+            Some(wal),
+            Time::from_timestamp(360, 0).unwrap(),
+            SegmentDuration::new_5m(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            loaded_state
+                .persisting_buffer_segments
+                .pop()
+                .unwrap()
+                .segment_id,
+            segment_id
+        );
+        assert_eq!(
+            loaded_state.open_segments.pop().unwrap().segment_id(),
+            next_segment_id
+        );
     }
 }

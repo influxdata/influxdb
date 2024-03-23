@@ -70,11 +70,7 @@ impl OpenBufferSegment {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn start_time_matches(&self, t: Time) -> bool {
-        self.segment_range.start_time == t
-    }
-
+    #[cfg(test)]
     pub fn segment_id(&self) -> SegmentId {
         self.segment_id
     }
