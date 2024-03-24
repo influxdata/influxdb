@@ -665,7 +665,11 @@ func (c *client) createDefaultRequest(ctx context.Context, q Query) (*http.Reque
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", u.String(), nil)
+	queryParams := make(url.Values)
+	queryParams.Add("q", q.Command)
+	queryParams.Add("params", string(jsonParameters))
+
+	req, err := http.NewRequest("POST", u.String(), strings.NewReader(queryParams.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -674,7 +678,7 @@ func (c *client) createDefaultRequest(ctx context.Context, q Query) (*http.Reque
 		req = req.WithContext(ctx)
 	}
 
-	req.Header.Set("Content-Type", "")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", c.useragent)
 
 	if c.username != "" {
@@ -682,12 +686,10 @@ func (c *client) createDefaultRequest(ctx context.Context, q Query) (*http.Reque
 	}
 
 	params := req.URL.Query()
-	params.Set("q", q.Command)
 	params.Set("db", q.Database)
 	if q.RetentionPolicy != "" {
 		params.Set("rp", q.RetentionPolicy)
 	}
-	params.Set("params", string(jsonParameters))
 
 	if q.Precision != "" {
 		params.Set("epoch", q.Precision)
