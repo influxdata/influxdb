@@ -324,6 +324,7 @@ impl TableDefinition {
         &self.schema
     }
 
+    #[cfg(test)]
     pub(crate) fn columns(&self) -> &BTreeMap<String, i16> {
         &self.columns
     }

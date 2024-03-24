@@ -5,25 +5,21 @@
 use crate::catalog::Catalog;
 use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
+use crate::write_buffer::table_buffer::TableBuffer;
 use crate::write_buffer::{
-    parse_validate_and_update_catalog, Error, FieldData, Row, TableBatch, ValidSegmentedData,
+    parse_validate_and_update_catalog, Error, TableBatch, ValidSegmentedData,
 };
 use crate::{
     wal, write_buffer, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment,
     Persister, Precision, SegmentDuration, SegmentId, SegmentRange, SequenceNumber,
     TableParquetFiles, WalOp, WalSegmentReader, WalSegmentWriter,
 };
-use arrow::array::{
-    ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, StringDictionaryBuilder,
-    TimestampNanosecondBuilder, UInt64Builder,
-};
-use arrow::datatypes::Int32Type;
 use arrow::record_batch::RecordBatch;
-use data_types::{ColumnType, NamespaceName, PartitionKey, TimestampMinMax};
-use datafusion_util::stream_from_batch;
+use data_types::{NamespaceName, PartitionKey};
+use datafusion_util::stream_from_batches;
 use iox_time::Time;
 use schema::Schema;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::oneshot;
@@ -78,6 +74,11 @@ impl OpenBufferSegment {
     pub fn segment_range(&self) -> &SegmentRange {
         &self.segment_range
     }
+
+    pub fn segment_key(&self) -> &PartitionKey {
+        &self.segment_key
+    }
+
     pub fn write_wal_ops(&mut self, write_batch: Vec<WalOp>) -> wal::Result<()> {
         self.segment_writer.write_batch(write_batch)
     }
@@ -85,13 +86,6 @@ impl OpenBufferSegment {
     #[cfg(test)]
     pub fn starting_catalog_sequence_number(&self) -> SequenceNumber {
         self.starting_catalog_sequence_number
-    }
-
-    pub fn table_buffer(&self, db_name: &str, table_name: &str) -> Option<TableBuffer> {
-        self.buffered_data
-            .database_buffers
-            .get(db_name)
-            .and_then(|db_buffer| db_buffer.table_buffers.get(table_name).cloned())
     }
 
     /// Adds the batch into the in memory buffer.
@@ -104,23 +98,26 @@ impl OpenBufferSegment {
                 .or_default();
 
             for (table_name, table_batch) in db_batch.table_batches {
-                let table_buffer = db_buffer
-                    .table_buffers
-                    .entry(table_name)
-                    .or_insert_with(|| TableBuffer {
-                        segment_key: self.segment_key.clone(),
-                        rows: vec![],
-                        timestamp_min: i64::MAX,
-                        timestamp_max: i64::MIN,
-                    });
                 // TODO: for now we'll just have the number of rows represent the segment size. The entire
                 //       buffer is going to get refactored to use different structures, so this will change.
                 self.segment_size += table_batch.rows.len();
-                table_buffer.add_rows(table_batch.rows);
+
+                db_buffer.buffer_table_batch(table_name, &self.segment_key, table_batch);
             }
         }
 
         Ok(())
+    }
+
+    /// Returns the table data as record batches
+    pub(crate) fn table_record_batches(
+        &self,
+        db_name: &str,
+        table_name: &str,
+        schema: &Schema,
+    ) -> Option<Vec<RecordBatch>> {
+        self.buffered_data
+            .table_record_batches(db_name, table_name, schema)
     }
 
     /// Returns true if the segment should be persisted. A segment should be persisted if both of
@@ -194,21 +191,11 @@ pub(crate) fn load_buffer_from_segment(
                     let segment_data = validated_write.valid_segmented_data.pop().unwrap();
 
                     for (table_name, table_batch) in segment_data.table_batches {
-                        let table_buffer = db_buffer
-                            .table_buffers
-                            .entry(table_name)
-                            .or_insert_with(|| TableBuffer {
-                                segment_key: segment_key.clone(),
-                                rows: vec![],
-                                timestamp_min: i64::MAX,
-                                timestamp_max: i64::MIN,
-                            });
-
                         // TODO: for now we'll just have the number of rows represent the segment size. The entire
                         //       buffer is going to get refactored to use different structures, so this will change.
                         segment_size += table_batch.rows.len();
 
-                        table_buffer.add_rows(table_batch.rows);
+                        db_buffer.buffer_table_batch(table_name, &segment_key, table_batch);
                     }
                 }
             }
@@ -253,145 +240,68 @@ pub struct BufferedWrite {
     pub response_tx: oneshot::Sender<BufferedWriteResult>,
 }
 
-#[derive(Debug, Default, Eq, PartialEq)]
+#[derive(Debug, Default)]
 pub struct BufferedData {
     database_buffers: HashMap<String, DatabaseBuffer>,
 }
 
-#[derive(Debug, Default, Eq, PartialEq)]
+impl BufferedData {
+    /// Returns the table data as record batches
+    pub(crate) fn table_record_batches(
+        &self,
+        db_name: &str,
+        table_name: &str,
+        schema: &Schema,
+    ) -> Option<Vec<RecordBatch>> {
+        if let Some(db_buffer) = self.database_buffers.get(db_name) {
+            if let Some(table_buffer) = db_buffer.table_buffers.get(table_name) {
+                return Some(table_buffer.record_batches(schema));
+            }
+        }
+
+        None
+    }
+
+    /// Verifies that the passed in buffer has the same data as this buffer
+    #[cfg(test)]
+    pub(crate) fn verify_matches(&self, other: &BufferedData, catalog: &Catalog) {
+        assert_eq!(self.database_buffers.len(), other.database_buffers.len());
+        for (db_name, db_buffer) in &self.database_buffers {
+            let other_db_buffer = other.database_buffers.get(db_name).unwrap();
+            let db_schema = catalog.db_schema(db_name).unwrap();
+
+            for table_name in db_buffer.table_buffers.keys() {
+                let table_buffer = db_buffer.table_buffers.get(table_name).unwrap();
+                let other_table_buffer = other_db_buffer.table_buffers.get(table_name).unwrap();
+                let schema = db_schema.get_table_schema(table_name).unwrap();
+
+                let table_data = table_buffer.record_batches(schema);
+                let other_table_data = other_table_buffer.record_batches(schema);
+
+                assert_eq!(table_data, other_table_data);
+            }
+        }
+    }
+}
+
+#[derive(Debug, Default)]
 struct DatabaseBuffer {
     table_buffers: HashMap<String, TableBuffer>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct TableBuffer {
-    pub segment_key: PartitionKey,
-    rows: Vec<Row>,
-    timestamp_min: i64,
-    timestamp_max: i64,
-}
+impl DatabaseBuffer {
+    fn buffer_table_batch(
+        &mut self,
+        table_name: String,
+        segment_key: &PartitionKey,
+        table_batch: TableBatch,
+    ) {
+        let table_buffer = self
+            .table_buffers
+            .entry(table_name)
+            .or_insert_with(|| TableBuffer::new(segment_key.clone()));
 
-impl TableBuffer {
-    pub fn add_rows(&mut self, rows: Vec<Row>) {
-        self.rows.reserve(rows.len());
-        for row in rows {
-            self.timestamp_min = self.timestamp_min.min(row.time);
-            self.timestamp_max = self.timestamp_max.max(row.time);
-            self.rows.push(row);
-        }
-    }
-
-    pub fn timestamp_min_max(&self) -> TimestampMinMax {
-        TimestampMinMax {
-            min: self.timestamp_min,
-            max: self.timestamp_max,
-        }
-    }
-
-    pub fn row_count(&self) -> usize {
-        self.rows.len()
-    }
-
-    pub fn rows_to_record_batch(
-        &self,
-        schema: &Schema,
-        column_types: &BTreeMap<String, i16>,
-    ) -> RecordBatch {
-        let row_count = self.rows.len();
-        let mut columns = BTreeMap::new();
-        for (name, column_type) in column_types {
-            match ColumnType::try_from(*column_type).unwrap() {
-                ColumnType::Bool => columns.insert(
-                    name,
-                    Builder::Bool(BooleanBuilder::with_capacity(row_count)),
-                ),
-                ColumnType::F64 => {
-                    columns.insert(name, Builder::F64(Float64Builder::with_capacity(row_count)))
-                }
-                ColumnType::I64 => {
-                    columns.insert(name, Builder::I64(Int64Builder::with_capacity(row_count)))
-                }
-                ColumnType::U64 => {
-                    columns.insert(name, Builder::U64(UInt64Builder::with_capacity(row_count)))
-                }
-                ColumnType::String => columns.insert(name, Builder::String(StringBuilder::new())),
-                ColumnType::Tag => {
-                    columns.insert(name, Builder::Tag(StringDictionaryBuilder::new()))
-                }
-                ColumnType::Time => columns.insert(
-                    name,
-                    Builder::Time(TimestampNanosecondBuilder::with_capacity(row_count)),
-                ),
-            };
-        }
-
-        for r in &self.rows {
-            let mut value_added = HashSet::with_capacity(r.fields.len());
-
-            for f in &r.fields {
-                let builder = columns.get_mut(&f.name).unwrap();
-                match (&f.value, builder) {
-                    (FieldData::Timestamp(v), Builder::Time(b)) => b.append_value(*v),
-                    (FieldData::Tag(v), Builder::Tag(b)) => {
-                        b.append(v).unwrap();
-                    }
-                    (FieldData::String(v), Builder::String(b)) => b.append_value(v),
-                    (FieldData::Integer(v), Builder::I64(b)) => b.append_value(*v),
-                    (FieldData::UInteger(v), Builder::U64(b)) => b.append_value(*v),
-                    (FieldData::Float(v), Builder::F64(b)) => b.append_value(*v),
-                    (FieldData::Boolean(v), Builder::Bool(b)) => b.append_value(*v),
-                    _ => panic!("unexpected field type"),
-                }
-                value_added.insert(&f.name);
-            }
-
-            for (name, builder) in &mut columns {
-                if !value_added.contains(name) {
-                    match builder {
-                        Builder::Bool(b) => b.append_null(),
-                        Builder::F64(b) => b.append_null(),
-                        Builder::I64(b) => b.append_null(),
-                        Builder::U64(b) => b.append_null(),
-                        Builder::String(b) => b.append_null(),
-                        Builder::Tag(b) => b.append_null(),
-                        Builder::Time(b) => b.append_null(),
-                    }
-                }
-            }
-        }
-
-        // ensure the order of the columns matches their order in the Arrow schema definition
-        let mut cols = Vec::with_capacity(columns.len());
-        let schema = schema.as_arrow();
-        for f in &schema.fields {
-            cols.push(columns.remove(f.name()).unwrap().into_arrow());
-        }
-
-        RecordBatch::try_new(schema, cols).unwrap()
-    }
-}
-
-enum Builder {
-    Bool(BooleanBuilder),
-    I64(Int64Builder),
-    F64(Float64Builder),
-    U64(UInt64Builder),
-    String(StringBuilder),
-    Tag(StringDictionaryBuilder<Int32Type>),
-    Time(TimestampNanosecondBuilder),
-}
-
-impl Builder {
-    fn into_arrow(self) -> ArrayRef {
-        match self {
-            Self::Bool(mut b) => Arc::new(b.finish()),
-            Self::I64(mut b) => Arc::new(b.finish()),
-            Self::F64(mut b) => Arc::new(b.finish()),
-            Self::U64(mut b) => Arc::new(b.finish()),
-            Self::String(mut b) => Arc::new(b.finish()),
-            Self::Tag(mut b) => Arc::new(b.finish()),
-            Self::Time(mut b) => Arc::new(b.finish()),
-        }
+        table_buffer.add_rows(table_batch.rows);
     }
 }
 
@@ -465,11 +375,13 @@ impl ClosedBufferSegment {
                             sort_key: vec![],
                         };
 
+                        let time_min_max = table_buffer.timestamp_min_max();
+
                         // persist every table buffer
-                        let data =
-                            table_buffer.rows_to_record_batch(table.schema(), table.columns());
-                        let row_count = data.num_rows();
-                        let batch_stream = stream_from_batch(table.schema().as_arrow(), data);
+                        let data = table_buffer.record_batches(table.schema());
+                        let row_count = data.iter().map(|b| b.num_rows()).sum::<usize>();
+
+                        let batch_stream = stream_from_batches(table.schema().as_arrow(), data);
                         let parquet_file_path = ParquetFilePath::new_with_parititon_key(
                             db_name,
                             &table.name,
@@ -485,15 +397,15 @@ impl ClosedBufferSegment {
                             path,
                             size_bytes,
                             row_count: row_count as u64,
-                            min_time: table_buffer.timestamp_min,
-                            max_time: table_buffer.timestamp_max,
+                            min_time: time_min_max.min,
+                            max_time: time_min_max.max,
                         };
                         table_parquet_files.parquet_files.push(parquet_file);
 
                         segment_parquet_size_bytes += size_bytes;
                         segment_row_count += meta.num_rows as u64;
-                        segment_max_time = segment_max_time.max(table_buffer.timestamp_max);
-                        segment_min_time = segment_min_time.min(table_buffer.timestamp_min);
+                        segment_max_time = segment_max_time.max(time_min_max.max);
+                        segment_min_time = segment_min_time.min(time_min_max.min);
 
                         if !table_parquet_files.parquet_files.is_empty() {
                             database_tables
@@ -523,13 +435,6 @@ impl ClosedBufferSegment {
 
         Ok(persisted_segment)
     }
-
-    pub fn table_buffer(&self, db_name: &str, table_name: &str) -> Option<TableBuffer> {
-        self.buffered_data
-            .database_buffers
-            .get(db_name)
-            .and_then(|db_buffer| db_buffer.table_buffers.get(table_name).cloned())
-    }
 }
 
 #[cfg(test)]
@@ -538,6 +443,7 @@ pub(crate) mod tests {
     use crate::test_helpers::{lp_to_table_batches, lp_to_write_batch};
     use crate::wal::WalSegmentWriterNoopImpl;
     use crate::{persister, LpWriteOp, PersistedCatalog};
+    use arrow_util::assert_batches_eq;
     use bytes::Bytes;
     use datafusion::execution::SendableRecordBatchStream;
     use object_store::ObjectStore;
@@ -558,27 +464,48 @@ pub(crate) mod tests {
         );
 
         let db_name: NamespaceName<'static> = NamespaceName::new("db1").unwrap();
+        let catalog = Catalog::new();
 
-        let batches =
-            lp_to_table_batches("cpu,tag1=cupcakes bar=1 10\nmem,tag2=snakes bar=2 20", 10);
+        let batches = lp_to_table_batches(
+            &catalog,
+            "db1",
+            "cpu,tag1=cupcakes bar=1 10\nmem,tag2=snakes bar=2 20",
+            10,
+        );
         let mut write_batch = WriteBatch::default();
         write_batch.add_db_write(db_name.clone(), batches);
         open_segment.buffer_writes(write_batch).unwrap();
 
-        let batches = lp_to_table_batches("cpu,tag1=cupcakes bar=2 30", 10);
+        let batches = lp_to_table_batches(&catalog, "db1", "cpu,tag1=cupcakes bar=2 30", 10);
         let mut write_batch = WriteBatch::default();
         write_batch.add_db_write(db_name.clone(), batches);
         open_segment.buffer_writes(write_batch).unwrap();
 
-        let cpu_table = open_segment.table_buffer(&db_name, "cpu").unwrap();
-        assert_eq!(cpu_table.rows.len(), 2);
-        assert_eq!(cpu_table.timestamp_min, 10);
-        assert_eq!(cpu_table.timestamp_max, 30);
+        let db_schema = catalog.db_schema("db1").unwrap();
+        let cpu_table = open_segment
+            .table_record_batches("db1", "cpu", db_schema.get_table_schema("cpu").unwrap())
+            .unwrap();
+        let expected_cpu_table = vec![
+            "+------------------------------------------------------------------+-----+----------+--------------------------------+",
+            "| _series_id                                                       | bar | tag1     | time                           |",
+            "+------------------------------------------------------------------+-----+----------+--------------------------------+",
+            "| 505f9f5fc3347ac9d6ba45f2b2c94ad53a313e456e86e61db85ba1935369b238 | 1.0 | cupcakes | 1970-01-01T00:00:00.000000010Z |",
+            "| 505f9f5fc3347ac9d6ba45f2b2c94ad53a313e456e86e61db85ba1935369b238 | 2.0 | cupcakes | 1970-01-01T00:00:00.000000030Z |",
+            "+------------------------------------------------------------------+-----+----------+--------------------------------+",
+        ];
+        assert_batches_eq!(&expected_cpu_table, &cpu_table);
 
-        let mem_table = open_segment.table_buffer(&db_name, "mem").unwrap();
-        assert_eq!(mem_table.rows.len(), 1);
-        assert_eq!(mem_table.timestamp_min, 20);
-        assert_eq!(mem_table.timestamp_max, 20);
+        let mem_table = open_segment
+            .table_record_batches("db1", "mem", db_schema.get_table_schema("mem").unwrap())
+            .unwrap();
+        let expected_mem_table = vec![
+            "+------------------------------------------------------------------+-----+--------+--------------------------------+",
+            "| _series_id                                                       | bar | tag2   | time                           |",
+            "+------------------------------------------------------------------+-----+--------+--------------------------------+",
+            "| 5ae2bb295e8b0dec713daf0da555ecd3f2899a8967f18db799e26557029198f3 | 2.0 | snakes | 1970-01-01T00:00:00.000000020Z |",
+            "+------------------------------------------------------------------+-----+--------+--------------------------------+",
+        ];
+        assert_batches_eq!(&expected_mem_table, &mem_table);
     }
 
     #[tokio::test]

@@ -293,7 +293,18 @@ mod tests {
 
         assert_eq!(segment.segment_id(), segment_id);
 
-        let table_buffer = segment.table_buffer(db_name.as_str(), "cpu").unwrap();
-        assert_eq!(table_buffer.row_count(), 2);
+        let data = segment
+            .table_record_batches(
+                db_name.as_str(),
+                "cpu",
+                catalog
+                    .db_schema("db1")
+                    .unwrap()
+                    .get_table_schema("cpu")
+                    .unwrap(),
+            )
+            .unwrap();
+        let row_count = data.iter().map(|batch| batch.num_rows()).sum::<usize>();
+        assert_eq!(row_count, 2);
     }
 }

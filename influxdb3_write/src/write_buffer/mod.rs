@@ -4,6 +4,7 @@ pub(crate) mod buffer_segment;
 mod flusher;
 mod loader;
 mod segment_state;
+mod table_buffer;
 
 use crate::catalog::{
     Catalog, DatabaseSchema, TableDefinition, SERIES_ID_COLUMN_NAME, TIME_COLUMN_NAME,
@@ -285,14 +286,8 @@ impl<W: Wal, T: TimeProvider, P: Persister> WriteBufferImpl<W, T, P> {
         let table = db_schema.tables.get(table_name).unwrap();
         let schema = table.schema.clone();
 
-        let table_buffers = self
-            .segment_state
-            .read()
-            .clone_table_buffers(datbase_name, table_name);
-        table_buffers
-            .into_iter()
-            .map(|table_buffer| table_buffer.rows_to_record_batch(&schema, table.columns()))
-            .collect()
+        let segment_state = self.segment_state.read();
+        segment_state.open_segments_table_record_batches(datbase_name, table_name, &schema)
     }
 }
 

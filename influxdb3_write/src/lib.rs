@@ -216,6 +216,14 @@ impl SegmentRange {
         }
     }
 
+    /// Returns the min/max timestamp of the segment range
+    pub fn timestamp_min_max(&self) -> TimestampMinMax {
+        TimestampMinMax {
+            min: self.start_time.timestamp_nanos(),
+            max: self.end_time.timestamp_nanos() - 1, // end time is exclusive in range, but not MinMax
+        }
+    }
+
     /// Returns the string key for the segment range
     pub fn key(&self) -> String {
         format!(
@@ -585,7 +593,7 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
 
 #[cfg(test)]
 mod test_helpers {
-    use crate::catalog::{Catalog, DatabaseSchema};
+    use crate::catalog::Catalog;
     use crate::write_buffer::buffer_segment::WriteBatch;
     use crate::write_buffer::{parse_validate_and_update_schema, TableBatch};
     use crate::{Precision, SegmentDuration, SequenceNumber};
@@ -624,9 +632,14 @@ mod test_helpers {
         write_batch
     }
 
-    pub(crate) fn lp_to_table_batches(lp: &str, default_time: i64) -> HashMap<String, TableBatch> {
-        let db = Arc::new(DatabaseSchema::new("foo"));
-        let db_name = NamespaceName::new("foo").unwrap();
+    pub(crate) fn lp_to_table_batches(
+        catalog: &Catalog,
+        db_name: &str,
+        lp: &str,
+        default_time: i64,
+    ) -> HashMap<String, TableBatch> {
+        let (seq, db) = catalog.db_or_create(db_name).unwrap();
+        let db_name = NamespaceName::new(db_name.to_string()).unwrap();
         let mut result = parse_validate_and_update_schema(
             lp,
             &db,
@@ -638,6 +651,10 @@ mod test_helpers {
             SequenceNumber::new(0),
         )
         .unwrap();
+
+        if let Some(db) = result.schema {
+            catalog.replace_database(seq, Arc::new(db)).unwrap();
+        }
 
         result.valid_segmented_data.pop().unwrap().table_batches
     }
