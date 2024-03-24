@@ -286,18 +286,18 @@ Writer 2:
     });
 
     // spawn tokio tasks for each writer
+    let client = create_client(
+        config.influxdb3_config.host_url,
+        config.influxdb3_config.auth_token,
+    )?;
     let mut tasks = Vec::new();
     for generator in generators {
         let reporter = Arc::clone(&write_reporter);
-        let client = create_client(
-            config.influxdb3_config.host_url.clone(),
-            config.influxdb3_config.auth_token.clone(),
-        )?;
         let database_name = config.influxdb3_config.database_name.clone();
         let sampling_interval = config.sampling_interval.into();
         let task = tokio::spawn(run_generator(
             generator,
-            client,
+            client.clone(),
             database_name,
             reporter,
             sampling_interval,

@@ -1,6 +1,6 @@
 //! This contains the logic for creating generators for a given spec for the number of workers.
 
-use crate::specification::{DataSpec, MeasurementSpec};
+use crate::specification::{DataSpec, FieldKind, MeasurementSpec};
 use rand::distributions::Alphanumeric;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
@@ -88,15 +88,9 @@ fn create_measurement<'a>(
             }))
         });
 
-        let (cardinality_id_min, cardinality_id_max) = if let Some(cardinality) = t.cardinality {
-            let cardinality_increment = usize::div_ceil(cardinality, writer_count);
-            let cardinality_id_min = writer_id * cardinality_increment - cardinality_increment + 1;
-            let cardinality_id_max = cardinality_id_min + cardinality_increment - 1;
-
-            (cardinality_id_min, cardinality_id_max)
-        } else {
-            (0, 0)
-        };
+        let (cardinality_id_min, cardinality_id_max) = t
+            .cardinality_min_max(writer_id, writer_count)
+            .unwrap_or((0, 0));
 
         let append_writer_id = t.append_writer_id.unwrap_or(false);
         let append_copy_id = t.append_copy_id.unwrap_or(false);
@@ -133,69 +127,84 @@ fn create_measurement<'a>(
         for copy_id in 1..copies + 1 {
             let random_null = f.null_probability.map(|p| (p, SmallRng::from_entropy()));
 
-            if f.bool.is_some() {
-                fields.push(Field {
-                    key: Arc::clone(&key),
-                    copy_id,
-                    random_null,
-                    field_value: FieldValue::Boolean(BooleanValue {
-                        random_value: SmallRng::from_entropy(),
-                    }),
-                });
-            } else if f.integer.is_some() || f.integer_range.is_some() {
-                fields.push(Field {
-                    key: Arc::clone(&key),
-                    copy_id,
-                    random_null,
-                    field_value: FieldValue::Integer(IntegerValue {
-                        value: f.integer,
-                        random_value: f.integer_range.map(|r| {
-                            (
-                                Range {
-                                    start: r.0,
-                                    end: r.1,
-                                },
-                                SmallRng::from_entropy(),
-                            )
-                        }),
-                    }),
-                });
-            } else if f.float.is_some() || f.float_range.is_some() {
-                fields.push(Field {
-                    key: Arc::clone(&key),
-                    copy_id,
-                    random_null,
-                    field_value: FieldValue::Float(FloatValue {
-                        value: f.float,
-                        random_value: f.float_range.map(|r| {
-                            (
-                                Range {
-                                    start: r.0,
-                                    end: r.1,
-                                },
-                                SmallRng::from_entropy(),
-                            )
-                        }),
-                    }),
-                });
-            } else if f.string.is_some() || f.string_random.is_some() {
-                fields.push(Field {
-                    key: Arc::clone(&key),
-                    copy_id,
-                    random_null,
-                    field_value: FieldValue::String(StringValue {
-                        value: f.string.as_ref().map(|s| {
-                            Arc::clone(
-                                arc_strings
-                                    .entry(s.as_str())
-                                    .or_insert_with(|| Arc::from(s.as_str())),
-                            )
-                        }),
-                        random_value: f.string_random.map(|r| (r, SmallRng::from_entropy())),
-                    }),
-                });
-            } else {
-                println!("skipping field spec: {:?}", f);
+            match &f.field {
+                FieldKind::Bool(_) => {
+                    fields.push(Field {
+                        key: Arc::clone(&key),
+                        copy_id,
+                        random_null,
+                        field_value: FieldValue::Boolean(BooleanValue::Random(
+                            SmallRng::from_entropy(),
+                        )),
+                    });
+                }
+                FieldKind::String(s) => {
+                    fields.push(Field {
+                        key: Arc::clone(&key),
+                        copy_id,
+                        random_null,
+                        field_value: FieldValue::String(StringValue::Fixed(Arc::clone(
+                            arc_strings
+                                .entry(s.as_str())
+                                .or_insert_with(|| Arc::from(s.as_str())),
+                        ))),
+                    });
+                }
+                FieldKind::StringRandom(size) => {
+                    fields.push(Field {
+                        key: Arc::clone(&key),
+                        copy_id,
+                        random_null,
+                        field_value: FieldValue::String(StringValue::Random(
+                            *size,
+                            SmallRng::from_entropy(),
+                        )),
+                    });
+                }
+                FieldKind::Integer(i) => {
+                    fields.push(Field {
+                        key: Arc::clone(&key),
+                        copy_id,
+                        random_null,
+                        field_value: FieldValue::Integer(IntegerValue::Fixed(*i)),
+                    });
+                }
+                FieldKind::IntegerRange(min, max) => {
+                    fields.push(Field {
+                        key: Arc::clone(&key),
+                        copy_id,
+                        random_null,
+                        field_value: FieldValue::Integer(IntegerValue::Random(
+                            Range {
+                                start: *min,
+                                end: *max,
+                            },
+                            SmallRng::from_entropy(),
+                        )),
+                    });
+                }
+                FieldKind::Float(f) => {
+                    fields.push(Field {
+                        key: Arc::clone(&key),
+                        copy_id,
+                        random_null,
+                        field_value: FieldValue::Float(FloatValue::Fixed(*f)),
+                    });
+                }
+                FieldKind::FloatRange(min, max) => {
+                    fields.push(Field {
+                        key: Arc::clone(&key),
+                        copy_id,
+                        random_null,
+                        field_value: FieldValue::Float(FloatValue::Random(
+                            Range {
+                                start: *min,
+                                end: *max,
+                            },
+                            SmallRng::from_entropy(),
+                        )),
+                    });
+                }
             }
         }
     }
@@ -387,40 +396,23 @@ impl Field {
         }
 
         match &mut self.field_value {
-            FieldValue::Integer(f) => {
-                if let Some(v) = f.value {
-                    write!(w, "{}i", v)?;
-                } else if let Some((range, rng)) = &mut f.random_value {
+            FieldValue::Integer(f) => match f {
+                IntegerValue::Fixed(v) => write!(w, "{}i", v)?,
+                IntegerValue::Random(range, rng) => {
                     let v: i64 = rng.gen_range(range.clone());
                     write!(w, "{}i", v)?;
-                } else {
-                    write!(w, "1i")?;
                 }
-            }
-            FieldValue::Float(f) => {
-                if let Some(v) = f.value {
-                    write!(w, "{}", v)?;
-                } else if let Some((range, rng)) = &mut f.random_value {
+            },
+            FieldValue::Float(f) => match f {
+                FloatValue::Fixed(v) => write!(w, "{}", v)?,
+                FloatValue::Random(range, rng) => {
                     let v: f64 = rng.gen_range(range.clone());
                     write!(w, "{:.3}", v)?;
-                } else {
-                    write!(w, "1.0")?;
                 }
-            }
-            FieldValue::String(f) => match (&f.value, &mut f.random_value) {
-                (Some(v), Some((size, rng))) => {
-                    let random: String = rng
-                        .sample_iter(&Alphanumeric)
-                        .take(*size)
-                        .map(char::from)
-                        .collect();
-
-                    write!(w, "\"{}-{}\"", v, random)?;
-                }
-                (Some(f), None) => {
-                    write!(w, "\"{}\"", f)?;
-                }
-                (None, Some((size, rng))) => {
+            },
+            FieldValue::String(s) => match s {
+                StringValue::Fixed(v) => write!(w, "\"{}\"", v)?,
+                StringValue::Random(size, rng) => {
                     let random: String = rng
                         .sample_iter(&Alphanumeric)
                         .take(*size)
@@ -429,18 +421,13 @@ impl Field {
 
                     write!(w, "\"{}\"", random)?;
                 }
-                (_, _) => {
-                    write!(w, "\"hello world\"")?;
+            },
+            FieldValue::Boolean(f) => match f {
+                BooleanValue::Random(rng) => {
+                    let v: bool = rng.gen();
+                    write!(w, "{}", v)?;
                 }
             },
-            FieldValue::Boolean(f) => {
-                let v: bool = f.random_value.gen();
-                if v {
-                    write!(w, "true")?;
-                } else {
-                    write!(w, "false")?;
-                }
-            }
         }
 
         Ok(())
@@ -448,26 +435,26 @@ impl Field {
 }
 
 #[derive(Debug)]
-struct IntegerValue {
-    value: Option<i64>,
-    random_value: Option<(Range<i64>, SmallRng)>,
+enum IntegerValue {
+    Fixed(i64),
+    Random(Range<i64>, SmallRng),
 }
 
 #[derive(Debug)]
-struct FloatValue {
-    value: Option<f64>,
-    random_value: Option<(Range<f64>, SmallRng)>,
+enum FloatValue {
+    Fixed(f64),
+    Random(Range<f64>, SmallRng),
 }
 
 #[derive(Debug)]
-struct StringValue {
-    value: Option<Arc<str>>,
-    random_value: Option<(usize, SmallRng)>,
+enum StringValue {
+    Fixed(Arc<str>),
+    Random(usize, SmallRng),
 }
 
 #[derive(Debug)]
-struct BooleanValue {
-    random_value: SmallRng,
+enum BooleanValue {
+    Random(SmallRng),
 }
 
 struct ByteCounter<W> {
@@ -528,37 +515,19 @@ mod tests {
                         key: "i".to_string(),
                         copies: Some(2),
                         null_probability: None,
-                        bool: None,
-                        string: None,
-                        string_random: None,
-                        integer: Some(42),
-                        integer_range: None,
-                        float: None,
-                        float_range: None,
+                        field: FieldKind::Integer(42),
                     },
                     FieldSpec {
                         key: "f".to_string(),
                         copies: None,
                         null_probability: None,
-                        bool: None,
-                        string: None,
-                        string_random: None,
-                        integer: None,
-                        integer_range: None,
-                        float: Some(6.8),
-                        float_range: None,
+                        field: FieldKind::Float(6.8),
                     },
                     FieldSpec {
                         key: "s".to_string(),
                         copies: None,
                         null_probability: None,
-                        bool: None,
-                        string: Some("hello".to_string()),
-                        string_random: None,
-                        integer: None,
-                        integer_range: None,
-                        float: None,
-                        float_range: None,
+                        field: FieldKind::String("hello".to_string()),
                     },
                 ],
                 copies: Some(1),
