@@ -312,6 +312,23 @@ jobs:
           root: .
           paths:
             - artifacts
+  build-packages:
+    docker:
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager:latest
+        auth:
+          username: _json_key
+          password: $CISUPPORT_GCS_AUTHORIZATION
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: packager .circleci/packages/config.yaml
+      - persist_to_workspace:
+          root: .
+          paths:
+            - artifacts
+      - store_artifacts:
+          path: artifacts/
   sign-packages:
     circleci_ip_ranges: true
     docker:
@@ -457,11 +474,16 @@ workflows:
                 - x86_64-pc-windows-gnu
                 - x86_64-unknown-linux-gnu
                 - x86_64-unknown-linux-musl
-      - sign-packages:
+      - build-packages:
           # <<: *release_filter
           <<: *any_filter
           requires:
             - build-release
+      - sign-packages:
+          # <<: *release_filter
+          <<: *any_filter
+          requires:
+            - build-packages
             - test
       - publish-packages:
           # <<: *release_filter
