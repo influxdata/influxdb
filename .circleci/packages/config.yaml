@@ -36,13 +36,13 @@ packages:
       - influxdb3.exe
     extras:
       - source: LICENSE-APACHE
-        target: usr/share/influxdb/LICENSE-APACHE
+        target: usr/share/influxdb3/LICENSE-APACHE
 
       - source: LICENSE-MIT
-        target: usr/share/influxdb/LICENSE-MIT
+        target: usr/share/influxdb3/LICENSE-MIT
 
       - source: README.md
-        target: usr/share/influxdb/README.md
+        target: usr/share/influxdb3/README.md
     perm_overrides:
     deb_recommends:
       - influxdb3-cli
