@@ -8,7 +8,7 @@ use crate::write_buffer::buffer_segment::{
 };
 use crate::{
     persister, wal, write_buffer, ParquetFile, PersistedSegment, Persister, SegmentDuration,
-    SegmentId, SegmentRange, Wal, WalOp,
+    SegmentId, SegmentRange, SequenceNumber, Wal, WalOp,
 };
 use data_types::{ChunkId, ChunkOrder, TableId, TransitionPartitionId};
 use datafusion::common::DataFusionError;
@@ -88,8 +88,10 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         &mut self,
         segment_start: Time,
         ops: Vec<WalOp>,
+        starting_catalog_sequence_number: SequenceNumber,
     ) -> wal::Result<()> {
-        let segment = self.get_or_create_segment_for_time(segment_start)?;
+        let segment =
+            self.get_or_create_segment_for_time(segment_start, starting_catalog_sequence_number)?;
         segment.write_wal_ops(ops)
     }
 
@@ -97,8 +99,10 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         &mut self,
         segment_start: Time,
         write_batch: WriteBatch,
+        starting_catalog_sequence_number: SequenceNumber,
     ) -> crate::write_buffer::Result<()> {
-        let segment = self.get_or_create_segment_for_time(segment_start)?;
+        let segment =
+            self.get_or_create_segment_for_time(segment_start, starting_catalog_sequence_number)?;
         segment.buffer_writes(write_batch)
     }
 
@@ -235,6 +239,7 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
     fn get_or_create_segment_for_time(
         &mut self,
         time: Time,
+        starting_catalog_sequence_number: SequenceNumber,
     ) -> wal::Result<&mut OpenBufferSegment> {
         if !self.segments.contains_key(&time) {
             if self.segments.len() >= OPEN_SEGMENT_LIMIT {
@@ -255,7 +260,7 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
                 segment_id,
                 segment_range,
                 self.time_provider.now(),
-                self.catalog.sequence_number(),
+                starting_catalog_sequence_number,
                 segment_writer,
                 None,
             );
