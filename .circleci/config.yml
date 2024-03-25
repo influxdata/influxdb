@@ -305,7 +305,7 @@ jobs:
           name: tar and gzip build artifacts
           command: |
             mkdir -p artifacts
-            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-edge<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/release" influxdb3{,.exe}
+            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-edge_<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/release" influxdb3{,.exe}
       - store_artifacts:
           path: artifacts
       - persist_to_workspace:

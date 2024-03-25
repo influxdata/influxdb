@@ -7,22 +7,22 @@ version:
     value: '3.x-{{env.CIRCLE_SHA1[:8]}}'
 
 sources:
-  - binary: /tmp/workspace/bin/influxdb3_linux_amd64/
+  - binary: /tmp/workspace/artifacts/influxdb3-edge_x86_64-unknown-linux-musl.tar.gz
     target: artifacts/
     arch:   amd64
     plat:   linux
 
-  - binary: /tmp/workspace/bin/influxdb3_linux_arm64/
+  - binary: /tmp/workspace/artifacts/influxdb3-edge_aarch64-unknown-linux-musl.tar.gz
     target: artifacts/
     arch:   arm64
     plat:   linux
 
-  - binary: /tmp/workspace/bin/influxdb3_darwin_amd64/
+  - binary: /tmp/workspace/artifacts/influxdb3-edge_aarch64-apple-darwin.tar.gz
     target: artifacts/
     arch:   amd64
     plat:   darwin
 
-  - binary: /tmp/workspace/bin/influxdb3_windows_amd64/
+  - binary: /tmp/workspace/artifacts/influxdb3-edge_x86_64-pc-windows-gnu.tar.gz
     target: artifacts/
     arch:   amd64
     plat:   windows
