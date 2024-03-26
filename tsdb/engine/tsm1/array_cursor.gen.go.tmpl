@@ -190,7 +190,7 @@ func new{{$Type}}() *{{$type}} {
 }
 
 func (c *{{$type}}) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
-    var err error
+	var err error
 	// Search for the time value greater than the seek time (not included)
 	// and then move our position back one which will include the values in
 	// our time range.
