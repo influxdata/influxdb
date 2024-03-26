@@ -19,13 +19,13 @@ pub enum Error {
 
     #[error(
         "Update to schema would exceed number of columns per table limit of {} columns",
-        Catalog::NUM_COLUMNS_PER_TABLE_LIMIT
+        Catalog::NUM_COLUMNS_PER_TABLE_LIMIT - 1
     )]
     TooManyColumns,
 
     #[error(
         "Update to schema would exceed number of tables limit of {} tables",
-        Catalog::NUM_TABLES_LIMIT - 1
+        Catalog::NUM_TABLES_LIMIT
     )]
     TooManyTables,
 

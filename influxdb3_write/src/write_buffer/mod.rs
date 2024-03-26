@@ -36,7 +36,7 @@ use sha2::Digest;
 use sha2::Sha256;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use thiserror::Error;
 use tokio::sync::watch;
 
@@ -508,24 +508,12 @@ pub(crate) fn validate_or_insert_schema_and_partitions(
     })
 }
 
-// &mut Cow is used to avoid a copy, so allow it
-#[allow(clippy::ptr_arg)]
-fn validate_and_convert_parsed_line<'a>(
-    mut line: ParsedLine<'_>,
-    raw_line: &'a str,
-    segment_table_batches: &mut HashMap<Time, TableBatchMap<'a>>,
-    schema: &mut Cow<'_, DatabaseSchema>,
-    ingest_time: Time,
-    segment_duration: SegmentDuration,
-    precision: Precision,
-) -> Result<()> {
-    let table_name = line.series.measurement.to_string();
-
-    // Check if the table exists in the schema.
-    //
-    // Because the entry API requires &mut it is not used to avoid a premature
-    // clone of the Cow.
-    match schema.tables.get(&table_name) {
+/// Check if the table exists in the schema and update the schema if it does not
+// Because the entry API requires &mut it is not used to avoid a premature
+// clone of the Cow.
+fn validate_and_update_schema(line: &ParsedLine<'_>, schema: &mut Cow<'_, DatabaseSchema>) {
+    let table_name = line.series.measurement.as_str();
+    match schema.tables.get(table_name) {
         Some(t) => {
             // Collect new column definitions
             let mut new_cols = Vec::with_capacity(line.column_count() + 1);
@@ -543,7 +531,7 @@ fn validate_and_convert_parsed_line<'a>(
             }
 
             if !new_cols.is_empty() {
-                let t = schema.to_mut().tables.get_mut(&table_name).unwrap();
+                let t = schema.to_mut().tables.get_mut(table_name).unwrap();
                 t.add_columns(new_cols);
             }
         }
@@ -561,7 +549,7 @@ fn validate_and_convert_parsed_line<'a>(
             columns.insert(TIME_COLUMN_NAME.to_string(), ColumnType::Time as i16);
             columns.insert(SERIES_ID_COLUMN_NAME.to_string(), ColumnType::String as i16);
 
-            let table = TableDefinition::new(&table_name, columns);
+            let table = TableDefinition::new(table_name, columns);
 
             assert!(schema
                 .to_mut()
@@ -570,6 +558,18 @@ fn validate_and_convert_parsed_line<'a>(
                 .is_none());
         }
     };
+}
+
+fn validate_and_convert_parsed_line<'a>(
+    mut line: ParsedLine<'_>,
+    raw_line: &'a str,
+    segment_table_batches: &mut HashMap<Time, TableBatchMap<'a>>,
+    schema: &mut Cow<'_, DatabaseSchema>,
+    ingest_time: Time,
+    segment_duration: SegmentDuration,
+    precision: Precision,
+) -> Result<()> {
+    validate_and_update_schema(&line, schema);
 
     // now that we've ensured all columns exist in the schema, construct the actual row and values
     // while validating the column types match.
@@ -644,7 +644,7 @@ fn validate_and_convert_parsed_line<'a>(
 
     let table_batch = table_batch_map
         .table_batches
-        .entry(table_name.to_string())
+        .entry(line.series.measurement.to_string())
         .or_default();
     table_batch.rows.push(Row {
         time: time_value_nanos,
@@ -750,6 +750,18 @@ impl std::fmt::Display for SeriesId {
     }
 }
 
+fn default_series_sha() -> &'static [u8; 32] {
+    static DEFAULT_SERIES_ID_SHA: OnceLock<[u8; 32]> = OnceLock::new();
+    // the unwrap is safe here because the Sha256 digest will always be 32 bytes:
+    DEFAULT_SERIES_ID_SHA.get_or_init(|| Sha256::digest("")[..].try_into().unwrap())
+}
+
+impl Default for SeriesId {
+    fn default() -> Self {
+        Self(default_series_sha().to_owned())
+    }
+}
+
 /// Produce a [`SeriesId`] from a raw line of line protocol / parsed [`Series`]
 ///
 /// If the tag set is sorted, we parse out the original tags from the raw line
@@ -760,8 +772,8 @@ impl std::fmt::Display for SeriesId {
 ///
 /// Generally, InfluxDB clients should be sending tags sorted.
 fn hash_series_id(raw_line: &str, series: &mut Series) -> SeriesId {
-    let bytes = if let Some(tag_set) = &mut series.tag_set {
-        if is_sorted(tag_set) {
+    if let Some(tag_set) = &mut series.tag_set {
+        let bytes = if is_sorted(tag_set) {
             // extract the raw string; if we are here, then the following `expect`s should
             // never panic, there should be a tag set in the raw line protocol
             let tag_set_str = raw_line
@@ -782,13 +794,13 @@ fn hash_series_id(raw_line: &str, series: &mut Series) -> SeriesId {
                 .collect::<Vec<String>>()
                 .join(",");
             Sha256::digest(tag_set_str)
-        }
+        };
+        // The Sha256 digests will produce 32 byte arrays, so the unwrap here is safe
+        SeriesId(bytes[..].try_into().unwrap())
     } else {
         // for an empty tag set, we still need a series ID:
-        Sha256::digest("")
-    };
-    // The Sha256 digests will produce 32 byte arrays, so the unwrap here is safe
-    SeriesId(bytes[..].try_into().unwrap())
+        SeriesId::default()
+    }
 }
 
 /// Check that a [`TagSet`], as a slice, is sorted
