@@ -12,7 +12,7 @@ import (
 
 // build{{.Name}}ArrayCursor creates an array cursor for a {{.name}} field.
 func (q *arrayCursorIterator) build{{.Name}}ArrayCursor(ctx context.Context, name []byte, tags models.Tags, field string, opt query.IteratorOptions) (tsdb.{{.Name}}ArrayCursor, error) {
-    var err error
+	var err error
 	key := q.seriesFieldKeyBytes(name, tags, field)
 	cacheValues := q.e.Cache.Values(key)
 	keyCursor := q.e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
