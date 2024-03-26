@@ -147,7 +147,10 @@ async fn auth_grpc() {
             .unwrap();
 
         // Make the query again, this time it should work:
-        let response = client.query("SELECT * FROM cpu").await.unwrap();
+        let response = client
+            .query("SELECT host, region, time, usage FROM cpu")
+            .await
+            .unwrap();
         let batches = collect_stream(response).await;
         assert_batches_sorted_eq!(
             [

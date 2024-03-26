@@ -25,7 +25,7 @@ pub enum Error {
 
     #[error(
         "Update to schema would exceed number of tables limit of {} tables",
-        Catalog::NUM_TABLES_LIMIT
+        Catalog::NUM_TABLES_LIMIT - 1
     )]
     TooManyTables,
 
@@ -56,7 +56,10 @@ impl Catalog {
     /// Limit for the number of Databases that InfluxDB Edge can have
     pub(crate) const NUM_DBS_LIMIT: usize = 5;
     /// Limit for the number of columns per table that InfluxDB Edge can have
-    pub(crate) const NUM_COLUMNS_PER_TABLE_LIMIT: usize = 500;
+    ///
+    /// The user-facing limit is 500, but we have it as 501 to account for the
+    /// generated _series_id column
+    pub(crate) const NUM_COLUMNS_PER_TABLE_LIMIT: usize = 501;
     // Limit for the number of tables across all DBs that InfluxDB Edge can have
     pub(crate) const NUM_TABLES_LIMIT: usize = 2000;
 
