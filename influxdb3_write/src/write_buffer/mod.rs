@@ -763,7 +763,8 @@ fn hash_series_id(raw_line: &str, series: &mut Series) -> SeriesId {
                 .0;
             Sha256::digest(tag_set_str)
         } else {
-            // sort the tag set and format as string
+            // sort the tag set and format as string, unstable sorting is fine because
+            // there should never be two tag keys of the same value
             tag_set.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
             let tag_set_str = tag_set
                 .iter()
@@ -773,6 +774,7 @@ fn hash_series_id(raw_line: &str, series: &mut Series) -> SeriesId {
             Sha256::digest(tag_set_str)
         }
     } else {
+        // for an empty tag set, we still need a series ID:
         Sha256::digest("")
     };
     // The Sha256 digests will produce 32 byte arrays, so the unwrap here is safe
@@ -817,8 +819,8 @@ mod tests {
         let db = result.schema.unwrap();
 
         assert_eq!(db.tables.len(), 2);
-        assert_eq!(db.tables.get("cpu").unwrap().columns().len(), 3);
-        assert_eq!(db.tables.get("foo").unwrap().columns().len(), 2);
+        assert_eq!(db.tables.get("cpu").unwrap().columns().len(), 4);
+        assert_eq!(db.tables.get("foo").unwrap().columns().len(), 3);
     }
 
     #[tokio::test]
@@ -854,12 +856,12 @@ mod tests {
 
         // ensure the data is in the buffer
         let actual = write_buffer.get_table_record_batches("foo", "cpu");
-        let expected = vec![
-            "+-----+--------------------------------+",
-            "| bar | time                           |",
-            "+-----+--------------------------------+",
-            "| 1.0 | 1970-01-01T00:00:00.000000010Z |",
-            "+-----+--------------------------------+",
+        let expected = [
+            "+------------------------------------------------------------------+-----+--------------------------------+",
+            "| _series_id                                                       | bar | time                           |",
+            "+------------------------------------------------------------------+-----+--------------------------------+",
+            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 1.0 | 1970-01-01T00:00:00.000000010Z |",
+            "+------------------------------------------------------------------+-----+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &actual);
 
@@ -921,12 +923,12 @@ mod tests {
             .await
             .unwrap();
 
-        let expected = vec![
-            "+-----+--------------------------------+",
-            "| bar | time                           |",
-            "+-----+--------------------------------+",
-            "| 1.0 | 1970-01-01T00:00:00.000000010Z |",
-            "+-----+--------------------------------+",
+        let expected = [
+            "+------------------------------------------------------------------+-----+--------------------------------+",
+            "| _series_id                                                       | bar | time                           |",
+            "+------------------------------------------------------------------+-----+--------------------------------+",
+            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 1.0 | 1970-01-01T00:00:00.000000010Z |",
+            "+------------------------------------------------------------------+-----+--------------------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
         assert_batches_eq!(&expected, &actual);
@@ -962,13 +964,13 @@ mod tests {
             )
             .await
             .unwrap();
-        let expected = vec![
-            "+-----+--------------------------------+",
-            "| bar | time                           |",
-            "+-----+--------------------------------+",
-            "| 2.0 | 1970-01-01T00:15:00Z           |",
-            "| 1.0 | 1970-01-01T00:00:00.000000010Z |",
-            "+-----+--------------------------------+",
+        let expected = [
+            "+------------------------------------------------------------------+-----+--------------------------------+",
+            "| _series_id                                                       | bar | time                           |",
+            "+------------------------------------------------------------------+-----+--------------------------------+",
+            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 2.0 | 1970-01-01T00:15:00Z           |",
+            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 1.0 | 1970-01-01T00:00:00.000000010Z |",
+            "+------------------------------------------------------------------+-----+--------------------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
         assert_batches_eq!(&expected, &actual);
@@ -996,14 +998,14 @@ mod tests {
             )
             .await
             .unwrap();
-        let expected = vec![
-            "+-----+--------------------------------+",
-            "| bar | time                           |",
-            "+-----+--------------------------------+",
-            "| 2.0 | 1970-01-01T00:15:00Z           |",
-            "| 3.0 | 1970-01-01T00:15:50Z           |",
-            "| 1.0 | 1970-01-01T00:00:00.000000010Z |",
-            "+-----+--------------------------------+",
+        let expected = [
+            "+------------------------------------------------------------------+-----+--------------------------------+",
+            "| _series_id                                                       | bar | time                           |",
+            "+------------------------------------------------------------------+-----+--------------------------------+",
+            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 2.0 | 1970-01-01T00:15:00Z           |",
+            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 3.0 | 1970-01-01T00:15:50Z           |",
+            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 1.0 | 1970-01-01T00:00:00.000000010Z |",
+            "+------------------------------------------------------------------+-----+--------------------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
         assert_batches_eq!(&expected, &actual);
