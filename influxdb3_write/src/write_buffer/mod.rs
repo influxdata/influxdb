@@ -23,7 +23,7 @@ use data_types::{
 use datafusion::common::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
-use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine, TagSet};
+use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine, Series, TagSet};
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
@@ -503,7 +503,7 @@ pub(crate) fn validate_or_insert_schema_and_partitions(
 // &mut Cow is used to avoid a copy, so allow it
 #[allow(clippy::ptr_arg)]
 fn validate_and_convert_parsed_line<'a>(
-    line: ParsedLine<'_>,
+    mut line: ParsedLine<'_>,
     raw_line: &'a str,
     segment_table_batches: &mut HashMap<Time, TableBatchMap<'a>>,
     schema: &mut Cow<'_, DatabaseSchema>,
@@ -511,13 +511,13 @@ fn validate_and_convert_parsed_line<'a>(
     segment_duration: SegmentDuration,
     precision: Precision,
 ) -> Result<()> {
-    let table_name = line.series.measurement.as_str();
+    let table_name = line.series.measurement.to_string();
 
     // Check if the table exists in the schema.
     //
     // Because the entry API requires &mut it is not used to avoid a premature
     // clone of the Cow.
-    match schema.tables.get(table_name) {
+    match schema.tables.get(&table_name) {
         Some(t) => {
             // Collect new column definitions
             let mut new_cols = Vec::with_capacity(line.column_count() + 1);
@@ -535,7 +535,7 @@ fn validate_and_convert_parsed_line<'a>(
             }
 
             if !new_cols.is_empty() {
-                let t = schema.to_mut().tables.get_mut(table_name).unwrap();
+                let t = schema.to_mut().tables.get_mut(&table_name).unwrap();
                 t.add_columns(new_cols);
             }
         }
@@ -553,7 +553,7 @@ fn validate_and_convert_parsed_line<'a>(
             columns.insert(TIME_COLUMN_NAME.to_string(), ColumnType::Time as i16);
             columns.insert(SERIES_ID_COLUMN_NAME.to_string(), ColumnType::String as i16);
 
-            let table = TableDefinition::new(table_name, columns);
+            let table = TableDefinition::new(&table_name, columns);
 
             assert!(schema
                 .to_mut()
@@ -567,14 +567,16 @@ fn validate_and_convert_parsed_line<'a>(
     // while validating the column types match.
     let mut values = Vec::with_capacity(line.column_count() + 1);
 
+    // generate _series_id from tag set
+    let series_id = hash_series_id(raw_line, &mut line.series);
+    let value = Field {
+        name: SERIES_ID_COLUMN_NAME.to_string(),
+        value: FieldData::String(series_id.to_string()),
+    };
+    values.push(value);
+
     // validate tags, collecting any new ones that must be inserted, or adding the values
-    if let Some(mut tag_set) = line.series.tag_set {
-        let series_id = hash_tag_set(raw_line, &mut tag_set);
-        let value = Field {
-            name: SERIES_ID_COLUMN_NAME.to_string(),
-            value: FieldData::String(series_id.to_string()),
-        };
-        values.push(value);
+    if let Some(tag_set) = line.series.tag_set {
         for (tag_key, value) in tag_set {
             let value = Field {
                 name: tag_key.to_string(),
@@ -747,27 +749,31 @@ impl std::fmt::Display for SeriesId {
 /// string to format them in the original 'key=val,key=val` form.
 ///
 /// Generally, InfluxDB clients should be sending tags sorted.
-fn hash_tag_set(raw_line: &str, tag_set: &mut TagSet) -> SeriesId {
-    let bytes = if is_sorted(tag_set) {
-        // extract the raw string; if we are here, then the following `expect`s should
-        // never panic, there should be a tag set in the raw line protocol
-        let tag_set_str = raw_line
-            .split_once(',')
-            .expect("raw line protocol contains comma separating measurement from tag set")
-            .1
-            .split_once(' ')
-            .expect("raw line protocol contains tag set followed by space")
-            .0;
-        Sha256::digest(tag_set_str)
+fn hash_series_id(raw_line: &str, series: &mut Series) -> SeriesId {
+    let bytes = if let Some(tag_set) = &mut series.tag_set {
+        if is_sorted(tag_set) {
+            // extract the raw string; if we are here, then the following `expect`s should
+            // never panic, there should be a tag set in the raw line protocol
+            let tag_set_str = raw_line
+                .split_once(',')
+                .expect("raw line protocol contains comma separating measurement from tag set")
+                .1
+                .split_once(' ')
+                .expect("raw line protocol contains tag set followed by space")
+                .0;
+            Sha256::digest(tag_set_str)
+        } else {
+            // sort the tag set and format as string
+            tag_set.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
+            let tag_set_str = tag_set
+                .iter()
+                .map(|(k, v)| format!("{k}={v}"))
+                .collect::<Vec<String>>()
+                .join(",");
+            Sha256::digest(tag_set_str)
+        }
     } else {
-        // sort the tag set and format as string
-        tag_set.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
-        let tag_set_str = tag_set
-            .iter()
-            .map(|(k, v)| format!("{k}={v}"))
-            .collect::<Vec<String>>()
-            .join(",");
-        Sha256::digest(tag_set_str)
+        Sha256::digest("")
     };
     // The Sha256 digests will produce 32 byte arrays, so the unwrap here is safe
     SeriesId(bytes[..].try_into().unwrap())
@@ -1023,8 +1029,8 @@ mod tests {
         batches
     }
 
-    /// Parse the tag set from a line of line protocol
-    macro_rules! parse_tag_set {
+    /// Parse the series from a line of line protocol
+    macro_rules! parse_series {
         ($line:expr) => {
             parse_lines($line)
                 .collect::<Result<Vec<ParsedLine<'_>>, _>>()
@@ -1032,8 +1038,13 @@ mod tests {
                 .pop()
                 .expect("there is at least one line")
                 .series
-                .tag_set
-                .expect("has a tag set")
+        };
+    }
+
+    /// Parse the tag set from a line of line protocol
+    macro_rules! parse_tag_set {
+        ($line:expr) => {
+            parse_series!($line).tag_set.expect("has a tag set")
         };
     }
 
@@ -1051,8 +1062,8 @@ mod tests {
     #[test]
     fn series_ids() {
         let raw_line_1 = "cpu,a=1,b=2 foo=1";
-        let mut tag_set_1 = parse_tag_set!(raw_line_1);
-        let series_id_1 = hash_tag_set(raw_line_1, &mut tag_set_1);
+        let mut series_1 = parse_series!(raw_line_1);
+        let series_id_1 = hash_series_id(raw_line_1, &mut series_1);
         // check that we have a hash:
         assert_eq!(
             "06beefe2b477ff1d0fe92dfa45128217630672abff564dc7746f106833d3fc7a",
@@ -1061,16 +1072,24 @@ mod tests {
         // create another line that has the same tag values, but they are not
         // in the same order:
         let raw_line_2 = "cpu,b=2,a=1 foo=1";
-        let mut tag_set_2 = parse_tag_set!(raw_line_2);
-        let series_id_2 = hash_tag_set(raw_line_2, &mut tag_set_2);
+        let mut series_2 = parse_series!(raw_line_2);
+        let series_id_2 = hash_series_id(raw_line_2, &mut series_2);
         // this and the previous series IDs should be equal:
         assert_eq!(series_id_1, series_id_2);
         // create a third with different tag values:
         let raw_line_3 = "cpu,a=2,b=1 foo=1";
-        let mut tag_set_3 = parse_tag_set!(raw_line_3);
-        let series_id_3 = hash_tag_set(raw_line_3, &mut tag_set_3);
+        let mut series_3 = parse_series!(raw_line_3);
+        let series_id_3 = hash_series_id(raw_line_3, &mut series_3);
         // the third should not be equal with either of the first two:
         assert_ne!(series_id_1, series_id_3);
         assert_ne!(series_id_2, series_id_3);
+        // produce series ID for empty tag set:
+        let raw_line_4 = "cpu foo=1";
+        let mut series_4 = parse_series!(raw_line_4);
+        let series_id_4 = hash_series_id(raw_line_4, &mut series_4);
+        assert_eq!(
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            series_id_4.to_string()
+        );
     }
 }
