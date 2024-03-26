@@ -28,6 +28,14 @@ func MustTempFile(dir string) *os.File {
 	return f
 }
 
+func MustTempDir() string {
+	dir, err := os.MkdirTemp("", "tsm1-test")
+	if err != nil {
+		panic(fmt.Sprintf("failed to create temp dir: %v", err))
+	}
+	return dir
+}
+
 func newFiles(dir string, values ...keyValues) ([]string, error) {
 	var files []string
 
@@ -66,7 +74,7 @@ func TestCursor_ResetFail(t *testing.T) {
 	t.Run("bad block", func(t *testing.T) {
 		dir := MustTempDir()
 		defer os.RemoveAll(dir)
-		fs := NewFileStore(dir)
+		fs := NewFileStore(dir, tsdb.EngineTags{})
 
 		const START, END = 10, 1
 
