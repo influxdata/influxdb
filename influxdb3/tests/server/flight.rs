@@ -25,7 +25,10 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
 
     // Ad-hoc Query:
     {
-        let response = client.query("SELECT * FROM cpu").await.unwrap();
+        let response = client
+            .query("SELECT host, region, time, usage FROM cpu")
+            .await
+            .unwrap();
 
         let batches = collect_stream(response).await;
         assert_batches_sorted_eq!(
@@ -56,7 +59,10 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
 
     // Prepared query:
     {
-        let handle = client.prepare("SELECT * FROM cpu".into()).await.unwrap();
+        let handle = client
+            .prepare("SELECT host, region, time, usage FROM cpu".into())
+            .await
+            .unwrap();
         let stream = client.execute(handle).await.unwrap();
 
         let batches = collect_stream(stream).await;
@@ -144,8 +150,8 @@ async fn flight_influxql() {
         .write_lp_to_db(
             "foo",
             "cpu,host=s1,region=us-east usage=0.9 1\n\
-        cpu,host=s1,region=us-east usage=0.89 2\n\
-        cpu,host=s1,region=us-east usage=0.85 3",
+            cpu,host=s1,region=us-east usage=0.89 2\n\
+            cpu,host=s1,region=us-east usage=0.85 3",
             Precision::Nanosecond,
         )
         .await
@@ -158,7 +164,7 @@ async fn flight_influxql() {
         let ticket = Ticket::new(
             r#"{
                     "database": "foo",
-                    "sql_query": "SELECT * FROM foo.autogen.cpu",
+                    "sql_query": "SELECT time, host, region, usage FROM foo.autogen.cpu",
                     "query_type": "influxql"
                 }"#,
         );

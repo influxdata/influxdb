@@ -29,7 +29,7 @@ async fn api_v3_query_sql() {
         ))
         .query(&[
             ("db", "foo"),
-            ("q", "SELECT * FROM cpu"),
+            ("q", "SELECT host, region, time, usage FROM cpu"),
             ("format", "pretty"),
         ])
         .send()
@@ -80,7 +80,7 @@ async fn api_v3_query_sql_params() {
             .post(&url)
             .json(&json!({
                 "db": "foo",
-                "q": "SELECT * FROM cpu WHERE host = $host AND usage > $usage",
+                "q": "SELECT host, region, time, usage FROM cpu WHERE host = $host AND usage > $usage",
                 "params": {
                     "host": "b",
                     "usage": 0.60,
@@ -118,7 +118,7 @@ async fn api_v3_query_sql_params() {
                 ("db", "foo"),
                 (
                     "q",
-                    "SELECT * FROM cpu WHERE host = $host AND usage > $usage",
+                    "SELECT host, region, time, usage FROM cpu WHERE host = $host AND usage > $usage",
                 ),
                 ("format", "pretty"),
                 ("params", params.as_str()),
@@ -212,7 +212,7 @@ async fn api_v3_query_influxql() {
     let test_cases = [
         TestCase {
             database: Some("foo"),
-            query: "SELECT * FROM cpu",
+            query: "SELECT time, host, region, usage FROM cpu",
             expected:
                 "+------------------+-------------------------------+------+---------+-------+\n\
                 | iox::measurement | time                          | host | region  | usage |\n\
@@ -224,7 +224,7 @@ async fn api_v3_query_influxql() {
         },
         TestCase {
             database: None,
-            query: "SELECT * FROM foo.autogen.cpu",
+            query: "SELECT time, host, region, usage FROM foo.autogen.cpu",
             expected:
                 "+------------------+-------------------------------+------+---------+-------+\n\
                 | iox::measurement | time                          | host | region  | usage |\n\
@@ -236,7 +236,7 @@ async fn api_v3_query_influxql() {
         },
         TestCase {
             database: Some("foo"),
-            query: "SELECT * FROM cpu, mem",
+            query: "SELECT host, region, usage FROM cpu, mem",
             expected:
                 "+------------------+-------------------------------+------+---------+-------+\n\
                 | iox::measurement | time                          | host | region  | usage |\n\
@@ -272,22 +272,26 @@ async fn api_v3_query_influxql() {
         TestCase {
             database: Some("foo"),
             query: "SHOW FIELD KEYS",
-            expected: "+------------------+----------+-----------+\n\
-                    | iox::measurement | fieldKey | fieldType |\n\
-                    +------------------+----------+-----------+\n\
-                    | cpu              | usage    | float     |\n\
-                    | mem              | usage    | float     |\n\
-                    +------------------+----------+-----------+",
+            expected: "+------------------+------------+-----------+\n\
+                    | iox::measurement | fieldKey   | fieldType |\n\
+                    +------------------+------------+-----------+\n\
+                    | cpu              | _series_id | string    |\n\
+                    | cpu              | usage      | float     |\n\
+                    | mem              | _series_id | string    |\n\
+                    | mem              | usage      | float     |\n\
+                    +------------------+------------+-----------+",
         },
         TestCase {
             database: None,
             query: "SHOW FIELD KEYS ON foo",
-            expected: "+------------------+----------+-----------+\n\
-                    | iox::measurement | fieldKey | fieldType |\n\
-                    +------------------+----------+-----------+\n\
-                    | cpu              | usage    | float     |\n\
-                    | mem              | usage    | float     |\n\
-                    +------------------+----------+-----------+",
+            expected: "+------------------+------------+-----------+\n\
+                    | iox::measurement | fieldKey   | fieldType |\n\
+                    +------------------+------------+-----------+\n\
+                    | cpu              | _series_id | string    |\n\
+                    | cpu              | usage      | float     |\n\
+                    | mem              | _series_id | string    |\n\
+                    | mem              | usage      | float     |\n\
+                    +------------------+------------+-----------+",
         },
         TestCase {
             database: Some("foo"),
@@ -419,7 +423,7 @@ async fn api_v3_query_influxql_params() {
             .post(&url)
             .json(&json!({
                 "db": "foo",
-                "q": "SELECT * FROM cpu WHERE host = $host AND usage > $usage",
+                "q": "SELECT time, host, region, usage FROM cpu WHERE host = $host AND usage > $usage",
                 "params": {
                     "host": "b",
                     "usage": 0.60,
@@ -457,7 +461,7 @@ async fn api_v3_query_influxql_params() {
                 ("db", "foo"),
                 (
                     "q",
-                    "SELECT * FROM cpu WHERE host = $host AND usage > $usage",
+                    "SELECT time, host, region, usage FROM cpu WHERE host = $host AND usage > $usage",
                 ),
                 ("format", "pretty"),
                 ("params", params.as_str()),
@@ -543,7 +547,7 @@ async fn api_v1_query() {
         TestCase {
             database: Some("foo"),
             epoch: None,
-            query: "SELECT * FROM cpu",
+            query: "SELECT time, host, usage FROM cpu",
             expected: json!({
               "results": [
                 {
@@ -571,7 +575,7 @@ async fn api_v1_query() {
         TestCase {
             database: Some("foo"),
             epoch: None,
-            query: "SELECT * FROM cpu, mem",
+            query: "SELECT time, host, usage FROM cpu, mem",
             expected: json!({
               "results": [
                 {
@@ -612,7 +616,7 @@ async fn api_v1_query() {
         TestCase {
             database: None,
             epoch: None,
-            query: "SELECT * FROM foo.autogen.cpu",
+            query: "SELECT time, host, usage FROM foo.autogen.cpu",
             expected: json!({
               "results": [
                 {
@@ -640,7 +644,7 @@ async fn api_v1_query() {
         TestCase {
             database: Some("foo"),
             epoch: Some("s"),
-            query: "SELECT * FROM cpu",
+            query: "SELECT time, host, usage FROM cpu",
             expected: json!({
               "results": [
                 {
@@ -714,7 +718,7 @@ async fn api_v1_query_chunked() {
         // Basic Query with default chunking:
         TestCase {
             chunk_size: None,
-            query: "SELECT * FROM cpu",
+            query: "SELECT time, host, usage FROM cpu",
             expected: vec![json!({
               "results": [
                 {
@@ -737,7 +741,7 @@ async fn api_v1_query_chunked() {
         // Basic Query with chunk size:
         TestCase {
             chunk_size: Some("2"),
-            query: "SELECT * FROM cpu",
+            query: "SELECT time, host, usage FROM cpu",
             expected: vec![
                 json!({
                   "results": [
@@ -777,7 +781,7 @@ async fn api_v1_query_chunked() {
         // Query with multiple measurements and default chunking:
         TestCase {
             chunk_size: None,
-            query: "SELECT * FROM cpu, mem",
+            query: "SELECT time, host, usage FROM cpu, mem",
             expected: vec![
                 json!({
                   "results": [
@@ -820,7 +824,7 @@ async fn api_v1_query_chunked() {
         // Query with multiple measurements and chunk_size specified:
         TestCase {
             chunk_size: Some("2"),
-            query: "SELECT * FROM cpu, mem",
+            query: "SELECT time, host, usage FROM cpu, mem",
             expected: vec![
                 json!({
                   "results": [

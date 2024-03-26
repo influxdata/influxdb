@@ -316,7 +316,14 @@ mod tests {
         .await;
 
         // Test that we can query the output with a pretty output
-        let res = query(&server, "foo", "select * from cpu", "pretty", None).await;
+        let res = query(
+            &server,
+            "foo",
+            "select host, time, val from cpu",
+            "pretty",
+            None,
+        )
+        .await;
         let body = body::to_bytes(res.into_body()).await.unwrap();
         let body = String::from_utf8(body.as_bytes().to_vec()).unwrap();
         let expected = vec![
@@ -333,13 +340,27 @@ mod tests {
             expected, actual
         );
         // Test that we can query the output with a json output
-        let res = query(&server, "foo", "select * from cpu", "json", None).await;
+        let res = query(
+            &server,
+            "foo",
+            "select host, time, val from cpu",
+            "json",
+            None,
+        )
+        .await;
         let body = body::to_bytes(res.into_body()).await.unwrap();
         let actual = std::str::from_utf8(body.as_bytes()).unwrap();
         let expected = r#"[{"host":"a","time":"1970-01-01T00:00:00.000000123","val":1}]"#;
         assert_eq!(actual, expected);
         // Test that we can query the output with a csv output
-        let res = query(&server, "foo", "select * from cpu", "csv", None).await;
+        let res = query(
+            &server,
+            "foo",
+            "select host, time, val from cpu",
+            "csv",
+            None,
+        )
+        .await;
         let body = body::to_bytes(res.into_body()).await.unwrap();
         let actual = std::str::from_utf8(body.as_bytes()).unwrap();
         let expected = "host,time,val\na,1970-01-01T00:00:00.000000123,1\n";
@@ -358,7 +379,7 @@ mod tests {
         assert_eq!(batches.len(), 1);
 
         // Check that we only have the columns we expect
-        assert_eq!(batches[0].num_columns(), 3);
+        assert_eq!(batches[0].num_columns(), 4);
         assert!(batches[0].schema().column_with_name("host").is_some());
         assert!(batches[0].schema().column_with_name("time").is_some());
         assert!(batches[0].schema().column_with_name("val").is_some());
@@ -501,7 +522,14 @@ mod tests {
 
         // Check that the first write did not partially write any data. We
         // should only see 2 values from the above write.
-        let res = query(&server, "foo", "select * from cpu", "csv", None).await;
+        let res = query(
+            &server,
+            "foo",
+            "select host, time, val from cpu",
+            "csv",
+            None,
+        )
+        .await;
         let body = body::to_bytes(res.into_body()).await.unwrap();
         let actual = std::str::from_utf8(body.as_bytes()).unwrap();
         let expected = "host,time,val\n\
@@ -702,7 +730,14 @@ mod tests {
         .await;
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let res = query(&server, "foo", "select * from cpu", "csv", None).await;
+        let res = query(
+            &server,
+            "foo",
+            "select host, time, val from cpu",
+            "csv",
+            None,
+        )
+        .await;
         let body = body::to_bytes(res.into_body()).await.unwrap();
         // Since a query can come back with data in any order we need to sort it
         // here before we do any assertions
