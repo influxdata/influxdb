@@ -5,7 +5,9 @@ mod flusher;
 mod loader;
 mod segment_state;
 
-use crate::catalog::{Catalog, DatabaseSchema, TableDefinition, TIME_COLUMN_NAME};
+use crate::catalog::{
+    Catalog, DatabaseSchema, TableDefinition, SERIES_ID_COLUMN_NAME, TIME_COLUMN_NAME,
+};
 use crate::chunk::ParquetChunk;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
@@ -21,7 +23,7 @@ use data_types::{
 use datafusion::common::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
-use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
+use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine, TagSet};
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
@@ -30,6 +32,8 @@ use object_store::ObjectMeta;
 use observability_deps::tracing::{debug, error};
 use parking_lot::{Mutex, RwLock};
 use parquet_file::storage::ParquetExecInput;
+use sha2::Digest;
+use sha2::Sha256;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -547,6 +551,7 @@ fn validate_and_convert_parsed_line<'a>(
             }
 
             columns.insert(TIME_COLUMN_NAME.to_string(), ColumnType::Time as i16);
+            columns.insert(SERIES_ID_COLUMN_NAME.to_string(), ColumnType::String as i16);
 
             let table = TableDefinition::new(table_name, columns);
 
@@ -563,8 +568,14 @@ fn validate_and_convert_parsed_line<'a>(
     let mut values = Vec::with_capacity(line.column_count() + 1);
 
     // validate tags, collecting any new ones that must be inserted, or adding the values
-    if let Some(tagset) = line.series.tag_set {
-        for (tag_key, value) in tagset {
+    if let Some(mut tag_set) = line.series.tag_set {
+        let series_id = hash_tag_set(raw_line, &mut tag_set);
+        let value = Field {
+            name: SERIES_ID_COLUMN_NAME.to_string(),
+            value: FieldData::String(series_id.to_string()),
+        };
+        values.push(value);
+        for (tag_key, value) in tag_set {
             let value = Field {
                 name: tag_key.to_string(),
                 value: FieldData::Tag(value.to_string()),
@@ -715,6 +726,56 @@ pub(crate) struct ValidSegmentedData {
 pub(crate) struct TableBatchMap<'a> {
     pub(crate) lines: Vec<&'a str>,
     pub(crate) table_batches: HashMap<String, TableBatch>,
+}
+
+/// The 32 byte SHA256 digest of the full tag set for a line of measurement data
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+pub struct SeriesId([u8; 32]);
+
+impl std::fmt::Display for SeriesId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
+
+/// Produce a [`SeriesId`] from a raw line of line protocol / parsed tag set
+///
+/// If the tag set is sorted, we parse out the original tags from the raw line
+/// protocol, instead of formatting a new string.
+///
+/// If the tags are not sorted, then we need to sort them, and allocate a new
+/// string to format them in the original 'key=val,key=val` form.
+///
+/// Generally, InfluxDB clients should be sending tags sorted.
+fn hash_tag_set(raw_line: &str, tag_set: &mut TagSet) -> SeriesId {
+    let bytes = if is_sorted(tag_set) {
+        // extract the raw string; if we are here, then the following `expect`s should
+        // never panic, there should be a tag set in the raw line protocol
+        let tag_set_str = raw_line
+            .split_once(',')
+            .expect("raw line protocol contains comma separating measurement from tag set")
+            .1
+            .split_once(' ')
+            .expect("raw line protocol contains tag set followed by space")
+            .0;
+        Sha256::digest(tag_set_str)
+    } else {
+        // sort the tag set and format as string
+        tag_set.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
+        let tag_set_str = tag_set
+            .iter()
+            .map(|(k, v)| format!("{k}={v}"))
+            .collect::<Vec<String>>()
+            .join(",");
+        Sha256::digest(tag_set_str)
+    };
+    // The Sha256 digests will produce 32 byte arrays, so the unwrap here is safe
+    SeriesId(bytes[..].try_into().unwrap())
+}
+
+/// Check that a [`TagSet`], as a slice, is sorted
+fn is_sorted(tag_set: &TagSet) -> bool {
+    tag_set.windows(2).all(|w| w[0].0 <= w[1].0)
 }
 
 #[cfg(test)]
@@ -960,5 +1021,56 @@ mod tests {
             batches.extend(chunk);
         }
         batches
+    }
+
+    /// Parse the tag set from a line of line protocol
+    macro_rules! parse_tag_set {
+        ($line:expr) => {
+            parse_lines($line)
+                .collect::<Result<Vec<ParsedLine<'_>>, _>>()
+                .expect("parse lines")
+                .pop()
+                .expect("there is at least one line")
+                .series
+                .tag_set
+                .expect("has a tag set")
+        };
+    }
+
+    #[test]
+    fn tag_set_is_sorted() {
+        assert!(is_sorted(&parse_tag_set!("cpu,a=_ foo=1")));
+        assert!(is_sorted(&parse_tag_set!("cpu,a=_,b=_ foo=1")));
+        assert!(!is_sorted(&parse_tag_set!("cpu,b=_,a=_ foo=1")));
+        assert!(is_sorted(&parse_tag_set!("cpu,a=_,b=_,c=_ foo=1")));
+        assert!(!is_sorted(&parse_tag_set!("cpu,a=_,c=_,b=_ foo=1")));
+        assert!(!is_sorted(&parse_tag_set!("cpu,b=_,a=_,c=_ foo=1")));
+        assert!(!is_sorted(&parse_tag_set!("cpu,c=_,b=_,a=_ foo=1")));
+    }
+
+    #[test]
+    fn series_ids() {
+        let raw_line_1 = "cpu,a=1,b=2 foo=1";
+        let mut tag_set_1 = parse_tag_set!(raw_line_1);
+        let series_id_1 = hash_tag_set(raw_line_1, &mut tag_set_1);
+        // check that we have a hash:
+        assert_eq!(
+            "06beefe2b477ff1d0fe92dfa45128217630672abff564dc7746f106833d3fc7a",
+            series_id_1.to_string()
+        );
+        // create another line that has the same tag values, but they are not
+        // in the same order:
+        let raw_line_2 = "cpu,b=2,a=1 foo=1";
+        let mut tag_set_2 = parse_tag_set!(raw_line_2);
+        let series_id_2 = hash_tag_set(raw_line_2, &mut tag_set_2);
+        // this and the previous series IDs should be equal:
+        assert_eq!(series_id_1, series_id_2);
+        // create a third with different tag values:
+        let raw_line_3 = "cpu,a=2,b=1 foo=1";
+        let mut tag_set_3 = parse_tag_set!(raw_line_3);
+        let series_id_3 = hash_tag_set(raw_line_3, &mut tag_set_3);
+        // the third should not be equal with either of the first two:
+        assert_ne!(series_id_1, series_id_3);
+        assert_ne!(series_id_2, series_id_3);
     }
 }

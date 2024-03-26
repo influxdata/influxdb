@@ -21,10 +21,13 @@ schema.workspace = true
 arrow.workspace = true
 async-trait.workspace = true
 byteorder.workspace  = true
+bytes.workspace = true
 chrono.workspace  = true
 crc32fast.workspace  = true
 crossbeam-channel.workspace  = true
 datafusion.workspace = true
+futures-util.workspace = true
+hex.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 parquet.workspace = true
@@ -32,9 +35,8 @@ thiserror.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 snap.workspace = true
-bytes.workspace = true
-futures-util.workspace = true
 url.workspace = true
 
 [dev-dependencies]

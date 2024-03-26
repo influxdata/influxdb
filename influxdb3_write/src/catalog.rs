@@ -39,6 +39,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub const TIME_COLUMN_NAME: &str = "time";
+pub const SERIES_ID_COLUMN_NAME: &str = "_series_id";
 
 #[derive(Debug)]
 pub struct Catalog {
