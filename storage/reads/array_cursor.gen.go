@@ -315,13 +315,15 @@ func (c *floatMultiShardArrayCursor) nextArrayCursor() bool {
 
 	var itr cursors.CursorIterator
 	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
+	var err error
+	for cur == nil && len(c.itrs) > 0 && err == nil {
 		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
+		cur, err = itr.Next(c.ctx, c.req)
 	}
 
+	c.err = err
 	var ok bool
-	if cur != nil {
+	if cur != nil && err == nil {
 		var next cursors.FloatArrayCursor
 		next, ok = cur.(cursors.FloatArrayCursor)
 		if !ok {
@@ -1196,13 +1198,15 @@ func (c *integerMultiShardArrayCursor) nextArrayCursor() bool {
 
 	var itr cursors.CursorIterator
 	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
+	var err error
+	for cur == nil && len(c.itrs) > 0 && err == nil {
 		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
+		cur, err = itr.Next(c.ctx, c.req)
 	}
 
+	c.err = err
 	var ok bool
-	if cur != nil {
+	if cur != nil && err == nil {
 		var next cursors.IntegerArrayCursor
 		next, ok = cur.(cursors.IntegerArrayCursor)
 		if !ok {
@@ -2077,13 +2081,15 @@ func (c *unsignedMultiShardArrayCursor) nextArrayCursor() bool {
 
 	var itr cursors.CursorIterator
 	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
+	var err error
+	for cur == nil && len(c.itrs) > 0 && err == nil {
 		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
+		cur, err = itr.Next(c.ctx, c.req)
 	}
 
+	c.err = err
 	var ok bool
-	if cur != nil {
+	if cur != nil && err == nil {
 		var next cursors.UnsignedArrayCursor
 		next, ok = cur.(cursors.UnsignedArrayCursor)
 		if !ok {
@@ -2958,13 +2964,15 @@ func (c *stringMultiShardArrayCursor) nextArrayCursor() bool {
 
 	var itr cursors.CursorIterator
 	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
+	var err error
+	for cur == nil && len(c.itrs) > 0 && err == nil {
 		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
+		cur, err = itr.Next(c.ctx, c.req)
 	}
 
+	c.err = err
 	var ok bool
-	if cur != nil {
+	if cur != nil && err == nil {
 		var next cursors.StringArrayCursor
 		next, ok = cur.(cursors.StringArrayCursor)
 		if !ok {
@@ -3384,13 +3392,15 @@ func (c *booleanMultiShardArrayCursor) nextArrayCursor() bool {
 
 	var itr cursors.CursorIterator
 	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
+	var err error
+	for cur == nil && len(c.itrs) > 0 && err == nil {
 		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
+		cur, err = itr.Next(c.ctx, c.req)
 	}
 
+	c.err = err
 	var ok bool
-	if cur != nil {
+	if cur != nil && err == nil {
 		var next cursors.BooleanArrayCursor
 		next, ok = cur.(cursors.BooleanArrayCursor)
 		if !ok {

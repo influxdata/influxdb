@@ -39,7 +39,8 @@ func newFloatArrayAscendingCursor() *floatArrayAscendingCursor {
 	return c
 }
 
-func (c *floatArrayAscendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+func (c *floatArrayAscendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
+	var err error
 	c.end = end
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
@@ -47,10 +48,14 @@ func (c *floatArrayAscendingCursor) reset(seek, end int64, cacheValues Values, t
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatArrayBlock(c.tsm.buf)
+	c.tsm.values, err = c.tsm.keyCursor.ReadFloatArrayBlock(c.tsm.buf)
+	if err != nil {
+		return err
+	}
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] >= seek
 	})
+	return nil
 }
 
 func (c *floatArrayAscendingCursor) Err() error { return nil }
@@ -182,7 +187,8 @@ func newFloatArrayDescendingCursor() *floatArrayDescendingCursor {
 	return c
 }
 
-func (c *floatArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+func (c *floatArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
+	var err error
 	// Search for the time value greater than the seek time (not included)
 	// and then move our position back one which will include the values in
 	// our time range.
@@ -194,11 +200,15 @@ func (c *floatArrayDescendingCursor) reset(seek, end int64, cacheValues Values, 
 	c.cache.pos--
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatArrayBlock(c.tsm.buf)
+	c.tsm.values, err = c.tsm.keyCursor.ReadFloatArrayBlock(c.tsm.buf)
+	if err != nil {
+		return err
+	}
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] > seek
 	})
 	c.tsm.pos--
+	return nil
 }
 
 func (c *floatArrayDescendingCursor) Err() error { return nil }
@@ -321,7 +331,8 @@ func newIntegerArrayAscendingCursor() *integerArrayAscendingCursor {
 	return c
 }
 
-func (c *integerArrayAscendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+func (c *integerArrayAscendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
+	var err error
 	c.end = end
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
@@ -329,10 +340,14 @@ func (c *integerArrayAscendingCursor) reset(seek, end int64, cacheValues Values,
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerArrayBlock(c.tsm.buf)
+	c.tsm.values, err = c.tsm.keyCursor.ReadIntegerArrayBlock(c.tsm.buf)
+	if err != nil {
+		return err
+	}
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] >= seek
 	})
+	return nil
 }
 
 func (c *integerArrayAscendingCursor) Err() error { return nil }
@@ -464,7 +479,8 @@ func newIntegerArrayDescendingCursor() *integerArrayDescendingCursor {
 	return c
 }
 
-func (c *integerArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+func (c *integerArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
+	var err error
 	// Search for the time value greater than the seek time (not included)
 	// and then move our position back one which will include the values in
 	// our time range.
@@ -476,11 +492,15 @@ func (c *integerArrayDescendingCursor) reset(seek, end int64, cacheValues Values
 	c.cache.pos--
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerArrayBlock(c.tsm.buf)
+	c.tsm.values, err = c.tsm.keyCursor.ReadIntegerArrayBlock(c.tsm.buf)
+	if err != nil {
+		return err
+	}
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] > seek
 	})
 	c.tsm.pos--
+	return nil
 }
 
 func (c *integerArrayDescendingCursor) Err() error { return nil }
@@ -603,7 +623,8 @@ func newUnsignedArrayAscendingCursor() *unsignedArrayAscendingCursor {
 	return c
 }
 
-func (c *unsignedArrayAscendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+func (c *unsignedArrayAscendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
+	var err error
 	c.end = end
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
@@ -611,10 +632,14 @@ func (c *unsignedArrayAscendingCursor) reset(seek, end int64, cacheValues Values
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedArrayBlock(c.tsm.buf)
+	c.tsm.values, err = c.tsm.keyCursor.ReadUnsignedArrayBlock(c.tsm.buf)
+	if err != nil {
+		return err
+	}
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] >= seek
 	})
+	return nil
 }
 
 func (c *unsignedArrayAscendingCursor) Err() error { return nil }
@@ -746,7 +771,8 @@ func newUnsignedArrayDescendingCursor() *unsignedArrayDescendingCursor {
 	return c
 }
 
-func (c *unsignedArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+func (c *unsignedArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
+	var err error
 	// Search for the time value greater than the seek time (not included)
 	// and then move our position back one which will include the values in
 	// our time range.
@@ -758,11 +784,15 @@ func (c *unsignedArrayDescendingCursor) reset(seek, end int64, cacheValues Value
 	c.cache.pos--
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedArrayBlock(c.tsm.buf)
+	c.tsm.values, err = c.tsm.keyCursor.ReadUnsignedArrayBlock(c.tsm.buf)
+	if err != nil {
+		return err
+	}
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] > seek
 	})
 	c.tsm.pos--
+	return nil
 }
 
 func (c *unsignedArrayDescendingCursor) Err() error { return nil }
@@ -885,7 +915,8 @@ func newStringArrayAscendingCursor() *stringArrayAscendingCursor {
 	return c
 }
 
-func (c *stringArrayAscendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+func (c *stringArrayAscendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
+	var err error
 	c.end = end
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
@@ -893,10 +924,14 @@ func (c *stringArrayAscendingCursor) reset(seek, end int64, cacheValues Values, 
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.ReadStringArrayBlock(c.tsm.buf)
+	c.tsm.values, err = c.tsm.keyCursor.ReadStringArrayBlock(c.tsm.buf)
+	if err != nil {
+		return err
+	}
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] >= seek
 	})
+	return nil
 }
 
 func (c *stringArrayAscendingCursor) Err() error { return nil }
@@ -1028,7 +1063,8 @@ func newStringArrayDescendingCursor() *stringArrayDescendingCursor {
 	return c
 }
 
-func (c *stringArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+func (c *stringArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
+	var err error
 	// Search for the time value greater than the seek time (not included)
 	// and then move our position back one which will include the values in
 	// our time range.
@@ -1040,11 +1076,15 @@ func (c *stringArrayDescendingCursor) reset(seek, end int64, cacheValues Values,
 	c.cache.pos--
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.ReadStringArrayBlock(c.tsm.buf)
+	c.tsm.values, err = c.tsm.keyCursor.ReadStringArrayBlock(c.tsm.buf)
+	if err != nil {
+		return err
+	}
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] > seek
 	})
 	c.tsm.pos--
+	return nil
 }
 
 func (c *stringArrayDescendingCursor) Err() error { return nil }
@@ -1167,7 +1207,8 @@ func newBooleanArrayAscendingCursor() *booleanArrayAscendingCursor {
 	return c
 }
 
-func (c *booleanArrayAscendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+func (c *booleanArrayAscendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
+	var err error
 	c.end = end
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
@@ -1175,10 +1216,14 @@ func (c *booleanArrayAscendingCursor) reset(seek, end int64, cacheValues Values,
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanArrayBlock(c.tsm.buf)
+	c.tsm.values, err = c.tsm.keyCursor.ReadBooleanArrayBlock(c.tsm.buf)
+	if err != nil {
+		return err
+	}
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] >= seek
 	})
+	return nil
 }
 
 func (c *booleanArrayAscendingCursor) Err() error { return nil }
@@ -1310,7 +1355,8 @@ func newBooleanArrayDescendingCursor() *booleanArrayDescendingCursor {
 	return c
 }
 
-func (c *booleanArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
+func (c *booleanArrayDescendingCursor) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
+	var err error
 	// Search for the time value greater than the seek time (not included)
 	// and then move our position back one which will include the values in
 	// our time range.
@@ -1322,11 +1368,15 @@ func (c *booleanArrayDescendingCursor) reset(seek, end int64, cacheValues Values
 	c.cache.pos--
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanArrayBlock(c.tsm.buf)
+	c.tsm.values, err = c.tsm.keyCursor.ReadBooleanArrayBlock(c.tsm.buf)
+	if err != nil {
+		return err
+	}
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] > seek
 	})
 	c.tsm.pos--
+	return nil
 }
 
 func (c *booleanArrayDescendingCursor) Err() error { return nil }
