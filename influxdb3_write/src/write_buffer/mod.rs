@@ -740,7 +740,7 @@ impl std::fmt::Display for SeriesId {
     }
 }
 
-/// Produce a [`SeriesId`] from a raw line of line protocol / parsed tag set
+/// Produce a [`SeriesId`] from a raw line of line protocol / parsed [`Series`]
 ///
 /// If the tag set is sorted, we parse out the original tags from the raw line
 /// protocol, instead of formatting a new string.
