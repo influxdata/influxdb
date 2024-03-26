@@ -39,8 +39,8 @@ func new{{$Type}}() *{{$type}} {
 }
 
 func (c *{{$type}}) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) error {
-    var err error
-    c.end = end
+	var err error
+	c.end = end
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
 		return c.cache.values[i].UnixNano() >= seek
