@@ -288,7 +288,7 @@ func (c *{{.name}}MultiShardArrayCursor) nextArrayCursor() bool {
 		cur, err = itr.Next(c.ctx, c.req)
 	}
 
-    c.err = err
+	c.err = err
 	var ok bool
 	if cur != nil && err == nil {
 		var next cursors.{{.Name}}ArrayCursor
