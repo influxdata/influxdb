@@ -62,15 +62,15 @@ func (q *arrayCursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (
 	// Return appropriate cursor based on type.
 	switch f.Type {
 	case influxql.Float:
-		return q.buildFloatArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
+		return q.buildFloatArrayCursor(ctx, r.Name, r.Tags, r.Field, opt)
 	case influxql.Integer:
-		return q.buildIntegerArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
+		return q.buildIntegerArrayCursor(ctx, r.Name, r.Tags, r.Field, opt)
 	case influxql.Unsigned:
-		return q.buildUnsignedArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
+		return q.buildUnsignedArrayCursor(ctx, r.Name, r.Tags, r.Field, opt)
 	case influxql.String:
-		return q.buildStringArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
+		return q.buildStringArrayCursor(ctx, r.Name, r.Tags, r.Field, opt)
 	case influxql.Boolean:
-		return q.buildBooleanArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
+		return q.buildBooleanArrayCursor(ctx, r.Name, r.Tags, r.Field, opt)
 	default:
 		panic(fmt.Sprintf("unreachable: %T", f.Type))
 	}

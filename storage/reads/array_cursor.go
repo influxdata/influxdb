@@ -117,12 +117,13 @@ func (m *multiShardArrayCursors) createCursor(row SeriesRow) cursors.Cursor {
 
 	var shard cursors.CursorIterator
 	var cur cursors.Cursor
+	var err error
 	for cur == nil && len(row.Query) > 0 {
 		shard, row.Query = row.Query[0], row.Query[1:]
-		cur, _ = shard.Next(m.ctx, &m.req)
+		cur, err = shard.Next(m.ctx, &m.req)
 	}
 
-	if cur == nil {
+	if cur == nil || err != nil {
 		return nil
 	}
 
