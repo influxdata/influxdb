@@ -577,7 +577,7 @@ mod test_helpers {
     use crate::catalog::{Catalog, DatabaseSchema};
     use crate::write_buffer::buffer_segment::WriteBatch;
     use crate::write_buffer::{parse_validate_and_update_schema, TableBatch};
-    use crate::{Precision, SegmentDuration};
+    use crate::{Precision, SegmentDuration, SequenceNumber};
     use data_types::NamespaceName;
     use iox_time::Time;
     use std::collections::HashMap;
@@ -599,6 +599,7 @@ mod test_helpers {
             SegmentDuration::new_5m(),
             false,
             Precision::Nanosecond,
+            seq,
         )
         .unwrap();
         if let Some(db) = result.schema {
@@ -623,6 +624,7 @@ mod test_helpers {
             SegmentDuration::new_5m(),
             false,
             Precision::Nanosecond,
+            SequenceNumber::new(0),
         )
         .unwrap();
 

@@ -70,11 +70,7 @@ impl OpenBufferSegment {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn start_time_matches(&self, t: Time) -> bool {
-        self.segment_range.start_time == t
-    }
-
+    #[cfg(test)]
     pub fn segment_id(&self) -> SegmentId {
         self.segment_id
     }
@@ -84,6 +80,11 @@ impl OpenBufferSegment {
     }
     pub fn write_wal_ops(&mut self, write_batch: Vec<WalOp>) -> wal::Result<()> {
         self.segment_writer.write_batch(write_batch)
+    }
+
+    #[cfg(test)]
+    pub fn starting_catalog_sequence_number(&self) -> SequenceNumber {
+        self.starting_catalog_sequence_number
     }
 
     pub fn table_buffer(&self, db_name: &str, table_name: &str) -> Option<TableBuffer> {

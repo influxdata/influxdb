@@ -2,7 +2,7 @@
 
 use crate::write_buffer::buffer_segment::{BufferedWrite, WriteBatch};
 use crate::write_buffer::{Error, SegmentState, ValidSegmentedData};
-use crate::{wal, Wal, WalOp};
+use crate::{wal, SequenceNumber, Wal, WalOp};
 use crossbeam_channel::{bounded, Receiver as CrossbeamReceiver, Sender as CrossbeamSender};
 use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::debug;
@@ -27,8 +27,8 @@ pub enum BufferedWriteResult {
     Error(String),
 }
 
-type SegmentedWalOps = HashMap<Time, Vec<WalOp>>;
-type SegmentedWriteBatch = HashMap<Time, WriteBatch>;
+type SegmentedWalOps = HashMap<Time, (SequenceNumber, Vec<WalOp>)>;
+type SegmentedWriteBatch = HashMap<Time, (SequenceNumber, WriteBatch)>;
 
 /// The WriteBufferFlusher buffers writes and flushes them to the configured wal. The wal IO is done in a native
 /// thread rather than a tokio task to avoid blocking the tokio runtime. As referenced in this post, continuous
@@ -122,11 +122,15 @@ async fn run_wal_op_buffer<T: TimeProvider, W: Wal>(
         select! {
             Some(buffered_write) = buffer_rx.recv() => {
                 for segmented_data in buffered_write.segmented_data {
-                    let segment_ops = ops.entry(segmented_data.segment_start).or_default();
-                    segment_ops.push(segmented_data.wal_op);
+                    let segment_ops = ops.entry(segmented_data.segment_start).or_insert_with(|| {
+                        (segmented_data.starting_catalog_sequence_number, Vec::new())
+                    });
+                    segment_ops.1.push(segmented_data.wal_op);
 
-                    let segment_write_batch = write_batch.entry(segmented_data.segment_start).or_default();
-                    segment_write_batch.add_db_write(segmented_data.database_name, segmented_data.table_batches);
+                    let segment_write_batch = write_batch.entry(segmented_data.segment_start).or_insert_with(|| {
+                        (segmented_data.starting_catalog_sequence_number, WriteBatch::default())
+                    });
+                    segment_write_batch.1.add_db_write(segmented_data.database_name, segmented_data.table_batches);
                 }
                 notifies.push(buffered_write.response_tx);
             },
@@ -144,8 +148,8 @@ async fn run_wal_op_buffer<T: TimeProvider, W: Wal>(
 
                         let mut segment_state = segment_state.write();
 
-                        for (time, write_batch) in write_batch {
-                            if let Err(e) = segment_state.write_batch_to_segment(time, write_batch) {
+                        for (time, (sequence_number, write_batch)) in write_batch {
+                            if let Err(e) = segment_state.write_batch_to_segment(time, write_batch, sequence_number) {
                                 err = BufferedWriteResult::Error(e.to_string());
                                 break;
                             }
@@ -193,8 +197,8 @@ fn run_io_flush<T: TimeProvider, W: Wal>(
         let mut state = segment_state.write();
 
         // write the ops to the segment files, or return on first error
-        for (time, wal_ops) in segmented_wal_ops {
-            let res = state.write_ops_to_segment(time, wal_ops);
+        for (time, (sequence_number, wal_ops)) in segmented_wal_ops {
+            let res = state.write_ops_to_segment(time, wal_ops, sequence_number);
             if res.is_err() {
                 buffer_notify.send(res).expect("buffer flusher is dead");
                 continue;

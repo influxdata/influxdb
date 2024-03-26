@@ -14,7 +14,7 @@ use crate::write_buffer::loader::load_starting_state;
 use crate::write_buffer::segment_state::{run_buffer_segment_persist_and_cleanup, SegmentState};
 use crate::{
     persister, BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister,
-    Precision, SegmentDuration, SegmentId, Wal, WalOp, WriteBuffer, WriteLineError,
+    Precision, SegmentDuration, SegmentId, SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -346,6 +346,8 @@ impl<W: Wal, T: TimeProvider, P: Persister> ChunkContainer for WriteBufferImpl<W
 
 impl<W: Wal, T: TimeProvider, P: Persister> WriteBuffer for WriteBufferImpl<W, T, P> {}
 
+/// Returns a validated result and the sequence number of the catalog before any updates were
+/// applied.
 pub(crate) fn parse_validate_and_update_catalog(
     db_name: NamespaceName<'static>,
     lp: &str,
@@ -364,6 +366,7 @@ pub(crate) fn parse_validate_and_update_catalog(
         segment_duration,
         accept_partial,
         precision,
+        sequence,
     )?;
 
     if let Some(schema) = result.schema.take() {
@@ -377,6 +380,7 @@ pub(crate) fn parse_validate_and_update_catalog(
 
 /// Takes &str of line protocol, parses lines, validates the schema, and inserts new columns
 /// if present. Assigns the default time to any lines that do not include a time
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn parse_validate_and_update_schema(
     lp: &str,
     schema: &DatabaseSchema,
@@ -385,6 +389,7 @@ pub(crate) fn parse_validate_and_update_schema(
     segment_duration: SegmentDuration,
     accept_partial: bool,
     precision: Precision,
+    starting_catalog_sequence_number: SequenceNumber,
 ) -> Result<ValidationResult> {
     let mut errors = vec![];
     let mut lp_lines = lp.lines();
@@ -427,6 +432,7 @@ pub(crate) fn parse_validate_and_update_schema(
         ingest_time,
         segment_duration,
         precision,
+        starting_catalog_sequence_number,
     )
     .map(move |mut result| {
         result.errors = errors;
@@ -445,6 +451,7 @@ pub(crate) fn validate_or_insert_schema_and_partitions(
     ingest_time: Time,
     segment_duration: SegmentDuration,
     precision: Precision,
+    starting_catalog_sequence_number: SequenceNumber,
 ) -> Result<ValidationResult> {
     // The (potentially updated) DatabaseSchema to return to the caller.
     let mut schema = Cow::Borrowed(schema);
@@ -487,6 +494,7 @@ pub(crate) fn validate_or_insert_schema_and_partitions(
                 lp: table_batches.lines.join("\n"),
                 default_time: ingest_time.timestamp_nanos(),
             }),
+            starting_catalog_sequence_number,
         })
         .collect();
 
@@ -722,6 +730,8 @@ pub(crate) struct ValidSegmentedData {
     pub(crate) segment_start: Time,
     pub(crate) table_batches: HashMap<String, TableBatch>,
     pub(crate) wal_op: WalOp,
+    /// The sequence number of the catalog before any updates were applied based on this write.
+    pub(crate) starting_catalog_sequence_number: SequenceNumber,
 }
 
 #[derive(Debug, Default)]
@@ -813,6 +823,7 @@ mod tests {
             SegmentDuration::new_5m(),
             false,
             Precision::Nanosecond,
+            SequenceNumber::new(0),
         )
         .unwrap();
 
@@ -1009,6 +1020,61 @@ mod tests {
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
         assert_batches_eq!(&expected, &actual);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn sets_starting_catalog_number_on_new_segment() {
+        let dir = test_helpers::tmp_dir().unwrap().into_path();
+        let wal = Some(Arc::new(WalImpl::new(dir.clone()).unwrap()));
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let segment_duration = SegmentDuration::new_5m();
+        let write_buffer = WriteBufferImpl::new(
+            Arc::clone(&persister),
+            wal.clone(),
+            Arc::clone(&time_provider),
+            segment_duration,
+        )
+        .await
+        .unwrap();
+        let starting_catalog_sequence_number = write_buffer.catalog().sequence_number();
+
+        let session_context = IOxSessionContext::with_testing();
+        let runtime_env = session_context.inner().runtime_env();
+        register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&object_store));
+
+        // write data into the buffer that will go into a new segment
+        let new_segment_time = Time::from_timestamp(360, 0).unwrap();
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=1",
+                new_segment_time,
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        let expected = vec![
+            "+-----+----------------------+",
+            "| bar | time                 |",
+            "+-----+----------------------+",
+            "| 1.0 | 1970-01-01T00:06:00Z |",
+            "+-----+----------------------+",
+        ];
+        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        assert_batches_eq!(&expected, &actual);
+
+        // get the segment for the new_segment_time and validate that it has the correct starting catalog sequence number
+        let state = write_buffer.segment_state.read();
+        let segment_start_time = SegmentDuration::new_5m().start_time(new_segment_time.timestamp());
+        let segment = state.segment_for_time(segment_start_time).unwrap();
+        assert_eq!(
+            segment.starting_catalog_sequence_number(),
+            starting_catalog_sequence_number
+        );
     }
 
     async fn get_table_batches(
