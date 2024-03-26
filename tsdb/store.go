@@ -764,7 +764,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return nil
 	}
 
-	// Remove the shard from Store so it's not returned to callers requesting
+	// Remove the shard from Store, so it's not returned to callers requesting
 	// shards. Also mark that this shard is currently being deleted in a separate
 	// map so that we do not have to retain the global store lock while deleting
 	// files.
@@ -792,7 +792,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		delete(s.pendingShardDeletes, shardID)
-		s.databases[db].removeIndexType(sh.IndexType())
 	}()
 
 	// Get the shard's local bitset of series IDs.
@@ -806,6 +805,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	err = s.walkShards(shards, func(sh *Shard) error {
 		index, err := sh.Index()
 		if err != nil {
+			s.Logger.Error("cannot find shard index", zap.Uint64("shard_id", sh.ID()), zap.Error(err))
 			return err
 		}
 
@@ -814,7 +814,9 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	})
 
 	if err != nil {
-		s.Logger.Error("error walking shards during DeleteShard operation", zap.Error(err))
+		// We couldn't get the index for a shard. Rather than deleting series which may
+		// exist in that shard as well as in the current shard, we stop the current deletion
+		return err
 	}
 
 	// Remove any remaining series in the set from the series file, as they don't
@@ -823,13 +825,15 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		sfile := s.seriesFile(db)
 		if sfile != nil {
 			ss.ForEach(func(id uint64) {
-				err = sfile.DeleteSeriesID(id)
-				if err != nil {
-					s.Logger.Error("error deleting series id during DeleteShard operation", zap.Uint64("id", id), zap.Error(err))
+				if err := sfile.DeleteSeriesID(id); err != nil {
+					sfile.Logger.Error(
+						"cannot delete series in shard",
+						zap.Uint64("series_id", id),
+						zap.Uint64("shard_id", shardID),
+						zap.Error(err))
 				}
 			})
 		}
-
 	}
 
 	// Close the shard.
@@ -840,9 +844,13 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	// Remove the on-disk shard data.
 	if err := os.RemoveAll(sh.path); err != nil {
 		return err
+	} else if err = os.RemoveAll(sh.walPath); err != nil {
+		return err
+	} else {
+		// Remove index type from the database on success
+		s.databases[db].removeIndexType(sh.IndexType())
+		return nil
 	}
-
-	return os.RemoveAll(sh.walPath)
 }
 
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
