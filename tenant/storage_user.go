@@ -21,7 +21,7 @@ var (
 func unmarshalUser(v []byte) (*influxdb.User, error) {
 	u := &influxdb.User{}
 	if err := json.Unmarshal(v, u); err != nil {
-		return nil, ErrCorruptUser(err)
+		return nil, errors.ErrCorruptUser(err)
 	}
 
 	return u, nil
@@ -30,7 +30,7 @@ func unmarshalUser(v []byte) (*influxdb.User, error) {
 func marshalUser(u *influxdb.User) ([]byte, error) {
 	v, err := json.Marshal(u)
 	if err != nil {
-		return nil, ErrUnprocessableUser(err)
+		return nil, errors.ErrUnprocessableUser(err)
 	}
 
 	return v, nil
@@ -51,11 +51,11 @@ func (s *Store) uniqueUserName(tx kv.Tx, uname string) error {
 
 	// no error means this is not unique
 	if err == nil {
-		return UserAlreadyExistsError(uname)
+		return errors.UserAlreadyExistsError(uname)
 	}
 
 	// any other error is some sort of internal server error
-	return ErrUnprocessableUser(err)
+	return errors.ErrUnprocessableUser(err)
 }
 
 func (s *Store) uniqueUserID(tx kv.Tx, id platform.ID) error {
@@ -72,10 +72,10 @@ func (s *Store) uniqueUserID(tx kv.Tx, id platform.ID) error {
 	}
 
 	if err == nil {
-		return UserIDAlreadyExistsError(id.String())
+		return errors.UserIDAlreadyExistsError(id.String())
 	}
 
-	return ErrUnprocessableUser(err)
+	return errors.ErrUnprocessableUser(err)
 }
 
 func (s *Store) GetUser(ctx context.Context, tx kv.Tx, id platform.ID) (user *influxdb.User, retErr error) {
@@ -84,7 +84,7 @@ func (s *Store) GetUser(ctx context.Context, tx kv.Tx, id platform.ID) (user *in
 	}()
 	encodedID, err := id.Encode()
 	if err != nil {
-		return nil, InvalidUserIDError(err)
+		return nil, errors.InvalidUserIDError(err)
 	}
 
 	b, err := tx.Bucket(userBucket)
@@ -94,7 +94,7 @@ func (s *Store) GetUser(ctx context.Context, tx kv.Tx, id platform.ID) (user *in
 
 	v, err := b.Get(encodedID)
 	if kv.IsNotFound(err) {
-		return nil, ErrUserNotFound
+		return nil, errors.ErrUserNotFound
 	}
 
 	if err != nil {
@@ -115,7 +115,7 @@ func (s *Store) GetUserByName(ctx context.Context, tx kv.Tx, n string) (user *in
 
 	uid, err := b.Get([]byte(n))
 	if err == kv.ErrKeyNotFound {
-		return nil, ErrUserNotFound
+		return nil, errors.ErrUserNotFound
 	}
 
 	if err != nil {
@@ -195,7 +195,7 @@ func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) (ret
 
 	encodedID, err := u.ID.Encode()
 	if err != nil {
-		return InvalidUserIDError(err)
+		return errors.InvalidUserIDError(err)
 	}
 
 	// Verify that both the provided username and user ID are not already in-use
@@ -298,7 +298,7 @@ func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id platform.ID) (retEr
 
 	encodedID, err := id.Encode()
 	if err != nil {
-		return InvalidUserIDError(err)
+		return errors.InvalidUserIDError(err)
 	}
 
 	idx, err := tx.Bucket(userIndex)
@@ -322,7 +322,7 @@ func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id platform.ID) (retEr
 	// Clean up user's password.
 	ub, err := tx.Bucket(userpasswordBucket)
 	if err != nil {
-		return UnavailablePasswordServiceError(err)
+		return errors.UnavailablePasswordServiceError(err)
 	}
 	if err := ub.Delete(encodedID); err != nil {
 		return err
@@ -347,12 +347,12 @@ func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id platform.ID) (retEr
 func (s *Store) GetPassword(ctx context.Context, tx kv.Tx, id platform.ID) (string, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
-		return "", InvalidUserIDError(err)
+		return "", errors.InvalidUserIDError(err)
 	}
 
 	b, err := tx.Bucket(userpasswordBucket)
 	if err != nil {
-		return "", UnavailablePasswordServiceError(err)
+		return "", errors.UnavailablePasswordServiceError(err)
 	}
 
 	passwd, err := b.Get(encodedID)
@@ -363,12 +363,12 @@ func (s *Store) GetPassword(ctx context.Context, tx kv.Tx, id platform.ID) (stri
 func (s *Store) SetPassword(ctx context.Context, tx kv.Tx, id platform.ID, password string) error {
 	encodedID, err := id.Encode()
 	if err != nil {
-		return InvalidUserIDError(err)
+		return errors.InvalidUserIDError(err)
 	}
 
 	b, err := tx.Bucket(userpasswordBucket)
 	if err != nil {
-		return UnavailablePasswordServiceError(err)
+		return errors.UnavailablePasswordServiceError(err)
 	}
 
 	return b.Put(encodedID, []byte(password))
@@ -377,12 +377,12 @@ func (s *Store) SetPassword(ctx context.Context, tx kv.Tx, id platform.ID, passw
 func (s *Store) DeletePassword(ctx context.Context, tx kv.Tx, id platform.ID) error {
 	encodedID, err := id.Encode()
 	if err != nil {
-		return InvalidUserIDError(err)
+		return errors.InvalidUserIDError(err)
 	}
 
 	b, err := tx.Bucket(userpasswordBucket)
 	if err != nil {
-		return UnavailablePasswordServiceError(err)
+		return errors.UnavailablePasswordServiceError(err)
 	}
 
 	return b.Delete(encodedID)

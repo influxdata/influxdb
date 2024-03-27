@@ -46,7 +46,7 @@ func (s *Service) RUnlock() {
 // NewService creates a new base tenant service.
 func NewService(st *Store) *Service {
 	svc := &Service{store: st}
-	userSvc := NewUserSvc(st, svc)
+	userSvc := NewUserSvc(st, svc, false)
 	svc.UserService = userSvc
 	svc.PasswordsService = userSvc
 	svc.UserResourceMappingService = NewUserResourceMappingSvc(st, svc)

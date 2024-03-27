@@ -2,6 +2,8 @@ package tenant
 
 import (
 	"context"
+	eBase "errors"
+	"regexp"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -11,14 +13,16 @@ import (
 )
 
 type UserSvc struct {
-	store *Store
-	svc   *Service
+	store           *Store
+	svc             *Service
+	StrongPasswords bool
 }
 
-func NewUserSvc(st *Store, svc *Service) *UserSvc {
+func NewUserSvc(st *Store, svc *Service, passwordStrength bool) *UserSvc {
 	return &UserSvc{
-		store: st,
-		svc:   svc,
+		store:           st,
+		svc:             svc,
+		StrongPasswords: passwordStrength,
 	}
 }
 
@@ -45,7 +49,7 @@ func (s *UserSvc) FindUserByID(ctx context.Context, id platform.ID) (*influxdb.U
 func (s *UserSvc) FindUser(ctx context.Context, filter influxdb.UserFilter) (*influxdb.User, error) {
 	// if im given no filters its not a valid find user request. (leaving it unchecked seems dangerous)
 	if filter.ID == nil && filter.Name == nil {
-		return nil, ErrUserNotFound
+		return nil, errors.ErrUserNotFound
 	}
 
 	if filter.ID != nil {
@@ -177,10 +181,38 @@ func (s *UserSvc) FindPermissionForUser(ctx context.Context, uid platform.ID) (i
 	return permissions, nil
 }
 
+var classRegexes []*regexp.Regexp = []*regexp.Regexp{
+	regexp.MustCompile(`[[:lower:]]`),
+	regexp.MustCompile(`[[:upper:]]`),
+	regexp.MustCompile(`[[:digit:]]`),
+	regexp.MustCompile(`[` + errors.SpecialChars + `]`),
+}
+
+func (s *UserSvc) CheckPasswordStrength(password string) error {
+	const numClassesRequired = 3
+	var eSlice []error = nil
+	l := len(password)
+	if l < errors.MinPasswordLen || l > errors.MaxPasswordLen {
+		eSlice = append(eSlice, errors.EPasswordLength)
+	}
+	if s.StrongPasswords {
+		n := 0
+		for r := range classRegexes {
+			if classRegexes[r].MatchString(password) {
+				n++
+			}
+		}
+		if n < numClassesRequired {
+			eSlice = append(eSlice, errors.EPasswordChars)
+		}
+	}
+	return eBase.Join(eSlice...)
+}
+
 // SetPassword overrides the password of a known user.
 func (s *UserSvc) SetPassword(ctx context.Context, userID platform.ID, password string) error {
-	if len(password) < MinPasswordLen {
-		return EShortPassword
+	if err := s.CheckPasswordStrength(password); err != nil {
+		return err
 	}
 	passHash, err := encryptPassword(password)
 	if err != nil {
@@ -190,27 +222,37 @@ func (s *UserSvc) SetPassword(ctx context.Context, userID platform.ID, password 
 	return s.store.Update(ctx, func(tx kv.Tx) error {
 		_, err := s.store.GetUser(ctx, tx, userID)
 		if err != nil {
-			return EIncorrectUser
+			return errors.EIncorrectUser
 		}
 		return s.store.SetPassword(ctx, tx, userID, passHash)
 	})
 }
 
+func (s *UserSvc) ComparePassword(ctx context.Context, userID platform.ID, password string) error {
+	err := s.comparePasswordNoStrengthCheck(ctx, userID, password)
+	if err == nil {
+		if err = s.CheckPasswordStrength(password); err != nil {
+			return eBase.Join(errors.EPasswordChangeRequired, err)
+		}
+	}
+	return err
+}
+
 // ComparePassword checks if the password matches the password recorded.
 // Passwords that do not match return errors.
-func (s *UserSvc) ComparePassword(ctx context.Context, userID platform.ID, password string) error {
+func (s *UserSvc) comparePasswordNoStrengthCheck(ctx context.Context, userID platform.ID, password string) error {
 	// get password
 	var hash []byte
 	err := s.store.View(ctx, func(tx kv.Tx) error {
 
 		_, err := s.store.GetUser(ctx, tx, userID)
 		if err != nil {
-			return EIncorrectUser
+			return errors.EIncorrectUser
 		}
 		h, err := s.store.GetPassword(ctx, tx, userID)
 		if err != nil {
 			if err == kv.ErrKeyNotFound {
-				return EIncorrectPassword
+				return errors.EIncorrectPassword
 			}
 			return err
 		}
@@ -222,7 +264,7 @@ func (s *UserSvc) ComparePassword(ctx context.Context, userID platform.ID, passw
 	}
 	// compare password
 	if err := bcrypt.CompareHashAndPassword(hash, []byte(password)); err != nil {
-		return EIncorrectPassword
+		return errors.EIncorrectPassword
 	}
 
 	return nil
@@ -231,7 +273,7 @@ func (s *UserSvc) ComparePassword(ctx context.Context, userID platform.ID, passw
 // CompareAndSetPassword checks the password and if they match
 // updates to the new password.
 func (s *UserSvc) CompareAndSetPassword(ctx context.Context, userID platform.ID, old, new string) error {
-	err := s.ComparePassword(ctx, userID, old)
+	err := s.comparePasswordNoStrengthCheck(ctx, userID, old)
 	if err != nil {
 		return err
 	}

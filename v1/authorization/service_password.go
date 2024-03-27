@@ -6,11 +6,10 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
-	"github.com/influxdata/influxdb/v2/tenant"
 	"golang.org/x/crypto/bcrypt"
 )
 
-var EIncorrectPassword = tenant.EIncorrectPassword
+var EIncorrectPassword = errors.EIncorrectPassword
 
 // SetPasswordHash updates the password hash for id. If passHash is not a valid bcrypt hash,
 // SetPasswordHash returns an error.
@@ -38,8 +37,8 @@ func (s *Service) SetPasswordHash(ctx context.Context, authID platform.ID, passH
 
 // SetPassword overrides the password of a known user.
 func (s *Service) SetPassword(ctx context.Context, authID platform.ID, password string) error {
-	if len(password) < tenant.MinPasswordLen {
-		return tenant.EShortPassword
+	if len(password) < errors.MinPasswordLen {
+		return errors.EPasswordLength
 	}
 	passHash, err := encryptPassword(password)
 	if err != nil {

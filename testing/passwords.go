@@ -3,6 +3,7 @@ package testing
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
@@ -95,7 +96,7 @@ func SetPassword(
 				password: "short",
 			},
 			wants: wants{
-				err: fmt.Errorf("passwords must be at least 8 characters long"),
+				err: errors.EPasswordLength,
 			},
 		},
 		{
@@ -329,7 +330,7 @@ func CompareAndSetPassword(
 				new:  "short",
 			},
 			wants: wants{
-				err: fmt.Errorf("passwords must be at least 8 characters long"),
+				err: errors.EPasswordLength,
 			},
 		},
 	}
