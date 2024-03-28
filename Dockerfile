@@ -57,7 +57,7 @@ ENV PACKAGE=$PACKAGE
 COPY --from=build "/root/$PACKAGE" "/usr/bin/$PACKAGE"
 COPY docker/entrypoint.sh /usr/bin/entrypoint.sh
 
-EXPOSE 8080 8082
+EXPOSE 8181
 
 # TODO: Make this and other env vars not specific to IOx
 ENV INFLUXDB_IOX_OBJECT_STORE=file
