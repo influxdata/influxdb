@@ -541,6 +541,17 @@ impl Default for Precision {
     }
 }
 
+impl From<iox_http::write::Precision> for Precision {
+    fn from(legacy: iox_http::write::Precision) -> Self {
+        match legacy {
+            iox_http::write::Precision::Second => Precision::Second,
+            iox_http::write::Precision::Millisecond => Precision::Millisecond,
+            iox_http::write::Precision::Microsecond => Precision::Microsecond,
+            iox_http::write::Precision::Nanosecond => Precision::Nanosecond,
+        }
+    }
+}
+
 /// Guess precision based off of a given timestamp.
 // Note that this will fail in June 2128, but that's not our problem
 pub(crate) fn guess_precision(timestamp: i64) -> Precision {

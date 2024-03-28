@@ -16,6 +16,7 @@ mod auth;
 mod flight;
 mod limits;
 mod query;
+mod write;
 
 /// Configuration for a [`TestServer`]
 #[derive(Debug, Default)]

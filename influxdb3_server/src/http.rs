@@ -4,6 +4,7 @@ use crate::{query_executor, QueryKind};
 use crate::{CommonServerState, QueryExecutor};
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
+use authz::http::AuthorizationHeaderExtension;
 use authz::Authorizer;
 use bytes::{Bytes, BytesMut};
 use data_types::NamespaceName;
@@ -25,6 +26,9 @@ use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
 use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
+use iox_http::write::single_tenant::SingleTenantRequestUnifier;
+use iox_http::write::v1::V1_NAMESPACE_RP_SEPARATOR;
+use iox_http::write::{WriteParseError, WriteRequestUnifier};
 use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
@@ -167,13 +171,8 @@ pub enum Error {
     #[error("query error: {0}")]
     Query(#[from] query_executor::Error),
 
-    // Invalid Start Character for a Database Name
-    #[error("db name did not start with a number or letter")]
-    DbNameInvalidStartChar,
-
-    // Invalid Character for a Database Name
-    #[error("db name must use ASCII letters, numbers, underscores and hyphens only")]
-    DbNameInvalidChar,
+    #[error(transparent)]
+    DbName(#[from] ValidateDbNameError),
 
     #[error("partial write of line protocol occurred")]
     PartialLpWrite(BufferedWriteRequest),
@@ -211,13 +210,15 @@ pub enum AuthorizationError {
     ToStr(#[from] hyper::header::ToStrError),
 }
 
+#[derive(Debug, Serialize)]
+struct ErrorMessage<T: Serialize> {
+    error: String,
+    data: Option<T>,
+}
+
 impl Error {
-    fn response(self) -> Response<Body> {
-        #[derive(Debug, Serialize)]
-        struct ErrorMessage<T: Serialize> {
-            error: String,
-            data: Option<T>,
-        }
+    /// Convert this error into an HTTP [`Response`]
+    fn into_response(self) -> Response<Body> {
         match self {
             Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
                 err @ (CatalogError::TooManyDbs
@@ -247,9 +248,9 @@ impl Error {
                     .body(body)
                     .unwrap()
             }
-            Self::DbNameInvalidStartChar | Self::DbNameInvalidChar => {
+            Self::DbName(e) => {
                 let err: ErrorMessage<()> = ErrorMessage {
-                    error: self.to_string(),
+                    error: e.to_string(),
                     data: None,
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
@@ -304,6 +305,7 @@ pub(crate) struct HttpApi<W, Q, T> {
     pub(crate) query_executor: Arc<Q>,
     max_request_bytes: usize,
     authorizer: Arc<dyn Authorizer>,
+    legacy_write_param_unifier: SingleTenantRequestUnifier,
 }
 
 impl<W, Q, T> HttpApi<W, Q, T> {
@@ -315,6 +317,7 @@ impl<W, Q, T> HttpApi<W, Q, T> {
         max_request_bytes: usize,
         authorizer: Arc<dyn Authorizer>,
     ) -> Self {
+        let legacy_write_param_unifier = SingleTenantRequestUnifier::new(Arc::clone(&authorizer));
         Self {
             common_state,
             time_provider,
@@ -322,6 +325,7 @@ impl<W, Q, T> HttpApi<W, Q, T> {
             query_executor,
             max_request_bytes,
             authorizer,
+            legacy_write_param_unifier,
         }
     }
 }
@@ -336,7 +340,16 @@ where
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
-        validate_db_name(&params.db)?;
+        self.write_lp_inner(params, req, false).await
+    }
+
+    async fn write_lp_inner(
+        &self,
+        params: WriteParams,
+        req: Request<Body>,
+        accept_rp: bool,
+    ) -> Result<Response<Body>> {
+        validate_db_name(&params.db, accept_rp)?;
         info!("write_lp to {}", params.db);
 
         let body = self.read_body(req).await?;
@@ -478,6 +491,12 @@ where
     }
 
     async fn authorize_request(&self, req: &mut Request<Body>) -> Result<(), AuthorizationError> {
+        // Extend the request with the authorization token; this is used downstream in some
+        // APIs, such as write, that need the full header value to authorize a request.
+        let auth_header = req.headers().get(AUTHORIZATION).cloned();
+        req.extensions_mut()
+            .insert(AuthorizationHeaderExtension::new(auth_header));
+
         let auth = if let Some(p) = extract_v1_auth_token(req) {
             Some(p)
         } else {
@@ -646,31 +665,74 @@ impl From<authz::Error> for AuthorizationError {
     }
 }
 
+/// Validate a database name
+///
 /// A valid name:
 /// - Starts with a letter or a number
 /// - Is ASCII not UTF-8
 /// - Contains only letters, numbers, underscores or hyphens
-fn validate_db_name(name: &str) -> Result<()> {
+/// - if `accept_rp` is true, then a single slash ('/') is allowed, separating the
+///   the database name from the retention policy name, e.g., '<db_name>/<rp_name>'
+fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameError> {
+    if name.is_empty() {
+        return Err(ValidateDbNameError::Empty);
+    }
     let mut is_first_char = true;
+    let mut rp_seperator_found = false;
+    let mut last_char = None;
     for grapheme in name.graphemes(true) {
         if grapheme.as_bytes().len() > 1 {
             // In the case of a unicode we need to handle multibyte chars
-            return Err(Error::DbNameInvalidChar);
+            return Err(ValidateDbNameError::InvalidChar);
         }
         let char = grapheme.as_bytes()[0] as char;
         if !is_first_char {
-            if !(char.is_ascii_alphanumeric() || char == '_' || char == '-') {
-                return Err(Error::DbNameInvalidChar);
+            match (accept_rp, rp_seperator_found, char) {
+                (true, true, V1_NAMESPACE_RP_SEPARATOR) => {
+                    return Err(ValidateDbNameError::InvalidRetentionPolicy)
+                }
+                (true, false, V1_NAMESPACE_RP_SEPARATOR) => {
+                    rp_seperator_found = true;
+                }
+                (false, _, char)
+                    if !(char.is_ascii_alphanumeric() || char == '_' || char == '-') =>
+                {
+                    return Err(ValidateDbNameError::InvalidChar)
+                }
+                _ => (),
             }
         } else {
             if !char.is_ascii_alphanumeric() {
-                return Err(Error::DbNameInvalidStartChar);
+                return Err(ValidateDbNameError::InvalidStartChar);
             }
             is_first_char = false;
         }
+        last_char.replace(char);
+    }
+
+    if last_char.is_some_and(|c| c == '/') {
+        return Err(ValidateDbNameError::InvalidRetentionPolicy);
     }
 
     Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ValidateDbNameError {
+    #[error(
+        "invalid character in database name: must be ASCII, \
+        containing only letters, numbers, underscores, or hyphens"
+    )]
+    InvalidChar,
+    #[error("db name did not start with a number or letter")]
+    InvalidStartChar,
+    #[error(
+        "db name with invalid retention policy, if providing a \
+        retention policy name, must be of form '<db_name>/<rp_name>'"
+    )]
+    InvalidRetentionPolicy,
+    #[error("db name cannot be empty")]
+    Empty,
 }
 
 #[derive(Debug, Deserialize)]
@@ -795,6 +857,17 @@ pub(crate) struct WriteParams {
     pub(crate) precision: Precision,
 }
 
+impl From<iox_http::write::WriteParams> for WriteParams {
+    fn from(legacy: iox_http::write::WriteParams) -> Self {
+        Self {
+            db: legacy.namespace.to_string(),
+            // legacy behaviour was to not accept partial:
+            accept_partial: false,
+            precision: legacy.precision.into(),
+        }
+    }
+}
+
 pub(crate) async fn route_request<W: WriteBuffer, Q: QueryExecutor, T: TimeProvider>(
     http_server: Arc<HttpApi<W, Q, T>>,
     mut req: Request<Body>,
@@ -843,6 +916,22 @@ where
     let content_length = req.headers().get("content-length").cloned();
 
     let response = match (method.clone(), uri.path()) {
+        (Method::POST, "/write") => {
+            let params = match http_server.legacy_write_param_unifier.parse_v1(&req).await {
+                Ok(p) => p.into(),
+                Err(e) => return Ok(legacy_write_error_to_response(e)),
+            };
+
+            http_server.write_lp_inner(params, req, true).await
+        }
+        (Method::POST, "/api/v2/write") => {
+            let params = match http_server.legacy_write_param_unifier.parse_v2(&req).await {
+                Ok(p) => p.into(),
+                Err(e) => return Ok(legacy_write_error_to_response(e)),
+            };
+
+            http_server.write_lp_inner(params, req, false).await
+        }
         (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,
         (Method::GET | Method::POST, "/api/v3/query_sql") => http_server.query_sql(req).await,
         (Method::GET | Method::POST, "/api/v3/query_influxql") => {
@@ -871,9 +960,24 @@ where
         }
         Err(error) => {
             error!(%error, %method, %uri, ?content_length, "Error while handling request");
-            Ok(error.response())
+            Ok(error.into_response())
         }
     }
+}
+
+fn legacy_write_error_to_response(e: WriteParseError) -> Response<Body> {
+    let err: ErrorMessage<()> = ErrorMessage {
+        error: e.to_string(),
+        data: None,
+    };
+    let serialized = serde_json::to_string(&err).unwrap();
+    let body = Body::from(serialized);
+    let status = match e {
+        WriteParseError::NotImplemented => StatusCode::NOT_FOUND,
+        WriteParseError::SingleTenantError(e) => StatusCode::from(&e),
+        WriteParseError::MultiTenantError(e) => StatusCode::from(&e),
+    };
+    Response::builder().status(status).body(body).unwrap()
 }
 
 async fn pprof_home(req: Request<Body>) -> Result<Response<Body>> {
@@ -1030,4 +1134,37 @@ async fn pprof_heappy_profile(req: Request<Body>) -> Result<Response<Body>> {
 #[cfg(not(feature = "heappy"))]
 async fn pprof_heappy_profile(_req: Request<Body>) -> Result<Response<Body>> {
     Err(Error::HeappyIsNotCompiled)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_db_name;
+    use super::ValidateDbNameError;
+
+    macro_rules! assert_validate_db_name {
+        ($name:literal, $accept_rp:literal, $expected:pat) => {
+            let actual = validate_db_name($name, $accept_rp);
+            assert!(matches!(&actual, $expected), "got: {actual:?}",);
+        };
+    }
+
+    #[test]
+    fn test_validate_db_name() {
+        assert_validate_db_name!("foo/bar", false, Err(ValidateDbNameError::InvalidChar));
+        assert!(validate_db_name("foo/bar", true).is_ok());
+        assert_validate_db_name!(
+            "foo/bar/baz",
+            true,
+            Err(ValidateDbNameError::InvalidRetentionPolicy)
+        );
+        assert_validate_db_name!(
+            "foo/",
+            true,
+            Err(ValidateDbNameError::InvalidRetentionPolicy)
+        );
+        assert_validate_db_name!("foo/bar", false, Err(ValidateDbNameError::InvalidChar));
+        assert_validate_db_name!("foo/bar/baz", false, Err(ValidateDbNameError::InvalidChar));
+        assert_validate_db_name!("_foo", false, Err(ValidateDbNameError::InvalidStartChar));
+        assert_validate_db_name!("", false, Err(ValidateDbNameError::Empty));
+    }
 }

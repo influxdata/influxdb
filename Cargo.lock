@@ -2593,6 +2593,7 @@ dependencies = [
  "influxdb-line-protocol",
  "influxdb3_write",
  "iox_catalog",
+ "iox_http",
  "iox_query",
  "iox_query_influxql",
  "iox_query_influxql_rewrite",
@@ -2650,6 +2651,7 @@ dependencies = [
  "hex",
  "influxdb-line-protocol",
  "iox_catalog",
+ "iox_http",
  "iox_query",
  "iox_time",
  "object_store",
@@ -2820,6 +2822,22 @@ dependencies = [
  "trace",
  "trace_http",
  "uuid",
+ "workspace-hack",
+]
+
+[[package]]
+name = "iox_http"
+version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=fd238811b995ddf949a4c7546f4c59f25bd451cf#fd238811b995ddf949a4c7546f4c59f25bd451cf"
+dependencies = [
+ "async-trait",
+ "authz",
+ "data_types",
+ "hyper",
+ "parking_lot",
+ "serde",
+ "serde_urlencoded",
+ "thiserror",
  "workspace-hack",
 ]
 

@@ -556,7 +556,7 @@ mod tests {
         assert_eq!(
             body,
             "{\
-                \"error\":\"db name must use ASCII letters, numbers, underscores and hyphens only\",\
+                \"error\":\"invalid character in database name: must be ASCII, containing only letters, numbers, underscores, or hyphens\",\
                 \"data\":null\
             }"
         );
@@ -580,6 +580,29 @@ mod tests {
             body,
             "{\
                 \"error\":\"db name did not start with a number or letter\",\
+                \"data\":null\
+            }"
+        );
+
+        let resp = write_lp(
+            &server,
+            "",
+            "cpu,host=b val=2 155\n",
+            None,
+            true,
+            "nanosecond",
+        )
+        .await;
+
+        let status = resp.status();
+        let body =
+            String::from_utf8(body::to_bytes(resp.into_body()).await.unwrap().to_vec()).unwrap();
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body,
+            "{\
+                \"error\":\"db name cannot be empty\",\
                 \"data\":null\
             }"
         );
