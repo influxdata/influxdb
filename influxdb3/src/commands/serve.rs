@@ -39,7 +39,7 @@ use trogging::cli::LoggingConfig;
 pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 
 /// The default bind address for the HTTP API.
-pub const DEFAULT_HTTP_BIND_ADDR: &str = "127.0.0.1:8181";
+pub const DEFAULT_HTTP_BIND_ADDR: &str = "0.0.0.0:8181";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -148,7 +148,10 @@ pub struct Config {
     pub segment_duration: SegmentDuration,
 }
 
-#[cfg(all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")))]
+#[cfg(any(
+    all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")),
+    target_env = "msvc"
+))]
 fn build_malloc_conf() -> String {
     "system".to_string()
 }
@@ -158,7 +161,11 @@ fn build_malloc_conf() -> String {
     "heappy".to_string()
 }
 
-#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+#[cfg(all(
+    not(feature = "heappy"),
+    feature = "jemalloc_replacing_malloc",
+    not(target_env = "msvc")
+))]
 fn build_malloc_conf() -> String {
     tikv_jemalloc_ctl::config::malloc_conf::mib()
         .unwrap()

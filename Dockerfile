@@ -44,6 +44,9 @@ RUN apt update \
     && groupadd --gid 1500 influxdb3 \
     && useradd --uid 1500 --gid influxdb3 --shell /bin/bash --create-home influxdb3
 
+RUN mkdir /usr/local/share/influxdb3 && \
+    chown influxdb3:influxdb3 /usr/local/share/influxdb3
+
 USER influxdb3
 
 RUN mkdir ~/.influxdb3
@@ -54,7 +57,11 @@ ENV PACKAGE=$PACKAGE
 COPY --from=build "/root/$PACKAGE" "/usr/bin/$PACKAGE"
 COPY docker/entrypoint.sh /usr/bin/entrypoint.sh
 
-EXPOSE 8080 8082
+EXPOSE 8181
+
+# TODO: Make this and other env vars not specific to IOx
+ENV INFLUXDB_IOX_OBJECT_STORE=file
+ENV INFLUXDB_IOX_DB_DIR=/usr/local/share/influxdb3
 
 ENTRYPOINT ["/usr/bin/entrypoint.sh"]
 

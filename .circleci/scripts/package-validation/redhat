@@ -1,0 +1,97 @@
+#!/bin/bash
+set -o errexit \
+    -o nounset \
+    -o pipefail
+
+# $1 -> architecture
+# $2 -> package path
+case ${1} in
+  x86_64)  arch=x86_64 ;;
+  aarch64) arch=arm64  ;;
+esac
+
+package="$(realpath "${2}")"
+
+path="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+
+terraform_init() {
+  pushd "${path}/tf" &>/dev/null
+
+  # Unfortunately, CircleCI doesn't offer any RPM based machine images.
+  # This is required to test the functionality of the systemd services.
+  # (systemd doesn't run within docker containers). This will spawn a
+  # Amazon Linux instance in AWS.
+  terraform init
+  terraform apply                   \
+    -auto-approve                   \
+    -var "architecture=${1}"        \
+    -var "package_path=${2}"        \
+    -var "identifier=${CIRCLE_JOB}"
+
+  popd &>/dev/null
+}
+
+terraform_free() {
+  pushd "${path}/tf" &>/dev/null
+
+  terraform destroy                 \
+    -auto-approve                   \
+    -var "architecture=${1}"        \
+    -var "package_path=${2}"        \
+    -var "identifier=${CIRCLE_JOB}"
+
+  popd &>/dev/null
+}
+
+terraform_ip() {
+  pushd "${path}/tf" &>/dev/null
+
+  terraform output -raw node_ssh
+
+  popd &>/dev/null
+}
+
+
+# This ensures that the associated resources within AWS are released
+# upon exit or when encountering an error. This is setup before the
+# call to "terraform apply" so even partially initialized resources
+# are released.
+# shellcheck disable=SC2064
+trap "terraform_free \"${arch}\" \"${package}\"" \
+  SIGINT  \
+  SIGTERM \
+  ERR     \
+  EXIT
+
+function terraform_setup()
+{
+  # TODO(bnpfeife): remove this once the executor is updated.
+  #
+  # Unfortunately, terraform provided by the CircleCI executor is *terribly*
+  # out of date. Most Linux distributions are disabling "ssh-rsa" public key
+  # algorithms which this uses to remote into the ec2 instance . This
+  # installs the latest version of terraform.
+  #
+  # Addendum: the "terraform_version" CircleCI option is broken!
+sudo tee /etc/apt/sources.list.d/hashicorp.list <<EOF >/dev/null || true
+deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main
+EOF
+
+  curl -fL https://apt.releases.hashicorp.com/gpg | gpg --dearmor | \
+    sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg >/dev/null
+
+  export DEBIAN_FRONTEND=noninteractive
+  sudo -E apt-get update
+  sudo -E apt-get install --yes terraform
+}
+
+terraform_setup
+
+terraform_init "${arch}" "${package}"
+
+printf 'Setup complete! Testing %s... (this takes several minutes!)' "${1}"
+
+# Since terraform *just* created this instance, the host key is not
+# known. Therefore, we'll disable StrictHostKeyChecking so ssh does
+# not wait for user input.
+ssh -o 'StrictHostKeyChecking=no' "ec2-user@$(terraform_ip)" 'sudo ./validate rpm ./influxdb3.rpm'
