@@ -126,7 +126,10 @@ async fn api_v1_write_round_trip() {
         .expect("send /write request");
 
     let resp = server
-        .api_v3_query_influxql(&[("q", "SELECT * FROM foo.autogen.cpu"), ("format", "pretty")])
+        .api_v3_query_influxql(&[
+            ("q", "SELECT time, host, usage FROM foo.autogen.cpu"),
+            ("format", "pretty"),
+        ])
         .await
         .text()
         .await
@@ -249,7 +252,10 @@ async fn api_v2_write_round_trip() {
         .expect("send /write request");
 
     let resp = server
-        .api_v3_query_influxql(&[("q", "SELECT * FROM foo.autogen.cpu"), ("format", "pretty")])
+        .api_v3_query_influxql(&[
+            ("q", "SELECT time, host, usage FROM foo.autogen.cpu"),
+            ("format", "pretty"),
+        ])
         .await
         .text()
         .await
