@@ -3,13 +3,13 @@
 use crate::catalog::{Catalog, DatabaseSchema};
 use crate::chunk::BufferChunk;
 use crate::wal::WalSegmentWriterNoopImpl;
-use crate::write_buffer::buffer_segment::{
-    ClosedBufferSegment, OpenBufferSegment, TableBuffer, WriteBatch,
-};
+use crate::write_buffer::buffer_segment::{ClosedBufferSegment, OpenBufferSegment, WriteBatch};
 use crate::{
     persister, wal, write_buffer, ParquetFile, PersistedSegment, Persister, SegmentDuration,
     SegmentId, SegmentRange, SequenceNumber, Wal, WalOp,
 };
+#[cfg(test)]
+use arrow::record_batch::RecordBatch;
 use data_types::{ChunkId, ChunkOrder, TableId, TransitionPartitionId};
 use datafusion::common::DataFusionError;
 use datafusion::execution::context::SessionState;
@@ -19,6 +19,8 @@ use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::error;
 use parking_lot::RwLock;
+#[cfg(test)]
+use schema::Schema;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -120,45 +122,75 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
             .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
         let schema = table.schema.clone();
 
-        let mut table_buffers = self.clone_table_buffers(&db_schema.name, table_name);
-        table_buffers.extend(
-            self.persisting_segments
-                .values()
-                .filter_map(|segment| segment.table_buffer(&db_schema.name, table_name))
-                .collect::<Vec<_>>(),
-        );
+        let mut chunks: Vec<Arc<dyn QueryChunk>> = vec![];
 
-        let mut chunk_order = 0;
+        for segment in self.segments.values() {
+            if let Some(batches) =
+                segment.table_record_batches(&db_schema.name, table_name, &schema)
+            {
+                let row_count = batches.iter().map(|b| b.num_rows()).sum();
 
-        let chunks = table_buffers
-            .into_iter()
-            .map(|table_buffer| {
-                let batch = table_buffer.rows_to_record_batch(&schema, table.columns());
-                let batch_stats = create_chunk_statistics(
-                    Some(table_buffer.row_count()),
+                let chunk_stats = create_chunk_statistics(
+                    Some(row_count),
                     &schema,
-                    Some(table_buffer.timestamp_min_max()),
+                    Some(segment.segment_range().timestamp_min_max()),
                     None,
                 );
 
-                let chunk: Arc<dyn QueryChunk> = Arc::new(BufferChunk {
-                    batches: vec![batch],
+                chunks.push(Arc::new(BufferChunk {
+                    batches,
                     schema: schema.clone(),
-                    stats: Arc::new(batch_stats),
+                    stats: Arc::new(chunk_stats),
                     partition_id: TransitionPartitionId::new(
                         TableId::new(0),
-                        &table_buffer.segment_key,
+                        segment.segment_key(),
                     ),
                     sort_key: None,
                     id: ChunkId::new(),
-                    chunk_order: ChunkOrder::new(chunk_order),
-                });
+                    chunk_order: ChunkOrder::new(
+                        chunks
+                            .len()
+                            .try_into()
+                            .expect("should never have this many chunks"),
+                    ),
+                }));
+            }
+        }
 
-                chunk_order += 1;
+        for persisting_segment in self.persisting_segments.values() {
+            if let Some(batches) = persisting_segment.buffered_data.table_record_batches(
+                &db_schema.name,
+                table_name,
+                &schema,
+            ) {
+                let row_count = batches.iter().map(|b| b.num_rows()).sum();
 
-                chunk
-            })
-            .collect();
+                let chunk_stats = create_chunk_statistics(
+                    Some(row_count),
+                    &schema,
+                    Some(persisting_segment.segment_range.timestamp_min_max()),
+                    None,
+                );
+
+                chunks.push(Arc::new(BufferChunk {
+                    batches,
+                    schema: schema.clone(),
+                    stats: Arc::new(chunk_stats),
+                    partition_id: TransitionPartitionId::new(
+                        TableId::new(0),
+                        &persisting_segment.segment_key,
+                    ),
+                    sort_key: None,
+                    id: ChunkId::new(),
+                    chunk_order: ChunkOrder::new(
+                        chunks
+                            .len()
+                            .try_into()
+                            .expect("should never have this many chunks"),
+                    ),
+                }));
+            }
+        }
 
         Ok(chunks)
     }
@@ -181,17 +213,6 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         parquet_files
     }
 
-    pub(crate) fn clone_table_buffers(
-        &self,
-        database_name: &str,
-        table_name: &str,
-    ) -> Vec<TableBuffer> {
-        self.segments
-            .values()
-            .filter_map(|segment| segment.table_buffer(database_name, table_name))
-            .collect::<Vec<_>>()
-    }
-
     #[cfg(test)]
     pub(crate) fn persisted_segments(&self) -> Vec<Arc<PersistedSegment>> {
         self.persisted_segments.values().cloned().collect()
@@ -200,6 +221,20 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
     #[cfg(test)]
     pub(crate) fn open_segment_times(&self) -> Vec<Time> {
         self.segments.keys().cloned().collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn open_segments_table_record_batches(
+        &self,
+        db_name: &str,
+        table_name: &str,
+        schema: &Schema,
+    ) -> Vec<RecordBatch> {
+        self.segments
+            .values()
+            .filter_map(|segment| segment.table_record_batches(db_name, table_name, schema))
+            .flatten()
+            .collect()
     }
 
     #[allow(dead_code)]
