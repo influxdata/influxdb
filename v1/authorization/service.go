@@ -16,10 +16,12 @@ var (
 )
 
 type Service struct {
-	store         *Store
-	tenantService TenantService
+	store           *Store
+	tenantService   TenantService
+	strongPasswords bool
 }
 
+// NewService constructs a new Service.
 func NewService(st *Store, ts TenantService) *Service {
 	return &Service{
 		store:         st,

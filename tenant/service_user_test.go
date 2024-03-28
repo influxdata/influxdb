@@ -111,8 +111,7 @@ func TestPasswordStrengthChecker(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
-			svc := tenant.UserSvc{StrongPasswords: tt.checkPassword}
-			err := svc.CheckPasswordStrength(tt.password)
+			err := tenant.IsPasswordStrong(tt.password, tt.checkPassword)
 			for _, want := range tt.want {
 				if !errors.Is(err, want) {
 					t.Errorf("expected %v, got %v", tt.want, err)

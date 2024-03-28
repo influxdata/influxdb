@@ -15,14 +15,14 @@ import (
 type UserSvc struct {
 	store           *Store
 	svc             *Service
-	StrongPasswords bool
+	strongPasswords bool
 }
 
 func NewUserSvc(st *Store, svc *Service, passwordStrength bool) *UserSvc {
 	return &UserSvc{
 		store:           st,
 		svc:             svc,
-		StrongPasswords: passwordStrength,
+		strongPasswords: passwordStrength,
 	}
 }
 
@@ -181,37 +181,9 @@ func (s *UserSvc) FindPermissionForUser(ctx context.Context, uid platform.ID) (i
 	return permissions, nil
 }
 
-var classRegexes []*regexp.Regexp = []*regexp.Regexp{
-	regexp.MustCompile(`[[:lower:]]`),
-	regexp.MustCompile(`[[:upper:]]`),
-	regexp.MustCompile(`[[:digit:]]`),
-	regexp.MustCompile(`[` + errors.SpecialChars + `]`),
-}
-
-func (s *UserSvc) CheckPasswordStrength(password string) error {
-	const numClassesRequired = 3
-	var eSlice []error = nil
-	l := len(password)
-	if l < errors.MinPasswordLen || l > errors.MaxPasswordLen {
-		eSlice = append(eSlice, errors.EPasswordLength)
-	}
-	if s.StrongPasswords {
-		n := 0
-		for r := range classRegexes {
-			if classRegexes[r].MatchString(password) {
-				n++
-			}
-		}
-		if n < numClassesRequired {
-			eSlice = append(eSlice, errors.EPasswordChars)
-		}
-	}
-	return eBase.Join(eSlice...)
-}
-
 // SetPassword overrides the password of a known user.
 func (s *UserSvc) SetPassword(ctx context.Context, userID platform.ID, password string) error {
-	if err := s.CheckPasswordStrength(password); err != nil {
+	if err := IsPasswordStrong(password, s.strongPasswords); err != nil {
 		return err
 	}
 	passHash, err := encryptPassword(password)
@@ -231,14 +203,14 @@ func (s *UserSvc) SetPassword(ctx context.Context, userID platform.ID, password 
 func (s *UserSvc) ComparePassword(ctx context.Context, userID platform.ID, password string) error {
 	err := s.comparePasswordNoStrengthCheck(ctx, userID, password)
 	if err == nil {
-		if err = s.CheckPasswordStrength(password); err != nil {
+		if err = IsPasswordStrong(password, s.strongPasswords); err != nil {
 			return eBase.Join(errors.EPasswordChangeRequired, err)
 		}
 	}
 	return err
 }
 
-// ComparePassword checks if the password matches the password recorded.
+// comparePasswordNoStrengthCheck checks if the password matches the password recorded.
 // Passwords that do not match return errors.
 func (s *UserSvc) comparePasswordNoStrengthCheck(ctx context.Context, userID platform.ID, password string) error {
 	// get password
@@ -287,6 +259,34 @@ func encryptPassword(password string) (string, error) {
 		return "", err
 	}
 	return string(passHash), nil
+}
+
+var classRegexes []*regexp.Regexp = []*regexp.Regexp{
+	regexp.MustCompile(`[[:lower:]]`),
+	regexp.MustCompile(`[[:upper:]]`),
+	regexp.MustCompile(`[[:digit:]]`),
+	regexp.MustCompile(`[` + errors.SpecialChars + `]`),
+}
+
+func IsPasswordStrong(password string, doCheck bool) error {
+	const numClassesRequired = 3
+	var eSlice []error = nil
+	l := len(password)
+	if l < errors.MinPasswordLen || l > errors.MaxPasswordLen {
+		eSlice = append(eSlice, errors.EPasswordLength)
+	}
+	if doCheck {
+		n := 0
+		for r := range classRegexes {
+			if classRegexes[r].MatchString(password) {
+				n++
+			}
+		}
+		if n < numClassesRequired {
+			eSlice = append(eSlice, errors.EPasswordChars)
+		}
+	}
+	return eBase.Join(eSlice...)
 }
 
 func permissionFromMapping(mappings []*influxdb.UserResourceMapping) ([]influxdb.Permission, error) {
