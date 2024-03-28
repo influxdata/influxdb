@@ -509,6 +509,60 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn buffers_schema_update() {
+        let mut open_segment = OpenBufferSegment::new(
+            SegmentId::new(0),
+            SegmentRange::test_range(),
+            Time::from_timestamp_nanos(0),
+            SequenceNumber::new(0),
+            Box::new(WalSegmentWriterNoopImpl::new(SegmentId::new(0))),
+            None,
+        );
+
+        let db_name: NamespaceName<'static> = NamespaceName::new("db1").unwrap();
+        let catalog = Catalog::new();
+
+        let batches = lp_to_table_batches(&catalog, "db1", "cpu,tag1=cupcakes bar=1 10", 10);
+        let mut write_batch = WriteBatch::default();
+        write_batch.add_db_write(db_name.clone(), batches);
+        open_segment.buffer_writes(write_batch).unwrap();
+
+        let batches = lp_to_table_batches(&catalog, "db1", "cpu,tag2=asdf bar=2 30", 10);
+        let mut write_batch = WriteBatch::default();
+        write_batch.add_db_write(db_name.clone(), batches);
+        open_segment.buffer_writes(write_batch).unwrap();
+
+        let batches = lp_to_table_batches(&catalog, "db1", "cpu bar=2,ival=7i 30", 10);
+        let mut write_batch = WriteBatch::default();
+        write_batch.add_db_write(db_name.clone(), batches);
+        open_segment.buffer_writes(write_batch).unwrap();
+
+        let batches =
+            lp_to_table_batches(&catalog, "db1", "cpu bar=2,ival=9i 40\ncpu fval=2.1 40", 10);
+        let mut write_batch = WriteBatch::default();
+        write_batch.add_db_write(db_name.clone(), batches);
+        open_segment.buffer_writes(write_batch).unwrap();
+
+        let db_schema = catalog.db_schema("db1").unwrap();
+        println!("{:?}", db_schema);
+        let cpu_table = open_segment
+            .table_record_batches("db1", "cpu", db_schema.get_table_schema("cpu").unwrap())
+            .unwrap();
+        let expected_cpu_table = vec![
+            "+------------------------------------------------------------------+-----+------+------+----------+------+--------------------------------+",
+            "| _series_id                                                       | bar | fval | ival | tag1     | tag2 | time                           |",
+            "+------------------------------------------------------------------+-----+------+------+----------+------+--------------------------------+",
+            "| 505f9f5fc3347ac9d6ba45f2b2c94ad53a313e456e86e61db85ba1935369b238 | 1.0 |      |      | cupcakes |      | 1970-01-01T00:00:00.000000010Z |",
+            "| 251081631d40db93f2e58103d12f03216512601273b4de08bc50e1b399df3de8 | 2.0 |      |      |          | asdf | 1970-01-01T00:00:00.000000030Z |",
+            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 2.0 |      | 7    |          |      | 1970-01-01T00:00:00.000000030Z |",
+            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 2.0 |      | 9    |          |      | 1970-01-01T00:00:00.000000040Z |",
+            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 |     | 2.1  |      |          |      | 1970-01-01T00:00:00.000000040Z |",
+            "+------------------------------------------------------------------+-----+------+------+----------+------+--------------------------------+",
+        ];
+        assert_batches_eq!(&expected_cpu_table, &cpu_table);
+    }
+
+    #[tokio::test]
     async fn persist_closed_buffer() {
         const SEGMENT_KEY: &str = "1970-01-01T00-00";
 

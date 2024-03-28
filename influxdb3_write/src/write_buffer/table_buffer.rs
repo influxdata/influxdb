@@ -33,9 +33,9 @@ impl TableBuffer {
     }
 
     pub fn add_rows(&mut self, rows: Vec<Row>) {
-        self.row_count += rows.len();
+        let new_row_count = rows.len();
 
-        for r in rows {
+        for (row_index, r) in rows.into_iter().enumerate() {
             let mut value_added = HashSet::with_capacity(r.fields.len());
 
             for f in r.fields {
@@ -46,10 +46,16 @@ impl TableBuffer {
                         self.timestamp_min = self.timestamp_min.min(v);
                         self.timestamp_max = self.timestamp_max.max(v);
 
-                        let b = self
-                            .data
-                            .entry(f.name)
-                            .or_insert_with(|| Builder::Time(TimestampNanosecondBuilder::new()));
+                        let b = self.data.entry(f.name).or_insert_with(|| {
+                            println!("Creating new timestamp builder");
+                            let mut time_builder = TimestampNanosecondBuilder::new();
+                            // append nulls for all previous rows
+                            for _ in 0..(row_index + self.row_count) {
+                                println!("Appending null for timestamp");
+                                time_builder.append_null();
+                            }
+                            Builder::Time(time_builder)
+                        });
                         if let Builder::Time(b) = b {
                             b.append_value(v);
                         } else {
@@ -57,10 +63,14 @@ impl TableBuffer {
                         }
                     }
                     FieldData::Tag(v) => {
-                        let b = self
-                            .data
-                            .entry(f.name)
-                            .or_insert_with(|| Builder::Tag(StringDictionaryBuilder::new()));
+                        let b = self.data.entry(f.name).or_insert_with(|| {
+                            let mut tag_builder = StringDictionaryBuilder::new();
+                            // append nulls for all previous rows
+                            for _ in 0..(row_index + self.row_count) {
+                                tag_builder.append_null();
+                            }
+                            Builder::Tag(tag_builder)
+                        });
                         if let Builder::Tag(b) = b {
                             b.append(v).unwrap(); // we won't overflow the 32-bit integer for this dictionary
                         } else {
@@ -68,10 +78,14 @@ impl TableBuffer {
                         }
                     }
                     FieldData::String(v) => {
-                        let b = self
-                            .data
-                            .entry(f.name)
-                            .or_insert_with(|| Builder::String(StringBuilder::new()));
+                        let b = self.data.entry(f.name).or_insert_with(|| {
+                            let mut string_builder = StringBuilder::new();
+                            // append nulls for all previous rows
+                            for _ in 0..(row_index + self.row_count) {
+                                string_builder.append_null();
+                            }
+                            Builder::String(string_builder)
+                        });
                         if let Builder::String(b) = b {
                             b.append_value(v);
                         } else {
@@ -79,10 +93,14 @@ impl TableBuffer {
                         }
                     }
                     FieldData::Integer(v) => {
-                        let b = self
-                            .data
-                            .entry(f.name)
-                            .or_insert_with(|| Builder::I64(Int64Builder::new()));
+                        let b = self.data.entry(f.name).or_insert_with(|| {
+                            let mut int_builder = Int64Builder::new();
+                            // append nulls for all previous rows
+                            for _ in 0..(row_index + self.row_count) {
+                                int_builder.append_null();
+                            }
+                            Builder::I64(int_builder)
+                        });
                         if let Builder::I64(b) = b {
                             b.append_value(v);
                         } else {
@@ -90,10 +108,14 @@ impl TableBuffer {
                         }
                     }
                     FieldData::UInteger(v) => {
-                        let b = self
-                            .data
-                            .entry(f.name)
-                            .or_insert_with(|| Builder::U64(UInt64Builder::new()));
+                        let b = self.data.entry(f.name).or_insert_with(|| {
+                            let mut uint_builder = UInt64Builder::new();
+                            // append nulls for all previous rows
+                            for _ in 0..(row_index + self.row_count) {
+                                uint_builder.append_null();
+                            }
+                            Builder::U64(uint_builder)
+                        });
                         if let Builder::U64(b) = b {
                             b.append_value(v);
                         } else {
@@ -101,10 +123,14 @@ impl TableBuffer {
                         }
                     }
                     FieldData::Float(v) => {
-                        let b = self
-                            .data
-                            .entry(f.name)
-                            .or_insert_with(|| Builder::F64(Float64Builder::new()));
+                        let b = self.data.entry(f.name).or_insert_with(|| {
+                            let mut float_builder = Float64Builder::new();
+                            // append nulls for all previous rows
+                            for _ in 0..(row_index + self.row_count) {
+                                float_builder.append_null();
+                            }
+                            Builder::F64(float_builder)
+                        });
                         if let Builder::F64(b) = b {
                             b.append_value(v);
                         } else {
@@ -112,10 +138,14 @@ impl TableBuffer {
                         }
                     }
                     FieldData::Boolean(v) => {
-                        let b = self
-                            .data
-                            .entry(f.name)
-                            .or_insert_with(|| Builder::Bool(BooleanBuilder::new()));
+                        let b = self.data.entry(f.name).or_insert_with(|| {
+                            let mut bool_builder = BooleanBuilder::new();
+                            // append nulls for all previous rows
+                            for _ in 0..(row_index + self.row_count) {
+                                bool_builder.append_null();
+                            }
+                            Builder::Bool(bool_builder)
+                        });
                         if let Builder::Bool(b) = b {
                             b.append_value(v);
                         } else {
@@ -128,6 +158,7 @@ impl TableBuffer {
             // add nulls for any columns not present
             for (name, builder) in &mut self.data {
                 if !value_added.contains(name) {
+                    println!("Adding null for column {}", name);
                     match builder {
                         Builder::Bool(b) => b.append_null(),
                         Builder::F64(b) => b.append_null(),
@@ -140,6 +171,8 @@ impl TableBuffer {
                 }
             }
         }
+
+        self.row_count += new_row_count;
     }
 
     pub fn timestamp_min_max(&self) -> TimestampMinMax {
