@@ -87,32 +87,4 @@ EOF
   exit 2
 fi
 
-# PIE="$(readelf -d "$(which influxdb3)" | (grep 'Flags: PIE' || true))"
-# if [[ ! "${PIE:-}" ]]
-# then
-#   printf 'ERROR: influxdb3 not linked with "-fPIE"!\n'
-#   exit 2
-# fi
-
-# We don't have a way to activate it via systemctl for now
-# if ! systemctl is-active influxdb3 &>/dev/null
-# then
-#   systemctl start influxdb3
-# fi
-
-
-# for i in 0..2
-# do
-#   if ! systemctl is-active influxdb3 &>/dev/null
-#   then
-#     printf 'ERROR: influxdb3 service failed to start!\n'
-#     exit 2
-#   fi
-#   # Sometimes the service fails several seconds or minutes after
-#   # starting. This failure may not propagate to the original
-#   # "systemctl start <influxdb>" command. Therefore, we'll
-#   # poll the service several times before exiting.
-#   sleep 30
-# done
-
 printf 'Finished validating influxdb3!\n'
