@@ -28,6 +28,8 @@ func isInternal(ctx context.Context) bool {
 
 type Service struct {
 	store *Store
+	// Store raw version (not interface) for test purposes.
+	userSvc *UserSvc
 	influxdb.UserService
 	influxdb.PasswordsService
 	influxdb.UserResourceMappingService
@@ -46,17 +48,18 @@ func (s *Service) RUnlock() {
 // NewService creates a new base tenant service.
 func NewService(st *Store, UserSvcOptFns ...func(svc *UserSvc)) *Service {
 	svc := &Service{store: st}
-	userSvc := NewUserSvc(st, svc)
-	for _, fn := range UserSvcOptFns {
-		fn(userSvc)
-	}
-	svc.UserService = userSvc
-	svc.PasswordsService = userSvc
+	svc.userSvc = NewUserSvc(st, svc, UserSvcOptFns...)
+	svc.UserService = svc.userSvc
+	svc.PasswordsService = svc.userSvc
 	svc.UserResourceMappingService = NewUserResourceMappingSvc(st, svc)
 	svc.OrganizationService = NewOrganizationSvc(st, svc)
 	svc.BucketService = NewBucketSvc(st, svc)
 
 	return svc
+}
+
+func (s *Service) SetUserOptions(opts ...func(*UserSvc)) {
+	s.userSvc.SetOptions(opts...)
 }
 
 // creates a new Service with logging and metrics middleware wrappers.

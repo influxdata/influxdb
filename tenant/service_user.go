@@ -18,11 +18,19 @@ type UserSvc struct {
 	strongPasswords bool
 }
 
-func NewUserSvc(st *Store, svc *Service) *UserSvc {
-	return &UserSvc{
+func NewUserSvc(st *Store, svc *Service, OptionFns ...func(*UserSvc)) *UserSvc {
+	userSvc := &UserSvc{
 		store:           st,
 		svc:             svc,
 		strongPasswords: false,
+	}
+	userSvc.SetOptions(OptionFns...)
+	return userSvc
+}
+
+func (s *UserSvc) SetOptions(opts ...func(*UserSvc)) {
+	for _, opt := range opts {
+		opt(s)
 	}
 }
 
@@ -209,6 +217,7 @@ func (s *UserSvc) SetPassword(ctx context.Context, userID platform.ID, password 
 func (s *UserSvc) ComparePassword(ctx context.Context, userID platform.ID, password string) error {
 	err := s.comparePasswordNoStrengthCheck(ctx, userID, password)
 	if err == nil {
+		// If a password matches, but is too weak, force user to change
 		if err = IsPasswordStrong(password, s.strongPasswords); err != nil {
 			return eBase.Join(errors.EPasswordChangeRequired, err)
 		}

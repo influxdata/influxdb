@@ -136,7 +136,7 @@ func initBoltPasswordsService(f influxdbtesting.PasswordFields, t *testing.T) (i
 
 func initPasswordsService(s kv.Store, f influxdbtesting.PasswordFields, t *testing.T) (influxdb.PasswordsService, func()) {
 	storage := tenant.NewStore(s)
-	svc := tenant.NewService(storage)
+	svc := tenant.NewService(storage, tenant.WithPasswordChecking(false))
 
 	for _, u := range f.Users {
 		if err := svc.CreateUser(context.Background(), u); err != nil {
@@ -150,6 +150,7 @@ func initPasswordsService(s kv.Store, f influxdbtesting.PasswordFields, t *testi
 		}
 	}
 
+	svc.SetUserOptions(tenant.WithPasswordChecking(true))
 	return svc, func() {
 		for _, u := range f.Users {
 			if err := svc.DeleteUser(context.Background(), u.ID); err != nil {

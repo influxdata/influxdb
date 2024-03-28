@@ -2,6 +2,7 @@ package testing
 
 import (
 	"context"
+	eBase "errors"
 	"fmt"
 	"testing"
 
@@ -77,7 +78,7 @@ func SetPassword(
 			},
 			args: args{
 				user:     MustIDBase16(oneID),
-				password: "howdydoody",
+				password: "howdY&&doody",
 			},
 			wants: wants{},
 		},
@@ -93,7 +94,7 @@ func SetPassword(
 			},
 			args: args{
 				user:     MustIDBase16(oneID),
-				password: "short",
+				password: "A2$u",
 			},
 			wants: wants{
 				err: errors.EPasswordLength,
@@ -111,7 +112,7 @@ func SetPassword(
 			},
 			args: args{
 				user:     33,
-				password: "howdydoody",
+				password: "Howdy#Doody",
 			},
 			wants: wants{
 				err: fmt.Errorf("your userID is incorrect"),
@@ -167,13 +168,30 @@ func ComparePassword(
 						ID:   MustIDBase16(oneID),
 					},
 				},
-				Passwords: []string{"howdydoody"},
+				Passwords: []string{"Howdy%doody"},
 			},
 			args: args{
 				user:     MustIDBase16(oneID),
-				password: "howdydoody",
+				password: "Howdy%doody",
 			},
 			wants: wants{},
+		},
+		{
+			name: "comparing same weak password forces change",
+			fields: PasswordFields{
+				Users: []*influxdb.User{
+					{
+						Name: "user1",
+						ID:   MustIDBase16(oneID),
+					},
+				},
+				Passwords: []string{"Howdydoody"},
+			},
+			args: args{
+				user:     MustIDBase16(oneID),
+				password: "Howdydoody",
+			},
+			wants: wants{eBase.Join(errors.EPasswordChangeRequired, errors.EPasswordChars)},
 		},
 		{
 			name: "comparing different password is an error",
@@ -284,12 +302,12 @@ func CompareAndSetPassword(
 						ID:   MustIDBase16(oneID),
 					},
 				},
-				Passwords: []string{"howdydoody"},
+				Passwords: []string{"howdY&doody"},
 			},
 			args: args{
 				user: MustIDBase16(oneID),
-				old:  "howdydoody",
-				new:  "howdydoody",
+				old:  "howdY&doody",
+				new:  "howdY&doody",
 			},
 			wants: wants{},
 		},
@@ -330,7 +348,7 @@ func CompareAndSetPassword(
 				new:  "short",
 			},
 			wants: wants{
-				err: errors.EPasswordLength,
+				err: eBase.Join(errors.EPasswordLength, errors.EPasswordChars),
 			},
 		},
 	}
