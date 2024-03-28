@@ -1,6 +1,7 @@
 //! This module contains the built-in specifications for the load generator.
 
-use crate::specification::DataSpec;
+use crate::specification::{DataSpec, QuerierSpec};
+
 mod example;
 mod one_mil;
 
@@ -14,4 +15,5 @@ pub(crate) fn built_in_specs() -> Vec<BuiltInSpec> {
 pub(crate) struct BuiltInSpec {
     pub(crate) description: String,
     pub(crate) write_spec: DataSpec,
+    pub(crate) query_spec: QuerierSpec,
 }

@@ -1,3 +1,4 @@
+use crate::commands::common::create_client;
 use crate::line_protocol_generator::{create_generators, Generator};
 use crate::report::WriteReporter;
 use crate::specification::DataSpec;
@@ -5,12 +6,10 @@ use anyhow::Context;
 use chrono::{DateTime, Local};
 use clap::Parser;
 use influxdb3_client::{Client, Precision};
-use secrecy::{ExposeSecret, Secret};
 use std::ops::Add;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::Instant;
-use url::Url;
 
 use super::common::InfluxDb3Config;
 
@@ -20,22 +19,6 @@ pub struct Config {
     /// Common InfluxDB 3.0 config
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
-
-    /// The path to the spec file to use for this run. Or specify a name of a builtin spec to use.
-    /// If not specified, the generator will output a list of builtin specs along with help and
-    /// an example for writing your own.
-    #[clap(short = 's', long = "spec", env = "INFLUXDB3_LOAD_DATA_SPEC_PATH")]
-    spec_path: Option<String>,
-
-    /// The name of the builtin spec to run. Use this instead of spec_path if you want to run
-    /// one of the builtin specs as is.
-    #[clap(long = "builtin-spec", env = "INFLUXDB3_LOAD_BUILTIN_SPEC")]
-    builtin_spec: Option<String>,
-
-    /// The name of the builtin spec to print to stdout. This is useful for seeing the structure
-    /// of the builtin as a starting point for creating your own.
-    #[clap(long = "print-spec")]
-    print_spec: Option<String>,
 
     /// Sampling interval for the writers. They will generate data at this interval and
     /// sleep for the remainder of the interval. Writers stagger writes by this interval divided
@@ -88,7 +71,16 @@ pub struct Config {
 pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
     let built_in_specs = crate::specs::built_in_specs();
 
-    if config.spec_path.is_none() && config.print_spec.is_none() && config.builtin_spec.is_none() {
+    let InfluxDb3Config {
+        host_url,
+        database_name,
+        auth_token,
+        spec_path,
+        builtin_spec,
+        print_spec,
+    } = config.influxdb3_config;
+
+    if spec_path.is_none() && print_spec.is_none() && builtin_spec.is_none() {
         let example = built_in_specs.first().unwrap();
         let mut generators = create_generators(&example.write_spec, 2).unwrap();
         let t = 123;
@@ -201,7 +193,7 @@ Writer 2:
     }
 
     // if print spec is set, print the spec and exit
-    if let Some(spec_name) = config.print_spec {
+    if let Some(spec_name) = print_spec {
         let spec = built_in_specs
             .iter()
             .find(|spec| spec.write_spec.name == spec_name)
@@ -211,7 +203,7 @@ Writer 2:
     }
 
     // if builtin spec is set, use that instead of the spec path
-    let spec = if let Some(builtin_spec) = config.builtin_spec {
+    let spec = if let Some(builtin_spec) = builtin_spec {
         let builtin = built_in_specs
             .into_iter()
             .find(|spec| spec.write_spec.name == builtin_spec)
@@ -219,8 +211,8 @@ Writer 2:
         println!("using builtin spec: {}", builtin.write_spec.name);
         builtin.write_spec
     } else {
-        println!("reading spec from: {}", config.spec_path.as_ref().unwrap());
-        DataSpec::from_path(&config.spec_path.unwrap())?
+        println!("reading spec from: {}", spec_path.as_ref().unwrap());
+        DataSpec::from_path(&spec_path.unwrap())?
     };
 
     println!(
@@ -286,19 +278,15 @@ Writer 2:
     });
 
     // spawn tokio tasks for each writer
-    let client = create_client(
-        config.influxdb3_config.host_url,
-        config.influxdb3_config.auth_token,
-    )?;
+    let client = create_client(host_url, auth_token)?;
     let mut tasks = Vec::new();
     for generator in generators {
         let reporter = Arc::clone(&write_reporter);
-        let database_name = config.influxdb3_config.database_name.clone();
         let sampling_interval = config.sampling_interval.into();
         let task = tokio::spawn(run_generator(
             generator,
             client.clone(),
-            database_name,
+            database_name.clone(),
             reporter,
             sampling_interval,
             start_time,
@@ -317,17 +305,6 @@ Writer 2:
     println!("reporter closed and results written to {}", results_file);
 
     Ok(())
-}
-
-fn create_client(
-    host_url: Url,
-    auth_token: Option<Secret<String>>,
-) -> Result<Client, influxdb3_client::Error> {
-    let mut client = Client::new(host_url)?;
-    if let Some(t) = auth_token {
-        client = client.with_auth_token(t.expose_secret());
-    }
-    Ok(client)
 }
 
 fn parse_time_offset(s: &str, now: DateTime<Local>) -> DateTime<Local> {
@@ -442,7 +419,6 @@ async fn write_sample(
         .write_sample_to(sample_time.timestamp_millis(), &mut buffer)
         .expect("failed to write sample");
     let sample_len = buffer.len();
-    let body = String::from_utf8(buffer).expect("failed to convert sample to string");
 
     // time and send the write request
     let start_request = Instant::now();
@@ -450,7 +426,7 @@ async fn write_sample(
         .api_v3_write_lp(database_name)
         .precision(Precision::Millisecond)
         .accept_partial(false)
-        .body(body)
+        .body(buffer)
         .send()
         .await;
     let response_time = start_request.elapsed().as_millis() as u64;

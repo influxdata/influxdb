@@ -1,12 +1,15 @@
 //! Spec that shows the various elements of the data generator. Gets printed to console when
 //! the generator is run without a spec specified.
 
+use serde_json::json;
+
 use crate::specification::*;
 use crate::specs::BuiltInSpec;
 
 pub(crate) fn spec() -> BuiltInSpec {
     let description =
         r#"Example that shows the various elements of the data generator."#.to_string();
+
     let write_spec = DataSpec {
         name: "sample_spec".to_string(),
         measurements: vec![
@@ -15,43 +18,33 @@ pub(crate) fn spec() -> BuiltInSpec {
                 tags: vec![
                     TagSpec {
                         key: "some_tag".to_string(),
-                        copies: None,
-                        append_copy_id: None,
                         value: Some("a-value-here".to_string()),
-                        append_writer_id: None,
-                        cardinality: None,
+                        ..Default::default()
                     },
                     TagSpec {
                         key: "random_data_tag".to_string(),
-                        copies: None,
-                        append_copy_id: None,
                         value: Some("card-val-".to_string()),
-                        append_writer_id: None,
                         cardinality: Some(2),
+                        ..Default::default()
                     },
                     TagSpec {
                         key: "higher_cardinality_data_tag".to_string(),
-                        copies: None,
-                        append_copy_id: None,
                         value: Some("card-val-".to_string()),
-                        append_writer_id: None,
                         cardinality: Some(6),
+                        ..Default::default()
                     },
                     TagSpec {
                         key: "copied_tag".to_string(),
                         copies: Some(3),
                         append_copy_id: Some(true),
                         value: Some("copy-val-".to_string()),
-                        append_writer_id: None,
-                        cardinality: None,
+                        ..Default::default()
                     },
                     TagSpec {
                         key: "writer_id".to_string(),
-                        copies: None,
-                        append_copy_id: None,
                         value: Some("writer-id-".to_string()),
                         append_writer_id: Some(true),
-                        cardinality: None,
+                        ..Default::default()
                     },
                 ],
                 fields: vec![
@@ -124,8 +117,21 @@ pub(crate) fn spec() -> BuiltInSpec {
         ],
     };
 
+    let query_spec = QuerierSpec {
+        name: "sample_spec".to_string(),
+        format: Format::Json,
+        queries: vec![QuerySpec {
+            query: "SELECT f1, i1 FROM some_measurement WHERE some_tag = $some_val".to_string(),
+            params: vec![ParamSpec {
+                name: "some_val".to_string(),
+                param: ParamKind::Static(json!("a-value-here")),
+            }],
+        }],
+    };
+
     BuiltInSpec {
         description,
         write_spec,
+        query_spec,
     }
 }
