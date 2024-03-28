@@ -262,6 +262,7 @@ fn init_logs_and_tracing(
     config: &trogging::cli::LoggingConfig,
 ) -> Result<TroggingGuard, trogging::Error> {
     let log_layer = trogging::Builder::new()
+        .with_default_log_filter("info")
         .with_logging_config(config)
         .build()?;
 
