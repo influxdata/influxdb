@@ -44,9 +44,12 @@ func (s *Service) RUnlock() {
 }
 
 // NewService creates a new base tenant service.
-func NewService(st *Store) *Service {
+func NewService(st *Store, UserSvcOptFns ...func(svc *UserSvc)) *Service {
 	svc := &Service{store: st}
-	userSvc := NewUserSvc(st, svc, false)
+	userSvc := NewUserSvc(st, svc)
+	for _, fn := range UserSvcOptFns {
+		fn(userSvc)
+	}
 	svc.UserService = userSvc
 	svc.PasswordsService = userSvc
 	svc.UserResourceMappingService = NewUserResourceMappingSvc(st, svc)
@@ -57,8 +60,8 @@ func NewService(st *Store) *Service {
 }
 
 // creates a new Service with logging and metrics middleware wrappers.
-func NewSystem(store *Store, log *zap.Logger, reg prometheus.Registerer, metricOpts ...metric.ClientOptFn) *Service {
-	ts := NewService(store)
+func NewSystem(store *Store, log *zap.Logger, reg prometheus.Registerer, strongPasswords bool, metricOpts ...metric.ClientOptFn) *Service {
+	ts := NewService(store, WithPasswordChecking(strongPasswords))
 	ts.UserService = NewUserLogger(log, NewUserMetrics(reg, ts.UserService, metricOpts...))
 	ts.PasswordsService = NewPasswordLogger(log, NewPasswordMetrics(reg, ts.PasswordsService, metricOpts...))
 	ts.UserResourceMappingService = NewURMLogger(log, NewUrmMetrics(reg, ts.UserResourceMappingService, metricOpts...))

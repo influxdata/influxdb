@@ -22,10 +22,20 @@ type Service struct {
 }
 
 // NewService constructs a new Service.
-func NewService(st *Store, ts TenantService) *Service {
-	return &Service{
+func NewService(st *Store, ts TenantService, OptFns ...func(*Service)) *Service {
+	svc := &Service{
 		store:         st,
 		tenantService: ts,
+	}
+	for _, fn := range OptFns {
+		fn(svc)
+	}
+	return svc
+}
+
+func WithPasswordChecking(strong bool) func(*Service) {
+	return func(s *Service) {
+		s.strongPasswords = strong
 	}
 }
 

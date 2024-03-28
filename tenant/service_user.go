@@ -18,11 +18,17 @@ type UserSvc struct {
 	strongPasswords bool
 }
 
-func NewUserSvc(st *Store, svc *Service, passwordStrength bool) *UserSvc {
+func NewUserSvc(st *Store, svc *Service) *UserSvc {
 	return &UserSvc{
 		store:           st,
 		svc:             svc,
-		strongPasswords: passwordStrength,
+		strongPasswords: false,
+	}
+}
+
+func WithPasswordChecking(strong bool) func(*UserSvc) {
+	return func(u *UserSvc) {
+		u.strongPasswords = strong
 	}
 }
 
