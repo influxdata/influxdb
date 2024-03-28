@@ -119,7 +119,6 @@ pub(crate) fn spec() -> BuiltInSpec {
 
     let query_spec = QuerierSpec {
         name: "sample_spec".to_string(),
-        format: Format::Json,
         queries: vec![QuerySpec {
             query: "SELECT f1, i1 FROM some_measurement WHERE some_tag = $some_val".to_string(),
             params: vec![ParamSpec {

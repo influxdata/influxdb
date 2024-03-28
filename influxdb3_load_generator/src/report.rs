@@ -251,6 +251,7 @@ impl QueryReporter {
 
     pub fn flush_reports(&self) {
         let start_time = Instant::now();
+        let mut console_stats = QueryConsoleStats::new();
 
         loop {
             let reports = {
@@ -263,6 +264,12 @@ impl QueryReporter {
             let mut csv_writer = self.csv_writer.lock();
             for report in reports {
                 let test_time_ms = report.query_instant.duration_since(start_time).as_millis();
+                if report.response_status > 199 && report.response_status < 300 {
+                    console_stats.success += 1;
+                } else {
+                    console_stats.error += 1;
+                }
+                console_stats.rows += report.rows_returned;
                 csv_writer
                     .serialize(QueryRecord {
                         test_time_ms,
@@ -276,7 +283,18 @@ impl QueryReporter {
             }
             csv_writer.flush().expect("failed to flush csv reports");
 
-            // TODO - output console stats
+            if console_stats.last_console_outptu_time.elapsed() > CONSOLE_REPORT_INTERVAL {
+                let elapsed_millis = console_stats.last_console_outptu_time.elapsed().as_millis();
+
+                println!(
+                    "success: {:.0}/s, error: {:.0}/s, rows: {:.0}/s",
+                    console_stats.success as f64 / elapsed_millis as f64 * 1000.0,
+                    console_stats.error as f64 / elapsed_millis as f64 * 1000.0,
+                    console_stats.rows as f64 / elapsed_millis as f64 * 1000.0,
+                );
+
+                console_stats = QueryConsoleStats::new();
+            }
 
             if *self.shutdown.lock() {
                 return;
@@ -293,10 +311,28 @@ impl QueryReporter {
 
 #[derive(Debug, Serialize)]
 struct QueryRecord {
+    querier_id: QuerierId,
+    wall_time: DateTime<Local>,
     test_time_ms: u128,
     response_ms: u64,
     response_status: u16,
     rows: u64,
-    querier_id: QuerierId,
-    wall_time: DateTime<Local>,
+}
+
+struct QueryConsoleStats {
+    last_console_outptu_time: Instant,
+    success: usize,
+    error: usize,
+    rows: u64,
+}
+
+impl QueryConsoleStats {
+    fn new() -> Self {
+        Self {
+            last_console_outptu_time: Instant::now(),
+            success: 0,
+            error: 0,
+            rows: 0,
+        }
+    }
 }

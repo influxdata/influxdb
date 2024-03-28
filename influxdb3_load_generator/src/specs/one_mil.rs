@@ -39,7 +39,6 @@ pub(crate) fn spec() -> BuiltInSpec {
 
     let query_spec = QuerierSpec {
         name: "one_mil".to_string(),
-        format: Format::Json,
         queries: vec![QuerySpec {
             query: "SELECT int_val, float_val FROM measurement_data WHERE series_id = $sid"
                 .to_string(),

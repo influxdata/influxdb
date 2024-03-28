@@ -9,9 +9,9 @@ use serde_json::Value;
 use tokio::time::Instant;
 
 use crate::{
-    query_generator::{create_queriers, Querier},
+    query_generator::{create_queriers, Format, Querier},
     report::QueryReporter,
-    specification::{Format, QuerierSpec},
+    specification::QuerierSpec,
 };
 
 use super::common::{create_client, InfluxDb3Config};
@@ -27,28 +27,37 @@ pub(crate) struct Config {
     /// sleep for the remainder of the interval. Queriers stagger queries by this interval divided
     /// by the number of queriers.
     #[clap(
-        short = 'i',
-        long = "interval",
-        env = "INFLUXDB3_QUERY_SAMPLING_INTERVAL",
+        short = 'I',
+        long = "query-interval",
+        env = "INFLUXDB3_LOAD_QUERY_SAMPLING_INTERVAL",
         default_value = "1s"
     )]
     sampling_interval: humantime::Duration,
 
     /// Number of simultaneous queriers. Each querier will perform queries at the specified `interval`.
     #[clap(
-        short = 'w',
+        short = 'Q',
         long = "querier-count",
-        env = "INFLUXDB3_LOAD_QUERIERS",
+        env = "INFLUXDB3_LOAD_QUERIER_COUNT",
         default_value = "1"
     )]
     querier_count: usize,
 
+    #[clap(
+        short = 'F',
+        long = "query-format",
+        env = "INFLUXDB3_LOAD_QUERY_FORMAT",
+        value_enum,
+        default_value = "json"
+    )]
+    query_response_format: Format,
+
     /// The file that will be used to write the results of the run. If not specified, results
     /// will be written to <spec_name>_results.csv in the current directory.
     #[clap(
-        short = 'r',
+        short = 'R',
         long = "results",
-        env = "INFLUXDB3_QUERY_LOAD_RESULTS_FILE"
+        env = "INFLUXDB3_LOAD_QUERY_RESULTS_FILE"
     )]
     results_file: Option<String>,
 }
@@ -93,7 +102,7 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
     };
 
     // spin up the queriers
-    let queriers = create_queriers(&spec, config.querier_count)?;
+    let queriers = create_queriers(&spec, config.query_response_format, config.querier_count)?;
 
     // set up a results reporter and spawn a thread to flush results
     let results_file = config
@@ -157,7 +166,6 @@ async fn run_querier(
             let res = builder.send().await;
             let response_time = start_request.elapsed().as_millis() as u64;
             let (status, rows) = match res {
-                // TODO - parse bytes to get rows returned
                 Ok(b) => (200, count_rows(b, querier.format)),
                 Err(influxdb3_client::Error::ApiError { code, message: _ }) => (code.as_u16(), 0),
                 Err(other_error) => {

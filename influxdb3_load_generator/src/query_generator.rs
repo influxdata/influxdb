@@ -1,37 +1,45 @@
 use std::slice::IterMut;
 
+use clap::ValueEnum;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::specification::{Format, ParamKind, ParamSpec, QuerierSpec, QuerySpec};
+use crate::specification::{ParamKind, ParamSpec, QuerierSpec, QuerySpec};
 
 pub type QuerierId = usize;
 
+/// Create a set of queriers to perform queries in parallel
 pub fn create_queriers(
     spec: &QuerierSpec,
+    format: Format,
     querier_count: usize,
 ) -> Result<Vec<Querier>, anyhow::Error> {
     let mut generators = vec![];
     for querier_id in 1..querier_count + 1 {
         let mut queries = vec![];
         for q in &spec.queries {
-            queries.push(create_query(q, querier_id, querier_count))
+            queries.extend(create_queries(q, querier_id, querier_count))
         }
         generators.push(Querier {
             querier_id,
-            format: spec.format,
+            format,
             queries,
         })
     }
     Ok(generators)
 }
 
-fn create_query(spec: &QuerySpec, querier_id: QuerierId, querier_count: usize) -> Query {
+/// Generate a set of queries off of a query spec
+///
+/// This produces a Vec so that certain [`QuerySpec`]s can result in multiple
+/// queries per interval.
+fn create_queries(spec: &QuerySpec, querier_id: QuerierId, querier_count: usize) -> Vec<Query> {
     let query = spec.query.clone();
     let mut params = vec![];
     for p in &spec.params {
         params.push(Param::initialize(p, querier_id, querier_count));
     }
-    Query { query, params }
+    vec![Query { query, params }]
 }
 
 #[derive(Debug)]
@@ -39,6 +47,22 @@ pub struct Querier {
     pub querier_id: QuerierId,
     pub format: Format,
     pub queries: Vec<Query>,
+}
+
+#[derive(Copy, Clone, Debug, Default, Deserialize, Serialize, ValueEnum)]
+pub enum Format {
+    #[default]
+    Json,
+    Csv,
+}
+
+impl From<Format> for influxdb3_client::Format {
+    fn from(format: Format) -> Self {
+        match format {
+            Format::Json => Self::Json,
+            Format::Csv => Self::Csv,
+        }
+    }
 }
 
 #[derive(Debug)]

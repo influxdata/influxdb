@@ -146,26 +146,8 @@ pub enum FieldKind {
 pub struct QuerierSpec {
     /// The name of this spec
     pub name: String,
-    /// The output format of queries made
-    pub format: Format,
     /// The queries to run on each interval
     pub queries: Vec<QuerySpec>,
-}
-
-#[derive(Copy, Clone, Debug, Default, Deserialize, Serialize)]
-pub enum Format {
-    #[default]
-    Json,
-    Csv,
-}
-
-impl From<Format> for influxdb3_client::Format {
-    fn from(format: Format) -> Self {
-        match format {
-            Format::Json => Self::Json,
-            Format::Csv => Self::Csv,
-        }
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
