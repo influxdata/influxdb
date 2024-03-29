@@ -4873,6 +4873,11 @@ func Test_FromFile(t *testing.T) {
 		{
 			path:   "/dev/null",
 			extra:  true,
+			expErr: "file in special filesystem",
+		},
+		{
+			path:   "/",
+			extra:  true,
 			expErr: "not a regular file",
 		},
 		{
