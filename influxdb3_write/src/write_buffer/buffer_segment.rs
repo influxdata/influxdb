@@ -253,13 +253,10 @@ impl BufferedData {
         table_name: &str,
         schema: &Schema,
     ) -> Option<Vec<RecordBatch>> {
-        if let Some(db_buffer) = self.database_buffers.get(db_name) {
-            if let Some(table_buffer) = db_buffer.table_buffers.get(table_name) {
-                return Some(table_buffer.record_batches(schema));
-            }
-        }
-
-        None
+        self.database_buffers
+            .get(db_name)
+            .and_then(|db_buffer| db_buffer.table_buffers.get(table_name))
+            .map(|table_buffer| table_buffer.record_batches(schema))
     }
 
     /// Verifies that the passed in buffer has the same data as this buffer
