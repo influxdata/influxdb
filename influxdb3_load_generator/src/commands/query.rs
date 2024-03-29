@@ -24,15 +24,14 @@ pub(crate) struct Config {
     influxdb3_config: InfluxDb3Config,
 
     /// Sampling interval for the queriers. They will perform queries at this interval and
-    /// sleep for the remainder of the interval. Queriers stagger queries by this interval divided
-    /// by the number of queriers.
+    /// sleep for the remainder of the interval. If not specified, queriers will not wait
+    /// before performing the next query.
     #[clap(
         short = 'I',
         long = "query-interval",
-        env = "INFLUXDB3_LOAD_QUERY_SAMPLING_INTERVAL",
-        default_value = "1s"
+        env = "INFLUXDB3_LOAD_QUERY_SAMPLING_INTERVAL"
     )]
-    sampling_interval: humantime::Duration,
+    sampling_interval: Option<humantime::Duration>,
 
     /// Number of simultaneous queriers. Each querier will perform queries at the specified `interval`.
     #[clap(
@@ -119,7 +118,7 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
     let mut tasks = Vec::new();
     for querier in queriers {
         let reporter = Arc::clone(&query_reporter);
-        let sampling_interval = config.sampling_interval.into();
+        let sampling_interval = config.sampling_interval.map(Into::into);
         let task = tokio::spawn(run_querier(
             querier,
             client.clone(),
@@ -147,11 +146,13 @@ async fn run_querier(
     client: Client,
     database_name: String,
     reporter: Arc<QueryReporter>,
-    sampling_interval: Duration,
+    sampling_interval: Option<Duration>,
 ) {
-    let mut interval = tokio::time::interval(sampling_interval);
+    let mut interval = sampling_interval.map(tokio::time::interval);
     loop {
-        interval.tick().await;
+        if let Some(ref mut i) = interval {
+            i.tick().await;
+        }
         for query in &mut querier.queries {
             let start_request = Instant::now();
             let mut builder = client
