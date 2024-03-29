@@ -135,8 +135,8 @@ pub enum ParamValue {
 impl ParamValue {
     fn generate(&mut self) -> Value {
         match self {
-            ParamValue::Static(v) => v.clone(),
-            ParamValue::Cardinality(cv) => {
+            Self::Static(v) => v.clone(),
+            Self::Cardinality(cv) => {
                 let v = if let Some(base) = &cv.base {
                     format!("{base}{current}", current = cv.current)
                 } else {
