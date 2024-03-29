@@ -45,7 +45,7 @@ pub(crate) fn spec() -> BuiltInSpec {
             params: vec![ParamSpec {
                 name: "sid".to_string(),
                 param: ParamKind::Cardinality {
-                    base: Some("some-value-".to_string()),
+                    base: Some("series-number-".to_string()),
                     cardinality: 1_000_000,
                 },
             }],
