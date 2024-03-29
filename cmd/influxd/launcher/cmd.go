@@ -190,7 +190,10 @@ type InfluxdOpts struct {
 
 	Viper *viper.Viper
 
+	// HardeningEnabled toggles multiple best-practice hardening options on.
 	HardeningEnabled bool
+	// TemplateFileUrlsDisabled disables file protocol URIs in templates.
+	TemplateFileUrlsDisabled bool
 }
 
 // NewOpts constructs options with default values.
@@ -242,7 +245,8 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		Testing:                 false,
 		TestingAlwaysAllowSetup: false,
 
-		HardeningEnabled: false,
+		HardeningEnabled:         false,
+		TemplateFileUrlsDisabled: false,
 	}
 }
 
@@ -655,7 +659,16 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			DestP:   &o.HardeningEnabled,
 			Flag:    "hardening-enabled",
 			Default: o.HardeningEnabled,
-			Desc:    "enable hardening options (disallow private IPs within flux and templates HTTP requests)",
+			Desc:    "enable hardening options (disallow private IPs within flux and templates HTTP requests, template file URLs)",
+		},
+
+		// --template-file-urls-disabled prevents file protocol URIs
+		// from being used for templates.
+		{
+			DestP:   &o.TemplateFileUrlsDisabled,
+			Flag:    "template-file-urls-disabled",
+			Default: o.TemplateFileUrlsDisabled,
+			Desc:    "disable template file URLs",
 		},
 	}
 }

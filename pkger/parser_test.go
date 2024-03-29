@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -4825,6 +4826,92 @@ func Test_validGeometry(t *testing.T) {
 	}
 }
 
+func Test_FromFile(t *testing.T) {
+	dir := t.TempDir()
+	// create empty test file
+	emptyFn := filepath.Join(dir, "empty")
+	fe, err := os.Create(emptyFn)
+	assert.Nil(t, err)
+	fe.Close()
+
+	// create too big test file
+	bigFn := filepath.Join(dir, "big")
+	fb, err := os.Create(bigFn)
+	assert.Nil(t, err)
+	fb.Close()
+	err = os.Truncate(bigFn, limitReadFileMaxSize+1)
+	assert.Nil(t, err)
+
+	tests := []struct {
+		path   string
+		extra  bool
+		expErr string
+	}{
+		// valid
+		{
+			path:   "testdata/bucket_schema.yml",
+			extra:  false,
+			expErr: "",
+		},
+		{
+			path:   "testdata/bucket_schema.yml",
+			extra:  true,
+			expErr: "",
+		},
+		// invalid
+		{
+			path:   "i\nvalid:///foo",
+			extra:  false,
+			expErr: "invalid filepath provided",
+		},
+		{
+			path:   "testdata/nonexistent",
+			extra:  false,
+			expErr: "no such file or directory",
+		},
+		// invalid with extra
+		{
+			path:   "/dev/null",
+			extra:  true,
+			expErr: "not a regular file",
+		},
+		{
+			path:   "testdata/nonexistent",
+			extra:  true,
+			expErr: "no such file or directory",
+		},
+		{
+			path:   emptyFn,
+			extra:  true,
+			expErr: "file empty",
+		},
+		{
+			path:   bigFn,
+			extra:  true,
+			expErr: "file too big",
+		},
+	}
+
+	for _, tt := range tests {
+		fn := func(t *testing.T) {
+			readFn := FromFile(tt.path, tt.extra)
+			assert.NotNil(t, readFn)
+
+			reader, path, err := readFn()
+			if tt.expErr == "" {
+				assert.NotNil(t, reader)
+				assert.Nil(t, err)
+				assert.Equal(t, fmt.Sprintf("file://%s", tt.path), path)
+			} else {
+				assert.Nil(t, reader)
+				assert.NotNil(t, err)
+				assert.Contains(t, err.Error(), tt.expErr)
+			}
+		}
+		t.Run(tt.path, fn)
+	}
+}
+
 type testTemplateResourceError struct {
 	name           string
 	encoding       Encoding
@@ -4951,7 +5038,7 @@ func validParsedTemplateFromFile(t *testing.T, path string, encoding Encoding, o
 	if ok {
 		readFn = FromReader(bytes.NewBuffer(templateBytes), "file://"+path)
 	} else {
-		readFn = FromFile(path)
+		readFn = FromFile(path, false)
 		atomic.AddInt64(&missedTemplateCacheCounter, 1)
 	}
 

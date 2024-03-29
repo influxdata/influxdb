@@ -5,11 +5,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,7 +29,10 @@ import (
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestService(t *testing.T) {
@@ -60,6 +68,7 @@ func TestService(t *testing.T) {
 		}
 
 		applyOpts := []ServiceSetterFn{
+			WithFileUrlsDisabled(opt.fileUrlsDisabled),
 			WithStore(opt.store),
 			WithBucketSVC(opt.bucketSVC),
 			WithCheckSVC(opt.checkSVC),
@@ -81,6 +90,9 @@ func TestService(t *testing.T) {
 		}
 		if opt.nameGen != nil {
 			applyOpts = append(applyOpts, withNameGen(opt.nameGen))
+		}
+		if opt.logger != nil {
+			applyOpts = append(applyOpts, WithLogger(opt.logger))
 		}
 
 		return NewService(applyOpts...)
@@ -767,6 +779,344 @@ func TestService(t *testing.T) {
 					},
 				})
 			})
+		})
+	})
+
+	t.Run("DryRun - stack", func(t *testing.T) {
+		dir := t.TempDir()
+
+		// create a valid yaml file
+		ySrc, err := os.Open("testdata/bucket.yml")
+		require.NoError(t, err)
+		validYamlFn := filepath.Join(dir, "bucket.yml")
+		yDst, err := os.Create(validYamlFn)
+		require.NoError(t, err)
+		_, err = io.Copy(yDst, ySrc)
+		require.NoError(t, err)
+		require.NoError(t, ySrc.Close())
+		require.NoError(t, yDst.Close())
+
+		// create a valid yaml file
+		jSrc, err := os.Open("testdata/bucket.json")
+		require.NoError(t, err)
+		validJsonFn := filepath.Join(dir, "bucket.json")
+		jDst, err := os.Create(validJsonFn)
+		require.NoError(t, err)
+		_, err = io.Copy(jDst, jSrc)
+		require.NoError(t, err)
+		require.NoError(t, jSrc.Close())
+		require.NoError(t, jDst.Close())
+
+		// create an invalid file
+		iSrc := strings.NewReader("this is invalid")
+		invalidFn := filepath.Join(dir, "invalid")
+		iDst, err := os.Create(invalidFn)
+		require.NoError(t, err)
+		_, err = io.Copy(iDst, iSrc)
+		require.NoError(t, err)
+		require.NoError(t, iDst.Close())
+
+		// create too big test file
+		bigFn := filepath.Join(dir, "big")
+		fb, err := os.Create(bigFn)
+		require.NoError(t, err)
+		require.NoError(t, fb.Close())
+		err = os.Truncate(bigFn, limitReadFileMaxSize+1)
+		require.NoError(t, err)
+
+		// create a symlink to /proc/cpuinfo
+		procLinkFn := filepath.Join(dir, "cpuinfo")
+		require.NoError(t, os.Symlink("/proc/cpuinfo", procLinkFn))
+
+		// create tricky symlink to /proc/cpuinfo
+		trickyProcLinkFn := filepath.Join(dir, "tricky_cpuinfo")
+		require.NoError(t, os.Symlink("/../proc/cpuinfo", trickyProcLinkFn))
+
+		now := time.Time{}.Add(10 * 24 * time.Hour)
+		testOrgID := platform.ID(33)
+		testStackID := platform.ID(3)
+
+		t.Run("file URL", func(t *testing.T) {
+			type logm struct {
+				level zapcore.Level
+				msg   string
+				err   string
+			}
+			tests := []struct {
+				name             string
+				oses             []string // list of OSes to run test on, empty means all.
+				path             string
+				fileUrlsDisabled bool
+				expErr           string
+				expLog           []logm
+			}{
+				{
+					name: "valid yaml",
+					path: validYamlFn,
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+					},
+				},
+				{
+					name: "valid json",
+					path: validJsonFn,
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+					},
+				},
+				// invalid
+				{
+					name:   "invalid yaml",
+					path:   invalidFn,
+					expErr: "file:// URL failed to parse: ",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "line 1: cannot unmarshal"},
+					},
+				},
+				// fileUrlsDisabled always shows error
+				{
+					name:             "invalid yaml with disable flag",
+					path:             validYamlFn,
+					fileUrlsDisabled: true,
+					expErr:           "invalid URL scheme",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+					},
+				},
+				{
+					name:             "nonexistent with disable flag",
+					path:             "/nonexistent",
+					fileUrlsDisabled: true,
+					expErr:           "invalid URL scheme",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+					},
+				},
+				{
+					name:             "big file with disable flag",
+					path:             bigFn,
+					fileUrlsDisabled: true,
+					expErr:           "invalid URL scheme",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+					},
+				},
+				// invalid 'extra' with generic errors
+				{
+					name:   "invalid yaml wildcard",
+					path:   invalidFn + "?.yml",
+					expErr: "file:// URL failed to parse",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "line 1: cannot unmarshal"},
+					},
+				},
+				{
+					name:   "directory (/tmp)",
+					path:   "/tmp",
+					expErr: "file:// URL failed to parse",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "not a regular file"},
+					},
+				},
+				{
+					// /proc/cpuinfo is a regular file with 0 length
+					name:   "/proc/cpuinfo",
+					path:   "/proc/cpuinfo",
+					oses:   []string{"linux"},
+					expErr: "file:// URL failed to parse",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special filesystem"},
+					},
+				},
+				{
+					// try fooling the parser with a tricky path
+					name:   "trick /proc path",
+					path:   "/../proc/cpuinfo",
+					oses:   []string{"linux"},
+					expErr: "file:// URL failed to parse",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special filesystem"},
+					},
+				},
+				{
+					// try fooling the parser with a symlink to /proc
+					name:   "symlink /proc path",
+					path:   procLinkFn,
+					oses:   []string{"linux"},
+					expErr: "file:// URL failed to parse",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special filesystem"},
+					},
+				},
+				{
+					// try fooling the parser with a symlink to /../proc
+					name:   "tricky symlink /proc path",
+					path:   trickyProcLinkFn,
+					oses:   []string{"linux"},
+					expErr: "file:// URL failed to parse",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special filesystem"},
+					},
+				},
+				{
+					name:   "/dev/core",
+					path:   "/dev/core",
+					oses:   []string{"linux"},
+					expErr: "file:// URL failed to parse",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "permission denied"},
+					},
+				},
+				{
+					name:   "/dev/zero",
+					path:   "/dev/zero",
+					oses:   []string{"linux"},
+					expErr: "file:// URL failed to parse",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special filesystem"},
+					},
+				},
+				{
+					name:   "/sys/kernel/vmcoreinfo",
+					path:   "/sys/kernel/vmcoreinfo",
+					oses:   []string{"linux"},
+					expErr: "file:// URL failed to parse",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special filesystem"},
+					},
+				},
+				{
+					name:   "nonexistent",
+					path:   "/nonexistent",
+					expErr: "file:// URL failed to parse",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "open /nonexistent: no such file or directory"},
+					},
+				},
+				{
+					name:   "big file",
+					path:   bigFn,
+					expErr: "file:// URL failed to parse",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file too big"},
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					if len(tt.oses) > 0 {
+						osFound := false
+						for _, os := range tt.oses {
+							if runtime.GOOS == os {
+								osFound = true
+								break
+							}
+						}
+						if !osFound {
+							t.Skip("skipping special file test on non-Linux OS")
+						}
+					}
+					testStore := &fakeStore{
+						createFn: func(ctx context.Context, stack Stack) error {
+							return nil
+						},
+						readFn: func(ctx context.Context, id platform.ID) (Stack, error) {
+							return Stack{
+								ID:    id,
+								OrgID: testOrgID,
+								Events: []StackEvent{
+									{
+										Name:         "some-file",
+										Description:  "some file with file://",
+										TemplateURLs: []string{fmt.Sprintf("file://%s", tt.path)},
+									},
+								},
+							}, nil
+						},
+					}
+
+					var logger *zap.Logger = nil
+					var core zapcore.Core
+					var sink *observer.ObservedLogs
+					ctx := context.Background()
+					core, sink = observer.New(zap.InfoLevel)
+					logger = zap.New(core)
+
+					svc := newTestService(
+						WithIDGenerator(newFakeIDGen(testStackID)),
+						WithTimeGenerator(newTimeGen(now)),
+						WithLogger(logger),
+						WithFileUrlsDisabled(tt.fileUrlsDisabled),
+						WithStore(testStore),
+					)
+
+					sc := StackCreate{
+						OrgID:        testOrgID,
+						TemplateURLs: []string{fmt.Sprintf("file://%s", tt.path)},
+					}
+					stack, err := svc.InitStack(ctx, 9000, sc)
+					require.NoError(t, err)
+
+					assert.Equal(t, testStackID, stack.ID)
+					assert.Equal(t, testOrgID, stack.OrgID)
+					assert.Equal(t, now, stack.CreatedAt)
+					assert.Equal(t, now, stack.LatestEvent().UpdatedAt)
+
+					applyOpts := []ApplyOptFn{
+						ApplyWithStackID(testStackID),
+					}
+					_, err = svc.DryRun(
+						ctx,
+						platform.ID(100),
+						0,
+						applyOpts...,
+					)
+
+					entries := sink.TakeAll() // resets to 0
+					require.Equal(t, len(tt.expLog), len(entries))
+					for idx, exp := range tt.expLog {
+						actual := entries[idx]
+						require.Equal(t, exp.msg, actual.Entry.Message)
+						require.Equal(t, exp.level, actual.Entry.Level)
+
+						// Check for correct err in log context
+						var errFound bool
+						for _, lctx := range actual.Context {
+							if lctx.Key == "err" {
+								errFound = true
+								if len(exp.err) > 0 {
+									require.Contains(t, lctx.String, exp.err)
+								} else {
+									require.Fail(t, "unexpected err in log context: %s", lctx.String)
+								}
+							}
+						}
+						// Make sure we found an err if we expected one
+						if len(exp.err) > 0 {
+							require.True(t, errFound, "err not found in log context when expected: %s", exp.err)
+						}
+					}
+
+					if tt.expErr == "" {
+						require.NoError(t, err)
+					} else {
+						require.ErrorContains(t, err, tt.expErr)
+					}
+				})
+			}
 		})
 	})
 
