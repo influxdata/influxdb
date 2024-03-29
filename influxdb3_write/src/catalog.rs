@@ -302,10 +302,13 @@ impl TableDefinition {
         self.columns.contains_key(column)
     }
 
-    pub(crate) fn add_columns(&mut self, mut columns: Vec<(String, i16)>) {
-        let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
-        columns.sort_by(|(a, _), (b, _)| a.cmp(b));
-        for (name, column_type) in &columns {
+    pub(crate) fn add_columns(&mut self, columns: Vec<(String, i16)>) {
+        for (name, column_type) in columns.into_iter() {
+            self.columns.insert(name, column_type);
+        }
+
+        let mut schema_builder = SchemaBuilder::with_capacity(self.columns.len());
+        for (name, column_type) in &self.columns {
             schema_builder.influx_column(
                 name,
                 column_type_to_influx_column_type(&ColumnType::try_from(*column_type).unwrap()),
@@ -313,9 +316,6 @@ impl TableDefinition {
         }
         let schema = schema_builder.build().unwrap();
 
-        for (name, column_type) in columns.into_iter() {
-            self.columns.insert(name, column_type);
-        }
         self.schema = schema;
     }
 
@@ -324,6 +324,7 @@ impl TableDefinition {
         &self.schema
     }
 
+    #[cfg(test)]
     pub(crate) fn columns(&self) -> &BTreeMap<String, i16> {
         &self.columns
     }
@@ -369,5 +370,29 @@ mod tests {
         let deserialized: InnerCatalog = serde_json::from_str(&serialized).unwrap();
 
         assert_eq!(*inner, deserialized);
+    }
+
+    #[test]
+    fn add_columns_updates_schema() {
+        let mut database = DatabaseSchema {
+            name: "test".to_string(),
+            tables: BTreeMap::new(),
+        };
+        database.tables.insert(
+            "test".into(),
+            TableDefinition::new(
+                "test",
+                BTreeMap::from([("test".to_string(), ColumnType::String as i16)]),
+            ),
+        );
+
+        let table = database.tables.get_mut("test").unwrap();
+        table.add_columns(vec![("test2".to_string(), ColumnType::Tag as i16)]);
+        let schema = table.schema();
+        assert_eq!(
+            schema.field(0).0,
+            InfluxColumnType::Field(InfluxFieldType::String)
+        );
+        assert_eq!(schema.field(1).0, InfluxColumnType::Tag);
     }
 }
