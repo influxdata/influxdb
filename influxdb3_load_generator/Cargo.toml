@@ -16,20 +16,21 @@ trogging.workspace = true
 influxdb3_client = { path = "../influxdb3_client" }
 
 # crates.io Dependencies
-serde.workspace = true
+anyhow.workspace = true
+bytes.workspace = true
+chrono.workspace = true
 clap.workspace = true
+csv.workspace = true
 dotenvy.workspace = true
 humantime.workspace = true
+parking_lot.workspace = true
+rand.workspace = true
 secrecy.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 thiserror.workspace = true
 url.workspace = true
-rand.workspace = true
-anyhow.workspace = true
-csv.workspace = true
-parking_lot.workspace = true
-chrono.workspace = true
 
 [lints]
 workspace = true

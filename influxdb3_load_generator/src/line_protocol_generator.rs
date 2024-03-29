@@ -57,12 +57,7 @@ fn create_measurement<'a>(
         Arc::from(m.as_str())
     }));
 
-    let max_cardinality = spec
-        .tags
-        .iter()
-        .map(|t| t.cardinality.unwrap_or(1))
-        .max()
-        .unwrap_or(1);
+    let max_cardinality = spec.max_cardinality();
     let max_cardinality = usize::div_ceil(max_cardinality, writer_count);
     let lines_per_sample = spec.lines_per_sample.unwrap_or(max_cardinality);
 

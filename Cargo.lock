@@ -2549,6 +2549,7 @@ name = "influxdb3_load_generator"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytes",
  "chrono",
  "clap",
  "csv",

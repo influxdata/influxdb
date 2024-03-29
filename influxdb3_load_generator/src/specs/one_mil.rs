@@ -7,17 +7,16 @@ pub(crate) fn spec() -> BuiltInSpec {
     let description =
         r#"1 million series in a single table use case. If you run this with -writer-count=100
            you'll get all 1M series written every sampling interval. Our primary test is interval=10s"#.to_string();
+
     let write_spec = DataSpec {
         name: "one_mil".to_string(),
         measurements: vec![MeasurementSpec {
             name: "measurement_data".to_string(),
             tags: vec![TagSpec {
                 key: "series_id".to_string(),
-                copies: None,
-                append_copy_id: None,
                 value: Some("series-number-".to_string()),
-                append_writer_id: None,
                 cardinality: Some(1_000_000),
+                ..Default::default()
             }],
             fields: vec![
                 FieldSpec {
@@ -38,8 +37,24 @@ pub(crate) fn spec() -> BuiltInSpec {
         }],
     };
 
+    let query_spec = QuerierSpec {
+        name: "one_mil".to_string(),
+        queries: vec![QuerySpec {
+            query: "SELECT int_val, float_val FROM measurement_data WHERE series_id = $sid"
+                .to_string(),
+            params: vec![ParamSpec {
+                name: "sid".to_string(),
+                param: ParamKind::Cardinality {
+                    base: Some("series-number-".to_string()),
+                    cardinality: 1_000_000,
+                },
+            }],
+        }],
+    };
+
     BuiltInSpec {
         description,
         write_spec,
+        query_spec,
     }
 }

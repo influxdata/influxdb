@@ -10,6 +10,7 @@
 )]
 
 pub mod line_protocol_generator;
+pub mod query_generator;
 pub mod report;
 pub mod specification;
 mod specs;
