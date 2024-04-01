@@ -32,5 +32,9 @@ heappy = []
 # to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
 jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl"]
 
+# Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
+# linting
+clippy = []
+
 [lints]
 workspace = true
