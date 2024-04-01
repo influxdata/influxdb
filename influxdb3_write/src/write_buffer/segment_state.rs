@@ -318,6 +318,7 @@ pub(crate) async fn run_buffer_segment_persist_and_cleanup<P, T, W>(
     mut shutdown_rx: watch::Receiver<()>,
     time_provider: Arc<T>,
     wal: Option<Arc<W>>,
+    executor: Arc<iox_query::exec::Executor>,
 ) where
     P: Persister,
     persister::Error: From<<P as Persister>::Error>,
@@ -331,7 +332,7 @@ pub(crate) async fn run_buffer_segment_persist_and_cleanup<P, T, W>(
                 break;
             }
             _ = tokio::time::sleep(PERSISTER_CHECK_INTERVAL) => {
-                if let Err(e) = persist_and_cleanup_ready_segments(Arc::clone(&persister), Arc::clone(&segment_state), Arc::clone(&time_provider), wal.clone()).await {
+                if let Err(e) = persist_and_cleanup_ready_segments(Arc::clone(&persister), Arc::clone(&segment_state), Arc::clone(&time_provider), wal.clone(), Arc::clone(&executor)).await {
                     error!("Error persisting and cleaning up segments: {}", e);
                 }
             }
@@ -344,6 +345,7 @@ async fn persist_and_cleanup_ready_segments<P, T, W>(
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
     time_provider: Arc<T>,
     wal: Option<Arc<W>>,
+    executor: Arc<iox_query::exec::Executor>,
 ) -> Result<(), crate::Error>
 where
     P: Persister,
@@ -369,6 +371,7 @@ where
             Arc::clone(&persister),
             Arc::clone(&segment_state),
             wal.clone(),
+            Arc::clone(&executor),
         )
         .await
         .unwrap()
@@ -394,6 +397,7 @@ where
                 Arc::clone(&persister),
                 Arc::clone(&segment_state),
                 wal.clone(),
+                Arc::clone(&executor),
             )
             .await
             .unwrap()
@@ -412,6 +416,7 @@ async fn persist_closed_segment_and_cleanup<P, T, W>(
     persister: Arc<P>,
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
     wal: Option<Arc<W>>,
+    executor: Arc<iox_query::exec::Executor>,
 ) -> Result<(), crate::Error>
 where
     P: Persister,
@@ -422,7 +427,7 @@ where
 {
     let closed_segment_start_time = closed_segment.segment_range.start_time;
     let closed_segment_id = closed_segment.segment_id;
-    let persisted_segment = closed_segment.persist(persister).await?;
+    let persisted_segment = closed_segment.persist(persister, executor, None).await?;
 
     {
         let mut segment_state = segment_state.write();
@@ -600,6 +605,7 @@ mod tests {
             Arc::clone(&segment_state),
             Arc::clone(&time_provider),
             Some(Arc::clone(&wal)),
+            crate::test_help::make_exec(),
         )
         .await
         .unwrap();

@@ -43,5 +43,6 @@ url.workspace = true
 [dev-dependencies]
 # Core Crates
 arrow_util.workspace = true
+metric.workspace = true
 pretty_assertions.workspace = true
 test_helpers.workspace = true

@@ -107,6 +107,7 @@ impl<W: Wal, T: TimeProvider, P: Persister> WriteBufferImpl<W, T, P> {
         wal: Option<Arc<W>>,
         time_provider: Arc<T>,
         segment_duration: SegmentDuration,
+        executor: Arc<iox_query::exec::Executor>,
     ) -> Result<Self>
     where
         P: Persister,
@@ -143,6 +144,7 @@ impl<W: Wal, T: TimeProvider, P: Persister> WriteBufferImpl<W, T, P> {
                 shutdown_rx,
                 time_provider_persister,
                 wal_perister,
+                executor,
             )
             .await;
         });
@@ -854,6 +856,7 @@ mod tests {
             Some(Arc::new(wal)),
             Arc::clone(&time_provider),
             segment_duration,
+            crate::test_help::make_exec(),
         )
         .await
         .unwrap();
@@ -903,6 +906,7 @@ mod tests {
             Some(Arc::new(wal)),
             time_provider,
             segment_duration,
+            crate::test_help::make_exec(),
         )
         .await
         .unwrap();
@@ -923,6 +927,7 @@ mod tests {
             wal.clone(),
             Arc::clone(&time_provider),
             segment_duration,
+            crate::test_help::make_exec(),
         )
         .await
         .unwrap();
@@ -999,6 +1004,7 @@ mod tests {
             wal,
             Arc::clone(&time_provider),
             segment_duration,
+            crate::test_help::make_exec(),
         )
         .await
         .unwrap();
@@ -1042,6 +1048,7 @@ mod tests {
             wal.clone(),
             Arc::clone(&time_provider),
             segment_duration,
+            crate::test_help::make_exec(),
         )
         .await
         .unwrap();
