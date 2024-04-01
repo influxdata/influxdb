@@ -26,7 +26,7 @@ pub static INFLUXDB3_GIT_HASH_SHORT: &str = env!(
     "Can not find find GIT HASH in build environment"
 );
 
-/// Version string that is combined from [`IOX_VERSION`] and [`IOX_GIT_HASH`].
+/// Version string that is combined from [`INFLUXDB3_VERSION`] and [`INFLUXDB3_GIT_HASH`].
 pub static VERSION_STRING: Lazy<&'static str> = Lazy::new(|| {
     let s = format!(
         "{}, revision {}",

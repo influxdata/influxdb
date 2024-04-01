@@ -435,7 +435,7 @@ where
 
         let body = serde_json::to_string(&PingResponse {
             version: &INFLUXDB3_VERSION,
-            revision: &INFLUXDB3_GIT_HASH_SHORT,
+            revision: INFLUXDB3_GIT_HASH_SHORT,
         })
         .unwrap();
 

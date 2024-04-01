@@ -90,7 +90,8 @@ impl TestServer {
             .args(["--object-store", "memory"])
             .args(config.as_args());
 
-        if !test_log() {
+        // If TEST_LOG env var is not defined, discard stdout/stderr
+        if std::env::var("TEST_LOG").is_err() {
             command = command.stdout(Stdio::null()).stderr(Stdio::null());
         }
 
@@ -198,10 +199,6 @@ impl TestServer {
             .await
             .expect("send /query request to server")
     }
-}
-
-fn test_log() -> bool {
-    std::env::var("TEST_LOG").is_ok()
 }
 
 /// Get an available bind address on localhost
