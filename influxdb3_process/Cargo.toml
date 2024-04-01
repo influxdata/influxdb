@@ -1,0 +1,35 @@
+[package]
+name = "influxdb3_process"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Core Crates
+iox_time.workspace = true
+metric.workspace = true
+tokio_metrics_bridge.workspace = true
+
+# Crates.io dependencies
+once_cell.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+
+# Optional Dependencies
+tikv-jemalloc-ctl = { version = "0.5.4", optional = true }
+tikv-jemalloc-sys = { version = "0.5.4", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
+
+[features]
+default = ["jemalloc_replacing_malloc"]
+
+# heappy is an optional feature; Not on by default as it
+# runtime overhead on all allocations (calls to malloc).
+# Cargo cannot currently implement mutually exclusive features so let's force every build
+# to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
+jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl"]
+
+[lints]
+workspace = true

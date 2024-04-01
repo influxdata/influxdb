@@ -4,22 +4,35 @@ use iox_time::{SystemProvider, Time, TimeProvider};
 use metric::U64Gauge;
 use once_cell::sync::Lazy;
 
+#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+pub mod jemalloc;
+
 #[cfg(tokio_unstable)]
 use tokio_metrics_bridge::setup_tokio_metrics;
 
 /// Package version.
-pub static IOX_VERSION: Lazy<&'static str> =
+pub static INFLUXDB3_VERSION: Lazy<&'static str> =
     Lazy::new(|| option_env!("CARGO_PKG_VERSION").unwrap_or("UNKNOWN"));
 
 /// Build-time GIT revision hash.
-pub static IOX_GIT_HASH: &str = env!(
+pub static INFLUXDB3_GIT_HASH: &str = env!(
     "GIT_HASH",
+    "Can not find find GIT HASH in build environment"
+);
+
+/// Build-time GIT revision hash.
+pub static INFLUXDB3_GIT_HASH_SHORT: &str = env!(
+    "GIT_HASH_SHORT",
     "Can not find find GIT HASH in build environment"
 );
 
 /// Version string that is combined from [`IOX_VERSION`] and [`IOX_GIT_HASH`].
 pub static VERSION_STRING: Lazy<&'static str> = Lazy::new(|| {
-    let s = format!("{}, revision {}", &IOX_VERSION[..], IOX_GIT_HASH);
+    let s = format!(
+        "{}, revision {}",
+        &INFLUXDB3_VERSION[..],
+        INFLUXDB3_GIT_HASH
+    );
     let s: Box<str> = Box::from(s);
     Box::leak(s)
 });
@@ -44,8 +57,8 @@ pub fn setup_metric_registry() -> Arc<metric::Registry> {
             "Start time of the process since unix epoch in seconds.",
         )
         .recorder(&[
-            ("version", IOX_VERSION.as_ref()),
-            ("git_hash", IOX_GIT_HASH),
+            ("version", INFLUXDB3_VERSION.as_ref()),
+            ("git_hash", INFLUXDB3_GIT_HASH),
             ("uuid", PROCESS_UUID.as_ref()),
         ])
         .set(PROCESS_START_TIME.timestamp() as u64);

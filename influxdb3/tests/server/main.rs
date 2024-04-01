@@ -15,6 +15,7 @@ use reqwest::Response;
 mod auth;
 mod flight;
 mod limits;
+mod ping;
 mod query;
 mod write;
 
@@ -53,6 +54,12 @@ impl TestConfig {
 }
 
 /// A running instance of the `influxdb3 serve` process
+///
+/// Logs will be emitted to stdout/stderr if the TEST_LOG environment
+/// variable is set, e.g.,
+/// ```
+/// TEST_LOG= cargo test
+/// ```
 pub struct TestServer {
     config: TestConfig,
     bind_addr: SocketAddr,
@@ -77,13 +84,15 @@ impl TestServer {
     async fn spawn_inner(config: TestConfig) -> Self {
         let bind_addr = get_local_bind_addr();
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
-        let command = command
+        let mut command = command
             .arg("serve")
             .args(["--http-bind", &bind_addr.to_string()])
             .args(["--object-store", "memory"])
-            .args(config.as_args())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .args(config.as_args());
+
+        if !test_log() {
+            command = command.stdout(Stdio::null()).stderr(Stdio::null());
+        }
 
         let server_process = command.spawn().expect("spawn the influxdb3 server process");
 
@@ -189,6 +198,10 @@ impl TestServer {
             .await
             .expect("send /query request to server")
     }
+}
+
+fn test_log() -> bool {
+    std::env::var("TEST_LOG").is_ok()
 }
 
 /// Get an available bind address on localhost

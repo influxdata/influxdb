@@ -20,6 +20,7 @@ use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
 use hyper::HeaderMap;
 use hyper::{Body, Method, Request, Response, StatusCode};
+use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
 use influxdb3_write::catalog::Error as CatalogError;
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
@@ -423,6 +424,22 @@ where
     fn health(&self) -> Result<Response<Body>> {
         let response_body = "OK";
         Ok(Response::new(Body::from(response_body.to_string())))
+    }
+
+    fn ping(&self) -> Result<Response<Body>> {
+        #[derive(Debug, Serialize)]
+        struct PingResponse<'a> {
+            version: &'a str,
+            revision: &'a str,
+        }
+
+        let body = serde_json::to_string(&PingResponse {
+            version: &INFLUXDB3_VERSION,
+            revision: &INFLUXDB3_GIT_HASH_SHORT,
+        })
+        .unwrap();
+
+        Ok(Response::new(Body::from(body)))
     }
 
     fn handle_metrics(&self) -> Result<Response<Body>> {
@@ -939,6 +956,7 @@ where
         }
         (Method::GET, "/query") => http_server.v1_query(req).await,
         (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
+        (Method::GET | Method::POST, "/ping") => http_server.ping(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
         (Method::GET, "/debug/pprof") => pprof_home(req).await,
         (Method::GET, "/debug/pprof/profile") => pprof_profile(req).await,

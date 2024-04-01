@@ -11,8 +11,8 @@ clippy::future_not_send
 )]
 
 use dotenvy::dotenv;
+use influxdb3_process::VERSION_STRING;
 use observability_deps::tracing::warn;
-use process_info::VERSION_STRING;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
@@ -31,11 +31,6 @@ mod commands {
     pub mod serve;
     pub mod write;
 }
-
-#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
-mod jemalloc;
-
-mod process_info;
 
 enum ReturnCode {
     Failure = 1,
