@@ -10,6 +10,39 @@ pub mod jemalloc;
 #[cfg(tokio_unstable)]
 use tokio_metrics_bridge::setup_tokio_metrics;
 
+#[cfg(all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")))]
+pub fn build_malloc_conf() -> String {
+    "system".to_string()
+}
+
+#[cfg(all(feature = "heappy", not(feature = "jemalloc_replacing_malloc")))]
+pub fn build_malloc_conf() -> String {
+    "heappy".to_string()
+}
+
+#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+pub fn build_malloc_conf() -> String {
+    tikv_jemalloc_ctl::config::malloc_conf::mib()
+        .unwrap()
+        .read()
+        .unwrap()
+        .to_string()
+}
+
+#[cfg(all(
+    feature = "heappy",
+    feature = "jemalloc_replacing_malloc",
+    not(feature = "clippy")
+))]
+pub fn build_malloc_conf() -> String {
+    compile_error!("must use exactly one memory allocator")
+}
+
+#[cfg(feature = "clippy")]
+pub fn build_malloc_conf() -> String {
+    "clippy".to_string()
+}
+
 /// Package version.
 pub static INFLUXDB3_VERSION: Lazy<&'static str> =
     Lazy::new(|| option_env!("CARGO_PKG_VERSION").unwrap_or("UNKNOWN"));

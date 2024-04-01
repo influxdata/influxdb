@@ -50,8 +50,6 @@ uuid.workspace = true
 
 # Optional Dependencies
 console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
-tikv-jemalloc-ctl = { version = "0.5.4", optional = true }
-tikv-jemalloc-sys = { version = "0.5.4", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
 
 [features]
 default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]
@@ -71,7 +69,7 @@ tokio_console = ["console-subscriber", "tokio/tracing", "observability_deps/rele
 # runtime overhead on all allocations (calls to malloc).
 # Cargo cannot currently implement mutually exclusive features so let's force every build
 # to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
-jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl"]
+jemalloc_replacing_malloc = ["influxdb3_process/jemalloc_replacing_malloc"]
 
 # Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
 # linting

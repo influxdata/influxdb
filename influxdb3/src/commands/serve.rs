@@ -7,7 +7,7 @@ use clap_blocks::{
 };
 use datafusion_util::config::register_iox_object_store;
 use influxdb3_process::{
-    setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
+    build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
 use influxdb3_server::{
     auth::AllOrNothingAuthorizer, builder::ServerBuilder, query_executor::QueryExecutorImpl, serve,
@@ -147,39 +147,6 @@ pub struct Config {
         action
     )]
     pub segment_duration: SegmentDuration,
-}
-
-#[cfg(all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")))]
-fn build_malloc_conf() -> String {
-    "system".to_string()
-}
-
-#[cfg(all(feature = "heappy", not(feature = "jemalloc_replacing_malloc")))]
-fn build_malloc_conf() -> String {
-    "heappy".to_string()
-}
-
-#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
-fn build_malloc_conf() -> String {
-    tikv_jemalloc_ctl::config::malloc_conf::mib()
-        .unwrap()
-        .read()
-        .unwrap()
-        .to_string()
-}
-
-#[cfg(all(
-    feature = "heappy",
-    feature = "jemalloc_replacing_malloc",
-    not(feature = "clippy")
-))]
-fn build_malloc_conf() -> String {
-    compile_error!("must use exactly one memory allocator")
-}
-
-#[cfg(feature = "clippy")]
-fn build_malloc_conf() -> String {
-    "clippy".to_string()
 }
 
 /// If `p` does not exist, try to create it as a directory.

@@ -2515,8 +2515,6 @@ dependencies = [
  "sha2",
  "test_helpers",
  "thiserror",
- "tikv-jemalloc-ctl",
- "tikv-jemalloc-sys",
  "tokio",
  "tokio-util",
  "tokio_metrics_bridge",
