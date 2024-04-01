@@ -1,13 +1,14 @@
 //! Entrypoint for InfluxDB 3.0 Edge Server
 
-use crate::process_info;
-use crate::process_info::setup_metric_registry;
 use clap_blocks::{
     memory_size::MemorySize,
     object_store::{make_object_store, ObjectStoreConfig},
     socket_addr::SocketAddr,
 };
 use datafusion_util::config::register_iox_object_store;
+use influxdb3_process::{
+    build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
+};
 use influxdb3_server::{
     auth::AllOrNothingAuthorizer, builder::ServerBuilder, query_executor::QueryExecutorImpl, serve,
     CommonServerState,
@@ -148,39 +149,6 @@ pub struct Config {
     pub segment_duration: SegmentDuration,
 }
 
-#[cfg(all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")))]
-fn build_malloc_conf() -> String {
-    "system".to_string()
-}
-
-#[cfg(all(feature = "heappy", not(feature = "jemalloc_replacing_malloc")))]
-fn build_malloc_conf() -> String {
-    "heappy".to_string()
-}
-
-#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
-fn build_malloc_conf() -> String {
-    tikv_jemalloc_ctl::config::malloc_conf::mib()
-        .unwrap()
-        .read()
-        .unwrap()
-        .to_string()
-}
-
-#[cfg(all(
-    feature = "heappy",
-    feature = "jemalloc_replacing_malloc",
-    not(feature = "clippy")
-))]
-fn build_malloc_conf() -> String {
-    compile_error!("must use exactly one memory allocator")
-}
-
-#[cfg(feature = "clippy")]
-fn build_malloc_conf() -> String {
-    "clippy".to_string()
-}
-
 /// If `p` does not exist, try to create it as a directory.
 ///
 /// panic's if the directory does not exist and can not be created
@@ -199,9 +167,9 @@ pub async fn command(config: Config) -> Result<()> {
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
     info!(
-        git_hash = %process_info::IOX_GIT_HASH as &str,
-        version = %process_info::IOX_VERSION.as_ref() as &str,
-        uuid = %process_info::PROCESS_UUID.as_ref() as &str,
+        git_hash = %INFLUXDB3_GIT_HASH as &str,
+        version = %INFLUXDB3_VERSION.as_ref() as &str,
+        uuid = %PROCESS_UUID.as_ref() as &str,
         num_cpus,
         %build_malloc_conf,
         "InfluxDB3 Edge server starting",

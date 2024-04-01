@@ -1,7 +1,6 @@
 use crate::SegmentId;
 use chrono::prelude::*;
 use object_store::path::Path as ObjPath;
-use std::convert::AsRef;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;

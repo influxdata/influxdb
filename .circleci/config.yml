@@ -180,8 +180,8 @@ jobs:
       - checkout
       - rust_components
       - run:
-          name: cargo test --no-default-features --features=heappy end_to_end
-          command: cargo test --no-default-features --features=heappy end_to_end
+          name: cargo test --no-default-features --features=heappy --workspace
+          command: cargo test --no-default-features --features=heappy --workspace
 
   # Build a dev binary.
   #

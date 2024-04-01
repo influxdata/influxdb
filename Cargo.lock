@@ -2491,6 +2491,7 @@ dependencies = [
  "hex",
  "hyper",
  "influxdb3_client",
+ "influxdb3_process",
  "influxdb3_server",
  "influxdb3_write",
  "influxdb_iox_client",
@@ -2514,8 +2515,6 @@ dependencies = [
  "sha2",
  "test_helpers",
  "thiserror",
- "tikv-jemalloc-ctl",
- "tikv-jemalloc-sys",
  "tokio",
  "tokio-util",
  "tokio_metrics_bridge",
@@ -2569,6 +2568,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb3_process"
+version = "0.1.0"
+dependencies = [
+ "iox_time",
+ "metric",
+ "once_cell",
+ "tikv-jemalloc-ctl",
+ "tikv-jemalloc-sys",
+ "tokio",
+ "tokio_metrics_bridge",
+ "uuid",
+]
+
+[[package]]
 name = "influxdb3_server"
 version = "0.1.0"
 dependencies = [
@@ -2592,6 +2605,7 @@ dependencies = [
  "http",
  "hyper",
  "influxdb-line-protocol",
+ "influxdb3_process",
  "influxdb3_write",
  "iox_catalog",
  "iox_http",

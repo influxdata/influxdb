@@ -25,6 +25,7 @@ trogging.workspace = true
 
 # Local Crates
 influxdb3_client = { path = "../influxdb3_client" }
+influxdb3_process = { path = "../influxdb3_process", default-features = false }
 influxdb3_server = { path = "../influxdb3_server" }
 influxdb3_write = { path = "../influxdb3_write" }
 
@@ -49,8 +50,6 @@ uuid.workspace = true
 
 # Optional Dependencies
 console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
-tikv-jemalloc-ctl = { version = "0.5.4", optional = true }
-tikv-jemalloc-sys = { version = "0.5.4", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
 
 [features]
 default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]
@@ -59,7 +58,7 @@ azure = ["clap_blocks/azure"] # Optional Azure Object store support
 gcp = ["clap_blocks/gcp"] # Optional GCP object store support
 aws = ["clap_blocks/aws"] # Optional AWS / S3 object store support
 pprof = ["ioxd_common/pprof"] # Optional http://localhost:8080/debug/pprof/profile support
-heappy = ["ioxd_common/heappy"] # Optional http://localhost:8080/debug/pproc/alloc support
+heappy = ["ioxd_common/heappy", "influxdb3_process/heappy"] # Optional http://localhost:8080/debug/pproc/alloc support
 
 # Enable tokio_console support (https://github.com/tokio-rs/console)
 #
@@ -70,7 +69,7 @@ tokio_console = ["console-subscriber", "tokio/tracing", "observability_deps/rele
 # runtime overhead on all allocations (calls to malloc).
 # Cargo cannot currently implement mutually exclusive features so let's force every build
 # to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
-jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl"]
+jemalloc_replacing_malloc = ["influxdb3_process/jemalloc_replacing_malloc"]
 
 # Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
 # linting

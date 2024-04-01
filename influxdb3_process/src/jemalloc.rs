@@ -30,6 +30,12 @@ impl JemallocMetrics {
     }
 }
 
+impl Default for JemallocMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl metric::Instrument for JemallocMetrics {
     fn report(&self, reporter: &mut dyn Reporter) {
         reporter.start_metric(
