@@ -24,6 +24,7 @@ tikv-jemalloc-sys = { version = "0.5.4", optional = true, features = ["unprefixe
 
 [features]
 default = ["jemalloc_replacing_malloc"]
+heappy = []
 
 # heappy is an optional feature; Not on by default as it
 # runtime overhead on all allocations (calls to malloc).

@@ -25,7 +25,7 @@ trogging.workspace = true
 
 # Local Crates
 influxdb3_client = { path = "../influxdb3_client" }
-influxdb3_process = { path = "../influxdb3_process" }
+influxdb3_process = { path = "../influxdb3_process", default-features = false }
 influxdb3_server = { path = "../influxdb3_server" }
 influxdb3_write = { path = "../influxdb3_write" }
 
@@ -58,7 +58,7 @@ azure = ["clap_blocks/azure"] # Optional Azure Object store support
 gcp = ["clap_blocks/gcp"] # Optional GCP object store support
 aws = ["clap_blocks/aws"] # Optional AWS / S3 object store support
 pprof = ["ioxd_common/pprof"] # Optional http://localhost:8080/debug/pprof/profile support
-heappy = ["ioxd_common/heappy"] # Optional http://localhost:8080/debug/pproc/alloc support
+heappy = ["ioxd_common/heappy", "influxdb3_process/heappy"] # Optional http://localhost:8080/debug/pproc/alloc support
 
 # Enable tokio_console support (https://github.com/tokio-rs/console)
 #
