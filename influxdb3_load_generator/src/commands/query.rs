@@ -10,7 +10,7 @@ use tokio::time::Instant;
 use crate::{
     commands::common::LoadType,
     query_generator::{create_queriers, Format, Querier},
-    report::QueryReporter,
+    report::{QueryReporter, SystemStatsReporter},
 };
 
 use super::common::InfluxDb3Config;
@@ -62,11 +62,27 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
 
     // set up a results reporter and spawn a thread to flush results
     println!("generating results in: {results_file_path}");
-    let query_reporter = Arc::new(QueryReporter::new(results_file)?);
+    let query_reporter = Arc::new(QueryReporter::new(results_file));
     let reporter = Arc::clone(&query_reporter);
     tokio::task::spawn_blocking(move || {
         reporter.flush_reports();
     });
+
+    // spawn system stats collection
+    let stats_reporter = if let (Some(stats_file), Some(stats_file_path)) = (
+        load_config.system_stats_file,
+        load_config.system_stats_file_path,
+    ) {
+        println!("generating system stats in: {stats_file_path}");
+        let stats_reporter = Arc::new(SystemStatsReporter::new(stats_file)?);
+        let s = Arc::clone(&stats_reporter);
+        tokio::task::spawn_blocking(move || {
+            s.report_stats();
+        });
+        Some((stats_file_path, stats_reporter))
+    } else {
+        None
+    };
 
     // create a InfluxDB Client and spawn tasks for each querier
     let mut tasks = Vec::new();
@@ -91,6 +107,11 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
 
     query_reporter.shutdown();
     println!("results saved in: {results_file_path}");
+
+    if let Some((stats_file_path, stats_reporter)) = stats_reporter {
+        println!("system stats saved in: {stats_file_path}");
+        stats_reporter.shutdown();
+    }
 
     Ok(())
 }
