@@ -5,8 +5,6 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 # Core Crates
 observability_deps.workspace = true
@@ -14,6 +12,7 @@ trogging.workspace = true
 
 # Local Deps
 influxdb3_client = { path = "../influxdb3_client" }
+influxdb3_process = { path = "../influxdb3_process" }
 
 # crates.io Dependencies
 anyhow.workspace = true
@@ -28,6 +27,7 @@ rand.workspace = true
 secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sysinfo.workspace = true
 tokio.workspace = true
 thiserror.workspace = true
 url.workspace = true

@@ -1,6 +1,6 @@
 use crate::commands::common::LoadType;
 use crate::line_protocol_generator::{create_generators, Generator};
-use crate::report::WriteReporter;
+use crate::report::{SystemStatsReporter, WriteReporter};
 use anyhow::Context;
 use chrono::{DateTime, Local};
 use clap::Parser;
@@ -112,7 +112,21 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
         reporter.flush_reports();
     });
 
-    // TODO - spawn system stats collection
+    // spawn system stats collection
+    let stats_reporter = if let (Some(stats_file), Some(stats_file_path)) = (
+        load_config.system_stats_file,
+        load_config.system_stats_file_path,
+    ) {
+        println!("generating system stats in: {stats_file_path}");
+        let stats_reporter = Arc::new(SystemStatsReporter::new(stats_file)?);
+        let s = Arc::clone(&stats_reporter);
+        tokio::task::spawn_blocking(move || {
+            s.report_stats();
+        });
+        Some((stats_file_path, stats_reporter))
+    } else {
+        None
+    };
 
     // spawn tokio tasks for each writer
     let mut tasks = Vec::new();
@@ -139,6 +153,11 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
 
     write_reporter.shutdown();
     println!("results saved in: {results_file_path}");
+
+    if let Some((stats_file_path, stats_reporter)) = stats_reporter {
+        println!("system stats saved in: {stats_file_path}");
+        stats_reporter.shutdown();
+    }
 
     Ok(())
 }

@@ -4,6 +4,9 @@ use iox_time::{SystemProvider, Time, TimeProvider};
 use metric::U64Gauge;
 use once_cell::sync::Lazy;
 
+/// The process name on the local OS running `influxdb3`
+pub const INFLUXDB3_PROCESS_NAME: &str = "influxdb3";
+
 #[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
 pub mod jemalloc;
 
