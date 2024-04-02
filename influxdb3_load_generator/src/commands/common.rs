@@ -54,7 +54,7 @@ pub(crate) struct InfluxDb3Config {
     /// If not specified, this will default to `results` in the current directory.
     ///
     /// Files saved here will be organized in a directory structure as follows:
-    /// ```ignore
+    /// ```text
     /// results/<s>/<c>/<write|query|system>_<time>.csv`
     /// ```
     /// where,
