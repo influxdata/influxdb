@@ -134,7 +134,7 @@ func limitReadFile(name string) ([]byte, error) {
 	if special, err := fs.IsSpecialFSFromFileInfo(st); err != nil {
 		return nil, err
 	} else if special {
-		return nil, errors.New("file in special filesystem")
+		return nil, errors.New("file in special file system")
 	}
 
 	// only support reading regular files

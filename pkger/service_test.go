@@ -929,7 +929,7 @@ func TestService(t *testing.T) {
 					expErr: "file:// URL failed to parse",
 					expLog: []logm{
 						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
-						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special filesystem"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special file system"},
 					},
 				},
 				{
@@ -940,7 +940,7 @@ func TestService(t *testing.T) {
 					expErr: "file:// URL failed to parse",
 					expLog: []logm{
 						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
-						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special filesystem"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special file system"},
 					},
 				},
 				{
@@ -951,7 +951,7 @@ func TestService(t *testing.T) {
 					expErr: "file:// URL failed to parse",
 					expLog: []logm{
 						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
-						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special filesystem"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special file system"},
 					},
 				},
 				{
@@ -962,7 +962,7 @@ func TestService(t *testing.T) {
 					expErr: "file:// URL failed to parse",
 					expLog: []logm{
 						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
-						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special filesystem"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special file system"},
 					},
 				},
 				{
@@ -982,7 +982,17 @@ func TestService(t *testing.T) {
 					expErr: "file:// URL failed to parse",
 					expLog: []logm{
 						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
-						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special filesystem"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special file system"},
+					},
+				},
+				{
+					name:   "/dev/zero",
+					path:   "/dev/zero",
+					oses:   []string{"darwin"},
+					expErr: "file:// URL failed to parse",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "not a regular file"},
 					},
 				},
 				{
@@ -992,7 +1002,7 @@ func TestService(t *testing.T) {
 					expErr: "file:// URL failed to parse",
 					expLog: []logm{
 						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
-						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special filesystem"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "file in special file system"},
 					},
 				},
 				{
@@ -1026,7 +1036,7 @@ func TestService(t *testing.T) {
 							}
 						}
 						if !osFound {
-							t.Skip("skipping special file test on non-Linux OS")
+							t.Skip(fmt.Sprintf("skipping test for %q OS", runtime.GOOS))
 						}
 					}
 					testStore := &fakeStore{

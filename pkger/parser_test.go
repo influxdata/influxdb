@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -4846,6 +4847,7 @@ func Test_FromFile(t *testing.T) {
 		path   string
 		extra  bool
 		expErr string
+		oses   []string // list of OSes to run test on, empty means all.
 	}{
 		// valid
 		{
@@ -4873,7 +4875,15 @@ func Test_FromFile(t *testing.T) {
 		{
 			path:   "/dev/null",
 			extra:  true,
-			expErr: "file in special filesystem",
+			expErr: "file in special file system",
+			oses:   []string{"linux"},
+		},
+		// invalid with extra
+		{
+			path:   "/dev/null",
+			extra:  true,
+			expErr: "not a regular file",
+			oses:   []string{"darwin"},
 		},
 		{
 			path:   "/",
@@ -4899,6 +4909,19 @@ func Test_FromFile(t *testing.T) {
 
 	for _, tt := range tests {
 		fn := func(t *testing.T) {
+			if len(tt.oses) > 0 {
+				osFound := false
+				for _, os := range tt.oses {
+					if runtime.GOOS == os {
+						osFound = true
+						break
+					}
+				}
+				if !osFound {
+					t.Skip(fmt.Sprintf("skipping test for %q OS", runtime.GOOS))
+				}
+			}
+
 			readFn := FromFile(tt.path, tt.extra)
 			assert.NotNil(t, readFn)
 
