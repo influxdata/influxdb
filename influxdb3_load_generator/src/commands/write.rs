@@ -163,6 +163,11 @@ async fn run_generator(
     start_time: Option<DateTime<Local>>,
     end_time: Option<DateTime<Local>>,
 ) {
+    // if not generator 1, pause for 100ms to let it start the run to create the schema
+    if generator.writer_id != 1 {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
     let mut sample_buffer = vec![];
 
     // if the start time is set, load the historical samples as quickly as possible
