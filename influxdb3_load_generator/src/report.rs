@@ -396,7 +396,7 @@ impl SystemStatsReporter {
             );
             let process = system
                 .process(self.pid)
-                .expect(format!("process with pid: {}", self.pid).as_str());
+                .unwrap_or_else(|| panic!("process with pid: {}", self.pid));
             let mut csv_writer = self.csv_writer.lock();
             let test_time_ms = Instant::now().duration_since(start_time).as_millis();
             csv_writer
