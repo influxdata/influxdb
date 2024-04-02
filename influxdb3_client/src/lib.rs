@@ -191,7 +191,8 @@ impl Client {
         }
     }
 
-    /// Send a PING request to the target `influxdb3` server
+    /// Send a `/ping` request to the target `influxdb3` server to check its
+    /// status and gather `version` and `revision` information
     pub async fn ping(&self) -> Result<PingResponse> {
         let url = self.base_url.join("/ping")?;
         let mut req = self.http_client.get(url);
@@ -210,6 +211,7 @@ impl Client {
     }
 }
 
+/// The response of the `/ping` API on `influxdb3`
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PingResponse {
     version: String,

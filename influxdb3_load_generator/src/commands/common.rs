@@ -84,6 +84,8 @@ pub(crate) struct InfluxDb3Config {
     pub(crate) system_stats: bool,
 }
 
+/// Can run the load generation tool exclusively in either `query` or `write` mode, or
+/// run both at the same time
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum LoadType {
     Write,
@@ -92,10 +94,15 @@ pub(crate) enum LoadType {
     Full,
 }
 
+/// A configuration for driving a `write` or `query` load generation run
 #[derive(Debug, Default)]
 pub(crate) struct LoadConfig {
+    /// The target database name on the `influxdb3` server
     pub(crate) database_name: String,
+    /// The directory that will store generated results files
     results_dir: PathBuf,
+    /// If `true`, the configuration will initialize only to print out
+    /// the spec as JSON, it will not create any files
     print_mode: bool,
     pub(crate) write_spec: Option<DataSpec>,
     pub(crate) write_results_file_path: Option<String>,
@@ -108,6 +115,7 @@ pub(crate) struct LoadConfig {
 }
 
 impl LoadConfig {
+    /// Create a new [`LoadConfig`]
     fn new(database_name: String, results_dir: PathBuf, print_mode: bool) -> Self {
         Self {
             database_name,
@@ -117,6 +125,9 @@ impl LoadConfig {
         }
     }
 
+    /// Setup the results directory for the load generation run.
+    ///
+    /// This will be used to store all results files generated.
     fn setup_dir(&mut self, spec_name: &str, config_name: &str) -> Result<(), anyhow::Error> {
         if self.print_mode {
             return Ok(());
@@ -130,6 +141,7 @@ impl LoadConfig {
         })
     }
 
+    /// Setup the `write` results file along with its path and the [`DataSpec`]
     fn setup_write(&mut self, time_str: &str, spec: DataSpec) -> Result<(), anyhow::Error> {
         if self.print_mode {
             println!("Write Spec:\n{}", spec.to_json_string_pretty()?);
@@ -143,6 +155,7 @@ impl LoadConfig {
         Ok(())
     }
 
+    /// Setup the `query` results file along with its path and the [`QuerierSpec`]
     fn setup_query(&mut self, time_str: &str, spec: QuerierSpec) -> Result<(), anyhow::Error> {
         if self.print_mode {
             println!("Query Spec:\n{}", spec.to_json_string_pretty()?);
@@ -156,6 +169,7 @@ impl LoadConfig {
         Ok(())
     }
 
+    /// Setup the `system` stats file along with its path
     fn setup_system(&mut self, time_str: &str) -> Result<(), anyhow::Error> {
         let file_path = self.results_dir.join(format!("system_{time_str}.csv"));
         self.system_stats_file_path = Some(path_buf_to_string(file_path.clone())?);
