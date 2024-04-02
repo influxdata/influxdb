@@ -4,7 +4,7 @@ use bytes::Bytes;
 use iox_query_params::StatementParam;
 use reqwest::{Body, IntoUrl, StatusCode};
 use secrecy::{ExposeSecret, Secret};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 /// Primary error type for the [`Client`]
@@ -18,6 +18,9 @@ pub enum Error {
 
     #[error("failed to send /api/v3/write_lp request: {0}")]
     WriteLpSend(#[source] reqwest::Error),
+
+    #[error("failed to send /ping request: {0}")]
+    PingSend(#[source] reqwest::Error),
 
     #[error("failed to read the API response bytes: {0}")]
     Bytes(#[source] reqwest::Error),
@@ -41,6 +44,12 @@ pub enum Error {
 
     #[error("invalid UTF8 in response: {0}")]
     InvalidUtf8(#[from] FromUtf8Error),
+
+    #[error("failed to parse JSON response: {0}")]
+    Json(#[source] reqwest::Error),
+
+    #[error("failed to parse plaintext response: {0}")]
+    Text(#[source] reqwest::Error),
 
     #[error("server responded with error [{code}]: {message}")]
     ApiError { code: StatusCode, message: String },
@@ -180,6 +189,42 @@ impl Client {
             format: None,
             params: None,
         }
+    }
+
+    /// Send a PING request to the target `influxdb3` server
+    pub async fn ping(&self) -> Result<PingResponse> {
+        let url = self.base_url.join("/ping")?;
+        let mut req = self.http_client.get(url);
+        if let Some(t) = &self.auth_token {
+            req = req.bearer_auth(t.expose_secret());
+        }
+        let resp = req.send().await.map_err(Error::PingSend)?;
+        if resp.status().is_success() {
+            resp.json().await.map_err(Error::Json)
+        } else {
+            Err(Error::ApiError {
+                code: resp.status(),
+                message: resp.text().await.map_err(Error::Text)?,
+            })
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PingResponse {
+    version: String,
+    revision: String,
+}
+
+impl PingResponse {
+    /// Get the `version` from the response
+    pub fn version(&self) -> &str {
+        &self.version
+    }
+
+    /// Get the `revision` from the response
+    pub fn revision(&self) -> &str {
+        &self.revision
     }
 }
 

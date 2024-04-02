@@ -7,8 +7,7 @@ use chrono::{DateTime, Local};
 use parking_lot::Mutex;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::fmt::Display;
-use std::path::Path;
+use std::fs::File;
 use std::time::{Duration, Instant};
 // Logged reports will be flushed to the csv file on this interval
 const REPORT_FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -27,14 +26,14 @@ pub struct WriterReport {
 #[derive(Debug)]
 pub struct WriteReporter {
     state: Mutex<Vec<WriterReport>>,
-    csv_writer: Mutex<csv::Writer<std::fs::File>>,
+    csv_writer: Mutex<csv::Writer<File>>,
     shutdown: Mutex<bool>,
 }
 
 impl WriteReporter {
-    pub fn new(csv_filename: &str) -> Result<Self, anyhow::Error> {
+    pub fn new(csv_file: File) -> Result<Self, anyhow::Error> {
         // open csv file for writing
-        let mut csv_writer = csv::Writer::from_path(csv_filename)?;
+        let mut csv_writer = csv::Writer::from_writer(csv_file);
         // write header
         csv_writer
             .write_record([
@@ -212,17 +211,13 @@ pub struct QuerierReport {
 #[derive(Debug)]
 pub struct QueryReporter {
     state: Mutex<Vec<QuerierReport>>,
-    csv_writer: Mutex<csv::Writer<std::fs::File>>,
+    csv_writer: Mutex<csv::Writer<File>>,
     shutdown: Mutex<bool>,
 }
 
 impl QueryReporter {
-    pub fn new<P: AsRef<Path> + Display>(results_file: P) -> Result<Self, anyhow::Error> {
-        let f = std::fs::File::create_new(&results_file)
-            .with_context(|| {
-            format!("results file already exists, use a different file name or delete it and re-run: {results_file}")
-        })?;
-        let csv_writer = Mutex::new(csv::Writer::from_writer(f));
+    pub fn new(csv_file: File) -> Result<Self, anyhow::Error> {
+        let csv_writer = Mutex::new(csv::Writer::from_writer(csv_file));
         Ok(Self {
             state: Mutex::new(vec![]),
             csv_writer,

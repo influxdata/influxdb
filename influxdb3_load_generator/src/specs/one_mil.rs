@@ -53,6 +53,7 @@ pub(crate) fn spec() -> BuiltInSpec {
     };
 
     BuiltInSpec {
+        name: "one_mil".to_string(),
         description,
         write_spec,
         query_spec,

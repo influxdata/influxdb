@@ -94,13 +94,13 @@ fn main() -> Result<(), std::io::Error> {
             None => println!("command required, --help for help"),
             Some(Command::Query(config)) => {
                 if let Err(e) = commands::query::command(config).await {
-                    eprintln!("Query command failed: {e}");
+                    eprintln!("Query command failed: {e:?}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Some(Command::Write(config)) => {
                 if let Err(e) = commands::write::command(config).await {
-                    eprintln!("Write command failed: {e}");
+                    eprintln!("Write command failed: {e:?}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
