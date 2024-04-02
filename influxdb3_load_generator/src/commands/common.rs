@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 use influxdb3_client::Client;
 use secrecy::{ExposeSecret, Secret};
@@ -42,6 +44,31 @@ pub(crate) struct InfluxDb3Config {
     /// of the builtin as a starting point for creating your own.
     #[clap(long = "print-spec")]
     pub(crate) print_spec: Option<String>,
+
+    /// The directory to save results to.
+    ///
+    /// If not specified, this will default to `results` in the current directory.
+    ///
+    /// Files saved here will be organized in a directory structure as follows:
+    /// ```ignore
+    /// results/<s>/<c>/<write|query|system>_<time>.csv`
+    /// ```
+    /// where,
+    /// - `<s>`: the name of the load gen spec, e.g., `one_mil`
+    /// - `<c>`: the provided `configuration_name`, or will default to the revision SHA of the
+    ///   `influxdb3` binary
+    /// - `<write|query|system>`: results for the `write` load, `query` load, or `system` stats of the
+    ///   `influxdb3` binary, respectively.
+    /// - `<time>`: a timestamp of when the test started in `YYYY-MM-DD-HH-MM` format.
+    #[clap(short = 'r', long = "results-dir", env = "INFLUXDB3_LOAD_RESULTS_DIR")]
+    pub(crate) results_dir: Option<PathBuf>,
+
+    /// Provide a custom `configuration_name` for the generated results directory.
+    ///
+    /// If left blank, this will default to the revision SHA of the target `influxdb3` binary
+    /// under test.
+    #[clap(long = "config-name")]
+    pub(crate) configuration_name: Option<String>,
 }
 
 pub(crate) fn create_client(
@@ -53,4 +80,12 @@ pub(crate) fn create_client(
         client = client.with_auth_token(t.expose_secret());
     }
     Ok(client)
+}
+
+pub(crate) async fn init_results_dir(
+    results_dir: Option<PathBuf>,
+    spec_name: &str,
+    configuration_name: Option<String>,
+) {
+    todo!();
 }
