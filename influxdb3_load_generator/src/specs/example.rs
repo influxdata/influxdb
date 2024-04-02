@@ -7,11 +7,12 @@ use crate::specification::*;
 use crate::specs::BuiltInSpec;
 
 pub(crate) fn spec() -> BuiltInSpec {
+    let name = "sample_spec".to_string();
     let description =
         r#"Example that shows the various elements of the data generator."#.to_string();
 
     let write_spec = DataSpec {
-        name: "sample_spec".to_string(),
+        name: name.to_owned(),
         measurements: vec![
             MeasurementSpec {
                 name: "some_measurement".to_string(),
@@ -118,7 +119,7 @@ pub(crate) fn spec() -> BuiltInSpec {
     };
 
     let query_spec = QuerierSpec {
-        name: "sample_spec".to_string(),
+        name: name.to_owned(),
         queries: vec![QuerySpec {
             query: "SELECT f1, i1 FROM some_measurement WHERE some_tag = $some_val".to_string(),
             params: vec![ParamSpec {
@@ -129,6 +130,7 @@ pub(crate) fn spec() -> BuiltInSpec {
     };
 
     BuiltInSpec {
+        name: name.to_owned(),
         description,
         write_spec,
         query_spec,

@@ -1,7 +1,6 @@
-use crate::commands::common::create_client;
+use crate::commands::common::LoadType;
 use crate::line_protocol_generator::{create_generators, Generator};
 use crate::report::WriteReporter;
-use crate::specification::DataSpec;
 use anyhow::Context;
 use chrono::{DateTime, Local};
 use clap::Parser;
@@ -57,163 +56,13 @@ pub struct Config {
     /// specification like `1 hour` in the future. If not specified, data will continue generating forever.
     #[clap(long, action)]
     end: Option<String>,
-
-    /// The file that will be used to write the results of the run. If not specified, results
-    /// will be written to <spec_name>_results.csv in the current directory.
-    #[clap(
-        short = 'r',
-        long = "results",
-        env = "INFLUXDB3_WRITE_LOAD_RESULTS_FILE"
-    )]
-    results_file: Option<String>,
 }
 
 pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
-    let built_in_specs = crate::specs::built_in_specs();
-
-    let InfluxDb3Config {
-        host_url,
-        database_name,
-        auth_token,
-        spec_path,
-        builtin_spec,
-        print_spec,
-    } = config.influxdb3_config;
-
-    if spec_path.is_none() && print_spec.is_none() && builtin_spec.is_none() {
-        let example = built_in_specs.first().unwrap();
-        let mut generators = create_generators(&example.write_spec, 2).unwrap();
-        let t = 123;
-        let dry_run_output_1 = generators.get_mut(0).unwrap().dry_run(t);
-        let dry_run_output_2 = generators.get_mut(1).unwrap().dry_run(t);
-
-        let builtin_help = built_in_specs
-            .iter()
-            .map(|spec| {
-                format!(
-                    "name: {}\ndescription: {}\n",
-                    spec.write_spec.name, spec.description
-                )
-            })
-            .collect::<Vec<String>>()
-            .join("\n");
-
-        println!(
-            r#"You didn't provide a spec path, which is required. For more information about the arguments for this command run:
-
-    influxdb_load_generator write --help
-
-There are some built in specs that you can run just by specifying their name. If you want
-to see the JSON for their structure as a starting point, specify their name as the --print-spec
-argument. Here's a list of the builtin specs:
-
-{}
-
-Or, if you need a more detailed writeup on specs and how they work here are details about
-the example. A spec is just a JSON object specifying how to generate measurements and their
-tags and fields. All data will have a millisecond timestamp generated (with that precision
-specified) and aligned with the sampling. The generator will run against a single database
-and can have many concurrent writers. The spec indicates the shape of the data that should
-be generated.
-
-As the generator runs, it will output basic information to stdout. The stats of each
-individual request will be written to a results CSV file that you can use after the run to
-analyze the performance of write requests to the server.
-
-In the data spec there is an array of measurements. Within each is an array of tags
-and an array of fields. Measurements have a name while tags and fields have keys (i.e. tag
-key and field key). Tags and fields are scoped to the measurement they are under. If a
-tag with key 'foo' appears under two different measurements they are considered different
-tags. The same goes for fields. All measurements must have at least 1 field and can have 0
-or more tags.
-
-The measurement, tag and field structs have an option called 'copies' which is an integer.
-When specified, the data generator will create that many copies of the measurement, tag,
-or field and append the copy number to the name/keys. This is useful for generating a large
-schema in a test.
-
-Tags have two options that work together that need explanation: cardinality, and
-lines_per_sample. Cardinality is the number of unique values that the tag will have.
-This cardinality will be split across the number of writers in a test run. Thus if you have
-1,000 cardinality and a single writer, the unique values will all get written by that writer.
-If you have 1,000 cardinality and 10 writers, each writer will write 100 unique values.
-
-The lines_per_sample option on the measurement is used to control how many of the unique
-values are used in a single sampling round. If not specified, all unique values will be used.
-This number will be rounded down to the cardinality of the tag with the highest cardinality
-for the measurement. This is done on a per writer basis. If you have lines_per_sample of 10
-and a tag of 100 cardinality with 1 writer, it will generate 10 lines of that measurement with
-each unique tag value going to the next 10 values on the next sample, taking 10 samples to get
-through the 100 uniques before it cycles back to the beginning.
-
-Separately, cardinality of tags will be split across the number of writers you have. So if
-you have cardinality of 100 and 1 writer, by default it will generate 100 lines of that
-measurement with each unique tag value. If you have 10 writers, each writer will generate 10
-unique tag values. Thus with 10 writers, the lines_per_sample would max at 10 since each
-sample can only generate 10 unique tag values.
-
-The tag spec also has a boolean option called "append_writer_id". Writers are the individual
-threads that run and generate and write samples at the same time. The number is set through
-the parameter --writer-count. If append_writer_id is set to true, the generator will append
-the writer id to the tag value. This is useful for generating unique tag values across
-writers, simulating a host id or something similar.
-
-Fields have options for generating static data, or randomly generated data within a range. For
-strings, you can specify a static string or a random string of a certain length. Another option
-worth noting is the null_probability. This is a float between 0 and 1 that indicates the probability
-that a field will be null. If this option is used, you must have another field that does not use
-this option (i.e. you must always have at least one field that is guaranteed to have a value).
-
-If you're unsure how an option works or what it will produce, the easiest thing to do is to create
-a file and run the generator with the --dry-run option. This will output the data to stdout so you
-can see what it looks like before you run it against a server. It will use the --writer-count
-value and show what each writer would send in a sample.
-
-The example below shows this functionality generating different kinds of tags and
-fields of different value types. First, we show the spec, then we show the output that gets
-generated on a dry-run so you can see how the spec translates into generated line protocol.
-
-Here's the spec:
-
-{}
-
-And when run with writer count set to 2, here's what will be sent in a request by each writer.
-
-Writer 1:
-{}
-Writer 2:
-{}"#,
-            builtin_help,
-            example.write_spec.to_json_string_pretty().unwrap(),
-            dry_run_output_1,
-            dry_run_output_2
-        );
-
-        return Ok(());
-    }
-
-    // if print spec is set, print the spec and exit
-    if let Some(spec_name) = print_spec {
-        let spec = built_in_specs
-            .iter()
-            .find(|spec| spec.write_spec.name == spec_name)
-            .context("Spec not found")?;
-        println!("{}", spec.write_spec.to_json_string_pretty()?);
-        return Ok(());
-    }
-
-    // if builtin spec is set, use that instead of the spec path
-    let spec = if let Some(builtin_spec) = builtin_spec {
-        let builtin = built_in_specs
-            .into_iter()
-            .find(|spec| spec.write_spec.name == builtin_spec)
-            .context("Spec not found")?;
-        println!("using builtin spec: {}", builtin.write_spec.name);
-        builtin.write_spec
-    } else {
-        println!("reading spec from: {}", spec_path.as_ref().unwrap());
-        DataSpec::from_path(&spec_path.unwrap())?
-    };
+    let (client, load_config) = config.influxdb3_config.initialize(LoadType::Write).await?;
+    let spec = load_config.write_spec.unwrap();
+    let results_file = load_config.write_results_file.unwrap();
+    let results_file_path = load_config.write_results_file_path.unwrap();
 
     println!(
         "creating generators for {} concurrent writers",
@@ -253,23 +102,9 @@ Writer 2:
         None
     };
 
-    let results_file = config
-        .results_file
-        .unwrap_or_else(|| format!("{}_results.csv", spec.name));
-
-    // exit if the results file already exists
-    if std::path::Path::new(&results_file).exists() {
-        eprintln!(
-            "results file already exists, use a different file name or delete it and re-run: {}",
-            results_file
-        );
-        std::process::exit(1);
-    }
-
-    println!("writing results to: {}", results_file);
-
+    println!("generating results in: {results_file_path}");
     let write_reporter =
-        Arc::new(WriteReporter::new(&results_file).context("failed to create write reporter")?);
+        Arc::new(WriteReporter::new(results_file).context("failed to create write reporter")?);
 
     // blocking task to periodically flush the report to disk
     let reporter = Arc::clone(&write_reporter);
@@ -277,8 +112,9 @@ Writer 2:
         reporter.flush_reports();
     });
 
+    // TODO - spawn system stats collection
+
     // spawn tokio tasks for each writer
-    let client = create_client(host_url, auth_token)?;
     let mut tasks = Vec::new();
     for generator in generators {
         let reporter = Arc::clone(&write_reporter);
@@ -286,7 +122,7 @@ Writer 2:
         let task = tokio::spawn(run_generator(
             generator,
             client.clone(),
-            database_name.clone(),
+            load_config.database_name.clone(),
             reporter,
             sampling_interval,
             start_time,
@@ -302,7 +138,7 @@ Writer 2:
     println!("all writers finished");
 
     write_reporter.shutdown();
-    println!("reporter closed and results written to {}", results_file);
+    println!("results saved in: {results_file_path}");
 
     Ok(())
 }
@@ -449,4 +285,115 @@ async fn write_sample(
     }
 
     sample_len
+}
+
+pub(crate) fn print_help() {
+    let built_in_specs = crate::specs::built_in_specs();
+    let example = built_in_specs.first().unwrap();
+    let mut generators = create_generators(&example.write_spec, 2).unwrap();
+    let t = 123;
+    let dry_run_output_1 = generators.get_mut(0).unwrap().dry_run(t);
+    let dry_run_output_2 = generators.get_mut(1).unwrap().dry_run(t);
+
+    let builtin_help = built_in_specs
+        .iter()
+        .map(|spec| {
+            format!(
+                "name: {}\ndescription: {}\n",
+                spec.write_spec.name, spec.description
+            )
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+
+    println!(
+        r#"You didn't provide a spec path, which is required. For more information about the arguments for this command run:
+
+    influxdb_load_generator write --help
+
+There are some built in specs that you can run just by specifying their name. If you want
+to see the JSON for their structure as a starting point, specify their name as the --print-spec
+argument. Here's a list of the builtin specs:
+
+{}
+
+Or, if you need a more detailed writeup on specs and how they work here are details about
+the example. A spec is just a JSON object specifying how to generate measurements and their
+tags and fields. All data will have a millisecond timestamp generated (with that precision
+specified) and aligned with the sampling. The generator will run against a single database
+and can have many concurrent writers. The spec indicates the shape of the data that should
+be generated.
+
+As the generator runs, it will output basic information to stdout. The stats of each
+individual request will be written to a results CSV file that you can use after the run to
+analyze the performance of write requests to the server.
+
+In the data spec there is an array of measurements. Within each is an array of tags
+and an array of fields. Measurements have a name while tags and fields have keys (i.e. tag
+key and field key). Tags and fields are scoped to the measurement they are under. If a
+tag with key 'foo' appears under two different measurements they are considered different
+tags. The same goes for fields. All measurements must have at least 1 field and can have 0
+or more tags.
+
+The measurement, tag and field structs have an option called 'copies' which is an integer.
+When specified, the data generator will create that many copies of the measurement, tag,
+or field and append the copy number to the name/keys. This is useful for generating a large
+schema in a test.
+
+Tags have two options that work together that need explanation: cardinality, and
+lines_per_sample. Cardinality is the number of unique values that the tag will have.
+This cardinality will be split across the number of writers in a test run. Thus if you have
+1,000 cardinality and a single writer, the unique values will all get written by that writer.
+If you have 1,000 cardinality and 10 writers, each writer will write 100 unique values.
+
+The lines_per_sample option on the measurement is used to control how many of the unique
+values are used in a single sampling round. If not specified, all unique values will be used.
+This number will be rounded down to the cardinality of the tag with the highest cardinality
+for the measurement. This is done on a per writer basis. If you have lines_per_sample of 10
+and a tag of 100 cardinality with 1 writer, it will generate 10 lines of that measurement with
+each unique tag value going to the next 10 values on the next sample, taking 10 samples to get
+through the 100 uniques before it cycles back to the beginning.
+
+Separately, cardinality of tags will be split across the number of writers you have. So if
+you have cardinality of 100 and 1 writer, by default it will generate 100 lines of that
+measurement with each unique tag value. If you have 10 writers, each writer will generate 10
+unique tag values. Thus with 10 writers, the lines_per_sample would max at 10 since each
+sample can only generate 10 unique tag values.
+
+The tag spec also has a boolean option called "append_writer_id". Writers are the individual
+threads that run and generate and write samples at the same time. The number is set through
+the parameter --writer-count. If append_writer_id is set to true, the generator will append
+the writer id to the tag value. This is useful for generating unique tag values across
+writers, simulating a host id or something similar.
+
+Fields have options for generating static data, or randomly generated data within a range. For
+strings, you can specify a static string or a random string of a certain length. Another option
+worth noting is the null_probability. This is a float between 0 and 1 that indicates the probability
+that a field will be null. If this option is used, you must have another field that does not use
+this option (i.e. you must always have at least one field that is guaranteed to have a value).
+
+If you're unsure how an option works or what it will produce, the easiest thing to do is to create
+a file and run the generator with the --dry-run option. This will output the data to stdout so you
+can see what it looks like before you run it against a server. It will use the --writer-count
+value and show what each writer would send in a sample.
+
+The example below shows this functionality generating different kinds of tags and
+fields of different value types. First, we show the spec, then we show the output that gets
+generated on a dry-run so you can see how the spec translates into generated line protocol.
+
+Here's the spec:
+
+{}
+
+And when run with writer count set to 2, here's what will be sent in a request by each writer.
+
+Writer 1:
+{}
+Writer 2:
+{}"#,
+        builtin_help,
+        example.write_spec.to_json_string_pretty().unwrap(),
+        dry_run_output_1,
+        dry_run_output_2
+    );
 }

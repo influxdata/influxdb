@@ -8,6 +8,7 @@ use arrow::array::{
 use arrow::datatypes::Int32Type;
 use arrow::record_batch::RecordBatch;
 use data_types::{PartitionKey, TimestampMinMax};
+use observability_deps::tracing::debug;
 use schema::Schema;
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
@@ -47,11 +48,11 @@ impl TableBuffer {
                         self.timestamp_max = self.timestamp_max.max(v);
 
                         let b = self.data.entry(f.name).or_insert_with(|| {
-                            println!("Creating new timestamp builder");
+                            debug!("Creating new timestamp builder");
                             let mut time_builder = TimestampNanosecondBuilder::new();
                             // append nulls for all previous rows
                             for _ in 0..(row_index + self.row_count) {
-                                println!("Appending null for timestamp");
+                                debug!("Appending null for timestamp");
                                 time_builder.append_null();
                             }
                             Builder::Time(time_builder)
@@ -158,7 +159,7 @@ impl TableBuffer {
             // add nulls for any columns not present
             for (name, builder) in &mut self.data {
                 if !value_added.contains(name) {
-                    println!("Adding null for column {}", name);
+                    debug!("Adding null for column {}", name);
                     match builder {
                         Builder::Bool(b) => b.append_null(),
                         Builder::F64(b) => b.append_null(),
