@@ -1,4 +1,3 @@
-use crate::commands::common::LoadType;
 use crate::line_protocol_generator::{create_generators, Generator};
 use crate::report::{SystemStatsReporter, WriteReporter};
 use anyhow::Context;
@@ -6,6 +5,7 @@ use chrono::{DateTime, Local};
 use clap::Parser;
 use influxdb3_client::{Client, Precision};
 use std::ops::Add;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::Instant;
@@ -34,10 +34,18 @@ pub struct Config {
     #[clap(
         short = 'w',
         long = "writer-count",
-        env = "INFLUXDB3_LOAD_WRITERS",
+        env = "INFLUXDB3_LOAD_WRITER_COUNT",
         default_value = "1"
     )]
     writer_count: usize,
+
+    /// The path to the writer spec file to use for this run.
+    ///
+    /// Alternatively, specify a name of a builtin spec to use. If neither are specified, the
+    /// generator will output a list of builtin specs along with help and an example for writing
+    /// your own.
+    #[clap(long = "writer-spec", env = "INFLUXDB3_LOAD_WRITER_SPEC_PATH")]
+    writer_spec_path: Option<PathBuf>,
 
     /// Tells the generator to run a single sample for each writer in `writer-count` and output the data to stdout.
     #[clap(long = "dry-run", default_value = "false")]
@@ -59,7 +67,10 @@ pub struct Config {
 }
 
 pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
-    let (client, load_config) = config.influxdb3_config.initialize(LoadType::Write).await?;
+    let (client, load_config) = config
+        .influxdb3_config
+        .initialize_write(config.writer_spec_path)
+        .await?;
     let spec = load_config.write_spec.unwrap();
     let results_file = load_config.write_results_file.unwrap();
     let results_file_path = load_config.write_results_file_path.unwrap();

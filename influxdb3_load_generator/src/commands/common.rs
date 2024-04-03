@@ -33,12 +33,6 @@ pub(crate) struct InfluxDb3Config {
     #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
     pub(crate) auth_token: Option<Secret<String>>,
 
-    /// The path to the spec file to use for this run. Or specify a name of a builtin spec to use.
-    /// If not specified, the generator will output a list of builtin specs along with help and
-    /// an example for writing your own.
-    #[clap(short = 's', long = "spec", env = "INFLUXDB3_LOAD_DATA_SPEC_PATH")]
-    pub(crate) spec_path: Option<String>,
-
     /// The name of the builtin spec to run. Use this instead of spec_path if you want to run
     /// one of the builtin specs as is.
     #[clap(long = "builtin-spec", env = "INFLUXDB3_LOAD_BUILTIN_SPEC")]
@@ -186,15 +180,41 @@ fn path_buf_to_string(path: PathBuf) -> Result<String, anyhow::Error> {
 }
 
 impl InfluxDb3Config {
-    pub(crate) async fn initialize(
+    pub(crate) async fn initialize_query(
+        self,
+        querier_spec_path: Option<PathBuf>,
+    ) -> Result<(Client, LoadConfig), anyhow::Error> {
+        self.initialize(LoadType::Query, querier_spec_path, None)
+            .await
+    }
+
+    pub(crate) async fn initialize_write(
+        self,
+        writer_spec_path: Option<PathBuf>,
+    ) -> Result<(Client, LoadConfig), anyhow::Error> {
+        self.initialize(LoadType::Write, None, writer_spec_path)
+            .await
+    }
+
+    pub(crate) async fn initialize_full(
+        self,
+        querier_spec_path: Option<PathBuf>,
+        writer_spec_path: Option<PathBuf>,
+    ) -> Result<(Client, LoadConfig), anyhow::Error> {
+        self.initialize(LoadType::Full, querier_spec_path, writer_spec_path)
+            .await
+    }
+
+    async fn initialize(
         self,
         load_type: LoadType,
+        querier_spec_path: Option<PathBuf>,
+        writer_spec_path: Option<PathBuf>,
     ) -> Result<(Client, LoadConfig), anyhow::Error> {
         let Self {
             host_url,
             database_name,
             auth_token,
-            spec_path,
             builtin_spec,
             print_spec,
             results_dir,
@@ -202,12 +222,21 @@ impl InfluxDb3Config {
             system_stats,
         } = self;
 
-        if spec_path.is_none() && builtin_spec.is_none() {
-            if matches!(load_type, LoadType::Write) {
-                // TODO - print help for query as well
-                crate::commands::write::print_help();
+        match (
+            builtin_spec.as_ref(),
+            load_type,
+            querier_spec_path.as_ref(),
+            writer_spec_path.as_ref(),
+        ) {
+            (None, LoadType::Write | LoadType::Full, _, None)
+            | (None, LoadType::Query | LoadType::Full, None, _) => {
+                if matches!(load_type, LoadType::Write) {
+                    // TODO - print help for query as well
+                    crate::commands::write::print_help();
+                }
+                bail!("You did not provide a spec path or specify a built-in spec");
             }
-            bail!("You did not provide a spec path or specify a built-in spec");
+            _ => (),
         }
 
         let built_in_specs = crate::specs::built_in_specs();
@@ -263,13 +292,13 @@ impl InfluxDb3Config {
         } else {
             match load_type {
                 LoadType::Write => {
-                    let spec = DataSpec::from_path(&spec_path.unwrap())?;
+                    let spec = DataSpec::from_path(writer_spec_path.unwrap())?;
                     let spec_name = spec.name.to_owned();
                     config.setup_dir(&spec_name, &config_name)?;
                     config.setup_write(&time_str, spec)?;
                 }
                 LoadType::Query => {
-                    let spec = QuerierSpec::from_path(&spec_path.unwrap())?;
+                    let spec = QuerierSpec::from_path(querier_spec_path.unwrap())?;
                     let spec_name = spec.name.to_owned();
                     config.setup_dir(&spec_name, &config_name)?;
                     config.setup_query(&time_str, spec)?;

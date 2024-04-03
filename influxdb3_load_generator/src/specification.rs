@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -14,7 +16,7 @@ pub struct DataSpec {
 }
 
 impl DataSpec {
-    pub fn from_path(path: &str) -> Result<Self, anyhow::Error> {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
         let contents = std::fs::read_to_string(path)?;
         let res = serde_json::from_str(&contents)?;
 
@@ -164,7 +166,7 @@ impl QuerierSpec {
         serde_json::to_string_pretty(self).context("failed to serialize query spec")
     }
 
-    pub(crate) fn from_path(path: &str) -> Result<Self, anyhow::Error> {
+    pub(crate) fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
         let contents = std::fs::read_to_string(path)?;
         serde_json::from_str(&contents).context("unable to serialize as JSON")
     }
