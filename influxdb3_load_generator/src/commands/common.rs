@@ -1,4 +1,4 @@
-use std::{fs::File, path::PathBuf};
+use std::{fs::File, path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, bail, Context};
 use chrono::Local;
@@ -7,7 +7,10 @@ use influxdb3_client::Client;
 use secrecy::{ExposeSecret, Secret};
 use url::Url;
 
-use crate::specification::{DataSpec, QuerierSpec};
+use crate::{
+    report::{QueryReporter, SystemStatsReporter, WriteReporter},
+    specification::{DataSpec, QuerierSpec},
+};
 
 #[derive(Debug, Parser)]
 pub(crate) struct InfluxDb3Config {
@@ -98,14 +101,14 @@ pub(crate) struct LoadConfig {
     /// If `true`, the configuration will initialize only to print out
     /// the spec as JSON, it will not create any files
     print_mode: bool,
-    pub(crate) write_spec: Option<DataSpec>,
-    pub(crate) write_results_file_path: Option<String>,
-    pub(crate) write_results_file: Option<File>,
-    pub(crate) query_spec: Option<QuerierSpec>,
-    pub(crate) query_results_file_path: Option<String>,
-    pub(crate) query_results_file: Option<File>,
-    pub(crate) system_stats_file_path: Option<String>,
-    pub(crate) system_stats_file: Option<File>,
+    write_spec: Option<DataSpec>,
+    write_results_file_path: Option<String>,
+    write_results_file: Option<File>,
+    query_spec: Option<QuerierSpec>,
+    query_results_file_path: Option<String>,
+    query_results_file: Option<File>,
+    system_stats_file_path: Option<String>,
+    system_stats_file: Option<File>,
 }
 
 impl LoadConfig {
@@ -170,6 +173,80 @@ impl LoadConfig {
         self.system_stats_file =
             Some(File::create_new(file_path).context("system stats file already exists")?);
         Ok(())
+    }
+
+    pub(crate) fn query_spec(&mut self) -> Result<QuerierSpec, anyhow::Error> {
+        self.query_spec
+            .take()
+            .context("there is no loaded query spec")
+    }
+
+    pub(crate) fn write_spec(&mut self) -> Result<DataSpec, anyhow::Error> {
+        self.write_spec
+            .take()
+            .context("there is no loaded write spec")
+    }
+
+    /// Get the [`QueryReporter`] along with the path of the file it is generating as a `String`
+    pub(crate) fn query_reporter(&mut self) -> Result<(String, Arc<QueryReporter>), anyhow::Error> {
+        let file = self
+            .query_results_file
+            .take()
+            .context("no generated query results file")?;
+        let path = self
+            .query_results_file_path
+            .take()
+            .context("no generated query results file path")?;
+
+        // set up a results reporter and spawn a thread to flush results
+        println!("generating query results in: {path}");
+        let query_reporter = Arc::new(QueryReporter::new(file));
+        let reporter = Arc::clone(&query_reporter);
+        tokio::task::spawn_blocking(move || {
+            reporter.flush_reports();
+        });
+        Ok((path, query_reporter))
+    }
+
+    /// Get the [`QueryReporter`] along with the path of the file it is generating as a `String`
+    pub(crate) fn write_reporter(&mut self) -> Result<(String, Arc<WriteReporter>), anyhow::Error> {
+        let file = self
+            .write_results_file
+            .take()
+            .context("no generated write results file")?;
+        let path = self
+            .write_results_file_path
+            .take()
+            .context("no generated write results file path")?;
+
+        // set up a results reporter and spawn a thread to flush results
+        println!("generating write results in: {path}");
+        let write_reporter = Arc::new(WriteReporter::new(file)?);
+        let reporter = Arc::clone(&write_reporter);
+        tokio::task::spawn_blocking(move || {
+            reporter.flush_reports();
+        });
+        Ok((path, write_reporter))
+    }
+
+    /// Get a [`SystemStatsReporter`] along with the path of the file it is generating as a `String`
+    pub(crate) fn system_reporter(
+        &mut self,
+    ) -> Result<Option<(String, Arc<SystemStatsReporter>)>, anyhow::Error> {
+        if let (Some(stats_file), Some(stats_file_path)) = (
+            self.system_stats_file.take(),
+            self.system_stats_file_path.take(),
+        ) {
+            println!("generating system stats in: {stats_file_path}");
+            let stats_reporter = Arc::new(SystemStatsReporter::new(stats_file)?);
+            let s = Arc::clone(&stats_reporter);
+            tokio::task::spawn_blocking(move || {
+                s.report_stats();
+            });
+            Ok(Some((stats_file_path, stats_reporter)))
+        } else {
+            Ok(None)
+        }
     }
 }
 

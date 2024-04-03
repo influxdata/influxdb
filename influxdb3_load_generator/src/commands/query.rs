@@ -9,7 +9,8 @@ use tokio::time::Instant;
 
 use crate::{
     query_generator::{create_queriers, Format, Querier},
-    report::{QueryReporter, SystemStatsReporter},
+    report::QueryReporter,
+    specification::QuerierSpec,
 };
 
 use super::common::InfluxDb3Config;
@@ -43,7 +44,7 @@ pub(crate) struct QueryConfig {
     /// generator will output a list of builtin specs along with help and an example for writing
     /// your own.
     #[clap(long = "querier-spec", env = "INFLUXDB3_LOAD_QUERIER_SPEC_PATH")]
-    querier_spec_path: Option<PathBuf>,
+    pub(crate) querier_spec_path: Option<PathBuf>,
 
     #[clap(
         long = "query-format",
@@ -54,53 +55,60 @@ pub(crate) struct QueryConfig {
     query_response_format: Format,
 }
 
-pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
+pub(crate) async fn command(mut config: Config) -> Result<(), anyhow::Error> {
+    let (client, mut load_config) = config
+        .common
+        .initialize_query(config.query.querier_spec_path.take())
+        .await?;
+    let spec = load_config.query_spec()?;
+    let (results_file_path, reporter) = load_config.query_reporter()?;
+
+    // spawn system stats collection
+    let stats = load_config.system_reporter()?;
+
+    run_query_load(
+        spec,
+        Arc::clone(&reporter),
+        client,
+        load_config.database_name,
+        config.query,
+    )
+    .await?;
+
+    reporter.shutdown();
+    println!("results saved in: {results_file_path}");
+
+    if let Some((stats_file_path, stats_reporter)) = stats {
+        println!("system stats saved in: {stats_file_path}");
+        stats_reporter.shutdown();
+    }
+
+    Ok(())
+}
+
+pub(crate) async fn run_query_load(
+    spec: QuerierSpec,
+    reporter: Arc<QueryReporter>,
+    client: influxdb3_client::Client,
+    database_name: String,
+    config: QueryConfig,
+) -> Result<(), anyhow::Error> {
     let QueryConfig {
         querier_count,
-        querier_spec_path,
         query_response_format,
-    } = config.query;
-
-    let (client, load_config) = config.common.initialize_query(querier_spec_path).await?;
-    let spec = load_config.query_spec.unwrap();
-    let results_file = load_config.query_results_file.unwrap();
-    let results_file_path = load_config.query_results_file_path.unwrap();
-
+        ..
+    } = config;
     // spin up the queriers
     let queriers = create_queriers(&spec, query_response_format, querier_count)?;
 
-    // set up a results reporter and spawn a thread to flush results
-    println!("generating results in: {results_file_path}");
-    let query_reporter = Arc::new(QueryReporter::new(results_file));
-    let reporter = Arc::clone(&query_reporter);
-    tokio::task::spawn_blocking(move || {
-        reporter.flush_reports();
-    });
-
-    // spawn system stats collection
-    let stats_reporter = if let (Some(stats_file), Some(stats_file_path)) = (
-        load_config.system_stats_file,
-        load_config.system_stats_file_path,
-    ) {
-        println!("generating system stats in: {stats_file_path}");
-        let stats_reporter = Arc::new(SystemStatsReporter::new(stats_file)?);
-        let s = Arc::clone(&stats_reporter);
-        tokio::task::spawn_blocking(move || {
-            s.report_stats();
-        });
-        Some((stats_file_path, stats_reporter))
-    } else {
-        None
-    };
-
-    // create a InfluxDB Client and spawn tasks for each querier
+    // spawn tasks for each querier
     let mut tasks = Vec::new();
     for querier in queriers {
-        let reporter = Arc::clone(&query_reporter);
+        let reporter = Arc::clone(&reporter);
         let task = tokio::spawn(run_querier(
             querier,
             client.clone(),
-            load_config.database_name.clone(),
+            database_name.clone(),
             reporter,
         ));
         tasks.push(task);
@@ -111,14 +119,6 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
         task.await?;
     }
     println!("all queriers finished");
-
-    query_reporter.shutdown();
-    println!("results saved in: {results_file_path}");
-
-    if let Some((stats_file_path, stats_reporter)) = stats_reporter {
-        println!("system stats saved in: {stats_file_path}");
-        stats_reporter.shutdown();
-    }
 
     Ok(())
 }

@@ -1,5 +1,6 @@
 use crate::line_protocol_generator::{create_generators, Generator};
-use crate::report::{SystemStatsReporter, WriteReporter};
+use crate::report::WriteReporter;
+use crate::specification::DataSpec;
 use anyhow::Context;
 use chrono::{DateTime, Local};
 use clap::Parser;
@@ -53,7 +54,7 @@ pub(crate) struct WriteConfig {
     /// generator will output a list of builtin specs along with help and an example for writing
     /// your own.
     #[clap(long = "writer-spec", env = "INFLUXDB3_LOAD_WRITER_SPEC_PATH")]
-    writer_spec_path: Option<PathBuf>,
+    pub(crate) writer_spec_path: Option<PathBuf>,
 
     /// Tells the generator to run a single sample for each writer in `writer-count` and output the data to stdout.
     #[clap(long = "dry-run", default_value = "false")]
@@ -110,19 +111,52 @@ enum SamplingIntervalError {
     Inner(#[from] humantime::DurationError),
 }
 
-pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
+pub(crate) async fn command(mut config: Config) -> Result<(), anyhow::Error> {
+    let (client, mut load_config) = config
+        .common
+        .initialize_write(config.write.writer_spec_path.take())
+        .await?;
+    let spec = load_config.write_spec()?;
+    let (results_file_path, reporter) = load_config.write_reporter()?;
+
+    // spawn system stats collection
+    let stats = load_config.system_reporter()?;
+
+    run_write_load(
+        spec,
+        Arc::clone(&reporter),
+        client,
+        load_config.database_name,
+        config.write,
+    )
+    .await?;
+
+    reporter.shutdown();
+    println!("results saved in: {results_file_path}");
+
+    if let Some((stats_file_path, stats_reporter)) = stats {
+        println!("system stats saved in: {stats_file_path}");
+        stats_reporter.shutdown();
+    }
+
+    Ok(())
+}
+
+pub(crate) async fn run_write_load(
+    spec: DataSpec,
+    reporter: Arc<WriteReporter>,
+    client: influxdb3_client::Client,
+    database_name: String,
+    config: WriteConfig,
+) -> Result<(), anyhow::Error> {
     let WriteConfig {
         sampling_interval,
         writer_count,
-        writer_spec_path,
         dry_run,
         start_time,
         end_time,
-    } = config.write;
-    let (client, load_config) = config.common.initialize_write(writer_spec_path).await?;
-    let spec = load_config.write_spec.unwrap();
-    let results_file = load_config.write_results_file.unwrap();
-    let results_file_path = load_config.write_results_file_path.unwrap();
+        ..
+    } = config;
 
     println!(
         "creating generators for {} concurrent writers",
@@ -144,7 +178,11 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
 
     let start_time = if let Some(start_time) = start_time {
         let start_time = parse_time_offset(&start_time, Local::now());
-        println!("starting writers from a start time of {:?}. Historical replay will happen as fast as possible until catching up to now or hitting the end time.", start_time);
+        println!(
+            "starting writers from a start time of {:?}. Historical replay will happen as \
+            fast as possible until catching up to now or hitting the end time.",
+            start_time
+        );
         Some(start_time)
     } else {
         None
@@ -162,41 +200,15 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
         None
     };
 
-    println!("generating results in: {results_file_path}");
-    let write_reporter =
-        Arc::new(WriteReporter::new(results_file).context("failed to create write reporter")?);
-
-    // blocking task to periodically flush the report to disk
-    let reporter = Arc::clone(&write_reporter);
-    tokio::task::spawn_blocking(move || {
-        reporter.flush_reports();
-    });
-
-    // spawn system stats collection
-    let stats_reporter = if let (Some(stats_file), Some(stats_file_path)) = (
-        load_config.system_stats_file,
-        load_config.system_stats_file_path,
-    ) {
-        println!("generating system stats in: {stats_file_path}");
-        let stats_reporter = Arc::new(SystemStatsReporter::new(stats_file)?);
-        let s = Arc::clone(&stats_reporter);
-        tokio::task::spawn_blocking(move || {
-            s.report_stats();
-        });
-        Some((stats_file_path, stats_reporter))
-    } else {
-        None
-    };
-
     // spawn tokio tasks for each writer
     let mut tasks = Vec::new();
     for generator in generators {
-        let reporter = Arc::clone(&write_reporter);
+        let reporter = Arc::clone(&reporter);
         let sampling_interval = sampling_interval.into();
         let task = tokio::spawn(run_generator(
             generator,
             client.clone(),
-            load_config.database_name.clone(),
+            database_name.clone(),
             reporter,
             sampling_interval,
             start_time,
@@ -210,14 +222,6 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
         task.await?;
     }
     println!("all writers finished");
-
-    write_reporter.shutdown();
-    println!("results saved in: {results_file_path}");
-
-    if let Some((stats_file_path, stats_reporter)) = stats_reporter {
-        println!("system stats saved in: {stats_file_path}");
-        stats_reporter.shutdown();
-    }
 
     Ok(())
 }
