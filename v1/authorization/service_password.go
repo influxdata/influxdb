@@ -58,11 +58,9 @@ func (s *Service) SetPassword(ctx context.Context, authID platform.ID, password 
 // Passwords that do not match return errors, as do too weak passwords
 func (s *Service) ComparePassword(ctx context.Context, authID platform.ID, password string) error {
 	err := s.comparePasswordNoStrengthCheck(ctx, authID, password)
-	if err == nil {
-		// If a password matches, but is too weak, force user to change
-		if err = tenant.IsPasswordStrong(password, s.strongPasswords); err != nil {
-			return eBase.Join(errors.EPasswordChangeRequired, err)
-		}
+	// If a password matches, but is too weak, force user to change
+	if errStrength := tenant.IsPasswordStrong(password, s.strongPasswords); err == nil && errStrength != nil {
+		return eBase.Join(errors.EPasswordChangeRequired, errStrength)
 	}
 	return err
 }

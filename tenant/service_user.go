@@ -217,13 +217,12 @@ func (s *UserSvc) SetPassword(ctx context.Context, userID platform.ID, password 
 
 func (s *UserSvc) ComparePassword(ctx context.Context, userID platform.ID, password string) error {
 	err := s.comparePasswordNoStrengthCheck(ctx, userID, password)
-	if err == nil {
-		// If a password matches, but is too weak, force user to change
-		if err = IsPasswordStrong(password, s.strongPasswords); err != nil {
-			return eBase.Join(errors.EPasswordChangeRequired, err)
-		}
+	// If a password matches, but is too weak, force user to change
+	if errStrength := IsPasswordStrong(password, s.strongPasswords); err == nil && errStrength != nil {
+		return eBase.Join(errors.EPasswordChangeRequired, errStrength)
+	} else {
+		return err
 	}
-	return err
 }
 
 // comparePasswordNoStrengthCheck checks if the password matches the password recorded.
