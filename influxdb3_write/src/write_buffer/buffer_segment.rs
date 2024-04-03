@@ -664,6 +664,7 @@ pub(crate) mod tests {
         // When we persist the data all of these duplicates should be removed
         let lp = "cpu,tag1=cupcakes bar=1 10\n\
                   cpu,tag1=cupcakes bar=1 10\n\
+                  cpu,tag1=something bar=5 10\n\
                   cpu,tag1=cupcakes bar=1 10\n\
                   mem,tag2=turtles bar=3 15\n\
                   cpu,tag1=cupcakes bar=1 10\n\
@@ -727,7 +728,7 @@ pub(crate) mod tests {
             cpu_parqet.path,
             ParquetFilePath::new_with_parititon_key("db1", "cpu", SEGMENT_KEY, 4).to_string()
         );
-        assert_eq!(cpu_parqet.row_count, 1);
+        assert_eq!(cpu_parqet.row_count, 2);
         assert_eq!(cpu_parqet.min_time, 10);
         assert_eq!(cpu_parqet.max_time, 10);
 
