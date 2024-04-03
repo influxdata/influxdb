@@ -18,7 +18,7 @@ pub struct TableBuffer {
     pub segment_key: PartitionKey,
     timestamp_min: i64,
     timestamp_max: i64,
-    data: BTreeMap<String, Builder>,
+    pub(crate) data: BTreeMap<String, Builder>,
     row_count: usize,
 }
 
@@ -207,7 +207,7 @@ impl std::fmt::Debug for TableBuffer {
     }
 }
 
-enum Builder {
+pub enum Builder {
     Bool(BooleanBuilder),
     I64(Int64Builder),
     F64(Float64Builder),

@@ -42,7 +42,7 @@ impl QueryChunk for BufferChunk {
     }
 
     fn may_contain_pk_duplicates(&self) -> bool {
-        false
+        true
     }
 
     fn data(&self) -> QueryChunkData {

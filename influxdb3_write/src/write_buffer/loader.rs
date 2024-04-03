@@ -187,7 +187,7 @@ mod tests {
         let catalog = Arc::new(catalog);
         let closed_buffer_segment = open_segment.into_closed_segment(Arc::clone(&catalog));
         closed_buffer_segment
-            .persist(Arc::clone(&persister))
+            .persist(Arc::clone(&persister), crate::test_help::make_exec(), None)
             .await
             .unwrap();
 
@@ -363,7 +363,7 @@ mod tests {
         let closed_segment = Arc::new(current_segment.into_closed_segment(Arc::clone(&catalog)));
 
         closed_segment
-            .persist(Arc::clone(&persister))
+            .persist(Arc::clone(&persister), crate::test_help::make_exec(), None)
             .await
             .unwrap();
 

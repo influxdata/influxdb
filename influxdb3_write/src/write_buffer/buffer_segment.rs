@@ -3,8 +3,10 @@
 //! given time.
 
 use crate::catalog::Catalog;
+use crate::chunk::BufferChunk;
 use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
+use crate::write_buffer::table_buffer::Builder;
 use crate::write_buffer::table_buffer::TableBuffer;
 use crate::write_buffer::{
     parse_validate_and_update_catalog, Error, TableBatch, ValidSegmentedData,
@@ -15,9 +17,17 @@ use crate::{
     TableParquetFiles, WalOp, WalSegmentReader, WalSegmentWriter,
 };
 use arrow::record_batch::RecordBatch;
+use data_types::ChunkId;
+use data_types::ChunkOrder;
+use data_types::TableId;
+use data_types::TransitionPartitionId;
 use data_types::{NamespaceName, PartitionKey};
 use datafusion_util::stream_from_batches;
+use iox_query::chunk_statistics::create_chunk_statistics;
+use iox_query::frontend::reorg::ReorgPlanner;
+use iox_query::QueryChunk;
 use iox_time::Time;
+use schema::sort::SortKey;
 use schema::Schema;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -340,7 +350,12 @@ impl ClosedBufferSegment {
         }
     }
 
-    pub(crate) async fn persist<P>(&self, persister: Arc<P>) -> Result<PersistedSegment>
+    pub(crate) async fn persist<P>(
+        &self,
+        persister: Arc<P>,
+        executor: Arc<iox_query::exec::Executor>,
+        sort_key: Option<SortKey>,
+    ) -> Result<PersistedSegment>
     where
         P: Persister,
         write_buffer::Error: From<<P as Persister>::Error>,
@@ -372,10 +387,80 @@ impl ClosedBufferSegment {
                             sort_key: vec![],
                         };
 
-                        let time_min_max = table_buffer.timestamp_min_max();
+                        // All of the record batches for this table that we will
+                        // want to dedupe
+                        let batches = table_buffer.record_batches(table.schema());
+                        let row_count = batches.iter().map(|b| b.num_rows()).sum();
 
-                        // persist every table buffer
-                        let data = table_buffer.record_batches(table.schema());
+                        // Dedupe and sort using the COMPACT query built into
+                        // iox_query
+                        let mut chunks: Vec<Arc<dyn QueryChunk>> = vec![];
+                        let time_min_max = table_buffer.timestamp_min_max();
+                        let schema = table.schema();
+
+                        let chunk_stats = create_chunk_statistics(
+                            Some(row_count),
+                            schema,
+                            Some(time_min_max),
+                            None,
+                        );
+
+                        chunks.push(Arc::new(BufferChunk {
+                            batches,
+                            schema: schema.clone(),
+                            stats: Arc::new(chunk_stats),
+                            partition_id: TransitionPartitionId::new(
+                                TableId::new(0),
+                                &self.segment_key,
+                            ),
+                            sort_key: None,
+                            id: ChunkId::new(),
+                            chunk_order: ChunkOrder::new(
+                                chunks
+                                    .len()
+                                    .try_into()
+                                    .expect("should never have this many chunks"),
+                            ),
+                        }));
+
+                        let ctx = executor.new_context();
+
+                        let sort_key = match sort_key.as_ref() {
+                            Some(key) => key.clone(),
+                            // Default to using tags sorted in lexographical
+                            // order as the sort key
+                            None => {
+                                let mut tags = table_buffer
+                                    .data
+                                    .iter()
+                                    .filter(|(_, v)| matches!(v, Builder::Tag(_)))
+                                    .map(|(k, _)| k)
+                                    .cloned()
+                                    .collect::<Vec<String>>();
+                                tags.sort();
+                                SortKey::from(tags)
+                            }
+                        };
+
+                        let logical_plan = ReorgPlanner::new()
+                            .compact_plan(
+                                Arc::from(table_name.clone()),
+                                table.schema(),
+                                chunks,
+                                sort_key,
+                            )
+                            .unwrap();
+
+                        // Build physical plan
+                        let physical_plan = ctx.create_physical_plan(&logical_plan).await.unwrap();
+
+                        // Execute the plan and return compacted record batches
+                        let data = ctx.collect(physical_plan).await.unwrap();
+
+                        // Get the new row count before turning it into a
+                        // stream. We couldn't turn the data directly into a
+                        // stream since we needed the row count for
+                        // `ParquetFile` below
                         let row_count = data.iter().map(|b| b.num_rows()).sum::<usize>();
 
                         let batch_stream = stream_from_batches(table.schema().as_arrow(), data);
@@ -576,7 +661,19 @@ pub(crate) mod tests {
 
         let catalog = Catalog::new();
 
-        let lp = "cpu,tag1=cupcakes bar=1 10\nmem,tag2=turtles bar=3 15\nmem,tag2=snakes bar=2 20";
+        // When we persist the data all of these duplicates should be removed
+        let lp = "cpu,tag1=cupcakes bar=1 10\n\
+                  cpu,tag1=cupcakes bar=1 10\n\
+                  cpu,tag1=something bar=5 10\n\
+                  cpu,tag1=cupcakes bar=1 10\n\
+                  mem,tag2=turtles bar=3 15\n\
+                  cpu,tag1=cupcakes bar=1 10\n\
+                  cpu,tag1=cupcakes bar=1 10\n\
+                  mem,tag2=turtles bar=3 15\n\
+                  mem,tag2=turtles bar=3 15\n\
+                  mem,tag2=snakes bar=2 20\n\
+                  mem,tag2=turtles bar=3 15\n\
+                  mem,tag2=turtles bar=3 15";
 
         let wal_op = WalOp::LpWrite(LpWriteOp {
             db_name: "db1".to_string(),
@@ -594,7 +691,7 @@ pub(crate) mod tests {
 
         let persister = Arc::new(TestPersister::default());
         closed_buffer_segment
-            .persist(Arc::clone(&persister))
+            .persist(Arc::clone(&persister), crate::test_help::make_exec(), None)
             .await
             .unwrap();
 
@@ -631,7 +728,7 @@ pub(crate) mod tests {
             cpu_parqet.path,
             ParquetFilePath::new_with_parititon_key("db1", "cpu", SEGMENT_KEY, 4).to_string()
         );
-        assert_eq!(cpu_parqet.row_count, 1);
+        assert_eq!(cpu_parqet.row_count, 2);
         assert_eq!(cpu_parqet.min_time, 10);
         assert_eq!(cpu_parqet.max_time, 10);
 

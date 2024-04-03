@@ -244,6 +244,7 @@ pub async fn command(config: Config) -> Result<()> {
             wal,
             Arc::clone(&time_provider),
             config.segment_duration,
+            Arc::clone(&exec),
         )
         .await?,
     );

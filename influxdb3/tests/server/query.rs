@@ -80,7 +80,7 @@ async fn api_v3_query_sql_params() {
             .post(&url)
             .json(&json!({
                 "db": "foo",
-                "q": "SELECT host, region, time, usage FROM cpu WHERE host = $host AND usage > $usage",
+                "q": "SELECT host, region, time, usage FROM cpu WHERE host = $host AND usage > $usage ORDER BY time",
                 "params": {
                     "host": "b",
                     "usage": 0.60,
@@ -118,7 +118,7 @@ async fn api_v3_query_sql_params() {
                 ("db", "foo"),
                 (
                     "q",
-                    "SELECT host, region, time, usage FROM cpu WHERE host = $host AND usage > $usage",
+                    "SELECT host, region, time, usage FROM cpu WHERE host = $host AND usage > $usage ORDER BY time",
                 ),
                 ("format", "pretty"),
                 ("params", params.as_str()),
