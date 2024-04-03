@@ -3,7 +3,8 @@ package tenant
 import (
 	"context"
 	eBase "errors"
-	"regexp"
+	"strings"
+	"unicode"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -276,13 +277,14 @@ func encryptPassword(password string) (string, error) {
 	return string(passHash), nil
 }
 
-var classRegexes []*regexp.Regexp = []*regexp.Regexp{
-	regexp.MustCompile(`[[:lower:]]`),
-	regexp.MustCompile(`[[:upper:]]`),
-	regexp.MustCompile(`[[:digit:]]`),
-	regexp.MustCompile(`[` + errors.SpecialChars + `]`),
+var classes []func(rune) bool = []func(rune) bool{
+	unicode.IsNumber,
+	unicode.IsUpper,
+	unicode.IsLower,
+	func(r rune) bool { return strings.ContainsRune(errors.SpecialChars, r) },
 }
 
+// IsPasswordStrong checks if a password is strong enough.
 func IsPasswordStrong(password string, doCheck bool) error {
 	const numClassesRequired = 3
 	var eSlice []error = nil
@@ -291,9 +293,17 @@ func IsPasswordStrong(password string, doCheck bool) error {
 		eSlice = append(eSlice, errors.EPasswordLength)
 	}
 	if doCheck {
+		// make a password copy that is the length of the max password length
+		constLenPassword := strings.Repeat(password, 1+(errors.MaxPasswordLen/len(password)))[:errors.MaxPasswordLen]
 		n := 0
-		for r := range classRegexes {
-			if classRegexes[r].MatchString(password) {
+
+		// Walk the whole string for each class, for constant time operation
+		for _, f := range classes {
+			found := false
+			for _, r := range constLenPassword {
+				found = f(r) || found
+			}
+			if found {
 				n++
 			}
 		}
