@@ -6,6 +6,7 @@ use crate::catalog::Catalog;
 use crate::chunk::BufferChunk;
 use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
+use crate::write_buffer::table_buffer::Builder;
 use crate::write_buffer::table_buffer::TableBuffer;
 use crate::write_buffer::{
     parse_validate_and_update_catalog, Error, TableBatch, ValidSegmentedData,
@@ -424,12 +425,29 @@ impl ClosedBufferSegment {
 
                         let ctx = executor.new_context();
 
+                        let sort_key = match sort_key.as_ref() {
+                            Some(key) => key.clone(),
+                            // Default to using tags sorted in lexographical
+                            // order as the sort key
+                            None => {
+                                let mut tags = table_buffer
+                                    .data
+                                    .iter()
+                                    .filter(|(_, v)| matches!(v, Builder::Tag(_)))
+                                    .map(|(k, _)| k)
+                                    .cloned()
+                                    .collect::<Vec<String>>();
+                                tags.sort();
+                                SortKey::from(tags)
+                            }
+                        };
+
                         let logical_plan = ReorgPlanner::new()
                             .compact_plan(
                                 Arc::from(table_name.clone()),
                                 table.schema(),
                                 chunks,
-                                sort_key.clone().unwrap_or_else(|| SortKey::from(vec![])),
+                                sort_key,
                             )
                             .unwrap();
 
