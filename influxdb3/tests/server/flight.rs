@@ -60,7 +60,7 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
     // Prepared query:
     {
         let handle = client
-            .prepare("SELECT host, region, time, usage FROM cpu".into())
+            .prepare("SELECT host, region, time, usage FROM cpu".into(), None)
             .await
             .unwrap();
         let stream = client.execute(handle).await.unwrap();
