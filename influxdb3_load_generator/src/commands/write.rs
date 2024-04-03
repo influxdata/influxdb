@@ -15,11 +15,18 @@ use super::common::InfluxDb3Config;
 
 #[derive(Debug, Parser)]
 #[clap(visible_alias = "w", trailing_var_arg = true)]
-pub struct Config {
+pub(crate) struct Config {
     /// Common InfluxDB 3.0 config
     #[clap(flatten)]
-    influxdb3_config: InfluxDb3Config,
+    common: InfluxDb3Config,
 
+    /// Write-specific config:
+    #[clap(flatten)]
+    write: WriteConfig,
+}
+
+#[derive(Debug, Parser)]
+pub(crate) struct WriteConfig {
     /// Sampling interval for the writers. They will generate data at this interval and
     /// sleep for the remainder of the interval. Writers stagger writes by this interval divided
     /// by the number of writers.
@@ -56,15 +63,15 @@ pub struct Config {
     ///
     /// Can be an exact datetime like `2020-01-01T01:23:45-05:00` or a fuzzy
     /// specification like `1 hour` in the past. If not specified, defaults to now.
-    #[clap(long, action)]
-    start: Option<String>,
+    #[clap(long = "start", action)]
+    start_time: Option<String>,
 
     /// The date and time at which to stop the timestamps of the generated data.
     ///
     /// Can be an exact datetime like `2020-01-01T01:23:45-05:00` or a fuzzy
     /// specification like `1 hour` in the future. If not specified, data will continue generating forever.
-    #[clap(long, action)]
-    end: Option<String>,
+    #[clap(long = "end", action)]
+    end_time: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -104,23 +111,28 @@ enum SamplingIntervalError {
 }
 
 pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
-    let (client, load_config) = config
-        .influxdb3_config
-        .initialize_write(config.writer_spec_path)
-        .await?;
+    let WriteConfig {
+        sampling_interval,
+        writer_count,
+        writer_spec_path,
+        dry_run,
+        start_time,
+        end_time,
+    } = config.write;
+    let (client, load_config) = config.common.initialize_write(writer_spec_path).await?;
     let spec = load_config.write_spec.unwrap();
     let results_file = load_config.write_results_file.unwrap();
     let results_file_path = load_config.write_results_file_path.unwrap();
 
     println!(
         "creating generators for {} concurrent writers",
-        config.writer_count
+        writer_count
     );
     let mut generators =
-        create_generators(&spec, config.writer_count).context("failed to create generators")?;
+        create_generators(&spec, writer_count).context("failed to create generators")?;
 
     // if dry run is set, output from each generator its id and then a single sample
-    if config.dry_run {
+    if dry_run {
         println!("running dry run for each writer\n");
         for g in &mut generators {
             let t = Local::now();
@@ -130,7 +142,7 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
         return Ok(());
     }
 
-    let start_time = if let Some(start_time) = config.start {
+    let start_time = if let Some(start_time) = start_time {
         let start_time = parse_time_offset(&start_time, Local::now());
         println!("starting writers from a start time of {:?}. Historical replay will happen as fast as possible until catching up to now or hitting the end time.", start_time);
         Some(start_time)
@@ -138,14 +150,14 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
         None
     };
 
-    let end_time = if let Some(end_time) = config.end {
+    let end_time = if let Some(end_time) = end_time {
         let end_time = parse_time_offset(&end_time, Local::now());
         println!("ending at {:?}", end_time);
         Some(end_time)
     } else {
         println!(
             "running indefinitely with each writer sending a request every {}",
-            config.sampling_interval
+            sampling_interval
         );
         None
     };
@@ -180,7 +192,7 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
     let mut tasks = Vec::new();
     for generator in generators {
         let reporter = Arc::clone(&write_reporter);
-        let sampling_interval = config.sampling_interval.into();
+        let sampling_interval = sampling_interval.into();
         let task = tokio::spawn(run_generator(
             generator,
             client.clone(),

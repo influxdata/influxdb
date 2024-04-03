@@ -19,8 +19,15 @@ use super::common::InfluxDb3Config;
 pub(crate) struct Config {
     /// Common InfluxDB 3.0 config
     #[clap(flatten)]
-    influxdb3_config: InfluxDb3Config,
+    common: InfluxDb3Config,
 
+    /// Query-specific config
+    #[clap(flatten)]
+    query: QueryConfig,
+}
+
+#[derive(Debug, Parser)]
+pub(crate) struct QueryConfig {
     /// Number of simultaneous queriers. Each querier will perform queries at the specified `interval`.
     #[clap(
         short = 'q',
@@ -48,16 +55,19 @@ pub(crate) struct Config {
 }
 
 pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
-    let (client, load_config) = config
-        .influxdb3_config
-        .initialize_query(config.querier_spec_path)
-        .await?;
+    let QueryConfig {
+        querier_count,
+        querier_spec_path,
+        query_response_format,
+    } = config.query;
+
+    let (client, load_config) = config.common.initialize_query(querier_spec_path).await?;
     let spec = load_config.query_spec.unwrap();
     let results_file = load_config.query_results_file.unwrap();
     let results_file_path = load_config.query_results_file_path.unwrap();
 
     // spin up the queriers
-    let queriers = create_queriers(&spec, config.query_response_format, config.querier_count)?;
+    let queriers = create_queriers(&spec, query_response_format, querier_count)?;
 
     // set up a results reporter and spawn a thread to flush results
     println!("generating results in: {results_file_path}");
