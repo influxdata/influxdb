@@ -1,7 +1,7 @@
-use std::{fs::File, path::PathBuf, sync::Arc};
+use std::{fs::File, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail, Context};
-use chrono::Local;
+use chrono::{DateTime, Local};
 use clap::Parser;
 use influxdb3_client::Client;
 use secrecy::{ExposeSecret, Secret};
@@ -79,6 +79,41 @@ pub(crate) struct InfluxDb3Config {
     /// Generate a system stats file in the specified `results_dir`
     #[clap(long = "system-stats", default_value_t = false)]
     pub(crate) system_stats: bool,
+
+    /// Provide an end time to stop the load generation.
+    ///
+    /// This can be a human readable offset, e.g., `10m` (10 minutes), `1h` (1 hour), etc., or an
+    /// exact date-time in RFC3339 form, e.g., `2023-10-30T19:10:00-04:00`.
+    #[clap(long = "end")]
+    pub(crate) end_time: Option<FutureOffsetTime>,
+}
+
+/// A time in the future
+///
+/// Wraps a [`DateTime`], providing a custom [`FromStr`] implementation that parses human
+/// time input and converts it to a date-time in the future.
+#[derive(Debug, Clone, Copy)]
+pub struct FutureOffsetTime(DateTime<Local>);
+
+impl FromStr for FutureOffsetTime {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(t) = humantime::parse_rfc3339_weak(s) {
+            Ok(Self(DateTime::<Local>::from(t)))
+        } else {
+            humantime::parse_duration(s)
+                .map(|d| Local::now() + d)
+                .map(Self)
+                .with_context(|| format!("could not parse future offset time value: {s}"))
+        }
+    }
+}
+
+impl From<FutureOffsetTime> for DateTime<Local> {
+    fn from(t: FutureOffsetTime) -> Self {
+        t.0
+    }
 }
 
 /// Can run the load generation tool exclusively in either `query` or `write` mode, or
@@ -96,6 +131,8 @@ pub(crate) enum LoadType {
 pub(crate) struct LoadConfig {
     /// The target database name on the `influxdb3` server
     pub(crate) database_name: String,
+    /// The end time of the load generation run
+    pub(crate) end_time: Option<DateTime<Local>>,
     /// The directory that will store generated results files
     results_dir: PathBuf,
     /// If `true`, the configuration will initialize only to print out
@@ -113,11 +150,23 @@ pub(crate) struct LoadConfig {
 
 impl LoadConfig {
     /// Create a new [`LoadConfig`]
-    fn new(database_name: String, results_dir: PathBuf, print_mode: bool) -> Self {
+    fn new(
+        database_name: String,
+        results_dir: PathBuf,
+        end_time: Option<impl Into<DateTime<Local>>>,
+        print_mode: bool,
+    ) -> Self {
+        let end_time: Option<DateTime<Local>> = end_time.map(Into::into);
+        if let Some(t) = end_time {
+            println!("running load generation until: {t}");
+        } else {
+            println!("running load generation indefinitely");
+        }
         Self {
             database_name,
             results_dir,
             print_mode,
+            end_time,
             ..Default::default()
         }
     }
@@ -297,6 +346,7 @@ impl InfluxDb3Config {
             results_dir,
             configuration_name,
             system_stats,
+            end_time,
         } = self;
 
         match (
@@ -338,7 +388,7 @@ impl InfluxDb3Config {
         };
 
         // initialize the load config:
-        let mut config = LoadConfig::new(database_name, results_dir, print_spec);
+        let mut config = LoadConfig::new(database_name, results_dir, end_time, print_spec);
 
         // if builtin spec is set, use that instead of the spec path
         if let Some(b) = builtin_spec {

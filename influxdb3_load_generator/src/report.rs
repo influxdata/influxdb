@@ -153,6 +153,10 @@ impl WriteReporter {
 
             csv_writer.flush().expect("failed to flush csv reports");
 
+            if *self.shutdown.lock() {
+                return;
+            }
+
             if console_stats.last_console_output_time.elapsed() > CONSOLE_REPORT_INTERVAL {
                 let elapsed_millis = console_stats.last_console_output_time.elapsed().as_millis();
 
@@ -165,10 +169,6 @@ impl WriteReporter {
                 );
 
                 console_stats = ConsoleReportStats::new();
-            }
-
-            if *self.shutdown.lock() {
-                return;
             }
 
             std::thread::sleep(REPORT_FLUSH_INTERVAL);
@@ -280,6 +280,10 @@ impl QueryReporter {
             }
             csv_writer.flush().expect("failed to flush csv reports");
 
+            if *self.shutdown.lock() {
+                return;
+            }
+
             if console_stats.last_console_output_time.elapsed() > CONSOLE_REPORT_INTERVAL {
                 let elapsed_millis = console_stats.last_console_output_time.elapsed().as_millis();
 
@@ -291,10 +295,6 @@ impl QueryReporter {
                 );
 
                 console_stats = QueryConsoleStats::new();
-            }
-
-            if *self.shutdown.lock() {
-                return;
             }
 
             std::thread::sleep(REPORT_FLUSH_INTERVAL);

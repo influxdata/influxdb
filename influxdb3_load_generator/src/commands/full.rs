@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use anyhow::Context;
 use clap::Parser;
+use tokio::task::JoinSet;
 
 use crate::commands::{query::run_query_load, write::run_write_load};
 
@@ -35,17 +35,20 @@ pub(crate) async fn command(mut config: Config) -> Result<(), anyhow::Error> {
     let stats = load_config.system_reporter()?;
     let database_name = load_config.database_name.clone();
 
+    let mut tasks = JoinSet::new();
+
     // setup query load:
     let query_spec = load_config.query_spec()?;
     let (query_results_file_path, query_reporter) = load_config.query_reporter()?;
     let qr = Arc::clone(&query_reporter);
     let query_client = client.clone();
-    let query_handle = tokio::spawn(async move {
+    tasks.spawn(async move {
         run_query_load(
             query_spec,
             qr,
             query_client,
             database_name.clone(),
+            load_config.end_time,
             config.query,
         )
         .await
@@ -55,22 +58,21 @@ pub(crate) async fn command(mut config: Config) -> Result<(), anyhow::Error> {
     let write_spec = load_config.write_spec()?;
     let (write_results_file_path, write_reporter) = load_config.write_reporter()?;
     let wr = Arc::clone(&write_reporter);
-    let write_handle = tokio::spawn(async move {
+    tasks.spawn(async move {
         run_write_load(
             write_spec,
             wr,
             client,
             load_config.database_name,
+            load_config.end_time,
             config.write,
         )
         .await
     });
 
-    let (query_task, write_task) = tokio::try_join!(query_handle, write_handle)
-        .context("failed to join query and write tasks")?;
-
-    query_task?;
-    write_task?;
+    while let Some(res) = tasks.join_next().await {
+        res??;
+    }
 
     write_reporter.shutdown();
     println!("write results saved in: {write_results_file_path}");
