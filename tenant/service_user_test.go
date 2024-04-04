@@ -2,11 +2,14 @@ package tenant_test
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	influx_errors "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
@@ -44,6 +47,80 @@ func initUserService(s kv.Store, f influxdbtesting.UserFields, t *testing.T) (in
 	}
 }
 
+func TestPasswordStrengthChecker(t *testing.T) {
+	tests := []struct {
+		testName      string
+		password      string
+		checkPassword bool
+		want          []error
+	}{
+		{
+			testName:      "valid password",
+			password:      "Password123",
+			checkPassword: true,
+			want:          nil,
+		},
+		{
+			testName:      "valid password with specials hardened",
+			password:      "[]*()&&Tord123",
+			checkPassword: true,
+			want:          nil,
+		},
+		{
+			testName:      "too short",
+			password:      "1aS*",
+			checkPassword: false,
+			want:          []error{influx_errors.EPasswordLength},
+		},
+		{
+			testName:      "too short hardened",
+			password:      "1aS*",
+			checkPassword: true,
+			want:          []error{influx_errors.EPasswordLength},
+		},
+		{
+			testName:      "too short and too few classes hardened",
+			password:      "admin",
+			checkPassword: true,
+			want:          []error{influx_errors.EPasswordLength, influx_errors.EPasswordChars},
+		},
+		{
+			testName:      "too long",
+			password:      strings.Repeat("Aa$3456789", 8),
+			checkPassword: false,
+			want:          []error{influx_errors.EPasswordLength},
+		},
+		{
+			testName:      "too long hardened",
+			password:      strings.Repeat("Aa$3456789", 8),
+			checkPassword: true,
+			want:          []error{influx_errors.EPasswordLength},
+		},
+		{
+			testName:      "too long and too few classes",
+			password:      strings.Repeat("A123456789", 8),
+			checkPassword: false,
+			want:          []error{influx_errors.EPasswordLength},
+		},
+		{
+			testName:      "too long and too few classes hardened",
+			password:      strings.Repeat("A123456789", 8),
+			checkPassword: true,
+			want:          []error{influx_errors.EPasswordLength, influx_errors.EPasswordChars},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			err := tenant.IsPasswordStrong(tt.password, tt.checkPassword)
+			for _, want := range tt.want {
+				if !errors.Is(err, want) {
+					t.Errorf("expected %v, got %v", tt.want, err)
+				}
+			}
+		})
+	}
+}
+
 func TestBoltPasswordService(t *testing.T) {
 	influxdbtesting.PasswordsService(initBoltPasswordsService, t)
 }
@@ -59,7 +136,7 @@ func initBoltPasswordsService(f influxdbtesting.PasswordFields, t *testing.T) (i
 
 func initPasswordsService(s kv.Store, f influxdbtesting.PasswordFields, t *testing.T) (influxdb.PasswordsService, func()) {
 	storage := tenant.NewStore(s)
-	svc := tenant.NewService(storage)
+	svc := tenant.NewService(storage, tenant.WithPasswordChecking(false))
 
 	for _, u := range f.Users {
 		if err := svc.CreateUser(context.Background(), u); err != nil {
@@ -73,6 +150,7 @@ func initPasswordsService(s kv.Store, f influxdbtesting.PasswordFields, t *testi
 		}
 	}
 
+	svc.SetUserOptions(tenant.WithPasswordChecking(true))
 	return svc, func() {
 		for _, u := range f.Users {
 			if err := svc.DeleteUser(context.Background(), u.ID); err != nil {
