@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/influxdata/influxdb/v2/v1/authorization/mocks"
 	"github.com/stretchr/testify/assert"
@@ -96,7 +97,7 @@ func TestAuthorizer_Authorize(t *testing.T) {
 			pw := mocks.NewMockPasswordComparer(ctrl)
 			pw.EXPECT().
 				ComparePassword(ctx, authID, token).
-				Return(EIncorrectPassword)
+				Return(errors.EIncorrectPassword)
 
 			authz := Authorizer{
 				AuthV1:   v1,

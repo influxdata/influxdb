@@ -259,7 +259,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.reg.MustRegister(infprom.NewInfluxCollector(procID, info))
 
 	tenantStore := tenant.NewStore(m.kvStore)
-	ts := tenant.NewSystem(tenantStore, m.log.With(zap.String("store", "new")), m.reg, metric.WithSuffix("new"))
+	ts := tenant.NewSystem(tenantStore, m.log.With(zap.String("store", "new")), m.reg, opts.StrongPasswords, metric.WithSuffix("new"))
 
 	serviceConfig := kv.ServiceConfig{
 		FluxLanguageService: fluxlang.DefaultService,
@@ -644,7 +644,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			return err
 		}
 
-		authSvcV1 = authv1.NewService(authStore, ts)
+		authSvcV1 = authv1.NewService(authStore, ts, authv1.WithPasswordChecking(opts.StrongPasswords))
 		passwordV1 = authv1.NewCachingPasswordsService(authSvcV1)
 	}
 
