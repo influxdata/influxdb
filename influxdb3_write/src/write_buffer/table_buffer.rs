@@ -188,7 +188,12 @@ impl TableBuffer {
         let mut cols = Vec::with_capacity(self.data.len());
         let schema = schema.as_arrow();
         for f in &schema.fields {
-            cols.push(self.data.get(f.name()).unwrap().as_arrow());
+            cols.push(
+                self.data
+                    .get(f.name())
+                    .unwrap_or_else(|| panic!("missing field in table buffer: {}", f.name()))
+                    .as_arrow(),
+            );
         }
 
         vec![RecordBatch::try_new(schema, cols).unwrap()]

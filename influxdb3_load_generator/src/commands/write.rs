@@ -66,13 +66,6 @@ pub(crate) struct WriteConfig {
     /// specification like `1 hour` in the past. If not specified, defaults to now.
     #[clap(long = "start", action)]
     start_time: Option<String>,
-
-    /// The date and time at which to stop the timestamps of the generated data.
-    ///
-    /// Can be an exact datetime like `2020-01-01T01:23:45-05:00` or a fuzzy
-    /// specification like `1 hour` in the future. If not specified, data will continue generating forever.
-    #[clap(long = "end", action)]
-    end_time: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -127,6 +120,7 @@ pub(crate) async fn command(mut config: Config) -> Result<(), anyhow::Error> {
         Arc::clone(&reporter),
         client,
         load_config.database_name,
+        load_config.end_time,
         config.write,
     )
     .await?;
@@ -147,6 +141,7 @@ pub(crate) async fn run_write_load(
     reporter: Arc<WriteReporter>,
     client: influxdb3_client::Client,
     database_name: String,
+    end_time: Option<DateTime<Local>>,
     config: WriteConfig,
 ) -> Result<(), anyhow::Error> {
     let WriteConfig {
@@ -154,7 +149,6 @@ pub(crate) async fn run_write_load(
         writer_count,
         dry_run,
         start_time,
-        end_time,
         ..
     } = config;
 
@@ -185,18 +179,6 @@ pub(crate) async fn run_write_load(
         );
         Some(start_time)
     } else {
-        None
-    };
-
-    let end_time = if let Some(end_time) = end_time {
-        let end_time = parse_time_offset(&end_time, Local::now());
-        println!("ending at {:?}", end_time);
-        Some(end_time)
-    } else {
-        println!(
-            "running indefinitely with each writer sending a request every {}",
-            sampling_interval
-        );
         None
     };
 

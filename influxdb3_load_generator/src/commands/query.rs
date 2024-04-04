@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use bytes::Bytes;
-use chrono::Local;
+use chrono::{DateTime, Local};
 use clap::Parser;
 use influxdb3_client::Client;
 use serde_json::Value;
@@ -71,6 +71,7 @@ pub(crate) async fn command(mut config: Config) -> Result<(), anyhow::Error> {
         Arc::clone(&reporter),
         client,
         load_config.database_name,
+        load_config.end_time,
         config.query,
     )
     .await?;
@@ -91,6 +92,7 @@ pub(crate) async fn run_query_load(
     reporter: Arc<QueryReporter>,
     client: influxdb3_client::Client,
     database_name: String,
+    end_time: Option<DateTime<Local>>,
     config: QueryConfig,
 ) -> Result<(), anyhow::Error> {
     let QueryConfig {
@@ -109,6 +111,7 @@ pub(crate) async fn run_query_load(
             querier,
             client.clone(),
             database_name.clone(),
+            end_time,
             reporter,
         ));
         tasks.push(task);
@@ -127,9 +130,18 @@ async fn run_querier(
     mut querier: Querier,
     client: Client,
     database_name: String,
+    end_time: Option<DateTime<Local>>,
     reporter: Arc<QueryReporter>,
 ) {
     loop {
+        if end_time.is_some_and(|t| Local::now() > t) {
+            println!(
+                "querier {id} completed at {time}",
+                id = querier.querier_id,
+                time = Local::now()
+            );
+            break;
+        }
         for query in &mut querier.queries {
             let start_request = Instant::now();
             let mut builder = client
