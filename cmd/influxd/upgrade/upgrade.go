@@ -634,7 +634,7 @@ func newInfluxDBv2(ctx context.Context, opts *optionsV2, log *zap.Logger) (svc *
 
 	// Create Tenant service (orgs, buckets, )
 	svc.tenantStore = tenant.NewStore(svc.kvStore)
-	svc.ts = tenant.NewSystem(svc.tenantStore, log.With(zap.String("store", "new")), reg, metric.WithSuffix("new"))
+	svc.ts = tenant.NewSystem(svc.tenantStore, log.With(zap.String("store", "new")), reg, false, metric.WithSuffix("new"))
 
 	svc.meta = meta.NewClient(meta.NewConfig(), svc.kvStore)
 	if err := svc.meta.Open(); err != nil {

@@ -28,6 +28,8 @@ func isInternal(ctx context.Context) bool {
 
 type Service struct {
 	store *Store
+	// Store raw version (not interface) for test purposes.
+	userSvc *UserSvc
 	influxdb.UserService
 	influxdb.PasswordsService
 	influxdb.UserResourceMappingService
@@ -44,11 +46,11 @@ func (s *Service) RUnlock() {
 }
 
 // NewService creates a new base tenant service.
-func NewService(st *Store) *Service {
+func NewService(st *Store, UserSvcOptFns ...func(svc *UserSvc)) *Service {
 	svc := &Service{store: st}
-	userSvc := NewUserSvc(st, svc)
-	svc.UserService = userSvc
-	svc.PasswordsService = userSvc
+	svc.userSvc = NewUserSvc(st, svc, UserSvcOptFns...)
+	svc.UserService = svc.userSvc
+	svc.PasswordsService = svc.userSvc
 	svc.UserResourceMappingService = NewUserResourceMappingSvc(st, svc)
 	svc.OrganizationService = NewOrganizationSvc(st, svc)
 	svc.BucketService = NewBucketSvc(st, svc)
@@ -56,9 +58,13 @@ func NewService(st *Store) *Service {
 	return svc
 }
 
+func (s *Service) SetUserOptions(opts ...func(*UserSvc)) {
+	s.userSvc.SetOptions(opts...)
+}
+
 // creates a new Service with logging and metrics middleware wrappers.
-func NewSystem(store *Store, log *zap.Logger, reg prometheus.Registerer, metricOpts ...metric.ClientOptFn) *Service {
-	ts := NewService(store)
+func NewSystem(store *Store, log *zap.Logger, reg prometheus.Registerer, strongPasswords bool, metricOpts ...metric.ClientOptFn) *Service {
+	ts := NewService(store, WithPasswordChecking(strongPasswords))
 	ts.UserService = NewUserLogger(log, NewUserMetrics(reg, ts.UserService, metricOpts...))
 	ts.PasswordsService = NewPasswordLogger(log, NewPasswordMetrics(reg, ts.PasswordsService, metricOpts...))
 	ts.UserResourceMappingService = NewURMLogger(log, NewUrmMetrics(reg, ts.UserResourceMappingService, metricOpts...))
