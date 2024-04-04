@@ -156,6 +156,8 @@ pub(crate) async fn run_write_load(
         "creating generators for {} concurrent writers",
         writer_count
     );
+    println!("each writer will send a write request every {sampling_interval}");
+
     let mut generators =
         create_generators(&spec, writer_count).context("failed to create generators")?;
 
@@ -288,10 +290,7 @@ async fn run_generator(
         let now = Local::now();
         if let Some(end_time) = end_time {
             if now > end_time {
-                println!(
-                    "writer {} finished writing to end time: {:?}",
-                    generator.writer_id, end_time
-                );
+                println!("writer {} completed at {}", generator.writer_id, end_time);
                 return;
             }
         }

@@ -83,7 +83,7 @@ pub(crate) struct InfluxDb3Config {
     /// Provide an end time to stop the load generation.
     ///
     /// This can be a human readable offset, e.g., `10m` (10 minutes), `1h` (1 hour), etc., or an
-    /// exact date-time in RFC3339 form, e.g., `2023-10-03T19:10:00-04:00`.
+    /// exact date-time in RFC3339 form, e.g., `2023-10-30T19:10:00-04:00`.
     #[clap(long = "end")]
     pub(crate) end_time: Option<FutureOffsetTime>,
 }
@@ -158,7 +158,9 @@ impl LoadConfig {
     ) -> Self {
         let end_time: Option<DateTime<Local>> = end_time.map(Into::into);
         if let Some(t) = end_time {
-            println!("Running load generation until: {t}");
+            println!("running load generation until: {t}");
+        } else {
+            println!("running load generation indefinitely");
         }
         Self {
             database_name,
