@@ -157,7 +157,7 @@ impl WriteReporter {
                 let elapsed_millis = console_stats.last_console_output_time.elapsed().as_millis();
 
                 println!(
-                    "success: {:.0}/s, error: {:.0}/s, lines: {:.0}/s, bytes: {:.0}/s",
+                    "write: success: {:.0}/s, error: {:.0}/s, lines: {:.0}/s, bytes: {:.0}/s",
                     console_stats.success as f64 / elapsed_millis as f64 * 1000.0,
                     console_stats.error as f64 / elapsed_millis as f64 * 1000.0,
                     console_stats.lines as f64 / elapsed_millis as f64 * 1000.0,
@@ -284,7 +284,7 @@ impl QueryReporter {
                 let elapsed_millis = console_stats.last_console_output_time.elapsed().as_millis();
 
                 println!(
-                    "success: {:.0}/s, error: {:.0}/s, rows: {:.0}/s",
+                    "query: success: {:.0}/s, error: {:.0}/s, rows: {:.0}/s",
                     console_stats.success as f64 / elapsed_millis as f64 * 1000.0,
                     console_stats.error as f64 / elapsed_millis as f64 * 1000.0,
                     console_stats.rows as f64 / elapsed_millis as f64 * 1000.0,

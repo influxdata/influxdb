@@ -1,4 +1,4 @@
-use std::{fs::File, path::PathBuf};
+use std::{fs::File, path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, bail, Context};
 use chrono::Local;
@@ -7,7 +7,10 @@ use influxdb3_client::Client;
 use secrecy::{ExposeSecret, Secret};
 use url::Url;
 
-use crate::specification::{DataSpec, QuerierSpec};
+use crate::{
+    report::{QueryReporter, SystemStatsReporter, WriteReporter},
+    specification::{DataSpec, QuerierSpec},
+};
 
 #[derive(Debug, Parser)]
 pub(crate) struct InfluxDb3Config {
@@ -32,12 +35,6 @@ pub(crate) struct InfluxDb3Config {
     /// The token for authentication with the InfluxDB 3.0 server
     #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
     pub(crate) auth_token: Option<Secret<String>>,
-
-    /// The path to the spec file to use for this run. Or specify a name of a builtin spec to use.
-    /// If not specified, the generator will output a list of builtin specs along with help and
-    /// an example for writing your own.
-    #[clap(short = 's', long = "spec", env = "INFLUXDB3_LOAD_DATA_SPEC_PATH")]
-    pub(crate) spec_path: Option<String>,
 
     /// The name of the builtin spec to run. Use this instead of spec_path if you want to run
     /// one of the builtin specs as is.
@@ -104,14 +101,14 @@ pub(crate) struct LoadConfig {
     /// If `true`, the configuration will initialize only to print out
     /// the spec as JSON, it will not create any files
     print_mode: bool,
-    pub(crate) write_spec: Option<DataSpec>,
-    pub(crate) write_results_file_path: Option<String>,
-    pub(crate) write_results_file: Option<File>,
-    pub(crate) query_spec: Option<QuerierSpec>,
-    pub(crate) query_results_file_path: Option<String>,
-    pub(crate) query_results_file: Option<File>,
-    pub(crate) system_stats_file_path: Option<String>,
-    pub(crate) system_stats_file: Option<File>,
+    write_spec: Option<DataSpec>,
+    write_results_file_path: Option<String>,
+    write_results_file: Option<File>,
+    query_spec: Option<QuerierSpec>,
+    query_results_file_path: Option<String>,
+    query_results_file: Option<File>,
+    system_stats_file_path: Option<String>,
+    system_stats_file: Option<File>,
 }
 
 impl LoadConfig {
@@ -177,6 +174,80 @@ impl LoadConfig {
             Some(File::create_new(file_path).context("system stats file already exists")?);
         Ok(())
     }
+
+    pub(crate) fn query_spec(&mut self) -> Result<QuerierSpec, anyhow::Error> {
+        self.query_spec
+            .take()
+            .context("there is no loaded query spec")
+    }
+
+    pub(crate) fn write_spec(&mut self) -> Result<DataSpec, anyhow::Error> {
+        self.write_spec
+            .take()
+            .context("there is no loaded write spec")
+    }
+
+    /// Get the [`QueryReporter`] along with the path of the file it is generating as a `String`
+    pub(crate) fn query_reporter(&mut self) -> Result<(String, Arc<QueryReporter>), anyhow::Error> {
+        let file = self
+            .query_results_file
+            .take()
+            .context("no generated query results file")?;
+        let path = self
+            .query_results_file_path
+            .take()
+            .context("no generated query results file path")?;
+
+        // set up a results reporter and spawn a thread to flush results
+        println!("generating query results in: {path}");
+        let query_reporter = Arc::new(QueryReporter::new(file));
+        let reporter = Arc::clone(&query_reporter);
+        tokio::task::spawn_blocking(move || {
+            reporter.flush_reports();
+        });
+        Ok((path, query_reporter))
+    }
+
+    /// Get the [`QueryReporter`] along with the path of the file it is generating as a `String`
+    pub(crate) fn write_reporter(&mut self) -> Result<(String, Arc<WriteReporter>), anyhow::Error> {
+        let file = self
+            .write_results_file
+            .take()
+            .context("no generated write results file")?;
+        let path = self
+            .write_results_file_path
+            .take()
+            .context("no generated write results file path")?;
+
+        // set up a results reporter and spawn a thread to flush results
+        println!("generating write results in: {path}");
+        let write_reporter = Arc::new(WriteReporter::new(file)?);
+        let reporter = Arc::clone(&write_reporter);
+        tokio::task::spawn_blocking(move || {
+            reporter.flush_reports();
+        });
+        Ok((path, write_reporter))
+    }
+
+    /// Get a [`SystemStatsReporter`] along with the path of the file it is generating as a `String`
+    pub(crate) fn system_reporter(
+        &mut self,
+    ) -> Result<Option<(String, Arc<SystemStatsReporter>)>, anyhow::Error> {
+        if let (Some(stats_file), Some(stats_file_path)) = (
+            self.system_stats_file.take(),
+            self.system_stats_file_path.take(),
+        ) {
+            println!("generating system stats in: {stats_file_path}");
+            let stats_reporter = Arc::new(SystemStatsReporter::new(stats_file)?);
+            let s = Arc::clone(&stats_reporter);
+            tokio::task::spawn_blocking(move || {
+                s.report_stats();
+            });
+            Ok(Some((stats_file_path, stats_reporter)))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 fn path_buf_to_string(path: PathBuf) -> Result<String, anyhow::Error> {
@@ -186,15 +257,41 @@ fn path_buf_to_string(path: PathBuf) -> Result<String, anyhow::Error> {
 }
 
 impl InfluxDb3Config {
-    pub(crate) async fn initialize(
+    pub(crate) async fn initialize_query(
+        self,
+        querier_spec_path: Option<PathBuf>,
+    ) -> Result<(Client, LoadConfig), anyhow::Error> {
+        self.initialize(LoadType::Query, querier_spec_path, None)
+            .await
+    }
+
+    pub(crate) async fn initialize_write(
+        self,
+        writer_spec_path: Option<PathBuf>,
+    ) -> Result<(Client, LoadConfig), anyhow::Error> {
+        self.initialize(LoadType::Write, None, writer_spec_path)
+            .await
+    }
+
+    pub(crate) async fn initialize_full(
+        self,
+        querier_spec_path: Option<PathBuf>,
+        writer_spec_path: Option<PathBuf>,
+    ) -> Result<(Client, LoadConfig), anyhow::Error> {
+        self.initialize(LoadType::Full, querier_spec_path, writer_spec_path)
+            .await
+    }
+
+    async fn initialize(
         self,
         load_type: LoadType,
+        querier_spec_path: Option<PathBuf>,
+        writer_spec_path: Option<PathBuf>,
     ) -> Result<(Client, LoadConfig), anyhow::Error> {
         let Self {
             host_url,
             database_name,
             auth_token,
-            spec_path,
             builtin_spec,
             print_spec,
             results_dir,
@@ -202,12 +299,21 @@ impl InfluxDb3Config {
             system_stats,
         } = self;
 
-        if spec_path.is_none() && builtin_spec.is_none() {
-            if matches!(load_type, LoadType::Write) {
-                // TODO - print help for query as well
-                crate::commands::write::print_help();
+        match (
+            builtin_spec.as_ref(),
+            load_type,
+            querier_spec_path.as_ref(),
+            writer_spec_path.as_ref(),
+        ) {
+            (None, LoadType::Write | LoadType::Full, _, None)
+            | (None, LoadType::Query | LoadType::Full, None, _) => {
+                if matches!(load_type, LoadType::Write) {
+                    // TODO - print help for query as well
+                    crate::commands::write::print_help();
+                }
+                bail!("You did not provide a spec path or specify a built-in spec");
             }
-            bail!("You did not provide a spec path or specify a built-in spec");
+            _ => (),
         }
 
         let built_in_specs = crate::specs::built_in_specs();
@@ -263,13 +369,13 @@ impl InfluxDb3Config {
         } else {
             match load_type {
                 LoadType::Write => {
-                    let spec = DataSpec::from_path(&spec_path.unwrap())?;
+                    let spec = DataSpec::from_path(writer_spec_path.unwrap())?;
                     let spec_name = spec.name.to_owned();
                     config.setup_dir(&spec_name, &config_name)?;
                     config.setup_write(&time_str, spec)?;
                 }
                 LoadType::Query => {
-                    let spec = QuerierSpec::from_path(&spec_path.unwrap())?;
+                    let spec = QuerierSpec::from_path(querier_spec_path.unwrap())?;
                     let spec_name = spec.name.to_owned();
                     config.setup_dir(&spec_name, &config_name)?;
                     config.setup_query(&time_str, spec)?;

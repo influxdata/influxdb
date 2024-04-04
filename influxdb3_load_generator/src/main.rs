@@ -17,6 +17,7 @@ mod specs;
 
 pub mod commands {
     pub mod common;
+    pub mod full;
     pub mod query;
     pub mod write;
 }
@@ -80,6 +81,9 @@ enum Command {
 
     /// Perform a set of writes to a running InfluxDB 3.0 server
     Write(commands::write::Config),
+
+    /// Perform both writes and queries against a running InfluxDB 3.0 server
+    Full(commands::full::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -101,6 +105,12 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::Write(config)) => {
                 if let Err(e) = commands::write::command(config).await {
                     eprintln!("Write command exited: {e:?}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Full(config)) => {
+                if let Err(e) = commands::full::command(config).await {
+                    eprintln!("Full Write/Query command exited: {e:?}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
