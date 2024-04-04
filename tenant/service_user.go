@@ -280,7 +280,13 @@ var classes []func(rune) bool = []func(rune) bool{
 	unicode.IsNumber,
 	unicode.IsUpper,
 	unicode.IsLower,
-	func(r rune) bool { return strings.ContainsRune(errors.SpecialChars, r) },
+	func(r rune) bool {
+		found := false
+		for _, s := range errors.SpecialChars {
+			found = (s == r) || found
+		}
+		return found
+	},
 }
 
 // IsPasswordStrong checks if a password is strong enough.
