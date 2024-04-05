@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	eBase "errors"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -95,7 +96,10 @@ func (h *SessionHandler) handleSignin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.passSvc.ComparePassword(ctx, u.ID, req.Password); err != nil {
-		h.api.Err(w, r, ErrUnauthorized)
+		if !eBase.Is(err, errors.EPasswordChangeRequired) {
+			err = ErrUnauthorized
+		}
+		h.api.Err(w, r, err)
 		return
 	}
 

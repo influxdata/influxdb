@@ -7,8 +7,8 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
-	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -84,7 +84,7 @@ func TestCachingPasswordsService(t *testing.T) {
 		inner := mock.NewMockPasswordsService(ctrl)
 		inner.EXPECT().
 			ComparePassword(gomock.Any(), user1, "foo").
-			Return(tenant.EShortPassword)
+			Return(errors.EPasswordLength)
 
 		s := NewCachingPasswordsService(inner)
 		s.authCache[user2] = userE2
@@ -143,7 +143,7 @@ func TestCachingPasswordsService(t *testing.T) {
 		inner := mock.NewMockPasswordsService(ctrl)
 		inner.EXPECT().
 			SetPassword(gomock.Any(), user1, "foo").
-			Return(tenant.EShortPassword)
+			Return(errors.EPasswordLength)
 
 		s := NewCachingPasswordsService(inner)
 		s.authCache[user1] = userE1
@@ -153,7 +153,7 @@ func TestCachingPasswordsService(t *testing.T) {
 
 		_, ok := s.authCache[user1]
 		assert.True(t, ok)
-		assert.EqualError(t, s.SetPassword(ctx, user1, "foo"), tenant.EShortPassword.Error())
+		assert.EqualError(t, s.SetPassword(ctx, user1, "foo"), errors.EPasswordLength.Error())
 		_, ok = s.authCache[user1]
 		assert.True(t, ok)
 	})
@@ -165,7 +165,7 @@ func TestCachingPasswordsService(t *testing.T) {
 		inner := mock.NewMockPasswordsService(ctrl)
 		inner.EXPECT().
 			CompareAndSetPassword(gomock.Any(), user1, "foo", "foo2").
-			Return(tenant.EShortPassword)
+			Return(errors.EPasswordLength)
 
 		s := NewCachingPasswordsService(inner)
 		s.authCache[user1] = userE1

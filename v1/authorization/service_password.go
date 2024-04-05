@@ -2,6 +2,7 @@ package authorization
 
 import (
 	"context"
+	eBase "errors"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -9,8 +10,6 @@ import (
 	"github.com/influxdata/influxdb/v2/tenant"
 	"golang.org/x/crypto/bcrypt"
 )
-
-var EIncorrectPassword = tenant.EIncorrectPassword
 
 // SetPasswordHash updates the password hash for id. If passHash is not a valid bcrypt hash,
 // SetPasswordHash returns an error.
@@ -38,8 +37,8 @@ func (s *Service) SetPasswordHash(ctx context.Context, authID platform.ID, passH
 
 // SetPassword overrides the password of a known user.
 func (s *Service) SetPassword(ctx context.Context, authID platform.ID, password string) error {
-	if len(password) < tenant.MinPasswordLen {
-		return tenant.EShortPassword
+	if err := tenant.IsPasswordStrong(password, s.strongPasswords); err != nil {
+		return err
 	}
 	passHash, err := encryptPassword(password)
 	if err != nil {
@@ -56,8 +55,17 @@ func (s *Service) SetPassword(ctx context.Context, authID platform.ID, password 
 }
 
 // ComparePassword checks if the password matches the password recorded.
-// Passwords that do not match return errors.
+// Passwords that do not match return errors, as do too weak passwords
 func (s *Service) ComparePassword(ctx context.Context, authID platform.ID, password string) error {
+	err := s.comparePasswordNoStrengthCheck(ctx, authID, password)
+	// If a password matches, but is too weak, force user to change
+	if errStrength := tenant.IsPasswordStrong(password, s.strongPasswords); err == nil && errStrength != nil {
+		return eBase.Join(errors.EPasswordChangeRequired, errStrength)
+	}
+	return err
+}
+
+func (s *Service) comparePasswordNoStrengthCheck(ctx context.Context, authID platform.ID, password string) error {
 	// get password
 	var hash []byte
 	err := s.store.View(ctx, func(tx kv.Tx) error {
@@ -68,7 +76,7 @@ func (s *Service) ComparePassword(ctx context.Context, authID platform.ID, passw
 		h, err := s.store.GetPassword(ctx, tx, authID)
 		if err != nil {
 			if err == kv.ErrKeyNotFound {
-				return EIncorrectPassword
+				return errors.EIncorrectPassword
 			}
 			return err
 		}
@@ -80,7 +88,7 @@ func (s *Service) ComparePassword(ctx context.Context, authID platform.ID, passw
 	}
 	// compare password
 	if err := bcrypt.CompareHashAndPassword(hash, []byte(password)); err != nil {
-		return EIncorrectPassword
+		return errors.EIncorrectPassword
 	}
 
 	return nil
@@ -89,7 +97,7 @@ func (s *Service) ComparePassword(ctx context.Context, authID platform.ID, passw
 // CompareAndSetPassword checks the password and if they match
 // updates to the new password.
 func (s *Service) CompareAndSetPassword(ctx context.Context, authID platform.ID, old, new string) error {
-	err := s.ComparePassword(ctx, authID, old)
+	err := s.comparePasswordNoStrengthCheck(ctx, authID, old)
 	if err != nil {
 		return err
 	}
