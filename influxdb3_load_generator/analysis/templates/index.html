@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Benchmark Results Comparison</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .graph-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 20px;
+            width: 100%;
+            height: 600px;
+        }
+        .graph-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+    </style>
+</head>
+<body>
+<h1>Benchmark Results Comparison</h1>
+<div>
+    <label for="test-name">Test Name:</label>
+    <select id="test-name"></select>
+</div>
+<div>
+    <label for="config-name-1">Configuration 1:</label>
+    <select id="config-name-1"></select>
+</div>
+<div>
+    <label for="config-name-2">Configuration 2:</label>
+    <select id="config-name-2"></select>
+</div>
+<button id="compare-btn">Compare</button>
+<div class="graph-container">
+    <canvas id="lines-per-second-chart"></canvas>
+    <canvas id="write-latency-chart"></canvas>
+    <canvas id="queries-per-second-chart"></canvas>
+    <canvas id="query-latency-chart"></canvas>
+    <canvas id="cpu-usage-chart"></canvas>
+    <canvas id="memory-usage-chart"></canvas>
+</div>
+<script>
+    const testNameSelect = document.getElementById('test-name');
+    const configName1Select = document.getElementById('config-name-1');
+    const configName2Select = document.getElementById('config-name-2');
+    const compareBtn = document.getElementById('compare-btn');
+
+    // Fetch test names and populate the drop-down
+    fetch('/api/test-names')
+        .then(response => response.json())
+        .then(testNames => {
+            testNames.forEach(testName => {
+                const option = document.createElement('option');
+                option.value = testName;
+                option.textContent = testName;
+                testNameSelect.appendChild(option);
+            });
+
+            // If there is only one test, select it and populate the configuration names
+            if (testNames.length === 1) {
+                testNameSelect.value = testNames[0];
+                updateConfigNames(testNames[0]);
+            }
+        });
+
+    // Update configuration names when a test name is selected
+    testNameSelect.addEventListener('change', () => {
+        const selectedTestName = testNameSelect.value;
+        updateConfigNames(selectedTestName);
+    });
+
+    // Fetch configuration names and populate the drop-downs
+    function updateConfigNames(testName) {
+        configName1Select.innerHTML = '';
+        configName2Select.innerHTML = '';
+
+        fetch(`/api/config-names?test_name=${testName}`)
+            .then(response => response.json())
+            .then(configNames => {
+                for (const configName in configNames) {
+                    const runTimes = configNames[configName];
+                    runTimes.forEach(runTime => {
+                        const option1 = document.createElement('option');
+                        option1.value = `${configName}/${runTime}`;
+                        option1.textContent = `${configName}/${runTime}`;
+                        configName1Select.appendChild(option1);
+
+                        const option2 = document.createElement('option');
+                        option2.value = `${configName}/${runTime}`;
+                        option2.textContent = `${configName}/${runTime}`;
+                        configName2Select.appendChild(option2);
+                    });
+                }
+            });
+    }
+
+    // Fetch aggregated data and render graphs when the compare button is clicked
+    compareBtn.addEventListener('click', () => {
+        const selectedTestName = testNameSelect.value;
+        const [selectedConfigName1, selectedRunTime1] = configName1Select.value.split('/');
+        const [selectedConfigName2, selectedRunTime2] = configName2Select.value.split('/');
+
+        Promise.all([
+            fetch(`/api/aggregated-data?test_name=${selectedTestName}&config_name=${selectedConfigName1}&run_time=${selectedRunTime1}`),
+            fetch(`/api/aggregated-data?test_name=${selectedTestName}&config_name=${selectedConfigName2}&run_time=${selectedRunTime2}`)
+        ])
+            .then(responses => Promise.all(responses.map(response => response.json())))
+            .then(data => {
+                const config1Data = data[0];
+                const config2Data = data[1];
+
+                renderGraph('lines-per-second-chart', 'Lines per Second', config1Data.write_data, config2Data.write_data, 'lines', 10000);
+                renderGraph('write-latency-chart', 'Write Latency (ms)', config1Data.write_data, config2Data.write_data, 'latency', 10000, 'median');
+                renderGraph('queries-per-second-chart', 'Queries per Second', config1Data.query_data, config2Data.query_data, 'lines', 10000);
+                renderGraph('query-latency-chart', 'Query Latency (ms)', config1Data.query_data, config2Data.query_data, 'latency', 10000, 'median');
+                renderGraph('cpu-usage-chart', 'CPU Usage (%)', config1Data.system_data, config2Data.system_data, 'cpu_usage');
+                renderGraph('memory-usage-chart', 'Memory Usage (MB)', config1Data.system_data, config2Data.system_data, 'memory_bytes');
+            });
+    });
+
+    // Render a graph using Chart.js
+    function renderGraph(chartId, title, config1Data, config2Data, yAxisKey, interval = 10000, aggregateFunction = 'sum') {
+        const ctx = document.getElementById(chartId).getContext('2d');
+
+        const labels = getXLabels(config1Data, interval);
+        const config1Values = getYValues(config1Data, yAxisKey, interval, aggregateFunction);
+        const config2Values = getYValues(config2Data, yAxisKey, interval, aggregateFunction);
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: configName1Select.value,
+                        data: config1Values,
+                        borderColor: 'blue',
+                        fill: false
+                    },
+                    {
+                        label: configName2Select.value,
+                        data: config2Values,
+                        borderColor: 'orange',
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: title,
+                        font: {
+                            size: 30
+                        }
+                    },
+                    legend: {
+                        labels: {
+                            font: {
+                                size: 26
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time (seconds)',
+                            font: {
+                                size: 28
+                            }
+                        },
+                        ticks: {
+                            font: {
+                                size: 26
+                            }
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: title,
+                            font: {
+                                size: 28
+                            }
+                        },
+                        ticks: {
+                            font: {
+                                size: 26
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Get the x-axis labels based on the interval
+    function getXLabels(data, interval) {
+        const labels = [];
+        const numIntervals = Math.ceil(data[data.length - 1].test_time / interval);
+        for (let i = 0; i < numIntervals; i++) {
+            labels.push(i * interval / 1000);
+        }
+        return labels;
+    }
+
+    // Get the y-axis values based on the interval and y-axis key
+    function getYValues(data, yAxisKey, interval, aggregateFunction) {
+        const values = [];
+        const numIntervals = Math.ceil(data[data.length - 1].test_time / interval);
+        for (let i = 0; i < numIntervals; i++) {
+            const startTime = i * interval;
+            const endTime = (i + 1) * interval;
+            const intervalData = data.filter(d => d.test_time >= startTime && d.test_time < endTime);
+            let yValue;
+            if (aggregateFunction === 'sum') {
+                yValue = intervalData.reduce((sum, d) => sum + d[yAxisKey], 0) / (interval / 1000);
+            } else if (aggregateFunction === 'median') {
+                const sortedData = intervalData.map(d => d[yAxisKey]).sort((a, b) => a - b);
+                const middleIndex = Math.floor(sortedData.length / 2);
+                yValue = sortedData.length % 2 === 0 ? (sortedData[middleIndex - 1] + sortedData[middleIndex]) / 2 : sortedData[middleIndex];
+            }
+            values.push(yValue || null);
+        }
+        return values;
+    }
+</script>
+</body>
+</html>
