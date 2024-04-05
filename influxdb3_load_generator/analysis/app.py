@@ -8,7 +8,7 @@ import re
 app = Flask(__name__)
 
 # Directory path (provided as a command-line argument)
-RESULTS_DIRECTORY = ''
+RESULTS_DIRECTORY = 'results/'
 
 @app.route('/')
 def index():
@@ -105,7 +105,8 @@ def aggregate_system_data(file_path):
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print('Usage: python app.py <results_directory>')
-        sys.exit(1)
+        print('results directory not provided, defaulting to "results/"')
+    else:
+        RESULTS_DIRECTORY = sys.argv[1]
 
-    RESULTS_DIRECTORY = sys.argv[1]
     app.run()
