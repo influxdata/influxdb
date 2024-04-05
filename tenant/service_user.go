@@ -293,14 +293,18 @@ var classes []func(rune) bool = []func(rune) bool{
 func IsPasswordStrong(password string, doCheck bool) error {
 	const numClassesRequired = 3
 	var eSlice []error = nil
+	var tslice []error = nil
 	l := len(password)
 	if l < errors.MinPasswordLen || l > errors.MaxPasswordLen {
 		eSlice = append(eSlice, errors.EPasswordLength)
+	} else {
+		tslice = append(tslice, errors.EPasswordLength)
 	}
 	if doCheck {
 		// make a password copy that is the length of the max password length
 		constLenPassword := strings.Repeat(password, 1+(errors.MaxPasswordLen/len(password)))[:errors.MaxPasswordLen]
 		n := 0
+		t := 0
 
 		// Walk the whole string for each class, for constant time operation
 		for _, f := range classes {
@@ -310,12 +314,17 @@ func IsPasswordStrong(password string, doCheck bool) error {
 			}
 			if found {
 				n++
+			} else {
+				t++
 			}
 		}
 		if n < numClassesRequired {
 			eSlice = append(eSlice, errors.EPasswordChars)
+		} else {
+			tslice = append(tslice, errors.EPasswordChars)
 		}
 	}
+	eBase.Join(tslice...)
 	return eBase.Join(eSlice...)
 }
 
