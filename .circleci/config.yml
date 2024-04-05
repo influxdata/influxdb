@@ -68,8 +68,6 @@ nofork_filter: &nofork_filter
 
 
 commands:
-  install_rust:
-
   rust_components:
     description: Verify installed components
     steps:
