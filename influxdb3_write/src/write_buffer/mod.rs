@@ -544,6 +544,8 @@ fn validate_and_update_schema(line: &ParsedLine<'_>, schema: &mut Cow<'_, Databa
             }
 
             columns.insert(TIME_COLUMN_NAME.to_string(), ColumnType::Time as i16);
+            // TODO - this is a bit of a hack right now, because we do not have a columnt type
+            // to represent the series id, which is actually a byte array, not a string
             columns.insert(SERIES_ID_COLUMN_NAME.to_string(), ColumnType::String as i16);
 
             let table = TableDefinition::new(table_name, columns);
@@ -576,7 +578,7 @@ fn validate_and_convert_parsed_line<'a>(
     let series_id = hash_series_id(raw_line, &mut line.series);
     let value = Field {
         name: SERIES_ID_COLUMN_NAME.to_string(),
-        value: FieldData::String(series_id.to_string()),
+        value: FieldData::SeriesId(series_id),
     };
     values.push(value);
 
@@ -675,6 +677,7 @@ pub(crate) struct Field {
 #[derive(Clone, Debug)]
 pub(crate) enum FieldData {
     Timestamp(i64),
+    SeriesId(SeriesId),
     Tag(String),
     String(String),
     Integer(i64),
@@ -693,6 +696,7 @@ impl PartialEq for FieldData {
             (FieldData::UInteger(a), FieldData::UInteger(b)) => a == b,
             (FieldData::Float(a), FieldData::Float(b)) => a == b,
             (FieldData::Boolean(a), FieldData::Boolean(b)) => a == b,
+            (FieldData::SeriesId(a), FieldData::SeriesId(b)) => a == b,
             _ => false,
         }
     }
@@ -740,6 +744,12 @@ pub(crate) struct TableBatchMap<'a> {
 /// The 32 byte SHA256 digest of the full tag set for a line of measurement data
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct SeriesId([u8; 32]);
+
+impl AsRef<[u8]> for SeriesId {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
 
 impl std::fmt::Display for SeriesId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

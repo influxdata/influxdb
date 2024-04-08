@@ -1,11 +1,12 @@
 //! The in memory bufffer of a table that can be quickly added to and queried
 
+use crate::catalog::SERIES_ID_COLUMN_NAME;
 use crate::write_buffer::{FieldData, Row};
 use arrow::array::{
-    ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, StringDictionaryBuilder,
-    TimestampNanosecondBuilder, UInt64Builder,
+    ArrayRef, BooleanBuilder, FixedSizeBinaryBuilder, Float64Builder, Int64Builder, StringBuilder,
+    StringDictionaryBuilder, TimestampNanosecondBuilder, UInt64Builder,
 };
-use arrow::datatypes::Int32Type;
+use arrow::datatypes::{DataType, Field, Int32Type, SchemaBuilder};
 use arrow::record_batch::RecordBatch;
 use data_types::{PartitionKey, TimestampMinMax};
 use observability_deps::tracing::debug;
@@ -43,6 +44,21 @@ impl TableBuffer {
                 value_added.insert(f.name.clone());
 
                 match f.value {
+                    FieldData::SeriesId(v) => {
+                        let b = self.data.entry(f.name).or_insert_with(|| {
+                            let mut fsb_builder = FixedSizeBinaryBuilder::new(32);
+                            for _ in 0..(row_index + self.row_count) {
+                                fsb_builder.append_null();
+                            }
+                            Builder::SeriesId(fsb_builder)
+                        });
+                        if let Builder::SeriesId(b) = b {
+                            b.append_value(v)
+                                .expect("_series_id should only ever be 32 bytes long");
+                        } else {
+                            panic!("unexpected field type");
+                        }
+                    }
                     FieldData::Timestamp(v) => {
                         self.timestamp_min = self.timestamp_min.min(v);
                         self.timestamp_max = self.timestamp_max.max(v);
@@ -168,6 +184,7 @@ impl TableBuffer {
                         Builder::String(b) => b.append_null(),
                         Builder::Tag(b) => b.append_null(),
                         Builder::Time(b) => b.append_null(),
+                        Builder::SeriesId(b) => b.append_null(),
                     }
                 }
             }
@@ -186,8 +203,16 @@ impl TableBuffer {
     pub fn record_batches(&self, schema: &Schema) -> Vec<RecordBatch> {
         // ensure the order of the columns matches their order in the Arrow schema definition
         let mut cols = Vec::with_capacity(self.data.len());
+        let mut sb = SchemaBuilder::with_capacity(schema.len());
         let schema = schema.as_arrow();
         for f in &schema.fields {
+            if f.name() == SERIES_ID_COLUMN_NAME {
+                let field = Field::new(f.name(), DataType::FixedSizeBinary(32), false)
+                    .with_metadata(f.metadata().clone());
+                sb.push(field);
+            } else {
+                sb.push(Arc::clone(&f));
+            }
             cols.push(
                 self.data
                     .get(f.name())
@@ -196,7 +221,7 @@ impl TableBuffer {
             );
         }
 
-        vec![RecordBatch::try_new(schema, cols).unwrap()]
+        vec![RecordBatch::try_new(Arc::new(sb.finish()), cols).unwrap()]
     }
 }
 
@@ -220,6 +245,7 @@ pub enum Builder {
     String(StringBuilder),
     Tag(StringDictionaryBuilder<Int32Type>),
     Time(TimestampNanosecondBuilder),
+    SeriesId(FixedSizeBinaryBuilder),
 }
 
 impl Builder {
@@ -232,6 +258,7 @@ impl Builder {
             Self::String(b) => Arc::new(b.finish_cloned()),
             Self::Tag(b) => Arc::new(b.finish_cloned()),
             Self::Time(b) => Arc::new(b.finish_cloned()),
+            Self::SeriesId(b) => Arc::new(b.finish_cloned()),
         }
     }
 }
