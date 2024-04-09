@@ -3,8 +3,11 @@ version:
   release:
     match: '^v[0-9]+.[0-9]+.[0-9]+'
     value: '{{env.CIRCLE_TAG[1:]}}'
+  alpha:
+    match: '^v3.0.0.alpha.[0-9]+.[0-9]+'
+    value: '{{env.CIRCLE_TAG[1:]}}'
   default:
-    value: '3.x-{{env.CIRCLE_SHA1[:8]}}'
+    value: '3.0.0+snapshot-{{env.CIRCLE_SHA1[:8]}}'
 
 sources:
   - binary: /tmp/workspace/artifacts/influxdb3-edge_x86_64-unknown-linux-musl.tar.gz
