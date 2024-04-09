@@ -101,37 +101,37 @@ urlencoding = "1.1"
 uuid = { version = "1", features = ["v4"] }
 
 # Core.git crates we depend on
-arrow_util = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment"}
-authz = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment", features = ["http"] }
-clap_blocks = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-data_types = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-datafusion_util = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-influxdb-line-protocol = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-influxdb_influxql_parser = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-influxdb_iox_client = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-iox_catalog = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-ioxd_common = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-iox_http = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-iox_query = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-iox_query_params = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-iox_query_influxql = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-iox_time = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-metric = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-metric_exporters = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-observability_deps = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-panic_logging = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-parquet_file = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-schema = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-service_common = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-service_grpc_flight = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-test_helpers = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-test_helpers_end_to_end = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-tokio_metrics_bridge = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-trace = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-trace_exporters = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-trace_http = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-tracker = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment" }
-trogging = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/fsb-field-experiment", default-features = true, features = ["clap"] }
+arrow_util = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment"}
+authz = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment", features = ["http"] }
+clap_blocks = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+data_types = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+datafusion_util = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+influxdb-line-protocol = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+influxdb_influxql_parser = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+influxdb_iox_client = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+iox_catalog = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+ioxd_common = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+iox_http = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+iox_query = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+iox_query_params = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+iox_query_influxql = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+iox_time = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+metric = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+metric_exporters = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+observability_deps = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+panic_logging = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+parquet_file = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+schema = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+service_common = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+service_grpc_flight = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+test_helpers = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+test_helpers_end_to_end = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+tokio_metrics_bridge = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+trace = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+trace_exporters = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+trace_http = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+tracker = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment" }
+trogging = { git = "https://github.com/influxdata/influxdb3_core", branch = "hiltontj/seriesid-col-experiment", default-features = true, features = ["clap"] }
 
 [workspace.lints.rust]
 rust_2018_idioms = "deny"
