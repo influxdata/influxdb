@@ -385,7 +385,10 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace
       - run: |
-          for target in /tmp/workspace/artifacts/*
+          # We need this base so that we can filter it out of our checksums
+          # output and if that changes at all we only need to update it here
+          WORK_DIR="/tmp/workspace/artifacts/"
+          for target in ${WORK_DIR}*
           do
             case "${target}"
             in
@@ -402,11 +405,11 @@ jobs:
               # Since all artifacts are present, sign them here. This saves Circle
               # credits over spinning up another instance just to separate out the
               # checksum job.
-              sha256sum "${target}" >> "/tmp/workspace/artifacts/influxdb3-edge.${CIRCLE_TAG}.digests"
+              sha256sum "${target}" | sed "s#$WORK_DIR##" >> "/tmp/workspace/artifacts/influxdb3-edge.${CIRCLE_TAG}.digests"
 
               # write individual checksums
-              md5sum    "${target}" >> "${target}.md5"
-              sha256sum "${target}" >> "${target}.sha256"
+              md5sum    "${target}" | sed "s#$WORK_DIR##" >> "${target}.md5"
+              sha256sum "${target}" | sed "s#$WORK_DIR##" >> "${target}.sha256"
             fi
           done
       - persist_to_workspace:
