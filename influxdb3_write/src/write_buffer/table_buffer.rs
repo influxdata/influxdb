@@ -1,12 +1,11 @@
 //! The in memory bufffer of a table that can be quickly added to and queried
 
-use crate::catalog::SERIES_ID_COLUMN_NAME;
 use crate::write_buffer::{FieldData, Row};
 use arrow::array::{
     ArrayRef, BooleanBuilder, FixedSizeBinaryBuilder, Float64Builder, Int64Builder, StringBuilder,
     StringDictionaryBuilder, TimestampNanosecondBuilder, UInt64Builder,
 };
-use arrow::datatypes::{DataType, Field, Int32Type, SchemaBuilder};
+use arrow::datatypes::Int32Type;
 use arrow::record_batch::RecordBatch;
 use data_types::{PartitionKey, TimestampMinMax};
 use observability_deps::tracing::debug;
@@ -203,16 +202,8 @@ impl TableBuffer {
     pub fn record_batches(&self, schema: &Schema) -> Vec<RecordBatch> {
         // ensure the order of the columns matches their order in the Arrow schema definition
         let mut cols = Vec::with_capacity(self.data.len());
-        let mut sb = SchemaBuilder::with_capacity(schema.len());
         let schema = schema.as_arrow();
         for f in &schema.fields {
-            if f.name() == SERIES_ID_COLUMN_NAME {
-                let field = Field::new(f.name(), DataType::FixedSizeBinary(32), false)
-                    .with_metadata(f.metadata().clone());
-                sb.push(field);
-            } else {
-                sb.push(Arc::clone(&f));
-            }
             cols.push(
                 self.data
                     .get(f.name())
@@ -221,7 +212,7 @@ impl TableBuffer {
             );
         }
 
-        vec![RecordBatch::try_new(Arc::new(sb.finish()), cols).unwrap()]
+        vec![RecordBatch::try_new(schema, cols).unwrap()]
     }
 }
 

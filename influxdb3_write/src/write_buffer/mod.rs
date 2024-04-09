@@ -544,8 +544,6 @@ fn validate_and_update_schema(line: &ParsedLine<'_>, schema: &mut Cow<'_, Databa
             }
 
             columns.insert(TIME_COLUMN_NAME.to_string(), ColumnType::Time as i16);
-            // TODO - this is a bit of a hack right now, because we do not have a columnt type
-            // to represent the series id, which is actually a byte array, not a string
             columns.insert(
                 SERIES_ID_COLUMN_NAME.to_string(),
                 ColumnType::SeriesId as i16,
