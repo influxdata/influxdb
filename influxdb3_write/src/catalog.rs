@@ -339,6 +339,7 @@ fn column_type_to_influx_column_type(column_type: &ColumnType) -> InfluxColumnTy
         ColumnType::String => InfluxColumnType::Field(InfluxFieldType::String),
         ColumnType::Time => InfluxColumnType::Timestamp,
         ColumnType::Tag => InfluxColumnType::Tag,
+        ColumnType::SeriesId => InfluxColumnType::Field(InfluxFieldType::FixedSizeBinary(32)),
     }
 }
 
