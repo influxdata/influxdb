@@ -418,6 +418,13 @@ jobs:
   publish-packages:
     docker:
       - image: cimg/python:3.6
+    parameters:
+      # "destination" should be one of:
+      #   - releases
+      #   - nightlies
+      #   - snapshots
+      destination:
+        type: string
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -427,7 +434,7 @@ jobs:
           aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
           aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
           from:                  /tmp/workspace/artifacts
-          to:                    s3://dl.influxdata.com/influxdb/releases
+          to:                    s3://dl.influxdata.com/influxdb/<< parameters.destination >>
   build-docker:
     # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
     # kinda small node)
@@ -554,6 +561,10 @@ workflows:
       - publish-packages:
           # <<: *release_filter
           <<: *any_filter
+          matrix:
+            parameters:
+              # Temporary change this to releases when done with PR
+              destination: [ snapshots ]
           requires:
             - build-release
             - sign-packages
