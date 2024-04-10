@@ -1,8 +1,8 @@
 #!/bin/bash
 
-DATA_DIR=/var/lib/influxdb3
 USER=influxdb3
 GROUP=influxdb3
+DATA_DIR=/var/lib/influxdb3
 LOG_DIR=/var/log/influxdb3
 
 if ! id influxdb3 &>/dev/null; then
