@@ -1047,7 +1047,7 @@ func TestService(t *testing.T) {
 							}
 						}
 						if !osFound {
-							t.Skip(fmt.Sprintf("skipping test for %q OS", runtime.GOOS))
+							t.Skipf("skipping test for %q OS", runtime.GOOS)
 						}
 					}
 					testStore := &fakeStore{
