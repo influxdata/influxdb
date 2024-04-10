@@ -5075,11 +5075,7 @@ func nextField(t *testing.T, field string) (string, int) {
 // pathToURL converts file paths to URLs. This is a simple operation on Unix,
 // but is complicated by correct handling of drive letters on Windows.
 func pathToURLPath(p string) string {
-	var rootSlash string
-	if filepath.VolumeName(p) != "" {
-		rootSlash = "/"
-	}
-	return rootSlash + filepath.ToSlash(p)
+	return filepath.ToSlash(p)
 }
 
 func validParsedTemplateFromFile(t *testing.T, path string, encoding Encoding, opts ...ValidateOptFn) *Template {
