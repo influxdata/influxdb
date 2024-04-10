@@ -194,7 +194,7 @@ type InfluxdOpts struct {
 	HardeningEnabled bool
 	// TemplateFileUrlsDisabled disables file protocol URIs in templates.
 	TemplateFileUrlsDisabled bool
-	StrongPasswords  bool
+	StrongPasswords          bool
 }
 
 // NewOpts constructs options with default values.
