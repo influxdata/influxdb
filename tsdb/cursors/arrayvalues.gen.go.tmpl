@@ -29,7 +29,11 @@ func (a *{{ $typename }}) MaxTime() int64 {
 }
 
 func (a *{{ $typename}}) Len() int {
-	return len(a.Timestamps)
+    if a != nil {
+	    return len(a.Timestamps)
+	} else {
+	    return 0
+	}
 }
 
 // search performs a binary search for UnixNano() v in a

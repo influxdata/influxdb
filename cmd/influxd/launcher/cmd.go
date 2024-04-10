@@ -194,6 +194,7 @@ type InfluxdOpts struct {
 	HardeningEnabled bool
 	// TemplateFileUrlsDisabled disables file protocol URIs in templates.
 	TemplateFileUrlsDisabled bool
+	StrongPasswords  bool
 }
 
 // NewOpts constructs options with default values.
@@ -247,6 +248,7 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 
 		HardeningEnabled:         false,
 		TemplateFileUrlsDisabled: false,
+		StrongPasswords:          false,
 	}
 }
 
@@ -669,6 +671,12 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:    "template-file-urls-disabled",
 			Default: o.TemplateFileUrlsDisabled,
 			Desc:    "disable template file URLs",
+		},
+		{
+			DestP:   &o.StrongPasswords,
+			Flag:    "strong-passwords",
+			Default: o.StrongPasswords,
+			Desc:    "enable password strength enforcement",
 		},
 	}
 }

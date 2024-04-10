@@ -28,6 +28,14 @@ func MustTempFile(dir string) *os.File {
 	return f
 }
 
+func MustTempDir() string {
+	dir, err := os.MkdirTemp("", "tsm1-test")
+	if err != nil {
+		panic(fmt.Sprintf("failed to create temp dir: %v", err))
+	}
+	return dir
+}
+
 func newFiles(dir string, values ...keyValues) ([]string, error) {
 	var files []string
 
@@ -62,6 +70,35 @@ func newFiles(dir string, values ...keyValues) ([]string, error) {
 	return files, nil
 }
 
+func TestCursor_ResetFail(t *testing.T) {
+	t.Run("bad block", func(t *testing.T) {
+		dir := MustTempDir()
+		defer os.RemoveAll(dir)
+		fs := NewFileStore(dir, tsdb.EngineTags{})
+
+		const START, END = 10, 1
+
+		data := []keyValues{
+			// Write a single data point with timestamp equal to END
+			{"m,_field=v#!~#v", []Value{NewIntegerValue(1, 1)}},
+		}
+
+		files, err := newFiles(dir, data...)
+		if err != nil {
+			t.Fatalf("unexpected error creating files: %v", err)
+		}
+
+		_ = fs.Replace(nil, files)
+
+		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, false)
+		defer kc.Close()
+		// Open a float cursor for an integer block
+		cur := newFloatArrayDescendingCursor()
+		err = cur.reset(START, END, nil, kc)
+		assert.ErrorContains(t, err, "invalid block", "expected invalid block")
+	})
+}
+
 func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
 	t.Run("cache", func(t *testing.T) {
 		dir := t.TempDir()
@@ -74,7 +111,7 @@ func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
 		cur := newIntegerArrayDescendingCursor()
 		t.Cleanup(cur.Close)
 		// Include a cached value with timestamp equal to END
-		cur.reset(START, END, Values{NewIntegerValue(1, 1)}, kc)
+		assert.NoError(t, cur.reset(START, END, Values{NewIntegerValue(1, 1)}, kc), "unexpected error resetting cursor")
 
 		var got []int64
 		ar := cur.Next()
@@ -110,7 +147,7 @@ func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
 		t.Cleanup(kc.Close)
 		cur := newIntegerArrayDescendingCursor()
 		t.Cleanup(cur.Close)
-		cur.reset(START, END, nil, kc)
+		assert.NoError(t, cur.reset(START, END, nil, kc), "unexpected error resetting cursor")
 
 		var got []int64
 		ar := cur.Next()
@@ -158,7 +195,7 @@ func TestFileStore_DuplicatePoints(t *testing.T) {
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, true)
 		t.Cleanup(kc.Close)
 		cur := newFloatArrayAscendingCursor()
-		cur.reset(START, END, nil, kc)
+		assert.NoError(t, cur.reset(START, END, nil, kc), "unexpected error resetting cursor")
 		t.Cleanup(cur.Close)
 
 		var got []int64
@@ -178,7 +215,7 @@ func TestFileStore_DuplicatePoints(t *testing.T) {
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, false)
 		t.Cleanup(kc.Close)
 		cur := newFloatArrayDescendingCursor()
-		cur.reset(START, END, nil, kc)
+		assert.NoError(t, cur.reset(START, END, nil, kc), "unexpected error resetting cursor")
 		t.Cleanup(cur.Close)
 
 		var got []int64
@@ -255,7 +292,7 @@ func TestFileStore_MergeBlocksLargerThat1000_SecondEntirelyContained(t *testing.
 		t.Cleanup(kc.Close)
 		cur := newFloatArrayAscendingCursor()
 		t.Cleanup(cur.Close)
-		cur.reset(START, END, nil, kc)
+		assert.NoError(t, cur.reset(START, END, nil, kc), "unexpected error resetting cursor")
 
 		exp := makeTs(1000, 800, 10)
 		exp = append(exp, makeTs(1005, 400, 10)...)
@@ -279,7 +316,7 @@ func TestFileStore_MergeBlocksLargerThat1000_SecondEntirelyContained(t *testing.
 		t.Cleanup(kc.Close)
 		cur := newFloatArrayDescendingCursor()
 		t.Cleanup(cur.Close)
-		cur.reset(START, END, nil, kc)
+		assert.NoError(t, cur.reset(START, END, nil, kc), "unexpected error resetting cursor")
 
 		exp := makeTs(1000, 800, 10)
 		exp = append(exp, makeTs(1005, 400, 10)...)
@@ -360,7 +397,7 @@ func TestFileStore_MergeBlocksLargerThat1000_MultipleBlocksInEachFile(t *testing
 		t.Cleanup(kc.Close)
 		cur := newFloatArrayAscendingCursor()
 		t.Cleanup(cur.Close)
-		cur.reset(START, END, nil, kc)
+		assert.NoError(t, cur.reset(START, END, nil, kc), "unexpected error resetting cursor")
 
 		exp := makeArray(1000, 3500, 10, 1.01)
 		a2 := makeArray(4005, 3500, 5, 2.01)
@@ -388,7 +425,7 @@ func TestFileStore_MergeBlocksLargerThat1000_MultipleBlocksInEachFile(t *testing
 		t.Cleanup(kc.Close)
 		cur := newFloatArrayDescendingCursor()
 		t.Cleanup(cur.Close)
-		cur.reset(START, END, nil, kc)
+		assert.NoError(t, cur.reset(START, END, nil, kc), "unexpected error resetting cursor")
 
 		exp := makeArray(1000, 3500, 10, 1.01)
 		a2 := makeArray(4005, 3500, 5, 2.01)
@@ -456,7 +493,7 @@ func TestFileStore_SeekBoundaries(t *testing.T) {
 		t.Cleanup(kc.Close)
 		cur := newFloatArrayAscendingCursor()
 		t.Cleanup(cur.Close)
-		cur.reset(START, END, nil, kc)
+		assert.NoError(t, cur.reset(START, END, nil, kc), "unexpected error resetting cursor")
 
 		exp := makeArray(1000, 100, 1, 1.01)
 
@@ -482,7 +519,7 @@ func TestFileStore_SeekBoundaries(t *testing.T) {
 		t.Cleanup(kc.Close)
 		cur := newFloatArrayAscendingCursor()
 		t.Cleanup(cur.Close)
-		cur.reset(START, END, nil, kc)
+		assert.NoError(t, cur.reset(START, END, nil, kc), "unexpected error resetting cursor")
 
 		exp := makeArray(1050, 50, 1, 1.01)
 		a2 := makeArray(1100, 50, 1, 2.01)
@@ -510,7 +547,7 @@ func TestFileStore_SeekBoundaries(t *testing.T) {
 		t.Cleanup(kc.Close)
 		cur := newFloatArrayDescendingCursor()
 		t.Cleanup(cur.Close)
-		cur.reset(START, END, nil, kc)
+		assert.NoError(t, cur.reset(START, END, nil, kc), "unexpected error resetting cursor")
 
 		exp := makeArray(1000, 100, 1, 1.01)
 		sort.Sort(sort.Reverse(&FloatArray{exp}))
@@ -537,7 +574,7 @@ func TestFileStore_SeekBoundaries(t *testing.T) {
 		t.Cleanup(kc.Close)
 		cur := newFloatArrayDescendingCursor()
 		t.Cleanup(cur.Close)
-		cur.reset(START, END, nil, kc)
+		assert.NoError(t, cur.reset(START, END, nil, kc), "unexpected error resetting cursor")
 
 		exp := makeArray(1050, 50, 1, 1.01)
 		a2 := makeArray(1100, 50, 1, 2.01)
