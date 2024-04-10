@@ -13,6 +13,7 @@ use crate::chunk::ParquetChunk;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
 use crate::write_buffer::segment_state::{run_buffer_segment_persist_and_cleanup, SegmentState};
+use crate::DatabaseTables;
 use crate::{
     persister, BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister,
     Precision, SegmentDuration, SegmentId, SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
@@ -28,8 +29,10 @@ use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine, Series, TagSet
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
+use object_store::memory::InMemory;
 use object_store::path::Path as ObjPath;
 use object_store::ObjectMeta;
+use object_store::ObjectStore;
 use observability_deps::tracing::{debug, error};
 use parking_lot::{Mutex, RwLock};
 use parquet_file::storage::ParquetExecInput;
@@ -37,6 +40,7 @@ use sha2::Digest;
 use sha2::Sha256;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
+use std::ops::Deref;
 use std::sync::{Arc, OnceLock};
 use thiserror::Error;
 use tokio::sync::watch;
@@ -88,8 +92,9 @@ pub struct WriteRequest<'a> {
 pub struct WriteBufferImpl<W, T, P> {
     catalog: Arc<Catalog>,
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
+    parquet_cache: Arc<dyn ObjectStore>,
+    parquet_cache_metadata: Arc<RwLock<DatabaseTables>>,
     persister: Arc<P>,
-    #[allow(dead_code)]
     wal: Option<Arc<W>>,
     write_buffer_flusher: WriteBufferFlusher,
     segment_duration: SegmentDuration,
@@ -152,6 +157,10 @@ impl<W: Wal, T: TimeProvider, P: Persister> WriteBufferImpl<W, T, P> {
         Ok(Self {
             catalog: loaded_state.catalog,
             segment_state,
+            parquet_cache: Arc::new(InMemory::new()),
+            parquet_cache_metadata: Arc::new(RwLock::new(DatabaseTables {
+                tables: HashMap::new(),
+            })),
             persister,
             wal,
             write_buffer_flusher,
@@ -258,6 +267,61 @@ impl<W: Wal, T: TimeProvider, P: Persister> WriteBufferImpl<W, T, P> {
                     version: None,
                 },
                 object_store: self.persister.object_store(),
+            };
+
+            let parquet_chunk = ParquetChunk {
+                schema: table_schema.clone(),
+                stats: Arc::new(chunk_stats),
+                partition_id,
+                sort_key: None,
+                id: ChunkId::new(),
+                chunk_order: ChunkOrder::new(chunk_order),
+                parquet_exec,
+            };
+
+            chunk_order += 1;
+
+            chunks.push(Arc::new(parquet_chunk));
+        }
+
+        // Get any cached files and add them to the query
+        let parquet_files = self
+            .parquet_cache_metadata
+            .read()
+            .deref()
+            .tables
+            .get(database_name)
+            .map(|table| table.parquet_files.clone())
+            .unwrap_or_default();
+
+        // This is mostly the same as above, but we change the object store to
+        // point to the in memory cache
+        for parquet_file in parquet_files {
+            let partition_key = data_types::PartitionKey::from(parquet_file.path.clone());
+            let partition_id = data_types::partition::TransitionPartitionId::new(
+                data_types::TableId::new(0),
+                &partition_key,
+            );
+
+            let chunk_stats = create_chunk_statistics(
+                Some(parquet_file.row_count as usize),
+                &table_schema,
+                Some(parquet_file.timestamp_min_max()),
+                None,
+            );
+
+            let location = ObjPath::from(parquet_file.path.clone());
+
+            let parquet_exec = ParquetExecInput {
+                object_store_url: object_store_url.clone(),
+                object_meta: ObjectMeta {
+                    location,
+                    last_modified: Default::default(),
+                    size: parquet_file.size_bytes as usize,
+                    e_tag: None,
+                    version: None,
+                },
+                object_store: Arc::clone(&self.parquet_cache),
             };
 
             let parquet_chunk = ParquetChunk {
