@@ -95,7 +95,7 @@ func (c *Client) Open() error {
 	defer c.mu.Unlock()
 
 	// Try to load from disk
-	if err := c.Load(); err != nil {
+	if err := c.load(); err != nil {
 		return err
 	}
 
@@ -988,8 +988,15 @@ func snapshot(store kv.Store, data *Data) (err error) {
 	})
 }
 
-// Load loads the current meta data from disk.
-func (c *Client) Load() error {
+// Reload reads the metadata from storage and updates the receiver.
+func (c *Client) Reload() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.load()
+}
+
+// needs to be write locked as this replaces c.cacheData
+func (c *Client) load() error {
 	return c.store.View(context.TODO(), func(tx kv.Tx) error {
 		b, err := tx.Bucket(BucketName)
 		if err != nil {
@@ -1022,7 +1029,8 @@ func (c *Client) Restore(ctx context.Context, r io.Reader) error {
 	if err := c.store.Restore(ctx, r); err != nil {
 		return err
 	}
-	return c.Load()
+	// locked version to update cache from new store data
+	return c.Reload()
 }
 
 type uint64Slice []uint64
