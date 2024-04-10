@@ -1006,12 +1006,23 @@ func TestService(t *testing.T) {
 					},
 				},
 				{
-					name:   "nonexistent",
+					name:   "nonexistent (darwin|linux)",
 					path:   "/nonexistent",
+					oses:   []string{"darwin", "linux"},
 					expErr: "file:// URL failed to parse",
 					expLog: []logm{
 						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
 						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "open /nonexistent: no such file or directory"},
+					},
+				},
+				{
+					name:   "nonexistent (windows)",
+					path:   "/nonexistent",
+					oses:   []string{"windows"},
+					expErr: "file:// URL failed to parse",
+					expLog: []logm{
+						{level: zapcore.InfoLevel, msg: "file:// specified in call to /api/v2/templates/apply with stack"},
+						{level: zapcore.ErrorLevel, msg: "error parsing file:// specified in call to /api/v2/templates/apply with stack", err: "open /nonexistent: The system cannot find the file specified."},
 					},
 				},
 				{
@@ -1051,7 +1062,7 @@ func TestService(t *testing.T) {
 									{
 										Name:         "some-file",
 										Description:  "some file with file://",
-										TemplateURLs: []string{fmt.Sprintf("file://%s", tt.path)},
+										TemplateURLs: []string{fmt.Sprintf("file://%s", pathToURLPath(tt.path))},
 									},
 								},
 							}, nil
@@ -1075,7 +1086,7 @@ func TestService(t *testing.T) {
 
 					sc := StackCreate{
 						OrgID:        testOrgID,
-						TemplateURLs: []string{fmt.Sprintf("file://%s", tt.path)},
+						TemplateURLs: []string{fmt.Sprintf("file://%s", pathToURLPath(tt.path))},
 					}
 					stack, err := svc.InitStack(ctx, 9000, sc)
 					require.NoError(t, err)

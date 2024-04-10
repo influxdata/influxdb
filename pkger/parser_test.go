@@ -4867,9 +4867,16 @@ func Test_FromFile(t *testing.T) {
 			expErr: "invalid filepath provided",
 		},
 		{
-			path:   "testdata/nonexistent",
+			path:   "testdata/nonexistent (darwin|linux)",
 			extra:  false,
 			expErr: "no such file or directory",
+			oses:   []string{"darwin", "linux"},
+		},
+		{
+			path:   "testdata/nonexistent (windows)",
+			extra:  false,
+			expErr: "The system cannot find the file specified.",
+			oses:   []string{"windows"},
 		},
 		// invalid with extra
 		{
@@ -4891,9 +4898,16 @@ func Test_FromFile(t *testing.T) {
 			expErr: "not a regular file",
 		},
 		{
-			path:   "testdata/nonexistent",
+			path:   "testdata/nonexistent (darwin|linux)",
 			extra:  true,
 			expErr: "no such file or directory",
+			oses:   []string{"darwin", "linux"},
+		},
+		{
+			path:   "testdata/nonexistent (windows)",
+			extra:  true,
+			expErr: "The system cannot find the file specified.",
+			oses:   []string{"windows"},
 		},
 		{
 			path:   emptyFn,
@@ -4929,7 +4943,7 @@ func Test_FromFile(t *testing.T) {
 			if tt.expErr == "" {
 				assert.NotNil(t, reader)
 				assert.Nil(t, err)
-				assert.Equal(t, fmt.Sprintf("file://%s", tt.path), path)
+				assert.Equal(t, fmt.Sprintf("file://%s", pathToURLPath(tt.path)), path)
 			} else {
 				assert.Nil(t, reader)
 				assert.NotNil(t, err)
@@ -5058,13 +5072,23 @@ func nextField(t *testing.T, field string) (string, int) {
 	return "", -1
 }
 
+// pathToURL converts file paths to URLs. This is a simple operation on Unix,
+// but is complicated by correct handling of drive letters on Windows.
+func pathToURLPath(p string) string {
+	var rootSlash string
+	if filepath.VolumeName(p) != "" {
+		rootSlash = "/"
+	}
+	return rootSlash + filepath.ToSlash(p)
+}
+
 func validParsedTemplateFromFile(t *testing.T, path string, encoding Encoding, opts ...ValidateOptFn) *Template {
 	t.Helper()
 
 	var readFn ReaderFn
 	templateBytes, ok := availableTemplateFiles[path]
 	if ok {
-		readFn = FromReader(bytes.NewBuffer(templateBytes), "file://"+path)
+		readFn = FromReader(bytes.NewBuffer(templateBytes), "file://"+pathToURLPath(path))
 	} else {
 		readFn = FromFile(path, false)
 		atomic.AddInt64(&missedTemplateCacheCounter, 1)
