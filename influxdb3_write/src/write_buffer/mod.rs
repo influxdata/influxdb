@@ -10,13 +10,14 @@ use crate::catalog::{
     Catalog, DatabaseSchema, TableDefinition, SERIES_ID_COLUMN_NAME, TIME_COLUMN_NAME,
 };
 use crate::chunk::ParquetChunk;
+use crate::persister::PersisterImpl;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
 use crate::write_buffer::segment_state::{run_buffer_segment_persist_and_cleanup, SegmentState};
 use crate::DatabaseTables;
 use crate::{
-    persister, BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister,
-    Precision, SegmentDuration, SegmentId, SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
+    BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister, Precision,
+    SegmentDuration, SegmentId, SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -89,12 +90,12 @@ pub struct WriteRequest<'a> {
 }
 
 #[derive(Debug)]
-pub struct WriteBufferImpl<W, T, P> {
+pub struct WriteBufferImpl<W, T> {
     catalog: Arc<Catalog>,
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
     parquet_cache: Arc<dyn ObjectStore>,
     parquet_cache_metadata: Arc<RwLock<DatabaseTables>>,
-    persister: Arc<P>,
+    persister: Arc<PersisterImpl>,
     wal: Option<Arc<W>>,
     write_buffer_flusher: WriteBufferFlusher,
     segment_duration: SegmentDuration,
@@ -106,19 +107,14 @@ pub struct WriteBufferImpl<W, T, P> {
     shutdown_segment_persist_tx: watch::Sender<()>,
 }
 
-impl<W: Wal, T: TimeProvider, P: Persister> WriteBufferImpl<W, T, P> {
+impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
     pub async fn new(
-        persister: Arc<P>,
+        persister: Arc<PersisterImpl>,
         wal: Option<Arc<W>>,
         time_provider: Arc<T>,
         segment_duration: SegmentDuration,
         executor: Arc<iox_query::exec::Executor>,
-    ) -> Result<Self>
-    where
-        P: Persister,
-        Error: From<<P as Persister>::Error>,
-        persister::Error: From<<P as Persister>::Error>,
-    {
+    ) -> Result<Self> {
         let now = time_provider.now();
         let loaded_state =
             load_starting_state(Arc::clone(&persister), wal.clone(), now, segment_duration).await?;
@@ -358,7 +354,7 @@ impl<W: Wal, T: TimeProvider, P: Persister> WriteBufferImpl<W, T, P> {
 }
 
 #[async_trait]
-impl<W: Wal, T: TimeProvider, P: Persister> Bufferer for WriteBufferImpl<W, T, P> {
+impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
     async fn write_lp(
         &self,
         database: NamespaceName<'static>,
@@ -392,7 +388,7 @@ impl<W: Wal, T: TimeProvider, P: Persister> Bufferer for WriteBufferImpl<W, T, P
     }
 }
 
-impl<W: Wal, T: TimeProvider, P: Persister> ChunkContainer for WriteBufferImpl<W, T, P> {
+impl<W: Wal, T: TimeProvider> ChunkContainer for WriteBufferImpl<W, T> {
     fn get_table_chunks(
         &self,
         database_name: &str,
@@ -405,7 +401,7 @@ impl<W: Wal, T: TimeProvider, P: Persister> ChunkContainer for WriteBufferImpl<W
     }
 }
 
-impl<W: Wal, T: TimeProvider, P: Persister> WriteBuffer for WriteBufferImpl<W, T, P> {}
+impl<W: Wal, T: TimeProvider> WriteBuffer for WriteBufferImpl<W, T> {}
 
 /// Returns a validated result and the sequence number of the catalog before any updates were
 /// applied.
@@ -1156,7 +1152,7 @@ mod tests {
     }
 
     async fn get_table_batches(
-        write_buffer: &WriteBufferImpl<WalImpl, MockProvider, PersisterImpl>,
+        write_buffer: &WriteBufferImpl<WalImpl, MockProvider>,
         database_name: &str,
         table_name: &str,
         ctx: &IOxSessionContext,
