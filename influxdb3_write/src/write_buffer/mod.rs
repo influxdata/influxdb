@@ -6,6 +6,7 @@ mod loader;
 mod segment_state;
 mod table_buffer;
 
+use crate::cache::ParquetCache;
 use crate::catalog::{
     Catalog, DatabaseSchema, TableDefinition, SERIES_ID_COLUMN_NAME, TIME_COLUMN_NAME,
 };
@@ -14,7 +15,6 @@ use crate::persister::PersisterImpl;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
 use crate::write_buffer::segment_state::{run_buffer_segment_persist_and_cleanup, SegmentState};
-use crate::DatabaseTables;
 use crate::{
     BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister, Precision,
     SegmentDuration, SegmentId, SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
@@ -26,14 +26,13 @@ use data_types::{
 use datafusion::common::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
+use datafusion::physical_plan::SendableRecordBatchStream;
 use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine, Series, TagSet};
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
-use object_store::memory::InMemory;
 use object_store::path::Path as ObjPath;
 use object_store::ObjectMeta;
-use object_store::ObjectStore;
 use observability_deps::tracing::{debug, error};
 use parking_lot::{Mutex, RwLock};
 use parquet_file::storage::ParquetExecInput;
@@ -41,7 +40,7 @@ use sha2::Digest;
 use sha2::Sha256;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
-use std::ops::Deref;
+use std::i64;
 use std::sync::{Arc, OnceLock};
 use thiserror::Error;
 use tokio::sync::watch;
@@ -92,10 +91,9 @@ pub struct WriteRequest<'a> {
 #[derive(Debug)]
 pub struct WriteBufferImpl<W, T> {
     catalog: Arc<Catalog>,
-    segment_state: Arc<RwLock<SegmentState<T, W>>>,
-    parquet_cache: Arc<dyn ObjectStore>,
-    parquet_cache_metadata: Arc<RwLock<DatabaseTables>>,
     persister: Arc<PersisterImpl>,
+    parquet_cache: Arc<ParquetCache>,
+    segment_state: Arc<RwLock<SegmentState<T, W>>>,
     wal: Option<Arc<W>>,
     write_buffer_flusher: WriteBufferFlusher,
     segment_duration: SegmentDuration,
@@ -153,10 +151,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         Ok(Self {
             catalog: loaded_state.catalog,
             segment_state,
-            parquet_cache: Arc::new(InMemory::new()),
-            parquet_cache_metadata: Arc::new(RwLock::new(DatabaseTables {
-                tables: HashMap::new(),
-            })),
+            parquet_cache: Arc::new(ParquetCache::new(&persister.mem_pool)),
             persister,
             wal,
             write_buffer_flusher,
@@ -281,18 +276,12 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         }
 
         // Get any cached files and add them to the query
-        let parquet_files = self
-            .parquet_cache_metadata
-            .read()
-            .deref()
-            .tables
-            .get(database_name)
-            .map(|table| table.parquet_files.clone())
-            .unwrap_or_default();
-
         // This is mostly the same as above, but we change the object store to
         // point to the in memory cache
-        for parquet_file in parquet_files {
+        for parquet_file in self
+            .parquet_cache
+            .get_parquet_files(database_name, table_name)
+        {
             let partition_key = data_types::PartitionKey::from(parquet_file.path.clone());
             let partition_id = data_types::partition::TransitionPartitionId::new(
                 data_types::TableId::new(0),
@@ -317,7 +306,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
                     e_tag: None,
                     version: None,
                 },
-                object_store: Arc::clone(&self.parquet_cache),
+                object_store: Arc::clone(&self.parquet_cache.object_store()),
             };
 
             let parquet_chunk = ParquetChunk {
@@ -336,6 +325,57 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         }
 
         Ok(chunks)
+    }
+
+    pub async fn cache_parquet(
+        &self,
+        db_name: &str,
+        table_name: &str,
+        records: SendableRecordBatchStream,
+    ) -> Result<(), Error> {
+        let (min_time, max_time) = self.segment_state.read().open_segment_min_max_times();
+
+        Ok(self
+            .parquet_cache
+            .persist_parquet_file(
+                db_name,
+                table_name,
+                min_time.map(|ts| ts.timestamp_nanos()).unwrap_or(i64::MIN),
+                max_time.map(|ts| ts.timestamp_nanos()).unwrap_or(i64::MAX),
+                records,
+                None,
+            )
+            .await?)
+    }
+
+    pub async fn update_parquet(
+        &self,
+        db_name: &str,
+        table_name: &str,
+        path: ObjPath,
+        records: SendableRecordBatchStream,
+    ) -> Result<(), Error> {
+        let (min_time, max_time) = self.segment_state.read().open_segment_min_max_times();
+
+        Ok(self
+            .parquet_cache
+            .persist_parquet_file(
+                db_name,
+                table_name,
+                min_time.map(|ts| ts.timestamp_nanos()).unwrap_or(i64::MIN),
+                max_time.map(|ts| ts.timestamp_nanos()).unwrap_or(i64::MAX),
+                records,
+                Some(path),
+            )
+            .await?)
+    }
+
+    pub async fn remove_parquet(&self, path: ObjPath) -> Result<(), Error> {
+        Ok(self.parquet_cache.remove_parquet_file(path).await?)
+    }
+
+    pub async fn purge_cache(&self) -> Result<(), Error> {
+        Ok(self.parquet_cache.purge_cache().await?)
     }
 
     #[cfg(test)]

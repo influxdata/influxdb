@@ -6,7 +6,10 @@ use crate::catalog::InnerCatalog;
 use crate::paths::CatalogFilePath;
 use crate::paths::ParquetFilePath;
 use crate::paths::SegmentInfoFilePath;
-use crate::{PersistedCatalog, PersistedSegment, Persister, SegmentId};
+use crate::PersistedCatalog;
+use crate::PersistedSegment;
+use crate::Persister;
+use crate::SegmentId;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -57,7 +60,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct PersisterImpl {
     object_store: Arc<dyn ObjectStore>,
-    mem_pool: Arc<dyn MemoryPool>,
+    pub(crate) mem_pool: Arc<dyn MemoryPool>,
 }
 
 impl PersisterImpl {
@@ -72,36 +75,39 @@ impl PersisterImpl {
         &self,
         batches: SendableRecordBatchStream,
     ) -> Result<ParquetBytes> {
-        // The ArrowWriter::write() call will return an error if any subsequent
-        // batch does not match this schema, enforcing schema uniformity.
-        let schema = batches.schema();
-
-        let stream = batches;
-        let mut bytes = Vec::new();
-        pin_mut!(stream);
-
-        // Construct the arrow serializer with the metadata as part of the parquet
-        // file properties.
-        let mut writer = TrackedMemoryArrowWriter::try_new(
-            &mut bytes,
-            Arc::clone(&schema),
-            self.mem_pool.clone(),
-        )?;
-
-        while let Some(batch) = stream.try_next().await? {
-            writer.write(batch)?;
-        }
-
-        let writer_meta = writer.close()?;
-        if writer_meta.num_rows == 0 {
-            return Err(Error::NoRows);
-        }
-
-        Ok(ParquetBytes {
-            meta_data: writer_meta,
-            bytes: Bytes::from(bytes),
-        })
+        serialize_to_parquet(Arc::clone(&self.mem_pool), batches).await
     }
+}
+
+pub async fn serialize_to_parquet(
+    mem_pool: Arc<dyn MemoryPool>,
+    batches: SendableRecordBatchStream,
+) -> Result<ParquetBytes> {
+    // The ArrowWriter::write() call will return an error if any subsequent
+    // batch does not match this schema, enforcing schema uniformity.
+    let schema = batches.schema();
+
+    let stream = batches;
+    let mut bytes = Vec::new();
+    pin_mut!(stream);
+
+    // Construct the arrow serializer with the metadata as part of the parquet
+    // file properties.
+    let mut writer = TrackedMemoryArrowWriter::try_new(&mut bytes, Arc::clone(&schema), mem_pool)?;
+
+    while let Some(batch) = stream.try_next().await? {
+        writer.write(batch)?;
+    }
+
+    let writer_meta = writer.close()?;
+    if writer_meta.num_rows == 0 {
+        return Err(Error::NoRows);
+    }
+
+    Ok(ParquetBytes {
+        meta_data: writer_meta,
+        bytes: Bytes::from(bytes),
+    })
 }
 
 #[async_trait]
