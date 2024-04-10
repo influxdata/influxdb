@@ -4,7 +4,7 @@ version:
     match: '^v[0-9]+.[0-9]+.[0-9]+'
     value: '{{env.CIRCLE_TAG[1:]}}'
   alpha:
-    match: '^v3.0.0.alpha.[0-9]+.[0-9]+'
+    match: '^v3.0.0-0.alpha.[0-9]+.[0-9]+'
     value: '{{env.CIRCLE_TAG[1:]}}'
   default:
     value: '3.0.0+snapshot-{{env.CIRCLE_SHA1[:8]}}'

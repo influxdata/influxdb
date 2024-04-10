@@ -44,8 +44,8 @@ RUN apt update \
     && groupadd --gid 1500 influxdb3 \
     && useradd --uid 1500 --gid influxdb3 --shell /bin/bash --create-home influxdb3
 
-RUN mkdir /usr/local/share/influxdb3 && \
-    chown influxdb3:influxdb3 /usr/local/share/influxdb3
+RUN mkdir /var/lib/influxdb3 && \
+    chown influxdb3:influxdb3 /var/lib/influxdb3
 
 USER influxdb3
 
@@ -61,7 +61,8 @@ EXPOSE 8181
 
 # TODO: Make this and other env vars not specific to IOx
 ENV INFLUXDB_IOX_OBJECT_STORE=file
-ENV INFLUXDB_IOX_DB_DIR=/usr/local/share/influxdb3
+ENV INFLUXDB_IOX_DB_DIR=/var/lib/influxdb3
+ENV LOG_FILTER=info
 
 ENTRYPOINT ["/usr/bin/entrypoint.sh"]
 

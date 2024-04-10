@@ -420,7 +420,7 @@ jobs:
           path: /tmp/workspace/artifacts
   publish-packages:
     docker:
-      - image: cimg/python:3.6
+      - image: cimg/python:3.12.2
     parameters:
       # "destination" should be one of:
       #   - releases

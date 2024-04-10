@@ -1,5 +1,7 @@
 #!/bin/bash
 
+USER=influxdb3
+GROUP=influxdb3
 BIN_DIR=/usr/bin
 DATA_DIR=/var/lib/influxdb3
 LOG_DIR=/var/log/influxdb3
@@ -9,8 +11,8 @@ if [[ -f /etc/debian_version ]]; then
     # Ownership for RH-based platforms is set in build.py via the `rmp-attr` option.
     # We perform ownership change only for Debian-based systems.
     # Moving these lines out of this if statement would make `rmp -V` fail after installation.
-    chown -R -L influxdb:influxdb $LOG_DIR
-    chown -R -L influxdb:influxdb $DATA_DIR
+    chown -R -L $USER:$GROUP $LOG_DIR
+    chown -R -L $USER:$GROUP $DATA_DIR
     chmod 755 $LOG_DIR
     chmod 755 $DATA_DIR
 fi
