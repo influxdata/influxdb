@@ -4936,14 +4936,15 @@ func Test_FromFile(t *testing.T) {
 				}
 			}
 
-			readFn := FromFile(tt.path, tt.extra)
+			urlPath := pathToURLPath(tt.path)
+			readFn := FromFile(urlPath, tt.extra)
 			assert.NotNil(t, readFn)
 
 			reader, path, err := readFn()
 			if tt.expErr == "" {
 				assert.NotNil(t, reader)
 				assert.Nil(t, err)
-				assert.Equal(t, fmt.Sprintf("file://%s", pathToURLPath(tt.path)), path)
+				assert.Equal(t, fmt.Sprintf("file://%s", urlPath), path)
 			} else {
 				assert.Nil(t, reader)
 				assert.NotNil(t, err)
