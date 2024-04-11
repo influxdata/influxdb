@@ -1,10 +1,6 @@
-
 version:
   release:
     match: '^v[0-9]+.[0-9]+.[0-9]+'
-    value: '{{env.CIRCLE_TAG[1:]}}'
-  alpha:
-    match: '^v3.0.0-0.alpha.[0-9]+.[0-9]+'
     value: '{{env.CIRCLE_TAG[1:]}}'
   default:
     value: '3.0.0+snapshot-{{env.CIRCLE_SHA1[:8]}}'
@@ -47,8 +43,7 @@ packages:
       - source: README.md
         target: usr/share/influxdb3/README.md
     #perm_overrides:
-    deb_recommends:
-      - influxdb3-cli
+    #deb_recommends:
     #conflicts:
     #depends:
     source: .circleci/packages/influxdb3
