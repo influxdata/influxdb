@@ -27,6 +27,7 @@ use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
 use parquet::format::FileMetaData;
 use parquet::format::SortingColumn;
+use parquet::schema::types::ColumnPath;
 use schema::SERIES_ID_COLUMN_NAME;
 use schema::TIME_COLUMN_NAME;
 use std::any::Any;
@@ -291,10 +292,15 @@ impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
             .set_compression(Compression::ZSTD(Default::default()))
             .set_max_row_group_size(ROW_GROUP_WRITE_SIZE);
         if let (Some((s, _)), Some((t, _))) = (series_id_idx, time_idx) {
-            builder = builder.set_sorting_columns(Some(vec![
-                SortingColumn::new(s as i32, false, false),
-                SortingColumn::new(t as i32, false, false),
-            ]));
+            builder = builder
+                .set_sorting_columns(Some(vec![
+                    SortingColumn::new(s as i32, false, false),
+                    SortingColumn::new(t as i32, false, false),
+                ]))
+                .set_column_encoding(
+                    ColumnPath::from(SERIES_ID_COLUMN_NAME),
+                    parquet::basic::Encoding::DELTA_BYTE_ARRAY,
+                );
         }
         let props = builder.build();
         let inner = ArrowWriter::try_new(sink, schema, Some(props))?;
