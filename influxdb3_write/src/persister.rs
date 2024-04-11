@@ -26,6 +26,9 @@ use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
 use parquet::format::FileMetaData;
+use parquet::format::SortingColumn;
+use schema::SERIES_ID_COLUMN_NAME;
+use schema::TIME_COLUMN_NAME;
 use std::any::Any;
 use std::io::Write;
 use std::sync::Arc;
@@ -282,10 +285,18 @@ pub const ROW_GROUP_WRITE_SIZE: usize = 1024 * 1024;
 impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
     /// create a new `TrackedMemoryArrowWriter<`
     pub fn try_new(sink: W, schema: SchemaRef, mem_pool: Arc<dyn MemoryPool>) -> Result<Self> {
-        let props = WriterProperties::builder()
+        let series_id_idx = schema.fields.find(SERIES_ID_COLUMN_NAME);
+        let time_idx = schema.fields.find(TIME_COLUMN_NAME);
+        let mut builder = WriterProperties::builder()
             .set_compression(Compression::ZSTD(Default::default()))
-            .set_max_row_group_size(ROW_GROUP_WRITE_SIZE)
-            .build();
+            .set_max_row_group_size(ROW_GROUP_WRITE_SIZE);
+        if let (Some((s, _)), Some((t, _))) = (series_id_idx, time_idx) {
+            builder = builder.set_sorting_columns(Some(vec![
+                SortingColumn::new(s as i32, false, false),
+                SortingColumn::new(t as i32, false, false),
+            ]));
+        }
+        let props = builder.build();
         let inner = ArrowWriter::try_new(sink, schema, Some(props))?;
         let consumer = MemoryConsumer::new("InfluxDB3 ParquetWriter (TrackedMemoryArrowWriter)");
         let reservation = consumer.register(&mem_pool);

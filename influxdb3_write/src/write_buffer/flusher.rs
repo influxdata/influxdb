@@ -143,8 +143,8 @@ async fn run_wal_op_buffer<T: TimeProvider, W: Wal>(
                 io_flush_tx.send(ops).expect("wal io thread is dead");
 
                 let res = match io_flush_notify_rx.recv().expect("wal io thread is dead") {
-                  Ok(()) => {
-                       let mut err = BufferedWriteResult::Success(());
+                    Ok(()) => {
+                        let mut err = BufferedWriteResult::Success(());
 
                         let mut segment_state = segment_state.write();
 
