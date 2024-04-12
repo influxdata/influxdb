@@ -369,7 +369,7 @@ impl InfluxDb3Config {
         let built_in_specs = crate::specs::built_in_specs();
 
         // sepcify a time string for generated results file names:
-        let time_str = format!("{}", Local::now().format("%Y-%m-%d-%H-%M"));
+        let time_str = format!("{}", Local::now().format("%Y-%m-%d-%H-%M-%S"));
 
         // initialize the influxdb3 client:
         let client =
