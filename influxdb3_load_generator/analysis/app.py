@@ -30,7 +30,7 @@ def get_config_names():
         if os.path.isdir(config_path):
             run_times = set()
             for file_name in os.listdir(config_path):
-                match = re.search(r'_(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})', file_name)
+                match = re.search(r'_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})', file_name)
                 if match:
                     run_time = match.group(1)
                     run_times.add(run_time)
