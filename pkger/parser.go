@@ -23,6 +23,7 @@ import (
 	fluxurl "github.com/influxdata/flux/dependencies/url"
 	"github.com/influxdata/flux/parser"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+	caperr "github.com/influxdata/influxdb/v2/pkg/errors"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"github.com/influxdata/influxdb/v2/task/options"
@@ -116,13 +117,13 @@ const limitReadFileMaxSize int64 = 2 * 1024 * 1024
 // Ultimately, only remocal will have file:// URLs enabled for its 'data
 // catalogs' bootstrap functionality. At present, the largest catalog is 40k,
 // so set a small max here with a bit of headroom.
-func limitReadFile(name string) ([]byte, error) {
+func limitReadFile(name string) (buf []byte, rErr error) {
 	// use os.Open() to avoid TOCTOU
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer caperr.Capture(&rErr, f.Close)
 
 	// Check that properties of file are OK.
 	st, err := f.Stat()
@@ -132,25 +133,25 @@ func limitReadFile(name string) ([]byte, error) {
 
 	// Disallow reading from special file systems (e.g. /proc, /sys/, /dev).
 	if special, err := fs.IsSpecialFSFromFileInfo(st); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %q", err, name)
 	} else if special {
-		return nil, errors.New("file in special file system")
+		return nil, fmt.Errorf("file in special file system: %q", name)
 	}
 
 	// only support reading regular files
 	if st.Mode()&os.ModeType != 0 {
-		return nil, errors.New("not a regular file")
+		return nil, fmt.Errorf("not a regular file: %q", name)
 	}
 
 	// limit how much we read into RAM
 	var size int
 	size64 := st.Size()
 	if size64 > limitReadFileMaxSize {
-		return nil, errors.New("file too big")
+		return nil, fmt.Errorf("file too big: %q", name)
 	} else if size64 == 0 {
 		// A lot of /proc files report their length as 0, so this will also
 		// catch a large proportion of /proc files.
-		return nil, errors.New("file empty")
+		return nil, fmt.Errorf("file empty: %q", name)
 	}
 	size = int(size64)
 
@@ -160,7 +161,7 @@ func limitReadFile(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	} else if b != size {
-		return nil, errors.New("short read")
+		return nil, fmt.Errorf("short read: %q", name)
 	}
 
 	return data, nil
