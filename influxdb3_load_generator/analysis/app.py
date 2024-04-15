@@ -30,7 +30,7 @@ def get_config_names():
         if os.path.isdir(config_path):
             run_times = set()
             for file_name in os.listdir(config_path):
-                match = re.search(r'_(\d{4}-\d{2}-\d{2}-\d{2}-\d{2})', file_name)
+                match = re.search(r'_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})', file_name)
                 if match:
                     run_time = match.group(1)
                     run_times.add(run_time)
@@ -49,22 +49,29 @@ def get_aggregated_data():
     query_file = os.path.join(config_path, f'query_{run_time}.csv')
     system_file = os.path.join(config_path, f'system_{run_time}.csv')
 
-    if os.path.isfile(write_file) and os.path.isfile(query_file) and os.path.isfile(system_file):
-        write_data = aggregate_data(write_file, 'lines', 'latency_ms')
-        query_data = aggregate_data(query_file, 'rows', 'response_ms')
-        system_data = aggregate_system_data(system_file)
-
-        aggregated_data = {
-            'config_name': config_name,
-            'run_time': run_time,
-            'write_data': write_data,
-            'query_data': query_data,
-            'system_data': system_data
-        }
-
-        return jsonify(aggregated_data)
-    else:
+    if not os.path.isfile(write_file) and not os.path.isfile(query_file) and not os.path.isfile(system_file):
         return jsonify({'error': 'Files not found for the specified configuration and run time'})
+
+    write_data = None
+    if os.path.isfile(write_file):
+        write_data = aggregate_data(write_file, 'lines', 'latency_ms')
+    query_data = None
+    if os.path.isfile(query_file):
+        query_data = aggregate_data(query_file, 'rows', 'response_ms')
+    system_data = None
+    if os.path.isfile(system_file):
+        system_data = aggregate_system_data(system_file)
+    
+
+    aggregated_data = {
+        'config_name': config_name,
+        'run_time': run_time,
+        'write_data': write_data,
+        'query_data': query_data,
+        'system_data': system_data
+    }
+
+    return jsonify(aggregated_data)
 
 def aggregate_data(file_path, lines_field, latency_field):
     aggregated_data = []

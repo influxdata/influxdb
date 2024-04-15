@@ -4,7 +4,7 @@
     <title>Benchmark Results Comparison</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .graph-container {
+        #graph-container {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             grid-template-rows: repeat(3, 1fr);
@@ -12,7 +12,7 @@
             width: 100%;
             height: 600px;
         }
-        .graph-container canvas {
+        #graph-container canvas {
             width: 100% !important;
             height: 100% !important;
         }
@@ -33,14 +33,7 @@
     <select id="config-name-2"></select>
 </div>
 <button id="compare-btn">Compare</button>
-<div class="graph-container">
-    <canvas id="lines-per-second-chart"></canvas>
-    <canvas id="write-latency-chart"></canvas>
-    <canvas id="queries-per-second-chart"></canvas>
-    <canvas id="query-latency-chart"></canvas>
-    <canvas id="cpu-usage-chart"></canvas>
-    <canvas id="memory-usage-chart"></canvas>
-</div>
+<div id="graph-container"></div>
 <script>
     const testNameSelect = document.getElementById('test-name');
     const configName1Select = document.getElementById('config-name-1');
@@ -111,18 +104,27 @@
                 const config1Data = data[0];
                 const config2Data = data[1];
 
-                renderGraph('lines-per-second-chart', 'Lines per Second', config1Data.write_data, config2Data.write_data, 'lines', 10000);
-                renderGraph('write-latency-chart', 'Write Latency (ms)', config1Data.write_data, config2Data.write_data, 'latency', 10000, 'median');
-                renderGraph('queries-per-second-chart', 'Queries per Second', config1Data.query_data, config2Data.query_data, 'lines', 10000);
-                renderGraph('query-latency-chart', 'Query Latency (ms)', config1Data.query_data, config2Data.query_data, 'latency', 10000, 'median');
-                renderGraph('cpu-usage-chart', 'CPU Usage (%)', config1Data.system_data, config2Data.system_data, 'cpu_usage');
-                renderGraph('memory-usage-chart', 'Memory Usage (MB)', config1Data.system_data, config2Data.system_data, 'memory_bytes');
+                if (config1Data.write_data && config2Data.write_data) {
+                    renderGraph('Lines per Second', config1Data.write_data, config2Data.write_data, 'lines', 10000);
+                    renderGraph('Write Latency (ms)', config1Data.write_data, config2Data.write_data, 'latency', 10000, 'median');
+                }
+                if (config1Data.query_data && config2Data.query_data) {
+                    renderGraph('Queries per Second', config1Data.query_data, config2Data.query_data, 'lines', 10000);
+                    renderGraph('Query Latency (ms)', config1Data.query_data, config2Data.query_data, 'latency', 10000, 'median');
+                }
+                if (config1Data.system_data && config2Data.system_data) {
+                    renderGraph('CPU Usage (%)', config1Data.system_data, config2Data.system_data, 'cpu_usage');
+                    renderGraph('Memory Usage (MB)', config1Data.system_data, config2Data.system_data, 'memory_bytes');
+                }
             });
     });
 
     // Render a graph using Chart.js
-    function renderGraph(chartId, title, config1Data, config2Data, yAxisKey, interval = 10000, aggregateFunction = 'sum') {
-        const ctx = document.getElementById(chartId).getContext('2d');
+    function renderGraph(title, config1Data, config2Data, yAxisKey, interval = 10000, aggregateFunction = 'sum') {
+        const container = document.getElementById('graph-container');
+        const canvas = document.createElement("canvas");
+        container.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
 
         const labels = getXLabels(config1Data, interval);
         const config1Values = getYValues(config1Data, yAxisKey, interval, aggregateFunction);
