@@ -17,6 +17,7 @@ mod specs;
 
 pub mod commands {
     pub mod common;
+    pub mod compact;
     pub mod full;
     pub mod query;
     pub mod write;
@@ -84,6 +85,9 @@ enum Command {
 
     /// Perform both writes and queries against a running InfluxDB 3.0 server
     Full(commands::full::Config),
+
+    /// Run a compaction test
+    Compact(commands::compact::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -111,6 +115,12 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::Full(config)) => {
                 if let Err(e) = commands::full::command(config).await {
                     eprintln!("Full Write/Query command exited: {e:?}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Compact(config)) => {
+                if let Err(e) = commands::compact::command(config).await {
+                    eprintln!("Compact command exited: {e:?}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

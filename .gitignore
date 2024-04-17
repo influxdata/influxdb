@@ -14,3 +14,5 @@ perf.txt
 valgrind-out.txt
 *.pending-snap
 results/
+.history
+.local

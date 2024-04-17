@@ -1,4 +1,4 @@
-use std::{fs::File, path::PathBuf, str::FromStr, sync::Arc};
+use std::{fs::File, path::PathBuf, str::FromStr, sync::Arc, time::Duration};
 
 use anyhow::{anyhow, bail, Context};
 use chrono::{DateTime, Local};
@@ -114,6 +114,42 @@ impl From<FutureOffsetTime> for DateTime<Local> {
     fn from(t: FutureOffsetTime) -> Self {
         t.0
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct SamplingInterval(humantime::Duration);
+
+impl FromStr for SamplingInterval {
+    type Err = SamplingIntervalError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let d = humantime::Duration::from_str(s)?;
+        if d.is_zero() {
+            Err(SamplingIntervalError::ZeroDuration)
+        } else {
+            Ok(Self(d))
+        }
+    }
+}
+
+impl std::fmt::Display for SamplingInterval {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<SamplingInterval> for Duration {
+    fn from(s: SamplingInterval) -> Self {
+        s.0.into()
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum SamplingIntervalError {
+    #[error("sampling interval must be greater than 0")]
+    ZeroDuration,
+    #[error(transparent)]
+    Inner(#[from] humantime::DurationError),
 }
 
 /// Can run the load generation tool exclusively in either `query` or `write` mode, or

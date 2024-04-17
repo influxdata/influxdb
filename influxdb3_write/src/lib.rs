@@ -7,7 +7,7 @@
 //! to be persisted. A new open segment will be created and new writes will be written to that segment.
 
 pub mod catalog;
-mod chunk;
+pub mod chunk;
 pub mod paths;
 pub mod persister;
 pub mod wal;

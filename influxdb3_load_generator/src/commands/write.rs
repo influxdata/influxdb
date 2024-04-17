@@ -7,12 +7,11 @@ use clap::Parser;
 use influxdb3_client::{Client, Precision};
 use std::ops::Add;
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::Instant;
 
-use super::common::InfluxDb3Config;
+use super::common::{InfluxDb3Config, SamplingInterval};
 
 #[derive(Debug, Parser)]
 #[clap(visible_alias = "w", trailing_var_arg = true)]
@@ -66,42 +65,6 @@ pub(crate) struct WriteConfig {
     /// specification like `1 hour` in the past. If not specified, defaults to now.
     #[clap(long = "start", action)]
     start_time: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct SamplingInterval(humantime::Duration);
-
-impl FromStr for SamplingInterval {
-    type Err = SamplingIntervalError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let d = humantime::Duration::from_str(s)?;
-        if d.is_zero() {
-            Err(SamplingIntervalError::ZeroDuration)
-        } else {
-            Ok(Self(d))
-        }
-    }
-}
-
-impl std::fmt::Display for SamplingInterval {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<SamplingInterval> for Duration {
-    fn from(s: SamplingInterval) -> Self {
-        s.0.into()
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum SamplingIntervalError {
-    #[error("sampling interval must be greater than 0")]
-    ZeroDuration,
-    #[error(transparent)]
-    Inner(#[from] humantime::DurationError),
 }
 
 pub(crate) async fn command(mut config: Config) -> Result<(), anyhow::Error> {
