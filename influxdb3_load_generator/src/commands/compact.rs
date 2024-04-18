@@ -14,12 +14,14 @@ use arrow_schema::{DataType, Field, Schema as ArrowSchema, SchemaRef, TimeUnit::
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use clap_blocks::object_store::{make_object_store, ObjectStoreConfig};
-use data_types::{ChunkId, ChunkOrder, PartitionKey, TableId, TransitionPartitionId};
+use data_types::{
+    ChunkId, ChunkOrder, PartitionKey, TableId, TimestampMinMax, TransitionPartitionId,
+};
 use datafusion::execution::memory_pool::{MemoryPool, UnboundedMemoryPool};
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion_util::config::register_iox_object_store;
 use influxdb3_process::setup_metric_registry;
-use influxdb3_write::chunk::ParquetChunk;
+use influxdb3_write::chunk::{BufferChunk, ParquetChunk};
 use influxdb3_write::{ParquetFile, DEFAULT_OBJECT_STORE_URL};
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::exec::{Executor, IOxSessionContext};
@@ -51,18 +53,17 @@ pub struct Config {
     #[clap(short = 'N', long = "num-input-files", default_value_t = 1)]
     num_input_files: usize,
 
+    /// Generate a `_series_id` columnfor each row, and use it to perform sort/dedupe.
+    #[clap(short = 's', long = "series-id", default_value_t = false)]
+    series_id: bool,
+
     /// The number of rows per generated input file.
-    #[clap(long = "row-count", default_value_t = 1_000_000)]
-    row_count: usize,
+    #[clap(short = 'R', long = "rows-per-file", default_value_t = 1_000_000)]
+    rows_per_file: usize,
 
     /// The number of tags in the generated data set.
     #[clap(short = 'T', long = "num-tags", default_value_t = 1)]
     num_tags: usize,
-
-    /// The number of fields in the generated data set. These will be boolean fields, to
-    /// keep the size of generated data to a minimum.
-    #[clap(short = 'F', long = "num-fields", default_value_t = 1)]
-    num_fields: usize,
 
     /// The maximum cardinality of the generated data.
     ///
@@ -70,26 +71,16 @@ pub struct Config {
     #[clap(short = 'c', default_value_t = 1_000)]
     cardinality: u32,
 
-    // /// The number of output files (M) to compact to.
-    // ///
-    // /// Defaults to the same as `num-input-files`
-    // #[clap(short = 'M', long = "num-output-files")]
-    // num_output_files: Option<usize>,
-    /// Generate a `_series_id` columnfor each row, and use it to perform sort/dedupe.
-    #[clap(long = "series-id", default_value_t = false)]
-    series_id: bool,
+    /// The number of fields in the generated data set. These will be boolean fields, to
+    /// keep the size of generated data to a minimum.
+    #[clap(long = "num-fields", default_value_t = 1)]
+    num_fields: usize,
 
-    /// Use dictionary tags; the alternative is string tags
+    /// Generate and compact each source file, but do not write to disk.
     ///
-    /// Currently, this is not suported.
-    #[clap(long = "use-dict-tags", default_value_t = false)]
-    use_dict_tags: bool,
-
-    /// The duplication factor in generated parquet data.
-    ///
-    /// A duplication factor of 1 means that every row in generated data has a duplicate.
-    #[clap(long = "duplication-factor", default_value_t = 1)]
-    duplication_factor: usize,
+    /// Info about each generated file will be printed.
+    #[clap(long = "dry-run", default_value_t = false)]
+    dry_run: bool,
 
     /// The seed for the random number generator. Default is 0.
     #[clap(long = "seed", default_value_t = 0)]
@@ -103,12 +94,8 @@ pub struct Config {
 
     /// The sampling interval that determines the duration between timestamps in generated
     /// row data.
-    #[clap(short = 'i', long = "sampling-interval", default_value = "1s")]
+    #[clap(long = "sampling-interval", default_value = "1s")]
     sampling_interval: SamplingInterval,
-
-    /// Do not write anything to disk, but print out info about files that would be written
-    #[clap(short = 'n', long = "dry-run", default_value_t = false)]
-    dry_run: bool,
 
     /// The number of threads to run the executor on.
     #[clap(long = "num-threads", default_value = "1")]
@@ -143,34 +130,40 @@ fn object_store_url() -> ObjectStoreUrl {
 
 pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
     println!("Running Compaction Test");
-    // println!("{config:#?}");
-    let object_store = make_object_store(&config.object_store).expect("initialize object store");
-    let parquet_store =
-        ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
+    // Setup Query Executor:
     let exec = Arc::new(Executor::new(
         "compact_test",
         config.num_threads.0,
         config.mem_pool_size,
         setup_metric_registry(),
     ));
-
+    // Setup IOxSessionContext and register the object store:
     let ctx = exec.new_context();
     let runtime_env = ctx.inner().runtime_env();
+    let object_store = make_object_store(&config.object_store).expect("initialize object store");
+    let parquet_store =
+        ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
     register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
-
-    // Generate the input data
-    println!("Generate duplicated and unsorted data");
-    let mut generator = RowGenerator::from(&config);
+    // Create IOx and Arrow Schemas:
     let schema = create_schema(&config);
     let iox_schema = Schema::try_from(Arc::clone(&schema)).unwrap();
+    // Setup the memory pool for parquet writer:
     let mem_pool = Arc::new(UnboundedMemoryPool::default());
+
+    // Generate the input data
+    println!("Generate source files in the source/ directory...");
+    let mut generator = RowGenerator::from(&config);
     let mut chunk_order = 0;
     let mut chunks: Vec<Arc<dyn QueryChunk>> = Vec::new();
     let mut total_rows = 0;
     for f in 0..config.num_input_files {
+        let (ts_min_max, buffer_chunk) =
+            generate_buffer_chunk(&mut generator, iox_schema.clone(), &config, chunk_order);
+        let batches = compact(&ctx, &config, &iox_schema, vec![Arc::new(buffer_chunk)]).await;
         let path = ObjStorePath::parse(format!("source/{f}.parquet")).expect("valid path");
-        let parquet_file = generate_file(
-            &mut generator,
+        let parquet_file = record_batches_to_file(
+            batches,
+            ts_min_max,
             Arc::clone(&schema),
             &config,
             path.clone(),
@@ -178,61 +171,87 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
             Arc::clone(&object_store),
         )
         .await;
-        let parquet_exec = ParquetExecInput {
-            object_store_url: object_store_url(),
-            object_store: Arc::clone(&object_store),
-            object_meta: ObjectMeta {
-                location: path,
-                last_modified: Default::default(),
-                size: parquet_file.size_bytes as usize,
-                e_tag: None,
-                version: None,
-            },
-        };
-        let chunk_stats = create_chunk_statistics(
-            Some(parquet_file.row_count as usize),
-            &iox_schema,
-            Some(parquet_file.timestamp_min_max()),
-            None,
-        );
-        let partition_key = PartitionKey::from(parquet_file.path.clone());
-        let partition_id = TransitionPartitionId::new(TableId::new(0), &partition_key);
-        let parquet_chunk = ParquetChunk {
-            schema: iox_schema.clone(),
-            stats: Arc::new(chunk_stats),
-            partition_id,
-            sort_key: None,
-            id: ChunkId::new(),
-            chunk_order: ChunkOrder::new(chunk_order),
-            parquet_exec,
-        };
-        chunk_order += 1;
         total_rows += parquet_file.row_count as usize;
-        chunks.push(Arc::new(parquet_chunk));
+        let parquet_chunk = parquet_file_to_chunk(
+            parquet_file,
+            Arc::clone(&object_store),
+            path,
+            &iox_schema,
+            chunk_order,
+        );
+        chunk_order += 1;
+        chunks.push(parquet_chunk);
     }
 
-    // Create system stats reporter and start tracking stats
+    if config.dry_run {
+        println!("Exiting on dry-run.");
+        return Ok(());
+    }
+
+    // TODO - Create system stats reporter and start tracking stats
 
     // Perform the sort/dedupe operation
     let start = Instant::now();
-    println!("Starting compaction...");
+    println!(
+        "Starting compaction on {} file(s)...",
+        config.num_input_files
+    );
     let batches = compact(&ctx, &config, &iox_schema, chunks).await;
     let elapsed_ms = start.elapsed().as_millis();
     println!("Finished compaction in {elapsed_ms} ms.");
     let n: usize = batches.iter().map(|b| b.num_rows()).sum();
-    println!("Compacted {total_rows} down to {n}");
-
-    if config.inspect_compacted {
-        println!("Produce compacted files...");
-        let _paths =
-            persist_compacted_batches(&config, schema, mem_pool, object_store, batches).await;
+    if n < total_rows {
+        println!("Removed {} duplicates.", total_rows - n);
     }
 
-    // Stop tracking stats, record time elapsed
+    if config.inspect_compacted {
+        println!("Persist compacted files in the compacted/ directory...");
+        let paths =
+            persist_compacted_batches(&config, schema, mem_pool, object_store, batches).await;
+        println!("Persisted {} compacted files.", paths.len());
+    }
 
-    // Clean up generated data?
+    // TODO - Stop tracking stats, record time elapsed
 
     Ok(())
+}
+
+fn parquet_file_to_chunk(
+    parquet_file: ParquetFile,
+    object_store: Arc<dyn ObjectStore>,
+    path: ObjStorePath,
+    iox_schema: &Schema,
+    chunk_order: i64,
+) -> Arc<dyn QueryChunk> {
+    let parquet_exec = ParquetExecInput {
+        object_store_url: object_store_url(),
+        object_store: Arc::clone(&object_store),
+        object_meta: ObjectMeta {
+            location: path,
+            last_modified: Default::default(),
+            size: parquet_file.size_bytes as usize,
+            e_tag: None,
+            version: None,
+        },
+    };
+    let chunk_stats = create_chunk_statistics(
+        Some(parquet_file.row_count as usize),
+        &iox_schema,
+        Some(parquet_file.timestamp_min_max()),
+        None,
+    );
+    let partition_key = PartitionKey::from(parquet_file.path.clone());
+    let partition_id = TransitionPartitionId::new(TableId::new(0), &partition_key);
+    let parquet_chunk = ParquetChunk {
+        schema: iox_schema.clone(),
+        stats: Arc::new(chunk_stats),
+        partition_id,
+        sort_key: None,
+        id: ChunkId::new(),
+        chunk_order: ChunkOrder::new(chunk_order),
+        parquet_exec,
+    };
+    Arc::new(parquet_chunk)
 }
 
 async fn persist_compacted_batches(
@@ -248,7 +267,7 @@ async fn persist_compacted_batches(
         .batching(|it| {
             let mut num_rows = 0;
             let mut group = Vec::new();
-            while num_rows < config.row_count {
+            while num_rows < config.rows_per_file {
                 match it.next() {
                     Some(batch) => {
                         num_rows += batch.num_rows();
@@ -278,14 +297,12 @@ async fn persist_compacted_batches(
         let meta = writer.close().expect("close parquet writer");
         let path = ObjStorePath::parse(format!("compacted/{i}.parquet")).unwrap();
         let size_bytes = sink.len();
-        if !config.dry_run {
-            object_store
-                .put(&path, sink.into())
-                .await
-                .expect("put compacted file into object store");
-        }
+        object_store
+            .put(&path, sink.into())
+            .await
+            .expect("put compacted file into object store");
         println!(
-            "compacted file: {path}, rows: {n}, size (MB): {s:.3}",
+            "Compacted file: {path}, rows: {n}, size (MB): {s:.3}",
             n = meta.num_rows,
             s = size_bytes as f64 / 1024.0 / 1024.0
         );
@@ -323,15 +340,15 @@ async fn compact(
     ctx.collect(physical_plan).await.expect("collect data")
 }
 
-async fn generate_file(
-    generator: &mut RowGenerator,
+async fn record_batches_to_file(
+    batches: Vec<RecordBatch>,
+    timestamp_min_max: TimestampMinMax,
     schema: SchemaRef,
     config: &Config,
     path: ObjStorePath,
     mem_pool: Arc<dyn MemoryPool>,
     object_store: Arc<dyn ObjectStore>,
 ) -> ParquetFile {
-    let min_time = generator.current_time();
     let mut sink = Vec::new();
     let mut writer = create_writer(
         &mut sink,
@@ -339,24 +356,18 @@ async fn generate_file(
         mem_pool.clone(),
         config.series_id,
     );
-    let mut num_rows = 0;
-    while num_rows < config.row_count {
-        let batch = generator.generate_record_batch();
-        if batch.num_rows() == 0 {
-            panic!("generator produced no rows");
-        }
-        num_rows += batch.num_rows();
+    for batch in batches {
         writer.write(batch).expect("write RecordBatch");
     }
-    let max_time = generator.current_time();
     let meta = writer.close().expect("close parquet writer");
+    let row_count = meta.num_rows as u64;
     let size_bytes = sink.len() as u64;
     let parquet_file = ParquetFile {
         path: path.to_string(),
         size_bytes,
-        row_count: meta.num_rows as u64,
-        min_time: min_time.timestamp_nanos_opt().unwrap(),
-        max_time: max_time.timestamp_nanos_opt().unwrap(),
+        row_count,
+        min_time: timestamp_min_max.min,
+        max_time: timestamp_min_max.max,
     };
     if !config.dry_run {
         object_store
@@ -364,8 +375,58 @@ async fn generate_file(
             .await
             .expect("write to object store");
     }
-    println!("generated file: {path}, rows: {num_rows}, size (MB): {s:.3}, min time: {min_time}, max_time: {max_time}", s = size_bytes as f64 / 1024.0 / 1024.0);
+    println!(
+        "Generated file: {path}, \
+        rows: {row_count}, \
+        size (MB): {s:.3}",
+        s = size_bytes as f64 / 1024.0 / 1024.0
+    );
     return parquet_file;
+}
+
+fn generate_buffer_chunk(
+    generator: &mut RowGenerator,
+    schema: Schema,
+    config: &Config,
+    chunk_order: i64,
+) -> (TimestampMinMax, BufferChunk) {
+    let min_time = generator.current_time();
+    let mut num_rows = 0;
+    let mut batches = Vec::new();
+    while num_rows < config.rows_per_file {
+        let batch = generator.generate_record_batch();
+        if batch.num_rows() == 0 {
+            panic!("generator produced no rows");
+        }
+        num_rows += batch.num_rows();
+        batches.push(batch);
+    }
+    let max_time = generator.current_time();
+    let timestamp_min_max = TimestampMinMax::new(
+        min_time.timestamp_nanos_opt().unwrap(),
+        max_time.timestamp_nanos_opt().unwrap(),
+    );
+    let stats = Arc::new(create_chunk_statistics(
+        Some(num_rows),
+        &schema,
+        Some(timestamp_min_max),
+        None,
+    ));
+    (
+        timestamp_min_max,
+        BufferChunk {
+            batches,
+            schema,
+            stats,
+            partition_id: TransitionPartitionId::new(
+                TableId::new(0),
+                &PartitionKey::from(format!("buffer-{chunk_order}")),
+            ),
+            sort_key: None,
+            id: ChunkId::new(),
+            chunk_order: ChunkOrder::new(chunk_order),
+        },
+    )
 }
 
 enum Metadata {
@@ -404,16 +465,8 @@ fn create_schema(config: &Config) -> SchemaRef {
     // add tag columns:
     for t in 0..config.num_tags {
         schema_fields.push(
-            Field::new(
-                format!("tag_{t}"),
-                if config.use_dict_tags {
-                    DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8))
-                } else {
-                    DataType::Utf8
-                },
-                true,
-            )
-            .with_metadata(Metadata::Tag.create()),
+            Field::new(format!("tag_{t}"), DataType::Utf8, true)
+                .with_metadata(Metadata::Tag.create()),
         );
     }
     // add field columns:
@@ -473,8 +526,6 @@ struct RowGenerator {
     tags: Vec<TagGenerator>,
     series_id: bool,
     fields: Vec<FieldGenerator>,
-    duplication_factor: usize,
-    rng: SmallRng,
 }
 
 impl From<&Config> for RowGenerator {
@@ -497,9 +548,7 @@ impl From<&Config> for RowGenerator {
             time,
             tags,
             series_id: config.series_id,
-            duplication_factor: config.duplication_factor,
             fields,
-            rng: SmallRng::seed_from_u64(config.rng_seed),
         }
     }
 }
@@ -508,15 +557,9 @@ impl RowGenerator {
     fn generate_record_batch(&mut self) -> RecordBatch {
         let mut rows = Vec::new();
         while let Some(row) = self.generate() {
-            rows.push(row.clone());
-            for _ in 0..self.duplication_factor {
-                rows.push(row.clone());
-            }
+            rows.push(row);
         }
         self.reset();
-        if self.duplication_factor > 0 {
-            rows.shuffle(&mut self.rng);
-        }
         let mut builder = RowBuilder::new(self.tags.len(), self.fields.len());
         builder.extend(rows.as_slice());
         RecordBatch::from(&builder.finish())
