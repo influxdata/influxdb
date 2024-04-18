@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::fs::OpenOptions;
 use std::io::Write;
 use std::num::NonZeroUsize;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -40,6 +42,7 @@ use rand::seq::{IteratorRandom, SliceRandom};
 use rand::SeedableRng;
 use schema::sort::SortKeyBuilder;
 use schema::{Schema, SERIES_ID_COLUMN_NAME, TIME_COLUMN_NAME};
+use serde::Serialize;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -53,7 +56,7 @@ pub struct Config {
     #[clap(short = 'N', long = "num-input-files", default_value_t = 1)]
     num_input_files: usize,
 
-    /// Generate a `_series_id` columnfor each row, and use it to perform sort/dedupe.
+    /// Generate a `_series_id` column for each row, and use it to perform sort/dedupe.
     #[clap(short = 's', long = "series-id", default_value_t = false)]
     series_id: bool,
 
@@ -108,6 +111,10 @@ pub struct Config {
     /// Save the compacted parquet data into a new set of files
     #[clap(long = "inspect", default_value_t = false)]
     inspect_compacted: bool,
+
+    /// The path of the CSV file to append results to.
+    #[clap(long = "results-file")]
+    results_file: PathBuf,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -188,8 +195,6 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
         return Ok(());
     }
 
-    // TODO - Create system stats reporter and start tracking stats
-
     // Perform the sort/dedupe operation
     let start = Instant::now();
     println!(
@@ -211,7 +216,8 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
         println!("Persisted {} compacted files.", paths.len());
     }
 
-    // TODO - Stop tracking stats, record time elapsed
+    let has_headers = !config.results_file.exists();
+    report_stats(has_headers, elapsed_ms, &config);
 
     Ok(())
 }
@@ -820,4 +826,41 @@ impl Generator for CardinalityGenerator {
     fn reset(&mut self) {
         self.current = 0;
     }
+}
+
+#[derive(Debug, Serialize)]
+struct Report {
+    n_files: usize,
+    n_rows: usize,
+    n_tags: usize,
+    cardinality: u32,
+    series_id: bool,
+    seed: u64,
+    n_threads: usize,
+    compaction_time_ms: u128,
+}
+
+fn report_stats(has_headers: bool, compaction_time_ms: u128, config: &Config) {
+    let file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .create(true)
+        .open(&config.results_file)
+        .expect("open results file");
+    let mut writer = csv::WriterBuilder::new()
+        .has_headers(has_headers)
+        .from_writer(file);
+    writer
+        .serialize(Report {
+            n_files: config.num_input_files,
+            n_rows: config.rows_per_file,
+            n_tags: config.num_tags,
+            cardinality: config.cardinality,
+            series_id: config.series_id,
+            seed: config.rng_seed,
+            n_threads: config.num_threads.0.into(),
+            compaction_time_ms,
+        })
+        .expect("write report");
+    writer.flush().expect("flush report writer");
 }
