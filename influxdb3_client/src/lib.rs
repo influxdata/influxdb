@@ -388,6 +388,50 @@ impl<'c> QueryRequestBuilder<'c> {
         self
     }
 
+    /// Set a query parameters from the given hashmap
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use influxdb3_client::Client;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// use serde_json::json;
+    /// use std::collections::HashMap;
+    ///
+    /// let client = Client::new("http://localhost:8181")?;
+    /// let response_bytes = client
+    ///     .api_v3_query_sql("db_name", "SELECT * FROM foo WHERE bar = $bar AND foo > $fooz")
+    ///     .with_params_from(HashMap::from([
+    ///         ("bar", json!(false)),
+    ///         ("foo", json!(10)),
+    ///     ]))?
+    ///     .send()
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_params_from<S, P, C>(mut self, params: C) -> Result<Self>
+    where
+        S: Into<String> + Clone,
+        P: TryInto<StatementParam, Error = iox_query_params::Error>,
+        C: IntoIterator<Item = (S, P)>,
+    {
+        for (name, param) in params.into_iter() {
+            let name = name.into();
+            let param = param
+                .try_into()
+                .map_err(|source| Error::ConvertQueryParam {
+                    name: name.clone(),
+                    source,
+                })?;
+
+            self.params
+                .get_or_insert_with(Default::default)
+                .insert(name, param);
+        }
+        Ok(self)
+    }
+
     /// Try to set a query parameter value with the given `name`
     ///
     /// # Example
