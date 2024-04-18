@@ -388,7 +388,7 @@ impl<'c> QueryRequestBuilder<'c> {
         self
     }
 
-    /// Set a query parameters from the given hashmap
+    /// Set a query parameters from the given collection of pairs
     ///
     /// # Example
     /// ```no_run
