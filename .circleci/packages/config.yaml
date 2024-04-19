@@ -1,4 +1,11 @@
 ---
+version:
+  release:
+    match: '^v[0-9]+.[0-9]+.[0-9]+'
+    value: '{{env.CIRCLE_TAG[1:]}}'
+  default:
+    value: '2.x-{{env.CIRCLE_SHA1[:8]}}'
+
 sources:
   - binary: /tmp/workspace/bin/influxd_linux_amd64/
     target: artifacts/
@@ -21,7 +28,9 @@ sources:
     plat:   windows
 
 packages:
-  - name: influxdb2
+  - name:        influxdb2
+    description: Distributed time-series database.
+    license:     MIT
     binaries:
       - influxd
       - influxd.exe
@@ -46,4 +55,10 @@ packages:
         group:  root
         perms:  0755
         target: usr/lib/influxdb/scripts/influxd-systemd-start.sh
-    source: .circleci/scripts/package/influxdb2
+    deb_recommends:
+      - influxdb2-cli
+    conflicts:
+      - influxdb
+    depends:
+      - curl
+    source: .circleci/packages/influxdb2

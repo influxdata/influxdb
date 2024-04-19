@@ -62,16 +62,16 @@ func TestCopyChunkedByteSlices_multipleChunks(t *testing.T) {
 		chunk := dst[i*thisChunkSize : (i+1)*thisChunkSize]
 
 		for j := 0; j < thisChunkSize-1; j++ {
-			a := (*reflect.SliceHeader)(unsafe.Pointer(&chunk[j]))
-			b := (*reflect.SliceHeader)(unsafe.Pointer(&chunk[j+1]))
-			if b.Data-a.Data != uintptr(a.Len) {
+			a := chunk[j+0]
+			b := chunk[j+1]
+			if uintptr(unsafe.Pointer(&b[0]))-uintptr(unsafe.Pointer(&a[0])) != uintptr(len(a)) {
 				t.Error("chunk elements do not appear to be adjacent, so not part of one chunk")
 			}
-			if a.Cap != a.Len {
-				t.Errorf("slice length != capacity; %d vs %d", a.Len, a.Cap)
+			if len(a) != cap(a) {
+				t.Errorf("slice length != capacity; %d vs %d", len(a), cap(a))
 			}
-			if b.Cap != b.Len {
-				t.Errorf("slice length != capacity; %d vs %d", b.Len, b.Cap)
+			if len(b) != cap(b) {
+				t.Errorf("slice length != capacity; %d vs %d", len(b), cap(b))
 			}
 		}
 	}

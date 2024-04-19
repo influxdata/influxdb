@@ -191,6 +191,7 @@ type InfluxdOpts struct {
 	Viper *viper.Viper
 
 	HardeningEnabled bool
+	StrongPasswords  bool
 }
 
 // NewOpts constructs options with default values.
@@ -243,6 +244,7 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		TestingAlwaysAllowSetup: false,
 
 		HardeningEnabled: false,
+		StrongPasswords:  false,
 	}
 }
 
@@ -661,6 +663,12 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:    "hardening-enabled",
 			Default: o.HardeningEnabled,
 			Desc:    "enable hardening options (disallow private IPs within flux and templates HTTP requests)",
+		},
+		{
+			DestP:   &o.StrongPasswords,
+			Flag:    "strong-passwords",
+			Default: o.StrongPasswords,
+			Desc:    "enable password strength enforcement",
 		},
 	}
 }

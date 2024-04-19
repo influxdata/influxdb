@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/cmd/influxd/recovery/testhelper"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +21,7 @@ func Test_User_Basic(t *testing.T) {
 		"user with name testuser already exists")
 
 	// user needs a long-ish password
-	assert.EqualError(t, testhelper.RunCommand(t, NewUserCommand(), "create", "--bolt-path", db.Name(), "--username", "testuser2", "--password", "foo"), "passwords must be at least 8 characters long")
+	assert.EqualError(t, testhelper.RunCommand(t, NewUserCommand(), "create", "--bolt-path", db.Name(), "--username", "testuser2", "--password", "foo"), errors.EPasswordLength.Error())
 	assert.NoError(t, testhelper.RunCommand(t, NewUserCommand(), "create", "--bolt-path", db.Name(), "--username", "testuser2", "--password", "my_password"), "")
 
 	// at least run the update code

@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	influx_errors "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/tenant"
 	itesting "github.com/influxdata/influxdb/v2/testing"
@@ -119,11 +120,11 @@ func TestUser(t *testing.T) {
 					t.Fatalf("expected identical user: \n%+v\n%+v", user, expected)
 				}
 
-				if _, err := store.GetUser(context.Background(), tx, 500); !errors.Is(err, tenant.ErrUserNotFound) {
+				if _, err := store.GetUser(context.Background(), tx, 500); !errors.Is(err, influx_errors.ErrUserNotFound) {
 					t.Fatal("failed to get correct error when looking for invalid user by id")
 				}
 
-				if _, err := store.GetUserByName(context.Background(), tx, "notauser"); !errors.Is(err, tenant.ErrUserNotFound) {
+				if _, err := store.GetUserByName(context.Background(), tx, "notauser"); !errors.Is(err, influx_errors.ErrUserNotFound) {
 					t.Fatal("failed to get correct error when looking for invalid user by name")
 				}
 
@@ -199,7 +200,7 @@ func TestUser(t *testing.T) {
 			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				user5 := "user5"
 				_, err := store.UpdateUser(context.Background(), tx, platform.ID(3), influxdb.UserUpdate{Name: &user5})
-				if err.Error() != tenant.UserAlreadyExistsError(user5).Error() {
+				if err.Error() != influx_errors.UserAlreadyExistsError(user5).Error() {
 					t.Fatal("failed to error on duplicate username")
 				}
 
@@ -250,7 +251,7 @@ func TestUser(t *testing.T) {
 				}
 
 				err = store.DeleteUser(context.Background(), tx, 1)
-				if !errors.Is(err, tenant.ErrUserNotFound) {
+				if !errors.Is(err, influx_errors.ErrUserNotFound) {
 					t.Fatal("invalid error when deleting user that has already been deleted", err)
 				}
 

@@ -2,6 +2,9 @@ package tenant
 
 import (
 	"context"
+	eBase "errors"
+	"strings"
+	"unicode"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -11,14 +14,30 @@ import (
 )
 
 type UserSvc struct {
-	store *Store
-	svc   *Service
+	store           *Store
+	svc             *Service
+	strongPasswords bool
 }
 
-func NewUserSvc(st *Store, svc *Service) *UserSvc {
-	return &UserSvc{
-		store: st,
-		svc:   svc,
+func NewUserSvc(st *Store, svc *Service, OptionFns ...func(*UserSvc)) *UserSvc {
+	userSvc := &UserSvc{
+		store:           st,
+		svc:             svc,
+		strongPasswords: false,
+	}
+	userSvc.SetOptions(OptionFns...)
+	return userSvc
+}
+
+func (s *UserSvc) SetOptions(opts ...func(*UserSvc)) {
+	for _, opt := range opts {
+		opt(s)
+	}
+}
+
+func WithPasswordChecking(strong bool) func(*UserSvc) {
+	return func(u *UserSvc) {
+		u.strongPasswords = strong
 	}
 }
 
@@ -45,7 +64,7 @@ func (s *UserSvc) FindUserByID(ctx context.Context, id platform.ID) (*influxdb.U
 func (s *UserSvc) FindUser(ctx context.Context, filter influxdb.UserFilter) (*influxdb.User, error) {
 	// if im given no filters its not a valid find user request. (leaving it unchecked seems dangerous)
 	if filter.ID == nil && filter.Name == nil {
-		return nil, ErrUserNotFound
+		return nil, errors.ErrUserNotFound
 	}
 
 	if filter.ID != nil {
@@ -179,8 +198,8 @@ func (s *UserSvc) FindPermissionForUser(ctx context.Context, uid platform.ID) (i
 
 // SetPassword overrides the password of a known user.
 func (s *UserSvc) SetPassword(ctx context.Context, userID platform.ID, password string) error {
-	if len(password) < MinPasswordLen {
-		return EShortPassword
+	if err := IsPasswordStrong(password, s.strongPasswords); err != nil {
+		return err
 	}
 	passHash, err := encryptPassword(password)
 	if err != nil {
@@ -190,27 +209,37 @@ func (s *UserSvc) SetPassword(ctx context.Context, userID platform.ID, password 
 	return s.store.Update(ctx, func(tx kv.Tx) error {
 		_, err := s.store.GetUser(ctx, tx, userID)
 		if err != nil {
-			return EIncorrectUser
+			return errors.EIncorrectUser
 		}
 		return s.store.SetPassword(ctx, tx, userID, passHash)
 	})
 }
 
-// ComparePassword checks if the password matches the password recorded.
-// Passwords that do not match return errors.
 func (s *UserSvc) ComparePassword(ctx context.Context, userID platform.ID, password string) error {
+	err := s.comparePasswordNoStrengthCheck(ctx, userID, password)
+	// If a password matches, but is too weak, force user to change
+	if errStrength := IsPasswordStrong(password, s.strongPasswords); err == nil && errStrength != nil {
+		return eBase.Join(errors.EPasswordChangeRequired, errStrength)
+	} else {
+		return err
+	}
+}
+
+// comparePasswordNoStrengthCheck checks if the password matches the password recorded.
+// Passwords that do not match return errors.
+func (s *UserSvc) comparePasswordNoStrengthCheck(ctx context.Context, userID platform.ID, password string) error {
 	// get password
 	var hash []byte
 	err := s.store.View(ctx, func(tx kv.Tx) error {
 
 		_, err := s.store.GetUser(ctx, tx, userID)
 		if err != nil {
-			return EIncorrectUser
+			return errors.EIncorrectUser
 		}
 		h, err := s.store.GetPassword(ctx, tx, userID)
 		if err != nil {
 			if err == kv.ErrKeyNotFound {
-				return EIncorrectPassword
+				return errors.EIncorrectPassword
 			}
 			return err
 		}
@@ -222,7 +251,7 @@ func (s *UserSvc) ComparePassword(ctx context.Context, userID platform.ID, passw
 	}
 	// compare password
 	if err := bcrypt.CompareHashAndPassword(hash, []byte(password)); err != nil {
-		return EIncorrectPassword
+		return errors.EIncorrectPassword
 	}
 
 	return nil
@@ -231,7 +260,7 @@ func (s *UserSvc) ComparePassword(ctx context.Context, userID platform.ID, passw
 // CompareAndSetPassword checks the password and if they match
 // updates to the new password.
 func (s *UserSvc) CompareAndSetPassword(ctx context.Context, userID platform.ID, old, new string) error {
-	err := s.ComparePassword(ctx, userID, old)
+	err := s.comparePasswordNoStrengthCheck(ctx, userID, old)
 	if err != nil {
 		return err
 	}
@@ -245,6 +274,58 @@ func encryptPassword(password string) (string, error) {
 		return "", err
 	}
 	return string(passHash), nil
+}
+
+var classes []func(rune) bool = []func(rune) bool{
+	unicode.IsNumber,
+	unicode.IsUpper,
+	unicode.IsLower,
+	func(r rune) bool {
+		found := false
+		for _, s := range errors.SpecialChars {
+			found = (s == r) || found
+		}
+		return found
+	},
+}
+
+// IsPasswordStrong checks if a password is strong enough.
+func IsPasswordStrong(password string, doCheck bool) error {
+	const numClassesRequired = 3
+	var eSlice []error = nil
+	var tslice []error = nil
+	l := len(password)
+	if l < errors.MinPasswordLen || l > errors.MaxPasswordLen {
+		eSlice = append(eSlice, errors.EPasswordLength)
+	} else {
+		tslice = append(tslice, errors.EPasswordLength)
+	}
+	if doCheck {
+		// make a password copy that is the length of the max password length
+		constLenPassword := strings.Repeat(password, 1+(errors.MaxPasswordLen/len(password)))[:errors.MaxPasswordLen]
+		n := 0
+		t := 0
+
+		// Walk the whole string for each class, for constant time operation
+		for _, f := range classes {
+			found := false
+			for _, r := range constLenPassword {
+				found = f(r) || found
+			}
+			if found {
+				n++
+			} else {
+				t++
+			}
+		}
+		if n < numClassesRequired {
+			eSlice = append(eSlice, errors.EPasswordChars)
+		} else {
+			tslice = append(tslice, errors.EPasswordChars)
+		}
+	}
+	eBase.Join(tslice...)
+	return eBase.Join(eSlice...)
 }
 
 func permissionFromMapping(mappings []*influxdb.UserResourceMapping) ([]influxdb.Permission, error) {

@@ -7,7 +7,7 @@ orbs:
 parameters:
   cross-container-tag:
     type: string
-    default: go1.20.10-latest
+    default: go1.21.9-latest
 
   workflow:
     type: string
@@ -160,16 +160,20 @@ workflows:
           <<: *release_filter
           requires:
             - build-packages
-      - s3-publish-packages:
+      - publish-packages:
           <<: *release_filter
           requires:
             - test-linux-packages
             - build-packages
             - sign-packages
+      - slack:
+          <<: *release_filter
+          requires:
+            - publish-packages
       - changelog:
           <<: *release_filter
           workflow: release
-      - changelog-upload:
+      - publish-changelog:
           <<: *release_filter
           workflow: release
           requires:
@@ -231,7 +235,7 @@ workflows:
     jobs:
       - changelog:
           workflow: nightly
-      - changelog-upload:
+      - publish-changelog:
           workflow: nightly
           requires:
             - changelog
@@ -377,9 +381,10 @@ jobs:
       - run:
           name: Build test binaries
           command: |
-            export GOOS=<< parameters.os >>
-            export GOARCH=<< parameters.arch >>
             ./scripts/ci/build-tests.sh ./test-bin
+          environment:
+            GOARCH: << parameters.arch >>
+            GOOS:   << parameters.os >>
       - persist_to_workspace:
           root: .
           paths:
@@ -471,37 +476,38 @@ jobs:
             - bin
 
   build-packages:
-    machine:
-      image: ubuntu-2204:current
+    docker:
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager:latest
+        auth:
+          username: _json_key
+          password: $CISUPPORT_GCS_AUTHORIZATION
     steps:
+      - checkout
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
-      - run: |
-          export DEBIAN_FRONTEND=noninteractive
-          sudo -E apt-get update
-          sudo -E apt-get install --no-install-recommends --yes \
-            asciidoc        \
-            build-essential \
-            git             \
-            python3         \
-            rpm             \
-            ruby-dev        \
-            xmlto
-
-          sudo gem install fpm
-
-          python3 -m pip install -r .circleci/scripts/package/requirements.txt
-
-          # Unfortunately, this must be executed as root. This is so permission
-          # modifying commands (chown, chmod, etc.) succeed.
-          sudo --preserve-env=CIRCLE_TAG,CIRCLE_SHA1 .circleci/scripts/package/build.py
-      - store_artifacts:
-          path: artifacts/
+      - run: packager .circleci/packages/config.yaml
       - persist_to_workspace:
           root: .
           paths:
             - artifacts
+      - store_artifacts:
+          path: artifacts/
+
+  slack:
+    docker:
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-slack:latest
+        auth:
+          username: _json_key
+          password: $CISUPPORT_GCS_AUTHORIZATION
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - run:
+          command: slack
+          environment:
+            SLACK_ARTIFACT_URL:    https://dl.influxdata.com/influxdb/releases
+            SLACK_ARTIFACT_ROOT:   /tmp/workspace/artifacts
+            SLACK_RELEASE_MESSAGE: New InfluxDB OSS Release
 
   sign-packages:
     circleci_ip_ranges: true
@@ -533,9 +539,12 @@ jobs:
             then
               # Since all artifacts are present, sign them here. This saves Circle
               # credits over spinning up another instance just to separate out the
-              # checksum job. Individual checksums are written by the
-              # "build_packages" script.
+              # checksum job.
               sha256sum "${target}" >> "/tmp/workspace/artifacts/influxdb2.${CIRCLE_TAG}.digests"
+
+              # write individual checksums
+              md5sum    "${target}" >> "${target}.md5"
+              sha256sum "${target}" >> "${target}.sha256"
             fi
           done
       - persist_to_workspace:
@@ -545,33 +554,19 @@ jobs:
       - store_artifacts:
           path: /tmp/workspace/artifacts
 
-  s3-publish-packages:
+  publish-packages:
     docker:
-      - image: ubuntu:latest
+      - image: cimg/python:3.6
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
-      - run:
-          name: Publish Packages to S3
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install --yes awscli git
-
-            PREFIX=2.x .circleci/scripts/get-version
-            source "${BASH_ENV}"
-
-            # required for sha256sum generate the correct paths
-            pushd /tmp/workspace/artifacts
-
-            # Since the artifacts are generated in parallel, the checksums
-            # cannot be calculated until all artifacts are complete. This
-            # excludes `CHANGELOG.md`. Historically, `CHANGELOG.md` was
-            # not included in the checksums.
-            sha256sum * | tee influxdb.${VERSION}.sha256
-
-            aws s3 sync . 's3://dl.influxdata.com/influxdb/releases'
+      - aws-s3/sync:
+          arguments:             --acl public-read
+          aws-region:            RELEASE_AWS_REGION
+          aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
+          aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
+          from:                  /tmp/workspace/artifacts
+          to:                    s3://dl.influxdata.com/influxdb/releases
 
   build-docker-nightly:
     parameters:
@@ -900,7 +895,7 @@ jobs:
           paths:
             - .
 
-  changelog-upload:
+  publish-changelog:
     parameters:
       workflow:
         type: string
@@ -914,21 +909,21 @@ jobs:
             equal: [ << parameters.workflow >>, release ]
           steps:
             - aws-s3/copy:
-                aws-region:            AWS_S3_REGION
-                aws-access-key-id:     AWS_ACCESS_KEY_ID
-                aws-secret-access-key: AWS_SECRET_ACCESS_KEY
-                to:   "s3://dl.influxdata.com/influxdb/releases/CHANGELOG.<< pipeline.git.tag >>.md"
-                from: /tmp/workspace/CHANGELOG.md
+                aws-region:            RELEASE_AWS_REGION
+                aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
+                aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
+                to:                    s3://dl.influxdata.com/influxdb/releases/CHANGELOG.<< pipeline.git.tag >>.md
+                from:                  /tmp/workspace/CHANGELOG.md
       - when:
           condition:
             equal: [ << parameters.workflow >>, nightly ]
           steps:
             - aws-s3/copy:
-                aws-region:            AWS_S3_REGION
-                aws-access-key-id:     AWS_ACCESS_KEY_ID
-                aws-secret-access-key: AWS_SECRET_ACCESS_KEY
-                to:   "s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md"
-                from: /tmp/workspace/CHANGELOG.md
+                aws-region:            RELEASE_AWS_REGION
+                aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
+                aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
+                to:                    s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md
+                from:                  /tmp/workspace/CHANGELOG.md
 
   check_package_deb_amd64:
     machine:

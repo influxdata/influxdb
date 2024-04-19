@@ -9,10 +9,12 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	influx_errors "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
+	assert2 "github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -252,5 +254,5 @@ func TestOnboardService_WeakPassword(t *testing.T) {
 		Org:      "name",
 		Bucket:   "name",
 	})
-	assert.Equal(t, err, tenant.EShortPassword)
+	assert2.ErrorIs(t, err, influx_errors.EPasswordLength)
 }
