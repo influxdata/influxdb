@@ -71,7 +71,7 @@ pub struct Config {
     /// The maximum cardinality of the generated data.
     ///
     /// This will be the cardinality of the highest-cardinality tag.
-    #[clap(short = 'c', default_value_t = 1_000)]
+    #[clap(short = 'c', long, default_value_t = 1_000)]
     cardinality: u32,
 
     /// The number of fields in the generated data set. These will be boolean fields, to
