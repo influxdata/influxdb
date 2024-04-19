@@ -3,6 +3,7 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
+use std::process;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -32,6 +33,7 @@ use iox_query::QueryChunk;
 use itertools::Itertools;
 use object_store::path::Path as ObjStorePath;
 use object_store::{ObjectMeta, ObjectStore};
+use parking_lot::Mutex;
 use parquet::file::properties::WriterProperties;
 use parquet::schema::types::ColumnPath;
 use parquet_file::serialize::ROW_GROUP_WRITE_SIZE;
@@ -45,6 +47,7 @@ use schema::{Schema, SERIES_ID_COLUMN_NAME, TIME_COLUMN_NAME};
 use serde::Serialize;
 use sha2::Digest;
 use sha2::Sha256;
+use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, System};
 
 use super::common::SamplingInterval;
 
@@ -196,13 +199,19 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
     }
 
     // Perform the sort/dedupe operation
-    let start = Instant::now();
     println!(
         "Starting compaction on {} file(s)...",
         config.num_input_files
     );
+    let sys_collector = Arc::new(MemUsageCollector::new());
+    let collector = Arc::clone(&sys_collector);
+    tokio::task::spawn_blocking(move || {
+        collector.collect();
+    });
+    let start = Instant::now();
     let batches = compact(&ctx, &config, &iox_schema, chunks).await;
     let elapsed_ms = start.elapsed().as_millis();
+    sys_collector.shutdown();
     println!("Finished compaction in {elapsed_ms} ms.");
     let n: usize = batches.iter().map(|b| b.num_rows()).sum();
     if n < total_rows {
@@ -217,7 +226,8 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
     }
 
     let has_headers = !config.results_file.exists();
-    report_stats(has_headers, elapsed_ms, &config);
+    let system_stats = sys_collector.summarize();
+    report_stats(has_headers, elapsed_ms, system_stats, &config);
 
     Ok(())
 }
@@ -828,6 +838,92 @@ impl Generator for CardinalityGenerator {
     }
 }
 
+struct MemUsageCollector {
+    pid: Pid,
+    system: Mutex<System>,
+    entries: Mutex<Vec<u64>>,
+    shutdown: Mutex<bool>,
+}
+
+const MEM_SAMPLE_INTERVAL: Duration = Duration::from_millis(50);
+
+impl MemUsageCollector {
+    fn new() -> Self {
+        let pid = Pid::from_u32(process::id());
+        let mut system = System::new_with_specifics(
+            RefreshKind::new().with_processes(ProcessRefreshKind::new().with_memory()),
+        );
+        system.refresh_pids(&[pid]);
+        Self {
+            pid,
+            system: Mutex::new(system),
+            entries: Mutex::new(vec![]),
+            shutdown: Mutex::new(false),
+        }
+    }
+
+    fn collect(&self) {
+        loop {
+            if *self.shutdown.lock() {
+                return;
+            }
+            let mut system = self.system.lock();
+            system.refresh_pids(&[self.pid]);
+            let proc = system.process(self.pid).expect("gets process by pid");
+            self.entries.lock().push(proc.memory());
+            std::thread::sleep(MEM_SAMPLE_INTERVAL);
+        }
+    }
+
+    fn shutdown(&self) {
+        *self.shutdown.lock() = true;
+    }
+
+    fn summarize(&self) -> SystemStatsSummary {
+        fn avg(vals: &[u64]) -> f64 {
+            vals.iter().sum::<u64>() as f64 / vals.len() as f64
+        }
+
+        fn med(vals: &mut [u64]) -> f64 {
+            vals.sort();
+            if vals.is_empty() {
+                panic!("empty values");
+            }
+            if vals.len() < 2 {
+                return vals[0] as f64;
+            }
+            if vals.len() % 2 == 0 {
+                let v1 = vals[vals.len() / 2] as f64;
+                let v2 = vals[vals.len() / 2 - 1] as f64;
+                (v1 + v2) / 2.0
+            } else {
+                vals[vals.len() / 2] as f64
+            }
+        }
+
+        let mut entries = self.entries.lock();
+        let sample_count = entries.len();
+        let max_mem_bytes = *entries.iter().max().unwrap();
+        let avg_mem_bytes = avg(&entries);
+        let med_mem_bytes = med(&mut entries);
+
+        SystemStatsSummary {
+            avg_mem_bytes,
+            med_mem_bytes,
+            max_mem_bytes,
+            sample_count,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct SystemStatsSummary {
+    avg_mem_bytes: f64,
+    med_mem_bytes: f64,
+    max_mem_bytes: u64,
+    sample_count: usize,
+}
+
 #[derive(Debug, Serialize)]
 struct Report {
     n_files: usize,
@@ -838,9 +934,18 @@ struct Report {
     seed: u64,
     n_threads: usize,
     compaction_time_ms: u128,
+    avg_mem_bytes: f64,
+    med_mem_bytes: f64,
+    max_mem_bytes: u64,
+    sample_count: usize,
 }
 
-fn report_stats(has_headers: bool, compaction_time_ms: u128, config: &Config) {
+fn report_stats(
+    has_headers: bool,
+    compaction_time_ms: u128,
+    system: SystemStatsSummary,
+    config: &Config,
+) {
     let file = OpenOptions::new()
         .write(true)
         .append(true)
@@ -860,6 +965,10 @@ fn report_stats(has_headers: bool, compaction_time_ms: u128, config: &Config) {
             seed: config.rng_seed,
             n_threads: config.num_threads.0.into(),
             compaction_time_ms,
+            avg_mem_bytes: system.avg_mem_bytes,
+            med_mem_bytes: system.med_mem_bytes,
+            max_mem_bytes: system.max_mem_bytes,
+            sample_count: system.sample_count,
         })
         .expect("write report");
     writer.flush().expect("flush report writer");
