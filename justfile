@@ -27,15 +27,15 @@ run-lg: build-lg
             --results-file results/compact.csv
     else
         ./target/release/influxdb3_load_generator compact \
-                --object-store file \
-                --data-dir .local \
-                --num-input-files 10 \
-                --rows-per-file 1000000 \
-                --cardinality 10000 \
-                --seed $seed \
-                --num-tags $n_tags \
-                --num-threads $n_threads \
-                --results-file results/compact.csv
+            --object-store file \
+            --data-dir .local \
+            --num-input-files 10 \
+            --rows-per-file 1000000 \
+            --cardinality 10000 \
+            --seed $seed \
+            --num-tags $n_tags \
+            --num-threads $n_threads \
+            --results-file results/compact.csv
     fi
     done
     done
