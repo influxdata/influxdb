@@ -741,4 +741,47 @@ mod tests {
 
         r.expect("sent request successfully");
     }
+    #[tokio::test]
+    async fn api_v3_query_influxql_with_params_from() {
+        let db = "stats";
+        let query = "SELECT * FROM foo WHERE a = $a AND b < $b AND c > $c AND d = $d";
+        let body = r#"[{"host": "foo", "time": "1990-07-23T06:00:00:000", "val": 1}]"#;
+
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v3/query_influxql")
+            .match_body(Matcher::Json(serde_json::json!({
+                "db": db,
+                "q": query,
+                "params": {
+                    "a": "bar",
+                    "b": 123,
+                    "c": 1.5,
+                    "d": false
+                },
+                "format": null
+            })))
+            .with_status(200)
+            .with_body(body)
+            .create_async()
+            .await;
+
+        let client = Client::new(mock_server.url()).expect("create client");
+
+        let r = client
+            .api_v3_query_influxql(db, query)
+            .with_params_from(Vec::from([
+                ("a", json!("bar")),
+                ("b", json!(123)),
+                ("c", json!(1.5)),
+                ("d", json!(false)),
+            ]))
+            .unwrap()
+            .send()
+            .await;
+
+        mock.assert_async().await;
+
+        r.expect("sent request successfully");
+    }
 }
