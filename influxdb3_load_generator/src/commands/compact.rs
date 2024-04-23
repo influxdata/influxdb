@@ -39,9 +39,10 @@ use parquet::schema::types::ColumnPath;
 use parquet_file::serialize::ROW_GROUP_WRITE_SIZE;
 use parquet_file::storage::{ParquetExecInput, ParquetStorage, StorageId};
 use parquet_file::writer::TrackedMemoryArrowWriter;
+use rand::distributions::Alphanumeric;
 use rand::rngs::SmallRng;
 use rand::seq::{IteratorRandom, SliceRandom};
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use schema::sort::SortKeyBuilder;
 use schema::{Schema, SERIES_ID_COLUMN_NAME, TIME_COLUMN_NAME};
 use serde::Serialize;
@@ -77,6 +78,10 @@ pub struct Config {
     #[clap(short = 'c', long, default_value_t = 1_000)]
     cardinality: u32,
 
+    /// The base length of generated tag values.
+    #[clap(long = "tag-base-len", default_value_t = 5)]
+    tag_base_len: usize,
+
     /// The number of fields in the generated data set. These will be boolean fields, to
     /// keep the size of generated data to a minimum.
     #[clap(long = "num-fields", default_value_t = 1)]
@@ -108,7 +113,9 @@ pub struct Config {
     num_threads: NumThreads,
 
     /// The size of the memory pool made available to the executor in bytes (B).
-    #[clap(long = "mem-pool-size", default_value_t = 8_589_934_592)]
+    // #[clap(long = "mem-pool-size", default_value_t = 8_589_934_592)]
+    // #[clap(long = "mem-pool-size", default_value_t = 17_179_869_184)]
+    #[clap(long = "mem-pool-size", default_value_t = 25_769_803_776)]
     mem_pool_size: usize,
 
     /// Save the compacted parquet data into a new set of files
@@ -161,37 +168,15 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
     let mem_pool = Arc::new(UnboundedMemoryPool::default());
 
     // Generate the input data
-    println!("Generate source files in the source/ directory...");
-    let mut generator = RowGenerator::from(&config);
-    let mut chunk_order = 0;
-    let mut chunks: Vec<Arc<dyn QueryChunk>> = Vec::new();
-    let mut total_rows = 0;
-    for f in 0..config.num_input_files {
-        let (ts_min_max, buffer_chunk) =
-            generate_buffer_chunk(&mut generator, iox_schema.clone(), &config, chunk_order);
-        let batches = compact(&ctx, &config, &iox_schema, vec![Arc::new(buffer_chunk)]).await;
-        let path = ObjStorePath::parse(format!("source/{f}.parquet")).expect("valid path");
-        let parquet_file = record_batches_to_file(
-            batches,
-            ts_min_max,
-            Arc::clone(&schema),
-            &config,
-            path.clone(),
-            Arc::clone(&mem_pool) as _,
-            Arc::clone(&object_store),
-        )
-        .await;
-        total_rows += parquet_file.row_count as usize;
-        let parquet_chunk = parquet_file_to_chunk(
-            parquet_file,
-            Arc::clone(&object_store),
-            path,
-            &iox_schema,
-            chunk_order,
-        );
-        chunk_order += 1;
-        chunks.push(parquet_chunk);
-    }
+    let (total_rows, chunks) = generate_chunks(
+        &config,
+        &ctx,
+        Arc::clone(&schema),
+        iox_schema.clone(),
+        Arc::clone(&object_store),
+        Arc::clone(&mem_pool) as _,
+    )
+    .await;
 
     if config.dry_run {
         println!("Exiting on dry-run.");
@@ -230,6 +215,48 @@ pub(crate) async fn command(config: Config) -> Result<(), anyhow::Error> {
     report_stats(has_headers, elapsed_ms, system_stats, &config);
 
     Ok(())
+}
+
+async fn generate_chunks(
+    config: &Config,
+    ctx: &IOxSessionContext,
+    schema: SchemaRef,
+    iox_schema: Schema,
+    object_store: Arc<dyn ObjectStore>,
+    mem_pool: Arc<dyn MemoryPool>,
+) -> (usize, Vec<Arc<dyn QueryChunk>>) {
+    println!("Generate source files in the source/ directory...");
+    let mut generator = RowGenerator::from(config);
+    let mut chunk_order = 0;
+    let mut chunks: Vec<Arc<dyn QueryChunk>> = Vec::new();
+    let mut total_rows = 0;
+    for f in 0..config.num_input_files {
+        let (ts_min_max, buffer_chunk) =
+            generate_buffer_chunk(&mut generator, iox_schema.clone(), &config, chunk_order);
+        let batches = compact(&ctx, &config, &iox_schema, vec![Arc::new(buffer_chunk)]).await;
+        let path = ObjStorePath::parse(format!("source/{f}.parquet")).expect("valid path");
+        let parquet_file = record_batches_to_file(
+            batches,
+            ts_min_max,
+            Arc::clone(&schema),
+            &config,
+            path.clone(),
+            Arc::clone(&mem_pool) as _,
+            Arc::clone(&object_store),
+        )
+        .await;
+        total_rows += parquet_file.row_count as usize;
+        let parquet_chunk = parquet_file_to_chunk(
+            parquet_file,
+            Arc::clone(&object_store),
+            path,
+            &iox_schema,
+            chunk_order,
+        );
+        chunk_order += 1;
+        chunks.push(parquet_chunk);
+    }
+    (total_rows, chunks)
 }
 
 fn parquet_file_to_chunk(
@@ -533,8 +560,6 @@ trait Generator {
     fn reset(&mut self) {}
 }
 
-type Rng = SmallRng;
-
 /// Generate rows accross all cardinalities, i.e., tags, for a given
 /// timestamp, before resetting the tag generator, and incrementing the time.
 struct RowGenerator {
@@ -553,7 +578,11 @@ impl From<&Config> for RowGenerator {
         );
         let mut tags = Vec::new();
         for _ in 0..config.num_tags {
-            tags.push(TagGenerator::new(&mut rng, config.cardinality).with_base("value-"));
+            tags.push(TagGenerator::new(
+                &mut rng,
+                config.cardinality,
+                config.tag_base_len,
+            ));
         }
         let mut fields = Vec::new();
         for _ in 0..config.num_fields {
@@ -750,11 +779,11 @@ impl Generator for TimeGenerator {
 }
 
 struct FieldGenerator {
-    rng: Rng,
+    rng: SmallRng,
 }
 
 impl FieldGenerator {
-    fn new(rng: &Rng) -> Self {
+    fn new(rng: &SmallRng) -> Self {
         Self { rng: rng.clone() }
     }
 }
@@ -768,21 +797,21 @@ impl Generator for FieldGenerator {
 }
 
 struct TagGenerator {
-    base: Option<String>,
+    base: String,
     cardinality: CardinalityGenerator,
 }
 
 impl TagGenerator {
-    fn new(rng: &mut Rng, cardinality: u32) -> Self {
+    fn new(rng: &mut SmallRng, cardinality: u32, base_len: usize) -> Self {
+        let base = rng
+            .sample_iter(&Alphanumeric)
+            .take(base_len)
+            .map(char::from)
+            .collect();
         Self {
-            base: None,
+            base,
             cardinality: CardinalityGenerator::new(rng, cardinality),
         }
-    }
-
-    fn with_base<S: Into<String>>(mut self, base: S) -> Self {
-        self.base = Some(base.into());
-        self
     }
 }
 
@@ -791,12 +820,7 @@ impl Generator for TagGenerator {
 
     fn generate(&mut self) -> Option<Self::Value> {
         let card = self.cardinality.generate()?;
-        let mut buf = Vec::new();
-        if let Some(base) = &self.base {
-            write!(&mut buf, "{base}").unwrap();
-        }
-        write!(&mut buf, "{card}").unwrap();
-        Some(String::from_utf8(buf).unwrap())
+        Some(format!("{base}{card}", base = self.base))
     }
 
     fn reset(&mut self) {
@@ -814,7 +838,7 @@ struct CardinalityGenerator {
 }
 
 impl CardinalityGenerator {
-    fn new(rng: &mut Rng, cardinality: u32) -> Self {
+    fn new(rng: &mut SmallRng, cardinality: u32) -> Self {
         let mut available: Vec<u32> = (0..cardinality).into_iter().collect();
         available.shuffle(rng);
         Self {
@@ -840,6 +864,7 @@ impl Generator for CardinalityGenerator {
 
 struct MemUsageCollector {
     pid: Pid,
+    baseline: u64,
     system: Mutex<System>,
     entries: Mutex<Vec<u64>>,
     shutdown: Mutex<bool>,
@@ -856,6 +881,7 @@ impl MemUsageCollector {
         system.refresh_pids(&[pid]);
         Self {
             pid,
+            baseline: system.process(pid).unwrap().memory(),
             system: Mutex::new(system),
             entries: Mutex::new(vec![]),
             shutdown: Mutex::new(false),
@@ -908,6 +934,7 @@ impl MemUsageCollector {
         let med_mem_bytes = med(&mut entries);
 
         SystemStatsSummary {
+            base_mem_bytes: self.baseline,
             avg_mem_bytes,
             med_mem_bytes,
             max_mem_bytes,
@@ -918,6 +945,7 @@ impl MemUsageCollector {
 
 #[derive(Debug, Serialize)]
 struct SystemStatsSummary {
+    base_mem_bytes: u64,
     avg_mem_bytes: f64,
     med_mem_bytes: f64,
     max_mem_bytes: u64,
@@ -933,7 +961,9 @@ struct Report {
     series_id: bool,
     seed: u64,
     n_threads: usize,
+    tag_base_len: usize,
     compaction_time_ms: u128,
+    base_mem_bytes: u64,
     avg_mem_bytes: f64,
     med_mem_bytes: f64,
     max_mem_bytes: u64,
@@ -964,7 +994,9 @@ fn report_stats(
             series_id: config.series_id,
             seed: config.rng_seed,
             n_threads: config.num_threads.0.into(),
+            tag_base_len: config.tag_base_len,
             compaction_time_ms,
+            base_mem_bytes: system.base_mem_bytes,
             avg_mem_bytes: system.avg_mem_bytes,
             med_mem_bytes: system.med_mem_bytes,
             max_mem_bytes: system.max_mem_bytes,
