@@ -5008,10 +5008,10 @@ func Test_FromFile(t *testing.T) {
 			if len(tmpfsTests) > 0 {
 				tests = append(tests, tmpfsTests...)
 			} else {
-				t.Log(fmt.Sprintf("WARNING: could not create files for tmpfs special file system tests: %s", errors.Join(tmpfsErrs...)))
+				t.Logf("WARNING: could not create files for tmpfs special file system tests: %s", errors.Join(tmpfsErrs...))
 			}
 		} else {
-			t.Log(fmt.Sprintf("WARNING: unable to run tmpfs special file system tests: %s", err))
+			t.Logf("WARNING: unable to run tmpfs special file system tests: %s", err)
 		}
 	}
 
