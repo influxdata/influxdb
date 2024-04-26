@@ -647,9 +647,10 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 		},
 
 		// hardening options
-		// --hardening-enabled is meant to enable all hardending
+		// --hardening-enabled is meant to enable all hardening
 		// options in one go. Today it enables the IP validator for
-		// flux and pkger templates HTTP requests. In the future,
+		// flux and pkger templates HTTP requests, and disables file://
+		// protocol for pkger templates. In the future,
 		// --hardening-enabled might be used to enable other security
 		// features, at which point we can add per-feature flags so
 		// that users can either opt into all features
@@ -661,7 +662,7 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			DestP:   &o.HardeningEnabled,
 			Flag:    "hardening-enabled",
 			Default: o.HardeningEnabled,
-			Desc:    "enable hardening options (disallow private IPs within flux and templates HTTP requests, template file URLs)",
+			Desc:    "enable hardening options (disallow private IPs within flux and templates HTTP requests; disable file URLs in templates)",
 		},
 
 		// --template-file-urls-disabled prevents file protocol URIs

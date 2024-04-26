@@ -113,10 +113,6 @@ const limitReadFileMaxSize int64 = 2 * 1024 * 1024
 // contents. A successful call returns err == nil, not err == EOF. Because
 // limitReadFile reads the whole file, it does not treat an EOF from Read as an
 // error to be reported.
-//
-// Ultimately, only remocal will have file:// URLs enabled for its 'data
-// catalogs' bootstrap functionality. At present, the largest catalog is 40k,
-// so set a small max here with a bit of headroom.
 func limitReadFile(name string) (buf []byte, rErr error) {
 	// use os.Open() to avoid TOCTOU
 	f, err := os.Open(name)
@@ -149,8 +145,6 @@ func limitReadFile(name string) (buf []byte, rErr error) {
 	if size64 > limitReadFileMaxSize {
 		return nil, fmt.Errorf("file too big: %q", name)
 	} else if size64 == 0 {
-		// A lot of /proc files report their length as 0, so this will also
-		// catch a large proportion of /proc files.
 		return nil, fmt.Errorf("file empty: %q", name)
 	}
 	size = int(size64)

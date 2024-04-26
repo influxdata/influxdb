@@ -3,6 +3,7 @@ package fs
 import (
 	"errors"
 	"io/fs"
+	"math"
 	"os"
 	"syscall"
 
@@ -16,7 +17,7 @@ func IsSpecialFSFromFileInfo(st fs.FileInfo) (bool, error) {
 	// On Linux, special file systems like /proc, /dev/, and /sys are
 	// considered unnamed devices (non-device mounts). These devices
 	// will always have a major device number of 0 per the kernels
-	// Documentation/devices.txt file.
+	// Documentation/admin-guide/devices.txt file.
 
 	getDevId := func(st fs.FileInfo) (uint64, error) {
 		st_sys_any := st.Sys()
@@ -41,23 +42,45 @@ func IsSpecialFSFromFileInfo(st fs.FileInfo) (bool, error) {
 	}
 
 	// We know the file is in a special file system, but we'll make an
-	// exception for tmpfs, which some distros use for /tmp.
+	// exception for tmpfs, which might be used at a variety of mount points.
 	// Since the minor IDs are assigned dynamically, we'll find the device ID
-	// for /tmp. If /tmp's device ID matches this st's, then it is safe to assume
-	// the file is in tmpfs. Otherwise, it is a special device that is not tmpfs.
-	// Note that if /tmp is not tmpfs, then the device IDs won't match since
-	// tmp would be a standard file system.
-	tmpSt, err := os.Stat(os.TempDir())
-	if err != nil {
-		// We got an error getting stats on /tmp, but that just means we can't
-		// say the file is in tmpfs. We'll still go ahead and call it a special file.
-		return true, nil
+	// for each common tmpfs mount point, If the mount point's device ID matches this st's,
+	// then it is reasonable to assume the file is in tmpfs. If the device ID
+	// does not match, then st is not located in that special file system so we
+	// can't give an exception based on that file system root. This check is still
+	// valid even if the directory we check against isn't mounted as tmpfs, because
+	// the device ID won't match so we won't grant a tmpfs exception based on it.
+	// On Linux, every tmpfs mount has a different device ID, so we need to check
+	// against all common ones that might be in use.
+	tmpfsMounts := []string{"/tmp", "/run", "/dev/shm"}
+	if tmpdir := os.TempDir(); tmpdir != "/tmp" {
+		tmpfsMounts = append(tmpfsMounts, tmpdir)
 	}
-	tmpDevId, err := getDevId(tmpSt)
-	if err != nil {
-		// See above for why we're returning an error here.
-		return true, nil
+	if xdgRuntimeDir := os.Getenv("XDG_RUNTIME_DIR"); xdgRuntimeDir != "" {
+		tmpfsMounts = append(tmpfsMounts, xdgRuntimeDir)
 	}
-	// It's a special file unless the device ID matches /tmp's ID.
-	return devId != tmpDevId, nil
+	getFileDevId := func(n string) (uint64, error) {
+		fSt, err := os.Stat(n)
+		if err != nil {
+			return math.MaxUint64, err
+		}
+		fDevId, err := getDevId(fSt)
+		if err != nil {
+			// See above for why we're returning an error here.
+			return math.MaxUint64, nil
+		}
+		return fDevId, nil
+	}
+	for _, fn := range tmpfsMounts {
+		// We ignore errors if getFileDevId fails, which could
+		// mean that the file (e.g. /run) doesn't exist. The error
+		if fnDevId, err := getFileDevId(fn); err == nil {
+			if fnDevId == devId {
+				return false, nil
+			}
+		}
+	}
+
+	// We didn't find any a reason to give st a special file system exception.
+	return true, nil
 }
