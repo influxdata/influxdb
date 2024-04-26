@@ -331,20 +331,13 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         &self,
         db_name: &str,
         table_name: &str,
+        min_time: i64,
+        max_time: i64,
         records: SendableRecordBatchStream,
     ) -> Result<(), Error> {
-        let (min_time, max_time) = self.segment_state.read().open_segment_min_max_times();
-
         Ok(self
             .parquet_cache
-            .persist_parquet_file(
-                db_name,
-                table_name,
-                min_time.map(|ts| ts.timestamp_nanos()).unwrap_or(i64::MIN),
-                max_time.map(|ts| ts.timestamp_nanos()).unwrap_or(i64::MAX),
-                records,
-                None,
-            )
+            .persist_parquet_file(db_name, table_name, min_time, max_time, records, None)
             .await?)
     }
 
@@ -352,21 +345,14 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         &self,
         db_name: &str,
         table_name: &str,
+        min_time: i64,
+        max_time: i64,
         path: ObjPath,
         records: SendableRecordBatchStream,
     ) -> Result<(), Error> {
-        let (min_time, max_time) = self.segment_state.read().open_segment_min_max_times();
-
         Ok(self
             .parquet_cache
-            .persist_parquet_file(
-                db_name,
-                table_name,
-                min_time.map(|ts| ts.timestamp_nanos()).unwrap_or(i64::MIN),
-                max_time.map(|ts| ts.timestamp_nanos()).unwrap_or(i64::MAX),
-                records,
-                Some(path),
-            )
+            .persist_parquet_file(db_name, table_name, min_time, max_time, records, Some(path))
             .await?)
     }
 

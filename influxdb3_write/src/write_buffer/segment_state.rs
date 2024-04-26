@@ -223,13 +223,6 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         self.segments.keys().cloned().collect()
     }
 
-    pub(crate) fn open_segment_min_max_times(&self) -> (Option<Time>, Option<Time>) {
-        let min = self.segments.keys().min().copied();
-        let max = self.segments.keys().max().copied();
-
-        (min, max)
-    }
-
     #[cfg(test)]
     pub(crate) fn open_segments_table_record_batches(
         &self,
