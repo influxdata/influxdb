@@ -412,7 +412,7 @@ impl<'c> QueryRequestBuilder<'c> {
     /// ```
     pub fn with_params_from<S, P, C>(mut self, params: C) -> Result<Self>
     where
-        S: Into<String> + Clone,
+        S: Into<String>,
         P: TryInto<StatementParam, Error = iox_query_params::Error>,
         C: IntoIterator<Item = (S, P)>,
     {
@@ -452,7 +452,7 @@ impl<'c> QueryRequestBuilder<'c> {
     /// ```
     pub fn with_try_param<S, P>(mut self, name: S, param: P) -> Result<Self>
     where
-        S: Into<String> + Clone,
+        S: Into<String>,
         P: TryInto<StatementParam, Error = iox_query_params::Error>,
     {
         let name = name.into();
