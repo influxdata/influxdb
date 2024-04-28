@@ -401,10 +401,10 @@ impl<'c> QueryRequestBuilder<'c> {
     /// let client = Client::new("http://localhost:8181")?;
     /// let response_bytes = client
     ///     .api_v3_query_sql("db_name", "SELECT * FROM foo WHERE bar = $bar AND foo > $fooz")
-    ///     .with_params_from(HashMap::from([
+    ///     .with_params_from([
     ///         ("bar", json!(false)),
     ///         ("foo", json!(10)),
-    ///     ]))?
+    ///     ])?
     ///     .send()
     ///     .await?;
     /// # Ok(())
@@ -770,12 +770,12 @@ mod tests {
 
         let r = client
             .api_v3_query_influxql(db, query)
-            .with_params_from(Vec::from([
+            .with_params_from([
                 ("a", json!("bar")),
                 ("b", json!(123)),
                 ("c", json!(1.5)),
                 ("d", json!(false)),
-            ]))
+            ])
             .unwrap()
             .send()
             .await;
