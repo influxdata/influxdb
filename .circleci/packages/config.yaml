@@ -1,8 +1,7 @@
 version:
-  release:
-    match: '^v[0-9]+.[0-9]+.[0-9]+(-[0-9]+.(alpha|beta|rc).[0-9]+(.[0-9]+)?)?$'
+  - match: '^v[0-9]+.[0-9]+.[0-9]+(-[0-9]+.(alpha|beta|rc).[0-9]+(.[0-9]+)?)?$'
     value: '{{env.CIRCLE_TAG[1:]}}'
-  default:
+  - match: '.*'
     value: '3.0.0+snapshot-{{env.CIRCLE_SHA1[:8]}}'
 
 sources:
@@ -30,20 +29,19 @@ packages:
   - name:        influxdb3
     description: Monolithic time-series database.
     license:     MIT/Apache-2.0
+    vendor:      InfluxData
+    homepage:    https://influxdata.com
+    maintainer:
+      name:  support
+      email: support@influxdata.com
     binaries:
       - influxdb3
       - influxdb3.exe
     extras:
       - source: LICENSE-APACHE
         target: usr/share/influxdb3/LICENSE-APACHE
-
       - source: LICENSE-MIT
         target: usr/share/influxdb3/LICENSE-MIT
-
       - source: README.md
         target: usr/share/influxdb3/README.md
-    #perm_overrides:
-    #deb_recommends:
-    #conflicts:
-    #depends:
     source: .circleci/packages/influxdb3
