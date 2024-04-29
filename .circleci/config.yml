@@ -1,0 +1,284 @@
+---
+# CI Overview
+# -----------
+#
+# Every commit:
+#
+# The CI for every PR and merge to main runs tests, fmt, lints and compiles debug binaries
+#
+# On main if all these checks pass it will then additionally compile in "release" mode and
+# publish a docker image to quay.io/influxdb/influxdb3:$COMMIT_SHA
+#
+# Manually trigger build and push of container image for a branch:
+#
+# Navigate to https://app.circleci.com/pipelines/github/influxdata/influxdb?branch=<branch-name> (<- change this!)
+# Then:
+#
+# - Click "Run Pipeline" in the top-right
+# - Expand "Add Parameters"
+# - Add a "boolean" parameter called "release_branch" with the value true
+# - Click "Run Pipeline"
+#
+# You can also do this using the CircleCI API:
+#
+# Using `xh`:
+#
+#   # e.g. using 'xh' (https://github.com/ducaale/xh)
+#   $ xh -a '<your personal circleCI token>:' POST \
+#       https://circleci.com/api/v2/project/github/influxdata/influxdb/pipeline \
+#       parameters:='{"release_branch": true}' branch=chore/ci-tidy-up
+#
+# ...or equivalent with `curl`:
+#   $ curl -XPOST -H "Content-Type: application/json" -H "Circle-Token: <your personal circleCI token>" \
+#       -d '{"parameters": {"release_branch": true}, "branch": "chore/ci-tidy-up"}' \
+#       https://circleci.com/api/v2/project/github/influxdata/influxdb/pipeline
+
+version: 2.1
+
+commands:
+  rust_components:
+    description: Verify installed components
+    steps:
+      - run:
+          name: Verify installed components
+          command: |
+            rustup --version
+            rustup show
+            cargo fmt --version
+            cargo clippy --version
+
+  login_to_gcloud:
+    steps:
+      - run:
+          name: Login to gcloud
+          command: |
+            echo "${GCLOUD_SERVICE_ACCOUNT_KEY}" >/tmp/gcloud.json
+            gcloud auth activate-service-account "${GCLOUD_SERVICE_ACCOUNT_EMAIL}" --key-file /tmp/gcloud.json --quiet
+            rm -f /tmp/gcloud.json
+            gcloud auth configure-docker us-docker.pkg.dev
+
+jobs:
+  fmt:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Rust fmt
+          command: cargo fmt --all -- --check
+  lint:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Clippy
+          command: cargo clippy --all-targets --all-features --workspace -- -D warnings
+      - run:
+          name: Yamllint
+          command: yamllint --config-file .circleci/yamllint.yml --strict .
+  cargo_audit:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Install cargo-deny
+          command: cargo install cargo-deny --locked
+      - run:
+          name: cargo-deny Checks
+          command: cargo deny check -s
+  doc:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    resource_class: large # use of a smaller executor runs out of memory
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      # Turn warnings into errors
+      RUSTDOCFLAGS: "-D warnings -A rustdoc::private-intra-doc-links"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Cargo doc
+          command: cargo doc --document-private-items --no-deps --workspace
+      - run:
+          name: Compress Docs
+          command: tar -cvzf rustdoc.tar.gz target/doc/
+      - store_artifacts:
+          path: rustdoc.tar.gz
+
+  # Run all tests
+  test:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    resource_class: 2xlarge+ # use of a smaller executor tends crashes on link
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      RUST_BACKTRACE: "1"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: cargo test --workspace
+          command: cargo test --workspace
+
+  # end to end tests with Heappy (heap profiling enabled)
+  test_heappy:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    resource_class: xlarge # use of a smaller executor tends crashes on link
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      RUST_BACKTRACE: "1"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: cargo test --no-default-features --features=heappy --workspace
+          command: cargo test --no-default-features --features=heappy --workspace
+
+  # Build a dev binary.
+  #
+  # Compiles a binary with the default ("dev") cargo profile from the influxdb3 source
+  # using the latest ci_image (influxdb/rust) and ensures various targets compile successfully
+  build_dev:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    resource_class: 2xlarge # use of a smaller executor tends crashes on link
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
+      # avarage. At peak this is a bit tight, so lower the CPU count for cargo a bit.
+      CARGO_BUILD_JOBS: "12"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Cargo build
+          command: cargo build --workspace
+      - run:
+          name: Check benches compile
+          command: cargo check --workspace --benches
+      - run:
+          name: Check extra features (like prod image)
+          command: cargo check --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof"
+
+  # Compile cargo "release" profile binaries for influxdb3 & data generator
+  #
+  # Uses the latest ci_image (influxdb/rust) to build a release binary and
+  # copies it to a minimal container image based upon `rust:slim-buster`. This
+  # minimal image is then pushed to `quay.io/influxdb/influxdb3:${BRANCH}`.
+  build_release:
+    # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
+    # kinda small node)
+    machine:
+      image: default
+    resource_class: 2xlarge # CPU bound, so make it fast
+    steps:
+      - checkout
+      - run:
+          name: Cargo release build
+          command: |
+            COMMIT_SHA="$(git rev-parse HEAD)"
+
+            .circleci/docker_build_release.bash \
+              "influxdb3" \
+              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
+              "quay.io/influxdb/influxdb3:$COMMIT_SHA"
+
+            mkdir /tmp/images
+            docker save quay.io/influxdb/influxdb3:"$COMMIT_SHA" | gzip > /tmp/images/influxdb3.tar.gz
+          # linking might take a while and doesn't produce CLI output
+          no_output_timeout: 30m
+      - store_artifacts:
+          path: /tmp/images
+      - persist_to_workspace:
+          root: /tmp/images
+          paths:
+            - "*.tar.gz"
+
+parameters:
+  release_branch:
+    description: "Build and push container image for non-main branch"
+    type: boolean
+    default: false
+
+workflows:
+  version: 2
+
+  # CI for all pull requests.
+  ci:
+    when:
+      and:
+        - not: << pipeline.parameters.release_branch >>
+    jobs:
+      - fmt
+      - lint
+      - cargo_audit
+      - test
+      - test_heappy
+      - build_dev
+      - doc
+      - build_release:
+          filters:
+            branches:
+              only: main
+
+  # Force build and push of container image for non-main branch.
+  # See instructions at the top of this file
+  release_branch:
+    when: << pipeline.parameters.release_branch >>
+    jobs:
+      - build_release

@@ -1,0 +1,5 @@
+# This file allows teams or people to be assigned as
+# automatic code-reviewers for files or directories.
+#
+# Here is information about how to configure this file:
+# https://help.github.com/en/articles/about-code-owners

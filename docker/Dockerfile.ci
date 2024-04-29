@@ -1,0 +1,74 @@
+###
+# Dockerfile for the image used in the InfluxDB IOx CI tests
+# As of October 2020, it is rebuilt each night
+#
+# It expects to be run with the repo checked out locally.
+# for example:
+#
+# cd influxdb_iox
+# docker build -f docker/Dockerfile.ci \
+#   --build-arg RUST_VERSION=$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml) .
+##
+
+ARG RUST_VERSION
+# Build actual image used for CI pipeline
+FROM rust:${RUST_VERSION}-slim-bookworm
+
+# When https://github.com/rust-lang/rustup/issues/2686 is fixed, run the command added that
+# will install everything in rust-toolchain.toml here so that components are in the container
+
+# make Apt non-interactive
+RUN echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/90ci \
+  && echo 'DPkg::Options "--force-confnew";' >> /etc/apt/apt.conf.d/90ci
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+  && mkdir -p /usr/share/man/man1 \
+  && apt-get install -y \
+    git locales sudo openssh-client ca-certificates tar gzip parallel \
+    unzip zip bzip2 gnupg curl make pkg-config libssl-dev \
+    jq clang lld g++ shellcheck yamllint protobuf-compiler libprotobuf-dev \
+    skopeo openjdk-17-jdk \
+    --no-install-recommends \
+  && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - \
+  && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" >> /etc/apt/sources.list.d/google-cloud-sdk.list \
+  && apt-get update \
+  && apt-get install google-cloud-cli \
+  && apt-get clean autoclean \
+	&& apt-get autoremove --yes \
+	&& rm -rf /var/lib/{apt,dpkg,cache,log}
+
+ENV CURL_FLAGS="--proto =https --tlsv1.2 -sSf"
+
+# Install InfluxDB 2.0 OSS to enable integration tests of the influxdb2_client crate
+ENV INFLUXDB2_VERSION=2.0.4
+ENV INFLUXDB2_DOWNLOAD_BASE="https://dl.influxdata.com/influxdb/releases"
+RUN curl ${CURL_FLAGS} https://repos.influxdata.com/influxdata-archive_compat.key | gpg --import - \
+    && curl ${CURL_FLAGS} -o influxdb2.tar.gz ${INFLUXDB2_DOWNLOAD_BASE}/influxdb2-${INFLUXDB2_VERSION}-linux-amd64.tar.gz \
+    && curl ${CURL_FLAGS} -O ${INFLUXDB2_DOWNLOAD_BASE}/influxdb2-${INFLUXDB2_VERSION}-linux-amd64.tar.gz.asc \
+    && gpg --verify influxdb2-${INFLUXDB2_VERSION}-linux-amd64.tar.gz.asc influxdb2.tar.gz \
+    && tar xvzf influxdb2.tar.gz \
+    && sudo cp influxdb2-${INFLUXDB2_VERSION}-linux-amd64/influxd /usr/local/bin/ \
+    && rm -rf influxdb2-${INFLUXDB2_VERSION}-linux-amd64 influxdb2-${INFLUXDB2_VERSION}-linux-amd64.tar.gz.asc
+
+# Set timezone to UTC by default
+RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
+# Use unicode
+RUN locale-gen C.UTF-8 || true
+ENV LANG=C.UTF-8
+
+RUN groupadd -g 1500 rust \
+  && useradd -u 1500 -g rust -s /bin/bash -m rust \
+  && echo 'rust ALL=NOPASSWD: ALL' >> /etc/sudoers.d/10-rust \
+  && echo 'Defaults    env_keep += "DEBIAN_FRONTEND"' >> /etc/sudoers.d/env_keep
+
+# Ensure we are ready with cargo hakari and cargo deny
+RUN cargo install cargo-hakari && \
+    cargo install cargo-deny && \
+    chown -R rust:rust /usr/local/cargo
+
+USER rust
+ENV PATH /home/rust/.local/bin:/home/rust/bin:${PATH}
+
+CMD ["/bin/bash"]

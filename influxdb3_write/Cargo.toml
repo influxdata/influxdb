@@ -1,0 +1,49 @@
+[package]
+name = "influxdb3_write"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Core Crates
+data_types.workspace = true
+datafusion_util.workspace = true
+influxdb-line-protocol.workspace = true
+iox_catalog.workspace = true
+iox_http.workspace = true
+iox_query.workspace = true
+iox_time.workspace = true
+parquet_file.workspace = true
+observability_deps.workspace = true
+schema.workspace = true
+
+# crates.io dependencies
+arrow.workspace = true
+async-trait.workspace = true
+byteorder.workspace  = true
+bytes.workspace = true
+chrono.workspace  = true
+crc32fast.workspace  = true
+crossbeam-channel.workspace  = true
+datafusion.workspace = true
+futures-util.workspace = true
+hex.workspace = true
+object_store.workspace = true
+parking_lot.workspace = true
+parquet.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+snap.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+# Core Crates
+arrow_util.workspace = true
+metric.workspace = true
+pretty_assertions.workspace = true
+test_helpers.workspace = true
