@@ -67,7 +67,7 @@ impl ParquetFilePath {
         Self(path)
     }
 
-    pub fn new_with_parititon_key(
+    pub fn new_with_partition_key(
         db_name: &str,
         table_name: &str,
         partition_key: &str,

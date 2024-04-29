@@ -6,6 +6,7 @@
 //! When the segment reaches a certain size, or a certain amount of time has passed, it will be closed and marked
 //! to be persisted. A new open segment will be created and new writes will be written to that segment.
 
+pub mod cache;
 pub mod catalog;
 mod chunk;
 pub mod paths;

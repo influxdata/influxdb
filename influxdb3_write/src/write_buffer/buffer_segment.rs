@@ -464,7 +464,7 @@ impl ClosedBufferSegment {
                         let row_count = data.iter().map(|b| b.num_rows()).sum::<usize>();
 
                         let batch_stream = stream_from_batches(table.schema().as_arrow(), data);
-                        let parquet_file_path = ParquetFilePath::new_with_parititon_key(
+                        let parquet_file_path = ParquetFilePath::new_with_partition_key(
                             db_name,
                             &table.name,
                             &table_buffer.segment_key.to_string(),
@@ -726,7 +726,7 @@ pub(crate) mod tests {
         // file number of the path should match the segment id
         assert_eq!(
             cpu_parqet.path,
-            ParquetFilePath::new_with_parititon_key("db1", "cpu", SEGMENT_KEY, 4).to_string()
+            ParquetFilePath::new_with_partition_key("db1", "cpu", SEGMENT_KEY, 4).to_string()
         );
         assert_eq!(cpu_parqet.row_count, 2);
         assert_eq!(cpu_parqet.min_time, 10);
@@ -738,7 +738,7 @@ pub(crate) mod tests {
         // file number of the path should match the segment id
         assert_eq!(
             mem_parqet.path,
-            ParquetFilePath::new_with_parititon_key("db1", "mem", SEGMENT_KEY, 4).to_string()
+            ParquetFilePath::new_with_partition_key("db1", "mem", SEGMENT_KEY, 4).to_string()
         );
         assert_eq!(mem_parqet.row_count, 2);
         assert_eq!(mem_parqet.min_time, 15);
