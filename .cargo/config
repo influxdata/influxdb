@@ -1,0 +1,25 @@
+[build]
+# enable tokio-console and some other goodies
+rustflags = [
+    "--cfg", "tokio_unstable",
+]
+
+# sparse protocol opt-in
+# See https://blog.rust-lang.org/2023/03/09/Rust-1.68.0.html#cargos-sparse-protocol
+[registries.crates-io]
+protocol = "sparse"
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    # see above
+    "--cfg", "tokio_unstable",
+    # Faster linker.
+    "-C", "link-arg=-fuse-ld=lld",
+    # Fix `perf` as suggested by https://github.com/flamegraph-rs/flamegraph/blob/2d19a162df4066f37d58d5471634f0bd9f0f4a62/README.md?plain=1#L18
+    # Also see https://bugs.chromium.org/p/chromium/issues/detail?id=919499#c16
+    "-C", "link-arg=-Wl,--no-rosegment",
+    # Enable all features supported by CPUs more recent than haswell (2013)
+    "-C", "target-cpu=haswell",
+    # Enable framepointers because profiling and debugging is a nightmare w/o it and it is generally not considered a performance advantage on modern x86_64 CPUs.
+    "-C", "force-frame-pointers=yes",
+]

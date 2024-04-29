@@ -1,1 +1,1 @@
-# influxdb_pro
+# InfluxDB Pro
