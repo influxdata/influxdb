@@ -388,6 +388,50 @@ impl<'c> QueryRequestBuilder<'c> {
         self
     }
 
+    /// Set a query parameters from the given collection of pairs
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use influxdb3_client::Client;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// use serde_json::json;
+    /// use std::collections::HashMap;
+    ///
+    /// let client = Client::new("http://localhost:8181")?;
+    /// let response_bytes = client
+    ///     .api_v3_query_sql("db_name", "SELECT * FROM foo WHERE bar = $bar AND foo > $fooz")
+    ///     .with_params_from([
+    ///         ("bar", json!(false)),
+    ///         ("foo", json!(10)),
+    ///     ])?
+    ///     .send()
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_params_from<S, P, C>(mut self, params: C) -> Result<Self>
+    where
+        S: Into<String>,
+        P: TryInto<StatementParam, Error = iox_query_params::Error>,
+        C: IntoIterator<Item = (S, P)>,
+    {
+        for (name, param) in params.into_iter() {
+            let name = name.into();
+            let param = param
+                .try_into()
+                .map_err(|source| Error::ConvertQueryParam {
+                    name: name.clone(),
+                    source,
+                })?;
+
+            self.params
+                .get_or_insert_with(Default::default)
+                .insert(name, param);
+        }
+        Ok(self)
+    }
+
     /// Try to set a query parameter value with the given `name`
     ///
     /// # Example
@@ -408,7 +452,7 @@ impl<'c> QueryRequestBuilder<'c> {
     /// ```
     pub fn with_try_param<S, P>(mut self, name: S, param: P) -> Result<Self>
     where
-        S: Into<String> + Clone,
+        S: Into<String>,
         P: TryInto<StatementParam, Error = iox_query_params::Error>,
     {
         let name = name.into();
@@ -692,6 +736,49 @@ mod tests {
             builder = builder.with_try_param(name, value).unwrap();
         }
         let r = builder.send().await;
+
+        mock.assert_async().await;
+
+        r.expect("sent request successfully");
+    }
+    #[tokio::test]
+    async fn api_v3_query_influxql_with_params_from() {
+        let db = "stats";
+        let query = "SELECT * FROM foo WHERE a = $a AND b < $b AND c > $c AND d = $d";
+        let body = r#"[{"host": "foo", "time": "1990-07-23T06:00:00:000", "val": 1}]"#;
+
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v3/query_influxql")
+            .match_body(Matcher::Json(serde_json::json!({
+                "db": db,
+                "q": query,
+                "params": {
+                    "a": "bar",
+                    "b": 123,
+                    "c": 1.5,
+                    "d": false
+                },
+                "format": null
+            })))
+            .with_status(200)
+            .with_body(body)
+            .create_async()
+            .await;
+
+        let client = Client::new(mock_server.url()).expect("create client");
+
+        let r = client
+            .api_v3_query_influxql(db, query)
+            .with_params_from([
+                ("a", json!("bar")),
+                ("b", json!(123)),
+                ("c", json!(1.5)),
+                ("d", json!(false)),
+            ])
+            .unwrap()
+            .send()
+            .await;
 
         mock.assert_async().await;
 
