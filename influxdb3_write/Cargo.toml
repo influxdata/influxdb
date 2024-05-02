@@ -19,6 +19,7 @@ observability_deps.workspace = true
 schema.workspace = true
 
 # crates.io dependencies
+anyhow.workspace = true
 arrow.workspace = true
 async-trait.workspace = true
 byteorder.workspace  = true

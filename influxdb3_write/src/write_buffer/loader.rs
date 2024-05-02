@@ -75,6 +75,7 @@ where
             let buffer = load_buffer_from_segment(&catalog, segment_reader)?;
 
             let segment = OpenBufferSegment::new(
+                Arc::clone(&catalog),
                 segment_header.id,
                 segment_header.range,
                 server_load_time,
@@ -100,6 +101,7 @@ where
             max_segment_id = current_segment_id;
 
             let current_segment = OpenBufferSegment::new(
+                Arc::clone(&catalog),
                 current_segment_id,
                 current_segment_range,
                 server_load_time,
@@ -116,6 +118,7 @@ where
         max_segment_id = current_segment_id;
 
         let current_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             current_segment_id,
             current_segment_range,
             server_load_time,
@@ -157,10 +160,12 @@ mod tests {
     async fn loads_without_wal() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let catalog = Arc::new(Catalog::new());
 
         let segment_id = SegmentId::new(4);
         let segment_writer = Box::new(WalSegmentWriterNoopImpl::new(segment_id));
         let mut open_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             segment_id,
             SegmentRange::test_range(),
             Time::from_timestamp_nanos(0),
@@ -168,8 +173,6 @@ mod tests {
             segment_writer,
             None,
         );
-
-        let catalog = Catalog::new();
 
         let lp = "cpu,tag1=cupcakes bar=1 10\nmem,tag2=turtles bar=3 15\nmem,tag2=snakes bar=2 20";
 
@@ -290,7 +293,8 @@ mod tests {
 
         let cpu_table = db.get_table("cpu").unwrap();
         let cpu_data = current_segment
-            .table_record_batches(db_name, "cpu", cpu_table.schema())
+            .table_record_batches(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
             "+------------------------------------------------------------------+-----+----------+--------------------------------+",
@@ -303,7 +307,8 @@ mod tests {
 
         let mem_table = db.get_table("mem").unwrap();
         let mem_data = current_segment
-            .table_record_batches(db_name, "mem", mem_table.schema())
+            .table_record_batches(db_name, "mem", mem_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
             "+------------------------------------------------------------------+-----+---------+--------------------------------+",
@@ -382,6 +387,7 @@ mod tests {
             .new_segment_writer(next_segment_id, next_segment_range)
             .unwrap();
         let mut next_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(2),
             SegmentRange::test_range().next(),
             Time::from_timestamp_nanos(0),
@@ -463,7 +469,8 @@ mod tests {
 
         let cpu_table = db.get_table("cpu").unwrap();
         let cpu_data = loaded_state.open_segments[0]
-            .table_record_batches(db_name, "cpu", cpu_table.schema())
+            .table_record_batches(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
             "+------------------------------------------------------------------+-----+----------+--------------------------------+",
@@ -476,7 +483,8 @@ mod tests {
 
         let foo_table = db.get_table("foo").unwrap();
         let foo_data = loaded_state.open_segments[0]
-            .table_record_batches(db_name, "foo", foo_table.schema())
+            .table_record_batches(db_name, "foo", foo_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
             "+------------------------------------------------------------------+--------------------------------+-----+",
@@ -546,6 +554,7 @@ mod tests {
             .new_segment_writer(next_segment_id, next_segment_range)
             .unwrap();
         let mut next_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(2),
             SegmentRange::test_range().next(),
             Time::from_timestamp_nanos(0),
@@ -593,7 +602,8 @@ mod tests {
 
         let cpu_table = db.get_table("cpu").unwrap();
         let cpu_data = loaded_state.open_segments[0]
-            .table_record_batches(db_name, "cpu", cpu_table.schema())
+            .table_record_batches(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
             "+------------------------------------------------------------------+-----+--------+--------------------------------+",
@@ -606,7 +616,8 @@ mod tests {
 
         let foo_table = db.get_table("foo").unwrap();
         let foo_data = loaded_state.open_segments[0]
-            .table_record_batches(db_name, "foo", foo_table.schema())
+            .table_record_batches(db_name, "foo", foo_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
             "+------------------------------------------------------------------+--------------------------------+-----+",

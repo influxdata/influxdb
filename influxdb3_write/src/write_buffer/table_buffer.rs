@@ -1,16 +1,18 @@
-//! The in memory bufffer of a table that can be quickly added to and queried
+//! The in memory buffer of a table that can be quickly added to and queried
 
 use crate::write_buffer::{FieldData, Row};
+use anyhow::Context;
 use arrow::array::{
-    ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, StringDictionaryBuilder,
-    TimestampNanosecondBuilder, UInt64Builder,
+    ArrayBuilder, ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder,
+    Int64Builder, StringArray, StringBuilder, StringDictionaryBuilder, TimestampNanosecondBuilder,
+    UInt64Builder,
 };
-use arrow::datatypes::Int32Type;
+use arrow::datatypes::{GenericStringType, Int32Type, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use data_types::{PartitionKey, TimestampMinMax};
+use datafusion::logical_expr::{BinaryExpr, Expr};
 use observability_deps::tracing::debug;
-use schema::Schema;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use std::vec;
 
@@ -20,16 +22,18 @@ pub struct TableBuffer {
     timestamp_max: i64,
     pub(crate) data: BTreeMap<String, Builder>,
     row_count: usize,
+    index: BufferIndex,
 }
 
 impl TableBuffer {
-    pub fn new(segment_key: PartitionKey) -> Self {
+    pub fn new(segment_key: PartitionKey, index_columns: &[String]) -> Self {
         Self {
             segment_key,
             timestamp_min: i64::MAX,
             timestamp_max: i64::MIN,
             data: Default::default(),
             row_count: 0,
+            index: BufferIndex::new(index_columns),
         }
     }
 
@@ -64,16 +68,22 @@ impl TableBuffer {
                         }
                     }
                     FieldData::Tag(v) => {
-                        let b = self.data.entry(f.name).or_insert_with(|| {
+                        if !self.data.contains_key(&f.name) {
                             let mut tag_builder = StringDictionaryBuilder::new();
                             // append nulls for all previous rows
                             for _ in 0..(row_index + self.row_count) {
                                 tag_builder.append_null();
                             }
-                            Builder::Tag(tag_builder)
-                        });
+                            self.data.insert(f.name.clone(), Builder::Tag(tag_builder));
+                        }
+                        let b = self
+                            .data
+                            .get_mut(&f.name)
+                            .expect("tag builder should exist");
                         if let Builder::Tag(b) = b {
-                            b.append(v).unwrap(); // we won't overflow the 32-bit integer for this dictionary
+                            self.index.add_row_if_indexed_column(b.len(), &f.name, &v);
+                            b.append(v)
+                                .expect("shouldn't be able to overflow 32 bit dictionary");
                         } else {
                             panic!("unexpected field type");
                         }
@@ -183,20 +193,39 @@ impl TableBuffer {
         }
     }
 
-    pub fn record_batches(&self, schema: &Schema) -> Vec<RecordBatch> {
-        // ensure the order of the columns matches their order in the Arrow schema definition
-        let mut cols = Vec::with_capacity(self.data.len());
-        let schema = schema.as_arrow();
-        for f in &schema.fields {
-            cols.push(
-                self.data
-                    .get(f.name())
-                    .unwrap_or_else(|| panic!("missing field in table buffer: {}", f.name()))
-                    .as_arrow(),
-            );
+    pub fn record_batches(
+        &self,
+        schema: SchemaRef,
+        filter: &[Expr],
+    ) -> Result<Vec<RecordBatch>, anyhow::Error> {
+        let row_ids = self.index.get_rows_from_index_for_filter(filter);
+
+        let mut cols = Vec::with_capacity(schema.fields().len());
+
+        for f in schema.fields() {
+            match row_ids {
+                Some(row_ids) => {
+                    let b = self
+                        .data
+                        .get(f.name())
+                        .with_context(|| format!("missing field in table buffer: {}", f.name()))?
+                        .get_rows(row_ids);
+                    cols.push(b);
+                }
+                None => {
+                    let b = self
+                        .data
+                        .get(f.name())
+                        .with_context(|| format!("missing field in table buffer: {}", f.name()))?
+                        .as_arrow();
+                    cols.push(b);
+                }
+            }
         }
 
-        vec![RecordBatch::try_new(schema, cols).unwrap()]
+        Ok(vec![
+            RecordBatch::try_new(schema, cols).context("failed to create record batch")?
+        ])
     }
 }
 
@@ -209,6 +238,49 @@ impl std::fmt::Debug for TableBuffer {
             .field("timestamp_max", &self.timestamp_max)
             .field("row_count", &self.row_count)
             .finish()
+    }
+}
+
+#[derive(Debug, Default)]
+struct BufferIndex {
+    // column name -> string value -> row indexes
+    columns: HashMap<String, HashMap<String, Vec<usize>>>,
+}
+
+impl BufferIndex {
+    fn new(columns: &[String]) -> Self {
+        let columns = columns
+            .iter()
+            .map(|c| (c.clone(), HashMap::new()))
+            .collect();
+        Self { columns }
+    }
+
+    fn add_row_if_indexed_column(&mut self, row_index: usize, column_name: &str, value: &str) {
+        if let Some(column) = self.columns.get_mut(column_name) {
+            column
+                .entry(value.to_string())
+                .or_insert_with(Vec::new)
+                .push(row_index);
+        }
+    }
+
+    fn get_rows_from_index_for_filter(&self, filter: &[Expr]) -> Option<&Vec<usize>> {
+        for expr in filter {
+            if let Expr::BinaryExpr(BinaryExpr { left, op, right }) = expr {
+                if *op == datafusion::logical_expr::Operator::Eq {
+                    if let Expr::Column(c) = left.as_ref() {
+                        if let Expr::Literal(datafusion::scalar::ScalarValue::Utf8(Some(v))) =
+                            right.as_ref()
+                        {
+                            return self.columns.get(c.name.as_str()).and_then(|m| m.get(v));
+                        }
+                    }
+                }
+            }
+        }
+
+        None
     }
 }
 
@@ -233,5 +305,209 @@ impl Builder {
             Self::Tag(b) => Arc::new(b.finish_cloned()),
             Self::Time(b) => Arc::new(b.finish_cloned()),
         }
+    }
+
+    fn get_rows(&self, rows: &[usize]) -> ArrayRef {
+        match self {
+            Self::Bool(b) => {
+                let b = b.finish_cloned();
+                let mut builder = BooleanBuilder::with_capacity(rows.len());
+                for row in rows {
+                    builder.append_value(b.value(*row));
+                }
+                Arc::new(builder.finish())
+            }
+            Self::I64(b) => {
+                let b = b.finish_cloned();
+                let mut builder = Int64Builder::with_capacity(rows.len());
+                for row in rows {
+                    builder.append_value(b.value(*row));
+                }
+                Arc::new(builder.finish())
+            }
+            Self::F64(b) => {
+                let b = b.finish_cloned();
+                let mut builder = Float64Builder::with_capacity(rows.len());
+                for row in rows {
+                    builder.append_value(b.value(*row));
+                }
+                Arc::new(builder.finish())
+            }
+            Self::U64(b) => {
+                let b = b.finish_cloned();
+                let mut builder = UInt64Builder::with_capacity(rows.len());
+                for row in rows {
+                    builder.append_value(b.value(*row));
+                }
+                Arc::new(builder.finish())
+            }
+            Self::String(b) => {
+                let b = b.finish_cloned();
+                let mut builder = StringBuilder::new();
+                for row in rows {
+                    builder.append_value(b.value(*row));
+                }
+                Arc::new(builder.finish())
+            }
+            Self::Tag(b) => {
+                let b = b.finish_cloned();
+                let bv = b.values();
+                let bva: &StringArray = bv.as_any().downcast_ref::<StringArray>().unwrap();
+
+                let mut builder: GenericByteDictionaryBuilder<Int32Type, GenericStringType<i32>> =
+                    StringDictionaryBuilder::new();
+                for row in rows {
+                    let val = b.key(*row).unwrap();
+                    let tag_val = bva.value(val);
+
+                    builder
+                        .append(tag_val)
+                        .expect("shouldn't be able to overflow 32 bit dictionary");
+                }
+                Arc::new(builder.finish())
+            }
+            Self::Time(b) => {
+                let b = b.finish_cloned();
+                let mut builder = TimestampNanosecondBuilder::with_capacity(rows.len());
+                for row in rows {
+                    builder.append_value(b.value(*row));
+                }
+                Arc::new(builder.finish())
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::write_buffer::Field;
+    use arrow_util::assert_batches_eq;
+    use datafusion::common::Column;
+    use schema::{InfluxFieldType, SchemaBuilder};
+
+    #[test]
+    fn tag_row_index() {
+        let mut table_buffer = TableBuffer::new(PartitionKey::from("table"), &["tag".to_string()]);
+        let schema = SchemaBuilder::with_capacity(3)
+            .tag("tag")
+            .influx_field("value", InfluxFieldType::Integer)
+            .timestamp()
+            .build()
+            .unwrap();
+
+        let rows = vec![
+            Row {
+                time: 1,
+                fields: vec![
+                    Field {
+                        name: "tag".to_string(),
+                        value: FieldData::Tag("a".to_string()),
+                    },
+                    Field {
+                        name: "value".to_string(),
+                        value: FieldData::Integer(1),
+                    },
+                    Field {
+                        name: "time".to_string(),
+                        value: FieldData::Timestamp(1),
+                    },
+                ],
+            },
+            Row {
+                time: 2,
+                fields: vec![
+                    Field {
+                        name: "tag".to_string(),
+                        value: FieldData::Tag("b".to_string()),
+                    },
+                    Field {
+                        name: "value".to_string(),
+                        value: FieldData::Integer(2),
+                    },
+                    Field {
+                        name: "time".to_string(),
+                        value: FieldData::Timestamp(2),
+                    },
+                ],
+            },
+            Row {
+                time: 3,
+                fields: vec![
+                    Field {
+                        name: "tag".to_string(),
+                        value: FieldData::Tag("a".to_string()),
+                    },
+                    Field {
+                        name: "value".to_string(),
+                        value: FieldData::Integer(3),
+                    },
+                    Field {
+                        name: "time".to_string(),
+                        value: FieldData::Timestamp(3),
+                    },
+                ],
+            },
+        ];
+
+        table_buffer.add_rows(rows);
+
+        let filter = &[Expr::BinaryExpr(BinaryExpr {
+            left: Box::new(Expr::Column(Column {
+                relation: None,
+                name: "tag".to_string(),
+            })),
+            op: datafusion::logical_expr::Operator::Eq,
+            right: Box::new(Expr::Literal(datafusion::scalar::ScalarValue::Utf8(Some(
+                "a".to_string(),
+            )))),
+        })];
+        let a_rows = table_buffer
+            .index
+            .get_rows_from_index_for_filter(filter)
+            .unwrap();
+        assert_eq!(a_rows, &[0, 2]);
+
+        let a = table_buffer
+            .record_batches(schema.as_arrow(), filter)
+            .unwrap();
+        let expected_a = vec![
+            "+-----+-------+--------------------------------+",
+            "| tag | value | time                           |",
+            "+-----+-------+--------------------------------+",
+            "| a   | 1     | 1970-01-01T00:00:00.000000001Z |",
+            "| a   | 3     | 1970-01-01T00:00:00.000000003Z |",
+            "+-----+-------+--------------------------------+",
+        ];
+        assert_batches_eq!(&expected_a, &a);
+
+        let filter = &[Expr::BinaryExpr(BinaryExpr {
+            left: Box::new(Expr::Column(Column {
+                relation: None,
+                name: "tag".to_string(),
+            })),
+            op: datafusion::logical_expr::Operator::Eq,
+            right: Box::new(Expr::Literal(datafusion::scalar::ScalarValue::Utf8(Some(
+                "b".to_string(),
+            )))),
+        })];
+
+        let b_rows = table_buffer
+            .index
+            .get_rows_from_index_for_filter(filter)
+            .unwrap();
+        assert_eq!(b_rows, &[1]);
+
+        let b = table_buffer
+            .record_batches(schema.as_arrow(), filter)
+            .unwrap();
+        let expected_b = vec![
+            "+-----+-------+--------------------------------+",
+            "| tag | value | time                           |",
+            "+-----+-------+--------------------------------+",
+            "| b   | 2     | 1970-01-01T00:00:00.000000002Z |",
+            "+-----+-------+--------------------------------+",
+        ];
+        assert_batches_eq!(&expected_b, &b);
     }
 }

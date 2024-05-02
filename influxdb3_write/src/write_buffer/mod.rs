@@ -77,6 +77,9 @@ pub enum Error {
 
     #[error("walop in file {0} contained data for more than one segment, which is invalid")]
     WalOpForMultipleSegments(String),
+
+    #[error("error: {0}")]
+    Other(#[from] anyhow::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
