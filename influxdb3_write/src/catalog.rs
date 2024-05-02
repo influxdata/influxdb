@@ -186,7 +186,7 @@ impl InnerCatalog {
 
     #[cfg(test)]
     pub fn db_exists(&self, db_name: &str) -> bool {
-        self.databases.get(db_name).is_some()
+        self.databases.contains_key(db_name)
     }
 }
 

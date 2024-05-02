@@ -378,7 +378,7 @@ impl QueryResponseStream {
         let mut columns = vec!["".to_string(); self.column_map.len()];
         self.column_map
             .iter()
-            .for_each(|(k, i)| columns[*i] = k.to_owned());
+            .for_each(|(k, i)| k.clone_into(&mut columns[*i]));
         columns
     }
 
