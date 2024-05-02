@@ -1,6 +1,7 @@
 use crate::SegmentId;
 use chrono::prelude::*;
 use object_store::path::Path as ObjPath;
+use std::fmt;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
@@ -109,9 +110,9 @@ impl SegmentWalFilePath {
     }
 }
 
-impl ToString for SegmentWalFilePath {
-    fn to_string(&self) -> String {
-        self.0.to_string_lossy().into_owned()
+impl fmt::Display for SegmentWalFilePath {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "{}", self.0.to_string_lossy())
     }
 }
 

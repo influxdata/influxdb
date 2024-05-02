@@ -890,8 +890,6 @@ pub(crate) async fn route_request<W: WriteBuffer, Q: QueryExecutor, T: TimeProvi
     mut req: Request<Body>,
 ) -> Result<Response<Body>, Infallible>
 where
-    W: WriteBuffer,
-    Q: QueryExecutor,
     Error: From<<Q as QueryExecutor>::Error>,
 {
     if let Err(e) = http_server.authorize_request(&mut req).await {
