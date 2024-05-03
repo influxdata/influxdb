@@ -1,7 +1,6 @@
 //! The in memory buffer of a table that can be quickly added to and queried
 
 use crate::write_buffer::{FieldData, Row};
-use anyhow::Context;
 use arrow::array::{
     ArrayBuilder, ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder,
     Int64Builder, StringArray, StringBuilder, StringDictionaryBuilder, TimestampNanosecondBuilder,
@@ -14,7 +13,18 @@ use datafusion::logical_expr::{BinaryExpr, Expr};
 use observability_deps::tracing::debug;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
-use std::vec;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Field not found in table buffer: {0}")]
+    FieldNotFound(String),
+
+    #[error("Error creating record batch: {0}")]
+    RecordBatchError(#[from] arrow::error::ArrowError),
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct TableBuffer {
     pub segment_key: PartitionKey,
@@ -193,11 +203,7 @@ impl TableBuffer {
         }
     }
 
-    pub fn record_batches(
-        &self,
-        schema: SchemaRef,
-        filter: &[Expr],
-    ) -> Result<Vec<RecordBatch>, anyhow::Error> {
+    pub fn record_batch(&self, schema: SchemaRef, filter: &[Expr]) -> Result<RecordBatch> {
         let row_ids = self.index.get_rows_from_index_for_filter(filter);
 
         let mut cols = Vec::with_capacity(schema.fields().len());
@@ -208,7 +214,7 @@ impl TableBuffer {
                     let b = self
                         .data
                         .get(f.name())
-                        .with_context(|| format!("missing field in table buffer: {}", f.name()))?
+                        .ok_or_else(|| Error::FieldNotFound(f.name().to_string()))?
                         .get_rows(row_ids);
                     cols.push(b);
                 }
@@ -216,16 +222,14 @@ impl TableBuffer {
                     let b = self
                         .data
                         .get(f.name())
-                        .with_context(|| format!("missing field in table buffer: {}", f.name()))?
+                        .ok_or_else(|| Error::FieldNotFound(f.name().to_string()))?
                         .as_arrow();
                     cols.push(b);
                 }
             }
         }
 
-        Ok(vec![
-            RecordBatch::try_new(schema, cols).context("failed to create record batch")?
-        ])
+        Ok(RecordBatch::try_new(schema, cols)?)
     }
 }
 
@@ -469,7 +473,7 @@ mod tests {
         assert_eq!(a_rows, &[0, 2]);
 
         let a = table_buffer
-            .record_batches(schema.as_arrow(), filter)
+            .record_batch(schema.as_arrow(), filter)
             .unwrap();
         let expected_a = vec![
             "+-----+-------+--------------------------------+",
@@ -479,7 +483,7 @@ mod tests {
             "| a   | 3     | 1970-01-01T00:00:00.000000003Z |",
             "+-----+-------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected_a, &a);
+        assert_batches_eq!(&expected_a, &[a]);
 
         let filter = &[Expr::BinaryExpr(BinaryExpr {
             left: Box::new(Expr::Column(Column {
@@ -499,7 +503,7 @@ mod tests {
         assert_eq!(b_rows, &[1]);
 
         let b = table_buffer
-            .record_batches(schema.as_arrow(), filter)
+            .record_batch(schema.as_arrow(), filter)
             .unwrap();
         let expected_b = vec![
             "+-----+-------+--------------------------------+",
@@ -508,6 +512,6 @@ mod tests {
             "| b   | 2     | 1970-01-01T00:00:00.000000002Z |",
             "+-----+-------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected_b, &b);
+        assert_batches_eq!(&expected_b, &[b]);
     }
 }

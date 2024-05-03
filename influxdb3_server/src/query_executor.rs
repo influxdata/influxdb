@@ -473,10 +473,7 @@ impl<B: WriteBuffer> TableProvider for QueryTable<B> {
         &self,
         filters: &[&Expr],
     ) -> datafusion::common::Result<Vec<TableProviderFilterPushDown>> {
-        filters
-            .iter()
-            .map(|_f| Ok(TableProviderFilterPushDown::Inexact))
-            .collect()
+        Ok(vec![TableProviderFilterPushDown::Inexact; filters.len()])
     }
 
     async fn scan(

@@ -6,8 +6,7 @@ use crate::catalog::{Catalog, DatabaseSchema};
 use crate::chunk::BufferChunk;
 use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
-use crate::write_buffer::table_buffer::Builder;
-use crate::write_buffer::table_buffer::TableBuffer;
+use crate::write_buffer::table_buffer::{Builder, Result as TableBufferResult, TableBuffer};
 use crate::write_buffer::{
     parse_validate_and_update_catalog, Error, TableBatch, ValidSegmentedData,
 };
@@ -133,13 +132,13 @@ impl OpenBufferSegment {
     }
 
     /// Returns the table data as record batches
-    pub(crate) fn table_record_batches(
+    pub(crate) fn table_record_batch(
         &self,
         db_name: &str,
         table_name: &str,
         schema: SchemaRef,
         filter: &[Expr],
-    ) -> Option<anyhow::Result<Vec<RecordBatch>>> {
+    ) -> Option<TableBufferResult<RecordBatch>> {
         self.buffered_data
             .table_record_batches(db_name, table_name, schema, filter)
     }
@@ -285,11 +284,11 @@ impl BufferedData {
         table_name: &str,
         schema: SchemaRef,
         filter: &[Expr],
-    ) -> Option<anyhow::Result<Vec<RecordBatch>>> {
+    ) -> Option<TableBufferResult<RecordBatch>> {
         self.database_buffers
             .get(db_name)
             .and_then(|db_buffer| db_buffer.table_buffers.get(table_name))
-            .map(|table_buffer| table_buffer.record_batches(schema, filter))
+            .map(|table_buffer| table_buffer.record_batch(schema, filter))
     }
 
     /// Verifies that the passed in buffer has the same data as this buffer
@@ -305,9 +304,9 @@ impl BufferedData {
                 let other_table_buffer = other_db_buffer.table_buffers.get(table_name).unwrap();
                 let schema = db_schema.get_table_schema(table_name).unwrap();
 
-                let table_data = table_buffer.record_batches(schema.as_arrow(), &[]).unwrap();
+                let table_data = table_buffer.record_batch(schema.as_arrow(), &[]).unwrap();
                 let other_table_data = other_table_buffer
-                    .record_batches(schema.as_arrow(), &[])
+                    .record_batch(schema.as_arrow(), &[])
                     .unwrap();
 
                 assert_eq!(table_data, other_table_data);
@@ -427,9 +426,8 @@ impl ClosedBufferSegment {
 
                         // All of the record batches for this table that we will
                         // want to dedupe
-                        let batches =
-                            table_buffer.record_batches(table.schema().as_arrow(), &[])?;
-                        let row_count = batches.iter().map(|b| b.num_rows()).sum();
+                        let batch = table_buffer.record_batch(table.schema().as_arrow(), &[])?;
+                        let row_count = batch.num_rows();
 
                         // Dedupe and sort using the COMPACT query built into
                         // iox_query
@@ -445,7 +443,7 @@ impl ClosedBufferSegment {
                         );
 
                         chunks.push(Arc::new(BufferChunk {
-                            batches,
+                            batches: vec![batch],
                             schema: schema.clone(),
                             stats: Arc::new(chunk_stats),
                             partition_id: TransitionPartitionId::new(
@@ -605,7 +603,7 @@ pub(crate) mod tests {
 
         let db_schema = catalog.db_schema("db1").unwrap();
         let cpu_table = open_segment
-            .table_record_batches(
+            .table_record_batch(
                 "db1",
                 "cpu",
                 db_schema.get_table_schema("cpu").unwrap().as_arrow(),
@@ -621,10 +619,10 @@ pub(crate) mod tests {
             "| 505f9f5fc3347ac9d6ba45f2b2c94ad53a313e456e86e61db85ba1935369b238 | 2.0 | cupcakes | 1970-01-01T00:00:00.000000030Z |",
             "+------------------------------------------------------------------+-----+----------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected_cpu_table, &cpu_table);
+        assert_batches_eq!(&expected_cpu_table, &[cpu_table]);
 
         let mem_table = open_segment
-            .table_record_batches(
+            .table_record_batch(
                 "db1",
                 "mem",
                 db_schema.get_table_schema("mem").unwrap().as_arrow(),
@@ -639,7 +637,7 @@ pub(crate) mod tests {
             "| 5ae2bb295e8b0dec713daf0da555ecd3f2899a8967f18db799e26557029198f3 | 2.0 | snakes | 1970-01-01T00:00:00.000000020Z |",
             "+------------------------------------------------------------------+-----+--------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected_mem_table, &mem_table);
+        assert_batches_eq!(&expected_mem_table, &[mem_table]);
     }
 
     #[tokio::test]
@@ -681,7 +679,7 @@ pub(crate) mod tests {
         let db_schema = catalog.db_schema("db1").unwrap();
         println!("{:?}", db_schema);
         let cpu_table = open_segment
-            .table_record_batches(
+            .table_record_batch(
                 "db1",
                 "cpu",
                 db_schema.get_table_schema("cpu").unwrap().as_arrow(),
@@ -700,7 +698,7 @@ pub(crate) mod tests {
             "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 |     | 2.1  |      |          |      | 1970-01-01T00:00:00.000000040Z |",
             "+------------------------------------------------------------------+-----+------+------+----------+------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected_cpu_table, &cpu_table);
+        assert_batches_eq!(&expected_cpu_table, &[cpu_table]);
     }
 
     #[tokio::test]

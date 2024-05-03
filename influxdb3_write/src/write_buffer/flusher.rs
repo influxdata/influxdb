@@ -296,7 +296,7 @@ mod tests {
         assert_eq!(segment.segment_id(), segment_id);
 
         let data = segment
-            .table_record_batches(
+            .table_record_batch(
                 db_name.as_str(),
                 "cpu",
                 catalog
@@ -309,7 +309,6 @@ mod tests {
             )
             .unwrap()
             .unwrap();
-        let row_count = data.iter().map(|batch| batch.num_rows()).sum::<usize>();
-        assert_eq!(row_count, 2);
+        assert_eq!(data.num_rows(), 2);
     }
 }

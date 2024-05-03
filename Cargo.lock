@@ -2695,7 +2695,6 @@ dependencies = [
 name = "influxdb3_write"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "arrow",
  "arrow_util",
  "async-trait",

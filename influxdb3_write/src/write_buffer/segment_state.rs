@@ -133,16 +133,16 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         let mut chunks: Vec<Arc<dyn QueryChunk>> = vec![];
 
         for segment in self.segments.values() {
-            if let Some(batches) = segment.table_record_batches(
+            if let Some(batch) = segment.table_record_batch(
                 &db_schema.name,
                 table_name,
                 Arc::clone(&arrow_schema),
                 filters,
             ) {
-                let batches = batches.map_err(|e| {
+                let batch = batch.map_err(|e| {
                     DataFusionError::Execution(format!("error getting batches {}", e))
                 })?;
-                let row_count = batches.iter().map(|b| b.num_rows()).sum();
+                let row_count = batch.num_rows();
 
                 let chunk_stats = create_chunk_statistics(
                     Some(row_count),
@@ -152,7 +152,7 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
                 );
 
                 chunks.push(Arc::new(BufferChunk {
-                    batches,
+                    batches: vec![batch],
                     schema: schema.clone(),
                     stats: Arc::new(chunk_stats),
                     partition_id: TransitionPartitionId::new(
@@ -172,16 +172,16 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         }
 
         for persisting_segment in self.persisting_segments.values() {
-            if let Some(batches) = persisting_segment.buffered_data.table_record_batches(
+            if let Some(batch) = persisting_segment.buffered_data.table_record_batches(
                 &db_schema.name,
                 table_name,
                 Arc::clone(&arrow_schema),
                 filters,
             ) {
-                let batches = batches.map_err(|e| {
+                let batch = batch.map_err(|e| {
                     DataFusionError::Execution(format!("error getting batches {}", e))
                 })?;
-                let row_count = batches.iter().map(|b| b.num_rows()).sum();
+                let row_count = batch.num_rows();
 
                 let chunk_stats = create_chunk_statistics(
                     Some(row_count),
@@ -191,7 +191,7 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
                 );
 
                 chunks.push(Arc::new(BufferChunk {
-                    batches,
+                    batches: vec![batch],
                     schema: schema.clone(),
                     stats: Arc::new(chunk_stats),
                     partition_id: TransitionPartitionId::new(
@@ -252,11 +252,10 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
             .values()
             .map(|segment| {
                 segment
-                    .table_record_batches(db_name, table_name, schema.as_arrow(), &[])
+                    .table_record_batch(db_name, table_name, schema.as_arrow(), &[])
                     .unwrap()
                     .unwrap()
             })
-            .flatten()
             .collect()
     }
 
