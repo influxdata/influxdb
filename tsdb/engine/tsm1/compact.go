@@ -27,7 +27,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	errors2 "github.com/influxdata/influxdb/pkg/errors"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -905,7 +904,7 @@ func (c *Compactor) WriteSnapshot(cache *Cache, logger *zap.Logger) ([]string, e
 }
 
 // compact writes multiple smaller TSM files into 1 or more larger files.
-func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) (files []string, err error) {
+func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) ([]string, error) {
 	size := c.Size
 	if size <= 0 {
 		size = tsdb.DefaultMaxPointsPerBlock
@@ -937,16 +936,6 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) (f
 
 	// For each TSM file, create a TSM reader
 	var trs []*TSMReader
-	var tsm KeyIterator = nil
-
-	defer errors2.Capture(&err,
-		func() error {
-			if tsm != nil {
-				return tsm.Close()
-			} else {
-				return nil
-			}
-		})()
 	for _, file := range tsmFiles {
 		select {
 		case <-intC:
@@ -970,7 +959,7 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) (f
 		return nil, nil
 	}
 
-	tsm, err = NewTSMBatchKeyIterator(size, fast, DefaultMaxSavedErrors, intC, tsmFiles, trs...)
+	tsm, err := NewTSMBatchKeyIterator(size, fast, DefaultMaxSavedErrors, intC, tsmFiles, trs...)
 	if err != nil {
 		return nil, err
 	}
