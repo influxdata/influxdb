@@ -35,6 +35,38 @@
 
 version: 2.1
 
+orbs:
+  aws-s3:    circleci/aws-s3@2.0.0
+  terraform: circleci/terraform@2.1.0
+  rust: circleci/rust@1.6.1
+
+# Unlike when a commit is pushed to a branch, CircleCI does not automatically
+# execute a workflow when a tag is pushed to a repository. These filters
+# allow the corresponding workflow to execute on any branch or tag.
+any_filter: &any_filter
+  filters:
+    tags:
+      only: /.*/
+    branches:
+      only: /.*/
+
+release_filter: &release_filter
+  filters:
+    tags:
+      # This regex matches what is found in 'scripts/get-version' with the
+      # '[[:digit:]]' transformed into '\d'. This also excludes release
+      # candidate detection, because this filter only matches against
+      # full releases.
+      only: /^v(\d+)(?:\.(\d+))?(?:\.(\d+))?$/
+    branches:
+      ignore: /.*/
+
+nofork_filter: &nofork_filter
+  filters:
+    branches:
+      ignore: /pull\/[0-9]+/
+
+
 commands:
   rust_components:
     description: Verify installed components
@@ -46,15 +78,12 @@ commands:
             rustup show
             cargo fmt --version
             cargo clippy --version
-
-  login_to_gcloud:
+  gcloud-docker-login:
     steps:
       - run:
-          name: Login to gcloud
+          name: configure-gar
           command: |
-            echo "${GCLOUD_SERVICE_ACCOUNT_KEY}" >/tmp/gcloud.json
-            gcloud auth activate-service-account "${GCLOUD_SERVICE_ACCOUNT_EMAIL}" --key-file /tmp/gcloud.json --quiet
-            rm -f /tmp/gcloud.json
+            gcloud auth activate-service-account "${GCLOUD_SERVICE_ACCOUNT_EMAIL}" --key-file <(echo "${GCLOUD_SERVICE_ACCOUNT_KEY}")
             gcloud auth configure-docker us-docker.pkg.dev
 
 jobs:
@@ -95,7 +124,7 @@ jobs:
       - run:
           name: Yamllint
           command: yamllint --config-file .circleci/yamllint.yml --strict .
-  cargo_audit:
+  cargo-audit:
     docker:
       - image: quay.io/influxdb/rust:ci
     environment:
@@ -163,7 +192,7 @@ jobs:
           command: cargo test --workspace
 
   # end to end tests with Heappy (heap profiling enabled)
-  test_heappy:
+  test-heappy:
     docker:
       - image: quay.io/influxdb/rust:ci
     resource_class: xlarge # use of a smaller executor tends crashes on link
@@ -187,11 +216,16 @@ jobs:
   #
   # Compiles a binary with the default ("dev") cargo profile from the influxdb3 source
   # using the latest ci_image (influxdb/rust) and ensures various targets compile successfully
-  build_dev:
+  # Build a dev binary.
+  build-dev:
     docker:
-      - image: quay.io/influxdb/rust:ci
-    resource_class: 2xlarge # use of a smaller executor tends crashes on link
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3:latest
+        auth:
+          username: _json_key
+          password: $CISUPPORT_GCS_AUTHORIZATION
+    resource_class: 2xlarge+ # use of a smaller executor tends crashes on link
     environment:
+      TARGET: << parameters.target >>
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
       # Disable full debug symbol generation to speed up CI build
@@ -202,83 +236,347 @@ jobs:
       # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
       # avarage. At peak this is a bit tight, so lower the CPU count for cargo a bit.
       CARGO_BUILD_JOBS: "12"
+    parameters:
+      target:
+        type: string
     steps:
       - checkout
-      - rust_components
+      - run:
+          name: Install Target
+          command: rustup target add << parameters.target >>
       - run:
           name: Cargo build
-          command: cargo build --workspace
-      - run:
-          name: Check benches compile
-          command: cargo check --workspace --benches
-      - run:
-          name: Check extra features (like prod image)
-          command: cargo check --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof"
+          command: target-env cargo build --target=<< parameters.target >> --workspace
+      - when:
+          condition:
+            not:
+              equal: [ << parameters.target >>, x86_64-pc-windows-gnu ]
+          steps:
+          - run:
+              name: Check benches compile
+              command: target-env cargo check --target=<< parameters.target >> --workspace --benches
+          - run:
+              name: Check extra features (like prod image)
+              command: target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof"
+      - when:
+          condition:
+            equal: [ << parameters.target >>, x86_64-pc-windows-gnu ]
+          steps:
+          - run:
+              name: Check extra features (like prod image)
+              command: target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console"
 
-  # Compile cargo "release" profile binaries for influxdb3 & data generator
-  #
-  # Uses the latest ci_image (influxdb/rust) to build a release binary and
-  # copies it to a minimal container image based upon `rust:slim-buster`. This
-  # minimal image is then pushed to `quay.io/influxdb/influxdb3:${BRANCH}`.
-  build_release:
+  # Compile cargo "release" profile binaries for influxdb3 edge releases
+  build-release:
+    docker:
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3:latest
+        auth:
+          username: _json_key
+          password: $CISUPPORT_GCS_AUTHORIZATION
+    resource_class: 2xlarge+
+    environment:
+      TARGET: << parameters.target >>
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
+      # avarage. At peak this is a bit tight, so lower the CPU count for cargo a bit.
+      CARGO_BUILD_JOBS: "12"
+    parameters:
+      target:
+        type: string
+    steps:
+      - checkout
+      - run:
+          name: Install Target
+          command: rustup target add << parameters.target >>
+      - run:
+          name: Cargo release build
+          command: target-env cargo build --target=<< parameters.target >> --workspace --release
+          # linking might take a while and doesn't produce CLI output
+          no_output_timeout: 30m
+      - run:
+          name: tar and gzip build artifacts
+          command: |
+            mkdir -p artifacts
+            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-edge_<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/release" influxdb3{,.exe}
+      - store_artifacts:
+          path: artifacts
+      - persist_to_workspace:
+          root: .
+          paths:
+            - artifacts
+  build-packages:
+    docker:
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager-next:latest
+        auth:
+          username: _json_key
+          password: $CISUPPORT_GCS_AUTHORIZATION
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: packager .circleci/packages/config.yaml
+      - persist_to_workspace:
+          root: .
+          paths:
+            - artifacts
+      - store_artifacts:
+          path: artifacts/
+  check_package_deb_amd64:
+    machine:
+      image: ubuntu-2204:current
+      resource_class: medium
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Validate Debian Package (AMD64)
+          command: |
+            sudo .circleci/scripts/package-validation/debian \
+              /tmp/workspace/artifacts/influxdb3*amd64.deb
+  check_package_deb_arm64:
+    machine:
+      image: ubuntu-2204:current
+      resource_class: arm.medium
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Validate Debian Package (ARM64)
+          command: |
+            sudo .circleci/scripts/package-validation/debian \
+              /tmp/workspace/artifacts/influxdb3*arm64.deb
+  check_package_rpm:
+    machine:
+      image: ubuntu-2204:current
+      resource_class: arm.medium
+    parameters:
+      arch:
+        type: string
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - add_ssh_keys:
+          fingerprints:
+            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
+      - checkout
+      - run: |
+          AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID \
+          AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY \
+          .circleci/scripts/package-validation/redhat << parameters.arch >> /tmp/workspace/artifacts/influxdb3*.<< parameters.arch >>.rpm
+  sign-packages:
+    circleci_ip_ranges: true
+    docker:
+      - image: quay.io/influxdb/rsign:latest
+        auth:
+          username: $QUAY_RSIGN_USERNAME
+          password: $QUAY_RSIGN_PASSWORD
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - fc:7b:6e:a6:38:7c:63:5a:13:be:cb:bb:fa:33:b3:3c
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: |
+          # We need this base so that we can filter it out of our checksums
+          # output and if that changes at all we only need to update it here
+          WORK_DIR="/tmp/workspace/artifacts/"
+          for target in ${WORK_DIR}*
+          do
+            case "${target}"
+            in
+              # rsign is shipped on Alpine Linux which uses "busybox ash" instead
+              # of bash. ash is somewhat more posix compliant and is missing some
+              # extensions and niceties from bash.
+              *.deb|*.rpm|*.tar.gz|*.zip)
+                rsign "${target}"
+              ;;
+            esac
+
+            if [ -f "${target}" ]
+            then
+              # Since all artifacts are present, sign them here. This saves Circle
+              # credits over spinning up another instance just to separate out the
+              # checksum job.
+              sha256sum "${target}" | sed "s#$WORK_DIR##" >> "/tmp/workspace/artifacts/influxdb3-edge.${CIRCLE_TAG}.digests"
+
+              # write individual checksums
+              md5sum    "${target}" | sed "s#$WORK_DIR##" >> "${target}.md5"
+              sha256sum "${target}" | sed "s#$WORK_DIR##" >> "${target}.sha256"
+            fi
+          done
+      - persist_to_workspace:
+          root: /tmp/workspace
+          paths:
+            - artifacts
+      - store_artifacts:
+          path: /tmp/workspace/artifacts
+  publish-packages:
+    docker:
+      - image: cimg/python:3.12.2
+    parameters:
+      # "destination" should be one of:
+      #   - releases
+      #   - nightlies
+      #   - snapshots
+      destination:
+        type: string
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - aws-s3/sync:
+          arguments:             --acl public-read
+          aws-region:            RELEASE_AWS_REGION
+          aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
+          aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
+          from:                  /tmp/workspace/artifacts
+          to:                    s3://dl.influxdata.com/influxdb/<< parameters.destination >>
+  build-docker:
     # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
     # kinda small node)
     machine:
       image: default
-    resource_class: 2xlarge # CPU bound, so make it fast
+    resource_class: 2xlarge+ # CPU bound, so make it fast
     steps:
       - checkout
       - run:
-          name: Cargo release build
+          name: Build the docker image
           command: |
-            COMMIT_SHA="$(git rev-parse HEAD)"
-
-            .circleci/docker_build_release.bash \
+            .circleci/scripts/docker_build_release.bash \
               "influxdb3" \
               "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
-              "quay.io/influxdb/influxdb3:$COMMIT_SHA"
+              "influxdb3-edge:latest"
 
-            mkdir /tmp/images
-            docker save quay.io/influxdb/influxdb3:"$COMMIT_SHA" | gzip > /tmp/images/influxdb3.tar.gz
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
-      - store_artifacts:
-          path: /tmp/images
+      - run: |
+          docker save influxdb3-edge:latest >influxdb3-edge.tar
       - persist_to_workspace:
-          root: /tmp/images
+          root: .
           paths:
-            - "*.tar.gz"
+            - influxdb3-edge.tar
+  publish-docker:
+    docker:
+      - image: cimg/gcp:2023.02
+    resource_class: medium
+    steps:
+      - checkout
+      - setup_remote_docker
+      - gcloud-docker-login
+      - attach_workspace:
+          at: .
+      - run: |
+          docker load <influxdb3-edge.tar
+          .circleci/scripts/publish.bash influxdb3-edge
 
-parameters:
-  release_branch:
-    description: "Build and push container image for non-main branch"
-    type: boolean
-    default: false
+  wait-for-docker:
+    resource_class: small
+    docker:
+      - image: busybox
+    steps:
+      - run: |
+          echo build executed successfully
+
 
 workflows:
   version: 2
-
-  # CI for all pull requests.
   ci:
-    when:
-      and:
-        - not: << pipeline.parameters.release_branch >>
     jobs:
-      - fmt
-      - lint
-      - cargo_audit
-      - test
-      - test_heappy
-      - build_dev
-      - doc
-      - build_release:
-          filters:
-            branches:
-              only: main
+      - fmt:
+          <<: *any_filter
+      - lint:
+          <<: *any_filter
+      - cargo-audit:
+          <<: *any_filter
+      - test:
+          <<: *any_filter
+      - test-heappy:
+          <<: *any_filter
+      - build-dev:
+          <<: *any_filter
+          name: build-dev-<< matrix.target >>
+          matrix:
+            parameters:
+              target:
+                - aarch64-apple-darwin
+                - aarch64-unknown-linux-gnu
+                - aarch64-unknown-linux-musl
+                - x86_64-pc-windows-gnu
+                - x86_64-unknown-linux-gnu
+                - x86_64-unknown-linux-musl
+      - doc:
+          <<: *any_filter
+      - build-release:
+          <<: *release_filter
+          name: build-release-<< matrix.target >>
+          matrix:
+            parameters:
+              target:
+                - aarch64-apple-darwin
+                - aarch64-unknown-linux-gnu
+                - aarch64-unknown-linux-musl
+                - x86_64-pc-windows-gnu
+                - x86_64-unknown-linux-gnu
+                - x86_64-unknown-linux-musl
+      - build-packages:
+          <<: *release_filter
+          requires:
+            - build-release
+      - check_package_deb_arm64:
+          <<: *release_filter
+          requires:
+            - build-packages
+      - check_package_deb_amd64:
+          <<: *release_filter
+          requires:
+            - build-packages
+      - check_package_rpm:
+          <<: *nofork_filter
+          name:
+            check_package_rpm-<< matrix.arch >>
+          matrix:
+            parameters:
+              arch: [ x86_64, aarch64 ]
+          requires:
+            - build-packages
 
-  # Force build and push of container image for non-main branch.
-  # See instructions at the top of this file
-  release_branch:
-    when: << pipeline.parameters.release_branch >>
-    jobs:
-      - build_release
+      - sign-packages:
+          <<: *release_filter
+          requires:
+            - build-packages
+            - check_package_rpm
+            - check_package_deb_arm64
+            - check_package_deb_amd64
+            - test
+      - publish-packages:
+          <<: *release_filter
+          matrix:
+            parameters:
+              destination: [ releases ]
+          requires:
+            - build-release
+            - sign-packages
+            - test
+            - test-heappy
+            - doc
+            - lint
+            - fmt
+            - cargo-audit
+      - build-docker:
+          <<: *release_filter
+      - publish-docker:
+          <<: *release_filter
+          requires:
+            - build-docker
+      - wait-for-docker:
+          <<: *release_filter
+          requires:
+            - build-docker
+            - publish-docker
