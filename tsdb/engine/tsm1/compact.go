@@ -14,6 +14,7 @@ package tsm1
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -26,6 +27,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	errors2 "github.com/influxdata/influxdb/pkg/errors"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -903,7 +905,7 @@ func (c *Compactor) WriteSnapshot(cache *Cache, logger *zap.Logger) ([]string, e
 }
 
 // compact writes multiple smaller TSM files into 1 or more larger files.
-func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) ([]string, error) {
+func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) (files []string, err error) {
 	size := c.Size
 	if size <= 0 {
 		size = tsdb.DefaultMaxPointsPerBlock
@@ -935,6 +937,16 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) ([
 
 	// For each TSM file, create a TSM reader
 	var trs []*TSMReader
+	var tsm KeyIterator = nil
+
+	defer errors2.Capture(&err,
+		func() error {
+			if tsm != nil {
+				return tsm.Close()
+			} else {
+				return nil
+			}
+		})()
 	for _, file := range tsmFiles {
 		select {
 		case <-intC:
@@ -958,7 +970,7 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) ([
 		return nil, nil
 	}
 
-	tsm, err := NewTSMBatchKeyIterator(size, fast, DefaultMaxSavedErrors, intC, tsmFiles, trs...)
+	tsm, err = NewTSMBatchKeyIterator(size, fast, DefaultMaxSavedErrors, intC, tsmFiles, trs...)
 	if err != nil {
 		return nil, err
 	}
@@ -1630,15 +1642,14 @@ func (k *tsmBatchKeyIterator) Close() error {
 	k.values = nil
 	k.pos = nil
 	k.iterators = nil
+	var errSlice []error
 	for _, r := range k.readers {
-		if err := r.Close(); err != nil {
-			return err
-		}
+		errSlice = append(errSlice, r.Close())
 	}
-	return nil
+	return errors.Join(errSlice...)
 }
 
-// Error returns any errors encountered during iteration.
+// Err error returns any errors encountered during iteration.
 func (k *tsmBatchKeyIterator) Err() error {
 	if len(k.errs) == 0 {
 		return nil
