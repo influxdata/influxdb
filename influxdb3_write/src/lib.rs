@@ -534,7 +534,7 @@ impl ParquetFile {
     }
 }
 
-/// The summary data for a persisted parquet file in a segment.
+/// The precision of the timestamp
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Precision {
