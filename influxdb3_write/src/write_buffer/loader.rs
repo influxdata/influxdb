@@ -145,6 +145,7 @@ mod tests {
     use crate::persister::PersisterImpl;
     use crate::test_helpers::lp_to_write_batch;
     use crate::wal::{WalImpl, WalSegmentWriterNoopImpl};
+    use crate::Precision;
     use crate::{
         DatabaseTables, LpWriteOp, ParquetFile, SegmentRange, SequenceNumber, TableParquetFiles,
         WalOp,
@@ -180,6 +181,7 @@ mod tests {
             db_name: "db1".to_string(),
             lp: lp.to_string(),
             default_time: 0,
+            precision: Precision::Nanosecond,
         });
 
         let write_batch = lp_to_write_batch(&catalog, "db1", lp);
@@ -267,6 +269,7 @@ mod tests {
             db_name: db_name.to_string(),
             lp: lp.to_string(),
             default_time: 0,
+            precision: Precision::Nanosecond,
         });
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
@@ -352,6 +355,7 @@ mod tests {
             db_name: db_name.to_string(),
             lp: lp.to_string(),
             default_time: 0,
+            precision: Precision::Nanosecond,
         });
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
@@ -379,6 +383,7 @@ mod tests {
             db_name: db_name.to_string(),
             lp: lp.to_string(),
             default_time: 0,
+            precision: Precision::Nanosecond,
         });
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
@@ -417,7 +422,7 @@ mod tests {
             loaded_state.persisted_segments[0],
             PersistedSegment {
                 segment_id,
-                segment_wal_size_bytes: 227,
+                segment_wal_size_bytes: 252,
                 segment_parquet_size_bytes: 3458,
                 segment_row_count: 3,
                 segment_min_time: 10,
@@ -526,6 +531,7 @@ mod tests {
             db_name: db_name.to_string(),
             lp: lp.to_string(),
             default_time: 0,
+            precision: Precision::Nanosecond,
         });
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);
@@ -546,6 +552,7 @@ mod tests {
             db_name: db_name.to_string(),
             lp: lp.to_string(),
             default_time: 0,
+            precision: Precision::Nanosecond,
         });
 
         let write_batch = lp_to_write_batch(&catalog, db_name, lp);

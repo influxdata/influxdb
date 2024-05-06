@@ -661,6 +661,7 @@ fn segment_id_from_file_name(name: &str) -> Result<SegmentId> {
 mod tests {
     use super::*;
     use crate::LpWriteOp;
+    use crate::Precision;
 
     #[test]
     fn segment_writer_reader() {
@@ -673,6 +674,7 @@ mod tests {
             db_name: "foo".to_string(),
             lp: "cpu host=a val=10i 10".to_string(),
             default_time: 1,
+            precision: Precision::Nanosecond,
         });
         writer.write_batch(vec![wal_op.clone()]).unwrap();
 
@@ -690,6 +692,7 @@ mod tests {
             db_name: "foo".to_string(),
             lp: "cpu host=a val=10i 10".to_string(),
             default_time: 1,
+            precision: Precision::Nanosecond,
         });
 
         // open the file, write and close it
@@ -729,6 +732,7 @@ mod tests {
             db_name: "foo".to_string(),
             lp: "cpu host=a val=10i 10".to_string(),
             default_time: 1,
+            precision: Precision::Nanosecond,
         });
 
         let wal = WalImpl::new(dir.clone()).unwrap();
