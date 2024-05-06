@@ -2,12 +2,11 @@
 //! single WAL segment. Only one segment should be open for writes in the write buffer at any
 //! given time.
 
-use crate::catalog::Catalog;
+use crate::catalog::{Catalog, DatabaseSchema};
 use crate::chunk::BufferChunk;
 use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
-use crate::write_buffer::table_buffer::Builder;
-use crate::write_buffer::table_buffer::TableBuffer;
+use crate::write_buffer::table_buffer::{Builder, Result as TableBufferResult, TableBuffer};
 use crate::write_buffer::{
     parse_validate_and_update_catalog, Error, TableBatch, ValidSegmentedData,
 };
@@ -16,19 +15,20 @@ use crate::{
     Persister, Precision, SegmentDuration, SegmentId, SegmentRange, SequenceNumber,
     TableParquetFiles, WalOp, WalSegmentReader, WalSegmentWriter,
 };
+use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use data_types::ChunkId;
 use data_types::ChunkOrder;
 use data_types::TableId;
 use data_types::TransitionPartitionId;
 use data_types::{NamespaceName, PartitionKey};
+use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
 use iox_time::Time;
 use schema::sort::SortKey;
-use schema::Schema;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -43,6 +43,7 @@ pub struct OpenBufferSegment {
     segment_key: PartitionKey,
     buffered_data: BufferedData,
     segment_open_time: Time,
+    catalog: Arc<Catalog>,
     #[allow(dead_code)]
     starting_catalog_sequence_number: SequenceNumber,
     // TODO: This is temporarily just the number of rows in the segment. When the buffer gets refactored to use
@@ -52,6 +53,7 @@ pub struct OpenBufferSegment {
 
 impl OpenBufferSegment {
     pub fn new(
+        catalog: Arc<Catalog>,
         segment_id: SegmentId,
         segment_range: SegmentRange,
         segment_open_time: Time,
@@ -64,6 +66,7 @@ impl OpenBufferSegment {
         let segment_duration = SegmentDuration::from_range(segment_range);
 
         Self {
+            catalog,
             segment_writer,
             segment_id,
             segment_range,
@@ -105,7 +108,16 @@ impl OpenBufferSegment {
                 .buffered_data
                 .database_buffers
                 .entry(db_name.to_string())
-                .or_default();
+                .or_insert_with(|| {
+                    let db_schema = self
+                        .catalog
+                        .db_schema(&db_name)
+                        .expect("db schema should exist");
+                    DatabaseBuffer {
+                        table_buffers: HashMap::new(),
+                        db_schema,
+                    }
+                });
 
             for (table_name, table_batch) in db_batch.table_batches {
                 // TODO: for now we'll just have the number of rows represent the segment size. The entire
@@ -120,14 +132,15 @@ impl OpenBufferSegment {
     }
 
     /// Returns the table data as record batches
-    pub(crate) fn table_record_batches(
+    pub(crate) fn table_record_batch(
         &self,
         db_name: &str,
         table_name: &str,
-        schema: &Schema,
-    ) -> Option<Vec<RecordBatch>> {
+        schema: SchemaRef,
+        filter: &[Expr],
+    ) -> Option<TableBufferResult<RecordBatch>> {
         self.buffered_data
-            .table_record_batches(db_name, table_name, schema)
+            .table_record_batches(db_name, table_name, schema, filter)
     }
 
     /// Returns true if the segment should be persisted. A segment should be persisted if both of
@@ -186,10 +199,18 @@ pub(crate) fn load_buffer_from_segment(
                         Precision::Nanosecond,
                     )?;
 
-                    let db_buffer = buffered_data
-                        .database_buffers
-                        .entry(write.db_name)
-                        .or_default();
+                    let db_name = &write.db_name;
+                    if !buffered_data.database_buffers.contains_key(db_name) {
+                        let db_schema = catalog.db_schema(db_name).expect("db schema should exist");
+                        buffered_data.database_buffers.insert(
+                            db_name.clone(),
+                            DatabaseBuffer {
+                                table_buffers: HashMap::new(),
+                                db_schema,
+                            },
+                        );
+                    }
+                    let db_buffer = buffered_data.database_buffers.get_mut(db_name).unwrap();
 
                     // there should only ever be data for a single segment as this is all read
                     // from one segment file
@@ -261,12 +282,13 @@ impl BufferedData {
         &self,
         db_name: &str,
         table_name: &str,
-        schema: &Schema,
-    ) -> Option<Vec<RecordBatch>> {
+        schema: SchemaRef,
+        filter: &[Expr],
+    ) -> Option<TableBufferResult<RecordBatch>> {
         self.database_buffers
             .get(db_name)
             .and_then(|db_buffer| db_buffer.table_buffers.get(table_name))
-            .map(|table_buffer| table_buffer.record_batches(schema))
+            .map(|table_buffer| table_buffer.record_batch(schema, filter))
     }
 
     /// Verifies that the passed in buffer has the same data as this buffer
@@ -282,8 +304,10 @@ impl BufferedData {
                 let other_table_buffer = other_db_buffer.table_buffers.get(table_name).unwrap();
                 let schema = db_schema.get_table_schema(table_name).unwrap();
 
-                let table_data = table_buffer.record_batches(schema);
-                let other_table_data = other_table_buffer.record_batches(schema);
+                let table_data = table_buffer.record_batch(schema.as_arrow(), &[]).unwrap();
+                let other_table_data = other_table_buffer
+                    .record_batch(schema.as_arrow(), &[])
+                    .unwrap();
 
                 assert_eq!(table_data, other_table_data);
             }
@@ -291,9 +315,10 @@ impl BufferedData {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct DatabaseBuffer {
     table_buffers: HashMap<String, TableBuffer>,
+    db_schema: Arc<DatabaseSchema>,
 }
 
 impl DatabaseBuffer {
@@ -303,10 +328,22 @@ impl DatabaseBuffer {
         segment_key: &PartitionKey,
         table_batch: TableBatch,
     ) {
+        if !self.table_buffers.contains_key(&table_name) {
+            // TODO: this check shouldn't be necessary. If the table doesn't exist in the catalog
+            //      and we've gotten here, it means we're dropping a write.
+            if let Some(table) = self.db_schema.get_table(&table_name) {
+                self.table_buffers.insert(
+                    table_name.clone(),
+                    TableBuffer::new(segment_key.clone(), &table.index_columns()),
+                );
+            } else {
+                return;
+            }
+        }
         let table_buffer = self
             .table_buffers
-            .entry(table_name)
-            .or_insert_with(|| TableBuffer::new(segment_key.clone()));
+            .get_mut(&table_name)
+            .expect("table buffer should exist");
 
         table_buffer.add_rows(table_batch.rows);
     }
@@ -389,8 +426,8 @@ impl ClosedBufferSegment {
 
                         // All of the record batches for this table that we will
                         // want to dedupe
-                        let batches = table_buffer.record_batches(table.schema());
-                        let row_count = batches.iter().map(|b| b.num_rows()).sum();
+                        let batch = table_buffer.record_batch(table.schema().as_arrow(), &[])?;
+                        let row_count = batch.num_rows();
 
                         // Dedupe and sort using the COMPACT query built into
                         // iox_query
@@ -406,7 +443,7 @@ impl ClosedBufferSegment {
                         );
 
                         chunks.push(Arc::new(BufferChunk {
-                            batches,
+                            batches: vec![batch],
                             schema: schema.clone(),
                             stats: Arc::new(chunk_stats),
                             partition_id: TransitionPartitionId::new(
@@ -536,7 +573,9 @@ pub(crate) mod tests {
 
     #[test]
     fn buffers_rows() {
+        let catalog = Arc::new(Catalog::new());
         let mut open_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(0),
             SegmentRange::test_range(),
             Time::from_timestamp_nanos(0),
@@ -546,7 +585,6 @@ pub(crate) mod tests {
         );
 
         let db_name: NamespaceName<'static> = NamespaceName::new("db1").unwrap();
-        let catalog = Catalog::new();
 
         let batches = lp_to_table_batches(
             &catalog,
@@ -565,7 +603,13 @@ pub(crate) mod tests {
 
         let db_schema = catalog.db_schema("db1").unwrap();
         let cpu_table = open_segment
-            .table_record_batches("db1", "cpu", db_schema.get_table_schema("cpu").unwrap())
+            .table_record_batch(
+                "db1",
+                "cpu",
+                db_schema.get_table_schema("cpu").unwrap().as_arrow(),
+                &[],
+            )
+            .unwrap()
             .unwrap();
         let expected_cpu_table = vec![
             "+------------------------------------------------------------------+-----+----------+--------------------------------+",
@@ -575,10 +619,16 @@ pub(crate) mod tests {
             "| 505f9f5fc3347ac9d6ba45f2b2c94ad53a313e456e86e61db85ba1935369b238 | 2.0 | cupcakes | 1970-01-01T00:00:00.000000030Z |",
             "+------------------------------------------------------------------+-----+----------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected_cpu_table, &cpu_table);
+        assert_batches_eq!(&expected_cpu_table, &[cpu_table]);
 
         let mem_table = open_segment
-            .table_record_batches("db1", "mem", db_schema.get_table_schema("mem").unwrap())
+            .table_record_batch(
+                "db1",
+                "mem",
+                db_schema.get_table_schema("mem").unwrap().as_arrow(),
+                &[],
+            )
+            .unwrap()
             .unwrap();
         let expected_mem_table = vec![
             "+------------------------------------------------------------------+-----+--------+--------------------------------+",
@@ -587,12 +637,14 @@ pub(crate) mod tests {
             "| 5ae2bb295e8b0dec713daf0da555ecd3f2899a8967f18db799e26557029198f3 | 2.0 | snakes | 1970-01-01T00:00:00.000000020Z |",
             "+------------------------------------------------------------------+-----+--------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected_mem_table, &mem_table);
+        assert_batches_eq!(&expected_mem_table, &[mem_table]);
     }
 
     #[tokio::test]
     async fn buffers_schema_update() {
+        let catalog = Arc::new(Catalog::new());
         let mut open_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(0),
             SegmentRange::test_range(),
             Time::from_timestamp_nanos(0),
@@ -602,7 +654,6 @@ pub(crate) mod tests {
         );
 
         let db_name: NamespaceName<'static> = NamespaceName::new("db1").unwrap();
-        let catalog = Catalog::new();
 
         let batches = lp_to_table_batches(&catalog, "db1", "cpu,tag1=cupcakes bar=1 10", 10);
         let mut write_batch = WriteBatch::default();
@@ -628,7 +679,13 @@ pub(crate) mod tests {
         let db_schema = catalog.db_schema("db1").unwrap();
         println!("{:?}", db_schema);
         let cpu_table = open_segment
-            .table_record_batches("db1", "cpu", db_schema.get_table_schema("cpu").unwrap())
+            .table_record_batch(
+                "db1",
+                "cpu",
+                db_schema.get_table_schema("cpu").unwrap().as_arrow(),
+                &[],
+            )
+            .unwrap()
             .unwrap();
         let expected_cpu_table = vec![
             "+------------------------------------------------------------------+-----+------+------+----------+------+--------------------------------+",
@@ -641,7 +698,7 @@ pub(crate) mod tests {
             "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 |     | 2.1  |      |          |      | 1970-01-01T00:00:00.000000040Z |",
             "+------------------------------------------------------------------+-----+------+------+----------+------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected_cpu_table, &cpu_table);
+        assert_batches_eq!(&expected_cpu_table, &[cpu_table]);
     }
 
     #[tokio::test]
@@ -650,7 +707,9 @@ pub(crate) mod tests {
 
         let segment_id = SegmentId::new(4);
         let segment_writer = Box::new(WalSegmentWriterNoopImpl::new(segment_id));
+        let catalog = Arc::new(Catalog::new());
         let mut open_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             segment_id,
             SegmentRange::test_range(),
             Time::from_timestamp_nanos(0),
@@ -658,8 +717,6 @@ pub(crate) mod tests {
             segment_writer,
             None,
         );
-
-        let catalog = Catalog::new();
 
         // When we persist the data all of these duplicates should be removed
         let lp = "cpu,tag1=cupcakes bar=1 10\n\
@@ -747,7 +804,9 @@ pub(crate) mod tests {
 
     #[test]
     fn should_persist() {
+        let catalog = Arc::new(Catalog::new());
         let segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(0),
             SegmentRange::from_time_and_duration(
                 Time::from_timestamp_nanos(0),
@@ -770,6 +829,7 @@ pub(crate) mod tests {
         assert!(segment.should_persist(Time::from_timestamp(61 + 30, 0).unwrap()));
 
         let segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(0),
             SegmentRange::from_time_and_duration(
                 Time::from_timestamp_nanos(0),

@@ -222,8 +222,10 @@ mod tests {
 
     #[tokio::test]
     async fn flushes_to_open_segment() {
+        let catalog = Arc::new(Catalog::new());
         let segment_id = SegmentId::new(3);
         let open_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             segment_id,
             SegmentRange::test_range(),
             Time::from_timestamp_nanos(0),
@@ -235,6 +237,7 @@ mod tests {
         let next_segment_range = SegmentRange::test_range().next();
 
         let next_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             next_segment_id,
             next_segment_range,
             Time::from_timestamp_nanos(0),
@@ -242,7 +245,6 @@ mod tests {
             Box::new(WalSegmentWriterNoopImpl::new(next_segment_id)),
             None,
         );
-        let catalog = Arc::new(Catalog::new());
         let segment_state = Arc::new(RwLock::new(SegmentState::<MockProvider, WalImpl>::new(
             SegmentDuration::new_5m(),
             next_segment_id,
@@ -294,17 +296,19 @@ mod tests {
         assert_eq!(segment.segment_id(), segment_id);
 
         let data = segment
-            .table_record_batches(
+            .table_record_batch(
                 db_name.as_str(),
                 "cpu",
                 catalog
                     .db_schema("db1")
                     .unwrap()
                     .get_table_schema("cpu")
-                    .unwrap(),
+                    .unwrap()
+                    .as_arrow(),
+                &[],
             )
+            .unwrap()
             .unwrap();
-        let row_count = data.iter().map(|batch| batch.num_rows()).sum::<usize>();
-        assert_eq!(row_count, 2);
+        assert_eq!(data.num_rows(), 2);
     }
 }

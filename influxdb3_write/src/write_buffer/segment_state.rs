@@ -8,6 +8,7 @@ use crate::{
     persister, wal, write_buffer, ParquetFile, PersistedSegment, Persister, SegmentDuration,
     SegmentId, SegmentRange, SequenceNumber, Wal, WalOp,
 };
+use arrow::datatypes::SchemaRef;
 #[cfg(test)]
 use arrow::record_batch::RecordBatch;
 use data_types::{ChunkId, ChunkOrder, TableId, TransitionPartitionId};
@@ -112,23 +113,36 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         &self,
         db_schema: Arc<DatabaseSchema>,
         table_name: &str,
-        _filters: &[Expr],
-        _projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        projection: Option<&Vec<usize>>,
         _ctx: &SessionState,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         let table = db_schema
             .tables
             .get(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
-        let schema = table.schema.clone();
+
+        let arrow_schema: SchemaRef = match projection {
+            Some(projection) => Arc::new(table.schema.as_arrow().project(projection).unwrap()),
+            None => table.schema.as_arrow(),
+        };
+
+        let schema = schema::Schema::try_from(Arc::clone(&arrow_schema))
+            .map_err(|e| DataFusionError::Execution(format!("schema error {}", e)))?;
 
         let mut chunks: Vec<Arc<dyn QueryChunk>> = vec![];
 
         for segment in self.segments.values() {
-            if let Some(batches) =
-                segment.table_record_batches(&db_schema.name, table_name, &schema)
-            {
-                let row_count = batches.iter().map(|b| b.num_rows()).sum();
+            if let Some(batch) = segment.table_record_batch(
+                &db_schema.name,
+                table_name,
+                Arc::clone(&arrow_schema),
+                filters,
+            ) {
+                let batch = batch.map_err(|e| {
+                    DataFusionError::Execution(format!("error getting batches {}", e))
+                })?;
+                let row_count = batch.num_rows();
 
                 let chunk_stats = create_chunk_statistics(
                     Some(row_count),
@@ -138,7 +152,7 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
                 );
 
                 chunks.push(Arc::new(BufferChunk {
-                    batches,
+                    batches: vec![batch],
                     schema: schema.clone(),
                     stats: Arc::new(chunk_stats),
                     partition_id: TransitionPartitionId::new(
@@ -158,12 +172,16 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         }
 
         for persisting_segment in self.persisting_segments.values() {
-            if let Some(batches) = persisting_segment.buffered_data.table_record_batches(
+            if let Some(batch) = persisting_segment.buffered_data.table_record_batches(
                 &db_schema.name,
                 table_name,
-                &schema,
+                Arc::clone(&arrow_schema),
+                filters,
             ) {
-                let row_count = batches.iter().map(|b| b.num_rows()).sum();
+                let batch = batch.map_err(|e| {
+                    DataFusionError::Execution(format!("error getting batches {}", e))
+                })?;
+                let row_count = batch.num_rows();
 
                 let chunk_stats = create_chunk_statistics(
                     Some(row_count),
@@ -173,7 +191,7 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
                 );
 
                 chunks.push(Arc::new(BufferChunk {
-                    batches,
+                    batches: vec![batch],
                     schema: schema.clone(),
                     stats: Arc::new(chunk_stats),
                     partition_id: TransitionPartitionId::new(
@@ -232,8 +250,12 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
     ) -> Vec<RecordBatch> {
         self.segments
             .values()
-            .filter_map(|segment| segment.table_record_batches(db_name, table_name, schema))
-            .flatten()
+            .map(|segment| {
+                segment
+                    .table_record_batch(db_name, table_name, schema.as_arrow(), &[])
+                    .unwrap()
+                    .unwrap()
+            })
             .collect()
     }
 
@@ -292,6 +314,7 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
             };
 
             let segment = OpenBufferSegment::new(
+                Arc::clone(&self.catalog),
                 segment_id,
                 segment_range,
                 self.time_provider.now(),
@@ -470,6 +493,7 @@ mod tests {
         );
 
         let open_segment1 = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(1),
             first_segment_range,
             time_provider.now(),
@@ -479,6 +503,7 @@ mod tests {
         );
 
         let open_segment2 = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(2),
             SegmentRange::from_time_and_duration(
                 Time::from_timestamp(300, 0).unwrap(),
@@ -492,6 +517,7 @@ mod tests {
         );
 
         let open_segment3 = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(3),
             SegmentRange::from_time_and_duration(
                 Time::from_timestamp(600, 0).unwrap(),
@@ -539,6 +565,7 @@ mod tests {
         );
 
         let mut open_segment1 = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(1),
             first_segment_range,
             time_provider.now(),
@@ -551,6 +578,7 @@ mod tests {
             .unwrap();
 
         let mut open_segment2 = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(2),
             SegmentRange::from_time_and_duration(
                 Time::from_timestamp(300, 0).unwrap(),
@@ -567,6 +595,7 @@ mod tests {
             .unwrap();
 
         let mut open_segment3 = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(3),
             SegmentRange::from_time_and_duration(
                 Time::from_timestamp(600, 0).unwrap(),

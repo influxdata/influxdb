@@ -75,6 +75,7 @@ where
             let buffer = load_buffer_from_segment(&catalog, segment_reader)?;
 
             let segment = OpenBufferSegment::new(
+                Arc::clone(&catalog),
                 segment_header.id,
                 segment_header.range,
                 server_load_time,
@@ -100,6 +101,7 @@ where
             max_segment_id = current_segment_id;
 
             let current_segment = OpenBufferSegment::new(
+                Arc::clone(&catalog),
                 current_segment_id,
                 current_segment_range,
                 server_load_time,
@@ -116,6 +118,7 @@ where
         max_segment_id = current_segment_id;
 
         let current_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             current_segment_id,
             current_segment_range,
             server_load_time,
@@ -157,10 +160,12 @@ mod tests {
     async fn loads_without_wal() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let catalog = Arc::new(Catalog::new());
 
         let segment_id = SegmentId::new(4);
         let segment_writer = Box::new(WalSegmentWriterNoopImpl::new(segment_id));
         let mut open_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             segment_id,
             SegmentRange::test_range(),
             Time::from_timestamp_nanos(0),
@@ -168,8 +173,6 @@ mod tests {
             segment_writer,
             None,
         );
-
-        let catalog = Catalog::new();
 
         let lp = "cpu,tag1=cupcakes bar=1 10\nmem,tag2=turtles bar=3 15\nmem,tag2=snakes bar=2 20";
 
@@ -290,7 +293,8 @@ mod tests {
 
         let cpu_table = db.get_table("cpu").unwrap();
         let cpu_data = current_segment
-            .table_record_batches(db_name, "cpu", cpu_table.schema())
+            .table_record_batch(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
             "+------------------------------------------------------------------+-----+----------+--------------------------------+",
@@ -299,11 +303,12 @@ mod tests {
             "| 505f9f5fc3347ac9d6ba45f2b2c94ad53a313e456e86e61db85ba1935369b238 | 1.0 | cupcakes | 1970-01-01T00:00:00.000000010Z |",
             "+------------------------------------------------------------------+-----+----------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected, &cpu_data);
+        assert_batches_eq!(&expected, &[cpu_data]);
 
         let mem_table = db.get_table("mem").unwrap();
         let mem_data = current_segment
-            .table_record_batches(db_name, "mem", mem_table.schema())
+            .table_record_batch(db_name, "mem", mem_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
             "+------------------------------------------------------------------+-----+---------+--------------------------------+",
@@ -313,7 +318,7 @@ mod tests {
             "| 5ae2bb295e8b0dec713daf0da555ecd3f2899a8967f18db799e26557029198f3 | 2.0 | snakes  | 1970-01-01T00:00:00.000000020Z |",
             "+------------------------------------------------------------------+-----+---------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected, &mem_data);
+        assert_batches_eq!(&expected, &[mem_data]);
 
         assert_eq!(loaded_state.last_segment_id, SegmentId::new(1));
     }
@@ -382,6 +387,7 @@ mod tests {
             .new_segment_writer(next_segment_id, next_segment_range)
             .unwrap();
         let mut next_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(2),
             SegmentRange::test_range().next(),
             Time::from_timestamp_nanos(0),
@@ -463,7 +469,8 @@ mod tests {
 
         let cpu_table = db.get_table("cpu").unwrap();
         let cpu_data = loaded_state.open_segments[0]
-            .table_record_batches(db_name, "cpu", cpu_table.schema())
+            .table_record_batch(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
             "+------------------------------------------------------------------+-----+----------+--------------------------------+",
@@ -472,11 +479,12 @@ mod tests {
             "| 505f9f5fc3347ac9d6ba45f2b2c94ad53a313e456e86e61db85ba1935369b238 | 3.0 | cupcakes | 1970-01-01T00:00:00.000000020Z |",
             "+------------------------------------------------------------------+-----+----------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected, &cpu_data);
+        assert_batches_eq!(&expected, &[cpu_data]);
 
         let foo_table = db.get_table("foo").unwrap();
         let foo_data = loaded_state.open_segments[0]
-            .table_record_batches(db_name, "foo", foo_table.schema())
+            .table_record_batch(db_name, "foo", foo_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
             "+------------------------------------------------------------------+--------------------------------+-----+",
@@ -485,7 +493,7 @@ mod tests {
             "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 1970-01-01T00:00:00.000000123Z | 1.0 |",
             "+------------------------------------------------------------------+--------------------------------+-----+",
         ];
-        assert_batches_eq!(&expected, &foo_data);
+        assert_batches_eq!(&expected, &[foo_data]);
 
         assert_eq!(loaded_state.last_segment_id, SegmentId::new(2));
     }
@@ -546,6 +554,7 @@ mod tests {
             .new_segment_writer(next_segment_id, next_segment_range)
             .unwrap();
         let mut next_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(2),
             SegmentRange::test_range().next(),
             Time::from_timestamp_nanos(0),
@@ -593,7 +602,8 @@ mod tests {
 
         let cpu_table = db.get_table("cpu").unwrap();
         let cpu_data = loaded_state.open_segments[0]
-            .table_record_batches(db_name, "cpu", cpu_table.schema())
+            .table_record_batch(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
             "+------------------------------------------------------------------+-----+--------+--------------------------------+",
@@ -602,11 +612,12 @@ mod tests {
             "| 82a59579ecb9ae1adf113fe3a09a2ebd61aa15f92c570d26278d3f1dfe8bcbd8 | 3.0 | apples | 1970-01-01T00:00:00.000000020Z |",
             "+------------------------------------------------------------------+-----+--------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected, &cpu_data);
+        assert_batches_eq!(&expected, &[cpu_data]);
 
         let foo_table = db.get_table("foo").unwrap();
         let foo_data = loaded_state.open_segments[0]
-            .table_record_batches(db_name, "foo", foo_table.schema())
+            .table_record_batch(db_name, "foo", foo_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
             "+------------------------------------------------------------------+--------------------------------+-----+",
@@ -615,7 +626,7 @@ mod tests {
             "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 1970-01-01T00:00:00.000000123Z | 1.0 |",
             "+------------------------------------------------------------------+--------------------------------+-----+",
         ];
-        assert_batches_eq!(&expected, &foo_data);
+        assert_batches_eq!(&expected, &[foo_data]);
 
         assert_eq!(loaded_state.last_segment_id, SegmentId::new(2));
     }

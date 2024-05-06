@@ -319,6 +319,19 @@ impl TableDefinition {
         self.schema = schema;
     }
 
+    pub(crate) fn index_columns(&self) -> Vec<String> {
+        self.columns
+            .iter()
+            .filter_map(|(name, column_type)| {
+                if *column_type == ColumnType::Tag as i16 {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     #[allow(dead_code)]
     pub(crate) fn schema(&self) -> &Schema {
         &self.schema

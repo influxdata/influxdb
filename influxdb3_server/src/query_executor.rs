@@ -13,6 +13,7 @@ use datafusion::datasource::{TableProvider, TableType};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::execution::SendableRecordBatchStream;
+use datafusion::logical_expr::TableProviderFilterPushDown;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
@@ -466,6 +467,13 @@ impl<B: WriteBuffer> TableProvider for QueryTable<B> {
 
     fn table_type(&self) -> TableType {
         TableType::Base
+    }
+
+    fn supports_filters_pushdown(
+        &self,
+        filters: &[&Expr],
+    ) -> datafusion::common::Result<Vec<TableProviderFilterPushDown>> {
+        Ok(vec![TableProviderFilterPushDown::Inexact; filters.len()])
     }
 
     async fn scan(
