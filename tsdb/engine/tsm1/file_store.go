@@ -645,14 +645,12 @@ func (f *FileStore) Close() error {
 	// Let other methods access this closed object while we do the actual closing.
 	f.mu.Unlock()
 
-	for _, file := range files {
-		err := file.Close()
-		if err != nil {
-			return err
-		}
+	var errSlice []error
+	for _, tsmFile := range files {
+		errSlice = append(errSlice, tsmFile.Close())
 	}
 
-	return nil
+	return errors.Join(errSlice...)
 }
 
 func (f *FileStore) DiskSizeBytes() int64 {
