@@ -191,27 +191,6 @@ jobs:
           name: cargo test --workspace
           command: cargo test --workspace
 
-  # end to end tests with Heappy (heap profiling enabled)
-  test-heappy:
-    docker:
-      - image: quay.io/influxdb/rust:ci
-    resource_class: xlarge # use of a smaller executor tends crashes on link
-    environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      CARGO_PROFILE_DEV_DEBUG: "1"
-      # https://github.com/rust-lang/cargo/issues/10280
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-      RUST_BACKTRACE: "1"
-    steps:
-      - checkout
-      - rust_components
-      - run:
-          name: cargo test --no-default-features --features=heappy --workspace
-          command: cargo test --no-default-features --features=heappy --workspace
-
   # Build a dev binary.
   #
   # Compiles a binary with the default ("dev") cargo profile from the influxdb3 source
@@ -257,7 +236,7 @@ jobs:
               command: target-env cargo check --target=<< parameters.target >> --workspace --benches
           - run:
               name: Check extra features (like prod image)
-              command: target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof"
+              command: target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console"
       - when:
           condition:
             equal: [ << parameters.target >>, x86_64-pc-windows-gnu ]
@@ -451,7 +430,7 @@ jobs:
           command: |
             .circleci/scripts/docker_build_release.bash \
               "influxdb3" \
-              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
+              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console" \
               "influxdb3-edge:latest"
 
           # linking might take a while and doesn't produce CLI output
@@ -496,8 +475,6 @@ workflows:
       - cargo-audit:
           <<: *any_filter
       - test:
-          <<: *any_filter
-      - test-heappy:
           <<: *any_filter
       - build-dev:
           <<: *any_filter
@@ -564,7 +541,6 @@ workflows:
             - build-release
             - sign-packages
             - test
-            - test-heappy
             - doc
             - lint
             - fmt
