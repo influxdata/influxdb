@@ -39,7 +39,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::convert::Infallible;
 use std::fmt::Debug;
-use std::num::NonZeroI32;
 use std::pin::Pin;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
@@ -103,18 +102,6 @@ pub enum Error {
     /// The HTTP request method is not supported for this resource
     #[error("unsupported method")]
     UnsupportedMethod,
-
-    /// PProf support is not compiled
-    #[error("pprof support is not compiled")]
-    PProfIsNotCompiled,
-
-    /// Heappy support is not compiled
-    #[error("heappy support is not compiled")]
-    HeappyIsNotCompiled,
-
-    #[cfg(feature = "heappy")]
-    #[error("heappy error: {0}")]
-    Heappy(heappy::Error),
 
     /// Hyper serving error
     #[error("error serving http: {0}")]
@@ -956,9 +943,6 @@ where
         (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
         (Method::GET | Method::POST, "/ping") => http_server.ping(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
-        (Method::GET, "/debug/pprof") => pprof_home(req).await,
-        (Method::GET, "/debug/pprof/profile") => pprof_profile(req).await,
-        (Method::GET, "/debug/pprof/allocs") => pprof_heappy_profile(req).await,
         _ => {
             let body = Body::from("not found");
             Ok(Response::builder()
@@ -994,162 +978,6 @@ fn legacy_write_error_to_response(e: WriteParseError) -> Response<Body> {
         WriteParseError::MultiTenantError(e) => StatusCode::from(&e),
     };
     Response::builder().status(status).body(body).unwrap()
-}
-
-async fn pprof_home(req: Request<Body>) -> Result<Response<Body>> {
-    let default_host = HeaderValue::from_static("localhost");
-    let host = req
-        .headers()
-        .get("host")
-        .unwrap_or(&default_host)
-        .to_str()
-        .unwrap_or_default();
-    let profile_cmd = format!(
-        "/debug/pprof/profile?seconds={}",
-        PProfArgs::default_seconds()
-    );
-    let allocs_cmd = format!(
-        "/debug/pprof/allocs?seconds={}",
-        PProfAllocsArgs::default_seconds()
-    );
-    Ok(Response::new(Body::from(format!(
-        r#"<a href="{profile_cmd}">http://{host}{profile_cmd}</a><br><a href="{allocs_cmd}">http://{host}{allocs_cmd}</a>"#,
-    ))))
-}
-
-#[derive(Debug, Deserialize)]
-struct PProfArgs {
-    #[serde(default = "PProfArgs::default_seconds")]
-    #[allow(dead_code)]
-    seconds: u64,
-    #[serde(default = "PProfArgs::default_frequency")]
-    #[allow(dead_code)]
-    frequency: NonZeroI32,
-}
-
-impl PProfArgs {
-    fn default_seconds() -> u64 {
-        30
-    }
-
-    // 99Hz to avoid coinciding with special periods
-    fn default_frequency() -> NonZeroI32 {
-        NonZeroI32::new(99).unwrap()
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct PProfAllocsArgs {
-    #[serde(default = "PProfAllocsArgs::default_seconds")]
-    #[allow(dead_code)]
-    seconds: u64,
-    // The sampling interval is a number of bytes that have to cumulatively allocated for a sample to be taken.
-    //
-    // For example if the sampling interval is 99, and you're doing a million of 40 bytes allocations,
-    // the allocations profile will account for 16MB instead of 40MB.
-    // Heappy will adjust the estimate for sampled recordings, but now that feature is not yet implemented.
-    #[serde(default = "PProfAllocsArgs::default_interval")]
-    #[allow(dead_code)]
-    interval: NonZeroI32,
-}
-
-impl PProfAllocsArgs {
-    fn default_seconds() -> u64 {
-        30
-    }
-
-    // 1 means: sample every allocation.
-    fn default_interval() -> NonZeroI32 {
-        NonZeroI32::new(1).unwrap()
-    }
-}
-
-#[cfg(feature = "pprof")]
-async fn pprof_profile(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
-    use ::pprof::protos::Message;
-    use snafu::ResultExt;
-
-    let query_string = req.uri().query().unwrap_or_default();
-    let query: PProfArgs = serde_urlencoded::from_str(query_string)
-        .context(InvalidQueryStringSnafu { query_string })?;
-
-    let report = self::pprof::dump_rsprof(query.seconds, query.frequency.get())
-        .await
-        .map_err(|e| Box::new(e) as _)
-        .context(PProfSnafu)?;
-
-    let mut body: Vec<u8> = Vec::new();
-
-    // render flamegraph when opening in the browser
-    // otherwise render as protobuf; works great with: go tool pprof http://..../debug/pprof/profile
-    if req
-        .headers()
-        .get_all("Accept")
-        .iter()
-        .flat_map(|i| i.to_str().unwrap_or_default().split(','))
-        .any(|i| i == "text/html" || i == "image/svg+xml")
-    {
-        report
-            .flamegraph(&mut body)
-            .map_err(|e| Box::new(e) as _)
-            .context(PProfSnafu)?;
-        if body.is_empty() {
-            return EmptyFlamegraphSnafu.fail();
-        }
-    } else {
-        let profile = report
-            .pprof()
-            .map_err(|e| Box::new(e) as _)
-            .context(PProfSnafu)?;
-        profile
-            .encode(&mut body)
-            .map_err(|e| Box::new(e) as _)
-            .context(ProstSnafu)?;
-    }
-
-    Ok(Response::new(Body::from(body)))
-}
-
-#[cfg(not(feature = "pprof"))]
-async fn pprof_profile(_req: Request<Body>) -> Result<Response<Body>> {
-    Err(Error::PProfIsNotCompiled)
-}
-
-// If heappy support is enabled, call it
-#[cfg(feature = "heappy")]
-async fn pprof_heappy_profile(req: Request<Body>) -> Result<Response<Body>> {
-    let query_string = req.uri().query().unwrap_or_default();
-    let query: PProfAllocsArgs = serde_urlencoded::from_str(query_string)?;
-
-    let report = self::heappy::dump_heappy_rsprof(query.seconds, query.interval.get()).await?;
-
-    let mut body: Vec<u8> = Vec::new();
-
-    // render flamegraph when opening in the browser
-    // otherwise render as protobuf;
-    // works great with: go tool pprof http://..../debug/pprof/allocs
-    if req
-        .headers()
-        .get_all("Accept")
-        .iter()
-        .flat_map(|i| i.to_str().unwrap_or_default().split(','))
-        .any(|i| i == "text/html" || i == "image/svg+xml")
-    {
-        report.flamegraph(&mut body);
-        if body.is_empty() {
-            return EmptyFlamegraphSnafu.fail();
-        }
-    } else {
-        report.write_pprof(&mut body)?
-    }
-
-    Ok(Response::new(Body::from(body)))
-}
-
-//  Return error if heappy not enabled
-#[cfg(not(feature = "heappy"))]
-async fn pprof_heappy_profile(_req: Request<Body>) -> Result<Response<Body>> {
-    Err(Error::HeappyIsNotCompiled)
 }
 
 #[cfg(test)]
