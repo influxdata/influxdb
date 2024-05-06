@@ -14,6 +14,7 @@ package tsm1
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -1630,15 +1631,14 @@ func (k *tsmBatchKeyIterator) Close() error {
 	k.values = nil
 	k.pos = nil
 	k.iterators = nil
+	var errSlice []error
 	for _, r := range k.readers {
-		if err := r.Close(); err != nil {
-			return err
-		}
+		errSlice = append(errSlice, r.Close())
 	}
-	return nil
+	return errors.Join(errSlice...)
 }
 
-// Error returns any errors encountered during iteration.
+// Err error returns any errors encountered during iteration.
 func (k *tsmBatchKeyIterator) Err() error {
 	if len(k.errs) == 0 {
 		return nil
