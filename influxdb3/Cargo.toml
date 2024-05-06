@@ -57,23 +57,14 @@ default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]
 azure = ["clap_blocks/azure"] # Optional Azure Object store support
 gcp = ["clap_blocks/gcp"] # Optional GCP object store support
 aws = ["clap_blocks/aws"] # Optional AWS / S3 object store support
-pprof = ["ioxd_common/pprof"] # Optional http://localhost:8080/debug/pprof/profile support
-heappy = ["ioxd_common/heappy", "influxdb3_process/heappy"] # Optional http://localhost:8080/debug/pproc/alloc support
 
 # Enable tokio_console support (https://github.com/tokio-rs/console)
 #
 # Requires enabling trace level tracing events for [tokio,runtime].
 tokio_console = ["console-subscriber", "tokio/tracing", "observability_deps/release_max_level_trace"]
 
-# heappy is an optional feature; Not on by default as it
-# runtime overhead on all allocations (calls to malloc).
-# Cargo cannot currently implement mutually exclusive features so let's force every build
-# to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
+# Use jemalloc as the default allocator.
 jemalloc_replacing_malloc = ["influxdb3_process/jemalloc_replacing_malloc"]
-
-# Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
-# linting
-clippy = []
 
 [dev-dependencies]
 # Core Crates

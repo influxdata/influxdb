@@ -1,4 +1,10 @@
+# default results directory for the load generator:
+results/
+# datafusion-cli history:
+**.history
+# rust compiled binary target directory:
 **/target
+# other:
 **/*.rs.bk
 .idea/
 .env
@@ -13,4 +19,3 @@ perf.svg
 perf.txt
 valgrind-out.txt
 *.pending-snap
-results/
