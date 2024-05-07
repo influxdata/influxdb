@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -15,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/influxdata/influxdb/v2"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/notification"
@@ -4833,16 +4835,21 @@ func Test_FromFile(t *testing.T) {
 	// create empty test file
 	emptyFn := filepath.Join(dir, "empty")
 	fe, err := os.Create(emptyFn)
-	assert.Nil(t, err)
-	fe.Close()
+	require.NoError(t, err)
+	require.NoError(t, fe.Close())
 
 	// create too big test file
 	bigFn := filepath.Join(dir, "big")
 	fb, err := os.Create(bigFn)
-	assert.Nil(t, err)
-	fb.Close()
-	err = os.Truncate(bigFn, limitReadFileMaxSize+1)
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.NoError(t, fb.Close())
+	require.NoError(t, os.Truncate(bigFn, limitReadFileMaxSize+1))
+
+	// create symlink to /dev/null (linux only)
+	devNullSym := filepath.Join(dir, uuid.NewString())
+	if runtime.GOOS == "linux" {
+		require.NoError(t, os.Symlink("/dev/null", devNullSym))
+	}
 
 	type testCase struct {
 		path   string
@@ -4885,6 +4892,13 @@ func Test_FromFile(t *testing.T) {
 		// invalid with extra
 		{
 			path:   "/dev/null",
+			extra:  true,
+			expErr: "file in special file system",
+			oses:   []string{"linux"},
+		},
+		// symlink to /dev/null, invalid with extra
+		{
+			path:   devNullSym,
 			extra:  true,
 			expErr: "file in special file system",
 			oses:   []string{"linux"},
@@ -4997,6 +5011,15 @@ func Test_FromFile(t *testing.T) {
 					require.NoError(t, testFile.Close())
 					tmpfsTests = append(tmpfsTests, testCase{
 						path:   testPath,
+						extra:  true,
+						expErr: "",
+					})
+
+					// Create a test that's a symlink to the tmpfs file
+					symPath := path.Join(dir, uuid.NewString())
+					require.NoError(t, os.Symlink(testPath, symPath))
+					tmpfsTests = append(tmpfsTests, testCase{
+						path:   symPath,
 						extra:  true,
 						expErr: "",
 					})
