@@ -7,9 +7,7 @@ mod segment_state;
 mod table_buffer;
 
 use crate::cache::ParquetCache;
-use crate::catalog::{
-    Catalog, DatabaseSchema, TableDefinition, SERIES_ID_COLUMN_NAME, TIME_COLUMN_NAME,
-};
+use crate::catalog::{Catalog, DatabaseSchema, TableDefinition, TIME_COLUMN_NAME};
 use crate::chunk::ParquetChunk;
 use crate::persister::PersisterImpl;
 use crate::write_buffer::flusher::WriteBufferFlusher;
@@ -27,7 +25,7 @@ use datafusion::common::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::SendableRecordBatchStream;
-use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine, Series, TagSet};
+use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
@@ -633,7 +631,6 @@ fn validate_and_update_schema(line: &ParsedLine<'_>, schema: &mut Cow<'_, Databa
             }
 
             columns.insert(TIME_COLUMN_NAME.to_string(), ColumnType::Time as i16);
-            columns.insert(SERIES_ID_COLUMN_NAME.to_string(), ColumnType::String as i16);
 
             let table = TableDefinition::new(table_name, columns);
 
@@ -647,7 +644,7 @@ fn validate_and_update_schema(line: &ParsedLine<'_>, schema: &mut Cow<'_, Databa
 }
 
 fn validate_and_convert_parsed_line<'a>(
-    mut line: ParsedLine<'_>,
+    line: ParsedLine<'_>,
     raw_line: &'a str,
     segment_table_batches: &mut HashMap<Time, TableBatchMap<'a>>,
     schema: &mut Cow<'_, DatabaseSchema>,
@@ -660,14 +657,6 @@ fn validate_and_convert_parsed_line<'a>(
     // now that we've ensured all columns exist in the schema, construct the actual row and values
     // while validating the column types match.
     let mut values = Vec::with_capacity(line.column_count() + 1);
-
-    // generate _series_id from tag set
-    let series_id = hash_series_id(raw_line, &mut line.series);
-    let value = Field {
-        name: SERIES_ID_COLUMN_NAME.to_string(),
-        value: FieldData::String(series_id.to_string()),
-    };
-    values.push(value);
 
     // validate tags, collecting any new ones that must be inserted, or adding the values
     if let Some(tag_set) = line.series.tag_set {
@@ -848,52 +837,6 @@ impl Default for SeriesId {
     }
 }
 
-/// Produce a [`SeriesId`] from a raw line of line protocol / parsed [`Series`]
-///
-/// If the tag set is sorted, we parse out the original tags from the raw line
-/// protocol, instead of formatting a new string.
-///
-/// If the tags are not sorted, then we need to sort them, and allocate a new
-/// string to format them in the original 'key=val,key=val` form.
-///
-/// Generally, InfluxDB clients should be sending tags sorted.
-fn hash_series_id(raw_line: &str, series: &mut Series) -> SeriesId {
-    if let Some(tag_set) = &mut series.tag_set {
-        let bytes = if is_sorted(tag_set) {
-            // extract the raw string; if we are here, then the following `expect`s should
-            // never panic, there should be a tag set in the raw line protocol
-            let tag_set_str = raw_line
-                .split_once(',')
-                .expect("raw line protocol contains comma separating measurement from tag set")
-                .1
-                .split_once(' ')
-                .expect("raw line protocol contains tag set followed by space")
-                .0;
-            Sha256::digest(tag_set_str)
-        } else {
-            // sort the tag set and format as string, unstable sorting is fine because
-            // there should never be two tag keys of the same value
-            tag_set.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
-            let tag_set_str = tag_set
-                .iter()
-                .map(|(k, v)| format!("{k}={v}"))
-                .collect::<Vec<String>>()
-                .join(",");
-            Sha256::digest(tag_set_str)
-        };
-        // The Sha256 digests will produce 32 byte arrays, so the unwrap here is safe
-        SeriesId(bytes[..].try_into().unwrap())
-    } else {
-        // for an empty tag set, we still need a series ID:
-        SeriesId::default()
-    }
-}
-
-/// Check that a [`TagSet`], as a slice, is sorted
-fn is_sorted(tag_set: &TagSet) -> bool {
-    tag_set.windows(2).all(|w| w[0].0 <= w[1].0)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -928,8 +871,8 @@ mod tests {
         let db = result.schema.unwrap();
 
         assert_eq!(db.tables.len(), 2);
-        assert_eq!(db.tables.get("cpu").unwrap().columns().len(), 4);
-        assert_eq!(db.tables.get("foo").unwrap().columns().len(), 3);
+        assert_eq!(db.tables.get("cpu").unwrap().columns().len(), 3);
+        assert_eq!(db.tables.get("foo").unwrap().columns().len(), 2);
     }
 
     #[tokio::test]
@@ -967,11 +910,11 @@ mod tests {
         // ensure the data is in the buffer
         let actual = write_buffer.get_table_record_batches("foo", "cpu");
         let expected = [
-            "+------------------------------------------------------------------+-----+--------------------------------+",
-            "| _series_id                                                       | bar | time                           |",
-            "+------------------------------------------------------------------+-----+--------------------------------+",
-            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 1.0 | 1970-01-01T00:00:00.000000010Z |",
-            "+------------------------------------------------------------------+-----+--------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1.0 | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &actual);
 
@@ -1036,11 +979,11 @@ mod tests {
             .unwrap();
 
         let expected = [
-            "+------------------------------------------------------------------+-----+--------------------------------+",
-            "| _series_id                                                       | bar | time                           |",
-            "+------------------------------------------------------------------+-----+--------------------------------+",
-            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 1.0 | 1970-01-01T00:00:00.000000010Z |",
-            "+------------------------------------------------------------------+-----+--------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1.0 | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+--------------------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
         assert_batches_eq!(&expected, &actual);
@@ -1077,12 +1020,12 @@ mod tests {
             .await
             .unwrap();
         let expected = [
-            "+------------------------------------------------------------------+-----+--------------------------------+",
-            "| _series_id                                                       | bar | time                           |",
-            "+------------------------------------------------------------------+-----+--------------------------------+",
-            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 2.0 | 1970-01-01T00:15:00Z           |",
-            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 1.0 | 1970-01-01T00:00:00.000000010Z |",
-            "+------------------------------------------------------------------+-----+--------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 2.0 | 1970-01-01T00:15:00Z           |",
+            "| 1.0 | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+--------------------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
         assert_batches_eq!(&expected, &actual);
@@ -1112,13 +1055,13 @@ mod tests {
             .await
             .unwrap();
         let expected = [
-            "+------------------------------------------------------------------+-----+--------------------------------+",
-            "| _series_id                                                       | bar | time                           |",
-            "+------------------------------------------------------------------+-----+--------------------------------+",
-            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 2.0 | 1970-01-01T00:15:00Z           |",
-            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 3.0 | 1970-01-01T00:15:50Z           |",
-            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 1.0 | 1970-01-01T00:00:00.000000010Z |",
-            "+------------------------------------------------------------------+-----+--------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 2.0 | 1970-01-01T00:15:00Z           |",
+            "| 3.0 | 1970-01-01T00:15:50Z           |",
+            "| 1.0 | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+--------------------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
         assert_batches_eq!(&expected, &actual);
@@ -1161,11 +1104,11 @@ mod tests {
             .unwrap();
 
         let expected = [
-            "+------------------------------------------------------------------+-----+----------------------+",
-            "| _series_id                                                       | bar | time                 |",
-            "+------------------------------------------------------------------+-----+----------------------+",
-            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 1.0 | 1970-01-01T00:06:00Z |",
-            "+------------------------------------------------------------------+-----+----------------------+",
+            "+-----+----------------------+",
+            "| bar | time                 |",
+            "+-----+----------------------+",
+            "| 1.0 | 1970-01-01T00:06:00Z |",
+            "+-----+----------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
         assert_batches_eq!(&expected, &actual);
@@ -1198,69 +1141,5 @@ mod tests {
             batches.extend(chunk);
         }
         batches
-    }
-
-    /// Parse the series from a line of line protocol
-    macro_rules! parse_series {
-        ($line:expr) => {
-            parse_lines($line)
-                .collect::<Result<Vec<ParsedLine<'_>>, _>>()
-                .expect("parse lines")
-                .pop()
-                .expect("there is at least one line")
-                .series
-        };
-    }
-
-    /// Parse the tag set from a line of line protocol
-    macro_rules! parse_tag_set {
-        ($line:expr) => {
-            parse_series!($line).tag_set.expect("has a tag set")
-        };
-    }
-
-    #[test]
-    fn tag_set_is_sorted() {
-        assert!(is_sorted(&parse_tag_set!("cpu,a=_ foo=1")));
-        assert!(is_sorted(&parse_tag_set!("cpu,a=_,b=_ foo=1")));
-        assert!(!is_sorted(&parse_tag_set!("cpu,b=_,a=_ foo=1")));
-        assert!(is_sorted(&parse_tag_set!("cpu,a=_,b=_,c=_ foo=1")));
-        assert!(!is_sorted(&parse_tag_set!("cpu,a=_,c=_,b=_ foo=1")));
-        assert!(!is_sorted(&parse_tag_set!("cpu,b=_,a=_,c=_ foo=1")));
-        assert!(!is_sorted(&parse_tag_set!("cpu,c=_,b=_,a=_ foo=1")));
-    }
-
-    #[test]
-    fn series_ids() {
-        let raw_line_1 = "cpu,a=1,b=2 foo=1";
-        let mut series_1 = parse_series!(raw_line_1);
-        let series_id_1 = hash_series_id(raw_line_1, &mut series_1);
-        // check that we have a hash:
-        assert_eq!(
-            "06beefe2b477ff1d0fe92dfa45128217630672abff564dc7746f106833d3fc7a",
-            series_id_1.to_string()
-        );
-        // create another line that has the same tag values, but they are not
-        // in the same order:
-        let raw_line_2 = "cpu,b=2,a=1 foo=1";
-        let mut series_2 = parse_series!(raw_line_2);
-        let series_id_2 = hash_series_id(raw_line_2, &mut series_2);
-        // this and the previous series IDs should be equal:
-        assert_eq!(series_id_1, series_id_2);
-        // create a third with different tag values:
-        let raw_line_3 = "cpu,a=2,b=1 foo=1";
-        let mut series_3 = parse_series!(raw_line_3);
-        let series_id_3 = hash_series_id(raw_line_3, &mut series_3);
-        // the third should not be equal with either of the first two:
-        assert_ne!(series_id_1, series_id_3);
-        assert_ne!(series_id_2, series_id_3);
-        // produce series ID for empty tag set:
-        let raw_line_4 = "cpu foo=1";
-        let mut series_4 = parse_series!(raw_line_4);
-        let series_id_4 = hash_series_id(raw_line_4, &mut series_4);
-        assert_eq!(
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            series_id_4.to_string()
-        );
     }
 }
