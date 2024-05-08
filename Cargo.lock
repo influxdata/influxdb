@@ -2533,6 +2533,7 @@ dependencies = [
  "hex",
  "hyper",
  "influxdb3_client",
+ "influxdb3_compactor",
  "influxdb3_process",
  "influxdb3_server",
  "influxdb3_write",
@@ -2583,6 +2584,15 @@ dependencies = [
  "thiserror",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "influxdb3_compactor"
+version = "0.1.0"
+dependencies = [
+ "influxdb3_write",
+ "iox_time",
+ "tokio",
 ]
 
 [[package]]

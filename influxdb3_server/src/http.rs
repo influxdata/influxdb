@@ -47,6 +47,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use unicode_segmentation::UnicodeSegmentation;
 
+mod pro;
 mod v1;
 
 #[derive(Debug, Error)]
@@ -961,6 +962,7 @@ where
         (Method::GET, "/debug/pprof") => pprof_home(req).await,
         (Method::GET, "/debug/pprof/profile") => pprof_profile(req).await,
         (Method::GET, "/debug/pprof/allocs") => pprof_heappy_profile(req).await,
+        (Method::POST, "/api/v3/pro/echo") => http_server.pro_echo(req).await,
         _ => {
             let body = Body::from("not found");
             Ok(Response::builder()

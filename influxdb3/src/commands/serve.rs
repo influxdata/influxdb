@@ -6,6 +6,7 @@ use clap_blocks::{
     socket_addr::SocketAddr,
 };
 use datafusion_util::config::register_iox_object_store;
+use influxdb3_compactor::Compactor;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
@@ -31,6 +32,7 @@ use std::{
     sync::Arc,
 };
 use thiserror::Error;
+use tokio::task;
 use tokio_util::sync::CancellationToken;
 use trace_exporters::TracingConfig;
 use trogging::cli::LoggingConfig;
@@ -256,6 +258,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::new(config.datafusion_config),
         10,
     ));
+    let compactor = Compactor::new(Arc::clone(&write_buffer), Arc::clone(&persister));
 
     let builder = ServerBuilder::new(common_state)
         .max_request_size(config.max_http_request_size)
@@ -271,6 +274,7 @@ pub async fn command(config: Config) -> Result<()> {
     } else {
         builder.build()
     };
+    task::spawn(compactor.compact());
     serve(server, frontend_shutdown).await?;
 
     Ok(())
