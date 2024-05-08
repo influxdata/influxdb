@@ -9,6 +9,7 @@ package query
 import (
 	"container/heap"
 	"context"
+	"errors"
 	"io"
 	"sort"
 	"sync"
