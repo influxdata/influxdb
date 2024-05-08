@@ -577,6 +577,7 @@ pub(crate) fn validate_or_insert_schema_and_partitions(
                 db_name: db_name.to_string(),
                 lp: table_batches.lines.join("\n"),
                 default_time: ingest_time.timestamp_nanos(),
+                precision,
             }),
             starting_catalog_sequence_number,
         })
@@ -928,6 +929,7 @@ mod tests {
                 db_name: "foo".to_string(),
                 lp: "cpu bar=1 10".to_string(),
                 default_time: 123,
+                precision: Precision::Nanosecond,
             })],
         };
         assert_eq!(batch, expected_batch);

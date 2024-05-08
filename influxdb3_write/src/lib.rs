@@ -447,6 +447,7 @@ pub struct LpWriteOp {
     pub db_name: String,
     pub lp: String,
     pub default_time: i64,
+    pub precision: Precision,
 }
 
 /// A single write request can have many lines in it. A writer can request to accept all lines that are valid, while
@@ -533,8 +534,8 @@ impl ParquetFile {
     }
 }
 
-/// The summary data for a persisted parquet file in a segment.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+/// The precision of the timestamp
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Precision {
     Auto,

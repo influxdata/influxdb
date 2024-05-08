@@ -12,8 +12,8 @@ use crate::write_buffer::{
 };
 use crate::{
     wal, write_buffer, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment,
-    Persister, Precision, SegmentDuration, SegmentId, SegmentRange, SequenceNumber,
-    TableParquetFiles, WalOp, WalSegmentReader, WalSegmentWriter,
+    Persister, SegmentDuration, SegmentId, SegmentRange, SequenceNumber, TableParquetFiles, WalOp,
+    WalSegmentReader, WalSegmentWriter,
 };
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
@@ -196,7 +196,7 @@ pub(crate) fn load_buffer_from_segment(
                         Time::from_timestamp_nanos(write.default_time),
                         segment_duration,
                         false,
-                        Precision::Nanosecond,
+                        write.precision,
                     )?;
 
                     let db_name = &write.db_name;
@@ -736,6 +736,7 @@ pub(crate) mod tests {
             db_name: "db1".to_string(),
             lp: lp.to_string(),
             default_time: 0,
+            precision: crate::Precision::Nanosecond,
         });
 
         let write_batch = lp_to_write_batch(&catalog, "db1", lp);
