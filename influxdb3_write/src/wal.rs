@@ -660,6 +660,7 @@ fn segment_id_from_file_name(name: &str) -> Result<SegmentId> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Catalog;
     use crate::LpWriteOp;
     use crate::Precision;
 
@@ -755,5 +756,92 @@ mod tests {
         let batch = reader.next_batch().unwrap().unwrap();
         assert_eq!(batch.ops, vec![wal_op.clone()]);
         assert_eq!(batch.sequence_number, SequenceNumber::new(1));
+    }
+
+    #[test]
+    fn wal_written_and_read_with_different_precisions() {
+        let dir = test_helpers::tmp_dir().unwrap().into_path();
+        let wal = WalImpl::new(dir.clone()).unwrap();
+        let wal_ops = vec![
+            WalOp::LpWrite(LpWriteOp {
+                db_name: "foo".to_string(),
+                lp: "cpu,host=a val=1i 1".to_string(),
+                default_time: 1,
+                precision: Precision::Second,
+            }),
+            WalOp::LpWrite(LpWriteOp {
+                db_name: "foo".to_string(),
+                lp: "cpu,host=b val=2i 1000".to_string(),
+                default_time: 1,
+                precision: Precision::Millisecond,
+            }),
+            WalOp::LpWrite(LpWriteOp {
+                db_name: "foo".to_string(),
+                lp: "cpu,host=c val=3i 1000000".to_string(),
+                default_time: 1,
+                precision: Precision::Microsecond,
+            }),
+            WalOp::LpWrite(LpWriteOp {
+                db_name: "foo".to_string(),
+                lp: "cpu,host=d val=4i 1000000000".to_string(),
+                default_time: 1,
+                precision: Precision::Nanosecond,
+            }),
+            WalOp::LpWrite(LpWriteOp {
+                db_name: "foo".to_string(),
+                lp: "cpu,host=e val=5i 1".to_string(),
+                default_time: 1,
+                precision: Precision::Auto,
+            }),
+        ];
+
+        let segment = SegmentId::new(0);
+        // open the file, write and close it
+        {
+            let mut writer = wal
+                .new_segment_writer(segment, SegmentRange::test_range())
+                .unwrap();
+            writer.write_batch(wal_ops).unwrap();
+            // close the wal
+            drop(wal);
+        }
+
+        // Reopen the wal and make sure it loads the precision via
+        // `load_buffer_from_segment`
+        let catalog = Catalog::default();
+        let wal = WalImpl::new(dir).unwrap();
+        let schema = schema::SchemaBuilder::new()
+            .tag("host")
+            .influx_column(
+                "val",
+                schema::InfluxColumnType::Field(schema::InfluxFieldType::Integer),
+            )
+            .timestamp()
+            .build()
+            .unwrap();
+
+        // Load the data into a buffer.
+        let buffer = crate::write_buffer::buffer_segment::load_buffer_from_segment(
+            &catalog,
+            wal.open_segment_reader(segment).unwrap(),
+        )
+        .unwrap()
+        .0;
+
+        // Get the buffer data as record batches
+        let batches = buffer.table_record_batches("foo", "cpu", &schema).unwrap();
+        let mut writer = arrow::json::LineDelimitedWriter::new(Vec::new());
+        assert_eq!(batches.len(), 1);
+        writer.write_batches(&[&batches[0]]).unwrap();
+        writer.finish().unwrap();
+
+        pretty_assertions::assert_eq!(
+            "{\"host\":\"a\",\"time\":\"1970-01-01T00:00:01\",\"val\":1}\n\
+            {\"host\":\"b\",\"time\":\"1970-01-01T00:00:01\",\"val\":2}\n\
+            {\"host\":\"c\",\"time\":\"1970-01-01T00:00:01\",\"val\":3}\n\
+            {\"host\":\"d\",\"time\":\"1970-01-01T00:00:01\",\"val\":4}\n\
+            {\"host\":\"e\",\"time\":\"1970-01-01T00:00:01\",\"val\":5}\n",
+            String::from_utf8(writer.into_inner()).unwrap()
+        )
     }
 }
