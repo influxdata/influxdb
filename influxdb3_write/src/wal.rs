@@ -829,10 +829,12 @@ mod tests {
         .0;
 
         // Get the buffer data as record batches
-        let batches = buffer.table_record_batches("foo", "cpu", &schema).unwrap();
+        let batch = buffer
+            .table_record_batches("foo", "cpu", schema.as_arrow(), &[])
+            .unwrap()
+            .unwrap();
         let mut writer = arrow::json::LineDelimitedWriter::new(Vec::new());
-        assert_eq!(batches.len(), 1);
-        writer.write_batches(&[&batches[0]]).unwrap();
+        writer.write_batches(&[&batch]).unwrap();
         writer.finish().unwrap();
 
         pretty_assertions::assert_eq!(
