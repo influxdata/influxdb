@@ -272,26 +272,22 @@ async fn api_v3_query_influxql() {
         TestCase {
             database: Some("foo"),
             query: "SHOW FIELD KEYS",
-            expected: "+------------------+------------+-----------+\n\
-                    | iox::measurement | fieldKey   | fieldType |\n\
-                    +------------------+------------+-----------+\n\
-                    | cpu              | _series_id | string    |\n\
-                    | cpu              | usage      | float     |\n\
-                    | mem              | _series_id | string    |\n\
-                    | mem              | usage      | float     |\n\
-                    +------------------+------------+-----------+",
+            expected: "+------------------+----------+-----------+\n\
+                    | iox::measurement | fieldKey | fieldType |\n\
+                    +------------------+----------+-----------+\n\
+                    | cpu              | usage    | float     |\n\
+                    | mem              | usage    | float     |\n\
+                    +------------------+----------+-----------+",
         },
         TestCase {
             database: None,
             query: "SHOW FIELD KEYS ON foo",
-            expected: "+------------------+------------+-----------+\n\
-                    | iox::measurement | fieldKey   | fieldType |\n\
-                    +------------------+------------+-----------+\n\
-                    | cpu              | _series_id | string    |\n\
-                    | cpu              | usage      | float     |\n\
-                    | mem              | _series_id | string    |\n\
-                    | mem              | usage      | float     |\n\
-                    +------------------+------------+-----------+",
+            expected: "+------------------+----------+-----------+\n\
+                    | iox::measurement | fieldKey | fieldType |\n\
+                    +------------------+----------+-----------+\n\
+                    | cpu              | usage    | float     |\n\
+                    | mem              | usage    | float     |\n\
+                    +------------------+----------+-----------+",
         },
         TestCase {
             database: Some("foo"),

@@ -381,7 +381,7 @@ mod tests {
         assert_eq!(batches.len(), 1);
 
         // Check that we only have the columns we expect
-        assert_eq!(batches[0].num_columns(), 4);
+        assert_eq!(batches[0].num_columns(), 3);
         assert!(batches[0].schema().column_with_name("host").is_some());
         assert!(batches[0].schema().column_with_name("time").is_some());
         assert!(batches[0].schema().column_with_name("val").is_some());
