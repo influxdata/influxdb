@@ -10,6 +10,8 @@ use arrow::{
     compute::{cast_with_options, CastOptions},
     record_batch::RecordBatch,
 };
+// Note: see https://github.com/influxdata/influxdb/issues/24981
+#[allow(deprecated)]
 use arrow_json::writer::record_batches_to_json_rows;
 
 use arrow_schema::DataType;
@@ -335,6 +337,8 @@ impl QueryResponseStream {
             }))
             .context("failed to cast batch time column with `epoch` parameter specified")?;
         }
+        // See https://github.com/influxdata/influxdb/issues/24981
+        #[allow(deprecated)]
         let json_rows = record_batches_to_json_rows(&[&batch])
             .context("failed to convert RecordBatch to JSON rows")?;
         for json_row in json_rows {

@@ -1,5 +1,6 @@
 //! module for query executor
 use crate::{QueryExecutor, QueryKind};
+use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use arrow_schema::ArrowError;
@@ -25,19 +26,17 @@ use influxdb3_write::{
 use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
 use iox_query::frontend::sql::SqlQueryPlanner;
 use iox_query::provider::ProviderBuilder;
-use iox_query::query_log::QueryCompletedToken;
 use iox_query::query_log::QueryLog;
 use iox_query::query_log::QueryText;
 use iox_query::query_log::StateReceived;
-use iox_query::QueryNamespaceProvider;
+use iox_query::query_log::{QueryCompletedToken, QueryLogEntries};
+use iox_query::QueryDatabase;
 use iox_query::{QueryChunk, QueryNamespace};
 use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
 use iox_query_params::StatementParams;
 use metric::Registry;
 use observability_deps::tracing::{debug, info, trace};
 use schema::Schema;
-use serde::{Deserialize, Serialize};
-use serde_arrow::schema::SchemaLike;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -98,7 +97,7 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         info!("query in executor {}", database);
         let db = self
-            .db(database, span_ctx.child_span("get database"), false)
+            .namespace(database, span_ctx.child_span("get database"), false)
             .await
             .map_err(|_| Error::DatabaseNotFound {
                 db_name: database.to_string(),
@@ -174,10 +173,10 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         // sort them to ensure consistent order:
         databases.sort_unstable();
 
-        let mut records = Vec::with_capacity(databases.len());
+        let mut rows = Vec::with_capacity(databases.len());
         for database in databases {
             let db = self
-                .db(&database, span_ctx.child_span("get database"), false)
+                .namespace(&database, span_ctx.child_span("get database"), false)
                 .await
                 .map_err(|_| Error::DatabaseNotFound {
                     db_name: database.to_string(),
@@ -187,28 +186,69 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
                 })?;
             let duration = db.retention_time_ns();
             let (db_name, rp_name) = split_database_name(&database);
-            records.push(RetentionPolicyRecord {
+            rows.push(RetentionPolicyRow {
                 database: db_name,
                 name: rp_name,
                 duration,
             });
         }
 
-        let fields = Vec::<Field>::from_type::<RetentionPolicyRecord>(Default::default())?;
-        let arrays = serde_arrow::to_arrow(&fields, &records)?;
-        let schema = DatafusionSchema::new(fields);
-        let batch = RecordBatch::try_new(Arc::new(schema), arrays)
-            .map_err(Error::RetentionPoliciesToRecordBatch)?;
+        let batch = retention_policy_rows_to_batch(&rows);
         Ok(Box::pin(MemoryStream::new(vec![batch])))
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct RetentionPolicyRecord {
-    #[serde(rename = "iox::database")]
+#[derive(Debug)]
+struct RetentionPolicyRow {
     database: String,
     name: String,
     duration: Option<i64>,
+}
+
+#[derive(Debug, Default)]
+struct RetentionPolicyRowBuilder {
+    database: StringBuilder,
+    name: StringBuilder,
+    duration: Int64Builder,
+}
+
+impl RetentionPolicyRowBuilder {
+    fn append(&mut self, row: &RetentionPolicyRow) {
+        self.database.append_value(row.database.as_str());
+        self.name.append_value(row.name.as_str());
+        self.duration.append_option(row.duration);
+    }
+
+    // Note: may be able to use something simpler than StructArray here, this is just based
+    // directly on the arrow docs: https://docs.rs/arrow/latest/arrow/array/builder/index.html
+    fn finish(&mut self) -> StructArray {
+        StructArray::from(vec![
+            (
+                Arc::new(Field::new("iox::database", DataType::Utf8, false)),
+                Arc::new(self.database.finish()) as ArrayRef,
+            ),
+            (
+                Arc::new(Field::new("name", DataType::Utf8, false)),
+                Arc::new(self.name.finish()) as ArrayRef,
+            ),
+            (
+                Arc::new(Field::new("duration", DataType::Utf8, true)),
+                Arc::new(self.duration.finish()) as ArrayRef,
+            ),
+        ])
+    }
+}
+
+impl<'a> Extend<&'a RetentionPolicyRow> for RetentionPolicyRowBuilder {
+    fn extend<T: IntoIterator<Item = &'a RetentionPolicyRow>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|row| self.append(row));
+    }
+}
+
+fn retention_policy_rows_to_batch(rows: &[RetentionPolicyRow]) -> RecordBatch {
+    let mut builder = RetentionPolicyRowBuilder::default();
+    builder.extend(rows);
+    RecordBatch::from(&builder.finish())
 }
 
 const AUTOGEN_RETENTION_POLICY: &str = "autogen";
@@ -233,14 +273,12 @@ pub enum Error {
     DatabasesToRecordBatch(#[source] ArrowError),
     #[error("unable to compose record batches from retention policies: {0}")]
     RetentionPoliciesToRecordBatch(#[source] ArrowError),
-    #[error("serde_arrow error: {0}")]
-    SerdeArrow(#[from] serde_arrow::Error),
 }
 
 // This implementation is for the Flight service
 #[async_trait]
-impl<W: WriteBuffer> QueryNamespaceProvider for QueryExecutorImpl<W> {
-    async fn db(
+impl<W: WriteBuffer> QueryDatabase for QueryExecutorImpl<W> {
+    async fn namespace(
         &self,
         name: &str,
         span: Option<Span>,
@@ -254,7 +292,7 @@ impl<W: WriteBuffer> QueryNamespaceProvider for QueryExecutorImpl<W> {
             }))
         })?;
 
-        Ok(Some(Arc::new(QueryDatabase::new(
+        Ok(Some(Arc::new(Database::new(
             db_schema,
             Arc::clone(&self.write_buffer) as _,
             Arc::clone(&self.exec),
@@ -268,10 +306,14 @@ impl<W: WriteBuffer> QueryNamespaceProvider for QueryExecutorImpl<W> {
             .await
             .expect("Semaphore should not be closed by anyone")
     }
+
+    fn query_log(&self) -> QueryLogEntries {
+        todo!();
+    }
 }
 
 #[derive(Debug)]
-pub struct QueryDatabase<B> {
+pub struct Database<B> {
     db_schema: Arc<DatabaseSchema>,
     write_buffer: Arc<B>,
     exec: Arc<Executor>,
@@ -279,7 +321,7 @@ pub struct QueryDatabase<B> {
     query_log: Arc<QueryLog>,
 }
 
-impl<B: WriteBuffer> QueryDatabase<B> {
+impl<B: WriteBuffer> Database<B> {
     pub fn new(
         db_schema: Arc<DatabaseSchema>,
         write_buffer: Arc<B>,
@@ -315,7 +357,7 @@ impl<B: WriteBuffer> QueryDatabase<B> {
 }
 
 #[async_trait]
-impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
+impl<B: WriteBuffer> QueryNamespace for Database<B> {
     async fn chunks(
         &self,
         table_name: &str,
@@ -371,7 +413,7 @@ impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
 
         let mut cfg = self
             .exec
-            .new_execution_config()
+            .new_session_config()
             .with_default_catalog(Arc::new(qdb))
             .with_span_context(span_ctx);
 
@@ -383,7 +425,7 @@ impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
     }
 }
 
-impl<B: WriteBuffer> CatalogProvider for QueryDatabase<B> {
+impl<B: WriteBuffer> CatalogProvider for Database<B> {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -410,7 +452,7 @@ impl<B: WriteBuffer> CatalogProvider for QueryDatabase<B> {
 }
 
 #[async_trait]
-impl<B: WriteBuffer> SchemaProvider for QueryDatabase<B> {
+impl<B: WriteBuffer> SchemaProvider for Database<B> {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }

@@ -734,6 +734,7 @@ mod tests {
 
 #[cfg(test)]
 pub(crate) mod test_help {
+    use iox_query::exec::DedicatedExecutor;
     use iox_query::exec::Executor;
     use iox_query::exec::ExecutorConfig;
     use object_store::memory::InMemory;
@@ -745,18 +746,15 @@ pub(crate) mod test_help {
 
     pub(crate) fn make_exec() -> Arc<Executor> {
         let metrics = Arc::new(metric::Registry::default());
-        let num_threads = NonZeroUsize::new(1).unwrap();
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
 
         let parquet_store = ParquetStorage::new(
             Arc::clone(&object_store),
             StorageId::from("test_exec_storage"),
         );
-        Arc::new(Executor::new_with_config(
-            "datafusion",
+        Arc::new(Executor::new_with_config_and_executor(
             ExecutorConfig {
-                num_threads,
-                target_query_partitions: num_threads,
+                target_query_partitions: NonZeroUsize::new(1).unwrap(),
                 object_stores: [&parquet_store]
                     .into_iter()
                     .map(|store| (store.id(), Arc::clone(store.object_store())))
@@ -765,6 +763,7 @@ pub(crate) mod test_help {
                 // Default to 1gb
                 mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
             },
+            DedicatedExecutor::new_testing(),
         ))
     }
 }
