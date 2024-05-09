@@ -232,7 +232,7 @@ impl RetentionPolicyRowBuilder {
                 Arc::new(self.name.finish()) as ArrayRef,
             ),
             (
-                Arc::new(Field::new("duration", DataType::Utf8, true)),
+                Arc::new(Field::new("duration", DataType::Int64, true)),
                 Arc::new(self.duration.finish()) as ArrayRef,
             ),
         ])
