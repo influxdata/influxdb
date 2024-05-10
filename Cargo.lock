@@ -2599,6 +2599,7 @@ dependencies = [
  "iox_query_influxql",
  "iox_query_influxql_rewrite",
  "iox_query_params",
+ "iox_system_tables",
  "iox_time",
  "metric",
  "metric_exporters",
@@ -2907,6 +2908,18 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "workspace-hack",
+]
+
+[[package]]
+name = "iox_system_tables"
+version = "0.1.0"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=2024-05-07-iox-sync#cd3e681b2d17577b2ede41afc8d927f7a7a5e61f"
+dependencies = [
+ "arrow",
+ "async-trait",
+ "datafusion",
+ "futures",
  "workspace-hack",
 ]
 
@@ -4049,7 +4062,7 @@ checksum = "80b776a1b2dc779f5ee0641f8ade0125bc1298dd41a9a0c16d8bd57b42d222b1"
 dependencies = [
  "bytes",
  "heck 0.5.0",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "log",
  "multimap",
  "once_cell",
@@ -4082,7 +4095,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9554e3ab233f0a932403704f1a1d08c30d5ccd931adfdfa1e8b5a19b52c1d55a"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.61",

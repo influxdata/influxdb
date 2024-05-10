@@ -1,9 +1,12 @@
 //! module for query executor
 use crate::{QueryExecutor, QueryKind};
-use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
+use arrow::array::{
+    ArrayRef, BooleanArray, DurationNanosecondArray, Int64Array, Int64Builder, StringBuilder,
+    StructArray, TimestampNanosecondArray,
+};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
-use arrow_schema::ArrowError;
+use arrow_schema::{ArrowError, TimeUnit};
 use async_trait::async_trait;
 use data_types::NamespaceId;
 use datafusion::catalog::schema::SchemaProvider;
@@ -26,14 +29,15 @@ use influxdb3_write::{
 use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
 use iox_query::frontend::sql::SqlQueryPlanner;
 use iox_query::provider::ProviderBuilder;
-use iox_query::query_log::QueryLog;
-use iox_query::query_log::QueryText;
 use iox_query::query_log::StateReceived;
 use iox_query::query_log::{QueryCompletedToken, QueryLogEntries};
+use iox_query::query_log::{QueryLog, QueryLogEntryState};
+use iox_query::query_log::{QueryPhase, QueryText};
 use iox_query::QueryDatabase;
 use iox_query::{QueryChunk, QueryNamespace};
 use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
 use iox_query_params::StatementParams;
+use iox_system_tables::{IoxSystemTable, SystemTableProvider};
 use metric::Registry;
 use observability_deps::tracing::{debug, info, trace};
 use schema::Schema;
@@ -66,6 +70,7 @@ impl<W: WriteBuffer> QueryExecutorImpl<W> {
         metrics: Arc<Registry>,
         datafusion_config: Arc<HashMap<String, String>>,
         concurrent_query_limit: usize,
+        query_log_size: usize,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
             &metrics,
@@ -73,10 +78,8 @@ impl<W: WriteBuffer> QueryExecutorImpl<W> {
         ));
         let query_execution_semaphore =
             Arc::new(semaphore_metrics.new_semaphore(concurrent_query_limit));
-        // TODO Fine tune this number or make configurable
-        const QUERY_LOG_LIMIT: usize = 1_000;
         let query_log = Arc::new(QueryLog::new(
-            QUERY_LOG_LIMIT,
+            query_log_size,
             Arc::new(iox_time::SystemProvider::new()),
         ));
         Self {
@@ -117,16 +120,15 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         // TODO - configure query here?
         let ctx = db.new_query_context(span_ctx, Default::default());
 
+        let params = params.unwrap_or_default();
         let token = db.record_query(
             external_span_ctx.as_ref().map(RequestLogContext::ctx),
             "sql",
             Box::new(q.to_string()),
-            // TODO - ignoring params for now:
-            StatementParams::default(),
+            params.clone(),
         );
 
         info!("plan");
-        let params = params.unwrap_or_default();
         let plan = match kind {
             QueryKind::Sql => {
                 let planner = SqlQueryPlanner::new();
@@ -318,7 +320,7 @@ impl<W: WriteBuffer> QueryDatabase for QueryExecutorImpl<W> {
     }
 
     fn query_log(&self) -> QueryLogEntries {
-        todo!();
+        self.query_log.entries()
     }
 }
 
@@ -448,13 +450,14 @@ impl<B: WriteBuffer> CatalogProvider for Database<B> {
 
     fn schema_names(&self) -> Vec<String> {
         info!("CatalogProvider schema_names");
-        vec![DEFAULT_SCHEMA.to_string()]
+        vec![DEFAULT_SCHEMA.to_string(), SYSTEM_SCHEMA.to_string()]
     }
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         info!("CatalogProvider schema {}", name);
         match name {
             DEFAULT_SCHEMA => Some(Arc::new(Self::from_namespace(self))),
+            SYSTEM_SCHEMA => Some(Arc::clone(&self.system_schema_provider) as _),
             _ => None,
         }
     }
@@ -554,6 +557,8 @@ impl<B: WriteBuffer> TableProvider for QueryTable<B> {
     }
 }
 
+pub const SYSTEM_SCHEMA: &str = "system";
+
 const _QUERIES_TABLE: &str = "queries";
 const _PARQUET_FILES_TABLE: &str = "parquet_files";
 
@@ -573,17 +578,247 @@ impl std::fmt::Debug for SystemSchemaProvider {
 }
 
 impl SystemSchemaProvider {
-    fn new(_catalog: Arc<Catalog>, _query_log: Arc<QueryLog>, include_debug_info: bool) -> Self {
-        let tables = HashMap::new();
+    fn new(_catalog: Arc<Catalog>, query_log: Arc<QueryLog>, include_debug_info: bool) -> Self {
+        let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         if include_debug_info {
-            // Using todo!() here causes gRPC integration tests to fail, likely because they
-            // enable debug mode by default, thus entering this if block. So, just leaving this
-            // here in lieu of todo!().
-            //
-            // Eventually, we will implement the queries and parquet_files tables and they will
-            // be injected to the provider's table hashmap here...
-            info!("TODO - gather system tables");
+            // TODO - remaining system tables gathered here...
+            let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
+                query_log,
+            ))));
+            tables.insert(_QUERIES_TABLE, queries);
         }
         Self { tables }
     }
+}
+
+#[async_trait]
+impl SchemaProvider for SystemSchemaProvider {
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
+
+    fn table_names(&self) -> Vec<String> {
+        let mut names = self
+            .tables
+            .keys()
+            .map(|s| (*s).to_owned())
+            .collect::<Vec<_>>();
+        names.sort();
+        names
+    }
+
+    async fn table(&self, name: &str) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {
+        Ok(self.tables.get(name).cloned())
+    }
+
+    fn table_exist(&self, name: &str) -> bool {
+        self.tables.contains_key(name)
+    }
+}
+
+struct QueriesTable {
+    schema: SchemaRef,
+    query_log: Arc<QueryLog>,
+}
+
+impl QueriesTable {
+    fn new(query_log: Arc<QueryLog>) -> Self {
+        Self {
+            schema: queries_schema(),
+            query_log,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl IoxSystemTable for QueriesTable {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&self.schema)
+    }
+
+    async fn scan(&self) -> Result<RecordBatch, DataFusionError> {
+        let schema = self.schema();
+
+        let entries = self
+            .query_log
+            .entries()
+            .entries
+            .into_iter()
+            .map(|e| e.state())
+            .collect::<Vec<_>>();
+
+        from_query_log_entries(Arc::clone(&schema), &entries)
+    }
+}
+
+fn queries_schema() -> SchemaRef {
+    let columns = vec![
+        Field::new("id", DataType::Utf8, false),
+        Field::new("phase", DataType::Utf8, false),
+        Field::new(
+            "issue_time",
+            DataType::Timestamp(TimeUnit::Nanosecond, None),
+            false,
+        ),
+        Field::new("query_type", DataType::Utf8, false),
+        Field::new("query_text", DataType::Utf8, false),
+        Field::new("partitions", DataType::Int64, true),
+        Field::new("parquet_files", DataType::Int64, true),
+        Field::new(
+            "plan_duration",
+            DataType::Duration(TimeUnit::Nanosecond),
+            true,
+        ),
+        Field::new(
+            "permit_duration",
+            DataType::Duration(TimeUnit::Nanosecond),
+            true,
+        ),
+        Field::new(
+            "execute_duration",
+            DataType::Duration(TimeUnit::Nanosecond),
+            true,
+        ),
+        Field::new(
+            "end2end_duration",
+            DataType::Duration(TimeUnit::Nanosecond),
+            true,
+        ),
+        Field::new(
+            "compute_duration",
+            DataType::Duration(TimeUnit::Nanosecond),
+            true,
+        ),
+        Field::new("max_memory", DataType::Int64, true),
+        Field::new("success", DataType::Boolean, false),
+        Field::new("running", DataType::Boolean, false),
+        Field::new("cancelled", DataType::Boolean, false),
+        Field::new("trace_id", DataType::Utf8, true),
+    ];
+
+    Arc::new(DatafusionSchema::new(columns))
+}
+
+fn from_query_log_entries(
+    schema: SchemaRef,
+    entries: &[Arc<QueryLogEntryState>],
+) -> Result<RecordBatch, DataFusionError> {
+    let mut columns: Vec<ArrayRef> = vec![];
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(e.id.to_string()))
+            .collect::<StringArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(e.phase.name()))
+            .collect::<StringArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.issue_time)
+            .map(|ts| Some(ts.timestamp_nanos()))
+            .collect::<TimestampNanosecondArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(&e.query_type))
+            .collect::<StringArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(e.query_text.to_string()))
+            .collect::<StringArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries.iter().map(|e| e.partitions).collect::<Int64Array>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.parquet_files)
+            .collect::<Int64Array>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.plan_duration.map(|d| d.as_nanos() as i64))
+            .collect::<DurationNanosecondArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.permit_duration.map(|d| d.as_nanos() as i64))
+            .collect::<DurationNanosecondArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.execute_duration.map(|d| d.as_nanos() as i64))
+            .collect::<DurationNanosecondArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.end2end_duration.map(|d| d.as_nanos() as i64))
+            .collect::<DurationNanosecondArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.compute_duration.map(|d| d.as_nanos() as i64))
+            .collect::<DurationNanosecondArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries.iter().map(|e| e.max_memory).collect::<Int64Array>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(e.success))
+            .collect::<BooleanArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(e.running))
+            .collect::<BooleanArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(e.phase == QueryPhase::Cancel))
+            .collect::<BooleanArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.trace_id.map(|x| format!("{:x}", x.0)))
+            .collect::<StringArray>(),
+    ));
+
+    let batch = RecordBatch::try_new(schema, columns)?;
+    Ok(batch)
 }

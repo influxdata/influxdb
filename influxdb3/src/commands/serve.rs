@@ -156,6 +156,17 @@ pub struct Config {
         action
     )]
     pub segment_duration: SegmentDuration,
+
+    // TODO - tune this default:
+    /// The size of the query log. Up to this many queries will remain in the log before
+    /// old queries are evicted to make room for new ones.
+    #[clap(
+        long = "query-log-size",
+        env = "INFLUXDB3_QUERY_LOG_SIZE",
+        default_value = "1000",
+        action
+    )]
+    pub query_log_size: usize,
 }
 
 /// If `p` does not exist, try to create it as a directory.
@@ -275,6 +286,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&metrics),
         Arc::new(config.datafusion_config),
         10,
+        config.query_log_size,
     ));
 
     let builder = ServerBuilder::new(common_state)
