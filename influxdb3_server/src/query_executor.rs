@@ -430,7 +430,7 @@ impl<B: WriteBuffer> QueryNamespace for Database<B> {
         let mut cfg = self
             .exec
             .new_session_config()
-            .with_default_catalog(Arc::new(Database::from_namespace(self)))
+            .with_default_catalog(Arc::new(Self::from_namespace(self)))
             .with_span_context(span_ctx);
 
         for (k, v) in self.datafusion_config.as_ref() {
@@ -454,7 +454,7 @@ impl<B: WriteBuffer> CatalogProvider for Database<B> {
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         info!("CatalogProvider schema {}", name);
         match name {
-            DEFAULT_SCHEMA => Some(Arc::new(Database::from_namespace(self))),
+            DEFAULT_SCHEMA => Some(Arc::new(Self::from_namespace(self))),
             _ => None,
         }
     }
