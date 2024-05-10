@@ -496,11 +496,16 @@ func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger
 	tagsBatch := make([]models.Tags, batchSize)
 	var ti int
 	for i := 0; i < r.KeyCount(); i++ {
+		var err error
 		key, _ := r.KeyAt(i)
 		seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
 		var name []byte
-		name, tagsBatch[ti] = models.ParseKeyBytesWithTags(seriesKey, tagsBatch[ti])
+		name, tagsBatch[ti], err = models.ParseKeyBytesWithTags(seriesKey, tagsBatch[ti])
 
+		if err != nil {
+			log.Error("Error parsing key while creating series", zap.String("key", string(seriesKey)), zap.Error(err))
+			return err
+		}
 		if verboseLogging {
 			log.Info("Series", zap.String("name", string(name)), zap.String("tags", tagsBatch[ti].String()))
 		}

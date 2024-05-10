@@ -298,14 +298,18 @@ func ParseKey(buf []byte) (string, Tags) {
 }
 
 func ParseKeyBytes(buf []byte) ([]byte, Tags) {
-	return ParseKeyBytesWithTags(buf, nil)
+	k, t, _ := ParseKeyBytesWithTags(buf, nil)
+	return k, t
 }
 
-func ParseKeyBytesWithTags(buf []byte, tags Tags) ([]byte, Tags) {
+func ParseKeyBytesWithTags(buf []byte, tags Tags) ([]byte, Tags, error) {
 	// Ignore the error because scanMeasurement returns "missing fields" which we ignore
 	// when just parsing a key
-	state, i, _ := scanMeasurement(buf, 0)
+	state, i, err := scanMeasurement(buf, 0)
 
+	if err != nil && !errors.Is(err, ErrNoFields) {
+		return nil, nil, err
+	}
 	var name []byte
 	if state == tagKeyState {
 		tags = parseTags(buf, tags)
@@ -314,7 +318,7 @@ func ParseKeyBytesWithTags(buf []byte, tags Tags) ([]byte, Tags) {
 	} else {
 		name = buf[:i]
 	}
-	return unescapeMeasurement(name), tags
+	return unescapeMeasurement(name), tags, nil
 }
 
 func ParseTags(buf []byte) Tags {
@@ -593,6 +597,9 @@ const (
 	fieldsState
 )
 
+var ErrNoMeasurement = errors.New("missing measurement")
+var ErrNoFields = errors.New("missing fields")
+
 // scanMeasurement examines the measurement part of a Point, returning
 // the next state to move to, and the current location in the buffer.
 func scanMeasurement(buf []byte, i int) (int, int, error) {
@@ -600,14 +607,14 @@ func scanMeasurement(buf []byte, i int) (int, int, error) {
 	// It can't be a space, since whitespace is stripped prior to this
 	// function call.
 	if i >= len(buf) || buf[i] == ',' {
-		return -1, i, fmt.Errorf("missing measurement")
+		return -1, i, ErrNoMeasurement
 	}
 
 	for {
 		i++
 		if i >= len(buf) {
 			// cpu
-			return -1, i, fmt.Errorf("missing fields")
+			return -1, i, ErrNoFields
 		}
 
 		if buf[i-1] == '\\' {
