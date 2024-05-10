@@ -117,6 +117,7 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
                 "| public       | information_schema | tables      | VIEW       |",
                 "| public       | information_schema | views       | VIEW       |",
                 "| public       | iox                | cpu         | BASE TABLE |",
+                "| public       | system             | queries     | BASE TABLE |",
                 "+--------------+--------------------+-------------+------------+",
             ],
             &batches
