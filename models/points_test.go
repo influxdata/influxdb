@@ -2419,7 +2419,7 @@ func TestParseKeyBytes(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.input, func(t *testing.T) {
-			name, tags := models.ParseKeyBytes([]byte(testCase.input))
+			name, tags, _ := models.ParseKeyBytes([]byte(testCase.input))
 			if !bytes.Equal([]byte(testCase.expectedName), name) {
 				t.Errorf("%s produced measurement %s but expected %s", testCase.input, string(name), testCase.expectedName)
 			}

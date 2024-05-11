@@ -293,13 +293,12 @@ func ParsePointsString(buf string) ([]Point, error) {
 // NOTE: to minimize heap allocations, the returned Tags will refer to subslices of buf.
 // This can have the unintended effect preventing buf from being garbage collected.
 func ParseKey(buf []byte) (string, Tags) {
-	name, tags := ParseKeyBytes(buf)
+	name, tags, _ := ParseKeyBytes(buf)
 	return string(name), tags
 }
 
-func ParseKeyBytes(buf []byte) ([]byte, Tags) {
-	k, t, _ := ParseKeyBytesWithTags(buf, nil)
-	return k, t
+func ParseKeyBytes(buf []byte) ([]byte, Tags, error) {
+	return ParseKeyBytesWithTags(buf, nil)
 }
 
 func ParseKeyBytesWithTags(buf []byte, tags Tags) ([]byte, Tags, error) {

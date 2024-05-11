@@ -110,7 +110,7 @@ type mockReadCursor struct {
 func newMockReadCursor(keys ...string) mockReadCursor {
 	rows := make([]reads.SeriesRow, len(keys))
 	for i := range keys {
-		rows[i].Name, rows[i].SeriesTags = models.ParseKeyBytes([]byte(keys[i]))
+		rows[i].Name, rows[i].SeriesTags, _ = models.ParseKeyBytes([]byte(keys[i]))
 		rows[i].Tags = rows[i].SeriesTags.Clone()
 		var itrs cursors.CursorIterators
 		cur := &mockCursorIterator{

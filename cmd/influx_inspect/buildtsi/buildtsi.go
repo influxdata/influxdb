@@ -413,8 +413,12 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 
 		for _, key := range cache.Keys() {
 			seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
-			name, tags := models.ParseKeyBytes(seriesKey)
+			name, tags, err := models.ParseKeyBytes(seriesKey)
 
+			if err != nil {
+				log.Error("Error parsing key while creating series", zap.String("key", string(seriesKey)), zap.Error(err))
+				return err
+			}
 			if verboseLogging {
 				log.Info("Series", zap.String("name", string(name)), zap.String("tags", tags.String()))
 			}

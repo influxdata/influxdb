@@ -1732,7 +1732,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 				continue // This key was wiped because it shouldn't be removed from index.
 			}
 
-			name, tags := models.ParseKeyBytes(k)
+			name, tags, _ := models.ParseKeyBytes(k)
 			sid := e.sfile.SeriesID(name, tags, buf)
 			if sid == 0 {
 				continue

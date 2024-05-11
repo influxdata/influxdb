@@ -810,7 +810,7 @@ func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 	}
 
 	// Extract measurement name & tags.
-	name, tags := models.ParseKeyBytes(key)
+	name, tags, _ := models.ParseKeyBytes(key)
 
 	// If there are cached sets for any of the tag pairs, they will need to be
 	// updated with the series id.

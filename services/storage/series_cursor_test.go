@@ -77,7 +77,7 @@ func TestSeriesCursorValuer(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.n, func(t *testing.T) {
 			var sc indexSeriesCursor
-			sc.row.Name, sc.row.SeriesTags = models.ParseKeyBytes([]byte(tc.m))
+			sc.row.Name, sc.row.SeriesTags, _ = models.ParseKeyBytes([]byte(tc.m))
 			sc.field.n = sc.row.SeriesTags.GetString(fieldKey)
 			sc.row.SeriesTags.Delete(fieldKeyBytes)
 

@@ -2926,7 +2926,7 @@ func (itr *seriesIterator) Next() (tsdb.SeriesElem, error) {
 	if len(itr.keys) == 0 {
 		return nil, nil
 	}
-	name, tags := models.ParseKeyBytes(itr.keys[0])
+	name, tags, _ := models.ParseKeyBytes(itr.keys[0])
 	s := series{name: name, tags: tags}
 	itr.keys = itr.keys[1:]
 	return s, nil

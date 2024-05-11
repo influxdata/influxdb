@@ -412,7 +412,7 @@ type sliceSeriesCursor struct {
 func newSeriesRows(keys ...string) []reads.SeriesRow {
 	rows := make([]reads.SeriesRow, len(keys))
 	for i := range keys {
-		rows[i].Name, rows[i].SeriesTags = models.ParseKeyBytes([]byte(keys[i]))
+		rows[i].Name, rows[i].SeriesTags, _ = models.ParseKeyBytes([]byte(keys[i]))
 		rows[i].Tags = rows[i].SeriesTags.Clone()
 		rows[i].Tags.Set([]byte("_m"), rows[i].Name)
 	}

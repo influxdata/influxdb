@@ -38,7 +38,7 @@ func (sw *seriesWriter) AddSeries(key []byte) error {
 	seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
 	sw.keys = append(sw.keys, seriesKey)
 
-	name, tag := models.ParseKeyBytes(seriesKey)
+	name, tag, _ := models.ParseKeyBytes(seriesKey)
 	sw.names = append(sw.names, name)
 	sw.tags = append(sw.tags, tag)
 
