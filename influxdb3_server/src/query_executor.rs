@@ -139,7 +139,14 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
                 planner.query(q, params, &ctx).await
             }
         }
-        .map_err(Error::QueryPlanning)?;
+        .map_err(Error::QueryPlanning);
+        let plan = match plan {
+            Ok(plan) => plan,
+            Err(e) => {
+                token.fail();
+                return Err(e);
+            }
+        };
         let token = token.planned(&ctx, Arc::clone(&plan));
 
         // TODO: Enforce concurrency limit here
