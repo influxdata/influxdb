@@ -26,7 +26,7 @@ use authz::Authorizer;
 use datafusion::execution::SendableRecordBatchStream;
 use hyper::service::service_fn;
 use influxdb3_write::{Persister, WriteBuffer};
-use iox_query::QueryNamespaceProvider;
+use iox_query::QueryDatabase;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
 use observability_deps::tracing::error;
@@ -123,7 +123,7 @@ pub struct Server<W, Q, P, T> {
 }
 
 #[async_trait]
-pub trait QueryExecutor: QueryNamespaceProvider + Debug + Send + Sync + 'static {
+pub trait QueryExecutor: QueryDatabase + Debug + Send + Sync + 'static {
     type Error;
 
     async fn query(
@@ -232,7 +232,7 @@ mod tests {
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_write::persister::PersisterImpl;
     use influxdb3_write::SegmentDuration;
-    use iox_query::exec::{Executor, ExecutorConfig};
+    use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
@@ -257,11 +257,8 @@ mod tests {
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-        let num_threads = NonZeroUsize::new(2).unwrap();
-        let exec = Arc::new(Executor::new_with_config(
-            "datafusion",
+        let exec = Arc::new(Executor::new_with_config_and_executor(
             ExecutorConfig {
-                num_threads,
                 target_query_partitions: NonZeroUsize::new(1).unwrap(),
                 object_stores: [&parquet_store]
                     .into_iter()
@@ -270,6 +267,7 @@ mod tests {
                 metric_registry: Arc::clone(&metrics),
                 mem_pool_size: usize::MAX,
             },
+            DedicatedExecutor::new_testing(),
         ));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -418,11 +416,8 @@ mod tests {
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-        let num_threads = NonZeroUsize::new(2).unwrap();
-        let exec = Arc::new(Executor::new_with_config(
-            "datafusion",
+        let exec = Arc::new(Executor::new_with_config_and_executor(
             ExecutorConfig {
-                num_threads,
                 target_query_partitions: NonZeroUsize::new(1).unwrap(),
                 object_stores: [&parquet_store]
                     .into_iter()
@@ -431,6 +426,7 @@ mod tests {
                 metric_registry: Arc::clone(&metrics),
                 mem_pool_size: usize::MAX,
             },
+            DedicatedExecutor::new_testing(),
         ));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -624,11 +620,8 @@ mod tests {
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-        let num_threads = NonZeroUsize::new(2).unwrap();
-        let exec = Arc::new(Executor::new_with_config(
-            "datafusion",
+        let exec = Arc::new(Executor::new_with_config_and_executor(
             ExecutorConfig {
-                num_threads,
                 target_query_partitions: NonZeroUsize::new(1).unwrap(),
                 object_stores: [&parquet_store]
                     .into_iter()
@@ -637,6 +630,7 @@ mod tests {
                 metric_registry: Arc::clone(&metrics),
                 mem_pool_size: usize::MAX,
             },
+            DedicatedExecutor::new_testing(),
         ));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(
