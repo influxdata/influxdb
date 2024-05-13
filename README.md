@@ -56,4 +56,146 @@ We may come back to this effort in the future, but we don’t want to stop the c
 
 We realize that Flux still has an enthusiastic, if small, user base and we’d like to figure out the best path forward for these users. For now, with our limited resources, we think focusing our efforts on improvements to Apache Arrow DataFusion and InfluxDB 3.0’s usage of it is the best way to serve our users that are willing to convert to either InfluxQL or SQL. In the meantime, we’ll continue to maintain Flux with security and critical fixes for our users and customers.
 
+## Install
 
+> [!NOTE]
+> InfluxDB Edge is pre-release and in active development. Build artifacts are not yet generally available and official installation instructions will be forthcoming as InfluxDB Edge approaches release. For the time being, a Dockerfile is provided and can be adapted or used for inspiration by intrepid users.
+
+## Getting Started
+
+> [!NOTE]
+> InfluxDB Edge is pre-release and in active development. These usage instructions are only designed for a very quick start and subject to change.
+
+The following assumes that `influxdb3` exists in your current directory. Please adjust as necessary for your environment. Help can be seen with `influxdb3 --help`.
+
+### Starting the server
+
+`influxdb3` has many different configuration options, which may be controlled via command line arguments or environment variable. See `influxdb3 serve --help` for details.
+
+Eg, to start the server with a local filesystem object store (default listens on port 8181 with no authentication):
+```
+$ export INFLUXDB_IOX_OBJECT_STORE=file
+$ export INFLUXDB_IOX_DB_DIR=/path/to/influxdb3
+$ influxdb3 serve
+2024-05-10T15:54:24.446764Z  INFO influxdb3::commands::serve: InfluxDB3 Edge server starting git_hash=v2.5.0-14032-g1b7cd1976d65bc7121df7212cb234fca5c5fa899 version=0.1.0 uuid=3c0e0e61-ae4e-46cb-bba3-9ccd7b5feecd num_cpus=20 build_malloc_conf=
+2024-05-10T15:54:24.446947Z  INFO clap_blocks::object_store: Object Store db_dir="/path/to/influxdb3" object_store_type="Directory"
+2024-05-10T15:54:24.447035Z  INFO influxdb3::commands::serve: Creating shared query executor num_threads=20
+...
+```
+
+### Interacting with the server
+The `influxdb3` binary is also used as a client.
+
+#### Writing
+```
+# write help
+$ influxdb3 write --help
+...
+
+# create some points in a file for the client to write from using line protocol
+$ cat > ./file.lp <<EOM
+mymeas,mytag1=sometag value=0.54 $(date +%s%N)
+mymeas,mytag1=sometag value=0.55 $(date +%s%N)
+EOM
+
+# perform the write
+$ influxdb3 write --dbname mydb -f ./file.lp
+success
+```
+
+See the [InfluxDB documentation](https://docs.influxdata.com/influxdb/cloud-dedicated/reference/syntax/line-protocol/) for details on line protocol.
+
+`curl` can also be used with the `/api/v3/write_lp` API (subject to change):
+```
+$ export URL="http://localhost:8181"
+$ curl -s -X POST "$URL/api/v3/write_lp?db=mydb" --data-binary @file.lp
+```
+
+#### Querying
+```
+# query help
+$ influxdb3 query --help
+...
+
+# perform a query with SQL
+$ influxdb3 query --dbname mydb "SELECT * from mymeas"
++---------+-------------------------------+-------+
+| mytag1  | time                          | value |
++---------+-------------------------------+-------+
+| sometag | 2024-05-09T21:08:52.227359715 | 0.54  |
+| sometag | 2024-05-09T21:08:52.229494943 | 0.55  |
++---------+-------------------------------+-------+
+
+# perform a query with InfluxQL
+$ influxdb3 query --lang influxql --dbname mydb "SELECT * from mymeas"
++------------------+-------------------------------+---------+-------+
+| iox::measurement | time                          | mytag1  | value |
++------------------+-------------------------------+---------+-------+
+| mymeas           | 2024-05-09T21:08:52.227359715 | sometag | 0.54  |
+| mymeas           | 2024-05-09T21:08:52.229494943 | sometag | 0.55  |
++------------------+-------------------------------+---------+-------+
+```
+
+`curl` can also be used with the `/api/v3/query_sql` and `/api/v3/query_influxql` APIs (subject to change):
+```
+$ export URL="http://localhost:8181"
+$ curl -s -H "Content-Type: application/json" \
+    -X POST "$URL/api/v3/query_sql" \
+    --data-binary '{"db": "mydb", "q": "SELECT * from mymeas"}' | jq
+[
+  {
+    "mytag1": "sometag",
+    "time": "2024-05-09T21:08:52.227359715",
+    "value": 0.54
+  },
+  {
+    "mytag1": "sometag",
+    "time": "2024-05-09T21:08:52.229494943",
+    "value": 0.55
+  }
+]
+```
+
+By default, `application/json` is returned. This can be adjusted via the `format` key which can be one of `json` (`application/json`; default), `pretty` (`application/plain`) or `parquet` (`application/vnd.apache.parquet`). Eg, `influxql` with `pretty` format:
+```
+$ curl -s -H "Content-Type: application/json" \
+    -X POST "$URL/api/v3/query_influxql" \
+    --data-binary '{"db": "mydb", "q": "SELECT * from mymeas", "format": "pretty"}'
++------------------+-------------------------------+---------+-------+
+| iox::measurement | time                          | mytag1  | value |
++------------------+-------------------------------+---------+-------+
+| mymeas           | 2024-05-09T21:08:52.227359715 | sometag | 0.54  |
+| mymeas           | 2024-05-09T21:08:52.229494943 | sometag | 0.55  |
++------------------+-------------------------------+---------+-------+
+```
+
+### Enabling HTTP authorization
+By default, `influxdb3` allows all HTTP requests and supports authorization via a single "all or nothing" authorization token. When the server is started with `--bearer-token` (or `INFLUXDB3_BEARER_TOKEN=...` in its environment), the client then needs to provide an `Authorization: Bearer <token>` header with each HTTP request. The server will authorize the request by calculating the SHA512 of the token and check that it matches the value specified with `--bearer-token/INFLUXDB3_BEARER_TOKEN`. The `influxdb create token` command can be used to help with this. Eg:
+```
+$ influxdb3 create token
+Token: apiv3_<token>
+Hashed Token: <sha512 of raw token>
+
+Start the server with `influxdb3 serve --bearer-token "<sha512 of raw token>"`
+
+HTTP requests require the following header: "Authorization: Bearer apiv3_<token>"
+This will grant you access to every HTTP endpoint or deny it otherwise
+```
+
+When the server is started in this way, all HTTP requests must provide the correct authorization header. Eg:
+```
+# write
+$  export TOKEN="apiv3_<token>"
+$ influxdb3 w --dbname mydb --token "$TOKEN" -f ./file.lp
+success
+
+# perform a query with SQL using influxdb3 client
+$ influxdb3 q --dbname mydb --token "$TOKEN" "SELECT * from mymeas"
+
+# perform a query with SQL using curl
+$ export URL="http://localhost:8181"
+$ curl -s -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $TOKEN" \
+    -X POST "$URL/api/v3/query_sql" \
+    --data-binary '{"db": "mydb", "q": "SELECT * from mymeas", "format": "pretty"}'
+```
