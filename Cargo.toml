@@ -49,8 +49,8 @@ chrono = "0.4"
 clap = { version = "4", features = ["derive", "env", "string"] }
 crc32fast = "1.2.0"
 crossbeam-channel = "0.5.11"
-datafusion = { git = "https://github.com/apache/datafusion.git", rev = "b412dbab894938d1c3cc732814b7975e47c26df7" }
-datafusion-proto = { git = "https://github.com/apache/datafusion.git", rev = "b412dbab894938d1c3cc732814b7975e47c26df7" }
+datafusion = { git = "https://github.com/apache/datafusion.git", rev = "e0245296792eabdc35e83e8c5872345ff38c1fdf" }
+datafusion-proto = { git = "https://github.com/apache/datafusion.git", rev = "e0245296792eabdc35e83e8c5872345ff38c1fdf" }
 csv = "1.3.0"
 dotenvy = "0.15.7"
 flate2 = "1.0.27"
