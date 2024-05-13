@@ -20,10 +20,10 @@ async fn queries_table() {
 
     let mut client = server.flight_sql_client_debug_mode("foo", true).await;
 
-    // Check queries table, there will be only one, for the query we are running here:
+    // Check queries table for completed queries, will be empty:
     {
         let response = client
-            .query("SELECT COUNT(*) FROM system.queries")
+            .query("SELECT COUNT(*) FROM system.queries WHERE running = false")
             .await
             .unwrap();
 
@@ -33,7 +33,7 @@ async fn queries_table() {
                 "+----------+",
                 "| COUNT(*) |",
                 "+----------+",
-                "| 1        |",
+                "| 0        |",
                 "+----------+",
             ],
             &batches
@@ -44,7 +44,7 @@ async fn queries_table() {
     {
         let queries = [
             "SELECT * FROM cpu",           // valid
-            "SELECT * FROM mem",           // not valid table, will fail
+            "SELECT * FROM mem",           // not valid table, will fail, and not be logged
             "SELECT usage, time FROM cpu", // specific columns
         ];
         for q in queries {
@@ -78,13 +78,13 @@ async fn queries_table() {
         let batches = collect_stream(response).await;
         assert_batches_sorted_eq!(
             [
-                "+---------+------------+----------------------------------------------------------+---------+---------+-----------+",
-                "| phase   | query_type | query_text                                               | success | running | cancelled |",
-                "+---------+------------+----------------------------------------------------------+---------+---------+-----------+",
-                "| success | flightsql  | CommandStatementQuerySELECT * FROM cpu                   | true    | false   | false     |",
-                "| success | flightsql  | CommandStatementQuerySELECT COUNT(*) FROM system.queries | true    | false   | false     |",
-                "| success | flightsql  | CommandStatementQuerySELECT usage, time FROM cpu         | true    | false   | false     |",
-                "+---------+------------+----------------------------------------------------------+---------+---------+-----------+",
+                "+---------+------------+--------------------------------------------------------------------------------+---------+---------+-----------+",
+                "| phase   | query_type | query_text                                                                     | success | running | cancelled |",
+                "+---------+------------+--------------------------------------------------------------------------------+---------+---------+-----------+",
+                "| success | flightsql  | CommandStatementQuerySELECT * FROM cpu                                         | true    | false   | false     |",
+                "| success | flightsql  | CommandStatementQuerySELECT COUNT(*) FROM system.queries WHERE running = false | true    | false   | false     |",
+                "| success | flightsql  | CommandStatementQuerySELECT usage, time FROM cpu                               | true    | false   | false     |",
+                "+---------+------------+--------------------------------------------------------------------------------+---------+---------+-----------+",
             ],
             &batches
         );
