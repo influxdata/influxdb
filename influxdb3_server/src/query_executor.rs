@@ -566,7 +566,7 @@ impl<B: WriteBuffer> TableProvider for QueryTable<B> {
 
 pub const SYSTEM_SCHEMA: &str = "system";
 
-const _QUERIES_TABLE: &str = "queries";
+const QUERIES_TABLE: &str = "queries";
 const _PARQUET_FILES_TABLE: &str = "parquet_files";
 
 struct SystemSchemaProvider {
@@ -592,7 +592,7 @@ impl SystemSchemaProvider {
             let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
                 query_log,
             ))));
-            tables.insert(_QUERIES_TABLE, queries);
+            tables.insert(QUERIES_TABLE, queries);
         }
         Self { tables }
     }
