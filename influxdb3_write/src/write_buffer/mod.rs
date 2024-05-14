@@ -9,7 +9,7 @@ mod table_buffer;
 use crate::cache::ParquetCache;
 use crate::catalog::{Catalog, DatabaseSchema, TableDefinition, TIME_COLUMN_NAME};
 use crate::chunk::ParquetChunk;
-use crate::persister::PersisterImpl;
+use crate::persister::{self, PersisterImpl};
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
 use crate::write_buffer::segment_state::{run_buffer_segment_persist_and_cleanup, SegmentState};
@@ -115,8 +115,13 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         executor: Arc<iox_query::exec::Executor>,
     ) -> Result<Self> {
         let now = time_provider.now();
-        let loaded_state =
-            load_starting_state(Arc::clone(&persister), wal.clone(), now, segment_duration).await?;
+        let loaded_state = load_starting_state(
+            Arc::clone(&persister) as _,
+            wal.clone(),
+            now,
+            segment_duration,
+        )
+        .await?;
 
         let segment_state = Arc::new(RwLock::new(SegmentState::new(
             segment_duration,
@@ -382,6 +387,8 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
 
 #[async_trait]
 impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
+    type PersisterError = persister::Error;
+
     async fn write_lp(
         &self,
         database: NamespaceName<'static>,
@@ -412,6 +419,10 @@ impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
 
     fn catalog(&self) -> Arc<Catalog> {
         self.catalog()
+    }
+
+    fn persister(&self) -> Arc<impl Persister> {
+        Arc::clone(&self.persister)
     }
 }
 

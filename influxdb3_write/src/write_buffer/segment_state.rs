@@ -5,8 +5,8 @@ use crate::chunk::BufferChunk;
 use crate::wal::WalSegmentWriterNoopImpl;
 use crate::write_buffer::buffer_segment::{ClosedBufferSegment, OpenBufferSegment, WriteBatch};
 use crate::{
-    persister, wal, write_buffer, ParquetFile, PersistedSegment, Persister, SegmentDuration,
-    SegmentId, SegmentRange, SequenceNumber, Wal, WalOp,
+    wal, ParquetFile, PersistedSegment, Persister, SegmentDuration, SegmentId, SegmentRange,
+    SequenceNumber, Wal, WalOp,
 };
 use arrow::datatypes::SchemaRef;
 #[cfg(test)]
@@ -335,19 +335,16 @@ const PERSISTER_CHECK_INTERVAL: Duration = Duration::from_millis(10);
 #[cfg(not(test))]
 const PERSISTER_CHECK_INTERVAL: Duration = Duration::from_secs(1);
 
-pub(crate) async fn run_buffer_segment_persist_and_cleanup<P, T, W>(
-    persister: Arc<P>,
+pub(crate) async fn run_buffer_segment_persist_and_cleanup<T, W>(
+    persister: Arc<dyn Persister>,
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
     mut shutdown_rx: watch::Receiver<()>,
     time_provider: Arc<T>,
     wal: Option<Arc<W>>,
     executor: Arc<iox_query::exec::Executor>,
 ) where
-    P: Persister,
-    persister::Error: From<<P as Persister>::Error>,
     T: TimeProvider,
     W: Wal,
-    write_buffer::Error: From<<P as Persister>::Error>,
 {
     loop {
         tokio::select! {
@@ -363,19 +360,16 @@ pub(crate) async fn run_buffer_segment_persist_and_cleanup<P, T, W>(
     }
 }
 
-async fn persist_and_cleanup_ready_segments<P, T, W>(
-    persister: Arc<P>,
+async fn persist_and_cleanup_ready_segments<T, W>(
+    persister: Arc<dyn Persister>,
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
     time_provider: Arc<T>,
     wal: Option<Arc<W>>,
     executor: Arc<iox_query::exec::Executor>,
 ) -> Result<(), crate::Error>
 where
-    P: Persister,
-    persister::Error: From<<P as Persister>::Error>,
     T: TimeProvider,
     W: Wal,
-    write_buffer::Error: From<<P as Persister>::Error>,
 {
     // this loop is where persistence happens so if anything is in persisting,
     // it's either been dropped or remaining from a restart, so clear those out first.
@@ -434,19 +428,16 @@ where
 // 1. persist the segment to the object store
 // 2. remove the segment from the persisting_segments map and add it to the persisted_segments map
 // 3. remove the wal segment file
-async fn persist_closed_segment_and_cleanup<P, T, W>(
+async fn persist_closed_segment_and_cleanup<T, W>(
     closed_segment: Arc<ClosedBufferSegment>,
-    persister: Arc<P>,
+    persister: Arc<dyn Persister>,
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
     wal: Option<Arc<W>>,
     executor: Arc<iox_query::exec::Executor>,
 ) -> Result<(), crate::Error>
 where
-    P: Persister,
-    persister::Error: From<<P as Persister>::Error>,
     T: TimeProvider,
     W: Wal,
-    write_buffer::Error: From<<P as Persister>::Error>,
 {
     let closed_segment_start_time = closed_segment.segment_range.start_time;
     let closed_segment_id = closed_segment.segment_id;
@@ -474,12 +465,14 @@ mod tests {
     use super::*;
     use crate::test_helpers::lp_to_write_batch;
     use crate::wal::WalImpl;
-    use crate::{SegmentFile, WalSegmentReader, WalSegmentWriter};
+    use crate::{
+        write_buffer::buffer_segment::tests::TestPersister, SegmentFile, WalSegmentReader,
+        WalSegmentWriter,
+    };
     use iox_time::MockProvider;
     use parking_lot::Mutex;
     use std::any::Any;
     use std::fmt::Debug;
-    use write_buffer::buffer_segment::tests::TestPersister;
 
     #[test]
     fn segments_to_persist_sorts_oldest_first() {
@@ -630,7 +623,7 @@ mod tests {
         time_provider.set(Time::from_timestamp(900, 0).unwrap());
 
         persist_and_cleanup_ready_segments(
-            Arc::clone(&persister),
+            Arc::clone(&persister) as _,
             Arc::clone(&segment_state),
             Arc::clone(&time_provider),
             Some(Arc::clone(&wal)),

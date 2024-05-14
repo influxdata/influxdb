@@ -11,8 +11,8 @@ use crate::write_buffer::{
     parse_validate_and_update_catalog, Error, TableBatch, ValidSegmentedData,
 };
 use crate::{
-    wal, write_buffer, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment,
-    Persister, SegmentDuration, SegmentId, SegmentRange, SequenceNumber, TableParquetFiles, WalOp,
+    wal, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment, Persister,
+    SegmentDuration, SegmentId, SegmentRange, SequenceNumber, TableParquetFiles, WalOp,
     WalSegmentReader, WalSegmentWriter,
 };
 use arrow::datatypes::SchemaRef;
@@ -387,16 +387,12 @@ impl ClosedBufferSegment {
         }
     }
 
-    pub(crate) async fn persist<P>(
+    pub(crate) async fn persist(
         &self,
-        persister: Arc<P>,
+        persister: Arc<dyn Persister>,
         executor: Arc<iox_query::exec::Executor>,
         sort_key: Option<SortKey>,
-    ) -> Result<PersistedSegment>
-    where
-        P: Persister,
-        write_buffer::Error: From<<P as Persister>::Error>,
-    {
+    ) -> Result<PersistedSegment> {
         if self.catalog_start_sequence_number != self.catalog_end_sequence_number {
             let inner_catalog = self.catalog.clone_inner();
 
@@ -749,7 +745,11 @@ pub(crate) mod tests {
 
         let persister = Arc::new(TestPersister::default());
         closed_buffer_segment
-            .persist(Arc::clone(&persister), crate::test_help::make_exec(), None)
+            .persist(
+                Arc::clone(&persister) as _,
+                crate::test_help::make_exec(),
+                None,
+            )
             .await
             .unwrap();
 
@@ -864,8 +864,6 @@ pub(crate) mod tests {
 
     #[async_trait::async_trait]
     impl Persister for TestPersister {
-        type Error = persister::Error;
-
         async fn persist_catalog(
             &self,
             _segment_id: SegmentId,

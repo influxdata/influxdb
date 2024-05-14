@@ -7,7 +7,7 @@ use crate::write_buffer::{
     buffer_segment::{load_buffer_from_segment, ClosedBufferSegment, OpenBufferSegment},
     Result,
 };
-use crate::{persister, write_buffer, PersistedCatalog, PersistedSegment, Persister, SegmentId};
+use crate::{PersistedCatalog, PersistedSegment, Persister, SegmentId};
 use crate::{SegmentDuration, SegmentRange, Wal};
 use iox_time::Time;
 use std::sync::Arc;
@@ -24,17 +24,14 @@ pub struct LoadedState {
     pub last_segment_id: SegmentId,
 }
 
-pub async fn load_starting_state<P, W>(
-    persister: Arc<P>,
+pub async fn load_starting_state<W>(
+    persister: Arc<dyn Persister>,
     wal: Option<Arc<W>>,
     server_load_time: Time,
     segment_duration: SegmentDuration,
 ) -> Result<LoadedState>
 where
-    P: Persister,
-    persister::Error: From<<P as Persister>::Error>,
     W: Wal,
-    write_buffer::Error: From<<P as Persister>::Error>,
 {
     let PersistedCatalog { catalog, .. } = persister.load_catalog().await?.unwrap_or_default();
     let catalog = Arc::new(Catalog::from_inner(catalog));
@@ -192,7 +189,11 @@ mod tests {
         let catalog = Arc::new(catalog);
         let closed_buffer_segment = open_segment.into_closed_segment(Arc::clone(&catalog));
         closed_buffer_segment
-            .persist(Arc::clone(&persister), crate::test_help::make_exec(), None)
+            .persist(
+                Arc::clone(&persister) as _,
+                crate::test_help::make_exec(),
+                None,
+            )
             .await
             .unwrap();
 
@@ -253,7 +254,7 @@ mod tests {
             mut open_segments,
             ..
         } = load_starting_state(
-            Arc::clone(&persister),
+            Arc::clone(&persister) as _,
             Some(Arc::clone(&wal)),
             Time::from_timestamp_nanos(0),
             SegmentDuration::new_5m(),
@@ -339,7 +340,7 @@ mod tests {
             mut open_segments,
             ..
         } = load_starting_state(
-            Arc::clone(&persister),
+            Arc::clone(&persister) as _,
             Some(Arc::clone(&wal)),
             Time::from_timestamp_nanos(0),
             SegmentDuration::new_5m(),
@@ -372,7 +373,11 @@ mod tests {
         let closed_segment = Arc::new(current_segment.into_closed_segment(Arc::clone(&catalog)));
 
         closed_segment
-            .persist(Arc::clone(&persister), crate::test_help::make_exec(), None)
+            .persist(
+                Arc::clone(&persister) as _,
+                crate::test_help::make_exec(),
+                None,
+            )
             .await
             .unwrap();
 
@@ -516,7 +521,7 @@ mod tests {
             mut open_segments,
             ..
         } = load_starting_state(
-            Arc::clone(&persister),
+            Arc::clone(&persister) as _,
             Some(Arc::clone(&wal)),
             Time::from_timestamp_nanos(0),
             SegmentDuration::new_5m(),
@@ -648,7 +653,7 @@ mod tests {
         let LoadedState {
             mut open_segments, ..
         } = load_starting_state(
-            Arc::clone(&persister),
+            Arc::clone(&persister) as _,
             Some(Arc::clone(&wal)),
             Time::from_timestamp_nanos(0),
             SegmentDuration::new_5m(),

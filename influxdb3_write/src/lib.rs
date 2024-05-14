@@ -72,6 +72,8 @@ pub trait WriteBuffer: Bufferer + ChunkContainer {}
 /// the WAL is configured. As a segment is closed, it is persisted and then freed from memory.
 #[async_trait]
 pub trait Bufferer: Debug + Send + Sync + 'static {
+    type PersisterError;
+
     /// Validates the line protocol, writes it into the WAL if configured, writes it into the in memory buffer
     /// and returns the result with any lines that had errors and summary statistics. This writes into the currently
     /// open segment or it will open one. The open segment id and the memory usage of the currently open segment are
@@ -103,6 +105,9 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
 
     /// Returns the catalog
     fn catalog(&self) -> Arc<catalog::Catalog>;
+
+    /// Returns the persister
+    fn persister(&self) -> Arc<impl Persister>;
 }
 
 /// A segment in the buffer that corresponds to a single WAL segment file. It contains a catalog with any updates
@@ -117,7 +122,7 @@ pub trait BufferSegment: Debug + Send + Sync + 'static {
     /// If the catalog has been updated in this buffer segment, it is written using the passed in persister. Then it
     /// writes all data in the buffered segment to parquet files using the passed persister. Finally, it writes
     /// the segment file with all parquet file summaries to object storage using the passed persister.
-    async fn persist(&self, persister: Arc<dyn Persister<Error = persister::Error>>) -> Result<()>;
+    async fn persist(&self, persister: Arc<dyn Persister>) -> Result<()>;
 }
 
 /// ChunkContainer is used by the query engine to get chunks for a given table. Chunks will generally be in the
@@ -321,19 +326,17 @@ pub const DEFAULT_OBJECT_STORE_URL: &str = "iox://influxdb3/";
 
 #[async_trait]
 pub trait Persister: Debug + Send + Sync + 'static {
-    type Error;
-
     /// Loads the most recently persisted catalog from object storage.
-    async fn load_catalog(&self) -> Result<Option<PersistedCatalog>, Self::Error>;
+    async fn load_catalog(&self) -> Result<Option<PersistedCatalog>, persister::Error>;
 
     /// Loads the most recently persisted N segment parquet file lists from object storage.
     async fn load_segments(
         &self,
         most_recent_n: usize,
-    ) -> Result<Vec<PersistedSegment>, Self::Error>;
+    ) -> Result<Vec<PersistedSegment>, persister::Error>;
 
     // Loads a Parquet file from ObjectStore
-    async fn load_parquet_file(&self, path: ParquetFilePath) -> Result<Bytes, Self::Error>;
+    async fn load_parquet_file(&self, path: ParquetFilePath) -> Result<Bytes, persister::Error>;
 
     /// Persists the catalog with the given segment ID. If this is the highest segment ID, it will
     /// be the catalog that is returned the next time `load_catalog` is called.
@@ -341,14 +344,14 @@ pub trait Persister: Debug + Send + Sync + 'static {
         &self,
         segment_id: SegmentId,
         catalog: catalog::Catalog,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), persister::Error>;
 
     /// Writes a single file to object storage that contains the information for the parquet files persisted
     /// for this segment.
     async fn persist_segment(
         &self,
         persisted_segment: &PersistedSegment,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), persister::Error>;
 
     // Writes a SendableRecorgBatchStream to the Parquet format and persists it
     // to Object Store at the given path. Returns the number of bytes written and the file metadata.
@@ -356,7 +359,7 @@ pub trait Persister: Debug + Send + Sync + 'static {
         &self,
         path: ParquetFilePath,
         record_batch: SendableRecordBatchStream,
-    ) -> Result<(u64, FileMetaData), Self::Error>;
+    ) -> Result<(u64, FileMetaData), persister::Error>;
 
     /// Returns the configured `ObjectStore` that data is loaded from and persisted to.
     fn object_store(&self) -> Arc<dyn object_store::ObjectStore>;

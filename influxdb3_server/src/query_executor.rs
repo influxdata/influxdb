@@ -2,7 +2,7 @@
 use crate::{QueryExecutor, QueryKind};
 use arrow::array::{
     ArrayRef, BooleanArray, DurationNanosecondArray, Int64Array, Int64Builder, StringBuilder,
-    StructArray, TimestampNanosecondArray,
+    StructArray, TimestampNanosecondArray, UInt64Array,
 };
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
@@ -17,15 +17,17 @@ use datafusion::datasource::{TableProvider, TableType};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::execution::SendableRecordBatchStream;
-use datafusion::logical_expr::TableProviderFilterPushDown;
+use datafusion::logical_expr::{col, BinaryExpr, Operator, TableProviderFilterPushDown};
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
+use datafusion::scalar::ScalarValue;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
 use influxdb3_write::{
     catalog::{Catalog, DatabaseSchema},
     WriteBuffer,
 };
+use influxdb3_write::{ParquetFile, Persister};
 use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
 use iox_query::frontend::sql::SqlQueryPlanner;
 use iox_query::provider::ProviderBuilder;
@@ -44,6 +46,7 @@ use schema::Schema;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::ops::Deref;
 use std::sync::Arc;
 use trace::ctx::SpanContext;
 use trace::span::{Span, SpanExt, SpanRecorder};
@@ -311,6 +314,7 @@ impl<W: WriteBuffer> QueryDatabase for QueryExecutorImpl<W> {
         })?;
 
         Ok(Some(Arc::new(Database::new(
+            name,
             db_schema,
             Arc::clone(&self.write_buffer) as _,
             Arc::clone(&self.exec),
@@ -342,7 +346,8 @@ pub struct Database<B> {
 }
 
 impl<B: WriteBuffer> Database<B> {
-    pub fn new(
+    pub fn new<S: Into<String>>(
+        db_name: S,
         db_schema: Arc<DatabaseSchema>,
         write_buffer: Arc<B>,
         exec: Arc<Executor>,
@@ -350,7 +355,8 @@ impl<B: WriteBuffer> Database<B> {
         query_log: Arc<QueryLog>,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
-            write_buffer.catalog(),
+            db_name.into(),
+            write_buffer.persister(),
             Arc::clone(&query_log),
         ));
         Self {
@@ -565,7 +571,7 @@ impl<B: WriteBuffer> TableProvider for QueryTable<B> {
 pub const SYSTEM_SCHEMA: &str = "system";
 
 const QUERIES_TABLE: &str = "queries";
-const _PARQUET_FILES_TABLE: &str = "parquet_files";
+const PARQUET_FILES_TABLE: &str = "parquet_files";
 
 struct SystemSchemaProvider {
     tables: HashMap<&'static str, Arc<dyn TableProvider>>,
@@ -583,12 +589,16 @@ impl std::fmt::Debug for SystemSchemaProvider {
 }
 
 impl SystemSchemaProvider {
-    fn new(_catalog: Arc<Catalog>, query_log: Arc<QueryLog>) -> Self {
+    fn new(db_name: String, persister: Arc<dyn Persister>, query_log: Arc<QueryLog>) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
+        let parquet_files = Arc::new(SystemTableProvider::new(Arc::new(ParquetFilesTable::new(
+            db_name, persister,
+        ))));
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
             query_log,
         ))));
         tables.insert(QUERIES_TABLE, queries);
+        tables.insert(PARQUET_FILES_TABLE, parquet_files);
         Self { tables }
     }
 }
@@ -618,6 +628,152 @@ impl SchemaProvider for SystemSchemaProvider {
     }
 }
 
+struct ParquetFilesTable {
+    db_name: String,
+    schema: SchemaRef,
+    persister: Arc<dyn Persister>,
+}
+
+impl ParquetFilesTable {
+    fn new(db_name: String, persister: Arc<dyn Persister>) -> Self {
+        Self {
+            db_name,
+            schema: parquet_files_schema(),
+            persister: Arc::clone(&persister),
+        }
+    }
+}
+
+// TODO - make this configurable:
+const MAX_SEGMENTS_FOR_PARQUET_FILES_TABLE: usize = 1_000;
+/// Used in queries to the system.parquet_files table
+///
+/// # Example
+/// ```
+/// SELECT * FROM system.parquet_files WHERE table_name = 'foo'
+/// ```
+const TABLE_NAME_PREDICATE: &str = "table_name";
+
+fn table_name_predicate_error() -> DataFusionError {
+    DataFusionError::Plan(format!(
+        "must provide a {TABLE_NAME_PREDICATE} = '<table_name>' predicate in queries to \
+            {SYSTEM_SCHEMA}.{PARQUET_FILES_TABLE}"
+    ))
+}
+
+#[async_trait::async_trait]
+impl IoxSystemTable for ParquetFilesTable {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&self.schema)
+    }
+
+    async fn scan(
+        &self,
+        filters: Option<Vec<Expr>>,
+        _limit: Option<usize>,
+    ) -> Result<RecordBatch, DataFusionError> {
+        let schema = self.schema();
+
+        // extract `table_name` from filters
+        let table_name = filters
+            .ok_or_else(table_name_predicate_error)?
+            .iter()
+            .find_map(|f| match f {
+                Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
+                    if left.deref() == &col(TABLE_NAME_PREDICATE) && op == &Operator::Eq {
+                        match right.deref() {
+                            Expr::Literal(
+                                ScalarValue::Utf8(Some(s)) | ScalarValue::LargeUtf8(Some(s)),
+                            ) => Some(s.to_owned()),
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            })
+            .ok_or_else(table_name_predicate_error)?;
+
+        let parquet_files: Vec<ParquetFile> = self
+            .persister
+            .load_segments(MAX_SEGMENTS_FOR_PARQUET_FILES_TABLE)
+            .await?
+            .into_iter()
+            .filter_map(|mut s| s.databases.remove(&self.db_name))
+            .filter_map(|mut d| d.tables.remove(&table_name))
+            // NOTE - we can grab the sort key here too, if we want that displayed:
+            .flat_map(|t| t.parquet_files)
+            .collect();
+
+        from_parquet_files(&table_name, schema, parquet_files)
+    }
+}
+
+fn parquet_files_schema() -> SchemaRef {
+    let columns = vec![
+        Field::new("table_name", DataType::Utf8, false),
+        Field::new("path", DataType::Utf8, false),
+        Field::new("size_bytes", DataType::UInt64, false),
+        Field::new("row_count", DataType::UInt64, false),
+        Field::new("min_time", DataType::Int64, false),
+        Field::new("max_time", DataType::Int64, false),
+    ];
+    Arc::new(DatafusionSchema::new(columns))
+}
+
+fn from_parquet_files(
+    table_name: &str,
+    schema: SchemaRef,
+    parquet_files: Vec<ParquetFile>,
+) -> Result<RecordBatch, DataFusionError> {
+    let mut columns: Vec<ArrayRef> = vec![];
+
+    columns.push(Arc::new(
+        vec![table_name; parquet_files.len()]
+            .iter()
+            .map(|s| Some(s.to_string()))
+            .collect::<StringArray>(),
+    ));
+
+    columns.push(Arc::new(
+        parquet_files
+            .iter()
+            .map(|f| Some(f.path.to_string()))
+            .collect::<StringArray>(),
+    ));
+
+    columns.push(Arc::new(
+        parquet_files
+            .iter()
+            .map(|f| Some(f.size_bytes))
+            .collect::<UInt64Array>(),
+    ));
+
+    columns.push(Arc::new(
+        parquet_files
+            .iter()
+            .map(|f| Some(f.row_count))
+            .collect::<UInt64Array>(),
+    ));
+
+    columns.push(Arc::new(
+        parquet_files
+            .iter()
+            .map(|f| Some(f.min_time))
+            .collect::<Int64Array>(),
+    ));
+
+    columns.push(Arc::new(
+        parquet_files
+            .iter()
+            .map(|f| Some(f.max_time))
+            .collect::<Int64Array>(),
+    ));
+
+    Ok(RecordBatch::try_new(schema, columns)?)
+}
+
 struct QueriesTable {
     schema: SchemaRef,
     query_log: Arc<QueryLog>,
@@ -638,7 +794,11 @@ impl IoxSystemTable for QueriesTable {
         Arc::clone(&self.schema)
     }
 
-    async fn scan(&self) -> Result<RecordBatch, DataFusionError> {
+    async fn scan(
+        &self,
+        _filters: Option<Vec<Expr>>,
+        _limit: Option<usize>,
+    ) -> Result<RecordBatch, DataFusionError> {
         let schema = self.schema();
 
         let entries = self
