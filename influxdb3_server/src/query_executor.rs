@@ -986,7 +986,7 @@ mod tests {
 
     use arrow::array::RecordBatch;
     use data_types::NamespaceName;
-    use datafusion::assert_batches_sorted_eq;
+    use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
     use influxdb3_write::{
         persister::PersisterImpl, wal::WalImpl, write_buffer::WriteBufferImpl, Bufferer,
@@ -998,7 +998,10 @@ mod tests {
     use object_store::{local::LocalFileSystem, ObjectStore};
     use parquet_file::storage::{ParquetStorage, StorageId};
 
-    use crate::{query_executor::QueryExecutorImpl, QueryExecutor};
+    use crate::{
+        query_executor::{table_name_predicate_error, QueryExecutorImpl},
+        QueryExecutor,
+    };
 
     fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
         let metrics = Arc::new(metric::Registry::default());
@@ -1022,8 +1025,12 @@ mod tests {
         ))
     }
 
-    #[test_log::test(tokio::test)]
-    async fn system_parquet_files() {
+    type TestWriteBuffer = WriteBufferImpl<WalImpl, MockProvider>;
+    async fn setup() -> (
+        Arc<TestWriteBuffer>,
+        QueryExecutorImpl<TestWriteBuffer>,
+        Arc<MockProvider>,
+    ) {
         // Set up QueryExecutor
         let object_store =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
@@ -1053,6 +1060,12 @@ mod tests {
             10,
         );
 
+        (write_buffer, query_executor, time_provider)
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn system_parquet_files() {
+        let (write_buffer, query_executor, time_provider) = setup().await;
         // Perform some writes to multiple tables
         let db_name = "test_db";
         let _ = write_buffer
@@ -1118,5 +1131,34 @@ mod tests {
             ],
             &batches
         );
+    }
+
+    #[tokio::test]
+    async fn system_parquet_files_predicate_error() {
+        let (write_buffer, query_executor, time_provider) = setup().await;
+        // make some writes, so that we have a database that we can query against:
+        let db_name = "test_db";
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new(db_name).unwrap(),
+                "cpu,host=a,region=us-east usage=0.1 1",
+                Time::from_timestamp_nanos(0),
+                false,
+                influxdb3_write::Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        // Bump time to trick the persister into persisting to parquet:
+        time_provider.set(Time::from_timestamp(60 * 10, 0).unwrap());
+
+        // query without the `WHERE table_name =` clause to trigger the error:
+        let query = "SELECT * FROM system.parquet_files";
+        let stream = query_executor
+            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
+            .await
+            .unwrap();
+        let error: DataFusionError = stream.try_collect::<Vec<RecordBatch>>().await.unwrap_err();
+        assert_eq!(error.message(), table_name_predicate_error().message());
     }
 }
