@@ -86,6 +86,7 @@ sha2 = "0.10.8"
 snap = "1.0.0"
 sqlparser = "0.41.0"
 sysinfo = "0.30.8"
+test-log = { version = "0.2.16", features = ["trace"] }
 thiserror = "1.0"
 tokio = { version = "1.35", features = ["full"] }
 tokio-util = "0.7.9"

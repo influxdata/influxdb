@@ -72,8 +72,6 @@ pub trait WriteBuffer: Bufferer + ChunkContainer {}
 /// the WAL is configured. As a segment is closed, it is persisted and then freed from memory.
 #[async_trait]
 pub trait Bufferer: Debug + Send + Sync + 'static {
-    type PersisterError;
-
     /// Validates the line protocol, writes it into the WAL if configured, writes it into the in memory buffer
     /// and returns the result with any lines that had errors and summary statistics. This writes into the currently
     /// open segment or it will open one. The open segment id and the memory usage of the currently open segment are

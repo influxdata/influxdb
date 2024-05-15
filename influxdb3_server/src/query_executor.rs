@@ -649,7 +649,7 @@ const MAX_SEGMENTS_FOR_PARQUET_FILES_TABLE: usize = 1_000;
 /// Used in queries to the system.parquet_files table
 ///
 /// # Example
-/// ```
+/// ```sql
 /// SELECT * FROM system.parquet_files WHERE table_name = 'foo'
 /// ```
 const TABLE_NAME_PREDICATE: &str = "table_name";
@@ -727,49 +727,44 @@ fn from_parquet_files(
     schema: SchemaRef,
     parquet_files: Vec<ParquetFile>,
 ) -> Result<RecordBatch, DataFusionError> {
-    let mut columns: Vec<ArrayRef> = vec![];
-
-    columns.push(Arc::new(
-        vec![table_name; parquet_files.len()]
-            .iter()
-            .map(|s| Some(s.to_string()))
-            .collect::<StringArray>(),
-    ));
-
-    columns.push(Arc::new(
-        parquet_files
-            .iter()
-            .map(|f| Some(f.path.to_string()))
-            .collect::<StringArray>(),
-    ));
-
-    columns.push(Arc::new(
-        parquet_files
-            .iter()
-            .map(|f| Some(f.size_bytes))
-            .collect::<UInt64Array>(),
-    ));
-
-    columns.push(Arc::new(
-        parquet_files
-            .iter()
-            .map(|f| Some(f.row_count))
-            .collect::<UInt64Array>(),
-    ));
-
-    columns.push(Arc::new(
-        parquet_files
-            .iter()
-            .map(|f| Some(f.min_time))
-            .collect::<Int64Array>(),
-    ));
-
-    columns.push(Arc::new(
-        parquet_files
-            .iter()
-            .map(|f| Some(f.max_time))
-            .collect::<Int64Array>(),
-    ));
+    let columns: Vec<ArrayRef> = vec![
+        Arc::new(
+            vec![table_name; parquet_files.len()]
+                .iter()
+                .map(|s| Some(s.to_string()))
+                .collect::<StringArray>(),
+        ),
+        Arc::new(
+            parquet_files
+                .iter()
+                .map(|f| Some(f.path.to_string()))
+                .collect::<StringArray>(),
+        ),
+        Arc::new(
+            parquet_files
+                .iter()
+                .map(|f| Some(f.size_bytes))
+                .collect::<UInt64Array>(),
+        ),
+        Arc::new(
+            parquet_files
+                .iter()
+                .map(|f| Some(f.row_count))
+                .collect::<UInt64Array>(),
+        ),
+        Arc::new(
+            parquet_files
+                .iter()
+                .map(|f| Some(f.min_time))
+                .collect::<Int64Array>(),
+        ),
+        Arc::new(
+            parquet_files
+                .iter()
+                .map(|f| Some(f.max_time))
+                .collect::<Int64Array>(),
+        ),
+    ];
 
     Ok(RecordBatch::try_new(schema, columns)?)
 }
@@ -983,4 +978,145 @@ fn from_query_log_entries(
 
     let batch = RecordBatch::try_new(schema, columns)?;
     Ok(batch)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+
+    use arrow::array::RecordBatch;
+    use data_types::NamespaceName;
+    use datafusion::assert_batches_sorted_eq;
+    use futures::TryStreamExt;
+    use influxdb3_write::{
+        persister::PersisterImpl, wal::WalImpl, write_buffer::WriteBufferImpl, Bufferer,
+        SegmentDuration,
+    };
+    use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
+    use iox_time::{MockProvider, Time};
+    use metric::Registry;
+    use object_store::{local::LocalFileSystem, ObjectStore};
+    use parquet_file::storage::{ParquetStorage, StorageId};
+
+    use crate::{query_executor::QueryExecutorImpl, QueryExecutor};
+
+    fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
+        let metrics = Arc::new(metric::Registry::default());
+
+        let parquet_store = ParquetStorage::new(
+            Arc::clone(&object_store),
+            StorageId::from("test_exec_storage"),
+        );
+        Arc::new(Executor::new_with_config_and_executor(
+            ExecutorConfig {
+                target_query_partitions: NonZeroUsize::new(1).unwrap(),
+                object_stores: [&parquet_store]
+                    .into_iter()
+                    .map(|store| (store.id(), Arc::clone(store.object_store())))
+                    .collect(),
+                metric_registry: Arc::clone(&metrics),
+                // Default to 1gb
+                mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
+            },
+            DedicatedExecutor::new_testing(),
+        ))
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn system_parquet_files() {
+        // Set up QueryExecutor
+        let object_store =
+            Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store) as _));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let executor = make_exec(object_store);
+        let write_buffer = Arc::new(
+            WriteBufferImpl::new(
+                Arc::clone(&persister) as _,
+                Option::<Arc<WalImpl>>::None,
+                Arc::clone(&time_provider),
+                SegmentDuration::new_5m(),
+                Arc::clone(&executor),
+            )
+            .await
+            .unwrap(),
+        );
+        let metrics = Arc::new(Registry::new());
+        let df_config = Arc::new(Default::default());
+        let query_executor = QueryExecutorImpl::new(
+            write_buffer.catalog(),
+            Arc::clone(&write_buffer),
+            executor,
+            metrics,
+            df_config,
+            10,
+            10,
+        );
+
+        // Perform some writes to multiple tables
+        let db_name = "test_db";
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new(db_name).unwrap(),
+                "cpu,host=a,region=us-east usage=0.1 1\n\
+                cpu,host=b,region=us-east usage=0.2 1\n\
+                cpu,host=c,region=us-west usage=0.3 1\n\
+                cpu,host=d,region=us-west usage=0.4 1\n\
+                cpu,host=e,region=us-cent usage=0.5 1\n\
+                cpu,host=f,region=us-cent usage=0.6 1\n\
+                cpu,host=g,region=ca-east usage=0.7 1\n\
+                cpu,host=h,region=ca-west usage=0.8 1\n\
+                mem,host=a,region=us-east usage=1000 1\n\
+                mem,host=b,region=us-east usage=2000 1\n\
+                mem,host=c,region=us-west usage=3000 1\n\
+                mem,host=d,region=us-west usage=4000 1\n\
+                mem,host=e,region=us-cent usage=5000 1\n\
+                mem,host=f,region=us-cent usage=6000 1\n\
+                mem,host=g,region=ca-east usage=7000 1\n\
+                mem,host=h,region=ca-west usage=8000 1\n\
+                ",
+                Time::from_timestamp_nanos(0),
+                false,
+                influxdb3_write::Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        // Bump time to trick the persister into persisting to parquet:
+        time_provider.set(Time::from_timestamp(60 * 10, 0).unwrap());
+
+        let mut remaining_attempts = 10;
+        let batches = loop {
+            // wait for persister to do its thing:
+            tokio::time::sleep(Duration::from_millis(500)).await;
+
+            // query the system.parquet_files table
+            let query = "SELECT * FROM system.parquet_files WHERE table_name = 'cpu'";
+            let batch_stream = query_executor
+                .query(db_name, query, None, crate::QueryKind::Sql, None, None)
+                .await
+                .unwrap();
+            let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();
+            if batches.is_empty() {
+                if remaining_attempts == 0 {
+                    panic!("query never returned result, which means data never was persisted");
+                } else {
+                    remaining_attempts -= 1;
+                    continue;
+                }
+            } else {
+                break batches;
+            }
+        };
+        assert_batches_sorted_eq!(
+            [
+                "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
+                "| table_name | path                                                | size_bytes | row_count | min_time | max_time |",
+                "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
+                "| cpu        | dbs/test_db/cpu/1970-01-01T00-00/4294967294.parquet | 2265       | 8         | 1        | 1        |",
+                "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
+            ],
+            &batches
+        );
+    }
 }

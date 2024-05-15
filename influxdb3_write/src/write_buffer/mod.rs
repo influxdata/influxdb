@@ -9,7 +9,7 @@ mod table_buffer;
 use crate::cache::ParquetCache;
 use crate::catalog::{Catalog, DatabaseSchema, TableDefinition, TIME_COLUMN_NAME};
 use crate::chunk::ParquetChunk;
-use crate::persister::{self, PersisterImpl};
+use crate::persister::PersisterImpl;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
 use crate::write_buffer::segment_state::{run_buffer_segment_persist_and_cleanup, SegmentState};
@@ -387,8 +387,6 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
 
 #[async_trait]
 impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
-    type PersisterError = persister::Error;
-
     async fn write_lp(
         &self,
         database: NamespaceName<'static>,
