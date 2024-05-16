@@ -643,7 +643,11 @@ impl IoxSystemTable for QueriesTable {
         Arc::clone(&self.schema)
     }
 
-    async fn scan(&self) -> Result<RecordBatch, DataFusionError> {
+    async fn scan(
+        &self,
+        _filters: Option<Vec<Expr>>,
+        _limit: Option<usize>,
+    ) -> Result<RecordBatch, DataFusionError> {
         let schema = self.schema();
 
         let entries = self
