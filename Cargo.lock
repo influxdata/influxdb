@@ -2913,7 +2913,7 @@ dependencies = [
 [[package]]
 name = "iox_system_tables"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=ab23285fe62f29a60652011b0bee9cc6ee3a899e#ab23285fe62f29a60652011b0bee9cc6ee3a899e"
+source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
 dependencies = [
  "arrow",
  "async-trait",
