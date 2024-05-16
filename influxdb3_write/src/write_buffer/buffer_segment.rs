@@ -218,7 +218,7 @@ pub(crate) fn load_buffer_from_segment(
                     let segment_data = validated_write.valid_segmented_data.pop().unwrap();
 
                     let schema = catalog
-                        .db_schema(&db_name)
+                        .db_schema(db_name)
                         .expect("database exists in schema");
                     for (table_name, table_batch) in segment_data.table_batches {
                         // TODO: for now we'll just have the number of rows represent the segment size. The entire
