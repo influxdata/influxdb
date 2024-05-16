@@ -663,6 +663,7 @@ mod tests {
     use crate::catalog::Catalog;
     use crate::LpWriteOp;
     use crate::Precision;
+    use std::sync::Arc;
 
     #[test]
     fn segment_writer_reader() {
@@ -808,7 +809,7 @@ mod tests {
 
         // Reopen the wal and make sure it loads the precision via
         // `load_buffer_from_segment`
-        let catalog = Catalog::default();
+        let catalog = Arc::new(Catalog::default());
         let wal = WalImpl::new(dir).unwrap();
         let schema = schema::SchemaBuilder::new()
             .tag("host")
