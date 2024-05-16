@@ -660,7 +660,7 @@ fn segment_id_from_file_name(name: &str) -> Result<SegmentId> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Catalog;
+    use crate::catalog::Catalog;
     use crate::LpWriteOp;
     use crate::Precision;
 
