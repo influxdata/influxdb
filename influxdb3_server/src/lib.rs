@@ -290,6 +290,7 @@ mod tests {
             Arc::clone(&metrics),
             Arc::new(HashMap::new()),
             10,
+            10,
         ));
 
         let server = ServerBuilder::new(common_state)
@@ -448,6 +449,7 @@ mod tests {
             Arc::clone(&exec),
             Arc::clone(&metrics),
             Arc::new(HashMap::new()),
+            10,
             10,
         );
 
@@ -654,6 +656,7 @@ mod tests {
             Arc::clone(&exec),
             Arc::clone(&metrics),
             Arc::new(HashMap::new()),
+            10,
             10,
         );
 
