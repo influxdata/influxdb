@@ -299,7 +299,8 @@ impl<W: WriteBuffer> QueryDatabase for QueryExecutorImpl<W> {
         &self,
         name: &str,
         span: Option<Span>,
-        include_debug_info_tables: bool,
+        // We expose the `system` tables by default in the monolithic versions of InfluxDB 3
+        _include_debug_info_tables: bool,
     ) -> Result<Option<Arc<dyn QueryNamespace>>, DataFusionError> {
         let _span_recorder = SpanRecorder::new(span);
 
@@ -315,7 +316,6 @@ impl<W: WriteBuffer> QueryDatabase for QueryExecutorImpl<W> {
             Arc::clone(&self.exec),
             Arc::clone(&self.datafusion_config),
             Arc::clone(&self.query_log),
-            include_debug_info_tables,
         ))))
     }
 
@@ -348,12 +348,10 @@ impl<B: WriteBuffer> Database<B> {
         exec: Arc<Executor>,
         datafusion_config: Arc<HashMap<String, String>>,
         query_log: Arc<QueryLog>,
-        include_debug_info_tables: bool,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
             write_buffer.catalog(),
             Arc::clone(&query_log),
-            include_debug_info_tables,
         ));
         Self {
             db_schema,
@@ -585,15 +583,12 @@ impl std::fmt::Debug for SystemSchemaProvider {
 }
 
 impl SystemSchemaProvider {
-    fn new(_catalog: Arc<Catalog>, query_log: Arc<QueryLog>, include_debug_info: bool) -> Self {
+    fn new(_catalog: Arc<Catalog>, query_log: Arc<QueryLog>) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
-        if include_debug_info {
-            // TODO - remaining system tables gathered here...
-            let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
-                query_log,
-            ))));
-            tables.insert(QUERIES_TABLE, queries);
-        }
+        let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
+            query_log,
+        ))));
+        tables.insert(QUERIES_TABLE, queries);
         Self { tables }
     }
 }

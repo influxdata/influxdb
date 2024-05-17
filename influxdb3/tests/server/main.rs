@@ -116,14 +116,6 @@ impl TestServer {
 
     /// Get a [`FlightSqlClient`] for making requests to the running service over gRPC
     pub async fn flight_sql_client(&self, database: &str) -> FlightSqlClient {
-        self.flight_sql_client_debug_mode(database, false).await
-    }
-
-    pub async fn flight_sql_client_debug_mode(
-        &self,
-        database: &str,
-        debug_mode: bool,
-    ) -> FlightSqlClient {
         let channel = tonic::transport::Channel::from_shared(self.client_addr())
             .expect("create tonic channel")
             .connect()
@@ -131,9 +123,6 @@ impl TestServer {
             .expect("connect to gRPC client");
         let mut client = FlightSqlClient::new(channel);
         client.add_header("database", database).unwrap();
-        if debug_mode {
-            client.add_header("iox-debug", "true").unwrap();
-        }
         client
     }
 

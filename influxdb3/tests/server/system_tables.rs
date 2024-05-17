@@ -18,7 +18,7 @@ async fn queries_table() {
         .await
         .expect("write some lp");
 
-    let mut client = server.flight_sql_client_debug_mode("foo", true).await;
+    let mut client = server.flight_sql_client("foo").await;
 
     // Check queries table for completed queries, will be empty:
     {
