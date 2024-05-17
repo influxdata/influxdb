@@ -14,8 +14,8 @@ use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
 use crate::write_buffer::segment_state::{run_buffer_segment_persist_and_cleanup, SegmentState};
 use crate::{
-    BufferSegment, BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister, Precision,
-    SegmentDuration, SegmentId, SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
+    BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister, Precision,
+    SegmentDuration, SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -397,18 +397,6 @@ impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
     ) -> Result<BufferedWriteRequest> {
         self.write_lp(database, lp, ingest_time, accept_partial, precision)
             .await
-    }
-
-    async fn close_open_segment(&self) -> crate::Result<Arc<dyn BufferSegment>> {
-        todo!()
-    }
-
-    async fn load_segments_after(
-        &self,
-        _segment_id: SegmentId,
-        _catalog: Catalog,
-    ) -> crate::Result<Vec<Arc<dyn BufferSegment>>> {
-        todo!()
     }
 
     fn wal(&self) -> Option<Arc<impl Wal>> {
@@ -852,7 +840,7 @@ mod tests {
     use super::*;
     use crate::persister::PersisterImpl;
     use crate::wal::WalImpl;
-    use crate::{SequenceNumber, WalOpBatch};
+    use crate::{SegmentId, SequenceNumber, WalOpBatch};
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
     use datafusion_util::config::register_iox_object_store;
