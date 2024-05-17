@@ -2,11 +2,12 @@
 //! single WAL segment. Only one segment should be open for writes in the write buffer at any
 //! given time.
 
-use crate::catalog::{Catalog, DatabaseSchema};
+use crate::catalog::Catalog;
 use crate::chunk::BufferChunk;
 use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
 use crate::write_buffer::table_buffer::{Builder, Result as TableBufferResult, TableBuffer};
+use crate::write_buffer::DatabaseSchema;
 use crate::write_buffer::{
     parse_validate_and_update_catalog, Error, TableBatch, ValidSegmentedData,
 };
@@ -108,23 +109,20 @@ impl OpenBufferSegment {
                 .buffered_data
                 .database_buffers
                 .entry(db_name.to_string())
-                .or_insert_with(|| {
-                    let db_schema = self
-                        .catalog
-                        .db_schema(&db_name)
-                        .expect("db schema should exist");
-                    DatabaseBuffer {
-                        table_buffers: HashMap::new(),
-                        db_schema,
-                    }
+                .or_insert_with(|| DatabaseBuffer {
+                    table_buffers: HashMap::new(),
                 });
 
+            let schema = self
+                .catalog
+                .db_schema(&db_name)
+                .expect("database should exist in schema");
             for (table_name, table_batch) in db_batch.table_batches {
                 // TODO: for now we'll just have the number of rows represent the segment size. The entire
                 //       buffer is going to get refactored to use different structures, so this will change.
                 self.segment_size += table_batch.rows.len();
 
-                db_buffer.buffer_table_batch(table_name, &self.segment_key, table_batch);
+                db_buffer.buffer_table_batch(table_name, &self.segment_key, table_batch, &schema);
             }
         }
 
@@ -177,7 +175,7 @@ impl OpenBufferSegment {
 }
 
 pub(crate) fn load_buffer_from_segment(
-    catalog: &Catalog,
+    catalog: &Arc<Catalog>,
     mut segment_reader: Box<dyn WalSegmentReader>,
 ) -> Result<(BufferedData, usize)> {
     let mut segment_size = 0;
@@ -201,12 +199,10 @@ pub(crate) fn load_buffer_from_segment(
 
                     let db_name = &write.db_name;
                     if !buffered_data.database_buffers.contains_key(db_name) {
-                        let db_schema = catalog.db_schema(db_name).expect("db schema should exist");
                         buffered_data.database_buffers.insert(
                             db_name.clone(),
                             DatabaseBuffer {
                                 table_buffers: HashMap::new(),
-                                db_schema,
                             },
                         );
                     }
@@ -221,12 +217,20 @@ pub(crate) fn load_buffer_from_segment(
                     }
                     let segment_data = validated_write.valid_segmented_data.pop().unwrap();
 
+                    let schema = catalog
+                        .db_schema(db_name)
+                        .expect("database exists in schema");
                     for (table_name, table_batch) in segment_data.table_batches {
                         // TODO: for now we'll just have the number of rows represent the segment size. The entire
                         //       buffer is going to get refactored to use different structures, so this will change.
                         segment_size += table_batch.rows.len();
 
-                        db_buffer.buffer_table_batch(table_name, &segment_key, table_batch);
+                        db_buffer.buffer_table_batch(
+                            table_name,
+                            &segment_key,
+                            table_batch,
+                            &schema,
+                        );
                     }
                 }
             }
@@ -318,7 +322,6 @@ impl BufferedData {
 #[derive(Debug)]
 struct DatabaseBuffer {
     table_buffers: HashMap<String, TableBuffer>,
-    db_schema: Arc<DatabaseSchema>,
 }
 
 impl DatabaseBuffer {
@@ -327,19 +330,20 @@ impl DatabaseBuffer {
         table_name: String,
         segment_key: &PartitionKey,
         table_batch: TableBatch,
+        schema: &Arc<DatabaseSchema>,
     ) {
         if !self.table_buffers.contains_key(&table_name) {
-            // TODO: this check shouldn't be necessary. If the table doesn't exist in the catalog
-            //      and we've gotten here, it means we're dropping a write.
-            if let Some(table) = self.db_schema.get_table(&table_name) {
+            if let Some(table) = schema.get_table(&table_name) {
                 self.table_buffers.insert(
                     table_name.clone(),
                     TableBuffer::new(segment_key.clone(), &table.index_columns()),
                 );
             } else {
-                return;
+                // Sanity check panic in case this isn't true
+                unreachable!("table should exist in schema");
             }
         }
+
         let table_buffer = self
             .table_buffers
             .get_mut(&table_name)

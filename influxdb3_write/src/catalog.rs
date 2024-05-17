@@ -123,13 +123,13 @@ impl Catalog {
                 db
             }
             None => {
-                info!("return new db {}", db_name);
                 let mut inner = self.inner.write();
 
                 if inner.databases.len() >= Self::NUM_DBS_LIMIT {
                     return Err(Error::TooManyDbs);
                 }
 
+                info!("return new db {}", db_name);
                 let db = Arc::new(DatabaseSchema::new(db_name));
                 inner.databases.insert(db.name.clone(), Arc::clone(&db));
                 db
