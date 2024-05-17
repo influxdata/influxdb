@@ -14,7 +14,6 @@ pub mod persister;
 pub mod wal;
 pub mod write_buffer;
 
-use crate::catalog::Catalog;
 use crate::paths::{ParquetFilePath, SegmentWalFilePath};
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -84,19 +83,6 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         accept_partial: bool,
         precision: Precision,
     ) -> write_buffer::Result<BufferedWriteRequest>;
-
-    /// Closes the open segment and returns it so that it can be persisted or thrown away. A new segment will be opened
-    /// with the catalog rolling over.
-    async fn close_open_segment(&self) -> Result<Arc<dyn BufferSegment>>;
-
-    /// Once a process opens segments with the Persister, they'll know the last segment that was persisted.
-    /// This can be used with a `Bufferer` to pass into this method, which will look for any WAL segments with an
-    /// ID greater than the one passed in.
-    async fn load_segments_after(
-        &self,
-        segment_id: SegmentId,
-        catalog: Catalog,
-    ) -> Result<Vec<Arc<dyn BufferSegment>>>;
 
     /// Returns the configured WAL, if there is one.
     fn wal(&self) -> Option<Arc<impl Wal>>;
