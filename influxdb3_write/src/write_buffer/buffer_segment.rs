@@ -32,7 +32,7 @@ use iox_time::Time;
 use schema::sort::SortKey;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 
 #[derive(Debug)]
@@ -50,6 +50,7 @@ pub struct OpenBufferSegment {
     // TODO: This is temporarily just the number of rows in the segment. When the buffer gets refactored to use
     //       different structures, we want this to be a representation of approximate memory usage.
     segment_size: usize,
+    last_write_time: Instant,
 }
 
 impl OpenBufferSegment {
@@ -77,6 +78,7 @@ impl OpenBufferSegment {
             starting_catalog_sequence_number,
             segment_size,
             buffered_data,
+            last_write_time: Instant::now(),
         }
     }
 
@@ -125,6 +127,8 @@ impl OpenBufferSegment {
                 db_buffer.buffer_table_batch(table_name, &self.segment_key, table_batch, &schema);
             }
         }
+
+        self.last_write_time = Instant::now();
 
         Ok(())
     }
@@ -852,6 +856,40 @@ pub(crate) mod tests {
 
         // time has advanced from segment open time, and is now half duration away
         assert!(segment.should_persist(Time::from_timestamp(500 + 31, 0).unwrap()));
+    }
+
+    #[test]
+    fn tracks_time_of_last_write() {
+        let catalog = Arc::new(Catalog::new());
+        let start = Instant::now();
+
+        let mut segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
+            SegmentId::new(0),
+            SegmentRange::from_time_and_duration(
+                Time::from_timestamp_nanos(0),
+                SegmentDuration::from_str("1m").unwrap(),
+                false,
+            ),
+            Time::from_timestamp(0, 0).unwrap(),
+            SequenceNumber::new(0),
+            Box::new(WalSegmentWriterNoopImpl::new(SegmentId::new(0))),
+            None,
+        );
+
+        assert!(segment.last_write_time > start);
+
+        let next = Instant::now();
+
+        let db_name: NamespaceName<'static> = NamespaceName::new("db1").unwrap();
+
+        let batches = lp_to_table_batches(&catalog, "db1", "cpu,tag1=cupcakes bar=1 10", 10);
+        let mut write_batch = WriteBatch::default();
+        write_batch.add_db_write(db_name.clone(), batches);
+        segment.buffer_writes(write_batch).unwrap();
+
+        assert!(segment.last_write_time > next);
+        assert!(segment.last_write_time < Instant::now());
     }
 
     #[derive(Debug, Default)]
