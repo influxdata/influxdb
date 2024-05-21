@@ -2,7 +2,7 @@
 
 use crate::write_buffer::{FieldData, Row};
 use arrow::array::{
-    ArrayBuilder, ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder,
+    Array, ArrayBuilder, ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder,
     Int64Builder, StringArray, StringBuilder, StringDictionaryBuilder, TimestampNanosecondBuilder,
     UInt64Builder,
 };
@@ -12,6 +12,7 @@ use data_types::{PartitionKey, TimestampMinMax};
 use datafusion::logical_expr::{BinaryExpr, Expr};
 use observability_deps::tracing::debug;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::mem::size_of;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -231,6 +232,16 @@ impl TableBuffer {
 
         Ok(RecordBatch::try_new(schema, cols)?)
     }
+
+    /// Returns an estimate of the size of this table buffer based on the data and index sizes.
+    pub fn _computed_size(&self) -> usize {
+        let mut size = size_of::<Self>();
+        for (k, v) in &self.data {
+            size += k.len() + size_of::<String>() + v._size();
+        }
+        size += self.index._size();
+        size
+    }
 }
 
 // Debug implementation for TableBuffer
@@ -262,10 +273,11 @@ impl BufferIndex {
 
     fn add_row_if_indexed_column(&mut self, row_index: usize, column_name: &str, value: &str) {
         if let Some(column) = self.columns.get_mut(column_name) {
-            column
-                .entry(value.to_string())
-                .or_insert_with(Vec::new)
-                .push(row_index);
+            if column.contains_key(value) {
+                column.get_mut(value).unwrap().push(row_index);
+            } else {
+                column.insert(value.to_string(), vec![row_index]);
+            }
         }
     }
 
@@ -285,6 +297,18 @@ impl BufferIndex {
         }
 
         None
+    }
+
+    fn _size(&self) -> usize {
+        let mut size = size_of::<Self>();
+        for (k, v) in &self.columns {
+            size += k.len() + size_of::<String>() + size_of::<HashMap<String, Vec<usize>>>();
+            for (k, v) in v {
+                size += k.len() + size_of::<String>() + size_of::<Vec<usize>>();
+                size += v.len() * size_of::<usize>();
+            }
+        }
+        size
     }
 }
 
@@ -379,6 +403,32 @@ impl Builder {
                 Arc::new(builder.finish())
             }
         }
+    }
+
+    fn _size(&self) -> usize {
+        let data_size = match self {
+            Self::Bool(b) => b.capacity() + b.validity_slice().map(|s| s.len()).unwrap_or(0),
+            Self::I64(b) => {
+                size_of::<i64>() * b.capacity() + b.validity_slice().map(|s| s.len()).unwrap_or(0)
+            }
+            Self::F64(b) => {
+                size_of::<f64>() * b.capacity() + b.validity_slice().map(|s| s.len()).unwrap_or(0)
+            }
+            Self::U64(b) => {
+                size_of::<u64>() * b.capacity() + b.validity_slice().map(|s| s.len()).unwrap_or(0)
+            }
+            Self::String(b) => {
+                b.values_slice().len()
+                    + b.offsets_slice().len()
+                    + b.validity_slice().map(|s| s.len()).unwrap_or(0)
+            }
+            Self::Tag(b) => {
+                let b = b.finish_cloned();
+                b.keys().len() * size_of::<i32>() + b.values().get_array_memory_size()
+            }
+            Self::Time(b) => size_of::<i64>() * b.capacity(),
+        };
+        size_of::<Self>() + data_size
     }
 }
 
@@ -513,5 +563,69 @@ mod tests {
             "+-----+-------+--------------------------------+",
         ];
         assert_batches_eq!(&expected_b, &[b]);
+    }
+
+    #[test]
+    fn computed_size_of_buffer() {
+        let mut table_buffer = TableBuffer::new(PartitionKey::from("table"), &["tag".to_string()]);
+
+        let rows = vec![
+            Row {
+                time: 1,
+                fields: vec![
+                    Field {
+                        name: "tag".to_string(),
+                        value: FieldData::Tag("a".to_string()),
+                    },
+                    Field {
+                        name: "value".to_string(),
+                        value: FieldData::Integer(1),
+                    },
+                    Field {
+                        name: "time".to_string(),
+                        value: FieldData::Timestamp(1),
+                    },
+                ],
+            },
+            Row {
+                time: 2,
+                fields: vec![
+                    Field {
+                        name: "tag".to_string(),
+                        value: FieldData::Tag("b".to_string()),
+                    },
+                    Field {
+                        name: "value".to_string(),
+                        value: FieldData::Integer(2),
+                    },
+                    Field {
+                        name: "time".to_string(),
+                        value: FieldData::Timestamp(2),
+                    },
+                ],
+            },
+            Row {
+                time: 3,
+                fields: vec![
+                    Field {
+                        name: "tag".to_string(),
+                        value: FieldData::Tag("this is a long tag value to store".to_string()),
+                    },
+                    Field {
+                        name: "value".to_string(),
+                        value: FieldData::Integer(3),
+                    },
+                    Field {
+                        name: "time".to_string(),
+                        value: FieldData::Timestamp(3),
+                    },
+                ],
+            },
+        ];
+
+        table_buffer.add_rows(rows);
+
+        let size = table_buffer._computed_size();
+        assert_eq!(size, 18126);
     }
 }
