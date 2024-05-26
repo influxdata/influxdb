@@ -18,7 +18,8 @@ use arrow_schema::DataType;
 use bytes::Bytes;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{ready, stream::Fuse, Stream, StreamExt};
-use hyper::{Body, Request, Response};
+use hyper::http::HeaderValue;
+use hyper::{header::ACCEPT, header::CONTENT_TYPE, Body, Request, Response, StatusCode};
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
 use observability_deps::tracing::info;
@@ -58,16 +59,23 @@ where
             query,
         } = params;
 
+        let format = QueryFormat::from_request(&req, pretty)?;
+        info!(?format, "handle v1 format API");
+
         let chunk_size = chunked.then(|| chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE));
 
         // TODO - Currently not supporting parameterized queries, see
         //        https://github.com/influxdata/influxdb/issues/24805
         let stream = self.query_influxql_inner(database, &query, None).await?;
         let stream =
-            QueryResponseStream::new(0, stream, chunk_size, pretty, epoch).map_err(QueryError)?;
+            QueryResponseStream::new(0, stream, chunk_size, format, epoch).map_err(QueryError)?;
         let body = Body::wrap_stream(stream);
 
-        Ok(Response::builder().status(200).body(body).unwrap())
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, format.as_content_type())
+            .body(body)
+            .unwrap())
     }
 }
 
@@ -106,6 +114,67 @@ impl QueryParams {
     }
 }
 
+/// Enum representing the query format for the v1/query API.
+///
+/// The original API supports CSV, JSON, and "pretty" JSON formats.
+#[derive(Debug, Deserialize, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum QueryFormat {
+    Csv,
+    Pretty,
+    Json,
+}
+
+impl QueryFormat {
+    /// Returns the content type as a string slice for the query format.
+    ///
+    /// Maps the `QueryFormat` variants to their corresponding MIME types as strings.
+    /// This is useful for setting the `Content-Type` header in HTTP responses.
+    fn as_content_type(&self) -> &str {
+        match self {
+            Self::Csv => "application/csv",
+            Self::Json | Self::Pretty => "application/json",
+        }
+    }
+
+    /// Checks if the query format is 'Pretty'.
+    ///
+    /// Determines if the `QueryFormat` is `Pretty`, which indicates that the JSON
+    /// output should be formatted in a human-readable way. Returns `true` if the
+    /// format is `Pretty`, otherwise returns `false`.
+    fn is_pretty(&self) -> bool {
+        match self {
+            Self::Csv | Self::Json => false,
+            Self::Pretty => true,
+        }
+    }
+
+    /// Extracts the [`QueryFormat`] from an HTTP [`Request`].
+    ///
+    /// Parses the HTTP request to determine the desired query format. The `pretty`
+    /// parameter indicates if the pretty format is requested via a query parameter.
+    /// The function inspects the `Accept` header of the request to determine the
+    /// format, defaulting to JSON if no specific format is requested. If the format
+    /// is invalid or non-UTF8, an error is returned.
+    fn from_request(req: &Request<Body>, pretty: bool) -> Result<Self> {
+        // In V1 pretty format is a Query params
+        if pretty {
+            return Ok(Self::Pretty);
+        }
+
+        let mime_type = req.headers().get(ACCEPT).map(HeaderValue::as_bytes);
+
+        match mime_type {
+            Some(b"application/csv" | b"text/csv") => Ok(Self::Csv),
+            Some(b"application/json" | b"*/*") | None => Ok(Self::Json),
+            Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
+                Ok(s) => Err(Error::InvalidMimeType(s).into()),
+                Err(e) => Err(Error::NonUtf8MimeType(e).into()),
+            },
+        }
+    }
+}
+
 /// UNIX epoch precision
 #[derive(Debug, Deserialize, Clone, Copy)]
 enum Precision {
@@ -140,23 +209,81 @@ pub struct QueryError(#[from] anyhow::Error);
 struct QueryResponse {
     results: Vec<StatementResponse>,
     #[serde(skip_serializing)]
-    pretty: bool,
+    format: QueryFormat,
 }
 
 /// Convert [`QueryResponse`] to [`Bytes`] for `hyper`'s [`Body::wrap_stream`] method
 impl From<QueryResponse> for Bytes {
     fn from(s: QueryResponse) -> Self {
-        if s.pretty {
-            serde_json::to_vec_pretty(&s)
-        } else {
-            serde_json::to_vec(&s)
+        /// Convert a [`QueryResponse`] to a JSON byte vector.
+        ///
+        /// This function serializes the `QueryResponse` to JSON. If the format is
+        /// `Pretty`, it will produce human-readable JSON, otherwise it produces
+        /// compact JSON.
+        fn to_json(s: QueryResponse) -> Vec<u8> {
+            if s.format.is_pretty() {
+                serde_json::to_vec_pretty(&s)
+                    .expect("Failed to serialize QueryResponse to pretty JSON")
+            } else {
+                serde_json::to_vec(&s).expect("Failed to serialize QueryResponse to JSON")
+            }
         }
-        .map(|mut b| {
-            b.extend_from_slice(b"\r\n");
-            b
-        })
-        .expect("valid bytes in statement result")
-        .into()
+
+        /// Convert a [`QueryResponse`] to a CSV byte vector.
+        ///
+        /// This function serializes the `QueryResponse` to CSV format. It dynamically
+        /// extracts column names from the first series and writes the header and data
+        /// rows to the CSV writer.
+        fn to_csv(s: QueryResponse) -> Vec<u8> {
+            let mut wtr = csv::Writer::from_writer(vec![]);
+            // Extract column names dynamically from the first series
+            let mut headers = vec!["name".to_string(), "tags".to_string()];
+            if let Some(first_statement) = s.results.first() {
+                if let Some(first_series) = first_statement.series.first() {
+                    headers.extend(first_series.columns.iter().cloned());
+                }
+            }
+            // Write the header
+            wtr.write_record(&headers)
+                .expect("Failed to write CSV header");
+
+            // Iterate through the hierarchical structure of QueryResponse to write data
+            // to the CSV writer. The loop processes each statement, series, and row to
+            // build and write CSV records. Each record is initialized with the series name
+            // and an empty tag field, followed by the string representations of the row's values.
+            // Finally, the record is written to the CSV writer
+            for statement in s.results {
+                for series in statement.series {
+                    for row in series.values {
+                        let mut record = vec![series.name.clone(), "".to_string()];
+                        for v in row.0 {
+                            record.push(v.to_string());
+                        }
+                        wtr.write_record(&record)
+                            .expect("Failed to write CSV record");
+                    }
+                }
+            }
+
+            // Flush the CSV writer to ensure all data is written
+            wtr.flush().expect("flush csv writer");
+
+            wtr.into_inner().expect("into_inner from csv writer")
+        }
+
+        /// Extend a byte vector with CRLF and convert it to [`Bytes`].
+        ///
+        /// This function appends a CRLF (`\r\n`) sequence to the given byte vector
+        /// and converts it to a `Bytes` object.
+        fn extend_with_crlf(mut bytes: Vec<u8>) -> Bytes {
+            bytes.extend_from_slice(b"\r\n");
+            Bytes::from(bytes)
+        }
+
+        match s.format {
+            QueryFormat::Pretty | QueryFormat::Json => extend_with_crlf(to_json(s)),
+            QueryFormat::Csv => extend_with_crlf(to_csv(s)),
+        }
     }
 }
 
@@ -264,7 +391,7 @@ impl ChunkBuffer {
 /// `chunked` mode, the entire input stream of [`RecordBatch`]es will be buffered
 /// into memory before being emitted.
 ///
-/// `pretty` will emit pretty formatted JSON.
+/// `format` will emit CSV, JSON or pretty formatted JSON.
 ///
 /// Providing an `epoch` [`Precision`] will have the `time` column values emitted
 /// as UNIX epoch times with the given precision.
@@ -276,7 +403,7 @@ struct QueryResponseStream {
     input: Fuse<SendableRecordBatchStream>,
     column_map: HashMap<String, usize>,
     statement_id: usize,
-    pretty: bool,
+    format: QueryFormat,
     epoch: Option<Precision>,
 }
 
@@ -288,7 +415,7 @@ impl QueryResponseStream {
         statement_id: usize,
         input: SendableRecordBatchStream,
         chunk_size: Option<usize>,
-        pretty: bool,
+        format: QueryFormat,
         epoch: Option<Precision>,
     ) -> Result<Self, anyhow::Error> {
         let buffer = ChunkBuffer::new(chunk_size);
@@ -310,7 +437,7 @@ impl QueryResponseStream {
             buffer,
             column_map,
             input: input.fuse(),
-            pretty,
+            format,
             statement_id,
             epoch,
         })
@@ -402,7 +529,7 @@ impl QueryResponseStream {
                 statement_id: self.statement_id,
                 series,
             }],
-            pretty: self.pretty,
+            format: self.format,
         }
     }
 
@@ -424,7 +551,7 @@ impl QueryResponseStream {
                 statement_id: self.statement_id,
                 series,
             }],
-            pretty: self.pretty,
+            format: self.format,
         })
     }
 }
