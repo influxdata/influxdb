@@ -216,9 +216,12 @@ func (w *CountingWriter) Write(p []byte) (n int, err error) {
 // retentionAndShardFromPath will take the shard relative path and split it into the
 // retention policy name and shard ID. The first part of the path should be the database name.
 func DBRetentionAndShardFromPath(path string) (db, retention, shard string, err error) {
-	a := strings.Split(path, string(filepath.Separator))
+	a := strings.Split(path, string('/'))
 	if len(a) != 3 {
-		return "", "", "", fmt.Errorf("expected database, retention policy, and shard id in path: %s", path)
+		a = strings.Split(path, string('\\'))
+		if len(a) != 3 {
+			return "", "", "", fmt.Errorf("expected database, retention policy, and shard id in path: %s", path)
+		}
 	}
 
 	return a[0], a[1], a[2], nil
