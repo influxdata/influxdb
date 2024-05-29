@@ -85,6 +85,12 @@ impl WriteBufferFlusher {
         &self,
         segmented_data: Vec<ValidSegmentedData>,
     ) -> crate::write_buffer::Result<()> {
+        // Check for presence of valid segment data, otherwise, the await on the response receiver
+        // will hang below.
+        if segmented_data.is_empty() {
+            return Ok(());
+        }
+
         let (response_tx, response_rx) = oneshot::channel();
 
         self.buffer_tx

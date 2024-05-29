@@ -469,25 +469,22 @@ pub(crate) fn parse_validate_and_update_schema(
     let mut valid_parsed_and_raw_lines: Vec<(ParsedLine, &str)> = vec![];
 
     for (line_idx, maybe_line) in parse_lines(lp).enumerate() {
-        let line = match maybe_line {
+        let line = match maybe_line
+            .map_err(|e| WriteLineError {
+                // This unwrap is fine because we're moving line by line
+                // alongside the output from parse_lines
+                original_line: lp_lines.next().unwrap().to_string(),
+                line_number: line_idx + 1,
+                error_message: e.to_string(),
+            })
+            .and_then(|l| validate_line_schema(line_idx, l, schema))
+        {
             Ok(line) => line,
             Err(e) => {
                 if !accept_partial {
-                    return Err(Error::ParseError(WriteLineError {
-                        // This unwrap is fine because we're moving line by line
-                        // alongside the output from parse_lines
-                        original_line: lp_lines.next().unwrap().to_string(),
-                        line_number: line_idx + 1,
-                        error_message: e.to_string(),
-                    }));
+                    return Err(Error::ParseError(e));
                 } else {
-                    errors.push(WriteLineError {
-                        original_line: lp_lines.next().unwrap().to_string(),
-                        // This unwrap is fine because we're moving line by line
-                        // alongside the output from parse_lines
-                        line_number: line_idx + 1,
-                        error_message: e.to_string(),
-                    });
+                    errors.push(e);
                 }
                 continue;
             }
@@ -510,6 +507,40 @@ pub(crate) fn parse_validate_and_update_schema(
         result.errors = errors;
         result
     })
+}
+
+/// Validate a line of line protocol against the given schema definition
+///
+/// This is for scenarios where a write comes in for a table that exists, but may have invalid field
+/// types, based on the pre-existing schema.
+fn validate_line_schema<'a>(
+    line_number: usize,
+    line: ParsedLine<'a>,
+    schema: &DatabaseSchema,
+) -> Result<ParsedLine<'a>, WriteLineError> {
+    let table_name = line.series.measurement.as_str();
+    if let Some(table_schema) = schema.get_table_schema(table_name) {
+        for (field_name, field_val) in line.field_set.iter() {
+            if let Some(schema_col_type) = table_schema.field_type_by_name(field_name) {
+                let field_col_type = column_type_from_field(field_val);
+                if field_col_type != schema_col_type {
+                    let field_name = field_name.to_string();
+                    return Err(WriteLineError {
+                        original_line: line.to_string(),
+                        line_number: line_number + 1,
+                        error_message: format!(
+                            "invalid field value in line protocol for field '{field_name}' on line \
+                            {line_number}: expected type {expected}, but got {got}",
+                            expected = ColumnType::from(schema_col_type),
+                            got = field_col_type,
+                        ),
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(line)
 }
 
 /// Takes parsed lines, validates their schema. If new tables or columns are defined, they

@@ -1,4 +1,5 @@
 use hyper::StatusCode;
+use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 
 use crate::TestServer;
@@ -270,5 +271,52 @@ async fn api_v2_write_round_trip() {
         | cpu              | 1970-01-01T00:00:00.000000002 | a    | 0.6   |\n\
         | cpu              | 1970-01-01T00:00:00.000000003 | a    | 0.7   |\n\
         +------------------+-------------------------------+------+-------+"
+    );
+}
+
+/// Reproducer for [#25006][issue]
+///
+/// [issue]: https://github.com/influxdata/influxdb/issues/25006
+#[tokio::test]
+async fn writes_with_different_schema_should_fail() {
+    let server = TestServer::spawn().await;
+    // send a valid write request with the field t0_f0 as an integer:
+    server
+        .write_lp_to_db(
+            "foo",
+            "\
+            t0,t0_tag0=initTag t0_f0=0i 1715694000\n\
+            t0,t0_tag0=initTag t0_f0=1i 1715694001\n\
+            t0,t0_tag1=initTag t0_f0=0i 1715694000",
+            Precision::Second,
+        )
+        .await
+        .expect("writes LP with integer field");
+
+    // send another write request, to the same db, but with field t0_f0 as an unsigned integer:
+    let error = server
+        .write_lp_to_db(
+            "foo",
+            "\
+            t0,t0_tag0=initTag t0_f0=0u 1715694000\n\
+            t0,t0_tag0=initTag t0_f0=1u 1715694001\n\
+            t0,t0_tag1=initTag t0_f0=0u 1715694000",
+            Precision::Second,
+        )
+        .await
+        .expect_err("should fail when writing LP with same field as unsigned integer");
+
+    println!("error: {error:#?}");
+
+    // the request should have failed with an API error indicating incorrect schema for the field:
+    assert!(
+        matches!(
+            error,
+            influxdb3_client::Error::ApiError {
+                code: StatusCode::BAD_REQUEST,
+                message: _
+            }
+        ),
+        "the request should hae failed with an API Error"
     );
 }
