@@ -521,8 +521,8 @@ fn validate_line_schema<'a>(
     let table_name = line.series.measurement.as_str();
     if let Some(table_schema) = schema.get_table_schema(table_name) {
         for (field_name, field_val) in line.field_set.iter() {
-            if let Some(schema_col_type) = table_schema.field_type_by_name(&field_name) {
-                let field_col_type = column_type_from_field(&field_val);
+            if let Some(schema_col_type) = table_schema.field_type_by_name(field_name) {
+                let field_col_type = column_type_from_field(field_val);
                 if field_col_type != schema_col_type {
                     let field_name = field_name.to_string();
                     return Err(WriteLineError {
