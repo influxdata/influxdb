@@ -783,8 +783,8 @@ impl QueryFormat {
             Some(b"text/plain") => Ok(Self::Pretty),
             Some(b"application/json" | b"*/*") | None => Ok(Self::Json),
             Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
-                Ok(s) => Err(Error::InvalidMimeType(s).into()),
-                Err(e) => Err(Error::NonUtf8MimeType(e).into()),
+                Ok(s) => Err(Error::InvalidMimeType(s)),
+                Err(e) => Err(Error::NonUtf8MimeType(e)),
             },
         }
     }

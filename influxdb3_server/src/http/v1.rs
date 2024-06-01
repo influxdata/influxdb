@@ -168,8 +168,8 @@ impl QueryFormat {
             Some(b"application/csv" | b"text/csv") => Ok(Self::Csv),
             Some(b"application/json" | b"*/*") | None => Ok(Self::Json),
             Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
-                Ok(s) => Err(Error::InvalidMimeType(s).into()),
-                Err(e) => Err(Error::NonUtf8MimeType(e).into()),
+                Ok(s) => Err(Error::InvalidMimeType(s)),
+                Err(e) => Err(Error::NonUtf8MimeType(e)),
             },
         }
     }
