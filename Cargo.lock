@@ -2579,6 +2579,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "chrono",
+ "csv",
  "data_types",
  "datafusion",
  "datafusion_util",
