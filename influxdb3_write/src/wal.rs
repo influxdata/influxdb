@@ -261,7 +261,7 @@ impl WalSegmentWriterImpl {
             f,
             bytes_written,
             sequence_number: SequenceNumber::new(0),
-            buffer: Vec::with_capacity(8 * 1204), // 8kiB initial size
+            buffer: Vec::with_capacity(8 * 1024), // 8kiB initial size
         })
     }
     pub fn open(root: PathBuf, segment_id: SegmentId) -> Result<Self> {
@@ -280,7 +280,7 @@ impl WalSegmentWriterImpl {
                     .try_into()
                     .expect("file length must fit in usize"),
                 sequence_number: file_info.last_sequence_number,
-                buffer: Vec::with_capacity(8 * 1204), // 8kiB initial size
+                buffer: Vec::with_capacity(8 * 1024), // 8kiB initial size
             })
         } else {
             Err(Error::FileDoesntExist(path.to_path_buf()))
