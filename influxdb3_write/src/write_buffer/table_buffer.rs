@@ -10,7 +10,7 @@ use arrow::datatypes::{GenericStringType, Int32Type, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use data_types::{PartitionKey, TimestampMinMax};
 use datafusion::logical_expr::{BinaryExpr, Expr};
-use observability_deps::tracing::{debug, info};
+use observability_deps::tracing::debug;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::mem::size_of;
 use std::sync::Arc;
@@ -49,14 +49,12 @@ impl TableBuffer {
     }
 
     pub fn add_rows(&mut self, rows: Vec<Row>) {
-        info!(n_rows = rows.len(), "add_rows");
         let new_row_count = rows.len();
 
         for (row_index, r) in rows.into_iter().enumerate() {
             let mut value_added = HashSet::with_capacity(r.fields.len());
 
             for f in r.fields {
-                info!(row_index, field = ?f, "process field");
                 value_added.insert(f.name.clone());
 
                 match f.value {

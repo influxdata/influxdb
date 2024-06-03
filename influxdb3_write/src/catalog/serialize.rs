@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use arrow::datatypes::DataType as ArrowDataType;
 use schema::SchemaBuilder;
 use serde::{Deserialize, Serialize};
@@ -26,7 +28,7 @@ impl<'de> Deserialize<'de> for TableDefinition {
 #[derive(Debug, Serialize, Deserialize)]
 struct TableSnapshot<'a> {
     name: &'a str,
-    cols: Vec<ColumnDefinition<'a>>,
+    cols: BTreeMap<&'a str, ColumnDefinition<'a>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -51,19 +53,31 @@ enum DataType<'a> {
     Bin,
     BigBin,
     BinView,
+    Dict(Box<DataType<'a>>, Box<DataType<'a>>),
     Time(TimeUnit, Option<&'a str>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 enum TimeUnit {
     #[serde(rename = "s")]
-    Seconds,
+    Second,
     #[serde(rename = "ms")]
-    Milliseconds,
+    Millisecond,
     #[serde(rename = "us")]
-    Microseconds,
+    Microsecond,
     #[serde(rename = "ns")]
-    Nanoseconds,
+    Nanosecond,
+}
+
+impl From<arrow::datatypes::TimeUnit> for TimeUnit {
+    fn from(arrow_unit: arrow::datatypes::TimeUnit) -> Self {
+        match arrow_unit {
+            arrow::datatypes::TimeUnit::Second => Self::Second,
+            arrow::datatypes::TimeUnit::Millisecond => Self::Millisecond,
+            arrow::datatypes::TimeUnit::Microsecond => Self::Microsecond,
+            arrow::datatypes::TimeUnit::Nanosecond => Self::Nanosecond,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -85,34 +99,49 @@ struct ColumnDefinition<'a> {
 impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
     fn from(def: &'a TableDefinition) -> Self {
         let name = def.name.as_str();
-        let mut cols: Vec<ColumnDefinition<'_>> = def
+        let mut cols: BTreeMap<&str, ColumnDefinition<'_>> = def
             .schema()
             .fields_iter()
-            .map(|f| ColumnDefinition {
-                name: f.name(),
-                r#type: f.data_type().into(),
-                meta: InfluxType::Field,
-                nullable: f.is_nullable(),
+            .map(|f| {
+                (
+                    f.name().as_str(),
+                    ColumnDefinition {
+                        name: f.name(),
+                        r#type: f.data_type().into(),
+                        meta: InfluxType::Field,
+                        nullable: f.is_nullable(),
+                    },
+                )
             })
             .collect();
-        cols.extend(def.schema().tags_iter().map(|f| ColumnDefinition {
-            name: f.name(),
-            r#type: f.data_type().into(),
-            meta: InfluxType::Tag,
-            nullable: true,
+        cols.extend(def.schema().tags_iter().map(|f| {
+            (
+                f.name().as_str(),
+                ColumnDefinition {
+                    name: f.name(),
+                    r#type: f.data_type().into(),
+                    meta: InfluxType::Tag,
+                    nullable: true,
+                },
+            )
         }));
-        cols.extend(def.schema().time_iter().map(|f| ColumnDefinition {
-            name: f.name(),
-            r#type: f.data_type().into(),
-            meta: InfluxType::Time,
-            nullable: false,
+        cols.extend(def.schema().time_iter().map(|f| {
+            (
+                f.name().as_str(),
+                ColumnDefinition {
+                    name: f.name(),
+                    r#type: f.data_type().into(),
+                    meta: InfluxType::Time,
+                    nullable: false,
+                },
+            )
         }));
         Self { name, cols }
     }
 }
 
 impl<'a> From<&'a ArrowDataType> for DataType<'a> {
-    fn from(arrow_type: &ArrowDataType) -> Self {
+    fn from(arrow_type: &'a ArrowDataType) -> Self {
         match arrow_type {
             ArrowDataType::Null => Self::Null,
             ArrowDataType::Boolean => Self::Bool,
@@ -127,7 +156,9 @@ impl<'a> From<&'a ArrowDataType> for DataType<'a> {
             ArrowDataType::Float16 => Self::F16,
             ArrowDataType::Float32 => Self::F32,
             ArrowDataType::Float64 => Self::F64,
-            ArrowDataType::Timestamp(_, _) => todo!(),
+            // Arrow's TimeUnit does not impl Copy, so we cheaply clone it:
+            // See <https://github.com/apache/arrow-rs/issues/5839>
+            ArrowDataType::Timestamp(unit, tz) => Self::Time(unit.clone().into(), tz.as_deref()),
             ArrowDataType::Date32 => todo!(),
             ArrowDataType::Date64 => todo!(),
             ArrowDataType::Time32(_) => todo!(),
@@ -148,7 +179,10 @@ impl<'a> From<&'a ArrowDataType> for DataType<'a> {
             ArrowDataType::LargeListView(_) => todo!(),
             ArrowDataType::Struct(_) => todo!(),
             ArrowDataType::Union(_, _) => todo!(),
-            ArrowDataType::Dictionary(_, _) => todo!(),
+            ArrowDataType::Dictionary(key_type, val_type) => Self::Dict(
+                Box::new(key_type.as_ref().into()),
+                Box::new(val_type.as_ref().into()),
+            ),
             ArrowDataType::Decimal128(_, _) => todo!(),
             ArrowDataType::Decimal256(_, _) => todo!(),
             ArrowDataType::Map(_, _) => todo!(),
@@ -161,8 +195,10 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
     fn from(snap: TableSnapshot<'a>) -> Self {
         let name = snap.name.to_owned();
         let mut b = SchemaBuilder::new();
-        b.measurement(&name);
-        for col in snap.cols {
+        // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
+        // tests, so I am omitting this for now:
+        // b.measurement(&name);
+        for (_, col) in snap.cols {
             match col.meta {
                 InfluxType::Tag => {
                     b.influx_column(col.name, schema::InfluxColumnType::Tag);
@@ -170,10 +206,11 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
                 InfluxType::Field => {
                     b.influx_field(col.name, col.r#type.into());
                 }
-                InfluxType::Time => (),
+                InfluxType::Time => {
+                    b.timestamp();
+                }
             }
         }
-        b.timestamp();
 
         let schema = b.build().expect("valid schema from snapshot");
 

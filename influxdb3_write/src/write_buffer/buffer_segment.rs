@@ -619,7 +619,7 @@ pub(crate) mod tests {
             )
             .unwrap()
             .unwrap();
-        let expected_cpu_table = vec![
+        let expected_cpu_table = [
             "+-----+----------+--------------------------------+",
             "| bar | tag1     | time                           |",
             "+-----+----------+--------------------------------+",
@@ -627,7 +627,7 @@ pub(crate) mod tests {
             "| 2.0 | cupcakes | 1970-01-01T00:00:00.000000030Z |",
             "+-----+----------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected_cpu_table, &[cpu_table]);
+        assert_batches_eq!(expected_cpu_table, &[cpu_table]);
 
         let mem_table = open_segment
             .table_record_batch(
@@ -638,14 +638,14 @@ pub(crate) mod tests {
             )
             .unwrap()
             .unwrap();
-        let expected_mem_table = vec![
+        let expected_mem_table = [
             "+-----+--------+--------------------------------+",
             "| bar | tag2   | time                           |",
             "+-----+--------+--------------------------------+",
             "| 2.0 | snakes | 1970-01-01T00:00:00.000000020Z |",
             "+-----+--------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected_mem_table, &[mem_table]);
+        assert_batches_eq!(expected_mem_table, &[mem_table]);
     }
 
     #[tokio::test]
@@ -695,7 +695,7 @@ pub(crate) mod tests {
             )
             .unwrap()
             .unwrap();
-        let expected_cpu_table = vec![
+        let expected_cpu_table = [
             "+-----+------+------+----------+------+--------------------------------+",
             "| bar | fval | ival | tag1     | tag2 | time                           |",
             "+-----+------+------+----------+------+--------------------------------+",
@@ -706,7 +706,7 @@ pub(crate) mod tests {
             "|     | 2.1  |      |          |      | 1970-01-01T00:00:00.000000040Z |",
             "+-----+------+------+----------+------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected_cpu_table, &[cpu_table]);
+        assert_batches_eq!(expected_cpu_table, &[cpu_table]);
     }
 
     #[tokio::test]

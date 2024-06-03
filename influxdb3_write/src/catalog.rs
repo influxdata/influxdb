@@ -245,16 +245,21 @@ impl TableDefinition {
         name: impl Into<String>,
         columns: impl AsRef<[(String, InfluxColumnType)]>,
     ) -> Self {
-        let mut schema_builder = SchemaBuilder::with_capacity(columns.as_ref().len());
+        let mut ordered_columns = BTreeMap::new();
         for (name, column_type) in columns.as_ref() {
+            ordered_columns.insert(name, column_type);
+        }
+        let mut schema_builder = SchemaBuilder::with_capacity(columns.as_ref().len());
+        let name = name.into();
+        // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
+        // tests, so I am omitting this for now:
+        // schema_builder.measurement(&name);
+        for (name, column_type) in ordered_columns {
             schema_builder.influx_column(name, *column_type);
         }
         let schema = schema_builder.build().unwrap();
 
-        Self {
-            name: name.into(),
-            schema,
-        }
+        Self { name, schema }
     }
 
     pub(crate) fn column_exists(&self, column: &str) -> bool {
@@ -262,9 +267,19 @@ impl TableDefinition {
     }
 
     pub(crate) fn add_columns(&mut self, columns: Vec<(String, InfluxColumnType)>) {
+        let mut cols = BTreeMap::new();
+        for (col_type, field) in self.schema.iter() {
+            cols.insert(field.name(), col_type);
+        }
+        for (name, column_type) in columns.iter() {
+            cols.insert(&name, *column_type);
+        }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
-        for (name, column_type) in columns {
-            schema_builder.influx_column(name, column_type);
+        // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
+        // tests, so I am omitting this for now:
+        // schema_builder.measurement(&self.name);
+        for (name, col_type) in cols {
+            schema_builder.influx_column(name, col_type);
         }
         let schema = schema_builder.build().unwrap();
 
