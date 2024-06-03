@@ -10,7 +10,7 @@ use arrow::datatypes::{GenericStringType, Int32Type, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use data_types::{PartitionKey, TimestampMinMax};
 use datafusion::logical_expr::{BinaryExpr, Expr};
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, info};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::mem::size_of;
 use std::sync::Arc;
@@ -37,7 +37,7 @@ pub struct TableBuffer {
 }
 
 impl TableBuffer {
-    pub fn new(segment_key: PartitionKey, index_columns: &[String]) -> Self {
+    pub fn new(segment_key: PartitionKey, index_columns: &[&str]) -> Self {
         Self {
             segment_key,
             timestamp_min: i64::MAX,
@@ -49,12 +49,14 @@ impl TableBuffer {
     }
 
     pub fn add_rows(&mut self, rows: Vec<Row>) {
+        info!(n_rows = rows.len(), "add_rows");
         let new_row_count = rows.len();
 
         for (row_index, r) in rows.into_iter().enumerate() {
             let mut value_added = HashSet::with_capacity(r.fields.len());
 
             for f in r.fields {
+                info!(row_index, field = ?f, "process field");
                 value_added.insert(f.name.clone());
 
                 match f.value {
@@ -263,10 +265,10 @@ struct BufferIndex {
 }
 
 impl BufferIndex {
-    fn new(columns: &[String]) -> Self {
+    fn new(columns: &[&str]) -> Self {
         let columns = columns
             .iter()
-            .map(|c| (c.clone(), HashMap::new()))
+            .map(|c| (c.to_string(), HashMap::new()))
             .collect();
         Self { columns }
     }
@@ -442,7 +444,7 @@ mod tests {
 
     #[test]
     fn tag_row_index() {
-        let mut table_buffer = TableBuffer::new(PartitionKey::from("table"), &["tag".to_string()]);
+        let mut table_buffer = TableBuffer::new(PartitionKey::from("table"), &["tag"]);
         let schema = SchemaBuilder::with_capacity(3)
             .tag("tag")
             .influx_field("value", InfluxFieldType::Integer)
@@ -567,7 +569,7 @@ mod tests {
 
     #[test]
     fn computed_size_of_buffer() {
-        let mut table_buffer = TableBuffer::new(PartitionKey::from("table"), &["tag".to_string()]);
+        let mut table_buffer = TableBuffer::new(PartitionKey::from("table"), &["tag"]);
 
         let rows = vec![
             Row {
