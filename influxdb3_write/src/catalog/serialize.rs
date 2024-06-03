@@ -25,6 +25,12 @@ impl<'de> Deserialize<'de> for TableDefinition {
     }
 }
 
+/// A snapshot of a [`TableDefinition`] used for serialization of table information from the
+/// catalog.
+///
+/// This is used over serde's `Serialize`/`Deserialize` implementations on the inner `Schema` type
+/// due to them being considered unstable. This type intends to mimic the structure of the Arrow
+/// `Schema`, and will help guard against potential breaking changes to the Arrow Schema types.
 #[serde_with::serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 struct TableSnapshot<'a> {
@@ -33,6 +39,7 @@ struct TableSnapshot<'a> {
     cols: BTreeMap<&'a str, ColumnDefinition<'a>>,
 }
 
+/// Representation of Arrow's `DataType` for table snapshots.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum DataType<'a> {
@@ -59,6 +66,7 @@ enum DataType<'a> {
     Time(TimeUnit, Option<&'a str>),
 }
 
+/// Representation of Arrow's `TimeUnit` for table snapshots.
 #[derive(Debug, Serialize, Deserialize)]
 enum TimeUnit {
     #[serde(rename = "s")]
@@ -82,6 +90,7 @@ impl From<arrow::datatypes::TimeUnit> for TimeUnit {
     }
 }
 
+/// Used to annotate columns in a Schema by their respective type in the Influx Data Model
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum InfluxType {
@@ -90,11 +99,16 @@ enum InfluxType {
     Time,
 }
 
+/// The inner column definition for a [`TableSnapshot`]
 #[derive(Debug, Serialize, Deserialize)]
 struct ColumnDefinition<'a> {
+    /// The column name
     name: &'a str,
+    /// The column's data type
     r#type: DataType<'a>,
-    meta: InfluxType,
+    /// The columns Influx type
+    influx_type: InfluxType,
+    /// Whether the column can hold NULL values
     nullable: bool,
 }
 
@@ -110,7 +124,7 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
                     ColumnDefinition {
                         name: f.name(),
                         r#type: f.data_type().into(),
-                        meta: InfluxType::Field,
+                        influx_type: InfluxType::Field,
                         nullable: f.is_nullable(),
                     },
                 )
@@ -122,7 +136,7 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
                 ColumnDefinition {
                     name: f.name(),
                     r#type: f.data_type().into(),
-                    meta: InfluxType::Tag,
+                    influx_type: InfluxType::Tag,
                     nullable: true,
                 },
             )
@@ -133,7 +147,7 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
                 ColumnDefinition {
                     name: f.name(),
                     r#type: f.data_type().into(),
-                    meta: InfluxType::Time,
+                    influx_type: InfluxType::Time,
                     nullable: false,
                 },
             )
@@ -201,7 +215,7 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
         // tests, so I am omitting this for now:
         // b.measurement(&name);
         for (_, col) in snap.cols {
-            match col.meta {
+            match col.influx_type {
                 InfluxType::Tag => {
                     b.influx_column(col.name, schema::InfluxColumnType::Tag);
                 }

@@ -5,7 +5,7 @@ use influxdb_line_protocol::FieldValue;
 use observability_deps::tracing::info;
 use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use thiserror::Error;
@@ -58,9 +58,9 @@ impl PartialEq for Catalog {
 }
 
 impl Serialize for Catalog {
-    fn serialize<S>(&self, serializer: S) -> std::prelude::v1::Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         self.inner.read().serialize(serializer)
     }
@@ -177,7 +177,7 @@ impl Catalog {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
 pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
     databases: HashMap<String, Arc<DatabaseSchema>>,
@@ -202,7 +202,7 @@ impl InnerCatalog {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct DatabaseSchema {
     pub name: String,
     /// The database is a map of tables
@@ -241,10 +241,14 @@ pub struct TableDefinition {
 }
 
 impl TableDefinition {
+    /// Create a new [`TableDefinition`]
+    ///
+    /// Ensures the the provided columns will be ordered before constructing the schema.
     pub(crate) fn new(
         name: impl Into<String>,
         columns: impl AsRef<[(String, InfluxColumnType)]>,
     ) -> Self {
+        // Use a BTree to ensure that the columns are ordered:
         let mut ordered_columns = BTreeMap::new();
         for (name, column_type) in columns.as_ref() {
             ordered_columns.insert(name, column_type);
@@ -262,11 +266,17 @@ impl TableDefinition {
         Self { name, schema }
     }
 
+    /// Check if the column exists in the [`TableDefinition`]s schema
     pub(crate) fn column_exists(&self, column: &str) -> bool {
         self.schema.find_index_of(column).is_some()
     }
 
+    /// Add the columns to this [`TableDefinition`]
+    ///
+    /// This ensures that the resulting schema has its columns ordered
     pub(crate) fn add_columns(&mut self, columns: Vec<(String, InfluxColumnType)>) {
+        // Use BTree to insert existing and new columns, and use that to generate the
+        // resulting schema, to ensure column order is consistent:
         let mut cols = BTreeMap::new();
         for (col_type, field) in self.schema.iter() {
             cols.insert(field.name(), col_type);
