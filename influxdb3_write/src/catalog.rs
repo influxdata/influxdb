@@ -282,7 +282,7 @@ impl TableDefinition {
             cols.insert(field.name(), col_type);
         }
         for (name, column_type) in columns.iter() {
-            cols.insert(&name, *column_type);
+            cols.insert(name, *column_type);
         }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
         // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
