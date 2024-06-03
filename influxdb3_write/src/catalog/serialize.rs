@@ -25,9 +25,11 @@ impl<'de> Deserialize<'de> for TableDefinition {
     }
 }
 
+#[serde_with::serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 struct TableSnapshot<'a> {
     name: &'a str,
+    #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
     cols: BTreeMap<&'a str, ColumnDefinition<'a>>,
 }
 

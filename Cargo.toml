@@ -82,6 +82,7 @@ secrecy = "0.8.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.7.0"
+serde_with = "3.8.1"
 sha2 = "0.10.8"
 snap = "1.0.0"
 sqlparser = "0.41.0"
