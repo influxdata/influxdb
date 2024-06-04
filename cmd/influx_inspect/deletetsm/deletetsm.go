@@ -157,12 +157,16 @@ func (cmd *Command) process(path string) (retErr error) {
 	if size > 0 {
 		// Replace original file with new file.
 		return os.Rename(outputPath, path)
-	} else if err = os.RemoveAll(path); err != nil {
-		return fmt.Errorf("cannot remove %s: %w", path, err)
-	} else if err = os.RemoveAll(outputPath); err != nil {
-		return fmt.Errorf("cannot remove temporary file %s: %w", outputPath, err)
 	} else {
-		return nil
+		// Empty TSM file of size == 0, remove it
+		if err = os.RemoveAll(path); err != nil {
+			err = fmt.Errorf("cannot remove %s: %w", path, err)
+		}
+		if err2 := os.RemoveAll(outputPath); err2 != nil && err == nil {
+			return fmt.Errorf("cannot remove temporary file %s: %w", outputPath, err)
+		} else {
+			return err
+		}
 	}
 }
 
