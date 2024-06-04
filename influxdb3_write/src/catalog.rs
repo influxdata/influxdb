@@ -244,14 +244,14 @@ impl TableDefinition {
     /// Create a new [`TableDefinition`]
     ///
     /// Ensures the the provided columns will be ordered before constructing the schema.
-    pub(crate) fn new(
-        name: impl Into<String>,
-        columns: impl AsRef<[(String, InfluxColumnType)]>,
+    pub(crate) fn new<N: Into<String>, CN: AsRef<str>>(
+        name: N,
+        columns: impl AsRef<[(CN, InfluxColumnType)]>,
     ) -> Self {
         // Use a BTree to ensure that the columns are ordered:
         let mut ordered_columns = BTreeMap::new();
         for (name, column_type) in columns.as_ref() {
-            ordered_columns.insert(name, column_type);
+            ordered_columns.insert(name.as_ref(), column_type);
         }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.as_ref().len());
         let name = name.into();
@@ -328,35 +328,67 @@ pub fn influx_column_type_from_field_value(fv: &FieldValue<'_>) -> InfluxColumnT
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_json_snapshot;
+
     use super::*;
 
     #[test]
     fn catalog_serialization() {
         let catalog = Catalog::new();
         let mut database = DatabaseSchema {
-            name: "test".to_string(),
+            name: "test_db".to_string(),
             tables: BTreeMap::new(),
         };
+        use InfluxColumnType::*;
+        use InfluxFieldType::*;
         database.tables.insert(
-            "test".into(),
+            "test_table_1".into(),
             TableDefinition::new(
-                "test",
-                [(
-                    "test".to_string(),
-                    InfluxColumnType::Field(InfluxFieldType::String),
-                )],
+                "test_table_1",
+                [
+                    ("tag_1", Tag),
+                    ("tag_2", Tag),
+                    ("tag_3", Tag),
+                    ("time", Timestamp),
+                    ("string_field", Field(String)),
+                    ("bool_field", Field(Boolean)),
+                    ("i64_field", Field(Integer)),
+                    ("u64_field", Field(UInteger)),
+                    ("f64_field", Field(Float)),
+                ],
+            ),
+        );
+        database.tables.insert(
+            "test_table_2".into(),
+            TableDefinition::new(
+                "test_table_2",
+                [
+                    ("tag_1", Tag),
+                    ("tag_2", Tag),
+                    ("tag_3", Tag),
+                    ("time", Timestamp),
+                    ("string_field", Field(String)),
+                    ("bool_field", Field(Boolean)),
+                    ("i64_field", Field(Integer)),
+                    ("u64_field", Field(UInteger)),
+                    ("f64_field", Field(Float)),
+                ],
             ),
         );
         let database = Arc::new(database);
         catalog
             .replace_database(SequenceNumber::new(0), database)
             .unwrap();
-        let inner = catalog.clone_inner();
 
-        let serialized = serde_json::to_string(&inner).unwrap();
-        let deserialized: InnerCatalog = serde_json::from_str(&serialized).unwrap();
+        // Perform a snapshot test to check that the JSON serialized catalog does not change in an
+        // undesired way when introducing features etc.
+        assert_json_snapshot!(catalog);
 
-        assert_eq!(inner, deserialized);
+        // Serialize/deserialize to ensure roundtrip to/from JSON
+        let serialized = serde_json::to_string(&catalog).unwrap();
+        let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
+        let deserialized = Catalog::from_inner(deserialized_inner);
+        assert_eq!(catalog, deserialized);
     }
 
     #[test]

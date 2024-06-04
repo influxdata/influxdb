@@ -2695,6 +2695,7 @@ dependencies = [
  "futures-util",
  "hex",
  "influxdb-line-protocol",
+ "insta",
  "iox_catalog",
  "iox_http",
  "iox_query",

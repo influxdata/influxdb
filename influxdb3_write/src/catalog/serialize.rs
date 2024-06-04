@@ -102,9 +102,8 @@ enum InfluxType {
 /// The inner column definition for a [`TableSnapshot`]
 #[derive(Debug, Serialize, Deserialize)]
 struct ColumnDefinition<'a> {
-    /// The column name
-    name: &'a str,
     /// The column's data type
+    #[serde(borrow)]
     r#type: DataType<'a>,
     /// The columns Influx type
     influx_type: InfluxType,
@@ -122,7 +121,6 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
                 (
                     f.name().as_str(),
                     ColumnDefinition {
-                        name: f.name(),
                         r#type: f.data_type().into(),
                         influx_type: InfluxType::Field,
                         nullable: f.is_nullable(),
@@ -134,7 +132,6 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
             (
                 f.name().as_str(),
                 ColumnDefinition {
-                    name: f.name(),
                     r#type: f.data_type().into(),
                     influx_type: InfluxType::Tag,
                     nullable: true,
@@ -145,7 +142,6 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
             (
                 f.name().as_str(),
                 ColumnDefinition {
-                    name: f.name(),
                     r#type: f.data_type().into(),
                     influx_type: InfluxType::Time,
                     nullable: false,
@@ -214,13 +210,13 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
         // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
         // tests, so I am omitting this for now:
         // b.measurement(&name);
-        for (_, col) in snap.cols {
+        for (name, col) in snap.cols {
             match col.influx_type {
                 InfluxType::Tag => {
-                    b.influx_column(col.name, schema::InfluxColumnType::Tag);
+                    b.influx_column(name, schema::InfluxColumnType::Tag);
                 }
                 InfluxType::Field => {
-                    b.influx_field(col.name, col.r#type.into());
+                    b.influx_field(name, col.r#type.into());
                 }
                 InfluxType::Time => {
                     b.timestamp();
