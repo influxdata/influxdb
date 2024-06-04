@@ -476,7 +476,7 @@ dependencies = [
 [[package]]
 name = "arrow_util"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "ahash",
  "arrow",
@@ -585,7 +585,7 @@ dependencies = [
 [[package]]
 name = "authz"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "async-trait",
  "backoff",
@@ -654,7 +654,7 @@ dependencies = [
 [[package]]
 name = "backoff"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "observability_deps",
  "rand",
@@ -831,7 +831,7 @@ dependencies = [
 [[package]]
 name = "catalog_cache"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "bytes",
  "dashmap",
@@ -867,9 +867,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "cfg_aliases"
-version = "0.1.1"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
+checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "chrono"
@@ -943,7 +943,7 @@ dependencies = [
 [[package]]
 name = "clap_blocks"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "async-trait",
  "clap",
@@ -953,7 +953,7 @@ dependencies = [
  "humantime",
  "iox_catalog",
  "iox_time",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "libc",
  "metric",
  "non-empty-string",
@@ -1004,7 +1004,7 @@ checksum = "98cc8fbded0c607b7ba9dd60cd98df59af97e84d24e49c8557331cfc26d301ce"
 [[package]]
 name = "client_util"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "http 0.2.12",
  "reqwest 0.11.27",
@@ -1029,15 +1029,6 @@ dependencies = [
  "strum",
  "strum_macros",
  "unicode-width",
-]
-
-[[package]]
-name = "concurrent-queue"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
-dependencies = [
- "crossbeam-utils",
 ]
 
 [[package]]
@@ -1348,7 +1339,7 @@ dependencies = [
 [[package]]
 name = "data_types"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "arrow-buffer",
@@ -1378,7 +1369,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "ahash",
  "arrow",
@@ -1400,6 +1391,7 @@ dependencies = [
  "datafusion-functions-array",
  "datafusion-optimizer",
  "datafusion-physical-expr",
+ "datafusion-physical-expr-common",
  "datafusion-physical-plan",
  "datafusion-sql",
  "flate2",
@@ -1429,7 +1421,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "ahash",
  "arrow",
@@ -1438,6 +1430,7 @@ dependencies = [
  "arrow-schema",
  "chrono",
  "half",
+ "hashbrown 0.14.5",
  "instant",
  "libc",
  "num_cpus",
@@ -1449,7 +1442,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common-runtime"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "tokio",
 ]
@@ -1457,7 +1450,7 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "arrow",
  "chrono",
@@ -1477,7 +1470,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "ahash",
  "arrow",
@@ -1494,7 +1487,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "arrow",
  "base64 0.22.1",
@@ -1520,9 +1513,10 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-aggregate"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "arrow",
+ "arrow-schema",
  "datafusion-common",
  "datafusion-execution",
  "datafusion-expr",
@@ -1535,7 +1529,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-array"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1554,13 +1548,14 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "arrow",
  "async-trait",
  "chrono",
  "datafusion-common",
  "datafusion-expr",
+ "datafusion-functions-aggregate",
  "datafusion-physical-expr",
  "hashbrown 0.14.5",
  "indexmap 2.2.6",
@@ -1572,7 +1567,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "ahash",
  "arrow",
@@ -1602,17 +1597,18 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr-common"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "arrow",
  "datafusion-common",
  "datafusion-expr",
+ "rand",
 ]
 
 [[package]]
 name = "datafusion-physical-plan"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "ahash",
  "arrow",
@@ -1645,13 +1641,26 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "arrow",
  "chrono",
  "datafusion",
  "datafusion-common",
  "datafusion-expr",
+ "datafusion-proto-common",
+ "object_store",
+ "prost 0.12.6",
+]
+
+[[package]]
+name = "datafusion-proto-common"
+version = "38.0.0"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
+dependencies = [
+ "arrow",
+ "chrono",
+ "datafusion-common",
  "object_store",
  "prost 0.12.6",
 ]
@@ -1659,7 +1668,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "38.0.0"
-source = "git+https://github.com/apache/datafusion.git?rev=5fac581efbaffd0e6a9edf931182517524526afd#5fac581efbaffd0e6a9edf931182517524526afd"
+source = "git+https://github.com/apache/datafusion.git?rev=156a525286edf1d452373eb613e081a3a6654d44#156a525286edf1d452373eb613e081a3a6654d44"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1667,6 +1676,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "log",
+ "regex",
  "sqlparser",
  "strum",
 ]
@@ -1674,7 +1684,7 @@ dependencies = [
 [[package]]
 name = "datafusion_util"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "async-trait",
  "datafusion",
@@ -1748,7 +1758,7 @@ dependencies = [
 [[package]]
 name = "dml"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow_util",
  "data_types",
@@ -1855,7 +1865,7 @@ checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 [[package]]
 name = "executor"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "futures",
  "metric",
@@ -1909,7 +1919,7 @@ dependencies = [
 [[package]]
 name = "flightsql"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -2066,7 +2076,7 @@ dependencies = [
 [[package]]
 name = "generated_types"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "observability_deps",
  "once_cell",
@@ -2489,7 +2499,7 @@ dependencies = [
 [[package]]
 name = "influxdb-line-protocol"
 version = "1.0.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "bytes",
  "log",
@@ -2723,7 +2733,7 @@ dependencies = [
 [[package]]
 name = "influxdb_influxql_parser"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "chrono",
  "chrono-tz 0.9.0",
@@ -2739,7 +2749,7 @@ dependencies = [
 [[package]]
 name = "influxdb_iox_client"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -2767,7 +2777,7 @@ dependencies = [
 [[package]]
 name = "ingester_query_grpc"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "base64 0.22.1",
@@ -2823,7 +2833,7 @@ checksum = "8bb03732005da905c88227371639bf1ad885cc712789c011c31c5fb3ab3ccf02"
 [[package]]
 name = "iox_catalog"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "async-trait",
  "backoff",
@@ -2860,7 +2870,7 @@ dependencies = [
 [[package]]
 name = "iox_http"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "async-trait",
  "authz",
@@ -2876,7 +2886,7 @@ dependencies = [
 [[package]]
 name = "iox_query"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "arrow_util",
@@ -2892,7 +2902,7 @@ dependencies = [
  "indexmap 2.2.6",
  "iox_query_params",
  "iox_time",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "metric",
  "object_store",
  "observability_deps",
@@ -2914,7 +2924,7 @@ dependencies = [
 [[package]]
 name = "iox_query_influxql"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "chrono-tz 0.9.0",
@@ -2924,7 +2934,7 @@ dependencies = [
  "influxdb_influxql_parser",
  "iox_query",
  "iox_query_params",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "observability_deps",
  "once_cell",
  "predicate",
@@ -2947,7 +2957,7 @@ dependencies = [
 [[package]]
 name = "iox_query_params"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "datafusion",
@@ -2962,7 +2972,7 @@ dependencies = [
 [[package]]
 name = "iox_system_tables"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "async-trait",
@@ -2974,7 +2984,7 @@ dependencies = [
 [[package]]
 name = "iox_time"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -2985,7 +2995,7 @@ dependencies = [
 [[package]]
 name = "ioxd_common"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "async-trait",
  "authz",
@@ -3060,6 +3070,15 @@ name = "itertools"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
@@ -3227,7 +3246,7 @@ dependencies = [
 [[package]]
 name = "logfmt"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "observability_deps",
  "tracing-subscriber",
@@ -3297,7 +3316,7 @@ dependencies = [
 [[package]]
 name = "metric"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "parking_lot",
  "workspace-hack",
@@ -3306,7 +3325,7 @@ dependencies = [
 [[package]]
 name = "metric_exporters"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "metric",
  "observability_deps",
@@ -3389,14 +3408,14 @@ checksum = "9252111cf132ba0929b6f8e030cac2a24b507f3a4d6db6fb2896f27b354c714b"
 [[package]]
 name = "mutable_batch"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "arrow_util",
  "data_types",
  "hashbrown 0.14.5",
  "iox_time",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "schema",
  "snafu 0.8.3",
  "workspace-hack",
@@ -3405,11 +3424,11 @@ dependencies = [
 [[package]]
 name = "mutable_batch_lp"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "hashbrown 0.14.5",
  "influxdb-line-protocol",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "mutable_batch",
  "snafu 0.8.3",
  "workspace-hack",
@@ -3418,7 +3437,7 @@ dependencies = [
 [[package]]
 name = "mutable_batch_pb"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow_util",
  "dml",
@@ -3432,9 +3451,9 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.28.0"
+version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab2156c4fce2f8df6c499cc1c763e4394b7482525bf2a9701c9d79d215f519e4"
+checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
 dependencies = [
  "bitflags 2.5.0",
  "cfg-if",
@@ -3637,7 +3656,7 @@ dependencies = [
 [[package]]
 name = "observability_deps"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "tracing",
  "workspace-hack",
@@ -3685,7 +3704,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "panic_logging"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "metric",
  "observability_deps",
@@ -3752,7 +3771,7 @@ dependencies = [
 [[package]]
 name = "parquet_file"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "base64 0.22.1",
@@ -3973,19 +3992,16 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 [[package]]
 name = "predicate"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
- "chrono",
  "data_types",
  "datafusion",
  "datafusion_util",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "observability_deps",
  "query_functions",
  "schema",
- "snafu 0.8.3",
- "sqlparser",
  "workspace-hack",
 ]
 
@@ -4182,7 +4198,7 @@ dependencies = [
 [[package]]
 name = "query_functions"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "chrono",
@@ -4635,7 +4651,7 @@ dependencies = [
 [[package]]
 name = "schema"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "hashbrown 0.14.5",
@@ -4782,7 +4798,7 @@ dependencies = [
 [[package]]
 name = "service_common"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "datafusion",
@@ -4794,7 +4810,7 @@ dependencies = [
 [[package]]
 name = "service_grpc_flight"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -4826,7 +4842,7 @@ dependencies = [
 [[package]]
 name = "service_grpc_testing"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "generated_types",
  "observability_deps",
@@ -5092,7 +5108,7 @@ dependencies = [
 [[package]]
 name = "sqlx-hotswap-pool"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "either",
  "futures",
@@ -5381,7 +5397,7 @@ checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
 [[package]]
 name = "test_helpers"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "async-trait",
  "dotenvy",
@@ -5401,7 +5417,7 @@ dependencies = [
 [[package]]
 name = "test_helpers_end_to_end"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -5673,7 +5689,7 @@ dependencies = [
 [[package]]
 name = "tokio_metrics_bridge"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "metric",
  "parking_lot",
@@ -5684,7 +5700,7 @@ dependencies = [
 [[package]]
 name = "tokio_watchdog"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "metric",
  "observability_deps",
@@ -5844,7 +5860,7 @@ checksum = "b6bc1c9ce2b5135ac7f93c72918fc37feb872bdc6a5533a8b85eb4b86bfdae52"
 [[package]]
 name = "tower_trailer"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "futures",
  "http 0.2.12",
@@ -5858,7 +5874,7 @@ dependencies = [
 [[package]]
 name = "trace"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "chrono",
  "observability_deps",
@@ -5870,7 +5886,7 @@ dependencies = [
 [[package]]
 name = "trace_exporters"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "async-trait",
  "clap",
@@ -5888,14 +5904,14 @@ dependencies = [
 [[package]]
 name = "trace_http"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "bytes",
  "futures",
  "hashbrown 0.14.5",
  "http 0.2.12",
  "http-body 0.4.6",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "metric",
  "observability_deps",
  "parking_lot",
@@ -5985,7 +6001,7 @@ dependencies = [
 [[package]]
 name = "tracker"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "futures",
  "hashbrown 0.14.5",
@@ -6005,7 +6021,7 @@ dependencies = [
 [[package]]
 name = "trogging"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "clap",
  "logfmt",
@@ -6524,7 +6540,7 @@ dependencies = [
 [[package]]
 name = "workspace-hack"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94#0f5ecbd6b17f83f7ad4ba55699fc2cd3e151cf94"
+source = "git+https://github.com/influxdata/influxdb3_core?branch=hiltontj/line-protocol-v3#e3cd09f6a540b75036e55d9f67e5d3990dcbbf07"
 dependencies = [
  "ahash",
  "arrow-array",
@@ -6540,7 +6556,6 @@ dependencies = [
  "chrono",
  "clap",
  "clap_builder",
- "concurrent-queue",
  "crossbeam-utils",
  "crypto-common",
  "digest",

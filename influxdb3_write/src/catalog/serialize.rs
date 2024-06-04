@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use arrow::datatypes::DataType as ArrowDataType;
-use schema::{InfluxColumnType, SchemaBuilder};
+use schema::InfluxColumnType;
 use serde::{Deserialize, Serialize};
 
 use super::TableDefinition;
@@ -35,6 +35,7 @@ impl<'de> Deserialize<'de> for TableDefinition {
 #[derive(Debug, Serialize, Deserialize)]
 struct TableSnapshot<'a> {
     name: &'a str,
+    key: Option<Vec<&'a str>>,
     #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
     cols: BTreeMap<&'a str, ColumnDefinition<'a>>,
 }
@@ -99,6 +100,7 @@ impl From<arrow::datatypes::TimeUnit> for TimeUnit {
 #[serde(rename_all = "lowercase")]
 enum InfluxType {
     Tag,
+    Key,
     Field,
     Time,
 }
@@ -107,6 +109,7 @@ impl From<InfluxColumnType> for InfluxType {
     fn from(col_type: InfluxColumnType) -> Self {
         match col_type {
             InfluxColumnType::Tag => Self::Tag,
+            InfluxColumnType::Key => Self::Key,
             InfluxColumnType::Field(_) => Self::Field,
             InfluxColumnType::Timestamp => Self::Time,
         }
@@ -142,7 +145,8 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
                 )
             })
             .collect();
-        Self { name, cols }
+        let key = def.schema().series_key();
+        Self { name, key, cols }
     }
 }
 
@@ -200,27 +204,42 @@ impl<'a> From<&'a ArrowDataType> for DataType<'a> {
 impl<'a> From<TableSnapshot<'a>> for TableDefinition {
     fn from(snap: TableSnapshot<'a>) -> Self {
         let name = snap.name.to_owned();
-        let mut b = SchemaBuilder::new();
-        // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
-        // tests, so I am omitting this for now:
-        // b.measurement(&name);
-        for (name, col) in snap.cols {
-            match col.influx_type {
-                InfluxType::Tag => {
-                    b.influx_column(name, schema::InfluxColumnType::Tag);
-                }
-                InfluxType::Field => {
-                    b.influx_field(name, col.r#type.into());
-                }
-                InfluxType::Time => {
-                    b.timestamp();
-                }
-            }
+        let mut columns = Vec::with_capacity(snap.cols.len());
+        if let Some(key) = snap.key {
+            columns.extend(key.iter().map(|k| (*k, schema::InfluxColumnType::Key)));
+            columns.extend(
+                snap.cols
+                    .into_iter()
+                    .filter_map(|(n, col)| match col.influx_type {
+                        InfluxType::Tag => {
+                            panic!("found tag column in v3 table snapshot with series key")
+                        }
+                        InfluxType::Field => {
+                            Some((n, schema::InfluxColumnType::Field(col.r#type.into())))
+                        }
+                        // Can skip keys because they've already been added, and time because the
+                        // TableDefinition::new will add it.
+                        InfluxType::Key | InfluxType::Time => None,
+                    }),
+            );
+        } else {
+            columns.extend(
+                snap.cols
+                    .into_iter()
+                    .filter_map(|(n, col)| match col.influx_type {
+                        InfluxType::Tag => Some((n, schema::InfluxColumnType::Tag)),
+                        InfluxType::Key => {
+                            panic!("found series key column in legacy table snapshot")
+                        }
+                        InfluxType::Field => {
+                            Some((n, schema::InfluxColumnType::Field(col.r#type.into())))
+                        }
+                        // Can skip time because TableDefinition::new will add it.
+                        InfluxType::Time => None,
+                    }),
+            )
         }
-
-        let schema = b.build().expect("valid schema from snapshot");
-
-        Self { name, schema }
+        Self::new(name, columns)
     }
 }
 

@@ -37,12 +37,10 @@ use observability_deps::tracing::{debug, error};
 use parking_lot::{Mutex, RwLock};
 use parquet_file::storage::ParquetExecInput;
 use schema::InfluxColumnType;
-use sha2::Digest;
-use sha2::Sha256;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::i64;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::watch;
 
@@ -497,7 +495,7 @@ pub(crate) fn parse_validate_and_update_schema(
         valid_parsed_and_raw_lines.push((line, lp_lines.next().unwrap()));
     }
 
-    validate_or_insert_schema_and_partitions(
+    let mut result = validate_or_insert_schema_and_partitions(
         valid_parsed_and_raw_lines,
         schema,
         db_name,
@@ -505,11 +503,9 @@ pub(crate) fn parse_validate_and_update_schema(
         segment_duration,
         precision,
         starting_catalog_sequence_number,
-    )
-    .map(move |mut result| {
-        result.errors = errors;
-        result
-    })
+    );
+    result.errors = errors;
+    Ok(result)
 }
 
 /// Validate a line of line protocol against the given schema definition
@@ -558,7 +554,7 @@ pub(crate) fn validate_or_insert_schema_and_partitions(
     segment_duration: SegmentDuration,
     precision: Precision,
     starting_catalog_sequence_number: SequenceNumber,
-) -> Result<ValidationResult> {
+) -> ValidationResult {
     // The (potentially updated) DatabaseSchema to return to the caller.
     let mut schema = Cow::Borrowed(schema);
 
@@ -581,7 +577,7 @@ pub(crate) fn validate_or_insert_schema_and_partitions(
             ingest_time,
             segment_duration,
             precision,
-        )?;
+        );
     }
 
     let schema = match schema {
@@ -605,14 +601,14 @@ pub(crate) fn validate_or_insert_schema_and_partitions(
         })
         .collect();
 
-    Ok(ValidationResult {
+    ValidationResult {
         schema,
         line_count,
         field_count,
         tag_count,
         errors: vec![],
         valid_segmented_data,
-    })
+    }
 }
 
 /// Check if the table exists in the schema and update the schema if it does not
@@ -680,7 +676,7 @@ fn validate_and_convert_parsed_line<'a>(
     ingest_time: Time,
     segment_duration: SegmentDuration,
     precision: Precision,
-) -> Result<()> {
+) {
     validate_and_update_schema(&line, schema);
 
     // now that we've ensured all columns exist in the schema, construct the actual row and values
@@ -756,8 +752,6 @@ fn validate_and_convert_parsed_line<'a>(
     });
 
     table_batch_map.lines.push(raw_line);
-
-    Ok(())
 }
 
 #[derive(Debug, Default)]
@@ -842,28 +836,6 @@ pub(crate) struct ValidSegmentedData {
 pub(crate) struct TableBatchMap<'a> {
     pub(crate) lines: Vec<&'a str>,
     pub(crate) table_batches: HashMap<String, TableBatch>,
-}
-
-/// The 32 byte SHA256 digest of the full tag set for a line of measurement data
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
-pub struct SeriesId([u8; 32]);
-
-impl std::fmt::Display for SeriesId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}
-
-fn default_series_sha() -> &'static [u8; 32] {
-    static DEFAULT_SERIES_ID_SHA: OnceLock<[u8; 32]> = OnceLock::new();
-    // the unwrap is safe here because the Sha256 digest will always be 32 bytes:
-    DEFAULT_SERIES_ID_SHA.get_or_init(|| Sha256::digest("")[..].try_into().unwrap())
-}
-
-impl Default for SeriesId {
-    fn default() -> Self {
-        Self(default_series_sha().to_owned())
-    }
 }
 
 #[cfg(test)]

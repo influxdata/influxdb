@@ -6,7 +6,7 @@ use observability_deps::tracing::info;
 use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize, Serializer};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -247,24 +247,50 @@ pub struct TableDefinition {
 impl TableDefinition {
     /// Create a new [`TableDefinition`]
     ///
-    /// Ensures the the provided columns will be ordered before constructing the schema.
+    /// The table's schema will order columns in the following way:
+    ///
+    /// 1. **(v3)** series key columns, in their user-defined order _OR_ **(v1/v2)** tag columns, in lexicographical order
+    /// 2. field columns, in lexicographical order
+    /// 3. the time column, which will be added regardless of the `columns` passed to this function
+    ///
+    /// This ordering mimics the order of data in the line protocol used to write to the database.
     pub(crate) fn new<N: Into<String>, CN: AsRef<str>>(
         name: N,
         columns: impl AsRef<[(CN, InfluxColumnType)]>,
     ) -> Self {
-        // Use a BTree to ensure that the columns are ordered:
-        let mut ordered_columns = BTreeMap::new();
+        let mut keys = Vec::new();
+        let mut tags = BTreeSet::new();
+        let mut fields = BTreeMap::new();
         for (name, column_type) in columns.as_ref() {
-            ordered_columns.insert(name.as_ref(), column_type);
+            match column_type {
+                InfluxColumnType::Key => {
+                    keys.push(name.as_ref());
+                }
+                InfluxColumnType::Tag => {
+                    tags.insert(name.as_ref());
+                }
+                InfluxColumnType::Field(_) => {
+                    fields.insert(name.as_ref(), *column_type);
+                }
+                InfluxColumnType::Timestamp => continue,
+            }
+        }
+        if !keys.is_empty() && !tags.is_empty() {
+            panic!("tried to create a table with tags and series key members at the same time");
         }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.as_ref().len());
         let name = name.into();
-        // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
-        // tests, so I am omitting this for now:
-        // schema_builder.measurement(&name);
-        for (name, column_type) in ordered_columns {
-            schema_builder.influx_column(name, *column_type);
+        schema_builder.measurement(&name);
+        for n in keys {
+            schema_builder.influx_column(n, InfluxColumnType::Key);
         }
+        for n in tags {
+            schema_builder.influx_column(n, InfluxColumnType::Tag);
+        }
+        for (n, t) in fields {
+            schema_builder.influx_column(n, t);
+        }
+        schema_builder.timestamp();
         let schema = schema_builder.build().unwrap();
 
         Self { name, schema }
@@ -277,23 +303,60 @@ impl TableDefinition {
 
     /// Add the columns to this [`TableDefinition`]
     ///
-    /// This ensures that the resulting schema has its columns ordered
+    /// This function will preserve the ordering defined in [`TableDefinition::new`].
+    ///
+    /// # Panics
+    ///
+    /// This will panic if tag columns are being added to a v3 table with series keys, or if
+    /// series key columns are being added, as those can only be set on table creation.
     pub(crate) fn add_columns(&mut self, columns: Vec<(String, InfluxColumnType)>) {
-        // Use BTree to insert existing and new columns, and use that to generate the
-        // resulting schema, to ensure column order is consistent:
-        let mut cols = BTreeMap::new();
+        let keys = self.schema.series_key();
+        let mut tags = BTreeSet::new();
+        let mut fields = BTreeMap::new();
         for (col_type, field) in self.schema.iter() {
-            cols.insert(field.name(), col_type);
+            match col_type {
+                InfluxColumnType::Tag => {
+                    tags.insert(field.name());
+                }
+                InfluxColumnType::Field(_) => {
+                    fields.insert(field.name(), col_type);
+                }
+                InfluxColumnType::Key | InfluxColumnType::Timestamp => continue,
+            }
+            fields.insert(field.name(), col_type);
         }
         for (name, column_type) in columns.iter() {
-            cols.insert(name, *column_type);
+            match column_type {
+                InfluxColumnType::Tag => {
+                    if keys.is_some() {
+                        panic!("attempted to add tags to a v3 table which uses series key");
+                    }
+                    tags.insert(name);
+                }
+                InfluxColumnType::Key => {
+                    panic!("attempted to add new series key members to an existing table");
+                }
+                InfluxColumnType::Field(_) => {
+                    fields.insert(name, *column_type);
+                }
+                InfluxColumnType::Timestamp => continue,
+            }
+            fields.insert(name, *column_type);
         }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
-        // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
-        // tests, so I am omitting this for now:
-        // schema_builder.measurement(&self.name);
-        for (name, col_type) in cols {
-            schema_builder.influx_column(name, col_type);
+        schema_builder.measurement(&self.name);
+        if let Some(keys) = keys {
+            for n in keys {
+                schema_builder.influx_column(n, InfluxColumnType::Key);
+            }
+        } else {
+            for n in tags {
+                schema_builder.influx_column(n, InfluxColumnType::Tag);
+            }
+        }
+        schema_builder.timestamp();
+        for (n, t) in fields {
+            schema_builder.influx_column(n, t);
         }
         let schema = schema_builder.build().unwrap();
 
@@ -301,13 +364,19 @@ impl TableDefinition {
     }
 
     pub(crate) fn index_columns(&self) -> Vec<&str> {
-        self.schema
-            .iter()
-            .filter_map(|(col_type, field)| match col_type {
-                InfluxColumnType::Tag => Some(field.name().as_str()),
-                InfluxColumnType::Field(_) | InfluxColumnType::Timestamp => None,
-            })
-            .collect()
+        if let Some(key) = self.schema.series_key() {
+            key
+        } else {
+            self.schema
+                .iter()
+                .filter_map(|(col_type, field)| match col_type {
+                    InfluxColumnType::Tag => Some(field.name().as_str()),
+                    InfluxColumnType::Key
+                    | InfluxColumnType::Field(_)
+                    | InfluxColumnType::Timestamp => None,
+                })
+                .collect()
+        }
     }
 
     #[allow(dead_code)]

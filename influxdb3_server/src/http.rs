@@ -854,6 +854,7 @@ async fn record_batch_stream_to_body(
 const fn true_fn() -> bool {
     true
 }
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct WriteParams {
     pub(crate) db: String,
