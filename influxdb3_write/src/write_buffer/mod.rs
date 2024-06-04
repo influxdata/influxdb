@@ -7,7 +7,9 @@ mod segment_state;
 mod table_buffer;
 
 use crate::cache::ParquetCache;
-use crate::catalog::{Catalog, DatabaseSchema, TableDefinition, TIME_COLUMN_NAME};
+use crate::catalog::{
+    influx_column_type_from_field_value, Catalog, DatabaseSchema, TableDefinition, TIME_COLUMN_NAME,
+};
 use crate::chunk::ParquetChunk;
 use crate::persister::PersisterImpl;
 use crate::write_buffer::flusher::WriteBufferFlusher;
@@ -34,10 +36,11 @@ use object_store::ObjectMeta;
 use observability_deps::tracing::{debug, error};
 use parking_lot::{Mutex, RwLock};
 use parquet_file::storage::ParquetExecInput;
+use schema::InfluxColumnType;
 use sha2::Digest;
 use sha2::Sha256;
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::i64;
 use std::sync::{Arc, OnceLock};
 use thiserror::Error;
@@ -624,13 +627,16 @@ fn validate_and_update_schema(line: &ParsedLine<'_>, schema: &mut Cow<'_, Databa
             if let Some(tagset) = &line.series.tag_set {
                 for (tag_key, _) in tagset {
                     if !t.column_exists(tag_key.as_str()) {
-                        new_cols.push((tag_key.to_string(), ColumnType::Tag as i16));
+                        new_cols.push((tag_key.to_string(), InfluxColumnType::Tag));
                     }
                 }
             }
             for (field_name, value) in &line.field_set {
                 if !t.column_exists(field_name.as_str()) {
-                    new_cols.push((field_name.to_string(), column_type_from_field(value) as i16));
+                    new_cols.push((
+                        field_name.to_string(),
+                        influx_column_type_from_field_value(value),
+                    ));
                 }
             }
 
@@ -640,17 +646,20 @@ fn validate_and_update_schema(line: &ParsedLine<'_>, schema: &mut Cow<'_, Databa
             }
         }
         None => {
-            let mut columns = BTreeMap::new();
+            let mut columns = Vec::new();
             if let Some(tag_set) = &line.series.tag_set {
                 for (tag_key, _) in tag_set {
-                    columns.insert(tag_key.to_string(), ColumnType::Tag as i16);
+                    columns.push((tag_key.to_string(), InfluxColumnType::Tag));
                 }
             }
             for (field_name, value) in &line.field_set {
-                columns.insert(field_name.to_string(), column_type_from_field(value) as i16);
+                columns.push((
+                    field_name.to_string(),
+                    influx_column_type_from_field_value(value),
+                ));
             }
 
-            columns.insert(TIME_COLUMN_NAME.to_string(), ColumnType::Time as i16);
+            columns.push((TIME_COLUMN_NAME.to_string(), InfluxColumnType::Timestamp));
 
             let table = TableDefinition::new(table_name, columns);
 
@@ -891,8 +900,8 @@ mod tests {
         let db = result.schema.unwrap();
 
         assert_eq!(db.tables.len(), 2);
-        assert_eq!(db.tables.get("cpu").unwrap().columns().len(), 3);
-        assert_eq!(db.tables.get("foo").unwrap().columns().len(), 2);
+        assert_eq!(db.tables.get("cpu").unwrap().num_columns(), 3);
+        assert_eq!(db.tables.get("foo").unwrap().num_columns(), 2);
     }
 
     #[tokio::test]
