@@ -40,8 +40,12 @@ struct TableSnapshot<'a> {
 }
 
 /// Representation of Arrow's `DataType` for table snapshots.
+///
+/// Uses `#[non_exhaustive]` with the assumption that variants will be added as we support
+/// more Arrow data types.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 enum DataType<'a> {
     Null,
     Bool,
