@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use arrow::datatypes::DataType as ArrowDataType;
-use schema::SchemaBuilder;
+use schema::{InfluxColumnType, SchemaBuilder};
 use serde::{Deserialize, Serialize};
 
 use super::TableDefinition;
@@ -103,6 +103,16 @@ enum InfluxType {
     Time,
 }
 
+impl From<InfluxColumnType> for InfluxType {
+    fn from(col_type: InfluxColumnType) -> Self {
+        match col_type {
+            InfluxColumnType::Tag => Self::Tag,
+            InfluxColumnType::Field(_) => Self::Field,
+            InfluxColumnType::Timestamp => Self::Time,
+        }
+    }
+}
+
 /// The inner column definition for a [`TableSnapshot`]
 #[derive(Debug, Serialize, Deserialize)]
 struct ColumnDefinition<'a> {
@@ -118,40 +128,20 @@ struct ColumnDefinition<'a> {
 impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
     fn from(def: &'a TableDefinition) -> Self {
         let name = def.name.as_str();
-        let mut cols: BTreeMap<&str, ColumnDefinition<'_>> = def
+        let cols = def
             .schema()
-            .fields_iter()
-            .map(|f| {
+            .iter()
+            .map(|(col_type, f)| {
                 (
                     f.name().as_str(),
                     ColumnDefinition {
                         r#type: f.data_type().into(),
-                        influx_type: InfluxType::Field,
+                        influx_type: col_type.into(),
                         nullable: f.is_nullable(),
                     },
                 )
             })
             .collect();
-        cols.extend(def.schema().tags_iter().map(|f| {
-            (
-                f.name().as_str(),
-                ColumnDefinition {
-                    r#type: f.data_type().into(),
-                    influx_type: InfluxType::Tag,
-                    nullable: true,
-                },
-            )
-        }));
-        cols.extend(def.schema().time_iter().map(|f| {
-            (
-                f.name().as_str(),
-                ColumnDefinition {
-                    r#type: f.data_type().into(),
-                    influx_type: InfluxType::Time,
-                    nullable: false,
-                },
-            )
-        }));
         Self { name, cols }
     }
 }
