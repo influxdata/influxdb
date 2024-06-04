@@ -177,9 +177,11 @@ impl Catalog {
     }
 }
 
+#[serde_with::serde_as]
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
 pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
+    #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
     databases: HashMap<String, Arc<DatabaseSchema>>,
     sequence: SequenceNumber,
 }
@@ -202,10 +204,12 @@ impl InnerCatalog {
     }
 }
 
+#[serde_with::serde_as]
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct DatabaseSchema {
     pub name: String,
     /// The database is a map of tables
+    #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
     pub(crate) tables: BTreeMap<String, TableDefinition>,
 }
 
@@ -329,6 +333,7 @@ pub fn influx_column_type_from_field_value(fv: &FieldValue<'_>) -> InfluxColumnT
 #[cfg(test)]
 mod tests {
     use insta::assert_json_snapshot;
+    use test_helpers::assert_contains;
 
     use super::*;
 
@@ -389,6 +394,78 @@ mod tests {
         let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
         let deserialized = Catalog::from_inner(deserialized_inner);
         assert_eq!(catalog, deserialized);
+    }
+
+    #[test]
+    fn invalid_catalog_deserialization() {
+        // Duplicate databases
+        {
+            let json = r#"{
+                "databases": {
+                    "db1": {
+                        "name": "db1",
+                        "tables": {}
+                    },
+                    "db1": {
+                        "name": "db1",
+                        "tables": {}
+                    }
+                }
+            }"#;
+            let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
+            assert_contains!(err.to_string(), "found duplicate key");
+        }
+        // Duplicate tables
+        {
+            let json = r#"{
+                "databases": {
+                    "db1": {
+                        "name": "db1",
+                        "tables": {
+                            "tbl1": {
+                                "name": "tbl1",
+                                "cols": {}
+                            },
+                            "tbl1": {
+                                "name": "tbl1",
+                                "cols": {}
+                            }
+                        }
+                    }
+                }
+            }"#;
+            let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
+            assert_contains!(err.to_string(), "found duplicate key");
+        }
+        // Duplicate columns
+        {
+            let json = r#"{
+                "databases": {
+                    "db1": {
+                        "name": "db1",
+                        "tables": {
+                            "tbl1": {
+                                "name": "tbl1",
+                                "cols": {
+                                    "col1": {
+                                        "type": "i64",
+                                        "influx_type": "field",
+                                        "nullable": true
+                                    },
+                                    "col1": {
+                                        "type": "u64",
+                                        "influx_type": "field",
+                                        "nullable": true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }"#;
+            let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
+            assert_contains!(err.to_string(), "found duplicate key");
+        }
     }
 
     #[test]
