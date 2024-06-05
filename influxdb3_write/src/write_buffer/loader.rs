@@ -184,7 +184,7 @@ mod tests {
             precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, "db1", lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), "db1", lp);
 
         open_segment.write_wal_ops(vec![wal_op]).unwrap();
         open_segment.buffer_writes(write_batch).unwrap();
@@ -272,7 +272,7 @@ mod tests {
             precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         current_segment.write_wal_ops(vec![wal_op.clone()]).unwrap();
         current_segment.buffer_writes(write_batch).unwrap();
@@ -358,7 +358,7 @@ mod tests {
             precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         current_segment.write_wal_ops(vec![wal_op]).unwrap();
         current_segment.buffer_writes(write_batch).unwrap();
@@ -386,7 +386,7 @@ mod tests {
             precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         let segment_writer = wal
             .new_segment_writer(next_segment_id, next_segment_range)
@@ -534,7 +534,7 @@ mod tests {
             precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         current_segment.write_wal_ops(vec![wal_op]).unwrap();
         current_segment.buffer_writes(write_batch).unwrap();
@@ -555,7 +555,7 @@ mod tests {
             precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         let segment_writer = wal
             .new_segment_writer(next_segment_id, next_segment_range)

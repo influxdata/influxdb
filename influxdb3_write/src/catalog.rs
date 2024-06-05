@@ -379,13 +379,16 @@ impl TableDefinition {
         }
     }
 
-    #[allow(dead_code)]
     pub(crate) fn schema(&self) -> &Schema {
         &self.schema
     }
 
     pub(crate) fn num_columns(&self) -> usize {
         self.schema.len()
+    }
+
+    pub(crate) fn field_type_by_name(&self, name: &str) -> Option<InfluxColumnType> {
+        self.schema.field_type_by_name(name)
     }
 }
 
