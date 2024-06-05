@@ -477,7 +477,11 @@ workflows:
       - test:
           <<: *any_filter
       - build-dev:
-          <<: *any_filter
+          # This workflow requires secrets stored in the environment.
+          # These are not passed to workflows executed on forked
+          # repositories. In this case, skip the workflow, as it
+          # will be executed on merge to main anyways.
+          <<: *nofork_filter
           name: build-dev-<< matrix.target >>
           matrix:
             parameters:
