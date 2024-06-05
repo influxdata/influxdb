@@ -122,6 +122,7 @@ fn validate_v1_line<'a>(
     line_number: usize,
     line: ParsedLine<'a>,
 ) -> Result<ParsedLine<'a>, WriteLineError> {
+    println!("db_schema: {db_schema:?}");
     let table_name = line.series.measurement.as_str();
     if let Some(table_def) = db_schema.get_table(table_name) {
         // This table already exists, so update with any new columns if present:

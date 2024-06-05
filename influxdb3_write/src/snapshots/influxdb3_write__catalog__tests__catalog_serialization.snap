@@ -9,6 +9,7 @@ expression: catalog
       "tables": {
         "test_table_1": {
           "name": "test_table_1",
+          "key": null,
           "cols": {
             "bool_field": {
               "type": "bool",
@@ -79,6 +80,7 @@ expression: catalog
         },
         "test_table_2": {
           "name": "test_table_2",
+          "key": null,
           "cols": {
             "bool_field": {
               "type": "bool",

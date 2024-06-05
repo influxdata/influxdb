@@ -300,11 +300,11 @@ mod tests {
             .unwrap()
             .unwrap();
         let expected = [
-            "+-----+----------+--------------------------------+",
-            "| bar | tag1     | time                           |",
-            "+-----+----------+--------------------------------+",
-            "| 1.0 | cupcakes | 1970-01-01T00:00:00.000000010Z |",
-            "+-----+----------+--------------------------------+",
+            "+----------+-----+--------------------------------+",
+            "| tag1     | bar | time                           |",
+            "+----------+-----+--------------------------------+",
+            "| cupcakes | 1.0 | 1970-01-01T00:00:00.000000010Z |",
+            "+----------+-----+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[cpu_data]);
 
@@ -314,12 +314,12 @@ mod tests {
             .unwrap()
             .unwrap();
         let expected = [
-            "+-----+---------+--------------------------------+",
-            "| bar | tag2    | time                           |",
-            "+-----+---------+--------------------------------+",
-            "| 3.0 | turtles | 1970-01-01T00:00:00.000000015Z |",
-            "| 2.0 | snakes  | 1970-01-01T00:00:00.000000020Z |",
-            "+-----+---------+--------------------------------+",
+            "+---------+-----+--------------------------------+",
+            "| tag2    | bar | time                           |",
+            "+---------+-----+--------------------------------+",
+            "| turtles | 3.0 | 1970-01-01T00:00:00.000000015Z |",
+            "| snakes  | 2.0 | 1970-01-01T00:00:00.000000020Z |",
+            "+---------+-----+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[mem_data]);
 
@@ -418,54 +418,53 @@ mod tests {
         assert!(loaded_state.persisting_buffer_segments.is_empty());
 
         // verify the data was persisted
-        assert_eq!(
-            loaded_state.persisted_segments[0],
-            PersistedSegment {
-                segment_id,
-                segment_wal_size_bytes: 252,
-                segment_parquet_size_bytes: 3458,
-                segment_row_count: 3,
-                segment_min_time: 10,
-                segment_max_time: 20,
-                databases: HashMap::from([(
-                    "db1".to_string(),
-                    DatabaseTables {
-                        tables: HashMap::from([
-                            (
-                                "cpu".to_string(),
-                                TableParquetFiles {
-                                    table_name: "cpu".to_string(),
-                                    parquet_files: vec![ParquetFile {
-                                        path: "dbs/db1/cpu/1970-01-01T00-00/4294967294.parquet"
-                                            .to_string(),
-                                        size_bytes: 1721,
-                                        row_count: 1,
-                                        min_time: 10,
-                                        max_time: 10,
-                                    }],
-                                    sort_key: vec![],
-                                }
-                            ),
-                            (
-                                "mem".to_string(),
-                                TableParquetFiles {
-                                    table_name: "mem".to_string(),
-                                    parquet_files: vec![ParquetFile {
-                                        path: "dbs/db1/mem/1970-01-01T00-00/4294967294.parquet"
-                                            .to_string(),
-                                        size_bytes: 1737,
-                                        row_count: 2,
-                                        min_time: 15,
-                                        max_time: 20,
-                                    }],
-                                    sort_key: vec![],
-                                }
-                            )
-                        ])
-                    }
-                )])
-            }
-        );
+        let actual = &loaded_state.persisted_segments[0];
+        let expected = PersistedSegment {
+            segment_id,
+            segment_wal_size_bytes: 252,
+            segment_parquet_size_bytes: 3650,
+            segment_row_count: 3,
+            segment_min_time: 10,
+            segment_max_time: 20,
+            databases: HashMap::from([(
+                "db1".to_string(),
+                DatabaseTables {
+                    tables: HashMap::from([
+                        (
+                            "cpu".to_string(),
+                            TableParquetFiles {
+                                table_name: "cpu".to_string(),
+                                parquet_files: vec![ParquetFile {
+                                    path: "dbs/db1/cpu/1970-01-01T00-00/4294967294.parquet"
+                                        .to_string(),
+                                    size_bytes: 1817,
+                                    row_count: 1,
+                                    min_time: 10,
+                                    max_time: 10,
+                                }],
+                                sort_key: vec![],
+                            },
+                        ),
+                        (
+                            "mem".to_string(),
+                            TableParquetFiles {
+                                table_name: "mem".to_string(),
+                                parquet_files: vec![ParquetFile {
+                                    path: "dbs/db1/mem/1970-01-01T00-00/4294967294.parquet"
+                                        .to_string(),
+                                    size_bytes: 1833,
+                                    row_count: 2,
+                                    min_time: 15,
+                                    max_time: 20,
+                                }],
+                                sort_key: vec![],
+                            },
+                        ),
+                    ]),
+                },
+            )]),
+        };
+        assert_eq!(&expected, actual);
         let db = loaded_state.catalog.db_schema(db_name).unwrap();
         assert_eq!(db.tables.len(), 3);
         assert!(db.tables.contains_key("cpu"));
@@ -478,11 +477,11 @@ mod tests {
             .unwrap()
             .unwrap();
         let expected = [
-            "+-----+----------+--------------------------------+",
-            "| bar | tag1     | time                           |",
-            "+-----+----------+--------------------------------+",
-            "| 3.0 | cupcakes | 1970-01-01T00:00:00.000000020Z |",
-            "+-----+----------+--------------------------------+",
+            "+----------+-----+--------------------------------+",
+            "| tag1     | bar | time                           |",
+            "+----------+-----+--------------------------------+",
+            "| cupcakes | 3.0 | 1970-01-01T00:00:00.000000020Z |",
+            "+----------+-----+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[cpu_data]);
 
@@ -492,11 +491,11 @@ mod tests {
             .unwrap()
             .unwrap();
         let expected = [
-            "+--------------------------------+-----+",
-            "| time                           | val |",
-            "+--------------------------------+-----+",
-            "| 1970-01-01T00:00:00.000000123Z | 1.0 |",
-            "+--------------------------------+-----+",
+            "+-----+--------------------------------+",
+            "| val | time                           |",
+            "+-----+--------------------------------+",
+            "| 1.0 | 1970-01-01T00:00:00.000000123Z |",
+            "+-----+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[foo_data]);
 
@@ -613,11 +612,11 @@ mod tests {
             .unwrap()
             .unwrap();
         let expected = [
-            "+-----+--------+--------------------------------+",
-            "| bar | tag1   | time                           |",
-            "+-----+--------+--------------------------------+",
-            "| 3.0 | apples | 1970-01-01T00:00:00.000000020Z |",
-            "+-----+--------+--------------------------------+",
+            "+--------+-----+--------------------------------+",
+            "| tag1   | bar | time                           |",
+            "+--------+-----+--------------------------------+",
+            "| apples | 3.0 | 1970-01-01T00:00:00.000000020Z |",
+            "+--------+-----+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[cpu_data]);
 
@@ -627,11 +626,11 @@ mod tests {
             .unwrap()
             .unwrap();
         let expected = [
-            "+--------------------------------+-----+",
-            "| time                           | val |",
-            "+--------------------------------+-----+",
-            "| 1970-01-01T00:00:00.000000123Z | 1.0 |",
-            "+--------------------------------+-----+",
+            "+-----+--------------------------------+",
+            "| val | time                           |",
+            "+-----+--------------------------------+",
+            "| 1.0 | 1970-01-01T00:00:00.000000123Z |",
+            "+-----+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[foo_data]);
 

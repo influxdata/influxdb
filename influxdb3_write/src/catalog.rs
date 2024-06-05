@@ -323,7 +323,6 @@ impl TableDefinition {
                 }
                 InfluxColumnType::Key | InfluxColumnType::Timestamp => continue,
             }
-            fields.insert(field.name(), col_type);
         }
         for (name, column_type) in columns.iter() {
             match column_type {
@@ -341,7 +340,6 @@ impl TableDefinition {
                 }
                 InfluxColumnType::Timestamp => continue,
             }
-            fields.insert(name, *column_type);
         }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
         schema_builder.measurement(&self.name);
@@ -354,10 +352,10 @@ impl TableDefinition {
                 schema_builder.influx_column(n, InfluxColumnType::Tag);
             }
         }
-        schema_builder.timestamp();
         for (n, t) in fields {
             schema_builder.influx_column(n, t);
         }
+        schema_builder.timestamp();
         let schema = schema_builder.build().unwrap();
 
         self.schema = schema;
@@ -560,10 +558,10 @@ mod tests {
         let table = database.tables.get_mut("test").unwrap();
         table.add_columns(vec![("test2".to_string(), InfluxColumnType::Tag)]);
         let schema = table.schema();
+        assert_eq!(schema.field(0).0, InfluxColumnType::Tag);
         assert_eq!(
-            schema.field(0).0,
+            schema.field(1).0,
             InfluxColumnType::Field(InfluxFieldType::String)
         );
-        assert_eq!(schema.field(1).0, InfluxColumnType::Tag);
     }
 }
