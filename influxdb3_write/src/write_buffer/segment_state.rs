@@ -574,7 +574,11 @@ mod tests {
             None,
         );
         open_segment1
-            .buffer_writes(lp_to_write_batch(&catalog, "foo", "cpu bar=1 10"))
+            .buffer_writes(lp_to_write_batch(
+                Arc::clone(&catalog),
+                "foo",
+                "cpu bar=1 10",
+            ))
             .unwrap();
 
         let mut open_segment2 = OpenBufferSegment::new(
@@ -591,7 +595,11 @@ mod tests {
             None,
         );
         open_segment2
-            .buffer_writes(lp_to_write_batch(&catalog, "foo", "cpu bar=2 300000000000"))
+            .buffer_writes(lp_to_write_batch(
+                Arc::clone(&catalog),
+                "foo",
+                "cpu bar=2 300000000000",
+            ))
             .unwrap();
 
         let mut open_segment3 = OpenBufferSegment::new(
@@ -608,7 +616,11 @@ mod tests {
             None,
         );
         open_segment3
-            .buffer_writes(lp_to_write_batch(&catalog, "foo", "cpu bar=3 700000000000"))
+            .buffer_writes(lp_to_write_batch(
+                Arc::clone(&catalog),
+                "foo",
+                "cpu bar=3 700000000000",
+            ))
             .unwrap();
 
         let wal = Arc::new(TestWal::default());

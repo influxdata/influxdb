@@ -8,9 +8,7 @@ use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
 use crate::write_buffer::table_buffer::{Builder, Result as TableBufferResult, TableBuffer};
 use crate::write_buffer::DatabaseSchema;
-use crate::write_buffer::{
-    parse_validate_and_update_catalog, Error, TableBatch, ValidSegmentedData,
-};
+use crate::write_buffer::{Error, TableBatch, ValidSegmentedData};
 use crate::{
     wal, write_buffer, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment,
     Persister, SegmentDuration, SegmentId, SegmentRange, SequenceNumber, TableParquetFiles, WalOp,
@@ -34,6 +32,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
+
+use super::validator::WriteValidator;
 
 #[derive(Debug)]
 pub struct OpenBufferSegment {
@@ -191,15 +191,14 @@ pub(crate) fn load_buffer_from_segment(
         for wal_op in batch.ops {
             match wal_op {
                 WalOp::LpWrite(write) => {
-                    let mut validated_write = parse_validate_and_update_catalog(
-                        NamespaceName::new(write.db_name.clone())?,
-                        &write.lp,
-                        catalog,
-                        Time::from_timestamp_nanos(write.default_time),
-                        segment_duration,
-                        false,
-                        write.precision,
-                    )?;
+                    let ns = NamespaceName::new(write.db_name.clone())?;
+                    let mut validated_write = WriteValidator::initialize(ns, Arc::clone(catalog))?
+                        .v1_parse_lines_and_update_schema(&write.lp, false)?
+                        .convert_lines_to_buffer(
+                            Time::from_timestamp_nanos(write.default_time),
+                            segment_duration,
+                            write.precision,
+                        );
 
                     let db_name = &write.db_name;
                     if !buffered_data.database_buffers.contains_key(db_name) {
@@ -595,7 +594,7 @@ pub(crate) mod tests {
         let db_name: NamespaceName<'static> = NamespaceName::new("db1").unwrap();
 
         let batches = lp_to_table_batches(
-            &catalog,
+            Arc::clone(&catalog),
             "db1",
             "cpu,tag1=cupcakes bar=1 10\nmem,tag2=snakes bar=2 20",
             10,
@@ -604,7 +603,12 @@ pub(crate) mod tests {
         write_batch.add_db_write(db_name.clone(), batches);
         open_segment.buffer_writes(write_batch).unwrap();
 
-        let batches = lp_to_table_batches(&catalog, "db1", "cpu,tag1=cupcakes bar=2 30", 10);
+        let batches = lp_to_table_batches(
+            Arc::clone(&catalog),
+            "db1",
+            "cpu,tag1=cupcakes bar=2 30",
+            10,
+        );
         let mut write_batch = WriteBatch::default();
         write_batch.add_db_write(db_name.clone(), batches);
         open_segment.buffer_writes(write_batch).unwrap();
@@ -663,23 +667,33 @@ pub(crate) mod tests {
 
         let db_name: NamespaceName<'static> = NamespaceName::new("db1").unwrap();
 
-        let batches = lp_to_table_batches(&catalog, "db1", "cpu,tag1=cupcakes bar=1 10", 10);
-        let mut write_batch = WriteBatch::default();
-        write_batch.add_db_write(db_name.clone(), batches);
-        open_segment.buffer_writes(write_batch).unwrap();
-
-        let batches = lp_to_table_batches(&catalog, "db1", "cpu,tag2=asdf bar=2 30", 10);
-        let mut write_batch = WriteBatch::default();
-        write_batch.add_db_write(db_name.clone(), batches);
-        open_segment.buffer_writes(write_batch).unwrap();
-
-        let batches = lp_to_table_batches(&catalog, "db1", "cpu bar=2,ival=7i 30", 10);
+        let batches = lp_to_table_batches(
+            Arc::clone(&catalog),
+            "db1",
+            "cpu,tag1=cupcakes bar=1 10",
+            10,
+        );
         let mut write_batch = WriteBatch::default();
         write_batch.add_db_write(db_name.clone(), batches);
         open_segment.buffer_writes(write_batch).unwrap();
 
         let batches =
-            lp_to_table_batches(&catalog, "db1", "cpu bar=2,ival=9i 40\ncpu fval=2.1 40", 10);
+            lp_to_table_batches(Arc::clone(&catalog), "db1", "cpu,tag2=asdf bar=2 30", 10);
+        let mut write_batch = WriteBatch::default();
+        write_batch.add_db_write(db_name.clone(), batches);
+        open_segment.buffer_writes(write_batch).unwrap();
+
+        let batches = lp_to_table_batches(Arc::clone(&catalog), "db1", "cpu bar=2,ival=7i 30", 10);
+        let mut write_batch = WriteBatch::default();
+        write_batch.add_db_write(db_name.clone(), batches);
+        open_segment.buffer_writes(write_batch).unwrap();
+
+        let batches = lp_to_table_batches(
+            Arc::clone(&catalog),
+            "db1",
+            "cpu bar=2,ival=9i 40\ncpu fval=2.1 40",
+            10,
+        );
         let mut write_batch = WriteBatch::default();
         write_batch.add_db_write(db_name.clone(), batches);
         open_segment.buffer_writes(write_batch).unwrap();
@@ -747,7 +761,7 @@ pub(crate) mod tests {
             precision: crate::Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, "db1", lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), "db1", lp);
 
         open_segment.write_wal_ops(vec![wal_op]).unwrap();
         open_segment.buffer_writes(write_batch).unwrap();
@@ -883,7 +897,12 @@ pub(crate) mod tests {
 
         let db_name: NamespaceName<'static> = NamespaceName::new("db1").unwrap();
 
-        let batches = lp_to_table_batches(&catalog, "db1", "cpu,tag1=cupcakes bar=1 10", 10);
+        let batches = lp_to_table_batches(
+            Arc::clone(&catalog),
+            "db1",
+            "cpu,tag1=cupcakes bar=1 10",
+            10,
+        );
         let mut write_batch = WriteBatch::default();
         write_batch.add_db_write(db_name.clone(), batches);
         segment.buffer_writes(write_batch).unwrap();

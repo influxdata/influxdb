@@ -259,9 +259,7 @@ impl TableDefinition {
         }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.as_ref().len());
         let name = name.into();
-        // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
-        // tests, so I am omitting this for now:
-        // schema_builder.measurement(&name);
+        schema_builder.measurement(&name);
         for (name, column_type) in ordered_columns {
             schema_builder.influx_column(name, *column_type);
         }
@@ -310,13 +308,16 @@ impl TableDefinition {
             .collect()
     }
 
-    #[allow(dead_code)]
     pub(crate) fn schema(&self) -> &Schema {
         &self.schema
     }
 
     pub(crate) fn num_columns(&self) -> usize {
         self.schema.len()
+    }
+
+    pub(crate) fn field_type_by_name(&self, name: &str) -> Option<InfluxColumnType> {
+        self.schema.field_type_by_name(name)
     }
 }
 
@@ -333,6 +334,7 @@ pub fn influx_column_type_from_field_value(fv: &FieldValue<'_>) -> InfluxColumnT
 #[cfg(test)]
 mod tests {
     use insta::assert_json_snapshot;
+    use pretty_assertions::assert_eq;
     use test_helpers::assert_contains;
 
     use super::*;

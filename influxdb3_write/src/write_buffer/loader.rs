@@ -184,7 +184,7 @@ mod tests {
             precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, "db1", lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), "db1", lp);
 
         open_segment.write_wal_ops(vec![wal_op]).unwrap();
         open_segment.buffer_writes(write_batch).unwrap();
@@ -272,7 +272,7 @@ mod tests {
             precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         current_segment.write_wal_ops(vec![wal_op.clone()]).unwrap();
         current_segment.buffer_writes(write_batch).unwrap();
@@ -358,7 +358,7 @@ mod tests {
             precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         current_segment.write_wal_ops(vec![wal_op]).unwrap();
         current_segment.buffer_writes(write_batch).unwrap();
@@ -386,7 +386,7 @@ mod tests {
             precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         let segment_writer = wal
             .new_segment_writer(next_segment_id, next_segment_range)
@@ -423,7 +423,7 @@ mod tests {
             PersistedSegment {
                 segment_id,
                 segment_wal_size_bytes: 252,
-                segment_parquet_size_bytes: 3458,
+                segment_parquet_size_bytes: 3650,
                 segment_row_count: 3,
                 segment_min_time: 10,
                 segment_max_time: 20,
@@ -438,7 +438,7 @@ mod tests {
                                     parquet_files: vec![ParquetFile {
                                         path: "dbs/db1/cpu/1970-01-01T00-00/4294967294.parquet"
                                             .to_string(),
-                                        size_bytes: 1721,
+                                        size_bytes: 1817,
                                         row_count: 1,
                                         min_time: 10,
                                         max_time: 10,
@@ -453,7 +453,7 @@ mod tests {
                                     parquet_files: vec![ParquetFile {
                                         path: "dbs/db1/mem/1970-01-01T00-00/4294967294.parquet"
                                             .to_string(),
-                                        size_bytes: 1737,
+                                        size_bytes: 1833,
                                         row_count: 2,
                                         min_time: 15,
                                         max_time: 20,
@@ -534,7 +534,7 @@ mod tests {
             precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         current_segment.write_wal_ops(vec![wal_op]).unwrap();
         current_segment.buffer_writes(write_batch).unwrap();
@@ -555,7 +555,7 @@ mod tests {
             precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         let segment_writer = wal
             .new_segment_writer(next_segment_id, next_segment_range)
