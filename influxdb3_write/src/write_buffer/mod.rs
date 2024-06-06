@@ -25,6 +25,8 @@ use datafusion::common::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use influxdb_line_protocol::v3::SeriesValue;
+use influxdb_line_protocol::FieldValue;
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
@@ -185,7 +187,32 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             invalid_lines: result.errors,
             line_count: result.line_count,
             field_count: result.field_count,
-            tag_count: result.tag_count,
+            index_count: result.index_count,
+        })
+    }
+
+    async fn write_lp_v3(
+        &self,
+        db_name: NamespaceName<'static>,
+        lp: &str,
+        ingest_time: Time,
+        accept_partial: bool,
+        precision: Precision,
+    ) -> Result<BufferedWriteRequest> {
+        let result = WriteValidator::initialize(db_name.clone(), self.catalog())?
+            .v3_parse_lines_and_update_schema(lp, accept_partial)?
+            .convert_lines_to_buffer(ingest_time, self.segment_duration, precision);
+
+        self.write_buffer_flusher
+            .write_to_open_segment(result.valid_segmented_data)
+            .await?;
+
+        Ok(BufferedWriteRequest {
+            db_name,
+            invalid_lines: result.errors,
+            line_count: result.line_count,
+            field_count: result.field_count,
+            index_count: result.index_count,
         })
     }
 
@@ -383,6 +410,18 @@ impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
             .await
     }
 
+    async fn write_lp_v3(
+        &self,
+        database: NamespaceName<'static>,
+        lp: &str,
+        ingest_time: Time,
+        accept_partial: bool,
+        precision: Precision,
+    ) -> Result<BufferedWriteRequest> {
+        self.write_lp_v3(database, lp, ingest_time, accept_partial, precision)
+            .await
+    }
+
     fn wal(&self) -> Option<Arc<impl Wal>> {
         self.wal.clone()
     }
@@ -429,6 +468,7 @@ pub(crate) struct Field {
 #[derive(Clone, Debug)]
 pub(crate) enum FieldData {
     Timestamp(i64),
+    Key(String),
     Tag(String),
     String(String),
     Integer(i64),
@@ -442,6 +482,7 @@ impl PartialEq for FieldData {
         match (self, other) {
             (FieldData::Timestamp(a), FieldData::Timestamp(b)) => a == b,
             (FieldData::Tag(a), FieldData::Tag(b)) => a == b,
+            (FieldData::Key(a), FieldData::Key(b)) => a == b,
             (FieldData::String(a), FieldData::String(b)) => a == b,
             (FieldData::Integer(a), FieldData::Integer(b)) => a == b,
             (FieldData::UInteger(a), FieldData::UInteger(b)) => a == b,
@@ -454,25 +495,24 @@ impl PartialEq for FieldData {
 
 impl Eq for FieldData {}
 
-/// Result of the validation. If the NamespaceSchema or PartitionMap were updated, they will be
-/// in the result.
-#[derive(Debug, Default)]
-#[allow(dead_code)]
-pub(crate) struct ValidationResult {
-    /// If the namespace schema is updated with new tables or columns it will be here, which
-    /// can be used to update the cache.
-    pub(crate) schema: Option<DatabaseSchema>,
-    /// Number of lines passed in
-    pub(crate) line_count: usize,
-    /// Number of fields passed in
-    pub(crate) field_count: usize,
-    /// Number of tags passed in
-    pub(crate) tag_count: usize,
-    /// Any errors that occurred while parsing the lines
-    pub(crate) errors: Vec<crate::WriteLineError>,
-    /// Only valid lines from what was passed in to validate, segmented based on the
-    /// timestamps of the data.
-    pub(crate) valid_segmented_data: Vec<ValidSegmentedData>,
+impl<'a> From<&SeriesValue<'a>> for FieldData {
+    fn from(sk: &SeriesValue<'a>) -> Self {
+        match sk {
+            SeriesValue::String(s) => Self::Key(s.to_string()),
+        }
+    }
+}
+
+impl<'a> From<FieldValue<'a>> for FieldData {
+    fn from(value: FieldValue<'a>) -> Self {
+        match value {
+            FieldValue::I64(v) => Self::Integer(v),
+            FieldValue::U64(v) => Self::UInteger(v),
+            FieldValue::F64(v) => Self::Float(v),
+            FieldValue::String(v) => Self::String(v.to_string()),
+            FieldValue::Boolean(v) => Self::Boolean(v),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -557,7 +597,7 @@ mod tests {
             .unwrap();
         assert_eq!(summary.line_count, 1);
         assert_eq!(summary.field_count, 1);
-        assert_eq!(summary.tag_count, 0);
+        assert_eq!(summary.index_count, 0);
 
         // ensure the data is in the buffer
         let actual = write_buffer.get_table_record_batches("foo", "cpu");

@@ -319,6 +319,10 @@ impl TableDefinition {
     pub(crate) fn field_type_by_name(&self, name: &str) -> Option<InfluxColumnType> {
         self.schema.field_type_by_name(name)
     }
+
+    pub(crate) fn is_v3(&self) -> bool {
+        self.schema.series_key().is_some()
+    }
 }
 
 pub fn influx_column_type_from_field_value(fv: &FieldValue<'_>) -> InfluxColumnType {
