@@ -99,6 +99,24 @@ impl TableBuffer {
                             panic!("unexpected field type");
                         }
                     }
+                    FieldData::Key(v) => {
+                        if !self.data.contains_key(&f.name) {
+                            let mut key_builder = StringBuilder::new();
+                            for _ in 0..(row_index + self.row_count) {
+                                key_builder.append_null();
+                            }
+                            self.data.insert(f.name.clone(), Builder::Key(key_builder));
+                        }
+                        let b = self
+                            .data
+                            .get_mut(&f.name)
+                            .expect("key builder should exist");
+                        let Builder::Key(b) = b else {
+                            panic!("unexpected field type");
+                        };
+                        self.index.add_row_if_indexed_column(b.len(), &f.name, &v);
+                        b.append_value(v);
+                    }
                     FieldData::String(v) => {
                         let b = self.data.entry(f.name).or_insert_with(|| {
                             let mut string_builder = StringBuilder::new();
@@ -188,6 +206,7 @@ impl TableBuffer {
                         Builder::U64(b) => b.append_null(),
                         Builder::String(b) => b.append_null(),
                         Builder::Tag(b) => b.append_null(),
+                        Builder::Key(b) => b.append_null(),
                         Builder::Time(b) => b.append_null(),
                     }
                 }
@@ -319,6 +338,7 @@ pub enum Builder {
     U64(UInt64Builder),
     String(StringBuilder),
     Tag(StringDictionaryBuilder<Int32Type>),
+    Key(StringBuilder),
     Time(TimestampNanosecondBuilder),
 }
 
@@ -331,6 +351,7 @@ impl Builder {
             Self::U64(b) => Arc::new(b.finish_cloned()),
             Self::String(b) => Arc::new(b.finish_cloned()),
             Self::Tag(b) => Arc::new(b.finish_cloned()),
+            Self::Key(b) => Arc::new(b.finish_cloned()),
             Self::Time(b) => Arc::new(b.finish_cloned()),
         }
     }
@@ -394,6 +415,14 @@ impl Builder {
                 }
                 Arc::new(builder.finish())
             }
+            Self::Key(b) => {
+                let b = b.finish_cloned();
+                let mut builder = StringBuilder::new();
+                for row in rows {
+                    builder.append_value(b.value(*row));
+                }
+                Arc::new(builder.finish())
+            }
             Self::Time(b) => {
                 let b = b.finish_cloned();
                 let mut builder = TimestampNanosecondBuilder::with_capacity(rows.len());
@@ -425,6 +454,11 @@ impl Builder {
             Self::Tag(b) => {
                 let b = b.finish_cloned();
                 b.keys().len() * size_of::<i32>() + b.values().get_array_memory_size()
+            }
+            Self::Key(b) => {
+                b.values_slice().len()
+                    + b.offsets_slice().len()
+                    + b.validity_slice().map(|s| s.len()).unwrap_or(0)
             }
             Self::Time(b) => size_of::<i64>() * b.capacity(),
         };

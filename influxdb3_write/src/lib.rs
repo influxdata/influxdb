@@ -84,6 +84,16 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         precision: Precision,
     ) -> write_buffer::Result<BufferedWriteRequest>;
 
+    /// Write v3 line protocol
+    async fn write_lp_v3(
+        &self,
+        database: NamespaceName<'static>,
+        lp: &str,
+        ingest_time: Time,
+        accept_partial: bool,
+        precision: Precision,
+    ) -> write_buffer::Result<BufferedWriteRequest>;
+
     /// Returns the configured WAL, if there is one.
     fn wal(&self) -> Option<Arc<impl Wal>>;
 
@@ -453,7 +463,7 @@ pub struct BufferedWriteRequest {
     pub invalid_lines: Vec<WriteLineError>,
     pub line_count: usize,
     pub field_count: usize,
-    pub tag_count: usize,
+    pub index_count: usize,
 }
 
 /// A persisted Catalog that contains the database, table, and column schemas.
