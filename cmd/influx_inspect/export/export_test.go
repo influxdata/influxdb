@@ -248,7 +248,7 @@ func makeCorpus(numSeries, numValuesPerSeries int, fn func(*rand.Rand) interface
 		}
 
 		k := fmt.Sprintf("m,t=%d", i)
-		corpus[tsm1.SeriesFieldKey(k, "x")] = vals
+		corpus[tsm1.SeriesFieldKey(k, "vc")] = vals
 	}
 
 	return corpus

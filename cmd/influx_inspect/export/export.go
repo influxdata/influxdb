@@ -33,14 +33,20 @@ type Command struct {
 	out             string
 	database        string
 	retentionPolicy string
+	measurement     string
 	startTime       int64
 	endTime         int64
 	compress        bool
 	lponly          bool
+	parquet         bool
+	pqChunkSize     int
 
 	manifest map[string]struct{}
 	tsmFiles map[string][]string
 	walFiles map[string][]string
+
+	writeValues func(io.Writer, []byte, string, []tsm1.Value) error
+	exportDone  func(string) error
 }
 
 const stdoutMark = "-"
@@ -71,14 +77,17 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.out, "out", os.Getenv("HOME")+"/.influxdb/export", "'-' for standard out or the destination file to export to")
 	fs.StringVar(&cmd.database, "database", "", "Optional: the database to export")
 	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to export (requires -database)")
+	fs.StringVar(&cmd.measurement, "measurement", "", "Name of measurement to export")
 	fs.StringVar(&start, "start", "", "Optional: the start time to export (RFC3339 format)")
 	fs.StringVar(&end, "end", "", "Optional: the end time to export (RFC3339 format)")
 	fs.BoolVar(&cmd.lponly, "lponly", false, "Only export line protocol")
 	fs.BoolVar(&cmd.compress, "compress", false, "Compress the output")
+	fs.BoolVar(&cmd.parquet, "parquet", false, "Export to Parquet format (requires -database -retention -measurement)")
+	fs.IntVar(&cmd.pqChunkSize, "chunk-size", 100_000_000, "Size to partition Parquet files (in bytes)")
 
 	fs.SetOutput(cmd.Stdout)
 	fs.Usage = func() {
-		fmt.Fprintf(cmd.Stdout, "Exports TSM files into InfluxDB line protocol format.\n\n")
+		fmt.Fprintf(cmd.Stdout, "Exports TSM files into InfluxDB line protocol or Parquet format.\n\n")
 		fmt.Fprintf(cmd.Stdout, "Usage: %s export [flags]\n\n", filepath.Base(os.Args[0]))
 		fs.PrintDefaults()
 	}
@@ -112,6 +121,14 @@ func (cmd *Command) Run(args ...string) error {
 		return err
 	}
 
+	if cmd.parquet {
+		cmd.writeValues = cmd.writeValuesParquet
+		cmd.exportDone = cmd.exportDoneParquet
+	} else {
+		cmd.writeValues = cmd.writeValuesLp
+		cmd.exportDone = func(_ string) error { return nil }
+	}
+
 	return cmd.export()
 }
 
@@ -121,6 +138,9 @@ func (cmd *Command) validate() error {
 	}
 	if cmd.startTime != 0 && cmd.endTime != 0 && cmd.endTime < cmd.startTime {
 		return fmt.Errorf("end time before start time")
+	}
+	if cmd.parquet && (cmd.database == "" || cmd.retentionPolicy == "" || cmd.measurement == "") {
+		return fmt.Errorf("must specify database, renetion and measurement when exporting to Parquet")
 	}
 	return nil
 }
@@ -133,6 +153,9 @@ func (cmd *Command) export() error {
 		return err
 	}
 
+	if cmd.parquet {
+		return cmd.writeDML(io.Discard, io.Discard)
+	}
 	return cmd.write()
 }
 
@@ -331,6 +354,9 @@ func (cmd *Command) writeTsmFiles(mw io.Writer, w io.Writer, files []string) err
 		if err := cmd.exportTSMFile(f, w); err != nil {
 			return err
 		}
+		if err := cmd.exportDone(f); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -368,11 +394,16 @@ func (cmd *Command) exportTSMFile(tsmFilePath string, w io.Writer) error {
 		measurement, field := tsm1.SeriesAndFieldFromCompositeKey(key)
 		field = escape.Bytes(field)
 
+		if cmd.measurement != "" && cmd.measurement != strings.Split(string(measurement), ",")[0] {
+			continue
+		}
+
 		if err := cmd.writeValues(w, measurement, string(field), values); err != nil {
 			// An error from writeValues indicates an IO error, which should be returned.
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -436,6 +467,10 @@ func (cmd *Command) exportWALFile(walFilePath string, w io.Writer, warnDelete fu
 				// measurements are stored escaped, field names are not
 				field = escape.Bytes(field)
 
+				if cmd.measurement != "" && cmd.measurement != strings.Split(string(measurement), ",")[0] {
+					continue
+				}
+
 				if err := cmd.writeValues(w, measurement, string(field), values); err != nil {
 					// An error from writeValues indicates an IO error, which should be returned.
 					return err
@@ -443,12 +478,13 @@ func (cmd *Command) exportWALFile(walFilePath string, w io.Writer, warnDelete fu
 			}
 		}
 	}
+
 	return nil
 }
 
 // writeValues writes every value in values to w, using the given series key and field name.
 // If any call to w.Write fails, that error is returned.
-func (cmd *Command) writeValues(w io.Writer, seriesKey []byte, field string, values []tsm1.Value) error {
+func (cmd *Command) writeValuesLp(w io.Writer, seriesKey []byte, field string, values []tsm1.Value) error {
 	buf := []byte(string(seriesKey) + " " + field + "=")
 	prefixLen := len(buf)
 
