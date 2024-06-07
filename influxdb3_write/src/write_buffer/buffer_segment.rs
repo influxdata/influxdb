@@ -6,7 +6,7 @@ use crate::catalog::Catalog;
 use crate::chunk::BufferChunk;
 use crate::paths::ParquetFilePath;
 use crate::write_buffer::flusher::BufferedWriteResult;
-use crate::write_buffer::table_buffer::{Builder, Result as TableBufferResult, TableBuffer};
+use crate::write_buffer::table_buffer::{Result as TableBufferResult, TableBuffer};
 use crate::write_buffer::DatabaseSchema;
 use crate::write_buffer::{Error, TableBatch, ValidSegmentedData};
 use crate::{
@@ -398,7 +398,7 @@ impl ClosedBufferSegment {
         &self,
         persister: Arc<P>,
         executor: Arc<iox_query::exec::Executor>,
-        sort_key: Option<SortKey>,
+        mut sort_key: Option<SortKey>,
     ) -> Result<PersistedSegment>
     where
         P: Persister,
@@ -469,21 +469,16 @@ impl ClosedBufferSegment {
 
                         let ctx = executor.new_context();
 
-                        let sort_key = match sort_key.as_ref() {
-                            Some(key) => key.clone(),
-                            // Default to using tags sorted in lexographical
-                            // order as the sort key
-                            None => {
-                                let mut tags = table_buffer
-                                    .data
-                                    .iter()
-                                    .filter(|(_, v)| matches!(v, Builder::Tag(_)))
-                                    .map(|(k, _)| k)
-                                    .cloned()
-                                    .collect::<Vec<String>>();
-                                tags.sort();
-                                SortKey::from(tags)
-                            }
+                        let sort_key = if let Some(key) = sort_key.take() {
+                            key
+                        } else {
+                            SortKey::from(
+                                schema
+                                    .primary_key()
+                                    .into_iter()
+                                    .map(|s| s.to_string())
+                                    .collect::<Vec<String>>(),
+                            )
                         };
 
                         let logical_plan = ReorgPlanner::new()

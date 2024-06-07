@@ -356,7 +356,7 @@ where
 
         let result = if use_v3 {
             self.write_buffer
-                .write_lp(
+                .write_lp_v3(
                     database,
                     body,
                     default_time,
@@ -366,7 +366,7 @@ where
                 .await?
         } else {
             self.write_buffer
-                .write_lp_v3(
+                .write_lp(
                     database,
                     body,
                     default_time,
@@ -955,8 +955,8 @@ where
 
             http_server.write_lp_inner(params, req, false, false).await
         }
-        (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,
         (Method::POST, "/api/v3/write") => http_server.write_lp_v3(req).await,
+        (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,
         (Method::GET | Method::POST, "/api/v3/query_sql") => http_server.query_sql(req).await,
         (Method::GET | Method::POST, "/api/v3/query_influxql") => {
             http_server.query_influxql(req).await
