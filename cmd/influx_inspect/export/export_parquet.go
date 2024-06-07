@@ -49,11 +49,10 @@ func (cmd *Command) writeValuesParquet(_ io.Writer, seriesKey []byte, field stri
 		vc[key] = fields
 	}
 	fields[field] = values
-
 	return nil
 }
 
-func (cmd *Command) exportDoneParquet(path string) error {
+func (cmd *Command) exportDoneParquet(_ string) error {
 	defer func() {
 		vc = nil
 	}()
