@@ -3,7 +3,6 @@ package export
 import (
 	"context"
 	"fmt"
-	"golang.org/x/exp/maps"
 	"io"
 	"os"
 	"path/filepath"
@@ -20,6 +19,7 @@ import (
 	tsdb "github.com/influxdata/influxdb/cmd/influx_inspect/export/parquet/tsm1"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"go.uber.org/zap"
+	"golang.org/x/exp/maps"
 )
 
 //
