@@ -1,10 +1,11 @@
 package export
 
 import (
-	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"io"
 	"os"
 	"testing"
+
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
 var (
