@@ -618,18 +618,6 @@ mod test_helpers {
                 Precision::Nanosecond,
             );
 
-        // let mut result = parse_validate_and_update_schema(
-        //     lp,
-        //     &db,
-        //     db_name.clone(),
-        //     Time::from_timestamp_nanos(0),
-        //     SegmentDuration::new_5m(),
-        //     false,
-        //     Precision::Nanosecond,
-        //     seq,
-        // )
-        // .unwrap();
-
         write_batch.add_db_write(
             db_name,
             result.valid_segmented_data.pop().unwrap().table_batches,

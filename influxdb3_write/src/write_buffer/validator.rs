@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::HashMap, sync::Arc};
 use data_types::NamespaceName;
 use influxdb_line_protocol::{parse_lines, v3, FieldValue, ParsedLine};
 use iox_time::Time;
-use schema::{InfluxColumnType, TIME_COLUMN_NAME};
+use schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
 
 use crate::{
     catalog::{influx_column_type_from_field_value, Catalog, DatabaseSchema, TableDefinition},
@@ -178,10 +178,46 @@ fn validate_v3_line<'a>(
             });
         }
         let mut columns = Vec::with_capacity(line.column_count() + 1);
+        match (table_def.schema().series_key(), &line.series.series_key) {
+            (Some(s), Some(l)) => {
+                let l = l.iter().map(|sk| sk.0.as_str()).collect::<Vec<&str>>();
+                if s != l {
+                    return Err(WriteLineError {
+                        original_line: raw_line.to_string(),
+                        line_number,
+                        error_message: format!(
+                            "write to table {table_name} had the incorrect series key, \
+                            expected: [{expected}], received: [{received}]",
+                            table_name = table_def.name,
+                            expected = s.join(", "),
+                            received = l.join(", "),
+                        ),
+                    });
+                }
+            }
+            (Some(s), None) => {
+                if !s.is_empty() {
+                    return Err(WriteLineError {
+                        original_line: raw_line.to_string(),
+                        line_number,
+                        error_message: format!(
+                            "write to table {table_name} was missing a series key, the series key \
+                            contains [{key_members}]",
+                            table_name = table_def.name,
+                            key_members = s.join(", "),
+                        ),
+                    });
+                }
+            }
+            (None, _) => unreachable!(),
+        }
         if let Some(series_key) = &line.series.series_key {
             for (sk, _) in series_key.iter() {
                 if !table_def.column_exists(sk) {
-                    columns.push((sk.to_string(), InfluxColumnType::Tag));
+                    columns.push((
+                        sk.to_string(),
+                        InfluxColumnType::Field(InfluxFieldType::String),
+                    ));
                 }
             }
         }
@@ -214,9 +250,14 @@ fn validate_v3_line<'a>(
         }
     } else {
         let mut columns = Vec::new();
+        let mut key = Vec::new();
         if let Some(series_key) = &line.series.series_key {
             for (sk, _) in series_key.iter() {
-                columns.push((sk.to_string(), InfluxColumnType::Tag));
+                key.push(sk.to_string());
+                columns.push((
+                    sk.to_string(),
+                    InfluxColumnType::Field(InfluxFieldType::String),
+                ));
             }
         }
         for (field_name, field_val) in line.field_set.iter() {
@@ -225,7 +266,9 @@ fn validate_v3_line<'a>(
                 influx_column_type_from_field_value(field_val),
             ));
         }
-        let table = TableDefinition::new(table_name, columns);
+        // Always add time last on new table:
+        columns.push((TIME_COLUMN_NAME.to_string(), InfluxColumnType::Timestamp));
+        let table = TableDefinition::new(table_name, columns, Some(key));
 
         assert!(
             db_schema
@@ -316,7 +359,7 @@ fn validate_v1_line<'a>(
         }
         // Always add time last on new table:
         columns.push((TIME_COLUMN_NAME.to_string(), InfluxColumnType::Timestamp));
-        let table = TableDefinition::new(table_name, columns);
+        let table = TableDefinition::new(table_name, columns, Option::<Vec<String>>::None);
 
         assert!(
             db_schema

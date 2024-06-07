@@ -251,6 +251,7 @@ impl TableDefinition {
     pub(crate) fn new<N: Into<String>, CN: AsRef<str>>(
         name: N,
         columns: impl AsRef<[(CN, InfluxColumnType)]>,
+        series_key: Option<impl IntoIterator<Item: AsRef<str>>>,
     ) -> Self {
         // Use a BTree to ensure that the columns are ordered:
         let mut ordered_columns = BTreeMap::new();
@@ -260,6 +261,9 @@ impl TableDefinition {
         let mut schema_builder = SchemaBuilder::with_capacity(columns.as_ref().len());
         let name = name.into();
         schema_builder.measurement(&name);
+        if let Some(sk) = series_key {
+            schema_builder.with_series_key(sk);
+        }
         for (name, column_type) in ordered_columns {
             schema_builder.influx_column(name, *column_type);
         }
@@ -343,6 +347,8 @@ mod tests {
 
     use super::*;
 
+    type SeriesKey = Option<Vec<String>>;
+
     #[test]
     fn catalog_serialization() {
         let catalog = Catalog::new();
@@ -367,6 +373,7 @@ mod tests {
                     ("u64_field", Field(UInteger)),
                     ("f64_field", Field(Float)),
                 ],
+                SeriesKey::None,
             ),
         );
         database.tables.insert(
@@ -384,6 +391,7 @@ mod tests {
                     ("u64_field", Field(UInteger)),
                     ("f64_field", Field(Float)),
                 ],
+                SeriesKey::None,
             ),
         );
         let database = Arc::new(database);
@@ -488,6 +496,7 @@ mod tests {
                     "test".to_string(),
                     InfluxColumnType::Field(InfluxFieldType::String),
                 )],
+                SeriesKey::None,
             ),
         );
 
