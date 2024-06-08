@@ -514,6 +514,167 @@ async fn api_v3_query_influxql_params() {
 }
 
 #[tokio::test]
+async fn api_v3_query_json_format() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=a,region=us-east usage=0.9 1
+            cpu,host=b,region=us-east usage=0.50 1
+            cpu,host=a,region=us-east usage=0.80 2
+            cpu,host=b,region=us-east usage=0.60 2
+            cpu,host=a,region=us-east usage=0.70 3
+            cpu,host=b,region=us-east usage=0.70 3
+            cpu,host=a,region=us-east usage=0.50 4
+            cpu,host=b,region=us-east usage=0.80 4",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    struct TestCase<'a> {
+        database: Option<&'a str>,
+        query: &'a str,
+        expected: Value,
+    }
+
+    let test_cases = [
+        TestCase {
+            database: Some("foo"),
+            query: "SELECT time, host, region, usage FROM cpu",
+            expected: json!([
+                {
+                    "host": "a",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:01",
+                    "usage": 0.9
+                },
+                {
+                    "host": "b",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:01",
+                    "usage": 0.5
+                },
+                {
+                    "host": "a",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:02",
+                    "usage": 0.8
+                },
+                {
+                    "host": "b",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:02",
+                    "usage": 0.6
+                },
+                {
+                    "host": "a",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:03",
+                    "usage": 0.7
+                },
+                {
+                    "host": "b",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:03",
+                    "usage": 0.7
+                },
+                {
+                    "host": "a",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:04",
+                    "usage": 0.5
+                },
+                {
+                    "host": "b",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:04",
+                    "usage": 0.8
+                }
+            ]),
+        },
+        TestCase {
+            database: Some("foo"),
+            query: "SHOW MEASUREMENTS",
+            expected: json!([
+                {
+                  "iox::measurement": "measurements",
+                  "name": "cpu",
+                }
+            ]),
+        },
+        TestCase {
+            database: Some("foo"),
+            query: "SHOW FIELD KEYS",
+            expected: json!([
+                {
+                  "iox::measurement": "cpu",
+                  "fieldKey": "usage",
+                  "fieldType": "float"
+                }
+            ]),
+        },
+        TestCase {
+            database: Some("foo"),
+            query: "SHOW TAG KEYS",
+            expected: json!([
+                {
+                  "iox::measurement": "cpu",
+                  "tagKey": "host",
+                },
+                {
+                  "iox::measurement": "cpu",
+                  "tagKey": "region",
+                }
+            ]),
+        },
+        TestCase {
+            database: None,
+            query: "SHOW DATABASES",
+            expected: json!([
+                {
+                  "iox::database": "foo",
+                },
+            ]),
+        },
+        TestCase {
+            database: None,
+            query: "SHOW RETENTION POLICIES",
+            expected: json!([
+                {
+                  "iox::database": "foo",
+                  "name": "autogen",
+                },
+            ]),
+        },
+    ];
+    for t in test_cases {
+        let mut params = vec![("q", t.query), ("format", "json")];
+        if let Some(db) = t.database {
+            params.push(("db", db))
+        }
+        let resp = server
+            .api_v3_query_influxql(&params)
+            .await
+            .json::<Value>()
+            .await
+            .unwrap();
+        println!("\n{q}", q = t.query);
+        println!("{resp}");
+        assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
+    }
+}
+
+#[tokio::test]
 async fn api_v1_query() {
     let server = TestServer::spawn().await;
 
