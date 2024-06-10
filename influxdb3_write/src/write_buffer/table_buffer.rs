@@ -37,7 +37,7 @@ pub struct TableBuffer {
 }
 
 impl TableBuffer {
-    pub fn new(segment_key: PartitionKey, index_columns: &[String]) -> Self {
+    pub fn new(segment_key: PartitionKey, index_columns: &[&str]) -> Self {
         Self {
             segment_key,
             timestamp_min: i64::MAX,
@@ -263,10 +263,10 @@ struct BufferIndex {
 }
 
 impl BufferIndex {
-    fn new(columns: &[String]) -> Self {
+    fn new(columns: &[&str]) -> Self {
         let columns = columns
             .iter()
-            .map(|c| (c.clone(), HashMap::new()))
+            .map(|c| (c.to_string(), HashMap::new()))
             .collect();
         Self { columns }
     }
@@ -442,7 +442,7 @@ mod tests {
 
     #[test]
     fn tag_row_index() {
-        let mut table_buffer = TableBuffer::new(PartitionKey::from("table"), &["tag".to_string()]);
+        let mut table_buffer = TableBuffer::new(PartitionKey::from("table"), &["tag"]);
         let schema = SchemaBuilder::with_capacity(3)
             .tag("tag")
             .influx_field("value", InfluxFieldType::Integer)
@@ -567,7 +567,7 @@ mod tests {
 
     #[test]
     fn computed_size_of_buffer() {
-        let mut table_buffer = TableBuffer::new(PartitionKey::from("table"), &["tag".to_string()]);
+        let mut table_buffer = TableBuffer::new(PartitionKey::from("table"), &["tag"]);
 
         let rows = vec![
             Row {
