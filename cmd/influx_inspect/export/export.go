@@ -74,7 +74,7 @@ func (cmd *Command) Run(args ...string) error {
 	fs := flag.NewFlagSet("export", flag.ExitOnError)
 	fs.StringVar(&cmd.dataDir, "datadir", os.Getenv("HOME")+"/.influxdb/data", "Data storage path")
 	fs.StringVar(&cmd.walDir, "waldir", os.Getenv("HOME")+"/.influxdb/wal", "WAL storage path")
-	fs.StringVar(&cmd.out, "out", os.Getenv("HOME")+"/.influxdb/export", "'-' for standard out or the destination file to export to")
+	fs.StringVar(&cmd.out, "out", os.Getenv("HOME")+"/.influxdb/export", "'-' for standard out or the destination file to export to (line protocol) | directory to write Parquet files")
 	fs.StringVar(&cmd.database, "database", "", "Optional: the database to export")
 	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to export (requires -database)")
 	fs.StringVar(&cmd.measurement, "measurement", "", "Name of measurement to export")
@@ -139,8 +139,16 @@ func (cmd *Command) validate() error {
 	if cmd.startTime != 0 && cmd.endTime != 0 && cmd.endTime < cmd.startTime {
 		return fmt.Errorf("end time before start time")
 	}
-	if cmd.parquet && (cmd.database == "" || cmd.retentionPolicy == "" || cmd.measurement == "") {
-		return fmt.Errorf("must specify database, renetion and measurement when exporting to Parquet")
+	if cmd.parquet {
+		if cmd.database == "" || cmd.retentionPolicy == "" || cmd.measurement == "" {
+			return fmt.Errorf("must specify database, retention and measurement when exporting to Parquet")
+		}
+		if cmd.out == "-" {
+			return fmt.Errorf("-out must point to a folder for Parquet files")
+		}
+		if cmd.pqChunkSize < 1_000_000 {
+			return fmt.Errorf("minimum Parquet partition size is 1000000 bytes")
+		}
 	}
 	return nil
 }
