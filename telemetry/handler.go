@@ -82,7 +82,7 @@ func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
 
 	if p.Encoder == nil {
 		p.Encoder = &prometheus.Expfmt{
-			Format: expfmt.FmtText,
+			Format: expfmt.NewFormat(expfmt.TypeTextPlain),
 		}
 	}
 
@@ -137,7 +137,7 @@ func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
 
 func metricsFormat(headers http.Header) (expfmt.Format, error) {
 	format := expfmt.ResponseFormat(headers)
-	if format == expfmt.FmtUnknown {
+	if format.FormatType() == expfmt.TypeUnknown {
 		return "", fmt.Errorf("unknown format metrics format")
 	}
 	return format, nil

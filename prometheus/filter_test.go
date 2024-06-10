@@ -125,7 +125,15 @@ func TestFilter_Gather(t *testing.T) {
 				t.Errorf("Filter.Gather() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
+			wantStrings := make([]string, len(tt.want))
+			for i, mf := range tt.want {
+				wantStrings[i] = mf.String()
+			}
+			gotStrings := make([]string, len(got))
+			for i, mf := range got {
+				gotStrings[i] = mf.String()
+			}
+			if !reflect.DeepEqual(gotStrings, wantStrings) {
 				t.Errorf("Filter.Gather() = %v, want %v", got, tt.want)
 			}
 		})
