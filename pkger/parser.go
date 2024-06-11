@@ -142,7 +142,7 @@ func limitReadFile(name string) (buf []byte, rErr error) {
 	// limit how much we read into RAM
 	var size int
 	size64 := st.Size()
-	if size64 > limitReadFileMaxSize {
+	if limitReadFileMaxSize > 0 && size64 > limitReadFileMaxSize {
 		return nil, fmt.Errorf("file too big: %q", name)
 	} else if size64 == 0 {
 		return nil, fmt.Errorf("file empty: %q", name)
