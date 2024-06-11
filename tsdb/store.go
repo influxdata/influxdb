@@ -826,7 +826,6 @@ func (s *Store) ShardInUse(shardID uint64) (bool, error) {
 	if sh == nil {
 		return false, ErrShardNotFound
 	}
-	sh.ScheduleFullCompaction()
 	return sh.InUse()
 }
 

@@ -779,14 +779,10 @@ func TestStore_NewReadersBlocked(t *testing.T) {
 			`cpu,host=serverB value=3 20`,
 		)
 
-		/*
-			// Create shard #1 with data.
-			s.MustCreateShardWithData("db0", "rp0", 1,
-				`cpu,host=serverA value=1 30`,
-				`mem,host=serverA value=2 40`, // skip: wrong source
-				`cpu,host=serverC value=3 60`,
-			)
-		*/
+		// Flush WAL to TSM files.
+		sh0 := s.Shard(0)
+		require.NotNil(t, sh0)
+		sh0.ScheduleFullCompaction()
 
 		// Retrieve shard group.
 		shards := s.ShardGroup([]uint64{0})
