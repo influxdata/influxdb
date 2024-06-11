@@ -24,7 +24,7 @@ storage_compactions_queued{level="2"} 2
 `
 
 func ExampleFilter_Gather() {
-	mfs, _ := prometheus.DecodeExpfmt(bytes.NewBufferString(metrics), expfmt.FmtText)
+	mfs, _ := prometheus.DecodeExpfmt(bytes.NewBufferString(metrics), expfmt.NewFormat(expfmt.TypeTextPlain))
 	fmt.Printf("Start with %d metric families\n", len(mfs))
 	fmt.Printf("%s\n", metrics)
 
@@ -42,7 +42,7 @@ func ExampleFilter_Gather() {
 
 	fmt.Printf("Filtering for the entire go_goroutines family and\njust the level=2 label of the storage_compactions_queued family.\n\n")
 	filtered, _ := filter.Gather()
-	b, _ := prometheus.EncodeExpfmt(filtered, expfmt.FmtText)
+	b, _ := prometheus.EncodeExpfmt(filtered, expfmt.NewFormat(expfmt.TypeTextPlain))
 
 	fmt.Printf("After filtering:\n\n%s", string(b))
 

@@ -50,7 +50,7 @@ func DecodeExpfmt(r io.Reader, format expfmt.Format) ([]*dto.MetricFamily, error
 
 // EncodeExpfmt encodes the metrics family (defaults to expfmt.FmtProtoDelim).
 func EncodeExpfmt(mfs []*dto.MetricFamily, opts ...expfmt.Format) ([]byte, error) {
-	format := expfmt.FmtProtoDelim
+	format := expfmt.NewFormat(expfmt.TypeProtoDelim)
 	if len(opts) != 0 && opts[0] != "" {
 		format = opts[0]
 	}
