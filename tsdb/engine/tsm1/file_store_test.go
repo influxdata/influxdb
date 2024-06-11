@@ -2823,13 +2823,13 @@ func TestFileStore_ReaderBlocking(t *testing.T) {
 		require.False(t, fsInUse())
 		_, err := fs.InUse()
 
-		applyCount := 0
+		var applyCount atomic.Uint32
 		err = fs.Apply(func(r tsm1.TSMFile) error {
-			applyCount++
+			applyCount.Add(1)
 			return nil
 		})
 		require.NoError(t, err)
-		require.Equal(t, len(files), applyCount, "Apply should be called for all files")
+		require.Equal(t, uint32(len(files)), applyCount.Load(), "Apply should be called for all files")
 
 		snap, err := fs.CreateSnapshot()
 		require.NoError(t, err)
