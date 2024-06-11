@@ -795,12 +795,14 @@ async fn record_batch_stream_to_body(
     format: QueryFormat,
 ) -> Result<Body, Error> {
     fn to_json(batches: Vec<RecordBatch>) -> Result<Bytes> {
-        let batches: Vec<&RecordBatch> = batches.iter().collect();
-        // See https://github.com/influxdata/influxdb/issues/24981
-        #[allow(deprecated)]
-        Ok(Bytes::from(serde_json::to_string(
-            &arrow_json::writer::record_batches_to_json_rows(batches.as_slice())?,
-        )?))
+        let mut writer = arrow_json::ArrayWriter::new(Vec::new());
+        for batch in batches {
+            writer.write(&batch)?;
+        }
+
+        writer.finish()?;
+
+        Ok(Bytes::from(writer.into_inner()))
     }
 
     fn to_csv(batches: Vec<RecordBatch>) -> Result<Bytes> {

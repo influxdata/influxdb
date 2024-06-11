@@ -230,7 +230,7 @@ impl Persister for PersisterImpl {
 
     async fn persist_catalog(&self, segment_id: SegmentId, catalog: Catalog) -> Result<()> {
         let catalog_path = CatalogFilePath::new(segment_id);
-        let json = serde_json::to_vec_pretty(&catalog.into_inner())?;
+        let json = serde_json::to_vec_pretty(&catalog)?;
         self.object_store
             .put(catalog_path.as_ref(), Bytes::from(json))
             .await?;
