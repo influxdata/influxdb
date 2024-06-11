@@ -119,7 +119,7 @@ func limitReadFile(name string) (buf []byte, rErr error) {
 	if err != nil {
 		return nil, err
 	}
-	defer caperr.Capture(&rErr, f.Close)
+	defer caperr.Capture(&rErr, f.Close)()
 
 	// Check that properties of file are OK.
 	st, err := f.Stat()
