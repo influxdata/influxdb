@@ -44,7 +44,7 @@ func IsSpecialFSFromFileInfo(st fs.FileInfo) (bool, error) {
 	// We know the file is in a special file system, but we'll make an
 	// exception for tmpfs, which might be used at a variety of mount points.
 	// Since the minor IDs are assigned dynamically, we'll find the device ID
-	// for each common tmpfs mount point, If the mount point's device ID matches this st's,
+	// for each common tmpfs mount point. If the mount point's device ID matches this st's,
 	// then it is reasonable to assume the file is in tmpfs. If the device ID
 	// does not match, then st is not located in that special file system so we
 	// can't give an exception based on that file system root. This check is still
@@ -66,21 +66,26 @@ func IsSpecialFSFromFileInfo(st fs.FileInfo) (bool, error) {
 		}
 		fDevId, err := getDevId(fSt)
 		if err != nil {
-			// See above for why we're returning an error here.
-			return math.MaxUint64, nil
+			return math.MaxUint64, err
 		}
 		return fDevId, nil
 	}
+	var errs []error
 	for _, fn := range tmpfsMounts {
-		// We ignore errors if getFileDevId fails, which could
-		// mean that the file (e.g. /run) doesn't exist. The error
+		// Don't stop if getFileDevId returns an error. It could
+		// be because the tmpfsMount we're checking doesn't exist,
+		// which shouldn't prevent us from checking the other
+		// potential mount points.
 		if fnDevId, err := getFileDevId(fn); err == nil {
 			if fnDevId == devId {
 				return false, nil
 			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			// Ignore errors for missing mount points.
+			errs = append(errs, err)
 		}
 	}
 
 	// We didn't find any a reason to give st a special file system exception.
-	return true, nil
+	return true, errors.Join(errs...)
 }
