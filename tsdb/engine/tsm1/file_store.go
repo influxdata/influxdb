@@ -744,7 +744,7 @@ func (f *FileStore) SetNewReadersBlocked(block bool) error {
 	return nil
 }
 
-// newReadersBlocked returns true if new references to TSMReader objects are allowed.
+// newReadersBlocked returns true if new references to TSMReader objects are not allowed.
 // Must be called with f.mu lock held (reader or writer).
 // See SetNewReadersBlocked for interface to allow and block access to TSMReader objects.
 func (f *FileStore) newReadersBlocked() bool {
@@ -753,11 +753,13 @@ func (f *FileStore) newReadersBlocked() bool {
 
 // InUse returns true if any files in this FileStore are in-use.
 // InUse can only be called if a new readers have been blocked using SetNewReadersBlocked.
-// Calling InUse without a new readers block results in an error.
+// This is to avoid a race condition between calling InUse and attempting an operation
+// that requires no active readers. Calling InUse without a new readers block results
+// in an error.
 func (f *FileStore) InUse() (bool, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	if f.newReaderBlockCount <= 0 {
+	if !f.newReadersBlocked() {
 		return false, fmt.Errorf("InUse called without a new reader block for %q", f.dir)
 	}
 	for _, r := range f.files {

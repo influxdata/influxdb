@@ -812,7 +812,7 @@ func (s *Store) SetShardEnabled(shardID uint64, enabled bool) error {
 func (s *Store) SetShardNewReadersBlocked(shardID uint64, blocked bool) error {
 	sh := s.Shard(shardID)
 	if sh == nil {
-		return ErrShardNotFound
+		return fmt.Errorf("SetShardNewReadersBlocked: shardID=%d, blocked=%t: %w", shardID, blocked, ErrShardNotFound)
 	}
 	return sh.SetNewReadersBlocked(blocked)
 }
@@ -824,7 +824,7 @@ func (s *Store) SetShardNewReadersBlocked(shardID uint64, blocked bool) error {
 func (s *Store) ShardInUse(shardID uint64) (bool, error) {
 	sh := s.Shard(shardID)
 	if sh == nil {
-		return false, ErrShardNotFound
+		return false, fmt.Errorf("ShardInUse: shardID=%d: %w", shardID, ErrShardNotFound)
 	}
 	return sh.InUse()
 }

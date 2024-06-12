@@ -2798,20 +2798,22 @@ func TestFileStore_ReaderBlocking(t *testing.T) {
 	}
 
 	files, err := newFileDir(dir, data...)
-	if err != nil {
-		fatal(t, "creating test files", err)
-	}
+	require.NoError(t, err)
 
 	fs := tsm1.NewFileStore(dir)
-	if err := fs.Open(); err != nil {
-		fatal(t, "opening file store", err)
-	}
-	defer fs.Close()
+	require.NoError(t, fs.Open())
+	defer func() {
+		t.Helper()
+		require.NoError(t, fs.Close())
+	}()
 
 	fsInUse := func() bool {
 		t.Helper()
 		require.NoError(t, fs.SetNewReadersBlocked(true))
-		defer fs.SetNewReadersBlocked(false)
+		defer func() {
+			t.Helper()
+			require.NoError(t, fs.SetNewReadersBlocked(false))
+		}()
 		inUse, err := fs.InUse()
 		require.NoError(t, err)
 		return inUse
@@ -2837,11 +2839,17 @@ func TestFileStore_ReaderBlocking(t *testing.T) {
 
 		buf := make([]tsm1.FloatValue, 1000)
 		c := fs.KeyCursor(context.Background(), []byte("cpu"), 0, true)
-		defer func() {
+		// closeC exists because we want to call c.Close() if a test fails in a defer,
+		// but we also need to call c.Close() as part of the test. closeC makes sure we
+		// don't double close it.
+		closeC := func() {
+			t.Helper()
 			if c != nil {
-				c.Close()
+				c.Close() // Close does not return anything
+				c = nil
 			}
-		}()
+		}
+		defer closeC()
 		require.NotNil(t, c)
 		require.True(t, fsInUse())
 
@@ -2856,8 +2864,7 @@ func TestFileStore_ReaderBlocking(t *testing.T) {
 		values, err = c.ReadFloatBlock(&buf)
 		require.NoError(t, err)
 		require.Empty(t, values)
-		c.Close()
-		c = nil
+		closeC()
 		require.False(t, fsInUse())
 
 		r, err := fs.TSMReader(files[0])

@@ -1298,7 +1298,7 @@ func TestShard_ReadersBlocked(t *testing.T) {
 			p, err := fit.Next()
 			require.NoError(t, err)
 			require.Nil(t, p)
-			fit.Close()
+			require.NoError(t, fit.Close())
 			require.NoError(t, s1.SetNewReadersBlocked(false))
 			require.False(t, shardInUse(s1))
 
@@ -1312,7 +1312,7 @@ func TestShard_ReadersBlocked(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, p)
 			require.True(t, shardInUse(s1))
-			fit.Close()
+			require.NoError(t, fit.Close())
 			require.False(t, shardInUse(s1))
 		})
 	}
