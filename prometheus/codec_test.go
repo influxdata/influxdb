@@ -18,7 +18,7 @@ func Test_CodecExpfmt(t *testing.T) {
 		t.Fatalf("encodeExpfmt() error = %v", err)
 	}
 
-	got1, err := pr.DecodeExpfmt(bytes.NewBuffer(b1), expfmt.FmtProtoDelim)
+	got1, err := pr.DecodeExpfmt(bytes.NewBuffer(b1), expfmt.NewFormat(expfmt.TypeProtoDelim))
 	if err != nil {
 		t.Fatalf("decodeExpfmt() error = %v", err)
 	}
@@ -34,7 +34,7 @@ func Test_CodecExpfmt(t *testing.T) {
 		t.Fatalf("encodeExpfmt() error = %v", err)
 	}
 
-	got2, err := pr.DecodeExpfmt(bytes.NewBuffer(b2), expfmt.FmtProtoDelim)
+	got2, err := pr.DecodeExpfmt(bytes.NewBuffer(b2), expfmt.NewFormat(expfmt.TypeProtoDelim))
 	if err != nil {
 		t.Fatalf("decodeExpfmt() error = %v", err)
 	}
@@ -54,7 +54,7 @@ func Test_CodecExpfmt(t *testing.T) {
 		NewCounter("mf2", 1.0, pr.L("n2", "v2")),
 	}
 
-	got3, err := pr.DecodeExpfmt(bytes.NewBuffer(b3), expfmt.FmtProtoDelim)
+	got3, err := pr.DecodeExpfmt(bytes.NewBuffer(b3), expfmt.NewFormat(expfmt.TypeProtoDelim))
 	if err != nil {
 		t.Fatalf("decodeExpfmt() error = %v", err)
 	}

@@ -126,7 +126,7 @@ func TestPusher_Push(t *testing.T) {
 				URL:        url,
 				Gather:     tt.gather,
 				Client:     client,
-				PushFormat: expfmt.FmtProtoDelim,
+				PushFormat: expfmt.NewFormat(expfmt.TypeProtoDelim),
 			}
 			if err := p.Push(ctx); (err != nil) != tt.wantErr {
 				t.Errorf("Pusher.Push() error = %v, wantErr %v", err, tt.wantErr)

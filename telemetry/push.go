@@ -33,14 +33,14 @@ func NewPusher(g prometheus.Gatherer) *Pusher {
 			Transport: http.DefaultTransport,
 			Timeout:   10 * time.Second,
 		},
-		PushFormat: expfmt.FmtText,
+		PushFormat: expfmt.NewFormat(expfmt.TypeTextPlain),
 	}
 }
 
 // Push POSTs prometheus metrics in protobuf delimited format to a push gateway.
 func (p *Pusher) Push(ctx context.Context) error {
 	if p.PushFormat == "" {
-		p.PushFormat = expfmt.FmtText
+		p.PushFormat = expfmt.NewFormat(expfmt.TypeTextPlain)
 	}
 
 	resps := make(chan (error))
