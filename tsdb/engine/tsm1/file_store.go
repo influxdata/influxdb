@@ -35,6 +35,10 @@ const (
 	BadTSMFileExtension = "bad"
 )
 
+var (
+	ErrNewReadersBlocked = errors.New("new readers blocked")
+)
+
 // TSMFile represents an on-disk TSM file.
 type TSMFile interface {
 	// Path returns the underlying file path for the TSMFile.  If the file
@@ -197,6 +201,10 @@ type FileStore struct {
 	copyFiles bool
 
 	readerOptions []tsmReaderOption
+
+	// newReaderBlockCount keeps track of the current new reader block requests.
+	// If non-zero, no new TSMReader objects may be created.
+	newReaderBlockCount int
 }
 
 // FileStat holds information about a TSM file on disk.
@@ -355,6 +363,10 @@ func (f *FileStore) WalkKeys(seek []byte, fn func(key []byte, typ byte) error) e
 		f.mu.RUnlock()
 		return nil
 	}
+	if f.newReadersBlocked() {
+		f.mu.RUnlock()
+		return fmt.Errorf("WalkKeys: %q: %w", f.dir, ErrNewReadersBlocked)
+	}
 
 	// Ensure files are not unmapped while we're iterating over them.
 	for _, r := range f.files {
@@ -413,6 +425,10 @@ func (f *FileStore) Apply(fn func(r TSMFile) error) error {
 	limiter := limiter.NewFixed(runtime.GOMAXPROCS(0))
 
 	f.mu.RLock()
+	if f.newReadersBlocked() {
+		f.mu.RUnlock()
+		return fmt.Errorf("Apply: %q: %w", f.dir, ErrNewReadersBlocked)
+	}
 	errC := make(chan error, len(f.files))
 
 	for _, f := range f.files {
@@ -691,22 +707,85 @@ func (f *FileStore) Cost(key []byte, min, max int64) query.IteratorCost {
 // Reader returns a TSMReader for path if one is currently managed by the FileStore.
 // Otherwise it returns nil. If it returns a file, you must call Unref on it when
 // you are done, and never use it after that.
-func (f *FileStore) TSMReader(path string) *TSMReader {
+func (f *FileStore) TSMReader(path string) (*TSMReader, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
+	if f.newReadersBlocked() {
+		return nil, fmt.Errorf("TSMReader: %q (%q): %w", f.dir, path, ErrNewReadersBlocked)
+	}
 	for _, r := range f.files {
 		if r.Path() == path {
 			r.Ref()
-			return r.(*TSMReader)
+			return r.(*TSMReader), nil
 		}
 	}
+	return nil, nil
+}
+
+// SetNewReadersBlocked sets if new readers can access the files in this FileStore.
+// If blocked is true, the number of reader blocks is incremented and new readers will
+// receive an error instead of reader access. If blocked is false, the number
+// of reader blocks is decremented. If the reader blocks drops to 0, then
+// new readers will be granted access to the files.
+func (f *FileStore) SetNewReadersBlocked(block bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if block {
+		if f.newReaderBlockCount < 0 {
+			return fmt.Errorf("newReaderBlockCount for %q was %d before block operation, block failed", f.dir, f.newReaderBlockCount)
+		}
+		f.newReaderBlockCount++
+	} else {
+		if f.newReaderBlockCount <= 0 {
+			return fmt.Errorf("newReadersBlockCount for %q was %d before unblock operation, unblock failed", f.dir, f.newReaderBlockCount)
+		}
+		f.newReaderBlockCount--
+	}
 	return nil
+}
+
+// newReadersBlocked returns true if new references to TSMReader objects are not allowed.
+// Must be called with f.mu lock held (reader or writer).
+// See SetNewReadersBlocked for interface to allow and block access to TSMReader objects.
+func (f *FileStore) newReadersBlocked() bool {
+	return f.newReaderBlockCount > 0
+}
+
+// InUse returns true if any files in this FileStore are in-use.
+// InUse can only be called if a new readers have been blocked using SetNewReadersBlocked.
+// This is to avoid a race condition between calling InUse and attempting an operation
+// that requires no active readers. Calling InUse without a new readers block results
+// in an error.
+func (f *FileStore) InUse() (bool, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	if !f.newReadersBlocked() {
+		return false, fmt.Errorf("InUse called without a new reader block for %q", f.dir)
+	}
+	for _, r := range f.files {
+		if r.InUse() {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // KeyCursor returns a KeyCursor for key and t across the files in the FileStore.
 func (f *FileStore) KeyCursor(ctx context.Context, key []byte, t int64, ascending bool) *KeyCursor {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
+	if f.newReadersBlocked() {
+		// New readers are blocked for this FileStore because there is a delete attempt in progress.
+		// Return an empty cursor to appease the callers since they generally don't handle
+		// a nil KeyCursor gracefully.
+		return &KeyCursor{
+			key:       key,
+			seeks:     nil,
+			ctx:       ctx,
+			col:       metrics.GroupFromContext(ctx),
+			ascending: ascending,
+		}
+	}
 	return newKeyCursor(ctx, f, key, t, ascending)
 }
 
@@ -1182,6 +1261,10 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 	f.traceLogger.Info("Creating snapshot", zap.String("dir", f.dir))
 
 	f.mu.Lock()
+	if f.newReadersBlocked() {
+		f.mu.Unlock()
+		return "", fmt.Errorf("CreateSnapshot: %q: %w", f.dir, ErrNewReadersBlocked)
+	}
 	// create a copy of the files slice and ensure they aren't closed out from
 	// under us, nor the slice mutated.
 	files := make([]TSMFile, len(f.files))

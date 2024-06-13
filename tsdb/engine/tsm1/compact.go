@@ -712,7 +712,7 @@ type Compactor struct {
 
 	FileStore interface {
 		NextGeneration() int
-		TSMReader(path string) *TSMReader
+		TSMReader(path string) (*TSMReader, error)
 	}
 
 	// RateLimit is the limit for disk writes for all concurrent compactions.
@@ -943,7 +943,10 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) ([
 		default:
 		}
 
-		tr := c.FileStore.TSMReader(file)
+		tr, err := c.FileStore.TSMReader(file)
+		if err != nil {
+			return nil, errCompactionAborted{fmt.Errorf("error creating reader for %q: %w", file, err)}
+		}
 		if tr == nil {
 			// This would be a bug if this occurred as tsmFiles passed in should only be
 			// assigned to one compaction at any one time.  A nil tr would mean the file
