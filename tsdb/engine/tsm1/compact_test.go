@@ -3061,11 +3061,11 @@ func (w *fakeFileStore) BlockCount(path string, idx int) int {
 	return w.blockCount
 }
 
-func (w *fakeFileStore) TSMReader(path string) *tsm1.TSMReader {
+func (w *fakeFileStore) TSMReader(path string) (*tsm1.TSMReader, error) {
 	r := MustOpenTSMReader(path)
 	w.readers = append(w.readers, r)
 	r.Ref()
-	return r
+	return r, nil
 }
 
 func (w *fakeFileStore) Close() {

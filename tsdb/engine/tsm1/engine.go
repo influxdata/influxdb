@@ -548,6 +548,24 @@ func (e *Engine) disableSnapshotCompactions() {
 	}
 }
 
+// SetNewReadersBlocked sets if new readers can access the shard. If blocked
+// is true, the number of reader blocks is incremented and new readers will
+// receive an error instead of shard access. If blocked is false, the number
+// of reader blocks is decremented. If the reader blocks drops to 0, then
+// new readers will be granted access to the shard.
+func (e *Engine) SetNewReadersBlocked(blocked bool) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.FileStore.SetNewReadersBlocked(blocked)
+}
+
+// InUse returns true if the shard is in-use by readers.
+func (e *Engine) InUse() (bool, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.FileStore.InUse()
+}
+
 // ScheduleFullCompaction will force the engine to fully compact all data stored.
 // This will cancel and running compactions and snapshot any data in the cache to
 // TSM files.  This is an expensive operation.

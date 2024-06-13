@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFileStore_Read(t *testing.T) {
@@ -2784,6 +2785,158 @@ func TestFileStore_CreateSnapshot(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestFileStore_ReaderBlocking(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create 3 TSM files...
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"mem", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+	}
+
+	files, err := newFileDir(dir, data...)
+	require.NoError(t, err)
+
+	fs := tsm1.NewFileStore(dir)
+	require.NoError(t, fs.Open())
+	defer func() {
+		t.Helper()
+		require.NoError(t, fs.Close())
+	}()
+
+	fsInUse := func() bool {
+		t.Helper()
+		require.NoError(t, fs.SetNewReadersBlocked(true))
+		defer func() {
+			t.Helper()
+			require.NoError(t, fs.SetNewReadersBlocked(false))
+		}()
+		inUse, err := fs.InUse()
+		require.NoError(t, err)
+		return inUse
+	}
+
+	checkUnblocked := func() {
+		t.Helper()
+
+		require.False(t, fsInUse())
+		_, err := fs.InUse()
+
+		var applyCount atomic.Uint32
+		err = fs.Apply(func(r tsm1.TSMFile) error {
+			applyCount.Add(1)
+			return nil
+		})
+		require.NoError(t, err)
+		require.Equal(t, uint32(len(files)), applyCount.Load(), "Apply should be called for all files")
+
+		snap, err := fs.CreateSnapshot()
+		require.NoError(t, err)
+		require.NotEmpty(t, snap)
+
+		buf := make([]tsm1.FloatValue, 1000)
+		c := fs.KeyCursor(context.Background(), []byte("cpu"), 0, true)
+		// closeC exists because we want to call c.Close() if a test fails in a defer,
+		// but we also need to call c.Close() as part of the test. closeC makes sure we
+		// don't double close it.
+		closeC := func() {
+			t.Helper()
+			if c != nil {
+				c.Close() // Close does not return anything
+				c = nil
+			}
+		}
+		defer closeC()
+		require.NotNil(t, c)
+		require.True(t, fsInUse())
+
+		values, err := c.ReadFloatBlock(&buf)
+		require.NoError(t, err)
+		require.Len(t, values, 1)
+		c.Next()
+		values, err = c.ReadFloatBlock(&buf)
+		require.NoError(t, err)
+		require.Len(t, values, 1)
+		c.Next()
+		values, err = c.ReadFloatBlock(&buf)
+		require.NoError(t, err)
+		require.Empty(t, values)
+		closeC()
+		require.False(t, fsInUse())
+
+		r, err := fs.TSMReader(files[0])
+		require.NoError(t, err)
+		require.NotNil(t, r)
+		require.True(t, fsInUse())
+		r.Unref()
+		require.False(t, fsInUse())
+
+		// Keys() will call WalkKeys() which will can be blocked.
+		keys := fs.Keys()
+		require.NotNil(t, keys)
+		require.Len(t, keys, 2)
+
+		require.False(t, fsInUse())
+	}
+
+	checkBlocked := func() {
+		t.Helper()
+
+		require.False(t, fsInUse())
+
+		applyCount := 0
+		err := fs.Apply(func(r tsm1.TSMFile) error {
+			applyCount++
+			return nil
+		})
+		require.ErrorIs(t, err, tsm1.ErrNewReadersBlocked)
+		require.Zero(t, applyCount, "Apply should not be called for any files when new readers are blocked")
+
+		snap, err := fs.CreateSnapshot()
+		require.ErrorIs(t, err, tsm1.ErrNewReadersBlocked)
+		require.Empty(t, snap)
+
+		buf := make([]tsm1.FloatValue, 1000)
+		c := fs.KeyCursor(context.Background(), []byte("cpu"), 0, true)
+		require.NotNil(t, c)
+		defer c.Close()
+		values, err := c.ReadFloatBlock(&buf)
+		require.NoError(t, err)
+		require.Empty(t, values)
+
+		r, err := fs.TSMReader(files[0])
+		require.ErrorIs(t, err, tsm1.ErrNewReadersBlocked)
+		require.Nil(t, r)
+
+		// Keys() will call WalkKeys() which will can be blocked.
+		keys := fs.Keys()
+		require.Nil(t, keys)
+
+		require.False(t, fsInUse())
+	}
+
+	checkUnblocked()
+	require.NoError(t, fs.SetNewReadersBlocked(true))
+	checkBlocked()
+
+	// nested block
+	require.NoError(t, fs.SetNewReadersBlocked(true))
+	checkBlocked()
+
+	// still blocked
+	require.NoError(t, fs.SetNewReadersBlocked(false))
+	checkBlocked()
+
+	// unblocked
+	require.NoError(t, fs.SetNewReadersBlocked(false))
+	checkUnblocked()
+
+	// Too many unblocks, sir, too many.
+	require.Error(t, fs.SetNewReadersBlocked(false))
+	checkUnblocked()
 }
 
 type mockObserver struct {
