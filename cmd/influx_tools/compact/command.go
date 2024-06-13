@@ -276,12 +276,12 @@ func (sc *shardCompactor) NextGeneration() int {
 	panic("not implemented")
 }
 
-func (sc *shardCompactor) TSMReader(path string) *tsm1.TSMReader {
+func (sc *shardCompactor) TSMReader(path string) (*tsm1.TSMReader, error) {
 	r := sc.files[path]
 	if r != nil {
 		r.Ref()
 	}
-	return r
+	return r, nil
 }
 
 func (sc *shardCompactor) String() string {

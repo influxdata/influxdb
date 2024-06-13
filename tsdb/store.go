@@ -804,6 +804,31 @@ func (s *Store) SetShardEnabled(shardID uint64, enabled bool) error {
 	return nil
 }
 
+// SetShardNewReadersBlocked sets if new readers can access the shard. If blocked
+// is true, the number of reader blocks is incremented and new readers will
+// receive an error instead of shard access. If blocked is false, the number
+// of reader blocks is decremented. If the reader blocks drops to 0, then
+// new readers will be granted access to the shard.
+func (s *Store) SetShardNewReadersBlocked(shardID uint64, blocked bool) error {
+	sh := s.Shard(shardID)
+	if sh == nil {
+		return fmt.Errorf("SetShardNewReadersBlocked: shardID=%d, blocked=%t: %w", shardID, blocked, ErrShardNotFound)
+	}
+	return sh.SetNewReadersBlocked(blocked)
+}
+
+// ShardInUse returns true if a shard is in-use (e.g. has active readers).
+// SetShardNewReadersBlocked(id, true) should be called before checking
+// ShardInUse to prevent race conditions where a reader could gain
+// access to the shard immediately after ShardInUse is called.
+func (s *Store) ShardInUse(shardID uint64) (bool, error) {
+	sh := s.Shard(shardID)
+	if sh == nil {
+		return false, fmt.Errorf("ShardInUse: shardID=%d: %w", shardID, ErrShardNotFound)
+	}
+	return sh.InUse()
+}
+
 // DeleteShard removes a shard from disk.
 func (s *Store) DeleteShard(shardID uint64) error {
 	sh := s.Shard(shardID)
