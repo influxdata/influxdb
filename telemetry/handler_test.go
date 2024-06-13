@@ -62,7 +62,7 @@ func TestPushGateway_Handler(t *testing.T) {
 					),
 				),
 			},
-			contentType: string(expfmt.FmtProtoDelim),
+			contentType: string(expfmt.NewFormat(expfmt.TypeProtoDelim)),
 			wantStatus:  http.StatusBadRequest,
 		},
 		{
@@ -81,7 +81,7 @@ func TestPushGateway_Handler(t *testing.T) {
 					),
 				),
 			},
-			contentType: string(expfmt.FmtProtoDelim),
+			contentType: string(expfmt.NewFormat(expfmt.TypeProtoDelim)),
 			wantStatus:  http.StatusInternalServerError,
 			want:        []byte(`[{"name":"mf1","type":0,"metric":[{"label":[{"name":"n1","value":"v1"}],"counter":{"value":1},"timestamp_ms":0}]}]`),
 		},
@@ -99,7 +99,7 @@ func TestPushGateway_Handler(t *testing.T) {
 					),
 				),
 			},
-			contentType: string(expfmt.FmtProtoDelim),
+			contentType: string(expfmt.NewFormat(expfmt.TypeProtoDelim)),
 			wantStatus:  http.StatusAccepted,
 			want:        []byte(`[{"name":"mf1","type":0,"metric":[{"label":[{"name":"n1","value":"v1"}],"counter":{"value":1},"timestamp_ms":0}]}]`),
 		},
@@ -149,8 +149,8 @@ func Test_decodePostMetricsRequest(t *testing.T) {
 				req:      httptest.NewRequest("POST", "/", bytes.NewBuffer([]byte{0x10})),
 				maxBytes: 10,
 			},
-			contentType: string(expfmt.FmtProtoDelim),
-			want:        []*dto.MetricFamily{},
+			contentType: string(expfmt.NewFormat(expfmt.TypeProtoDelim)),
+			wantErr:     true,
 		},
 		{
 			name: "no body returns no metrics",
@@ -158,7 +158,7 @@ func Test_decodePostMetricsRequest(t *testing.T) {
 				req:      httptest.NewRequest("POST", "/", nil),
 				maxBytes: 10,
 			},
-			contentType: string(expfmt.FmtProtoDelim),
+			contentType: string(expfmt.NewFormat(expfmt.TypeProtoDelim)),
 			want:        []*dto.MetricFamily{},
 		},
 		{
@@ -171,7 +171,7 @@ func Test_decodePostMetricsRequest(t *testing.T) {
 				),
 				maxBytes: 31,
 			},
-			contentType: string(expfmt.FmtProtoDelim),
+			contentType: string(expfmt.NewFormat(expfmt.TypeProtoDelim)),
 			want:        []*dto.MetricFamily{NewCounter("mf1", 1.0, pr.L("n1", "v1"))},
 		},
 		{
@@ -187,7 +187,7 @@ func Test_decodePostMetricsRequest(t *testing.T) {
 				),
 				maxBytes: 31,
 			},
-			contentType: string(expfmt.FmtProtoDelim),
+			contentType: string(expfmt.NewFormat(expfmt.TypeProtoDelim)),
 			want:        []*dto.MetricFamily{NewCounter("mf1", 1.0, pr.L("n1", "v1"))},
 		},
 		{
@@ -203,7 +203,7 @@ func Test_decodePostMetricsRequest(t *testing.T) {
 				),
 				maxBytes: 33,
 			},
-			contentType: string(expfmt.FmtProtoDelim),
+			contentType: string(expfmt.NewFormat(expfmt.TypeProtoDelim)),
 			wantErr:     true,
 		},
 	}
@@ -214,6 +214,14 @@ func Test_decodePostMetricsRequest(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Errorf("decodePostMetricsRequest() error = %v, wantErr %v", err, tt.wantErr)
 				return
+			}
+			wantStrings := make([]string, len(tt.want))
+			for i, mf := range tt.want {
+				wantStrings[i] = mf.String()
+			}
+			gotStrings := make([]string, len(got))
+			for i, mf := range got {
+				gotStrings[i] = mf.String()
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("decodePostMetricsRequest() = %v, want %v", got, tt.want)
