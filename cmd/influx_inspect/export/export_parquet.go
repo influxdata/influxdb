@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/arrow/go/v14/parquet"
-	"github.com/apache/arrow/go/v14/parquet/compress"
+	"github.com/apache/arrow/go/v16/parquet"
+	"github.com/apache/arrow/go/v16/parquet/compress"
 	pqexport "github.com/influxdata/influxdb/cmd/influx_inspect/export/parquet/exporter"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export/parquet/index"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export/parquet/models"

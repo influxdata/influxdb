@@ -3,7 +3,7 @@ package table
 import (
 	"sync/atomic"
 
-	"github.com/apache/arrow/go/v14/arrow/memory"
+	"github.com/apache/arrow/go/v16/arrow/memory"
 )
 
 // trackedAllocator is a memory.Allocator that tracks the total allocation size.
