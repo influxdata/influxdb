@@ -15,7 +15,7 @@ use data_types::{ChunkId, ChunkOrder, TableId, TransitionPartitionId};
 use datafusion::common::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
-use iox_query::chunk_statistics::create_chunk_statistics;
+use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::error;
@@ -148,7 +148,7 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
                     Some(row_count),
                     &schema,
                     Some(segment.segment_range().timestamp_min_max()),
-                    None,
+                    &NoColumnRanges,
                 );
 
                 chunks.push(Arc::new(BufferChunk {
@@ -187,7 +187,7 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
                     Some(row_count),
                     &schema,
                     Some(persisting_segment.segment_range.timestamp_min_max()),
-                    None,
+                    &NoColumnRanges,
                 );
 
                 chunks.push(Arc::new(BufferChunk {

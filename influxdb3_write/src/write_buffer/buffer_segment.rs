@@ -25,7 +25,7 @@ use data_types::TransitionPartitionId;
 use data_types::{NamespaceName, PartitionKey};
 use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
-use iox_query::chunk_statistics::create_chunk_statistics;
+use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -447,7 +447,7 @@ impl ClosedBufferSegment {
                             Some(row_count),
                             schema,
                             Some(time_min_max),
-                            None,
+                            &NoColumnRanges,
                         );
 
                         chunks.push(Arc::new(BufferChunk {

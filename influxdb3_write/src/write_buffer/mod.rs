@@ -28,7 +28,7 @@ use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
-use iox_query::chunk_statistics::create_chunk_statistics;
+use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use object_store::path::Path as ObjPath;
@@ -246,7 +246,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
                 Some(parquet_file.row_count as usize),
                 &table_schema,
                 Some(parquet_file.timestamp_min_max()),
-                None,
+                &NoColumnRanges,
             );
 
             let location = ObjPath::from(parquet_file.path.clone());
@@ -295,7 +295,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
                 Some(parquet_file.row_count as usize),
                 &table_schema,
                 Some(parquet_file.timestamp_min_max()),
-                None,
+                &NoColumnRanges,
             );
 
             let location = ObjPath::from(parquet_file.path.clone());
