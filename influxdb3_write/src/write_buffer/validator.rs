@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::HashMap, sync::Arc};
 use data_types::NamespaceName;
 use influxdb_line_protocol::{parse_lines, v3, FieldValue, ParsedLine};
 use iox_time::Time;
-use schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
+use schema::{InfluxColumnType, TIME_COLUMN_NAME};
 
 use crate::{
     catalog::{influx_column_type_from_field_value, Catalog, DatabaseSchema, TableDefinition},
@@ -214,10 +214,7 @@ fn validate_v3_line<'a>(
         if let Some(series_key) = &line.series.series_key {
             for (sk, _) in series_key.iter() {
                 if !table_def.column_exists(sk) {
-                    columns.push((
-                        sk.to_string(),
-                        InfluxColumnType::Field(InfluxFieldType::String),
-                    ));
+                    columns.push((sk.to_string(), InfluxColumnType::Tag));
                 }
             }
         }
@@ -254,10 +251,7 @@ fn validate_v3_line<'a>(
         if let Some(series_key) = &line.series.series_key {
             for (sk, _) in series_key.iter() {
                 key.push(sk.to_string());
-                columns.push((
-                    sk.to_string(),
-                    InfluxColumnType::Field(InfluxFieldType::String),
-                ));
+                columns.push((sk.to_string(), InfluxColumnType::Tag));
             }
         }
         for (field_name, field_val) in line.field_set.iter() {

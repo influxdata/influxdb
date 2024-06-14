@@ -101,7 +101,7 @@ impl TableBuffer {
                     }
                     FieldData::Key(v) => {
                         if !self.data.contains_key(&f.name) {
-                            let key_builder = StringBuilder::new();
+                            let key_builder = StringDictionaryBuilder::new();
                             if self.row_count > 0 {
                                 panic!("series key columns must be passed in the very first write for a table");
                             }
@@ -253,6 +253,7 @@ impl TableBuffer {
     }
 
     /// Returns an estimate of the size of this table buffer based on the data and index sizes.
+    #[cfg(test)]
     pub fn _computed_size(&self) -> usize {
         let mut size = size_of::<Self>();
         for (k, v) in &self.data {
@@ -338,7 +339,9 @@ pub enum Builder {
     U64(UInt64Builder),
     String(StringBuilder),
     Tag(StringDictionaryBuilder<Int32Type>),
-    Key(StringBuilder),
+    // For now we use a string dict to be consistent with tags, but in future
+    // keys, like fields may support different data types.
+    Key(StringDictionaryBuilder<Int32Type>),
     Time(TimestampNanosecondBuilder),
 }
 
@@ -398,7 +401,7 @@ impl Builder {
                 }
                 Arc::new(builder.finish())
             }
-            Self::Tag(b) => {
+            Self::Tag(b) | Self::Key(b) => {
                 let b = b.finish_cloned();
                 let bv = b.values();
                 let bva: &StringArray = bv.as_any().downcast_ref::<StringArray>().unwrap();
@@ -412,14 +415,6 @@ impl Builder {
                     builder
                         .append(tag_val)
                         .expect("shouldn't be able to overflow 32 bit dictionary");
-                }
-                Arc::new(builder.finish())
-            }
-            Self::Key(b) => {
-                let b = b.finish_cloned();
-                let mut builder = StringBuilder::new();
-                for row in rows {
-                    builder.append_value(b.value(*row));
                 }
                 Arc::new(builder.finish())
             }
@@ -451,14 +446,9 @@ impl Builder {
                     + b.offsets_slice().len()
                     + b.validity_slice().map(|s| s.len()).unwrap_or(0)
             }
-            Self::Tag(b) => {
+            Self::Tag(b) | Self::Key(b) => {
                 let b = b.finish_cloned();
                 b.keys().len() * size_of::<i32>() + b.values().get_array_memory_size()
-            }
-            Self::Key(b) => {
-                b.values_slice().len()
-                    + b.offsets_slice().len()
-                    + b.validity_slice().map(|s| s.len()).unwrap_or(0)
             }
             Self::Time(b) => size_of::<i64>() * b.capacity(),
         };
@@ -660,6 +650,6 @@ mod tests {
         table_buffer.add_rows(rows);
 
         let size = table_buffer._computed_size();
-        assert_eq!(size, 18126);
+        assert_eq!(size, 18150);
     }
 }
