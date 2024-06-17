@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
+	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/influxdata/influxdb/v2"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/notification"
@@ -4825,6 +4829,249 @@ func Test_validGeometry(t *testing.T) {
 	}
 }
 
+func Test_FromFile(t *testing.T) {
+	dir := t.TempDir()
+
+	// create empty test file
+	emptyFn := filepath.Join(dir, "empty")
+	fe, err := os.Create(emptyFn)
+	require.NoError(t, err)
+	require.NoError(t, fe.Close())
+
+	// create too big test file
+	bigFn := filepath.Join(dir, "big")
+	fb, err := os.Create(bigFn)
+	require.NoError(t, err)
+	require.NoError(t, fb.Close())
+	require.NoError(t, os.Truncate(bigFn, limitReadFileMaxSize+1))
+
+	// create symlink to /dev/null (linux only)
+	devNullSym := filepath.Join(dir, uuid.NewString())
+	if runtime.GOOS == "linux" {
+		require.NoError(t, os.Symlink("/dev/null", devNullSym))
+	}
+
+	type testCase struct {
+		path   string
+		extra  bool
+		expErr string
+		oses   []string // list of OSes to run test on, empty means all.
+	}
+
+	// Static test suites
+	tests := []testCase{
+		// valid
+		{
+			path:   "testdata/bucket_schema.yml",
+			extra:  false,
+			expErr: "",
+		},
+		{
+			path:   "testdata/bucket_schema.yml",
+			extra:  true,
+			expErr: "",
+		},
+		// invalid
+		{
+			path:   "i\nvalid:///foo",
+			extra:  false,
+			expErr: "invalid filepath provided",
+		},
+		{
+			path:   "testdata/nonexistent (darwin|linux)",
+			extra:  false,
+			expErr: "no such file or directory",
+			oses:   []string{"darwin", "linux"},
+		},
+		{
+			path:   "testdata/nonexistent (windows)",
+			extra:  false,
+			expErr: "The system cannot find the file specified.",
+			oses:   []string{"windows"},
+		},
+		// invalid with extra
+		{
+			path:   "/dev/null",
+			extra:  true,
+			expErr: "file in special file system",
+			oses:   []string{"linux"},
+		},
+		// symlink to /dev/null, invalid with extra
+		{
+			path:   devNullSym,
+			extra:  true,
+			expErr: "file in special file system",
+			oses:   []string{"linux"},
+		},
+		// invalid with extra
+		{
+			path:   "/dev/null",
+			extra:  true,
+			expErr: "not a regular file",
+			oses:   []string{"darwin"},
+		},
+		{
+			path:   "/",
+			extra:  true,
+			expErr: "not a regular file",
+		},
+		{
+			path:   "testdata/nonexistent (darwin|linux)",
+			extra:  true,
+			expErr: "no such file or directory",
+			oses:   []string{"darwin", "linux"},
+		},
+		{
+			path:   "testdata/nonexistent (windows)",
+			extra:  true,
+			expErr: "The system cannot find the file specified.",
+			oses:   []string{"windows"},
+		},
+		{
+			path:   emptyFn,
+			extra:  true,
+			expErr: "file empty",
+		},
+		{
+			path:   bigFn,
+			extra:  true,
+			expErr: "file too big",
+		},
+	}
+
+	// Add tmpfs special file system exception tests for Linux.
+	// We don't consider errors creating the tests cases (e.g. no tmpfs mounts, no write
+	// permissions to any tmpfs mount) errors for the test itself. It's possible we
+	// can't run these tests in some locked down environments, but we will warn the
+	// use we couldn't run the tests.
+	if runtime.GOOS == "linux" {
+		tmpfsDirs, err := func() ([]string, error) {
+			t.Helper()
+			// Quick and dirty parse of  /proc/mounts to find tmpfs mount points on system.
+			mounts, err := os.ReadFile("/proc/mounts")
+			if err != nil {
+				return nil, fmt.Errorf("error reading /proc/mounts: %w", err)
+			}
+			mountsLines := strings.Split(string(mounts), "\n")
+			var tmpfsMounts []string
+			for _, line := range mountsLines {
+				if line == "" {
+					continue
+				}
+				cols := strings.Split(line, " ")
+				if len(cols) != 6 {
+					return nil, fmt.Errorf("unexpected /proc/mounts line format (%d columns): %q", len(cols), line)
+				}
+				if cols[0] == "tmpfs" {
+					tmpfsMounts = append(tmpfsMounts, cols[1])
+				}
+			}
+			if len(tmpfsMounts) == 0 {
+				return nil, errors.New("no tmpfs mount points found")
+			}
+
+			// Find which common tmpfs directories are actually mounted as tmpfs.
+			candidateDirs := []string{
+				"/dev/shm",
+				"/run",
+				"/tmp",
+				os.Getenv("XDG_RUNTIME_DIR"),
+				os.TempDir(),
+			}
+			var actualDirs []string
+			for _, dir := range candidateDirs {
+				if dir == "" {
+					continue
+				}
+				for _, mount := range tmpfsMounts {
+					if strings.HasPrefix(dir, mount) {
+						actualDirs = append(actualDirs, dir)
+					}
+				}
+			}
+			if len(actualDirs) == 0 {
+				return nil, errors.New("no common tmpfs directories on tmpfs mount points")
+			}
+			return actualDirs, nil
+		}()
+		if err == nil {
+			// Create test files in the tmpfs directories and create test cases
+			var tmpfsTests []testCase
+			var tmpfsErrs []error
+			contents, err := os.ReadFile("testdata/bucket_schema.yml")
+			require.NoError(t, err)
+			require.NotEmpty(t, contents)
+			for _, dir := range tmpfsDirs {
+				testFile, err := os.CreateTemp(dir, "fromfile_*")
+				if err == nil {
+					testPath := testFile.Name()
+					defer os.Remove(testPath)
+					_, err = testFile.Write(contents)
+					require.NoError(t, err)
+					require.NoError(t, testFile.Close())
+					tmpfsTests = append(tmpfsTests, testCase{
+						path:   testPath,
+						extra:  true,
+						expErr: "",
+					})
+
+					// Create a test that's a symlink to the tmpfs file
+					symPath := path.Join(dir, uuid.NewString())
+					require.NoError(t, os.Symlink(testPath, symPath))
+					tmpfsTests = append(tmpfsTests, testCase{
+						path:   symPath,
+						extra:  true,
+						expErr: "",
+					})
+				} else {
+					tmpfsErrs = append(tmpfsErrs, fmt.Errorf("error tmpfs test file in %q: %w", dir, err))
+				}
+			}
+			// Ignore errors creating tmpfs files if we got at least one test case from the bunch
+			if len(tmpfsTests) > 0 {
+				tests = append(tests, tmpfsTests...)
+			} else {
+				t.Logf("WARNING: could not create files for tmpfs special file system tests: %s", errors.Join(tmpfsErrs...))
+			}
+		} else {
+			t.Logf("WARNING: unable to run tmpfs special file system tests: %s", err)
+		}
+	}
+
+	for _, tt := range tests {
+		fn := func(t *testing.T) {
+			if len(tt.oses) > 0 {
+				osFound := false
+				for _, os := range tt.oses {
+					if runtime.GOOS == os {
+						osFound = true
+						break
+					}
+				}
+				if !osFound {
+					t.Skipf("skipping test for %q OS", runtime.GOOS)
+				}
+			}
+
+			urlPath := pathToURLPath(tt.path)
+			readFn := FromFile(urlPath, tt.extra)
+			assert.NotNil(t, readFn)
+
+			reader, path, err := readFn()
+			if tt.expErr == "" {
+				assert.NotNil(t, reader)
+				assert.Nil(t, err)
+				assert.Equal(t, fmt.Sprintf("file://%s", urlPath), path)
+			} else {
+				assert.Nil(t, reader)
+				assert.NotNil(t, err)
+				assert.Contains(t, err.Error(), tt.expErr)
+			}
+		}
+		t.Run(tt.path, fn)
+	}
+}
+
 type testTemplateResourceError struct {
 	name           string
 	encoding       Encoding
@@ -4943,15 +5190,21 @@ func nextField(t *testing.T, field string) (string, int) {
 	return "", -1
 }
 
+// pathToURL converts file paths to URLs. This is a simple operation on Unix,
+// but is complicated by correct handling of drive letters on Windows.
+func pathToURLPath(p string) string {
+	return filepath.ToSlash(p)
+}
+
 func validParsedTemplateFromFile(t *testing.T, path string, encoding Encoding, opts ...ValidateOptFn) *Template {
 	t.Helper()
 
 	var readFn ReaderFn
 	templateBytes, ok := availableTemplateFiles[path]
 	if ok {
-		readFn = FromReader(bytes.NewBuffer(templateBytes), "file://"+path)
+		readFn = FromReader(bytes.NewBuffer(templateBytes), "file://"+pathToURLPath(path))
 	} else {
-		readFn = FromFile(path)
+		readFn = FromFile(path, false)
 		atomic.AddInt64(&missedTemplateCacheCounter, 1)
 	}
 
