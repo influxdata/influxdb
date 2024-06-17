@@ -190,8 +190,11 @@ type InfluxdOpts struct {
 
 	Viper *viper.Viper
 
+	// HardeningEnabled toggles multiple best-practice hardening options on.
 	HardeningEnabled bool
-	StrongPasswords  bool
+	// TemplateFileUrlsDisabled disables file protocol URIs in templates.
+	TemplateFileUrlsDisabled bool
+	StrongPasswords          bool
 }
 
 // NewOpts constructs options with default values.
@@ -243,8 +246,9 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		Testing:                 false,
 		TestingAlwaysAllowSetup: false,
 
-		HardeningEnabled: false,
-		StrongPasswords:  false,
+		HardeningEnabled:         false,
+		TemplateFileUrlsDisabled: false,
+		StrongPasswords:          false,
 	}
 }
 
@@ -643,9 +647,10 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 		},
 
 		// hardening options
-		// --hardening-enabled is meant to enable all hardending
+		// --hardening-enabled is meant to enable all hardening
 		// options in one go. Today it enables the IP validator for
-		// flux and pkger templates HTTP requests. In the future,
+		// flux and pkger templates HTTP requests, and disables file://
+		// protocol for pkger templates. In the future,
 		// --hardening-enabled might be used to enable other security
 		// features, at which point we can add per-feature flags so
 		// that users can either opt into all features
@@ -657,7 +662,16 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			DestP:   &o.HardeningEnabled,
 			Flag:    "hardening-enabled",
 			Default: o.HardeningEnabled,
-			Desc:    "enable hardening options (disallow private IPs within flux and templates HTTP requests)",
+			Desc:    "enable hardening options (disallow private IPs within flux and templates HTTP requests; disable file URLs in templates)",
+		},
+
+		// --template-file-urls-disabled prevents file protocol URIs
+		// from being used for templates.
+		{
+			DestP:   &o.TemplateFileUrlsDisabled,
+			Flag:    "template-file-urls-disabled",
+			Default: o.TemplateFileUrlsDisabled,
+			Desc:    "disable template file URLs",
 		},
 		{
 			DestP:   &o.StrongPasswords,

@@ -752,8 +752,10 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		authedOrgSVC := authorizer.NewOrgService(b.OrganizationService)
 		authedUrmSVC := authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
 		pkgerLogger := m.log.With(zap.String("service", "pkger"))
+		disableFileUrls := opts.HardeningEnabled || opts.TemplateFileUrlsDisabled
 		pkgSVC = pkger.NewService(
 			pkger.WithHTTPClient(pkger.NewDefaultHTTPClient(urlValidator)),
+			pkger.WithFileUrlsDisabled(disableFileUrls),
 			pkger.WithLogger(pkgerLogger),
 			pkger.WithStore(pkger.NewStoreKV(m.kvStore)),
 			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService)),
