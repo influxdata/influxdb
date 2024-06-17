@@ -13,6 +13,8 @@ use crate::{
 
 use super::{Error, Field, FieldData, Row, TableBatchMap, ValidSegmentedData};
 
+/// Type state for the [`WriteValidator`] after it has been initialized
+/// with the catalog.
 pub(crate) struct WithCatalog {
     db_name: NamespaceName<'static>,
     catalog: Arc<Catalog>,
@@ -20,12 +22,16 @@ pub(crate) struct WithCatalog {
     db_schema: Arc<DatabaseSchema>,
 }
 
+/// Type state for the [`WriteValidator`] after it has parsed v1 or v3
+/// line protocol.
 pub(crate) struct LinesParsed<'raw, PL> {
     catalog: WithCatalog,
     lines: Vec<(PL, &'raw str)>,
     errors: Vec<WriteLineError>,
 }
 
+/// A state machine for validating v1 or v3 line protocol and updating
+/// the [`Catalog`] with new tables or schema changes.
 pub(crate) struct WriteValidator<State> {
     state: State,
 }
@@ -48,6 +54,16 @@ impl WriteValidator<WithCatalog> {
         })
     }
 
+    /// Parse the incoming lines of line protocol using the v3 parser and update
+    /// the [`DatabaseSchema`] if:
+    ///
+    /// * A new table is being added
+    /// * New fields, or tags are being added to an existing table
+    ///
+    /// # Implementation Note
+    ///
+    /// If this function succeeds, then the catalog will receive an update, so
+    /// steps following this should be infallible.
     pub(crate) fn v3_parse_lines_and_update_schema(
         self,
         lp: &str,
@@ -161,6 +177,15 @@ impl WriteValidator<WithCatalog> {
     }
 }
 
+/// Validate an individual line of v3 line protocol and update the database
+/// schema
+///
+/// The [`DatabaseSchema`] will be updated if the line is being written to a new table, or if
+/// the line contains new fields. Note that for v3, the series key members must be consistent,
+/// and therefore new tag columns will never be added after the first write.
+///
+/// This errors if the write is being performed against a v1 table, i.e., one that does not have
+/// a series key.
 fn validate_v3_line<'a>(
     db_schema: &mut Cow<'_, DatabaseSchema>,
     line_number: usize,
@@ -386,6 +411,12 @@ pub(crate) struct ValidatedLines {
 }
 
 impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
+    /// Convert a set of valid parsed `v3` lines to a [`ValidatedLines`] which will
+    /// be buffered and written to the WAL, if configured.
+    ///
+    /// This involves splitting out the writes into different batches for any
+    /// segment affected by the write. This function should be infallible, because
+    /// the schema for incoming writes has been fully validated.
     pub(crate) fn convert_lines_to_buffer(
         self,
         ingest_time: Time,
@@ -436,63 +467,6 @@ impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
             line_count,
             field_count,
             index_count: series_key_count,
-            errors: self.state.errors,
-            valid_segmented_data,
-        }
-    }
-}
-
-impl<'lp> WriteValidator<LinesParsed<'lp, ParsedLine<'lp>>> {
-    /// Convert a set of valid parsed lines to a [`ValidatedLines`] which will
-    /// be buffered and written to the WAL, if configured.
-    ///
-    /// This involves splitting out the writes into different batches for any
-    /// segment affected by the write.
-    pub(crate) fn convert_lines_to_buffer(
-        self,
-        ingest_time: Time,
-        segment_duration: SegmentDuration,
-        precision: Precision,
-    ) -> ValidatedLines {
-        let mut segment_table_batches = HashMap::new();
-        let line_count = self.state.lines.len();
-        let mut field_count = 0;
-        let mut tag_count = 0;
-
-        for (line, raw_line) in self.state.lines.into_iter() {
-            field_count += line.field_set.len();
-            tag_count += line.series.tag_set.as_ref().map(|t| t.len()).unwrap_or(0);
-
-            convert_v1_parsed_line(
-                line,
-                raw_line,
-                &mut segment_table_batches,
-                ingest_time,
-                segment_duration,
-                precision,
-            );
-        }
-
-        let valid_segmented_data = segment_table_batches
-            .into_iter()
-            .map(|(segment_start, table_batches)| ValidSegmentedData {
-                database_name: self.state.catalog.db_name.clone(),
-                segment_start,
-                table_batches: table_batches.table_batches,
-                wal_op: WalOp::LpWrite(LpWriteOp {
-                    db_name: self.state.catalog.db_name.to_string(),
-                    lp: table_batches.lines.join("\n"),
-                    default_time: ingest_time.timestamp_nanos(),
-                    precision,
-                }),
-                starting_catalog_sequence_number: self.state.catalog.sequence,
-            })
-            .collect();
-
-        ValidatedLines {
-            line_count,
-            field_count,
-            index_count: tag_count,
             errors: self.state.errors,
             valid_segmented_data,
         }
@@ -552,6 +526,64 @@ fn convert_v3_parsed_line<'a>(
         fields: values,
     });
     table_batch_map.lines.push(raw_line);
+}
+
+impl<'lp> WriteValidator<LinesParsed<'lp, ParsedLine<'lp>>> {
+    /// Convert a set of valid parsed lines to a [`ValidatedLines`] which will
+    /// be buffered and written to the WAL, if configured.
+    ///
+    /// This involves splitting out the writes into different batches for any
+    /// segment affected by the write. This function should be infallible, because
+    /// the schema for incoming writes has been fully validated.
+    pub(crate) fn convert_lines_to_buffer(
+        self,
+        ingest_time: Time,
+        segment_duration: SegmentDuration,
+        precision: Precision,
+    ) -> ValidatedLines {
+        let mut segment_table_batches = HashMap::new();
+        let line_count = self.state.lines.len();
+        let mut field_count = 0;
+        let mut tag_count = 0;
+
+        for (line, raw_line) in self.state.lines.into_iter() {
+            field_count += line.field_set.len();
+            tag_count += line.series.tag_set.as_ref().map(|t| t.len()).unwrap_or(0);
+
+            convert_v1_parsed_line(
+                line,
+                raw_line,
+                &mut segment_table_batches,
+                ingest_time,
+                segment_duration,
+                precision,
+            );
+        }
+
+        let valid_segmented_data = segment_table_batches
+            .into_iter()
+            .map(|(segment_start, table_batches)| ValidSegmentedData {
+                database_name: self.state.catalog.db_name.clone(),
+                segment_start,
+                table_batches: table_batches.table_batches,
+                wal_op: WalOp::LpWrite(LpWriteOp {
+                    db_name: self.state.catalog.db_name.to_string(),
+                    lp: table_batches.lines.join("\n"),
+                    default_time: ingest_time.timestamp_nanos(),
+                    precision,
+                }),
+                starting_catalog_sequence_number: self.state.catalog.sequence,
+            })
+            .collect();
+
+        ValidatedLines {
+            line_count,
+            field_count,
+            index_count: tag_count,
+            errors: self.state.errors,
+            valid_segmented_data,
+        }
+    }
 }
 
 fn convert_v1_parsed_line<'a>(
