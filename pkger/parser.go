@@ -23,6 +23,8 @@ import (
 	fluxurl "github.com/influxdata/flux/dependencies/url"
 	"github.com/influxdata/flux/parser"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+	caperr "github.com/influxdata/influxdb/v2/pkg/errors"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"github.com/influxdata/influxdb/v2/task/options"
 	"gopkg.in/yaml.v3"
@@ -102,8 +104,65 @@ func Parse(encoding Encoding, readerFn ReaderFn, opts ...ValidateOptFn) (*Templa
 	return pkg, nil
 }
 
-// FromFile reads a file from disk and provides a reader from it.
-func FromFile(filePath string) ReaderFn {
+// limitReadFileMaxSize is the maximum file size that limitReadFile will read.
+const limitReadFileMaxSize int64 = 2 * 1024 * 1024
+
+// limitReadFile operates like ioutil.ReadFile() in that it reads the contents
+// of a file into RAM, but will only read regular files up to the specified
+// max. limitReadFile reads the file named by filename and returns the
+// contents. A successful call returns err == nil, not err == EOF. Because
+// limitReadFile reads the whole file, it does not treat an EOF from Read as an
+// error to be reported.
+func limitReadFile(name string) (buf []byte, rErr error) {
+	// use os.Open() to avoid TOCTOU
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer caperr.Capture(&rErr, f.Close)()
+
+	// Check that properties of file are OK.
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	// Disallow reading from special file systems (e.g. /proc, /sys/, /dev).
+	if special, err := fs.IsSpecialFSFromFileInfo(st); err != nil {
+		return nil, fmt.Errorf("%w: %q", err, name)
+	} else if special {
+		return nil, fmt.Errorf("file in special file system: %q", name)
+	}
+
+	// only support reading regular files
+	if st.Mode()&os.ModeType != 0 {
+		return nil, fmt.Errorf("not a regular file: %q", name)
+	}
+
+	// limit how much we read into RAM
+	var size int
+	size64 := st.Size()
+	if limitReadFileMaxSize > 0 && size64 > limitReadFileMaxSize {
+		return nil, fmt.Errorf("file too big: %q", name)
+	} else if size64 == 0 {
+		return nil, fmt.Errorf("file empty: %q", name)
+	}
+	size = int(size64)
+
+	// Read file
+	data := make([]byte, size)
+	b, err := f.Read(data)
+	if err != nil {
+		return nil, err
+	} else if b != size {
+		return nil, fmt.Errorf("short read: %q", name)
+	}
+
+	return data, nil
+}
+
+// fromFile reads a file from disk and provides a reader from it.
+func FromFile(filePath string, extraFileChecks bool) ReaderFn {
 	return func() (io.Reader, string, error) {
 		u, err := url.Parse(filePath)
 		if err != nil {
@@ -118,9 +177,15 @@ func FromFile(filePath string) ReaderFn {
 		}
 
 		// not using os.Open to avoid having to deal with closing the file in here
-		b, err := os.ReadFile(u.Path)
-		if err != nil {
-			return nil, filePath, err
+		var b []byte
+		var rerr error
+		if extraFileChecks {
+			b, rerr = limitReadFile(u.Path)
+		} else {
+			b, rerr = os.ReadFile(u.Path)
+		}
+		if rerr != nil {
+			return nil, filePath, rerr
 		}
 
 		return bytes.NewBuffer(b), u.String(), nil
@@ -260,7 +325,7 @@ func parseSource(r io.Reader, opts ...ValidateOptFn) (*Template, error) {
 		b = bb
 	}
 
-	contentType := http.DetectContentType(b[:512])
+	contentType := http.DetectContentType(b[:min(len(b), 512)])
 	switch {
 	case strings.Contains(contentType, "jsonnet"):
 		// highly unlikely to fall in here with supported content type detection as is

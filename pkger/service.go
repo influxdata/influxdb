@@ -149,12 +149,13 @@ type SVCMiddleware func(SVC) SVC
 type serviceOpt struct {
 	logger *zap.Logger
 
-	applyReqLimit int
-	client        *http.Client
-	idGen         platform.IDGenerator
-	nameGen       NameGenerator
-	timeGen       influxdb.TimeGenerator
-	store         Store
+	applyReqLimit    int
+	client           *http.Client
+	fileUrlsDisabled bool
+	idGen            platform.IDGenerator
+	nameGen          NameGenerator
+	timeGen          influxdb.TimeGenerator
+	store            Store
 
 	bucketSVC   influxdb.BucketService
 	checkSVC    influxdb.CheckService
@@ -183,6 +184,13 @@ func WithHTTPClient(c *http.Client) ServiceSetterFn {
 func WithLogger(log *zap.Logger) ServiceSetterFn {
 	return func(o *serviceOpt) {
 		o.logger = log
+	}
+}
+
+// WithFileUrlsDisable sets if file URLs are disabled for the service.
+func WithFileUrlsDisabled(v bool) ServiceSetterFn {
+	return func(o *serviceOpt) {
+		o.fileUrlsDisabled = v
 	}
 }
 
@@ -305,12 +313,13 @@ type Service struct {
 	log *zap.Logger
 
 	// internal dependencies
-	applyReqLimit int
-	client        *http.Client
-	idGen         platform.IDGenerator
-	nameGen       NameGenerator
-	store         Store
-	timeGen       influxdb.TimeGenerator
+	applyReqLimit    int
+	client           *http.Client
+	fileUrlsDisabled bool
+	idGen            platform.IDGenerator
+	nameGen          NameGenerator
+	store            Store
+	timeGen          influxdb.TimeGenerator
 
 	// external service dependencies
 	bucketSVC   influxdb.BucketService
@@ -344,12 +353,13 @@ func NewService(opts ...ServiceSetterFn) *Service {
 	return &Service{
 		log: opt.logger,
 
-		applyReqLimit: opt.applyReqLimit,
-		client:        opt.client,
-		idGen:         opt.idGen,
-		nameGen:       opt.nameGen,
-		store:         opt.store,
-		timeGen:       opt.timeGen,
+		applyReqLimit:    opt.applyReqLimit,
+		client:           opt.client,
+		fileUrlsDisabled: opt.fileUrlsDisabled,
+		idGen:            opt.idGen,
+		nameGen:          opt.nameGen,
+		store:            opt.store,
+		timeGen:          opt.timeGen,
 
 		bucketSVC:   opt.bucketSVC,
 		checkSVC:    opt.checkSVC,
@@ -3101,11 +3111,35 @@ func (s *Service) getStackRemoteTemplates(ctx context.Context, stackID platform.
 
 		readerFn := FromHTTPRequest(u.String(), s.client)
 		if u.Scheme == "file" {
-			readerFn = FromFile(u.Path)
+			s.log.Info("file:// specified in call to /api/v2/templates/apply with stack",
+				zap.String("file", u.Path),
+			)
+
+			if s.fileUrlsDisabled {
+				return nil, &errors2.Error{
+					Code: errors2.EInvalid,
+					Msg:  "invalid URL scheme",
+					Err:  errors.New("invalid URL scheme"),
+				}
+			}
+
+			readerFn = FromFile(u.Path, true)
 		}
 
 		template, err := Parse(encoding, readerFn)
 		if err != nil {
+			if u.Scheme == "file" {
+				// Prevent leaking information about local files to client.
+				// Log real error for debugging purposes.
+				s.log.Error("error parsing file:// specified in call to /api/v2/templates/apply with stack",
+					zap.Stringer("orgID", stack.OrgID),
+					zap.String("file", u.Path),
+					zap.String("err", err.Error()),
+				)
+
+				// Send the client a generic error.
+				return nil, fmt.Errorf("file:// URL failed to parse: %s", u.Path)
+			}
 			return nil, err
 		}
 		remotes = append(remotes, template)
