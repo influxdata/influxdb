@@ -179,6 +179,18 @@ impl TestServer {
             .await
     }
 
+    pub async fn api_v3_query_sql(&self, params: &[(&str, &str)]) -> Response {
+        self.http_client
+            .get(format!(
+                "{base}/api/v3/query_sql",
+                base = self.client_addr()
+            ))
+            .query(params)
+            .send()
+            .await
+            .expect("send /api/v3/query_sql request to server")
+    }
+
     pub async fn api_v3_query_influxql(&self, params: &[(&str, &str)]) -> Response {
         self.http_client
             .get(format!(

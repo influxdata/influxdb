@@ -251,6 +251,7 @@ impl TableDefinition {
     pub(crate) fn new<N: Into<String>, CN: AsRef<str>>(
         name: N,
         columns: impl AsRef<[(CN, InfluxColumnType)]>,
+        series_key: Option<impl IntoIterator<Item: AsRef<str>>>,
     ) -> Self {
         // Use a BTree to ensure that the columns are ordered:
         let mut ordered_columns = BTreeMap::new();
@@ -259,9 +260,10 @@ impl TableDefinition {
         }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.as_ref().len());
         let name = name.into();
-        // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
-        // tests, so I am omitting this for now:
-        // schema_builder.measurement(&name);
+        schema_builder.measurement(&name);
+        if let Some(sk) = series_key {
+            schema_builder.with_series_key(sk);
+        }
         for (name, column_type) in ordered_columns {
             schema_builder.influx_column(name, *column_type);
         }
@@ -310,13 +312,20 @@ impl TableDefinition {
             .collect()
     }
 
-    #[allow(dead_code)]
     pub(crate) fn schema(&self) -> &Schema {
         &self.schema
     }
 
     pub(crate) fn num_columns(&self) -> usize {
         self.schema.len()
+    }
+
+    pub(crate) fn field_type_by_name(&self, name: &str) -> Option<InfluxColumnType> {
+        self.schema.field_type_by_name(name)
+    }
+
+    pub(crate) fn is_v3(&self) -> bool {
+        self.schema.series_key().is_some()
     }
 }
 
@@ -333,9 +342,12 @@ pub fn influx_column_type_from_field_value(fv: &FieldValue<'_>) -> InfluxColumnT
 #[cfg(test)]
 mod tests {
     use insta::assert_json_snapshot;
+    use pretty_assertions::assert_eq;
     use test_helpers::assert_contains;
 
     use super::*;
+
+    type SeriesKey = Option<Vec<String>>;
 
     #[test]
     fn catalog_serialization() {
@@ -361,6 +373,7 @@ mod tests {
                     ("u64_field", Field(UInteger)),
                     ("f64_field", Field(Float)),
                 ],
+                SeriesKey::None,
             ),
         );
         database.tables.insert(
@@ -378,6 +391,7 @@ mod tests {
                     ("u64_field", Field(UInteger)),
                     ("f64_field", Field(Float)),
                 ],
+                SeriesKey::None,
             ),
         );
         let database = Arc::new(database);
@@ -482,6 +496,7 @@ mod tests {
                     "test".to_string(),
                     InfluxColumnType::Field(InfluxFieldType::String),
                 )],
+                SeriesKey::None,
             ),
         );
 
