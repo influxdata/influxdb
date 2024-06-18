@@ -99,6 +99,24 @@ impl TableBuffer {
                             panic!("unexpected field type");
                         }
                     }
+                    FieldData::Key(v) => {
+                        if !self.data.contains_key(&f.name) {
+                            let key_builder = StringDictionaryBuilder::new();
+                            if self.row_count > 0 {
+                                panic!("series key columns must be passed in the very first write for a table");
+                            }
+                            self.data.insert(f.name.clone(), Builder::Key(key_builder));
+                        }
+                        let b = self
+                            .data
+                            .get_mut(&f.name)
+                            .expect("key builder should exist");
+                        let Builder::Key(b) = b else {
+                            panic!("unexpected field type");
+                        };
+                        self.index.add_row_if_indexed_column(b.len(), &f.name, &v);
+                        b.append_value(v);
+                    }
                     FieldData::String(v) => {
                         let b = self.data.entry(f.name).or_insert_with(|| {
                             let mut string_builder = StringBuilder::new();
@@ -188,6 +206,7 @@ impl TableBuffer {
                         Builder::U64(b) => b.append_null(),
                         Builder::String(b) => b.append_null(),
                         Builder::Tag(b) => b.append_null(),
+                        Builder::Key(b) => b.append_null(),
                         Builder::Time(b) => b.append_null(),
                     }
                 }
@@ -234,6 +253,7 @@ impl TableBuffer {
     }
 
     /// Returns an estimate of the size of this table buffer based on the data and index sizes.
+    #[cfg(test)]
     pub fn _computed_size(&self) -> usize {
         let mut size = size_of::<Self>();
         for (k, v) in &self.data {
@@ -319,6 +339,9 @@ pub enum Builder {
     U64(UInt64Builder),
     String(StringBuilder),
     Tag(StringDictionaryBuilder<Int32Type>),
+    // For now we use a string dict to be consistent with tags, but in future
+    // keys, like fields may support different data types.
+    Key(StringDictionaryBuilder<Int32Type>),
     Time(TimestampNanosecondBuilder),
 }
 
@@ -331,6 +354,7 @@ impl Builder {
             Self::U64(b) => Arc::new(b.finish_cloned()),
             Self::String(b) => Arc::new(b.finish_cloned()),
             Self::Tag(b) => Arc::new(b.finish_cloned()),
+            Self::Key(b) => Arc::new(b.finish_cloned()),
             Self::Time(b) => Arc::new(b.finish_cloned()),
         }
     }
@@ -377,7 +401,7 @@ impl Builder {
                 }
                 Arc::new(builder.finish())
             }
-            Self::Tag(b) => {
+            Self::Tag(b) | Self::Key(b) => {
                 let b = b.finish_cloned();
                 let bv = b.values();
                 let bva: &StringArray = bv.as_any().downcast_ref::<StringArray>().unwrap();
@@ -422,7 +446,7 @@ impl Builder {
                     + b.offsets_slice().len()
                     + b.validity_slice().map(|s| s.len()).unwrap_or(0)
             }
-            Self::Tag(b) => {
+            Self::Tag(b) | Self::Key(b) => {
                 let b = b.finish_cloned();
                 b.keys().len() * size_of::<i32>() + b.values().get_array_memory_size()
             }
@@ -626,6 +650,6 @@ mod tests {
         table_buffer.add_rows(rows);
 
         let size = table_buffer._computed_size();
-        assert_eq!(size, 18126);
+        assert_eq!(size, 18150);
     }
 }

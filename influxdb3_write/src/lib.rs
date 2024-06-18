@@ -84,6 +84,16 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         precision: Precision,
     ) -> write_buffer::Result<BufferedWriteRequest>;
 
+    /// Write v3 line protocol
+    async fn write_lp_v3(
+        &self,
+        database: NamespaceName<'static>,
+        lp: &str,
+        ingest_time: Time,
+        accept_partial: bool,
+        precision: Precision,
+    ) -> write_buffer::Result<BufferedWriteRequest>;
+
     /// Returns the configured WAL, if there is one.
     fn wal(&self) -> Option<Arc<impl Wal>>;
 
@@ -453,7 +463,7 @@ pub struct BufferedWriteRequest {
     pub invalid_lines: Vec<WriteLineError>,
     pub line_count: usize,
     pub field_count: usize,
-    pub tag_count: usize,
+    pub index_count: usize,
 }
 
 /// A persisted Catalog that contains the database, table, and column schemas.
@@ -583,35 +593,30 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
 mod test_helpers {
     use crate::catalog::Catalog;
     use crate::write_buffer::buffer_segment::WriteBatch;
-    use crate::write_buffer::{parse_validate_and_update_schema, TableBatch};
-    use crate::{Precision, SegmentDuration, SequenceNumber};
+    use crate::write_buffer::validator::WriteValidator;
+    use crate::write_buffer::TableBatch;
+    use crate::{Precision, SegmentDuration};
     use data_types::NamespaceName;
     use iox_time::Time;
     use std::collections::HashMap;
     use std::sync::Arc;
 
     pub(crate) fn lp_to_write_batch(
-        catalog: &Catalog,
+        catalog: Arc<Catalog>,
         db_name: &'static str,
         lp: &str,
     ) -> WriteBatch {
         let db_name = NamespaceName::new(db_name).unwrap();
         let mut write_batch = WriteBatch::default();
-        let (seq, db) = catalog.db_or_create(db_name.as_str()).unwrap();
-        let mut result = parse_validate_and_update_schema(
-            lp,
-            &db,
-            db_name.clone(),
-            Time::from_timestamp_nanos(0),
-            SegmentDuration::new_5m(),
-            false,
-            Precision::Nanosecond,
-            seq,
-        )
-        .unwrap();
-        if let Some(db) = result.schema {
-            catalog.replace_database(seq, Arc::new(db)).unwrap();
-        }
+        let mut result = WriteValidator::initialize(db_name.clone(), catalog)
+            .unwrap()
+            .v1_parse_lines_and_update_schema(lp, false)
+            .unwrap()
+            .convert_lines_to_buffer(
+                Time::from_timestamp_nanos(0),
+                SegmentDuration::new_5m(),
+                Precision::Nanosecond,
+            );
 
         write_batch.add_db_write(
             db_name,
@@ -621,28 +626,21 @@ mod test_helpers {
     }
 
     pub(crate) fn lp_to_table_batches(
-        catalog: &Catalog,
+        catalog: Arc<Catalog>,
         db_name: &str,
         lp: &str,
         default_time: i64,
     ) -> HashMap<String, TableBatch> {
-        let (seq, db) = catalog.db_or_create(db_name).unwrap();
         let db_name = NamespaceName::new(db_name.to_string()).unwrap();
-        let mut result = parse_validate_and_update_schema(
-            lp,
-            &db,
-            db_name,
-            Time::from_timestamp_nanos(default_time),
-            SegmentDuration::new_5m(),
-            false,
-            Precision::Nanosecond,
-            SequenceNumber::new(0),
-        )
-        .unwrap();
-
-        if let Some(db) = result.schema {
-            catalog.replace_database(seq, Arc::new(db)).unwrap();
-        }
+        let mut result = WriteValidator::initialize(db_name, catalog)
+            .unwrap()
+            .v1_parse_lines_and_update_schema(lp, false)
+            .unwrap()
+            .convert_lines_to_buffer(
+                Time::from_timestamp_nanos(default_time),
+                SegmentDuration::new_5m(),
+                Precision::Nanosecond,
+            );
 
         result.valid_segmented_data.pop().unwrap().table_batches
     }

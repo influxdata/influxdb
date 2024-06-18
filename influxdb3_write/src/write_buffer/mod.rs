@@ -5,30 +5,29 @@ mod flusher;
 mod loader;
 mod segment_state;
 mod table_buffer;
+pub(crate) mod validator;
 
 use crate::cache::ParquetCache;
-use crate::catalog::{
-    influx_column_type_from_field_value, Catalog, DatabaseSchema, TableDefinition, TIME_COLUMN_NAME,
-};
+use crate::catalog::{Catalog, DatabaseSchema};
 use crate::chunk::ParquetChunk;
 use crate::persister::PersisterImpl;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
 use crate::write_buffer::segment_state::{run_buffer_segment_persist_and_cleanup, SegmentState};
+use crate::write_buffer::validator::WriteValidator;
 use crate::{
-    BufferedWriteRequest, Bufferer, ChunkContainer, LpWriteOp, Persister, Precision,
-    SegmentDuration, SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
+    BufferedWriteRequest, Bufferer, ChunkContainer, Persister, Precision, SegmentDuration,
+    SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use async_trait::async_trait;
-use data_types::{
-    column_type_from_field, ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError,
-};
+use data_types::{ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError};
 use datafusion::common::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::SendableRecordBatchStream;
-use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
-use iox_query::chunk_statistics::create_chunk_statistics;
+use influxdb_line_protocol::v3::SeriesValue;
+use influxdb_line_protocol::FieldValue;
+use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use object_store::path::Path as ObjPath;
@@ -36,13 +35,8 @@ use object_store::ObjectMeta;
 use observability_deps::tracing::{debug, error};
 use parking_lot::{Mutex, RwLock};
 use parquet_file::storage::ParquetExecInput;
-use schema::InfluxColumnType;
-use sha2::Digest;
-use sha2::Sha256;
-use std::borrow::Cow;
 use std::collections::HashMap;
-use std::i64;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::watch;
 
@@ -180,15 +174,9 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
     ) -> Result<BufferedWriteRequest> {
         debug!("write_lp to {} in writebuffer", db_name);
 
-        let result = parse_validate_and_update_catalog(
-            db_name.clone(),
-            lp,
-            &self.catalog,
-            ingest_time,
-            self.segment_duration,
-            accept_partial,
-            precision,
-        )?;
+        let result = WriteValidator::initialize(db_name.clone(), self.catalog())?
+            .v1_parse_lines_and_update_schema(lp, accept_partial)?
+            .convert_lines_to_buffer(ingest_time, self.segment_duration, precision);
 
         self.write_buffer_flusher
             .write_to_open_segment(result.valid_segmented_data)
@@ -199,7 +187,32 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             invalid_lines: result.errors,
             line_count: result.line_count,
             field_count: result.field_count,
-            tag_count: result.tag_count,
+            index_count: result.index_count,
+        })
+    }
+
+    async fn write_lp_v3(
+        &self,
+        db_name: NamespaceName<'static>,
+        lp: &str,
+        ingest_time: Time,
+        accept_partial: bool,
+        precision: Precision,
+    ) -> Result<BufferedWriteRequest> {
+        let result = WriteValidator::initialize(db_name.clone(), self.catalog())?
+            .v3_parse_lines_and_update_schema(lp, accept_partial)?
+            .convert_lines_to_buffer(ingest_time, self.segment_duration, precision);
+
+        self.write_buffer_flusher
+            .write_to_open_segment(result.valid_segmented_data)
+            .await?;
+
+        Ok(BufferedWriteRequest {
+            db_name,
+            invalid_lines: result.errors,
+            line_count: result.line_count,
+            field_count: result.field_count,
+            index_count: result.index_count,
         })
     }
 
@@ -247,7 +260,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
                 Some(parquet_file.row_count as usize),
                 &table_schema,
                 Some(parquet_file.timestamp_min_max()),
-                None,
+                &NoColumnRanges,
             );
 
             let location = ObjPath::from(parquet_file.path.clone());
@@ -296,7 +309,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
                 Some(parquet_file.row_count as usize),
                 &table_schema,
                 Some(parquet_file.timestamp_min_max()),
-                None,
+                &NoColumnRanges,
             );
 
             let location = ObjPath::from(parquet_file.path.clone());
@@ -397,6 +410,18 @@ impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
             .await
     }
 
+    async fn write_lp_v3(
+        &self,
+        database: NamespaceName<'static>,
+        lp: &str,
+        ingest_time: Time,
+        accept_partial: bool,
+        precision: Precision,
+    ) -> Result<BufferedWriteRequest> {
+        self.write_lp_v3(database, lp, ingest_time, accept_partial, precision)
+            .await
+    }
+
     fn wal(&self) -> Option<Arc<impl Wal>> {
         self.wal.clone()
     }
@@ -421,345 +446,6 @@ impl<W: Wal, T: TimeProvider> ChunkContainer for WriteBufferImpl<W, T> {
 
 impl<W: Wal, T: TimeProvider> WriteBuffer for WriteBufferImpl<W, T> {}
 
-/// Returns a validated result and the sequence number of the catalog before any updates were
-/// applied.
-pub(crate) fn parse_validate_and_update_catalog(
-    db_name: NamespaceName<'static>,
-    lp: &str,
-    catalog: &Catalog,
-    ingest_time: Time,
-    segment_duration: SegmentDuration,
-    accept_partial: bool,
-    precision: Precision,
-) -> Result<ValidationResult> {
-    let (sequence, db) = catalog.db_or_create(db_name.as_str())?;
-    let mut result = parse_validate_and_update_schema(
-        lp,
-        &db,
-        db_name,
-        ingest_time,
-        segment_duration,
-        accept_partial,
-        precision,
-        sequence,
-    )?;
-
-    if let Some(schema) = result.schema.take() {
-        debug!("replacing schema for {:?}", schema);
-
-        catalog.replace_database(sequence, Arc::new(schema))?;
-    }
-
-    Ok(result)
-}
-
-/// Takes &str of line protocol, parses lines, validates the schema, and inserts new columns
-/// if present. Assigns the default time to any lines that do not include a time
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn parse_validate_and_update_schema(
-    lp: &str,
-    schema: &DatabaseSchema,
-    db_name: NamespaceName<'static>,
-    ingest_time: Time,
-    segment_duration: SegmentDuration,
-    accept_partial: bool,
-    precision: Precision,
-    starting_catalog_sequence_number: SequenceNumber,
-) -> Result<ValidationResult> {
-    let mut errors = vec![];
-    let mut lp_lines = lp.lines();
-
-    let mut valid_parsed_and_raw_lines: Vec<(ParsedLine, &str)> = vec![];
-
-    for (line_idx, maybe_line) in parse_lines(lp).enumerate() {
-        let line = match maybe_line
-            .map_err(|e| WriteLineError {
-                // This unwrap is fine because we're moving line by line
-                // alongside the output from parse_lines
-                original_line: lp_lines.next().unwrap().to_string(),
-                line_number: line_idx + 1,
-                error_message: e.to_string(),
-            })
-            .and_then(|l| validate_line_schema(line_idx, l, schema))
-        {
-            Ok(line) => line,
-            Err(e) => {
-                if !accept_partial {
-                    return Err(Error::ParseError(e));
-                } else {
-                    errors.push(e);
-                }
-                continue;
-            }
-        };
-        // This unwrap is fine because we're moving line by line
-        // alongside the output from parse_lines
-        valid_parsed_and_raw_lines.push((line, lp_lines.next().unwrap()));
-    }
-
-    validate_or_insert_schema_and_partitions(
-        valid_parsed_and_raw_lines,
-        schema,
-        db_name,
-        ingest_time,
-        segment_duration,
-        precision,
-        starting_catalog_sequence_number,
-    )
-    .map(move |mut result| {
-        result.errors = errors;
-        result
-    })
-}
-
-/// Validate a line of line protocol against the given schema definition
-///
-/// This is for scenarios where a write comes in for a table that exists, but may have invalid field
-/// types, based on the pre-existing schema.
-fn validate_line_schema<'a>(
-    line_number: usize,
-    line: ParsedLine<'a>,
-    schema: &DatabaseSchema,
-) -> Result<ParsedLine<'a>, WriteLineError> {
-    let table_name = line.series.measurement.as_str();
-    if let Some(table_schema) = schema.get_table_schema(table_name) {
-        for (field_name, field_val) in line.field_set.iter() {
-            if let Some(schema_col_type) = table_schema.field_type_by_name(field_name) {
-                let field_col_type = column_type_from_field(field_val);
-                if field_col_type != schema_col_type {
-                    let field_name = field_name.to_string();
-                    return Err(WriteLineError {
-                        original_line: line.to_string(),
-                        line_number: line_number + 1,
-                        error_message: format!(
-                            "invalid field value in line protocol for field '{field_name}' on line \
-                            {line_number}: expected type {expected}, but got {got}",
-                            expected = ColumnType::from(schema_col_type),
-                            got = field_col_type,
-                        ),
-                    });
-                }
-            }
-        }
-    }
-
-    Ok(line)
-}
-
-/// Takes parsed lines, validates their schema. If new tables or columns are defined, they
-/// are passed back as a new DatabaseSchema as part of the ValidationResult. Lines are split
-/// into partitions and the validation result contains the data that can then be serialized
-/// into the WAL.
-pub(crate) fn validate_or_insert_schema_and_partitions(
-    lines: Vec<(ParsedLine<'_>, &str)>,
-    schema: &DatabaseSchema,
-    db_name: NamespaceName<'static>,
-    ingest_time: Time,
-    segment_duration: SegmentDuration,
-    precision: Precision,
-    starting_catalog_sequence_number: SequenceNumber,
-) -> Result<ValidationResult> {
-    // The (potentially updated) DatabaseSchema to return to the caller.
-    let mut schema = Cow::Borrowed(schema);
-
-    // The parsed and validated table_batches
-    let mut segment_table_batches: HashMap<Time, TableBatchMap> = HashMap::new();
-
-    let line_count = lines.len();
-    let mut field_count = 0;
-    let mut tag_count = 0;
-
-    for (line, raw_line) in lines.into_iter() {
-        field_count += line.field_set.len();
-        tag_count += line.series.tag_set.as_ref().map(|t| t.len()).unwrap_or(0);
-
-        validate_and_convert_parsed_line(
-            line,
-            raw_line,
-            &mut segment_table_batches,
-            &mut schema,
-            ingest_time,
-            segment_duration,
-            precision,
-        )?;
-    }
-
-    let schema = match schema {
-        Cow::Owned(s) => Some(s),
-        Cow::Borrowed(_) => None,
-    };
-
-    let valid_segmented_data = segment_table_batches
-        .into_iter()
-        .map(|(segment_start, table_batches)| ValidSegmentedData {
-            database_name: db_name.clone(),
-            segment_start,
-            table_batches: table_batches.table_batches,
-            wal_op: WalOp::LpWrite(LpWriteOp {
-                db_name: db_name.to_string(),
-                lp: table_batches.lines.join("\n"),
-                default_time: ingest_time.timestamp_nanos(),
-                precision,
-            }),
-            starting_catalog_sequence_number,
-        })
-        .collect();
-
-    Ok(ValidationResult {
-        schema,
-        line_count,
-        field_count,
-        tag_count,
-        errors: vec![],
-        valid_segmented_data,
-    })
-}
-
-/// Check if the table exists in the schema and update the schema if it does not
-// Because the entry API requires &mut it is not used to avoid a premature
-// clone of the Cow.
-fn validate_and_update_schema(line: &ParsedLine<'_>, schema: &mut Cow<'_, DatabaseSchema>) {
-    let table_name = line.series.measurement.as_str();
-    match schema.tables.get(table_name) {
-        Some(t) => {
-            // Collect new column definitions
-            let mut new_cols = Vec::with_capacity(line.column_count() + 1);
-            if let Some(tagset) = &line.series.tag_set {
-                for (tag_key, _) in tagset {
-                    if !t.column_exists(tag_key.as_str()) {
-                        new_cols.push((tag_key.to_string(), InfluxColumnType::Tag));
-                    }
-                }
-            }
-            for (field_name, value) in &line.field_set {
-                if !t.column_exists(field_name.as_str()) {
-                    new_cols.push((
-                        field_name.to_string(),
-                        influx_column_type_from_field_value(value),
-                    ));
-                }
-            }
-
-            if !new_cols.is_empty() {
-                let t = schema.to_mut().tables.get_mut(table_name).unwrap();
-                t.add_columns(new_cols);
-            }
-        }
-        None => {
-            let mut columns = Vec::new();
-            if let Some(tag_set) = &line.series.tag_set {
-                for (tag_key, _) in tag_set {
-                    columns.push((tag_key.to_string(), InfluxColumnType::Tag));
-                }
-            }
-            for (field_name, value) in &line.field_set {
-                columns.push((
-                    field_name.to_string(),
-                    influx_column_type_from_field_value(value),
-                ));
-            }
-
-            columns.push((TIME_COLUMN_NAME.to_string(), InfluxColumnType::Timestamp));
-
-            let table = TableDefinition::new(table_name, columns);
-
-            assert!(schema
-                .to_mut()
-                .tables
-                .insert(table_name.to_string(), table)
-                .is_none());
-        }
-    };
-}
-
-fn validate_and_convert_parsed_line<'a>(
-    line: ParsedLine<'_>,
-    raw_line: &'a str,
-    segment_table_batches: &mut HashMap<Time, TableBatchMap<'a>>,
-    schema: &mut Cow<'_, DatabaseSchema>,
-    ingest_time: Time,
-    segment_duration: SegmentDuration,
-    precision: Precision,
-) -> Result<()> {
-    validate_and_update_schema(&line, schema);
-
-    // now that we've ensured all columns exist in the schema, construct the actual row and values
-    // while validating the column types match.
-    let mut values = Vec::with_capacity(line.column_count() + 1);
-
-    // validate tags, collecting any new ones that must be inserted, or adding the values
-    if let Some(tag_set) = line.series.tag_set {
-        for (tag_key, value) in tag_set {
-            let value = Field {
-                name: tag_key.to_string(),
-                value: FieldData::Tag(value.to_string()),
-            };
-            values.push(value);
-        }
-    }
-
-    // validate fields, collecting any new ones that must be inserted, or adding values
-    for (field_name, value) in line.field_set {
-        let field_data = match value {
-            FieldValue::I64(v) => FieldData::Integer(v),
-            FieldValue::F64(v) => FieldData::Float(v),
-            FieldValue::U64(v) => FieldData::UInteger(v),
-            FieldValue::Boolean(v) => FieldData::Boolean(v),
-            FieldValue::String(v) => FieldData::String(v.to_string()),
-        };
-        let value = Field {
-            name: field_name.to_string(),
-            value: field_data,
-        };
-        values.push(value);
-    }
-
-    // set the time value
-    let time_value_nanos = line
-        .timestamp
-        .map(|ts| {
-            let multiplier = match precision {
-                Precision::Auto => match crate::guess_precision(ts) {
-                    Precision::Second => 1_000_000_000,
-                    Precision::Millisecond => 1_000_000,
-                    Precision::Microsecond => 1_000,
-                    Precision::Nanosecond => 1,
-
-                    Precision::Auto => unreachable!(),
-                },
-                Precision::Second => 1_000_000_000,
-                Precision::Millisecond => 1_000_000,
-                Precision::Microsecond => 1_000,
-                Precision::Nanosecond => 1,
-            };
-
-            ts * multiplier
-        })
-        .unwrap_or(ingest_time.timestamp_nanos());
-
-    let segment_start = segment_duration.start_time(time_value_nanos / 1_000_000_000);
-
-    values.push(Field {
-        name: TIME_COLUMN_NAME.to_string(),
-        value: FieldData::Timestamp(time_value_nanos),
-    });
-
-    let table_batch_map = segment_table_batches.entry(segment_start).or_default();
-
-    let table_batch = table_batch_map
-        .table_batches
-        .entry(line.series.measurement.to_string())
-        .or_default();
-    table_batch.rows.push(Row {
-        time: time_value_nanos,
-        fields: values,
-    });
-
-    table_batch_map.lines.push(raw_line);
-
-    Ok(())
-}
-
 #[derive(Debug, Default)]
 pub(crate) struct TableBatch {
     #[allow(dead_code)]
@@ -782,6 +468,7 @@ pub(crate) struct Field {
 #[derive(Clone, Debug)]
 pub(crate) enum FieldData {
     Timestamp(i64),
+    Key(String),
     Tag(String),
     String(String),
     Integer(i64),
@@ -795,6 +482,7 @@ impl PartialEq for FieldData {
         match (self, other) {
             (FieldData::Timestamp(a), FieldData::Timestamp(b)) => a == b,
             (FieldData::Tag(a), FieldData::Tag(b)) => a == b,
+            (FieldData::Key(a), FieldData::Key(b)) => a == b,
             (FieldData::String(a), FieldData::String(b)) => a == b,
             (FieldData::Integer(a), FieldData::Integer(b)) => a == b,
             (FieldData::UInteger(a), FieldData::UInteger(b)) => a == b,
@@ -807,25 +495,24 @@ impl PartialEq for FieldData {
 
 impl Eq for FieldData {}
 
-/// Result of the validation. If the NamespaceSchema or PartitionMap were updated, they will be
-/// in the result.
-#[derive(Debug, Default)]
-#[allow(dead_code)]
-pub(crate) struct ValidationResult {
-    /// If the namespace schema is updated with new tables or columns it will be here, which
-    /// can be used to update the cache.
-    pub(crate) schema: Option<DatabaseSchema>,
-    /// Number of lines passed in
-    pub(crate) line_count: usize,
-    /// Number of fields passed in
-    pub(crate) field_count: usize,
-    /// Number of tags passed in
-    pub(crate) tag_count: usize,
-    /// Any errors that occurred while parsing the lines
-    pub(crate) errors: Vec<crate::WriteLineError>,
-    /// Only valid lines from what was passed in to validate, segmented based on the
-    /// timestamps of the data.
-    pub(crate) valid_segmented_data: Vec<ValidSegmentedData>,
+impl<'a> From<&SeriesValue<'a>> for FieldData {
+    fn from(sk: &SeriesValue<'a>) -> Self {
+        match sk {
+            SeriesValue::String(s) => Self::Key(s.to_string()),
+        }
+    }
+}
+
+impl<'a> From<FieldValue<'a>> for FieldData {
+    fn from(value: FieldValue<'a>) -> Self {
+        match value {
+            FieldValue::I64(v) => Self::Integer(v),
+            FieldValue::U64(v) => Self::UInteger(v),
+            FieldValue::F64(v) => Self::Float(v),
+            FieldValue::String(v) => Self::String(v.to_string()),
+            FieldValue::Boolean(v) => Self::Boolean(v),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -844,34 +531,12 @@ pub(crate) struct TableBatchMap<'a> {
     pub(crate) table_batches: HashMap<String, TableBatch>,
 }
 
-/// The 32 byte SHA256 digest of the full tag set for a line of measurement data
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
-pub struct SeriesId([u8; 32]);
-
-impl std::fmt::Display for SeriesId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}
-
-fn default_series_sha() -> &'static [u8; 32] {
-    static DEFAULT_SERIES_ID_SHA: OnceLock<[u8; 32]> = OnceLock::new();
-    // the unwrap is safe here because the Sha256 digest will always be 32 bytes:
-    DEFAULT_SERIES_ID_SHA.get_or_init(|| Sha256::digest("")[..].try_into().unwrap())
-}
-
-impl Default for SeriesId {
-    fn default() -> Self {
-        Self(default_series_sha().to_owned())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::persister::PersisterImpl;
     use crate::wal::WalImpl;
-    use crate::{SegmentId, SequenceNumber, WalOpBatch};
+    use crate::{LpWriteOp, SegmentId, SequenceNumber, WalOpBatch};
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
     use datafusion_util::config::register_iox_object_store;
@@ -882,22 +547,20 @@ mod tests {
 
     #[test]
     fn parse_lp_into_buffer() {
-        let db = Arc::new(DatabaseSchema::new("foo"));
+        let catalog = Arc::new(Catalog::new());
         let db_name = NamespaceName::new("foo").unwrap();
         let lp = "cpu,region=west user=23.2 100\nfoo f1=1i";
-        let result = parse_validate_and_update_schema(
-            lp,
-            &db,
-            db_name,
-            Time::from_timestamp_nanos(0),
-            SegmentDuration::new_5m(),
-            false,
-            Precision::Nanosecond,
-            SequenceNumber::new(0),
-        )
-        .unwrap();
+        WriteValidator::initialize(db_name, Arc::clone(&catalog))
+            .unwrap()
+            .v1_parse_lines_and_update_schema(lp, false)
+            .unwrap()
+            .convert_lines_to_buffer(
+                Time::from_timestamp_nanos(0),
+                SegmentDuration::new_5m(),
+                Precision::Nanosecond,
+            );
 
-        let db = result.schema.unwrap();
+        let db = catalog.db_schema("foo").unwrap();
 
         assert_eq!(db.tables.len(), 2);
         assert_eq!(db.tables.get("cpu").unwrap().num_columns(), 3);
@@ -934,7 +597,7 @@ mod tests {
             .unwrap();
         assert_eq!(summary.line_count, 1);
         assert_eq!(summary.field_count, 1);
-        assert_eq!(summary.tag_count, 0);
+        assert_eq!(summary.index_count, 0);
 
         // ensure the data is in the buffer
         let actual = write_buffer.get_table_record_batches("foo", "cpu");

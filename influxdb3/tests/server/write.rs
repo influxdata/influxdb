@@ -1,8 +1,117 @@
 use hyper::StatusCode;
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
+use test_helpers::assert_contains;
 
 use crate::TestServer;
+
+#[tokio::test]
+async fn api_v3_write() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+
+    let url = format!("{base}/api/v3/write", base = server.client_addr());
+    let params = &[("db", "foo")];
+
+    // Make a successful write:
+    assert!(client
+        .post(&url)
+        .query(params)
+        .body(
+            "\
+            cpu region/us-east/host/a1 usage=42.0,temp=10 1234\n\
+            cpu region/us-east/host/b1 usage=10.5,temp=18 1234\n\
+            cpu region/us-west/host/a2 usage=88.0,temp=15 1234\n\
+            cpu region/us-west/host/b2 usage=92.2,temp=14 1234\n\
+        ",
+        )
+        .send()
+        .await
+        .expect("send write request")
+        .status()
+        .is_success());
+
+    // Query from the table written to:
+    let resp = server
+        .api_v3_query_sql(&[
+            ("db", "foo"),
+            ("q", "SELECT * FROM cpu"),
+            ("format", "pretty"),
+        ])
+        .await
+        .text()
+        .await
+        .expect("get body");
+
+    assert_eq!(
+        "\
+        +------+---------+------+---------------------+-------+\n\
+        | host | region  | temp | time                | usage |\n\
+        +------+---------+------+---------------------+-------+\n\
+        | a1   | us-east | 10.0 | 1970-01-01T00:20:34 | 42.0  |\n\
+        | a2   | us-west | 15.0 | 1970-01-01T00:20:34 | 88.0  |\n\
+        | b1   | us-east | 18.0 | 1970-01-01T00:20:34 | 10.5  |\n\
+        | b2   | us-west | 14.0 | 1970-01-01T00:20:34 | 92.2  |\n\
+        +------+---------+------+---------------------+-------+",
+        resp
+    );
+
+    // Test several failure modes:
+    struct TestCase {
+        body: &'static str,
+        response_contains: &'static str,
+    }
+
+    let test_cases = [
+        // No series key:
+        TestCase {
+            body: "cpu usage=10.0,temp=5 1235",
+            response_contains:
+                "write to table cpu was missing a series key, the series key contains [region, host]",
+        },
+        // Series key out-of-order:
+        TestCase {
+            body: "cpu host/c1/region/ca-cent usage=22.0,temp=6 1236",
+            response_contains: "write to table cpu had the incorrect series key, \
+                expected: [region, host], received: [host, region]",
+        },
+        // Series key with invalid member at end:
+        TestCase {
+            body: "cpu region/ca-cent/host/c1/container/foo usage=22.0,temp=6 1236",
+            response_contains: "write to table cpu had the incorrect series key, \
+                expected: [region, host], received: [region, host, container]",
+        },
+        // Series key with invalid member in middle:
+        TestCase {
+            body: "cpu region/ca-cent/sub-region/toronto/host/c1 usage=22.0,temp=6 1236",
+            response_contains: "write to table cpu had the incorrect series key, \
+                expected: [region, host], received: [region, sub-region, host]",
+        },
+        // Series key with invalid member at start:
+        TestCase {
+            body: "cpu planet/earth/region/ca-cent/host/c1 usage=22.0,temp=6 1236",
+            response_contains: "write to table cpu had the incorrect series key, \
+                expected: [region, host], received: [planet, region, host]",
+        },
+    ];
+
+    for t in test_cases {
+        let resp = client
+            .post(&url)
+            .query(params)
+            .body(t.body)
+            .send()
+            .await
+            .expect("get response from server")
+            .text()
+            .await
+            .expect("parse response");
+
+        println!("RESPONSE:\n{resp}");
+
+        assert_contains!(resp, t.response_contains);
+    }
+}
 
 #[tokio::test]
 async fn api_v1_write_request_parsing() {

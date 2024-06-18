@@ -221,7 +221,7 @@ mod tests {
     use crate::catalog::Catalog;
     use crate::wal::{WalImpl, WalSegmentWriterNoopImpl};
     use crate::write_buffer::buffer_segment::OpenBufferSegment;
-    use crate::write_buffer::parse_validate_and_update_catalog;
+    use crate::write_buffer::validator::WriteValidator;
     use crate::{Precision, SegmentDuration, SegmentId, SegmentRange, SequenceNumber};
     use data_types::NamespaceName;
     use iox_time::MockProvider;
@@ -265,32 +265,31 @@ mod tests {
 
         let db_name = NamespaceName::new("db1").unwrap();
         let ingest_time = Time::from_timestamp_nanos(0);
-        let res = parse_validate_and_update_catalog(
-            db_name.clone(),
-            "cpu bar=1 10",
-            &catalog,
-            ingest_time,
-            SegmentDuration::new_5m(),
-            false,
-            Precision::Nanosecond,
-        )
-        .unwrap();
+        let res = WriteValidator::initialize(db_name.clone(), Arc::clone(&catalog))
+            .unwrap()
+            .v1_parse_lines_and_update_schema("cpu bar=1 10", false)
+            .unwrap()
+            .convert_lines_to_buffer(
+                ingest_time,
+                SegmentDuration::new_5m(),
+                Precision::Nanosecond,
+            );
 
         flusher
             .write_to_open_segment(res.valid_segmented_data)
             .await
             .unwrap();
 
-        let res = parse_validate_and_update_catalog(
-            db_name.clone(),
-            "cpu bar=1 20",
-            &catalog,
-            ingest_time,
-            SegmentDuration::new_5m(),
-            false,
-            Precision::Nanosecond,
-        )
-        .unwrap();
+        let res = WriteValidator::initialize(db_name.clone(), Arc::clone(&catalog))
+            .unwrap()
+            .v1_parse_lines_and_update_schema("cpu bar=1 20", false)
+            .unwrap()
+            .convert_lines_to_buffer(
+                ingest_time,
+                SegmentDuration::new_5m(),
+                Precision::Nanosecond,
+            );
+
         flusher
             .write_to_open_segment(res.valid_segmented_data)
             .await

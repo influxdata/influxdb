@@ -331,7 +331,13 @@ where
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
-        self.write_lp_inner(params, req, false).await
+        self.write_lp_inner(params, req, false, false).await
+    }
+
+    async fn write_v3(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
+        let params: WriteParams = serde_urlencoded::from_str(query)?;
+        self.write_lp_inner(params, req, false, true).await
     }
 
     async fn write_lp_inner(
@@ -339,6 +345,7 @@ where
         params: WriteParams,
         req: Request<Body>,
         accept_rp: bool,
+        use_v3: bool,
     ) -> Result<Response<Body>> {
         validate_db_name(&params.db, accept_rp)?;
         info!("write_lp to {}", params.db);
@@ -350,16 +357,27 @@ where
 
         let default_time = self.time_provider.now();
 
-        let result = self
-            .write_buffer
-            .write_lp(
-                database,
-                body,
-                default_time,
-                params.accept_partial,
-                params.precision,
-            )
-            .await?;
+        let result = if use_v3 {
+            self.write_buffer
+                .write_lp_v3(
+                    database,
+                    body,
+                    default_time,
+                    params.accept_partial,
+                    params.precision,
+                )
+                .await?
+        } else {
+            self.write_buffer
+                .write_lp(
+                    database,
+                    body,
+                    default_time,
+                    params.accept_partial,
+                    params.precision,
+                )
+                .await?
+        };
 
         if result.invalid_lines.is_empty() {
             Ok(Response::new(Body::empty()))
@@ -920,7 +938,7 @@ where
                 Err(e) => return Ok(legacy_write_error_to_response(e)),
             };
 
-            http_server.write_lp_inner(params, req, true).await
+            http_server.write_lp_inner(params, req, true, false).await
         }
         (Method::POST, "/api/v2/write") => {
             let params = match http_server.legacy_write_param_unifier.parse_v2(&req).await {
@@ -928,8 +946,9 @@ where
                 Err(e) => return Ok(legacy_write_error_to_response(e)),
             };
 
-            http_server.write_lp_inner(params, req, false).await
+            http_server.write_lp_inner(params, req, false, false).await
         }
+        (Method::POST, "/api/v3/write") => http_server.write_v3(req).await,
         (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,
         (Method::GET | Method::POST, "/api/v3/query_sql") => http_server.query_sql(req).await,
         (Method::GET | Method::POST, "/api/v3/query_influxql") => {

@@ -201,9 +201,7 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
     fn from(snap: TableSnapshot<'a>) -> Self {
         let name = snap.name.to_owned();
         let mut b = SchemaBuilder::new();
-        // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
-        // tests, so I am omitting this for now:
-        // b.measurement(&name);
+        b.measurement(&name);
         for (name, col) in snap.cols {
             match col.influx_type {
                 InfluxType::Tag => {

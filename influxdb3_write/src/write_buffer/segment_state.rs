@@ -15,7 +15,7 @@ use data_types::{ChunkId, ChunkOrder, TableId, TransitionPartitionId};
 use datafusion::common::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
-use iox_query::chunk_statistics::create_chunk_statistics;
+use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::error;
@@ -148,7 +148,7 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
                     Some(row_count),
                     &schema,
                     Some(segment.segment_range().timestamp_min_max()),
-                    None,
+                    &NoColumnRanges,
                 );
 
                 chunks.push(Arc::new(BufferChunk {
@@ -187,7 +187,7 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
                     Some(row_count),
                     &schema,
                     Some(persisting_segment.segment_range.timestamp_min_max()),
-                    None,
+                    &NoColumnRanges,
                 );
 
                 chunks.push(Arc::new(BufferChunk {
@@ -574,7 +574,11 @@ mod tests {
             None,
         );
         open_segment1
-            .buffer_writes(lp_to_write_batch(&catalog, "foo", "cpu bar=1 10"))
+            .buffer_writes(lp_to_write_batch(
+                Arc::clone(&catalog),
+                "foo",
+                "cpu bar=1 10",
+            ))
             .unwrap();
 
         let mut open_segment2 = OpenBufferSegment::new(
@@ -591,7 +595,11 @@ mod tests {
             None,
         );
         open_segment2
-            .buffer_writes(lp_to_write_batch(&catalog, "foo", "cpu bar=2 300000000000"))
+            .buffer_writes(lp_to_write_batch(
+                Arc::clone(&catalog),
+                "foo",
+                "cpu bar=2 300000000000",
+            ))
             .unwrap();
 
         let mut open_segment3 = OpenBufferSegment::new(
@@ -608,7 +616,11 @@ mod tests {
             None,
         );
         open_segment3
-            .buffer_writes(lp_to_write_batch(&catalog, "foo", "cpu bar=3 700000000000"))
+            .buffer_writes(lp_to_write_batch(
+                Arc::clone(&catalog),
+                "foo",
+                "cpu bar=3 700000000000",
+            ))
             .unwrap();
 
         let wal = Arc::new(TestWal::default());
