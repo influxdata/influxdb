@@ -37,6 +37,7 @@ iox_query_influxql_rewrite = { path = "../iox_query_influxql_rewrite" }
 # crates.io Dependencies
 anyhow.workspace = true
 arrow.workspace = true
+arrow-array.workspace = true
 arrow-csv.workspace = true
 arrow-flight.workspace = true
 arrow-json.workspace = true
