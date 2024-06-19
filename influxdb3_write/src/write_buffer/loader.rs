@@ -296,7 +296,7 @@ mod tests {
 
         let cpu_table = db.get_table("cpu").unwrap();
         let cpu_data = current_segment
-            .table_record_batch(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
+            .table_record_batches(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
             .unwrap()
             .unwrap();
         let expected = [
@@ -306,11 +306,11 @@ mod tests {
             "| 1.0 | cupcakes | 1970-01-01T00:00:00.000000010Z |",
             "+-----+----------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected, &[cpu_data]);
+        assert_batches_eq!(&expected, &cpu_data);
 
         let mem_table = db.get_table("mem").unwrap();
         let mem_data = current_segment
-            .table_record_batch(db_name, "mem", mem_table.schema().as_arrow(), &[])
+            .table_record_batches(db_name, "mem", mem_table.schema().as_arrow(), &[])
             .unwrap()
             .unwrap();
         let expected = [
@@ -321,7 +321,7 @@ mod tests {
             "| 2.0 | snakes  | 1970-01-01T00:00:00.000000020Z |",
             "+-----+---------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected, &[mem_data]);
+        assert_batches_eq!(&expected, &mem_data);
 
         assert_eq!(loaded_state.last_segment_id, SegmentId::new(1));
     }
@@ -436,7 +436,7 @@ mod tests {
                                 TableParquetFiles {
                                     table_name: "cpu".to_string(),
                                     parquet_files: vec![ParquetFile {
-                                        path: "dbs/db1/cpu/1970-01-01T00-00/4294967294.parquet"
+                                        path: "dbs/db1/cpu/1970-01-01T00-00/4294967294_1.parquet"
                                             .to_string(),
                                         size_bytes: 1817,
                                         row_count: 1,
@@ -451,7 +451,7 @@ mod tests {
                                 TableParquetFiles {
                                     table_name: "mem".to_string(),
                                     parquet_files: vec![ParquetFile {
-                                        path: "dbs/db1/mem/1970-01-01T00-00/4294967294.parquet"
+                                        path: "dbs/db1/mem/1970-01-01T00-00/4294967294_1.parquet"
                                             .to_string(),
                                         size_bytes: 1833,
                                         row_count: 2,
@@ -474,7 +474,7 @@ mod tests {
 
         let cpu_table = db.get_table("cpu").unwrap();
         let cpu_data = loaded_state.open_segments[0]
-            .table_record_batch(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
+            .table_record_batches(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
             .unwrap()
             .unwrap();
         let expected = [
@@ -484,11 +484,11 @@ mod tests {
             "| 3.0 | cupcakes | 1970-01-01T00:00:00.000000020Z |",
             "+-----+----------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected, &[cpu_data]);
+        assert_batches_eq!(&expected, &cpu_data);
 
         let foo_table = db.get_table("foo").unwrap();
         let foo_data = loaded_state.open_segments[0]
-            .table_record_batch(db_name, "foo", foo_table.schema().as_arrow(), &[])
+            .table_record_batches(db_name, "foo", foo_table.schema().as_arrow(), &[])
             .unwrap()
             .unwrap();
         let expected = [
@@ -498,7 +498,7 @@ mod tests {
             "| 1970-01-01T00:00:00.000000123Z | 1.0 |",
             "+--------------------------------+-----+",
         ];
-        assert_batches_eq!(&expected, &[foo_data]);
+        assert_batches_eq!(&expected, &foo_data);
 
         assert_eq!(loaded_state.last_segment_id, SegmentId::new(2));
     }
@@ -609,7 +609,7 @@ mod tests {
 
         let cpu_table = db.get_table("cpu").unwrap();
         let cpu_data = loaded_state.open_segments[0]
-            .table_record_batch(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
+            .table_record_batches(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
             .unwrap()
             .unwrap();
         let expected = [
@@ -619,11 +619,11 @@ mod tests {
             "| 3.0 | apples | 1970-01-01T00:00:00.000000020Z |",
             "+-----+--------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected, &[cpu_data]);
+        assert_batches_eq!(&expected, &cpu_data);
 
         let foo_table = db.get_table("foo").unwrap();
         let foo_data = loaded_state.open_segments[0]
-            .table_record_batch(db_name, "foo", foo_table.schema().as_arrow(), &[])
+            .table_record_batches(db_name, "foo", foo_table.schema().as_arrow(), &[])
             .unwrap()
             .unwrap();
         let expected = [
@@ -633,7 +633,7 @@ mod tests {
             "| 1970-01-01T00:00:00.000000123Z | 1.0 |",
             "+--------------------------------+-----+",
         ];
-        assert_batches_eq!(&expected, &[foo_data]);
+        assert_batches_eq!(&expected, &foo_data);
 
         assert_eq!(loaded_state.last_segment_id, SegmentId::new(2));
     }

@@ -10,9 +10,9 @@ use crate::write_buffer::table_buffer::{Result as TableBufferResult, TableBuffer
 use crate::write_buffer::DatabaseSchema;
 use crate::write_buffer::{Error, TableBatch, ValidSegmentedData};
 use crate::{
-    wal, write_buffer, write_buffer::Result, DatabaseTables, ParquetFile, PersistedSegment,
-    Persister, SegmentDuration, SegmentId, SegmentRange, SequenceNumber, TableParquetFiles, WalOp,
-    WalSegmentReader, WalSegmentWriter,
+    wal, write_buffer, write_buffer::Result, DatabaseTables, ParquetFile, ParquetWriteOp,
+    PersistedSegment, Persister, SegmentDuration, SegmentId, SegmentRange, SequenceNumber,
+    TableParquetFiles, WalOp, WalSegmentReader, WalSegmentWriter,
 };
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
@@ -27,7 +27,9 @@ use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
 use iox_time::Time;
+use observability_deps::tracing::error;
 use schema::sort::SortKey;
+use schema::Schema;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -51,6 +53,9 @@ pub struct OpenBufferSegment {
     //       different structures, we want this to be a representation of approximate memory usage.
     segment_size: usize,
     last_write_time: Instant,
+    // data can be persisted while a segment is still open if memory needs to be freed up. The
+    // files will be here by database > table > files
+    persisted_parquet_files: HashMap<String, DatabaseTables>,
 }
 
 impl OpenBufferSegment {
@@ -61,9 +66,9 @@ impl OpenBufferSegment {
         segment_open_time: Time,
         starting_catalog_sequence_number: SequenceNumber,
         segment_writer: Box<dyn WalSegmentWriter>,
-        buffered_data: Option<(BufferedData, usize)>,
+        loaded_buffer: Option<LoadedBufferSegment>,
     ) -> Self {
-        let (buffered_data, segment_size) = buffered_data.unwrap_or_default();
+        let loaded_buffer = loaded_buffer.unwrap_or_default();
         let segment_key = PartitionKey::from(segment_range.key());
         let segment_duration = SegmentDuration::from_range(segment_range);
 
@@ -76,13 +81,13 @@ impl OpenBufferSegment {
             segment_open_time,
             segment_key,
             starting_catalog_sequence_number,
-            segment_size,
-            buffered_data,
+            segment_size: loaded_buffer.segment_size,
+            buffered_data: loaded_buffer.buffered_data,
             last_write_time: Instant::now(),
+            persisted_parquet_files: loaded_buffer.persisted_parquet_files,
         }
     }
 
-    #[cfg(test)]
     pub fn segment_id(&self) -> SegmentId {
         self.segment_id
     }
@@ -97,6 +102,103 @@ impl OpenBufferSegment {
 
     pub fn write_wal_ops(&mut self, write_batch: Vec<WalOp>) -> wal::Result<()> {
         self.segment_writer.write_batch(write_batch)
+    }
+
+    pub fn sizes(&self) -> SegmentSizes {
+        let mut database_buffer_sizes = HashMap::new();
+        for (db_name, db_buffer) in &self.buffered_data.database_buffers {
+            let mut table_sizes = HashMap::new();
+            for (table_name, table_buffer) in &db_buffer.table_buffers {
+                table_sizes.insert(table_name.clone(), table_buffer.computed_size());
+            }
+            database_buffer_sizes.insert(db_name.clone(), DatabaseBufferSizes { table_sizes });
+        }
+        SegmentSizes {
+            database_buffer_sizes,
+            segment_id: self.segment_id,
+            segment_duration: self.segment_duration,
+            segment_key: self.segment_key.clone(),
+            segment_start_time: self.segment_range.start_time,
+            last_write_time: self.last_write_time,
+        }
+    }
+
+    pub fn split_table_for_persistence(
+        &mut self,
+        db_name: &str,
+        table_name: &str,
+        schema: &Schema,
+    ) -> Option<(ParquetFilePath, RecordBatch)> {
+        let db_buffer = self.buffered_data.database_buffers.get_mut(db_name)?;
+
+        let table_buffer = db_buffer.table_buffers.get_mut(table_name)?;
+
+        let persist_batch = match table_buffer.split(schema.as_arrow()) {
+            Ok(b) => b,
+            Err(e) => {
+                error!(%e, "Error splitting table buffer for persistence");
+                return None;
+            }
+        };
+
+        let parquet_file_path = ParquetFilePath::new_with_partition_key(
+            db_name,
+            table_name,
+            &self.segment_key.to_string(),
+            self.segment_id,
+            persist_batch.file_number,
+        );
+
+        Some((parquet_file_path, persist_batch.record_batch))
+    }
+
+    /// Writes a record of the persisted parquet file to the segment writer, clears the buffer,
+    /// and adds the parquet file to the persisted parquet files.
+    pub fn clear_persisting_table_buffer(
+        &mut self,
+        parquet_file: ParquetFile,
+        db_name: &str,
+        table_name: &str,
+    ) -> Result<()> {
+        let db_buffer = self
+            .buffered_data
+            .database_buffers
+            .get_mut(db_name)
+            .expect("database should exist in buffer");
+
+        db_buffer
+            .table_buffers
+            .get_mut(table_name)
+            .expect("table should exist in buffer")
+            .clear_persisting_data();
+
+        let parquet_write_op = ParquetWriteOp {
+            db_name: db_name.to_string(),
+            table_name: table_name.to_string(),
+            path: parquet_file.path.clone(),
+            size_bytes: parquet_file.size_bytes,
+            row_count: parquet_file.row_count,
+            min_time: parquet_file.min_time,
+            max_time: parquet_file.max_time,
+        };
+
+        self.persisted_parquet_files
+            .entry(db_name.to_string())
+            .or_default()
+            .tables
+            .entry(table_name.to_string())
+            .or_insert_with(|| TableParquetFiles {
+                table_name: table_name.to_string(),
+                parquet_files: vec![],
+                sort_key: vec![],
+            })
+            .parquet_files
+            .push(parquet_file);
+
+        self.segment_writer
+            .write_batch(vec![WalOp::ParquetWrite(parquet_write_op)])?;
+
+        Ok(())
     }
 
     #[cfg(test)]
@@ -133,14 +235,26 @@ impl OpenBufferSegment {
         Ok(())
     }
 
+    /// Returns any persisted parquet files for the table if persistence ahead of the segment
+    /// being closed has been triggered
+    pub(crate) fn table_persisted_parquet_files(
+        &self,
+        db_name: &str,
+        table_name: &str,
+    ) -> Option<&TableParquetFiles> {
+        self.persisted_parquet_files
+            .get(db_name)
+            .and_then(|db| db.tables.get(table_name))
+    }
+
     /// Returns the table data as record batches
-    pub(crate) fn table_record_batch(
+    pub(crate) fn table_record_batches(
         &self,
         db_name: &str,
         table_name: &str,
         schema: SchemaRef,
         filter: &[Expr],
-    ) -> Option<TableBufferResult<RecordBatch>> {
+    ) -> Option<TableBufferResult<Vec<RecordBatch>>> {
         self.buffered_data
             .table_record_batches(db_name, table_name, schema, filter)
     }
@@ -174,16 +288,43 @@ impl OpenBufferSegment {
             self.buffered_data,
             self.segment_writer.bytes_written(),
             catalog,
+            self.persisted_parquet_files,
         )
     }
+}
+
+#[derive(Debug)]
+pub struct SegmentSizes {
+    pub segment_start_time: Time,
+    pub segment_id: SegmentId,
+    pub segment_key: PartitionKey,
+    pub segment_duration: SegmentDuration,
+    pub last_write_time: Instant,
+    pub database_buffer_sizes: HashMap<String, DatabaseBufferSizes>,
+}
+
+impl SegmentSizes {
+    pub fn size(&self) -> usize {
+        self.database_buffer_sizes.values().map(|v| v.size()).sum()
+    }
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct LoadedBufferSegment {
+    pub(crate) buffered_data: BufferedData,
+    pub(crate) segment_size: usize,
+    pub(crate) persisted_parquet_files: HashMap<String, DatabaseTables>,
 }
 
 pub(crate) fn load_buffer_from_segment(
     catalog: &Arc<Catalog>,
     mut segment_reader: Box<dyn WalSegmentReader>,
-) -> Result<(BufferedData, usize)> {
-    let mut segment_size = 0;
-    let mut buffered_data = BufferedData::default();
+) -> Result<LoadedBufferSegment> {
+    let mut loaded_buffer = LoadedBufferSegment {
+        buffered_data: BufferedData::default(),
+        segment_size: 0,
+        persisted_parquet_files: HashMap::new(),
+    };
     let segment_key = PartitionKey::from(segment_reader.header().range.key());
     let segment_duration = SegmentDuration::from_range(segment_reader.header().range);
 
@@ -201,15 +342,23 @@ pub(crate) fn load_buffer_from_segment(
                         );
 
                     let db_name = &write.db_name;
-                    if !buffered_data.database_buffers.contains_key(db_name) {
-                        buffered_data.database_buffers.insert(
+                    if !loaded_buffer
+                        .buffered_data
+                        .database_buffers
+                        .contains_key(db_name)
+                    {
+                        loaded_buffer.buffered_data.database_buffers.insert(
                             db_name.clone(),
                             DatabaseBuffer {
                                 table_buffers: HashMap::new(),
                             },
                         );
                     }
-                    let db_buffer = buffered_data.database_buffers.get_mut(db_name).unwrap();
+                    let db_buffer = loaded_buffer
+                        .buffered_data
+                        .database_buffers
+                        .get_mut(db_name)
+                        .unwrap();
 
                     // there should only ever be data for a single segment as this is all read
                     // from one segment file
@@ -226,7 +375,7 @@ pub(crate) fn load_buffer_from_segment(
                     for (table_name, table_batch) in segment_data.table_batches {
                         // TODO: for now we'll just have the number of rows represent the segment size. The entire
                         //       buffer is going to get refactored to use different structures, so this will change.
-                        segment_size += table_batch.rows.len();
+                        loaded_buffer.segment_size += table_batch.rows.len();
 
                         db_buffer.buffer_table_batch(
                             table_name,
@@ -236,11 +385,40 @@ pub(crate) fn load_buffer_from_segment(
                         );
                     }
                 }
+                WalOp::ParquetWrite(parquet_write) => {
+                    let db = loaded_buffer
+                        .persisted_parquet_files
+                        .entry(parquet_write.db_name)
+                        .or_default();
+
+                    if !db.tables.contains_key(&parquet_write.table_name) {
+                        db.tables.insert(
+                            parquet_write.table_name.clone(),
+                            TableParquetFiles {
+                                table_name: parquet_write.table_name.clone(),
+                                parquet_files: vec![],
+                                sort_key: vec![],
+                            },
+                        );
+                    }
+
+                    db.tables
+                        .get_mut(&parquet_write.table_name)
+                        .unwrap()
+                        .parquet_files
+                        .push(ParquetFile {
+                            path: parquet_write.path,
+                            size_bytes: parquet_write.size_bytes,
+                            row_count: parquet_write.row_count,
+                            min_time: parquet_write.min_time,
+                            max_time: parquet_write.max_time,
+                        });
+                }
             }
         }
     }
 
-    Ok((buffered_data, segment_size))
+    Ok(loaded_buffer)
 }
 
 #[derive(Debug, Default)]
@@ -291,11 +469,11 @@ impl BufferedData {
         table_name: &str,
         schema: SchemaRef,
         filter: &[Expr],
-    ) -> Option<TableBufferResult<RecordBatch>> {
+    ) -> Option<TableBufferResult<Vec<RecordBatch>>> {
         self.database_buffers
             .get(db_name)
             .and_then(|db_buffer| db_buffer.table_buffers.get(table_name))
-            .map(|table_buffer| table_buffer.record_batch(schema, filter))
+            .map(|table_buffer| table_buffer.record_batches(schema, filter))
     }
 
     /// Verifies that the passed in buffer has the same data as this buffer
@@ -311,9 +489,9 @@ impl BufferedData {
                 let other_table_buffer = other_db_buffer.table_buffers.get(table_name).unwrap();
                 let schema = db_schema.get_table_schema(table_name).unwrap();
 
-                let table_data = table_buffer.record_batch(schema.as_arrow(), &[]).unwrap();
+                let table_data = table_buffer.record_batches(schema.as_arrow(), &[]).unwrap();
                 let other_table_data = other_table_buffer
-                    .record_batch(schema.as_arrow(), &[])
+                    .record_batches(schema.as_arrow(), &[])
                     .unwrap();
 
                 assert_eq!(table_data, other_table_data);
@@ -356,6 +534,17 @@ impl DatabaseBuffer {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct DatabaseBufferSizes {
+    pub table_sizes: HashMap<String, usize>,
+}
+
+impl DatabaseBufferSizes {
+    pub fn size(&self) -> usize {
+        self.table_sizes.values().sum()
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct ClosedBufferSegment {
@@ -367,6 +556,7 @@ pub struct ClosedBufferSegment {
     pub buffered_data: BufferedData,
     pub segment_wal_bytes: u64,
     catalog: Arc<Catalog>,
+    persisted_parquet_files: HashMap<String, DatabaseTables>,
 }
 
 impl ClosedBufferSegment {
@@ -381,6 +571,7 @@ impl ClosedBufferSegment {
         buffered_data: BufferedData,
         segment_wal_bytes: u64,
         catalog: Arc<Catalog>,
+        persisted_parquet_files: HashMap<String, DatabaseTables>,
     ) -> Self {
         Self {
             segment_id,
@@ -391,6 +582,7 @@ impl ClosedBufferSegment {
             buffered_data,
             segment_wal_bytes,
             catalog,
+            persisted_parquet_files,
         }
     }
 
@@ -420,21 +612,49 @@ impl ClosedBufferSegment {
 
         // persist every partition buffer
         for (db_name, db_buffer) in &self.buffered_data.database_buffers {
-            let mut database_tables = DatabaseTables::default();
+            // start off with whatever was persisted while the segment was still open
+            let mut database_tables = self
+                .persisted_parquet_files
+                .get(db_name)
+                .cloned()
+                .unwrap_or_default();
+            for t in database_tables.tables.values() {
+                segment_parquet_size_bytes +=
+                    t.parquet_files.iter().map(|f| f.size_bytes).sum::<u64>();
+                segment_row_count += t.parquet_files.iter().map(|f| f.row_count).sum::<u64>();
+                segment_max_time = segment_max_time.max(
+                    t.parquet_files
+                        .iter()
+                        .map(|f| f.max_time)
+                        .max()
+                        .unwrap_or(segment_max_time),
+                );
+                segment_min_time = segment_min_time.min(
+                    t.parquet_files
+                        .iter()
+                        .map(|f| f.min_time)
+                        .min()
+                        .unwrap_or(segment_min_time),
+                );
+            }
 
             if let Some(db_schema) = self.catalog.db_schema(db_name) {
                 for (table_name, table_buffer) in &db_buffer.table_buffers {
                     if let Some(table) = db_schema.get_table(table_name) {
-                        let mut table_parquet_files = TableParquetFiles {
-                            table_name: table_name.to_string(),
-                            parquet_files: vec![],
-                            sort_key: vec![],
-                        };
+                        let table_parquet_files = database_tables
+                            .tables
+                            .entry(table_name.clone())
+                            .or_insert_with(|| TableParquetFiles {
+                                table_name: table_name.clone(),
+                                parquet_files: vec![],
+                                sort_key: vec![],
+                            });
 
                         // All of the record batches for this table that we will
                         // want to dedupe
-                        let batch = table_buffer.record_batch(table.schema().as_arrow(), &[])?;
-                        let row_count = batch.num_rows();
+                        let batches =
+                            table_buffer.record_batches(table.schema().as_arrow(), &[])?;
+                        let row_count = batches.iter().map(|b| b.num_rows()).sum::<usize>();
 
                         // Dedupe and sort using the COMPACT query built into
                         // iox_query
@@ -450,7 +670,7 @@ impl ClosedBufferSegment {
                         );
 
                         chunks.push(Arc::new(BufferChunk {
-                            batches: vec![batch],
+                            batches,
                             schema: schema.clone(),
                             stats: Arc::new(chunk_stats),
                             partition_id: TransitionPartitionId::new(
@@ -507,7 +727,8 @@ impl ClosedBufferSegment {
                             db_name,
                             &table.name,
                             &table_buffer.segment_key.to_string(),
-                            self.segment_id.0,
+                            self.segment_id,
+                            table_parquet_files.parquet_files.len() as u32 + 1,
                         );
                         let path = parquet_file_path.to_string();
                         let (size_bytes, meta) = persister
@@ -527,12 +748,6 @@ impl ClosedBufferSegment {
                         segment_row_count += meta.num_rows as u64;
                         segment_max_time = segment_max_time.max(time_min_max.max);
                         segment_min_time = segment_min_time.min(time_min_max.min);
-
-                        if !table_parquet_files.parquet_files.is_empty() {
-                            database_tables
-                                .tables
-                                .insert(table_name.to_string(), table_parquet_files);
-                        }
                     }
                 }
             }
@@ -610,7 +825,7 @@ pub(crate) mod tests {
 
         let db_schema = catalog.db_schema("db1").unwrap();
         let cpu_table = open_segment
-            .table_record_batch(
+            .table_record_batches(
                 "db1",
                 "cpu",
                 db_schema.get_table_schema("cpu").unwrap().as_arrow(),
@@ -626,10 +841,10 @@ pub(crate) mod tests {
             "| 2.0 | cupcakes | 1970-01-01T00:00:00.000000030Z |",
             "+-----+----------+--------------------------------+",
         ];
-        assert_batches_eq!(expected_cpu_table, &[cpu_table]);
+        assert_batches_eq!(&expected_cpu_table, &cpu_table);
 
         let mem_table = open_segment
-            .table_record_batch(
+            .table_record_batches(
                 "db1",
                 "mem",
                 db_schema.get_table_schema("mem").unwrap().as_arrow(),
@@ -644,7 +859,7 @@ pub(crate) mod tests {
             "| 2.0 | snakes | 1970-01-01T00:00:00.000000020Z |",
             "+-----+--------+--------------------------------+",
         ];
-        assert_batches_eq!(expected_mem_table, &[mem_table]);
+        assert_batches_eq!(&expected_mem_table, &mem_table);
     }
 
     #[tokio::test]
@@ -696,7 +911,7 @@ pub(crate) mod tests {
         let db_schema = catalog.db_schema("db1").unwrap();
         println!("{:?}", db_schema);
         let cpu_table = open_segment
-            .table_record_batch(
+            .table_record_batches(
                 "db1",
                 "cpu",
                 db_schema.get_table_schema("cpu").unwrap().as_arrow(),
@@ -715,7 +930,7 @@ pub(crate) mod tests {
             "|     | 2.1  |      |          |      | 1970-01-01T00:00:00.000000040Z |",
             "+-----+------+------+----------+------+--------------------------------+",
         ];
-        assert_batches_eq!(expected_cpu_table, &[cpu_table]);
+        assert_batches_eq!(&expected_cpu_table, &cpu_table);
     }
 
     #[tokio::test]
@@ -801,7 +1016,14 @@ pub(crate) mod tests {
         // file number of the path should match the segment id
         assert_eq!(
             cpu_parqet.path,
-            ParquetFilePath::new_with_partition_key("db1", "cpu", SEGMENT_KEY, 4).to_string()
+            ParquetFilePath::new_with_partition_key(
+                "db1",
+                "cpu",
+                SEGMENT_KEY,
+                SegmentId::new(4),
+                1
+            )
+            .to_string()
         );
         assert_eq!(cpu_parqet.row_count, 2);
         assert_eq!(cpu_parqet.min_time, 10);
@@ -813,7 +1035,14 @@ pub(crate) mod tests {
         // file number of the path should match the segment id
         assert_eq!(
             mem_parqet.path,
-            ParquetFilePath::new_with_partition_key("db1", "mem", SEGMENT_KEY, 4).to_string()
+            ParquetFilePath::new_with_partition_key(
+                "db1",
+                "mem",
+                SEGMENT_KEY,
+                SegmentId::new(4),
+                1
+            )
+            .to_string()
         );
         assert_eq!(mem_parqet.row_count, 2);
         assert_eq!(mem_parqet.min_time, 15);

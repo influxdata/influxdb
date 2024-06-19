@@ -434,6 +434,7 @@ pub struct WalOpBatch {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum WalOp {
     LpWrite(LpWriteOp),
+    ParquetWrite(ParquetWriteOp),
 }
 
 /// A write of 1 or more lines of line protocol to a single database. The default time is set by the server at the
@@ -444,6 +445,18 @@ pub struct LpWriteOp {
     pub lp: String,
     pub default_time: i64,
     pub precision: Precision,
+}
+
+/// A Parquet file that has been persisted to object storage ahead of a segment being closed.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct ParquetWriteOp {
+    pub db_name: String,
+    pub table_name: String,
+    pub path: String,
+    pub size_bytes: u64,
+    pub row_count: u64,
+    pub min_time: i64,
+    pub max_time: i64,
 }
 
 /// A single write request can have many lines in it. A writer can request to accept all lines that are valid, while

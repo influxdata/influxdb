@@ -72,12 +72,14 @@ impl ParquetFilePath {
         db_name: &str,
         table_name: &str,
         partition_key: &str,
+        segment_id: SegmentId,
         file_number: u32,
     ) -> Self {
         let path = ObjPath::from(format!(
-            "dbs/{db_name}/{table_name}/{}/{:010}.{}",
+            "dbs/{db_name}/{table_name}/{}/{:010}_{}.{}",
             partition_key,
-            object_store_file_stem(file_number),
+            object_store_file_stem(segment_id.0),
+            file_number,
             PARQUET_FILE_EXTENSION
         ));
         Self(path)
