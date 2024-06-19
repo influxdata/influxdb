@@ -121,8 +121,8 @@ impl QueryParams {
 #[serde(rename_all = "snake_case")]
 pub(crate) enum QueryFormat {
     Csv,
-    Pretty,
     Json,
+    JsonPretty,
 }
 
 impl QueryFormat {
@@ -133,19 +133,19 @@ impl QueryFormat {
     fn as_content_type(&self) -> &str {
         match self {
             Self::Csv => "application/csv",
-            Self::Json | Self::Pretty => "application/json",
+            Self::Json | Self::JsonPretty => "application/json",
         }
     }
 
-    /// Checks if the query format is 'Pretty'.
+    /// Checks if the query format is 'JsonPretty'.
     ///
-    /// Determines if the `QueryFormat` is `Pretty`, which indicates that the JSON
+    /// Determines if the `QueryFormat` is `JsonPretty`, which indicates that the JSON
     /// output should be formatted in a human-readable way. Returns `true` if the
-    /// format is `Pretty`, otherwise returns `false`.
+    /// format is `JsonPretty`, otherwise returns `false`.
     fn is_pretty(&self) -> bool {
         match self {
             Self::Csv | Self::Json => false,
-            Self::Pretty => true,
+            Self::JsonPretty => true,
         }
     }
 
@@ -157,16 +157,20 @@ impl QueryFormat {
     /// format, defaulting to JSON if no specific format is requested. If the format
     /// is invalid or non-UTF8, an error is returned.
     fn from_request(req: &Request<Body>, pretty: bool) -> Result<Self> {
-        // In V1 pretty format is a Query params
-        if pretty {
-            return Ok(Self::Pretty);
-        }
-
         let mime_type = req.headers().get(ACCEPT).map(HeaderValue::as_bytes);
 
         match mime_type {
             Some(b"application/csv" | b"text/csv") => Ok(Self::Csv),
-            Some(b"application/json" | b"*/*") | None => Ok(Self::Json),
+            Some(b"application/json" | b"*/*") | None => {
+                // If no specific format is requested via the Accept header,
+                // and the 'pretty' parameter is true, use the pretty JSON format.
+                // Otherwise, default to the regular JSON format.
+                if pretty {
+                    Ok(Self::JsonPretty)
+                } else {
+                    Ok(Self::Json)
+                }
+            }
             Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
                 Ok(s) => Err(Error::InvalidMimeType(s)),
                 Err(e) => Err(Error::NonUtf8MimeType(e)),
@@ -218,7 +222,7 @@ impl From<QueryResponse> for Bytes {
         /// Convert a [`QueryResponse`] to a JSON byte vector.
         ///
         /// This function serializes the `QueryResponse` to JSON. If the format is
-        /// `Pretty`, it will produce human-readable JSON, otherwise it produces
+        /// `JsonPretty`, it will produce human-readable JSON, otherwise it produces
         /// compact JSON.
         fn to_json(s: QueryResponse) -> Vec<u8> {
             if s.format.is_pretty() {
@@ -235,12 +239,14 @@ impl From<QueryResponse> for Bytes {
         /// extracts column names from the first series and writes the header and data
         /// rows to the CSV writer.
         fn to_csv(s: QueryResponse) -> Vec<u8> {
-            let mut wtr = csv::Writer::from_writer(vec![]);
+            let mut wtr = csv::WriterBuilder::new()
+                .quote_style(csv::QuoteStyle::Never)
+                .from_writer(vec![]);
             // Extract column names dynamically from the first series
-            let mut headers = vec!["name".to_string(), "tags".to_string()];
+            let mut headers = vec!["name", "tags"];
             if let Some(first_statement) = s.results.first() {
                 if let Some(first_series) = first_statement.series.first() {
-                    headers.extend(first_series.columns.iter().cloned());
+                    headers.extend(first_series.columns.iter().map(|s| s.as_str()));
                 }
             }
             // Write the header
@@ -257,7 +263,10 @@ impl From<QueryResponse> for Bytes {
                     for row in series.values {
                         let mut record = vec![series.name.clone(), "".to_string()];
                         for v in row.0 {
-                            record.push(v.to_string());
+                            record.push(match v {
+                                Value::String(s) => s.clone(),
+                                _ => v.to_string(),
+                            });
                         }
                         wtr.write_record(&record)
                             .expect("Failed to write CSV record");
@@ -270,7 +279,6 @@ impl From<QueryResponse> for Bytes {
 
             wtr.into_inner().expect("into_inner from csv writer")
         }
-
         /// Extend a byte vector with CRLF and convert it to [`Bytes`].
         ///
         /// This function appends a CRLF (`\r\n`) sequence to the given byte vector
@@ -281,7 +289,7 @@ impl From<QueryResponse> for Bytes {
         }
 
         match s.format {
-            QueryFormat::Pretty | QueryFormat::Json => extend_with_crlf(to_json(s)),
+            QueryFormat::Json | QueryFormat::JsonPretty => extend_with_crlf(to_json(s)),
             QueryFormat::Csv => extend_with_crlf(to_csv(s)),
         }
     }
