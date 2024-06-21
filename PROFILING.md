@@ -1,10 +1,11 @@
-# Profiling `influxdb3`
+Profiling `influxdb3`
+=====================
 
 This document explains several profiling strategies.
 
-## Preparation
+# Preparation
 
-### Choosing a profile
+## Choosing a profile
 
 You will need to choose a profile to build and run the `influxdb3` binary. Available profiles are 
 configured in [Cargo.toml] and are listed here:
@@ -25,7 +26,7 @@ If you are getting started, we recommend using either the `quick-release` or `qu
 to get up and running faster, then once you are ready, and need to get as much performance as 
 possible out of the binary, use `release` or `bench`.
 
-### Building and running the binary
+## Building and running the binary
 
 Once you have chosen a profile, you can build the `influxdb3` binary using cargo:
 
@@ -43,9 +44,9 @@ and the profiling tools of your choice. For example,
 <path_to_working_directory>/target/<profile>/influxdb3 serve
 ```
 
-## Profiling Tools
+# Profiling Tools
 
-### macOS
+## macOS
 
 Instruments is a versatile profiling tool packaged with XCode on macOS that comes with several 
 built-in profiling tools.
@@ -68,7 +69,7 @@ You can then start your profiled binary by pressing the red record button, **Fil
 If the default sampling frequency in Instruments is not resolute enough, then you can open the
 **File** > **Recording Options** and enable **High-Frequency** recording.
 
-#### Instruments: CPU/Performance Profiling
+### Instruments: CPU/Performance Profiling
 
 There are several instruments useful for profiling the CPU and performance of `influxdb3`.
 
@@ -77,7 +78,7 @@ There are several instruments useful for profiling the CPU and performance of `i
 - Filesystem Activity (file system and disk I/O activity)
 - System Call Trace (system calls and CPU scheduling)
 
-#### Instruments: Allocations
+### Instruments: Allocations
 
 The allocations instrument is a powerful tool for tracking heap allocations on macOS and recording 
 call stacks.
@@ -85,7 +86,7 @@ call stacks.
 It can be used with Rust and `influxdb3`, but requires some additional steps on aarch64 and later 
 versions of macOS due to increased security.
 
-##### Preparing binary
+#### Preparing binary
 
 You must compile `influxdb3` with `--no-default-features` to ensure the default system allocator is
 used. Following the compilation step, [you must codesign the binary][instruments-codesign-bin] with 
