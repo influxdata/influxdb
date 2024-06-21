@@ -2817,7 +2817,6 @@ func TestFileStore_ReaderBlocking(t *testing.T) {
 		t.Helper()
 
 		require.False(t, fsInUse())
-		_, err := fs.InUse()
 
 		var applyCount atomic.Uint32
 		err = fs.Apply(context.Background(), func(r tsm1.TSMFile) error {
