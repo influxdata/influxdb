@@ -49,8 +49,8 @@ and the profiling tools of your choice. For example,
 
 #### Instruments: CPU/Performance Profiling
 
-Instruments is a versatile profiling tool packaged with XCode on macOS and comes with several built-in
-profiling tools that are useful with `influxdb3`:
+Instruments is a versatile profiling tool packaged with XCode on macOS and comes with several 
+built-in profiling tools that are useful with `influxdb3`:
 
 - Time Profiler (sample-based CPU profiler)
 - CPU Profiler (cycle-based CPU profiler)
@@ -59,18 +59,18 @@ profiling tools that are useful with `influxdb3`:
 
 #### Instruments: Allocations (macOS Only)
 
-The allocations instrument is a powerful tool for tracking heap allocations on macOS and recording call stacks.
+The allocations instrument is a powerful tool for tracking heap allocations on macOS and recording 
+call stacks.
 
-It can be used with Rust and `influxdb3`, but requires some additional steps on aarch64 and later versions of macOS
-due to increased security.
+It can be used with Rust and `influxdb3`, but requires some additional steps on aarch64 and later 
+versions of macOS due to increased security.
 
 ##### Preparing binary
 
 You must compile `influxdb3` with `--no-default-features` to ensure the default system allocator is
-used. Following the compilation step,
-[you must codesign the binary](https://developer.apple.com/forums/thread/685964?answerId=683365022#683365022)
-with the `get-task-allow` entitlement set to `true`. Without the codesign step, the Allocations instrument will fail to
-start with an error similar to the following:
+used. Following the compilation step, [you must codesign the binary][instruments-codesign-bin] with 
+the `get-task-allow` entitlement set to `true`. Without the codesign step, the Allocations 
+instrument will fail to start with an error similar to the following:
 
 > Required Kernel Recording Resources Are in Use
 
@@ -92,7 +92,7 @@ You can verify the file is correctly code-signed as follows:
 codesign --display --entitlements - target/release/influxdb3
 ```
 ```
-Executable=<path_to_working_dir>/target/release/influxdb3
+Executable=<path_to_working_dir>/target/<profile>/influxdb3
 [Dict]
 	[Key] com.apple.security.get-task-allow
 	[Value]
@@ -105,3 +105,4 @@ or the running `influxdb3` process using its PID:
 codesign --display --entitlements - +<PID>
 ```
 
+[instruments-codesign-bin]: https://developer.apple.com/forums/thread/685964?answerId=683365022#683365022
