@@ -6,8 +6,8 @@ This document explains several profiling strategies.
 
 ### Choosing a profile
 
-In order to profile the `influxdb3` binary, you will need to build and run it using the
-appropriate profile. Available profiles are configured in [Cargo.toml] and are listed here:
+You will need to choose a profile to build and run the `influxdb3` binary. Available profiles are 
+configured in [Cargo.toml] and are listed here:
 
 - `release`: this is the profile used for release builds, and will produce a fully-optimized
 production quality release binary. The compile time for this profile can be quite long, so for
@@ -21,9 +21,9 @@ for more readable symbols in generated profiles.
 turned on.
 - `dev`: this profile produces an unoptimized binary with `debuginfo` turned on.
 
-Generally, if you are getting started, we recommend you use either the `quick-release` or
-`quick-bench` profiles to get up and running faster, then once you want to get as much performance
-as you can out of the binary, use `release` or `bench`.
+If you are getting started, we recommend using either the `quick-release` or `quick-bench` profiles 
+to get up and running faster, then once you are ready, and need to get as much performance as 
+possible out of the binary, use `release` or `bench`.
 
 ### Building and running the binary
 
@@ -56,3 +56,52 @@ profiling tools that are useful with `influxdb3`:
 - CPU Profiler (cycle-based CPU profiler)
 - Filesystem Activity (file system and disk I/O activity)
 - System Call Trace (system calls and CPU scheduling)
+
+#### Instruments: Allocations (macOS Only)
+
+The allocations instrument is a powerful tool for tracking heap allocations on macOS and recording call stacks.
+
+It can be used with Rust and `influxdb3`, but requires some additional steps on aarch64 and later versions of macOS
+due to increased security.
+
+##### Preparing binary
+
+You must compile `influxdb3` with `--no-default-features` to ensure the default system allocator is
+used. Following the compilation step,
+[you must codesign the binary](https://developer.apple.com/forums/thread/685964?answerId=683365022#683365022)
+with the `get-task-allow` entitlement set to `true`. Without the codesign step, the Allocations instrument will fail to
+start with an error similar to the following:
+
+> Required Kernel Recording Resources Are in Use
+
+First, generate a temporary entitlements plist file, named `tmp.entitlements`:
+
+```sh
+/usr/libexec/PlistBuddy -c "Add :com.apple.security.get-task-allow bool true" tmp.entitlements
+```
+
+Then codesign the file with the `tmp.entitlements` file:
+
+```sh
+codesign -s - --entitlements tmp.entitlements -f target/release/influxdb3
+```
+
+You can verify the file is correctly code-signed as follows:
+
+```sh
+codesign --display --entitlements - target/release/influxdb3
+```
+```
+Executable=<path_to_working_dir>/target/release/influxdb3
+[Dict]
+	[Key] com.apple.security.get-task-allow
+	[Value]
+		[Bool] true
+```
+
+or the running `influxdb3` process using its PID:
+
+```sh
+codesign --display --entitlements - +<PID>
+```
+
