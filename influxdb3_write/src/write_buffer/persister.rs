@@ -91,8 +91,7 @@ where
             wal.clone(),
             Arc::clone(&executor),
         )
-        .await
-        .unwrap()
+        .await?
     }
 
     // check for open segments to persist
@@ -117,8 +116,7 @@ where
                 wal.clone(),
                 Arc::clone(&executor),
             )
-            .await
-            .unwrap()
+            .await?
         }
     }
 
@@ -540,8 +538,8 @@ impl BufferSizeRingBuffer {
         self.buffer.push_back(BufferSize { size: value, time });
     }
 
-    // Returns the growth rate of the buffer size in bytes per minute for each measurement
-    // compared to the most recent measurement
+    /// Returns the growth rate of the buffer size in bytes per minute for each measurement
+    /// compared to the most recent measurement
     fn per_minute_growth_rates(&self) -> Vec<usize> {
         if self.buffer.len() < 2 {
             return vec![];
@@ -561,8 +559,8 @@ impl BufferSizeRingBuffer {
             .collect()
     }
 
-    // The size in bytes to shed from the write buffer in order to get the projected size under the
-    // limit in the next 5 minutes
+    /// The size in bytes to shed from the write buffer in order to get the projected size under the
+    /// limit in the next 5 minutes
     fn size_to_shed(&self, limit_mb: usize) -> usize {
         if limit_mb == 0 {
             return 0;

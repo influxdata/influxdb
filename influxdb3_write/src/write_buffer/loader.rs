@@ -436,7 +436,7 @@ mod tests {
                                 TableParquetFiles {
                                     table_name: "cpu".to_string(),
                                     parquet_files: vec![ParquetFile {
-                                        path: "dbs/db1/cpu/1970-01-01T00-00/4294967294_1.parquet"
+                                        path: "dbs/db1/cpu/1970-01-01T00-00/4294967294/1.parquet"
                                             .to_string(),
                                         size_bytes: 1817,
                                         row_count: 1,
@@ -451,7 +451,7 @@ mod tests {
                                 TableParquetFiles {
                                     table_name: "mem".to_string(),
                                     parquet_files: vec![ParquetFile {
-                                        path: "dbs/db1/mem/1970-01-01T00-00/4294967294_1.parquet"
+                                        path: "dbs/db1/mem/1970-01-01T00-00/4294967294/1.parquet"
                                             .to_string(),
                                         size_bytes: 1833,
                                         row_count: 2,

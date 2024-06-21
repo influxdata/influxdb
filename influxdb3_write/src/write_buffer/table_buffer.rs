@@ -453,7 +453,7 @@ impl BufferIndex {
                 if old_index.columns.contains_key(c) {
                     let mut column: HashMap<String, Vec<usize>> = HashMap::new();
                     match b {
-                        Builder::Tag(b) => {
+                        Builder::Tag(b) | Builder::Key(b) => {
                             let b = b.finish_cloned();
                             let bv = b.values();
                             let bva: &StringArray =

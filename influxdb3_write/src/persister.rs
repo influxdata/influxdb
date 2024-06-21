@@ -542,7 +542,7 @@ mod tests {
         stream_builder.tx().send(Ok(batch1)).await.unwrap();
         stream_builder.tx().send(Ok(batch2)).await.unwrap();
 
-        let path = ParquetFilePath::new("db_one", "table_one", Utc::now(), 1);
+        let path = ParquetFilePath::new("db_one", "table_one", Utc::now(), SegmentId::new(1), 1);
         let (bytes_written, meta) = persister
             .persist_parquet_file(path.clone(), stream_builder.build())
             .await

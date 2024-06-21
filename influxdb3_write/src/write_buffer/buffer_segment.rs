@@ -135,8 +135,8 @@ impl OpenBufferSegment {
 
         let persist_batch = match table_buffer.split(schema.as_arrow()) {
             Ok(b) => b,
-            Err(e) => {
-                error!(%e, "Error splitting table buffer for persistence");
+            Err(error) => {
+                error!(%error, "Error splitting table buffer for persistence");
                 return None;
             }
         };

@@ -58,11 +58,18 @@ impl AsRef<ObjPath> for CatalogFilePath {
 pub struct ParquetFilePath(ObjPath);
 
 impl ParquetFilePath {
-    pub fn new(db_name: &str, table_name: &str, date: DateTime<Utc>, file_number: u32) -> Self {
+    pub fn new(
+        db_name: &str,
+        table_name: &str,
+        date: DateTime<Utc>,
+        segment_id: SegmentId,
+        file_number: u32,
+    ) -> Self {
         let path = ObjPath::from(format!(
-            "dbs/{db_name}/{table_name}/{}/{:010}.{}",
+            "dbs/{db_name}/{table_name}/{}/{:010}/{}.{}",
             date.format("%Y-%m-%d"),
-            object_store_file_stem(file_number),
+            object_store_file_stem(segment_id.0),
+            file_number,
             PARQUET_FILE_EXTENSION
         ));
         Self(path)
@@ -76,7 +83,7 @@ impl ParquetFilePath {
         file_number: u32,
     ) -> Self {
         let path = ObjPath::from(format!(
-            "dbs/{db_name}/{table_name}/{}/{:010}_{}.{}",
+            "dbs/{db_name}/{table_name}/{}/{:010}/{}.{}",
             partition_key,
             object_store_file_stem(segment_id.0),
             file_number,
@@ -179,9 +186,10 @@ fn parquet_file_path_new() {
             "my_db",
             "my_table",
             Utc.with_ymd_and_hms(2038, 1, 19, 3, 14, 7).unwrap(),
+            SegmentId::new(0),
             0
         ),
-        ObjPath::from("dbs/my_db/my_table/2038-01-19/4294967295.parquet")
+        ObjPath::from("dbs/my_db/my_table/2038-01-19/4294967295/0.parquet")
     );
 }
 
@@ -192,11 +200,12 @@ fn parquet_file_percent_encoded() {
             "..",
             "..",
             Utc.with_ymd_and_hms(2038, 1, 19, 3, 14, 7).unwrap(),
+            SegmentId::new(0),
             0
         )
         .as_ref()
         .as_ref(),
-        "dbs/%2E%2E/%2E%2E/2038-01-19/4294967295.parquet"
+        "dbs/%2E%2E/%2E%2E/2038-01-19/4294967295/0.parquet"
     );
 }
 
