@@ -47,17 +47,37 @@ and the profiling tools of your choice. For example,
 
 ### macOS
 
+Instruments is a versatile profiling tool packaged with XCode on macOS that comes with several 
+built-in profiling tools.
+
+In order to profile your compiled `influxdb3` binary, you will need to choose it as the target in
+Instruments, and then provide the necessary environment variables or command line arguments. For
+example, to profile a running `influxdb3` instance using the local file system for object storage, 
+you would choose the compiled target as:
+```
+<path_to_working_directory>/target/<profile>/influxdb3
+```
+and then provide the command-line arguments:
+```
+serve --object-store=file --data-dir=~/.influxdb3
+```
+
+You can then start your profiled binary by pressing the red record button, **File** > **Record Trace**
+, or with the shortcut `⌘`+`R`.
+
+If the default sampling frequency in Instruments is not resolute enough, then you can open the
+**File** > **Recording Options** and enable **High-Frequency** recording.
+
 #### Instruments: CPU/Performance Profiling
 
-Instruments is a versatile profiling tool packaged with XCode on macOS and comes with several 
-built-in profiling tools that are useful with `influxdb3`:
+There are several instruments useful for profiling the CPU and performance of `influxdb3`.
 
 - Time Profiler (sample-based CPU profiler)
 - CPU Profiler (cycle-based CPU profiler)
 - Filesystem Activity (file system and disk I/O activity)
 - System Call Trace (system calls and CPU scheduling)
 
-#### Instruments: Allocations (macOS Only)
+#### Instruments: Allocations
 
 The allocations instrument is a powerful tool for tracking heap allocations on macOS and recording 
 call stacks.
