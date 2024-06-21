@@ -42,3 +42,17 @@ and the profiling tools of your choice. For example,
 ```
 <path_to_working_directory>/target/<profile>/influxdb3 serve
 ```
+
+## Profiling Tools
+
+### macOS
+
+#### Instruments: CPU/Performance Profiling
+
+Instruments is a versatile profiling tool packaged with XCode on macOS and comes with several built-in
+profiling tools that are useful with `influxdb3`:
+
+- Time Profiler (sample-based CPU profiler)
+- CPU Profiler (cycle-based CPU profiler)
+- Filesystem Activity (file system and disk I/O activity)
+- System Call Trace (system calls and CPU scheduling)
