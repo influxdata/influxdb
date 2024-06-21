@@ -17,6 +17,9 @@ import (
 	"testing"
 	"time"
 
+	assert2 "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -29,7 +32,6 @@ import (
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine"
 	_ "github.com/influxdata/influxdb/v2/tsdb/index"
 	"github.com/influxdata/influxql"
-	assert2 "github.com/stretchr/testify/assert"
 )
 
 func TestShardWriteAndIndex(t *testing.T) {
@@ -1148,6 +1150,87 @@ _reserved,region=uswest value="foo" 0
 			})
 		}
 		sh.Close()
+	}
+}
+
+func TestShard_ReadersBlocked(t *testing.T) {
+	setup := func(index string) Shards {
+		shards := NewShards(t, index, 2)
+		shards.MustOpen()
+
+		shards[0].MustWritePointsString(`cpu,host=serverA,region=uswest a=2.2,b=33.3,value=100 0`)
+
+		shards[1].MustWritePointsString(`
+			cpu,host=serverA,region=uswest a=2.2,c=12.3,value=100,z="hello" 0
+			disk q=100 0
+		`)
+
+		shards[0].Shard.ScheduleFullCompaction()
+		shards[1].Shard.ScheduleFullCompaction()
+
+		return shards
+	}
+
+	shardInUse := func(sh *tsdb.Shard) bool {
+		t.Helper()
+		require.NoError(t, sh.SetNewReadersBlocked(true))
+		defer sh.SetNewReadersBlocked(false)
+		inUse, err := sh.InUse()
+		require.NoError(t, err)
+		return inUse
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(fmt.Sprintf("%s_readers_blocked", index), func(t *testing.T) {
+			shards := setup(index)
+			defer shards.Close()
+
+			s1 := shards[0].Shard
+			m := influxql.Measurement{
+				Database:        "db0",
+				RetentionPolicy: "rp0",
+				Name:            "cpu",
+			}
+			opts := query.IteratorOptions{
+				Aux:        []influxql.VarRef{{Val: "a", Type: influxql.Float}, {Val: "b", Type: influxql.Float}},
+				StartTime:  models.MinNanoTime,
+				EndTime:    models.MaxNanoTime,
+				Ascending:  false,
+				Limit:      5,
+				Ordered:    true,
+				Authorizer: query.OpenAuthorizer,
+			}
+
+			// Block new readers. Due to internal interfaces, CreateIterator won't return an error but
+			// it should return a faux iterator.
+			require.NoError(t, s1.SetNewReadersBlocked(true))
+			require.False(t, shardInUse(s1))
+			it, err := s1.CreateIterator(context.Background(), &m, opts)
+			require.NoError(t, err) // It would be great to get an error, but alas that's major internal replumbing.
+			require.NotNil(t, it)
+			require.False(t, shardInUse(s1)) // Remember, it isn't a real iterator.
+			fit, ok := it.(query.FloatIterator)
+			require.True(t, ok)
+			p, err := fit.Next()
+			require.NoError(t, err)
+			require.Nil(t, p)
+			require.NoError(t, fit.Close())
+			require.NoError(t, s1.SetNewReadersBlocked(false))
+			require.False(t, shardInUse(s1))
+
+			// CreateIterator, make sure shard shows as in-use during iterator life.
+			require.False(t, shardInUse(s1))
+			it, err = s1.CreateIterator(context.Background(), &m, opts)
+			require.NoError(t, err)
+			fit, ok = it.(query.FloatIterator)
+			require.True(t, ok)
+			p, err = fit.Next()
+			require.NoError(t, err)
+			require.NotNil(t, p)
+			require.True(t, shardInUse(s1))
+			require.NoError(t, fit.Close())
+			require.False(t, shardInUse(s1))
+		})
 	}
 }
 
