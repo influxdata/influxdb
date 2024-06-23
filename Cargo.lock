@@ -2631,7 +2631,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arrow",
- "arrow-array",
  "arrow-csv",
  "arrow-flight",
  "arrow-json",
