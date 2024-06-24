@@ -5,18 +5,15 @@ use std::{
     task::{Context, Poll},
 };
 
-use anyhow::bail;
-use anyhow::Context as AnyhowContext;
+use anyhow::{bail, Context as AnyhowContext};
 use arrow::{
     array::{as_string_array, ArrayRef, AsArray},
+    compute::{cast_with_options, CastOptions},
     datatypes::{
         DataType, Float16Type, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type, Int8Type,
         TimeUnit, TimestampMicrosecondType, TimestampMillisecondType, TimestampNanosecondType,
         TimestampSecondType, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
     },
-};
-use arrow::{
-    compute::{cast_with_options, CastOptions},
     record_batch::RecordBatch,
 };
 
@@ -491,7 +488,7 @@ impl QueryResponseStream {
                 let column_name = field.name();
 
                 let mut cell_value = if !column.is_valid(row_index) {
-                    Value::Null
+                    bail!("Invalid data type")
                 } else {
                     cast_column_value(column, row_index)?
                 };
