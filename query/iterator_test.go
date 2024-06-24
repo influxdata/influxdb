@@ -11,6 +11,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/pkg/deep"
+	"github.com/influxdata/influxdb/pkg/testing/assert"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 )
@@ -877,6 +878,170 @@ func TestGroupByIterator_DST(t *testing.T) {
 		{&query.IntegerPoint{Name: "a", Aggregated: 1, Time: mustParseTime("2020-03-30T00:00:00+02:00").UnixNano(), Value: 1}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// A count() GROUP BY query with an offset that caused an interval
+// to cross a daylight savings change back to standard time dropped
+// rows in a grouped count() expression.
+
+func TestGroupByIterator_DST_End(t *testing.T) {
+	// const RFC822 string = "02 Jan 06 15:04 MST"
+	inputIter := &IntegerIterator{
+		Points: []query.IntegerPoint{
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T00:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T01:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T02:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T03:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T04:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T05:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T06:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T07:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T08:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T09:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T10:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T11:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T12:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T13:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T14:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T15:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T16:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T17:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T18:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T19:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T20:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T21:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T22:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-02T23:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T00:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T01:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T02:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T03:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T04:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T05:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T06:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T07:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T08:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T09:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T10:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T11:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T12:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T13:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T14:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T15:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T16:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T17:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T18:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T19:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T20:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T21:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T22:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-03T23:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T00:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T01:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T02:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T03:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T04:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T05:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T06:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T07:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T08:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T09:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T10:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T11:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T12:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T13:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T14:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T15:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T16:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T17:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T18:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T19:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T20:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T21:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T22:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-04T23:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T00:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T01:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T02:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T03:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T04:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T05:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T06:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T07:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T08:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T09:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T10:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T11:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T12:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T13:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T14:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T15:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T16:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T17:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T18:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T19:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T20:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T21:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T22:00:01Z").UnixNano(), Value: 1},
+			{Name: "a", Tags: ParseTags("t=a"), Time: mustParseTime("2023-11-05T23:00:01Z").UnixNano(), Value: 1},
+		},
+	}
+	const location = "America/Los_Angeles"
+	loc, err := time.LoadLocation(location)
+	if err != nil {
+		t.Fatalf("Cannot find timezone for %s: %s", location, err)
+	}
+	opt := query.IteratorOptions{
+		StartTime: mustParseTime("2023-11-02T00:00:00Z").UnixNano(),
+		EndTime:   mustParseTime("2023-11-06T00:00:00Z").UnixNano(),
+		Ascending: true,
+
+		Ordered:   true,
+		StripName: false,
+		Fill:      influxql.NoFill,
+		FillValue: nil,
+		Dedupe:    false,
+		Interval: query.Interval{
+			Duration: 24 * time.Hour,
+			Offset:   12 * time.Hour,
+		},
+		Expr:     MustParseExpr("count(Value)"),
+		Location: loc,
+	}
+
+	groupByIter, err := query.NewCallIterator(inputIter, opt)
+	if err != nil {
+		t.Fatalf("Cannot create Count and Group By iterator: %s", err)
+	} else {
+		groupByIter = query.NewFillIterator(groupByIter, MustParseExpr("count(Value)"), opt)
+	}
+
+	if all, err := (Iterators{groupByIter}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else {
+		results := [][]query.IntegerPoint{
+			{query.IntegerPoint{Name: "a", Aggregated: 19, Time: mustParseTime("2023-11-01T12:00:00-07:00").UnixNano(), Value: 19}},
+			{query.IntegerPoint{Name: "a", Aggregated: 24, Time: mustParseTime("2023-11-02T12:00:00-07:00").UnixNano(), Value: 24}},
+			{query.IntegerPoint{Name: "a", Aggregated: 24, Time: mustParseTime("2023-11-03T12:00:00-07:00").UnixNano(), Value: 24}},
+			// The extra time from falling back means more than 24 hours counted
+			{query.IntegerPoint{Name: "a", Aggregated: 25, Time: mustParseTime("2023-11-04T12:00:00-07:00").UnixNano(), Value: 25}},
+			{query.IntegerPoint{Name: "a", Aggregated: 04, Time: mustParseTime("2023-11-05T12:00:00-08:00").UnixNano(), Value: 4}},
+		}
+
+		for i, a := range all {
+			for j, p := range a {
+				switch ip := p.(type) {
+				case *query.IntegerPoint:
+					assert.Equal(t, results[i][j].Time, ip.Time,
+						"Time mismatch at i=%d j=%d: expect %v, got %v", i, j, time.Unix(0, results[i][j].Time), time.Unix(0, ip.Time))
+					assert.Equal(t, results[i][j].Value, ip.Value,
+						"Value mismatch at i=%d j=%d: expect %d, got %d", i, j, results[i][j].Value, ip.Value)
+					assert.Equal(t, results[i][j].Aggregated, ip.Aggregated,
+						"Aggregated mismatch at i=%d j=%d: expect %d, got %d", i, j, results[i][j].Aggregated, ip.Aggregated)
+				}
+			}
+		}
 	}
 }
 

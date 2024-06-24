@@ -854,6 +854,10 @@ func (opt IteratorOptions) Window(t int64) (start, end int64) {
 		end = t + dt
 	}
 
+	// As above, the offset has to happen before the time zone calculation.
+	// This is another fix for https://github.com/influxdata/influxdb/issues/20238
+	// that was missed the first time.
+	end += int64(opt.Interval.Offset)
 	// Retrieve the zone offset for the end time.
 	if opt.Location != nil {
 		_, endOffset := opt.Zone(end)
@@ -879,7 +883,6 @@ func (opt IteratorOptions) Window(t int64) (start, end int64) {
 			}
 		}
 	}
-	end += int64(opt.Interval.Offset)
 	return
 }
 
