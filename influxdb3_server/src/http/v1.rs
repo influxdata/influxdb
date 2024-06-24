@@ -11,7 +11,8 @@ use arrow::{
     array::{as_string_array, ArrayRef, AsArray},
     datatypes::{
         DataType, Float16Type, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type, Int8Type,
-        UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+        TimeUnit, TimestampMicrosecondType, TimestampMillisecondType, TimestampNanosecondType,
+        TimestampSecondType, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
     },
 };
 use arrow::{
@@ -20,6 +21,7 @@ use arrow::{
 };
 
 use bytes::Bytes;
+use chrono::DateTime;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{ready, stream::Fuse, Stream, StreamExt};
 use hyper::http::HeaderValue;
@@ -36,6 +38,7 @@ use crate::QueryExecutor;
 use super::{Error, HttpApi, Result};
 
 const DEFAULT_CHUNK_SIZE: usize = 10_000;
+const TIMESTAMP_FORMAT: &str = "%Y-%m-%dT%H:%M:%S";
 
 impl<W, Q, T> HttpApi<W, Q, T>
 where
@@ -488,7 +491,7 @@ impl QueryResponseStream {
                 let column_name = field.name();
 
                 let mut cell_value = if !column.is_valid(row_index) {
-                    bail!("Data type is not valid !")
+                    Value::Null
                 } else {
                     cast_column_value(column, row_index)?
                 };
@@ -503,17 +506,13 @@ impl QueryResponseStream {
                                 .is_some_and(|n| n != measurement_name)
                         {
                             self.buffer.push_next_measurement(measurement_name);
-                            continue;
                         }
                     }
                     continue;
                 }
                 if column_name == TIME_COLUMN_NAME {
-                    let value = column.as_primitive::<Int64Type>().value(row_index);
                     if let Some(precision) = self.epoch {
-                        cell_value = Value::Number(serde_json::Number::from(convert_ns_epoch(
-                            value, precision,
-                        )?))
+                        cell_value = convert_ns_epoch(cell_value, precision)?
                     }
                 }
                 let col_position = column_map
@@ -578,7 +577,10 @@ impl QueryResponseStream {
 }
 
 /// Convert an epoch time in nanoseconds to the provided precision
-fn convert_ns_epoch(epoch_ns: i64, precision: Precision) -> Result<i64, anyhow::Error> {
+fn convert_ns_epoch(value: Value, precision: Precision) -> Result<Value, anyhow::Error> {
+    let epoch_ns = value
+        .as_i64()
+        .context("the provided nanosecond epoch time was not a valid i64")?;
     Ok(match precision {
         Precision::Nanoseconds => epoch_ns,
         Precision::Microseconds => epoch_ns / 1_000,
@@ -586,7 +588,8 @@ fn convert_ns_epoch(epoch_ns: i64, precision: Precision) -> Result<i64, anyhow::
         Precision::Seconds => epoch_ns / 1_000_000_000,
         Precision::Minutes => epoch_ns / (1_000_000_000 * 60),
         Precision::Hours => epoch_ns / (1_000_000_000 * 60 * 60),
-    })
+    }
+    .into())
 }
 
 /// Converts a value from an Arrow `ArrayRef` at a given row index into a `serde_json::Value`.
@@ -651,6 +654,46 @@ fn cast_column_value(column: &ArrayRef, row_index: usize) -> Result<Value, anyho
             }
             _ => Value::Null,
         },
+        DataType::Timestamp(TimeUnit::Nanosecond, None) => Value::String(
+            DateTime::from_timestamp_nanos(
+                column
+                    .as_primitive::<TimestampNanosecondType>()
+                    .value(row_index),
+            )
+            .format(TIMESTAMP_FORMAT)
+            .to_string(),
+        ),
+        DataType::Timestamp(TimeUnit::Microsecond, None) => Value::String(
+            DateTime::from_timestamp_micros(
+                column
+                    .as_primitive::<TimestampMicrosecondType>()
+                    .value(row_index),
+            )
+            .context("failed to downcast TimestampMicrosecondType column")?
+            .format(TIMESTAMP_FORMAT)
+            .to_string(),
+        ),
+        DataType::Timestamp(TimeUnit::Millisecond, None) => Value::String(
+            DateTime::from_timestamp_millis(
+                column
+                    .as_primitive::<TimestampMillisecondType>()
+                    .value(row_index),
+            )
+            .context("failed to downcast TimestampNillisecondType column")?
+            .format(TIMESTAMP_FORMAT)
+            .to_string(),
+        ),
+        DataType::Timestamp(TimeUnit::Second, None) => Value::String(
+            DateTime::from_timestamp(
+                column
+                    .as_primitive::<TimestampSecondType>()
+                    .value(row_index),
+                0,
+            )
+            .context("failed to downcast TimestampSecondType column")?
+            .format(TIMESTAMP_FORMAT)
+            .to_string(),
+        ),
         t => bail!("Unsupported data type: {:?}", t),
     };
     Ok(value)
