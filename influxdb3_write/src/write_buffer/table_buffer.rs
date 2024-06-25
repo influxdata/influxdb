@@ -434,14 +434,14 @@ impl std::fmt::Debug for MutableTableChunk {
 #[derive(Debug, Default)]
 struct BufferIndex {
     // column name -> string value -> row indexes
-    columns: HashMap<String, HashMap<String, Vec<usize>>>,
+    columns: HashMap<String, hashbrown::HashMap<String, Vec<usize>>>,
 }
 
 impl BufferIndex {
     fn new(columns: &[&str]) -> Self {
         let columns = columns
             .iter()
-            .map(|c| (c.to_string(), HashMap::new()))
+            .map(|c| (c.to_string(), hashbrown::HashMap::new()))
             .collect();
         Self { columns }
     }
@@ -451,7 +451,8 @@ impl BufferIndex {
             .iter()
             .filter_map(|(c, b)| {
                 if old_index.columns.contains_key(c) {
-                    let mut column: HashMap<String, Vec<usize>> = HashMap::new();
+                    let mut column: hashbrown::HashMap<String, Vec<usize>> =
+                        hashbrown::HashMap::new();
                     match b {
                         Builder::Tag(b) | Builder::Key(b) => {
                             let b = b.finish_cloned();
@@ -461,11 +462,10 @@ impl BufferIndex {
                             for (i, v) in b.keys().iter().enumerate() {
                                 if let Some(v) = v {
                                     let tag_val = bva.value(v as usize);
-                                    if let Some(vec) = column.get_mut(tag_val) {
-                                        vec.push(i);
-                                    } else {
-                                        column.insert(tag_val.to_string(), vec![i]);
-                                    }
+                                    column
+                                        .entry_ref(tag_val)
+                                        .and_modify(|vec| vec.push(i))
+                                        .or_insert(vec![i]);
                                 }
                             }
                             Some((c.clone(), column))
@@ -486,11 +486,10 @@ impl BufferIndex {
 
     fn add_row_if_indexed_column(&mut self, row_index: usize, column_name: &str, value: &str) {
         if let Some(column) = self.columns.get_mut(column_name) {
-            if column.contains_key(value) {
-                column.get_mut(value).unwrap().push(row_index);
-            } else {
-                column.insert(value.to_string(), vec![row_index]);
-            }
+            column
+                .entry_ref(value)
+                .and_modify(|c| c.push(row_index))
+                .or_insert(vec![row_index]);
         }
     }
 
