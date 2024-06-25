@@ -167,6 +167,16 @@ pub struct Config {
         action
     )]
     pub query_log_size: usize,
+
+    // TODO - make this default to 70% of available memory:
+    /// The size limit of the open segments in the write buffer.
+    #[clap(
+        long = "buffer-mem-limit-mb",
+        env = "INFLUXDB3_BUFFER_MEM_LIMIT_MB",
+        default_value = "5000",
+        action
+    )]
+    pub buffer_mem_limit_mb: usize,
 }
 
 /// If `p` does not exist, try to create it as a directory.
@@ -276,6 +286,7 @@ pub async fn command(config: Config) -> Result<()> {
             Arc::clone(&time_provider),
             config.segment_duration,
             Arc::clone(&exec),
+            config.buffer_mem_limit_mb,
         )
         .await?,
     );

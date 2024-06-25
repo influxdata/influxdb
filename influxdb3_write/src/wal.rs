@@ -663,6 +663,7 @@ mod tests {
     use crate::catalog::Catalog;
     use crate::LpWriteOp;
     use crate::Precision;
+    use arrow::record_batch::RecordBatch;
     use std::sync::Arc;
 
     #[test]
@@ -827,15 +828,17 @@ mod tests {
             wal.open_segment_reader(segment).unwrap(),
         )
         .unwrap()
-        .0;
+        .buffered_data;
 
         // Get the buffer data as record batches
-        let batch = buffer
+        let batches = buffer
             .table_record_batches("foo", "cpu", schema.as_arrow(), &[])
             .unwrap()
             .unwrap();
         let mut writer = arrow::json::LineDelimitedWriter::new(Vec::new());
-        writer.write_batches(&[&batch]).unwrap();
+        writer
+            .write_batches(&batches.iter().collect::<Vec<&RecordBatch>>())
+            .unwrap();
         writer.finish().unwrap();
 
         pretty_assertions::assert_eq!(
