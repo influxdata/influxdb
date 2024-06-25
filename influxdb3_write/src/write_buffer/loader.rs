@@ -430,7 +430,7 @@ mod tests {
                 databases: HashMap::from([(
                     "db1".to_string(),
                     DatabaseTables {
-                        tables: HashMap::from([
+                        tables: hashbrown::HashMap::from([
                             (
                                 "cpu".to_string(),
                                 TableParquetFiles {
