@@ -45,6 +45,7 @@ async-trait.workspace = true
 base64.workspace = true
 bytes.workspace = true
 chrono.workspace = true
+csv.workspace = true
 datafusion.workspace = true
 flate2.workspace = true
 futures.workspace = true

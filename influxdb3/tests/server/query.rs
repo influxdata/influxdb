@@ -675,7 +675,7 @@ async fn api_v3_query_json_format() {
 }
 
 #[tokio::test]
-async fn api_v1_query() {
+async fn api_v1_query_json_format() {
     let server = TestServer::spawn().await;
 
     server
@@ -836,9 +836,102 @@ async fn api_v1_query() {
             params.push(("epoch", epoch));
         }
         let resp = server
-            .api_v1_query(&params)
+            .api_v1_query(&params, None)
             .await
             .json::<Value>()
+            .await
+            .unwrap();
+        println!("\n{q}", q = t.query);
+        println!("{resp:#}");
+        assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
+    }
+}
+
+#[tokio::test]
+async fn api_v1_query_csv_format() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=a usage=0.9 1\n\
+          cpu,host=a usage=0.89 2\n\
+          cpu,host=a usage=0.85 3\n\
+          mem,host=a usage=0.5 4\n\
+          mem,host=a usage=0.6 5\n\
+          mem,host=a usage=0.7 6",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    struct TestCase<'a> {
+        database: Option<&'a str>,
+        epoch: Option<&'a str>,
+        query: &'a str,
+        expected: &'a str,
+    }
+
+    let test_cases = [
+        // Basic Query:
+        TestCase {
+            database: Some("foo"),
+            epoch: None,
+            query: "SELECT time, host, usage FROM cpu",
+            expected: "name,tags,time,host,usage\n\
+            cpu,,1970-01-01T00:00:01,a,0.9\n\
+            cpu,,1970-01-01T00:00:02,a,0.89\n\
+            cpu,,1970-01-01T00:00:03,a,0.85\n\r\n",
+        },
+        // Basic Query with multiple measurements:
+        TestCase {
+            database: Some("foo"),
+            epoch: None,
+            query: "SELECT time, host, usage FROM cpu, mem",
+            expected: "name,tags,time,host,usage\n\
+            mem,,1970-01-01T00:00:04,a,0.5\n\
+            mem,,1970-01-01T00:00:05,a,0.6\n\
+            mem,,1970-01-01T00:00:06,a,0.7\n\
+            cpu,,1970-01-01T00:00:01,a,0.9\n\
+            cpu,,1970-01-01T00:00:02,a,0.89\n\
+            cpu,,1970-01-01T00:00:03,a,0.85\n\r\n",
+        },
+        // Basic Query with db in query string:
+        TestCase {
+            database: None,
+            epoch: None,
+            query: "SELECT time, host, usage FROM foo.autogen.cpu",
+            expected: "name,tags,time,host,usage\n\
+          cpu,,1970-01-01T00:00:01,a,0.9\n\
+          cpu,,1970-01-01T00:00:02,a,0.89\n\
+          cpu,,1970-01-01T00:00:03,a,0.85\n\r\n",
+        },
+        // Basic Query epoch parameter set:
+        TestCase {
+            database: Some("foo"),
+            epoch: Some("s"),
+            query: "SELECT time, host, usage FROM cpu",
+            expected: "name,tags,time,host,usage\n\
+        cpu,,1,a,0.9\n\
+        cpu,,2,a,0.89\n\
+        cpu,,3,a,0.85\n\r\n",
+        },
+    ];
+
+    for t in test_cases {
+        let mut params = vec![("q", t.query)];
+        if let Some(db) = t.database {
+            params.push(("db", db));
+        }
+        if let Some(epoch) = t.epoch {
+            params.push(("epoch", epoch));
+        }
+        let headers = vec![("Accept", "application/csv")];
+
+        let resp = server
+            .api_v1_query(&params, Some(&headers))
+            .await
+            .text()
             .await
             .unwrap();
         println!("\n{q}", q = t.query);
@@ -1063,7 +1156,7 @@ async fn api_v1_query_chunked() {
         if let Some(chunk_size) = t.chunk_size {
             params.push(("chunk_size", chunk_size));
         }
-        let stream = server.api_v1_query(&params).await.bytes_stream();
+        let stream = server.api_v1_query(&params, None).await.bytes_stream();
         let values = stream
             .map(|chunk| {
                 println!("{chunk:?}");

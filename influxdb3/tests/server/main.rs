@@ -10,6 +10,7 @@ use assert_cmd::cargo::CommandCargoExt;
 use futures::TryStreamExt;
 use influxdb3_client::Precision;
 use influxdb_iox_client::flightsql::FlightSqlClient;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::Response;
 
 mod auth;
@@ -203,9 +204,25 @@ impl TestServer {
             .expect("send /api/v3/query_influxql request to server")
     }
 
-    pub async fn api_v1_query(&self, params: &[(&str, &str)]) -> Response {
+    pub async fn api_v1_query(
+        &self,
+        params: &[(&str, &str)],
+        headers: Option<&[(&str, &str)]>,
+    ) -> Response {
+        let default_headers = [("Accept", "application/json")];
+        let headers = headers.unwrap_or(&default_headers);
+
+        let mut header_map = HeaderMap::new();
+        for (key, value) in headers {
+            header_map.insert(
+                HeaderName::from_bytes(key.as_bytes()).expect("Invalid header key"),
+                HeaderValue::from_bytes(value.as_bytes()).expect("Invalid header value"),
+            );
+        }
+
         self.http_client
             .get(format!("{base}/query", base = self.client_addr(),))
+            .headers(header_map)
             .query(params)
             .send()
             .await

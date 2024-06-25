@@ -78,6 +78,9 @@ pub enum Error {
     #[error("error decoding gzip stream: {0}")]
     InvalidGzip(std::io::Error),
 
+    #[error("invalid mime type ({0})")]
+    InvalidMimeType(String),
+
     /// NamespaceName validation error.
     #[error("error validating namespace name: {0}")]
     InvalidNamespaceName(#[from] data_types::NamespaceNameError),
@@ -115,12 +118,12 @@ pub enum Error {
     #[error("missing query parameter 'db'")]
     MissingWriteParams,
 
+    #[error("the mime type specified was not valid UTF8: {0}")]
+    NonUtf8MimeType(#[from] FromUtf8Error),
+
     /// Serde decode error
     #[error("serde error: {0}")]
     Serde(#[from] serde_urlencoded::de::Error),
-
-    #[error("error in query parameters: {0}")]
-    QueryParams(#[from] QueryParamsError),
 
     /// Arrow error
     #[error("arrow error: {0}")]
@@ -767,17 +770,6 @@ pub(crate) struct QueryRequest<D, F, P> {
     pub(crate) params: Option<P>,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum QueryParamsError {
-    #[error(
-        "invalid mime type ({0}), available types are \
-        application/vnd.apache.parquet, text/csv, text/plain, and application/json"
-    )]
-    InvalidMimeType(String),
-    #[error("the mime type specified was not valid UTF8: {0}")]
-    NonUtf8MimeType(#[from] FromUtf8Error),
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum QueryFormat {
@@ -809,8 +801,8 @@ impl QueryFormat {
             Some(b"text/plain") => Ok(Self::Pretty),
             Some(b"application/json" | b"*/*") | None => Ok(Self::Json),
             Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
-                Ok(s) => Err(QueryParamsError::InvalidMimeType(s).into()),
-                Err(e) => Err(QueryParamsError::NonUtf8MimeType(e).into()),
+                Ok(s) => Err(Error::InvalidMimeType(s)),
+                Err(e) => Err(Error::NonUtf8MimeType(e)),
             },
         }
     }
