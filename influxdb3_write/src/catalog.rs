@@ -34,6 +34,9 @@ pub enum Error {
         Catalog::NUM_DBS_LIMIT
     )]
     TooManyDbs,
+
+    #[error("last cache size must be from 1 to 10")]
+    InvalidLastCacheSize,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -242,6 +245,7 @@ impl DatabaseSchema {
 pub struct TableDefinition {
     pub name: String,
     pub schema: Schema,
+    pub last_caches: Vec<LastCacheDefinition>,
 }
 
 impl TableDefinition {
@@ -269,7 +273,11 @@ impl TableDefinition {
         }
         let schema = schema_builder.build().unwrap();
 
-        Self { name, schema }
+        Self {
+            name,
+            schema,
+            last_caches: vec![],
+        }
     }
 
     /// Check if the column exists in the [`TableDefinition`]s schema
@@ -326,6 +334,52 @@ impl TableDefinition {
 
     pub(crate) fn is_v3(&self) -> bool {
         self.schema.series_key().is_some()
+    }
+}
+
+/// Defines a last cache in a given table and database
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct LastCacheDefinition {
+    /// Given name of the cache
+    pub name: String,
+    /// Columns intended to be used as predicates in the cache
+    pub key_columns: Vec<String>,
+    /// Columns that store values in the cache
+    pub value_columns: Vec<String>,
+    /// The number of last values to hold in the cache
+    count: LastCacheSize,
+}
+
+/// The maximum allowed size for a last cache
+const LAST_CACHE_MAX_SIZE: usize = 10;
+
+/// The size of the last cache
+///
+/// Must be between 1 and [`LAST_CACHE_MAX_SIZE`]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
+pub struct LastCacheSize(usize);
+
+impl LastCacheSize {
+    pub fn new(size: usize) -> Result<Self, Error> {
+        if size == 0 || size > LAST_CACHE_MAX_SIZE {
+            Err(Error::InvalidLastCacheSize)
+        } else {
+            Ok(Self(size))
+        }
+    }
+}
+
+impl TryFrom<usize> for LastCacheSize {
+    type Error = Error;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<LastCacheSize> for usize {
+    fn from(value: LastCacheSize) -> Self {
+        value.0
     }
 }
 
