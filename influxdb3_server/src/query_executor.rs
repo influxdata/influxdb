@@ -39,7 +39,7 @@ use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
 use iox_query_params::StatementParams;
 use iox_system_tables::{IoxSystemTable, SystemTableProvider};
 use metric::Registry;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, info};
 use schema::Schema;
 use std::any::Any;
 use std::collections::HashMap;
@@ -106,7 +106,7 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
-        debug!(%database, %query, ?params, ?kind, "QueryExecutorImpl as QueryExecutor::query");
+        info!(%database, %query, ?params, ?kind, "QueryExecutorImpl as QueryExecutor::query");
         let db = self
             .namespace(database, span_ctx.child_span("get database"), false)
             .await
