@@ -1,34 +1,13 @@
-# InfluxDB
 <div align="center">
-  <img  src="assets/influxdb-logo.png" width="600" alt="InfluxDB Logo">
-</div>
+ <picture>
+    <source media="(prefers-color-scheme: light)" srcset="assets/influxdb-logo.png">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/influxdb-logo-dark.png">
+    <img src="assets/influxdb-logo.png" alt="InfluxDB Logo" width="600">
+  </picture>
+ <p>
+InfluxDB is the leading open source time series database for metrics, events, and real-time analytics.</p>
 
-<p align="center">
-  <a href="https://circleci.com/gh/influxdata/influxdb">
-  <img alt="CircleCI" src="https://circleci.com/gh/influxdata/influxdb.svg?style=svg" />
-  </a>
-  
-  <a href="https://www.influxdata.com/slack">
-  <img alt="Slack Status" src="https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social" />
-  </a>
-  
-  <a href="https://docs.influxdata.com/influxdb/v2.4/install/?t=Docker">
-  <img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/_/influxdb" />
-  </a>
-  
-  <a href="https://github.com/influxdata/influxdb/blob/master/LICENSE">
-  <img alt="Docker Pulls" src="https://img.shields.io/github/license/influxdata/influxdb" />
-  </a>
-</p>
-<h3 align="center">
-    <b><a href="https://www.influxdata.com/">Website</a></b>
-    •
-    <a href="https://docs.influxdata.com/">Documentation</a>
-    •
-    <a href="https://university.influxdata.com/">InfluxDB University</a>
-    •
-    <a href="https://www.influxdata.com/blog/">Blog</a>
-</h3>
+</div>
 
 ---
 
