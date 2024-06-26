@@ -1,7 +1,12 @@
 <div align="center">
-  <img  src="assets/influxdb-logo.png" width="600" alt="InfluxDB Logo">
+ <picture>
+    <source media="(prefers-color-scheme: light)" srcset="assets/influxdb-logo.png">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/influxdb-logo-dark.png">
+    <img src="assets/influxdb-logo.png" alt="InfluxDB Logo">
+  </picture>
  <p>
 InfluxDB is the leading open source time series database for metrics, events, and real-time analytics.</p>
+
 </div>
 
 
