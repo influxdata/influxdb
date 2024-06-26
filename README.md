@@ -2,7 +2,7 @@
  <picture>
     <source media="(prefers-color-scheme: light)" srcset="assets/influxdb-logo.png">
     <source media="(prefers-color-scheme: dark)" srcset="assets/influxdb-logo-dark.png">
-    <img src="assets/influxdb-logo.png" alt="InfluxDB Logo" style="max-width: 600px;">
+    <img src="assets/influxdb-logo.png" alt="InfluxDB Logo" width="600">
   </picture>
  <p>
 InfluxDB is the leading open source time series database for metrics, events, and real-time analytics.</p>
