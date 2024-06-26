@@ -39,7 +39,7 @@ use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
 use iox_query_params::StatementParams;
 use iox_system_tables::{IoxSystemTable, SystemTableProvider};
 use metric::Registry;
-use observability_deps::tracing::{debug, info, trace};
+use observability_deps::tracing::debug;
 use schema::Schema;
 use std::any::Any;
 use std::collections::HashMap;
@@ -100,13 +100,13 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
     async fn query(
         &self,
         database: &str,
-        q: &str,
+        query: &str,
         params: Option<StatementParams>,
         kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
-        info!("query in executor {}", database);
+        debug!(%database, %query, ?params, ?kind, "QueryExecutorImpl as QueryExecutor::query");
         let db = self
             .namespace(database, span_ctx.child_span("get database"), false)
             .await
@@ -121,26 +121,25 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         let ctx = db.new_query_context(span_ctx, Default::default());
 
         let params = params.unwrap_or_default();
-        let token = db.record_query(
-            external_span_ctx.as_ref().map(RequestLogContext::ctx),
-            "sql",
-            Box::new(q.to_string()),
-            params.clone(),
-        );
 
-        info!("plan");
-        let plan = match kind {
+        debug!("create query plan");
+        let (plan, query_type) = match kind {
             QueryKind::Sql => {
                 let planner = SqlQueryPlanner::new();
-                planner.query(q, params, &ctx).await
+                (planner.query(query, params.clone(), &ctx).await, "sql")
             }
             QueryKind::InfluxQl => {
                 let planner = InfluxQLQueryPlanner::new();
-                planner.query(q, params, &ctx).await
+                (planner.query(query, params.clone(), &ctx).await, "influxql")
             }
-        }
-        .map_err(Error::QueryPlanning);
-        let plan = match plan {
+        };
+        let token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            query_type,
+            Box::new(query.to_string()),
+            params,
+        );
+        let plan = match plan.map_err(Error::QueryPlanning) {
             Ok(plan) => plan,
             Err(e) => {
                 token.fail();
@@ -152,7 +151,7 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         // TODO: Enforce concurrency limit here
         let token = token.permit();
 
-        info!("execute_stream");
+        debug!("execute stream of query results");
         match ctx.execute_stream(Arc::clone(&plan)).await {
             Ok(query_results) => {
                 token.success();
@@ -396,10 +395,10 @@ impl<B: WriteBuffer> QueryNamespace for Database<B> {
         ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         let _span_recorder = SpanRecorder::new(ctx.child_span("QueryDatabase::chunks"));
-        debug!(%table_name, ?filters, "Finding chunks for table");
+        debug!(%table_name, ?filters, "Database as QueryNamespace::chunks");
 
         let Some(table) = self.query_table(table_name).await else {
-            trace!(%table_name, "No entry for table");
+            debug!(%table_name, "No entry for table");
             return Ok(vec![]);
         };
 
@@ -454,12 +453,12 @@ impl<B: WriteBuffer> CatalogProvider for Database<B> {
     }
 
     fn schema_names(&self) -> Vec<String> {
-        info!("CatalogProvider schema_names");
+        debug!("Database as CatalogProvider::schema_names");
         vec![DEFAULT_SCHEMA.to_string(), SYSTEM_SCHEMA.to_string()]
     }
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
-        info!("CatalogProvider schema {}", name);
+        debug!(schema_name = %name, "Database as CatalogProvider::schema");
         match name {
             DEFAULT_SCHEMA => Some(Arc::new(Self::from_namespace(self))),
             SYSTEM_SCHEMA => Some(Arc::clone(&self.system_schema_provider) as _),
@@ -542,9 +541,11 @@ impl<B: WriteBuffer> TableProvider for QueryTable<B> {
         limit: Option<usize>,
     ) -> datafusion::common::Result<Arc<dyn ExecutionPlan>> {
         let filters = filters.to_vec();
-        info!(
-            "TableProvider scan {:?} {:?} {:?}",
-            projection, filters, limit
+        debug!(
+            ?projection,
+            ?filters,
+            ?limit,
+            "QueryTable as TableProvider::scan"
         );
         let mut builder = ProviderBuilder::new(Arc::clone(&self.name), self.schema.clone());
 
