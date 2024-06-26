@@ -18,7 +18,7 @@ use arrow::{
 };
 
 use bytes::Bytes;
-use chrono::DateTime;
+use chrono::{format::SecondsFormat, DateTime};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{ready, stream::Fuse, Stream, StreamExt};
 use hyper::http::HeaderValue;
@@ -35,7 +35,6 @@ use crate::QueryExecutor;
 use super::{Error, HttpApi, Result};
 
 const DEFAULT_CHUNK_SIZE: usize = 10_000;
-const TIMESTAMP_FORMAT: &str = "%Y-%m-%dT%H:%M:%S";
 
 impl<W, Q, T> HttpApi<W, Q, T>
 where
@@ -488,7 +487,7 @@ impl QueryResponseStream {
                 let column_name = field.name();
 
                 let mut cell_value = if !column.is_valid(row_index) {
-                    bail!("Invalid data type")
+                    continue;
                 } else {
                     cast_column_value(column, row_index)?
                 };
@@ -502,6 +501,9 @@ impl QueryResponseStream {
                                 .current_measurement_name()
                                 .is_some_and(|n| n != measurement_name)
                         {
+                            // we are on the "iox::measurement" column, which gives the name of the time series
+                            // if we are on the first row, or if the measurement changes, we push into the
+                            // buffer queue
                             self.buffer.push_next_measurement(measurement_name);
                         }
                     }
@@ -630,7 +632,7 @@ fn cast_column_value(column: &ArrayRef, row_index: usize) -> Result<Value, anyho
         ),
         DataType::Float32 => Value::Number(
             serde_json::Number::from_f64(
-                column.as_primitive::<Float32Type>().value(row_index) as f64
+                column.as_primitive::<Float32Type>().value(row_index).into(),
             )
             .context("failed to downcast Float32 column")?,
         ),
@@ -657,8 +659,7 @@ fn cast_column_value(column: &ArrayRef, row_index: usize) -> Result<Value, anyho
                     .as_primitive::<TimestampNanosecondType>()
                     .value(row_index),
             )
-            .format(TIMESTAMP_FORMAT)
-            .to_string(),
+            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
         ),
         DataType::Timestamp(TimeUnit::Microsecond, None) => Value::String(
             DateTime::from_timestamp_micros(
@@ -667,8 +668,7 @@ fn cast_column_value(column: &ArrayRef, row_index: usize) -> Result<Value, anyho
                     .value(row_index),
             )
             .context("failed to downcast TimestampMicrosecondType column")?
-            .format(TIMESTAMP_FORMAT)
-            .to_string(),
+            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
         ),
         DataType::Timestamp(TimeUnit::Millisecond, None) => Value::String(
             DateTime::from_timestamp_millis(
@@ -677,8 +677,7 @@ fn cast_column_value(column: &ArrayRef, row_index: usize) -> Result<Value, anyho
                     .value(row_index),
             )
             .context("failed to downcast TimestampNillisecondType column")?
-            .format(TIMESTAMP_FORMAT)
-            .to_string(),
+            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
         ),
         DataType::Timestamp(TimeUnit::Second, None) => Value::String(
             DateTime::from_timestamp(
@@ -688,8 +687,7 @@ fn cast_column_value(column: &ArrayRef, row_index: usize) -> Result<Value, anyho
                 0,
             )
             .context("failed to downcast TimestampSecondType column")?
-            .format(TIMESTAMP_FORMAT)
-            .to_string(),
+            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
         ),
         t => bail!("Unsupported data type: {:?}", t),
     };
