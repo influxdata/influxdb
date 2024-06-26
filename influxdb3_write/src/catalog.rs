@@ -335,6 +335,15 @@ impl TableDefinition {
     pub(crate) fn is_v3(&self) -> bool {
         self.schema.series_key().is_some()
     }
+
+    /// Add a new last cache to this table definition
+    #[cfg(test)]
+    pub(crate) fn add_last_cache<L>(&mut self, last_cache: L)
+    where
+        L: Into<LastCacheDefinition>,
+    {
+        self.last_caches.push(last_cache.into());
+    }
 }
 
 /// Defines a last cache in a given table and database
@@ -348,6 +357,29 @@ pub struct LastCacheDefinition {
     pub value_columns: Vec<String>,
     /// The number of last values to hold in the cache
     count: LastCacheSize,
+}
+
+impl LastCacheDefinition {
+    /// Create a new [`LastCacheDefinition`]
+    #[cfg(test)]
+    pub(crate) fn new<N, K, V>(
+        name: N,
+        key_columns: K,
+        value_columns: V,
+        count: usize,
+    ) -> Result<Self, Error>
+    where
+        N: Into<String>,
+        K: IntoIterator<Item: Into<String>>,
+        V: IntoIterator<Item: Into<String>>,
+    {
+        Ok(Self {
+            name: name.into(),
+            key_columns: key_columns.into_iter().map(Into::into).collect(),
+            value_columns: value_columns.into_iter().map(Into::into).collect(),
+            count: count.try_into()?,
+        })
+    }
 }
 
 /// The maximum allowed size for a last cache
@@ -565,7 +597,7 @@ mod tests {
     }
 
     #[test]
-    fn serde_series_keys() {
+    fn serialize_series_keys() {
         let catalog = Catalog::new();
         let mut database = DatabaseSchema {
             name: "test_db".to_string(),
@@ -591,6 +623,44 @@ mod tests {
                 ]),
             ),
         );
+        let database = Arc::new(database);
+        catalog
+            .replace_database(SequenceNumber::new(0), database)
+            .unwrap();
+
+        assert_json_snapshot!(catalog);
+
+        let serialized = serde_json::to_string(&catalog).unwrap();
+        let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
+        let deserialized = Catalog::from_inner(deserialized_inner);
+        assert_eq!(catalog, deserialized);
+    }
+
+    #[test]
+    fn serialize_last_cache() {
+        let catalog = Catalog::new();
+        let mut database = DatabaseSchema {
+            name: "test_db".to_string(),
+            tables: BTreeMap::new(),
+        };
+        use InfluxColumnType::*;
+        use InfluxFieldType::*;
+        let mut table_def = TableDefinition::new(
+            "test",
+            [
+                ("tag_1", Tag),
+                ("tag_2", Tag),
+                ("tag_3", Tag),
+                ("time", Timestamp),
+                ("field", Field(String)),
+            ],
+            SeriesKey::None,
+        );
+        table_def.add_last_cache(
+            LastCacheDefinition::new("test_table_last_cache", ["tag_2", "tag_3"], ["field"], 1)
+                .unwrap(),
+        );
+        database.tables.insert("test_table_1".into(), table_def);
         let database = Arc::new(database);
         catalog
             .replace_database(SequenceNumber::new(0), database)
