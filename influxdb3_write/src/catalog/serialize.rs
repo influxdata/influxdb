@@ -36,7 +36,7 @@ impl<'de> Deserialize<'de> for TableDefinition {
 struct TableSnapshot<'a> {
     name: &'a str,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    keys: Option<Vec<&'a str>>,
+    key: Option<Vec<&'a str>>,
     #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
     cols: BTreeMap<&'a str, ColumnDefinition<'a>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -151,7 +151,7 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
         Self {
             name,
             cols,
-            keys,
+            key: keys,
             last_caches,
         }
     }
@@ -213,7 +213,7 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
         let name = snap.name.to_owned();
         let mut b = SchemaBuilder::new();
         b.measurement(&name);
-        if let Some(keys) = snap.keys {
+        if let Some(keys) = snap.key {
             b.with_series_key(keys);
         }
         for (name, col) in snap.cols {

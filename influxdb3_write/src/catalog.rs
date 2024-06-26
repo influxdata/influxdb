@@ -563,4 +563,44 @@ mod tests {
         );
         assert_eq!(schema.field(1).0, InfluxColumnType::Tag);
     }
+
+    #[test]
+    fn serde_series_keys() {
+        let catalog = Catalog::new();
+        let mut database = DatabaseSchema {
+            name: "test_db".to_string(),
+            tables: BTreeMap::new(),
+        };
+        use InfluxColumnType::*;
+        use InfluxFieldType::*;
+        database.tables.insert(
+            "test_table_1".into(),
+            TableDefinition::new(
+                "test_table_1",
+                [
+                    ("tag_1", Tag),
+                    ("tag_2", Tag),
+                    ("tag_3", Tag),
+                    ("time", Timestamp),
+                    ("field", Field(String)),
+                ],
+                SeriesKey::Some(vec![
+                    "tag_1".to_string(),
+                    "tag_2".to_string(),
+                    "tag_3".to_string(),
+                ]),
+            ),
+        );
+        let database = Arc::new(database);
+        catalog
+            .replace_database(SequenceNumber::new(0), database)
+            .unwrap();
+
+        assert_json_snapshot!(catalog);
+
+        let serialized = serde_json::to_string(&catalog).unwrap();
+        let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
+        let deserialized = Catalog::from_inner(deserialized_inner);
+        assert_eq!(catalog, deserialized);
+    }
 }
