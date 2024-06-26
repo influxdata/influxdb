@@ -487,7 +487,7 @@ impl QueryResponseStream {
                 let column_name = field.name();
 
                 let mut cell_value = if !column.is_valid(row_index) {
-                    bail!("Invalid data type")
+                    continue;
                 } else {
                     cast_column_value(column, row_index)?
                 };
