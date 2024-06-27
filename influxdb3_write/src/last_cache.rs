@@ -35,7 +35,11 @@ pub enum Error {
     CacheAlreadyExists,
 }
 
-/// A three level hashmap storing Database -> Table
+/// A three level hashmap storing Database -> Table -> LastCache
+///
+/// There are two lock levels at the top and bottom:
+/// - Top: lock the entire cache for creating new entries
+/// - Bottom: lock an individual cache for pushing in new data
 type CacheMap = RwLock<HashMap<String, HashMap<String, RwLock<LastCache>>>>;
 
 pub struct LastCacheProvider {
@@ -49,12 +53,14 @@ impl std::fmt::Debug for LastCacheProvider {
 }
 
 impl LastCacheProvider {
+    /// Create a new [`LastCacheProvider`]
     pub(crate) fn new() -> Self {
         Self {
             cache_map: Default::default(),
         }
     }
 
+    /// Output the records for a given cache as arrow [`RecordBatch`]es
     #[cfg(test)]
     pub(crate) fn get_cache_record_batches<D, T>(
         &self,
@@ -72,6 +78,8 @@ impl LastCacheProvider {
             .map(|lc| lc.read().to_record_batch())
     }
 
+    /// Create a new entry in the last cache for a given database and table, along with the given
+    /// parameters.
     pub(crate) fn create_cache<D, T>(
         &self,
         db_name: D,
@@ -103,6 +111,10 @@ impl LastCacheProvider {
         Ok(())
     }
 
+    /// Write a batch from the buffer into the cache by iterating over its database and table batches
+    /// to find entries that belong in the cache.
+    ///
+    /// Only if rows are newer than the latest entry in the cache will they be entered.
     pub(crate) fn write_batch_to_cache(&self, write_batch: &WriteBatch) {
         for (db_name, db_batch) in &write_batch.database_batches {
             for (tbl_name, tbl_batch) in &db_batch.table_batches {
@@ -123,6 +135,7 @@ impl LastCacheProvider {
 
 /// A ring buffer holding a set of [`Row`]s
 pub(crate) struct LastCache {
+    // TODO: not sure if this is needed, given the individual columns track their size
     _count: LastCacheSize,
     // TODO: use for filter predicates
     _key_columns: HashSet<String>,
@@ -152,6 +165,7 @@ impl LastCache {
         })
     }
 
+    /// Push a [`Row`] from the buffer into this cache
     pub(crate) fn push(&mut self, row: &Row) {
         let time_col = self
             .cache
@@ -166,6 +180,7 @@ impl LastCache {
         self.last_time = Time::from_timestamp_nanos(row.time);
     }
 
+    /// Convert the contents of this cache into a arrow [`RecordBatch`]
     fn to_record_batch(&self) -> Result<RecordBatch, ArrowError> {
         RecordBatch::try_new(
             self.schema(),
@@ -213,12 +228,16 @@ impl TableProvider for LastCache {
     }
 }
 
+/// A column in a [`LastCache`]
+///
+/// Stores its size so it can evict old data on push.
 struct CacheColumn {
     size: usize,
     data: CacheColumnData,
 }
 
 impl CacheColumn {
+    /// Create a new [`CacheColumn`] for the given arrow [`DataType`] and size
     fn new(data_type: &DataType, size: usize) -> Self {
         Self {
             size,
@@ -226,6 +245,7 @@ impl CacheColumn {
         }
     }
 
+    /// Push [`FieldData`] from the buffer into this column
     fn push(&mut self, field_data: &FieldData) {
         if self.data.len() == self.size {
             self.data.pop_back();
@@ -234,6 +254,7 @@ impl CacheColumn {
     }
 }
 
+/// Enumerated type for storing column data for the cache in a ring buffer
 #[derive(Debug)]
 enum CacheColumnData {
     I64(VecDeque<i64>),
@@ -246,6 +267,7 @@ enum CacheColumnData {
 }
 
 impl CacheColumnData {
+    /// Create a new [`CacheColumnData`]
     fn new(data_type: &DataType, size: usize) -> Self {
         match data_type {
             DataType::Boolean => Self::Bool(VecDeque::with_capacity(size)),
@@ -263,6 +285,7 @@ impl CacheColumnData {
         }
     }
 
+    /// Get the length of the [`CacheColumn`]
     fn len(&self) -> usize {
         match self {
             CacheColumnData::I64(v) => v.len(),
@@ -275,6 +298,7 @@ impl CacheColumnData {
         }
     }
 
+    /// Pop the oldest element from the [`CacheColumn`]
     fn pop_back(&mut self) {
         match self {
             CacheColumnData::I64(v) => {
@@ -301,6 +325,7 @@ impl CacheColumnData {
         }
     }
 
+    /// Push a new element into the [`CacheColumn`]
     fn push_front(&mut self, field_data: &FieldData) {
         match (field_data, self) {
             (FieldData::Timestamp(d), CacheColumnData::Time(v)) => v.push_front(*d),
@@ -315,6 +340,7 @@ impl CacheColumnData {
         }
     }
 
+    /// Produce an arrow [`ArrayRef`] from this column for the sake of producing [`RecordBatch`]es
     fn as_array(&self) -> ArrayRef {
         match self {
             CacheColumnData::I64(v) => {
