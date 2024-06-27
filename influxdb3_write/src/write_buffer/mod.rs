@@ -11,6 +11,7 @@ pub(crate) mod validator;
 use crate::cache::ParquetCache;
 use crate::catalog::{Catalog, DatabaseSchema};
 use crate::chunk::ParquetChunk;
+use crate::last_cache::LastCacheProvider;
 use crate::persister::PersisterImpl;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
@@ -135,7 +136,10 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             wal.clone(),
         )));
 
-        let write_buffer_flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
+        let last_cache = Arc::new(LastCacheProvider::new());
+
+        let write_buffer_flusher =
+            WriteBufferFlusher::new(Arc::clone(&segment_state), Arc::clone(&last_cache));
 
         let segment_state_persister = Arc::clone(&segment_state);
         let time_provider_persister = Arc::clone(&time_provider);
