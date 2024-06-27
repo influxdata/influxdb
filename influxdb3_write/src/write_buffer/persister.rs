@@ -857,10 +857,12 @@ mod tests {
             .write()
             .close_segment(first_segment_range.start_time)
             .unwrap();
-        let _persisted = closed_segment
+
+        closed_segment
             .persist(Arc::clone(&persister), exec, None)
             .await
             .unwrap();
+
         segment_state
             .write()
             .remove_persisting_segment(first_segment_range.start_time);
