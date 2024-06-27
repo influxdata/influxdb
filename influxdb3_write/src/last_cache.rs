@@ -140,6 +140,7 @@ pub(crate) struct LastCache {
     // TODO: use for filter predicates
     _key_columns: HashSet<String>,
     schema: SchemaRef,
+    // use an IndexMap to preserve insertion order:
     cache: IndexMap<String, CacheColumn>,
     last_time: Time,
 }
@@ -184,6 +185,9 @@ impl LastCache {
     fn to_record_batch(&self) -> Result<RecordBatch, ArrowError> {
         RecordBatch::try_new(
             self.schema(),
+            // This is where using IndexMap is important, because we inserted the cache entries
+            // using the schema field ordering, we will get the correct order by iterating directly
+            // over the map here:
             self.cache.iter().map(|(_, c)| c.data.as_array()).collect(),
         )
     }
