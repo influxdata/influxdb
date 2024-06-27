@@ -85,6 +85,12 @@ impl WriteBufferFlusher {
         &self,
         segmented_data: Vec<ValidSegmentedData>,
     ) -> crate::write_buffer::Result<()> {
+        // Check for presence of valid segment data, otherwise, the await on the response receiver
+        // will hang below.
+        if segmented_data.is_empty() {
+            return Ok(());
+        }
+
         let (response_tx, response_rx) = oneshot::channel();
 
         self.buffer_tx
@@ -215,15 +221,17 @@ mod tests {
     use crate::catalog::Catalog;
     use crate::wal::{WalImpl, WalSegmentWriterNoopImpl};
     use crate::write_buffer::buffer_segment::OpenBufferSegment;
-    use crate::write_buffer::parse_validate_and_update_catalog;
+    use crate::write_buffer::validator::WriteValidator;
     use crate::{Precision, SegmentDuration, SegmentId, SegmentRange, SequenceNumber};
     use data_types::NamespaceName;
     use iox_time::MockProvider;
 
     #[tokio::test]
     async fn flushes_to_open_segment() {
+        let catalog = Arc::new(Catalog::new());
         let segment_id = SegmentId::new(3);
         let open_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             segment_id,
             SegmentRange::test_range(),
             Time::from_timestamp_nanos(0),
@@ -235,6 +243,7 @@ mod tests {
         let next_segment_range = SegmentRange::test_range().next();
 
         let next_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             next_segment_id,
             next_segment_range,
             Time::from_timestamp_nanos(0),
@@ -242,7 +251,6 @@ mod tests {
             Box::new(WalSegmentWriterNoopImpl::new(next_segment_id)),
             None,
         );
-        let catalog = Arc::new(Catalog::new());
         let segment_state = Arc::new(RwLock::new(SegmentState::<MockProvider, WalImpl>::new(
             SegmentDuration::new_5m(),
             next_segment_id,
@@ -250,39 +258,37 @@ mod tests {
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             vec![open_segment, next_segment],
             vec![],
-            vec![],
             None,
         )));
         let flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
 
         let db_name = NamespaceName::new("db1").unwrap();
         let ingest_time = Time::from_timestamp_nanos(0);
-        let res = parse_validate_and_update_catalog(
-            db_name.clone(),
-            "cpu bar=1 10",
-            &catalog,
-            ingest_time,
-            SegmentDuration::new_5m(),
-            false,
-            Precision::Nanosecond,
-        )
-        .unwrap();
+        let res = WriteValidator::initialize(db_name.clone(), Arc::clone(&catalog))
+            .unwrap()
+            .v1_parse_lines_and_update_schema("cpu bar=1 10", false)
+            .unwrap()
+            .convert_lines_to_buffer(
+                ingest_time,
+                SegmentDuration::new_5m(),
+                Precision::Nanosecond,
+            );
 
         flusher
             .write_to_open_segment(res.valid_segmented_data)
             .await
             .unwrap();
 
-        let res = parse_validate_and_update_catalog(
-            db_name.clone(),
-            "cpu bar=1 20",
-            &catalog,
-            ingest_time,
-            SegmentDuration::new_5m(),
-            false,
-            Precision::Nanosecond,
-        )
-        .unwrap();
+        let res = WriteValidator::initialize(db_name.clone(), Arc::clone(&catalog))
+            .unwrap()
+            .v1_parse_lines_and_update_schema("cpu bar=1 20", false)
+            .unwrap()
+            .convert_lines_to_buffer(
+                ingest_time,
+                SegmentDuration::new_5m(),
+                Precision::Nanosecond,
+            );
+
         flusher
             .write_to_open_segment(res.valid_segmented_data)
             .await
@@ -301,10 +307,12 @@ mod tests {
                     .db_schema("db1")
                     .unwrap()
                     .get_table_schema("cpu")
-                    .unwrap(),
+                    .unwrap()
+                    .as_arrow(),
+                &[],
             )
+            .unwrap()
             .unwrap();
-        let row_count = data.iter().map(|batch| batch.num_rows()).sum::<usize>();
-        assert_eq!(row_count, 2);
+        assert_eq!(data[0].num_rows(), 2);
     }
 }

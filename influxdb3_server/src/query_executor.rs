@@ -1,8 +1,12 @@
 //! module for query executor
 use crate::{QueryExecutor, QueryKind};
+use arrow::array::{
+    ArrayRef, BooleanArray, DurationNanosecondArray, Int64Array, Int64Builder, StringBuilder,
+    StructArray, TimestampNanosecondArray,
+};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
-use arrow_schema::ArrowError;
+use arrow_schema::{ArrowError, TimeUnit};
 use async_trait::async_trait;
 use data_types::NamespaceId;
 use datafusion::catalog::schema::SchemaProvider;
@@ -13,6 +17,7 @@ use datafusion::datasource::{TableProvider, TableType};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::execution::SendableRecordBatchStream;
+use datafusion::logical_expr::TableProviderFilterPushDown;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
@@ -24,19 +29,18 @@ use influxdb3_write::{
 use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
 use iox_query::frontend::sql::SqlQueryPlanner;
 use iox_query::provider::ProviderBuilder;
-use iox_query::query_log::QueryCompletedToken;
-use iox_query::query_log::QueryLog;
-use iox_query::query_log::QueryText;
 use iox_query::query_log::StateReceived;
-use iox_query::QueryNamespaceProvider;
+use iox_query::query_log::{QueryCompletedToken, QueryLogEntries};
+use iox_query::query_log::{QueryLog, QueryLogEntryState};
+use iox_query::query_log::{QueryPhase, QueryText};
+use iox_query::QueryDatabase;
 use iox_query::{QueryChunk, QueryNamespace};
 use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
 use iox_query_params::StatementParams;
+use iox_system_tables::{IoxSystemTable, SystemTableProvider};
 use metric::Registry;
-use observability_deps::tracing::{debug, info, trace};
+use observability_deps::tracing::{debug, info};
 use schema::Schema;
-use serde::{Deserialize, Serialize};
-use serde_arrow::schema::SchemaLike;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -55,6 +59,7 @@ pub struct QueryExecutorImpl<W> {
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    query_log: Arc<QueryLog>,
 }
 
 impl<W: WriteBuffer> QueryExecutorImpl<W> {
@@ -65,6 +70,7 @@ impl<W: WriteBuffer> QueryExecutorImpl<W> {
         metrics: Arc<Registry>,
         datafusion_config: Arc<HashMap<String, String>>,
         concurrent_query_limit: usize,
+        query_log_size: usize,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
             &metrics,
@@ -72,12 +78,17 @@ impl<W: WriteBuffer> QueryExecutorImpl<W> {
         ));
         let query_execution_semaphore =
             Arc::new(semaphore_metrics.new_semaphore(concurrent_query_limit));
+        let query_log = Arc::new(QueryLog::new(
+            query_log_size,
+            Arc::new(iox_time::SystemProvider::new()),
+        ));
         Self {
             catalog,
             write_buffer,
             exec,
             datafusion_config,
             query_execution_semaphore,
+            query_log,
         }
     }
 }
@@ -89,15 +100,15 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
     async fn query(
         &self,
         database: &str,
-        q: &str,
+        query: &str,
         params: Option<StatementParams>,
         kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
-        info!("query in executor {}", database);
+        info!(%database, %query, ?params, ?kind, "QueryExecutorImpl as QueryExecutor::query");
         let db = self
-            .db(database, span_ctx.child_span("get database"), false)
+            .namespace(database, span_ctx.child_span("get database"), false)
             .await
             .map_err(|_| Error::DatabaseNotFound {
                 db_name: database.to_string(),
@@ -109,33 +120,38 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         // TODO - configure query here?
         let ctx = db.new_query_context(span_ctx, Default::default());
 
-        let token = db.record_query(
-            external_span_ctx.as_ref().map(RequestLogContext::ctx),
-            "sql",
-            Box::new(q.to_string()),
-            // TODO - ignoring params for now:
-            StatementParams::default(),
-        );
-
-        info!("plan");
         let params = params.unwrap_or_default();
-        let plan = match kind {
+
+        debug!("create query plan");
+        let (plan, query_type) = match kind {
             QueryKind::Sql => {
                 let planner = SqlQueryPlanner::new();
-                planner.query(q, params, &ctx).await
+                (planner.query(query, params.clone(), &ctx).await, "sql")
             }
             QueryKind::InfluxQl => {
                 let planner = InfluxQLQueryPlanner::new();
-                planner.query(q, params, &ctx).await
+                (planner.query(query, params.clone(), &ctx).await, "influxql")
             }
-        }
-        .map_err(Error::QueryPlanning)?;
+        };
+        let token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            query_type,
+            Box::new(query.to_string()),
+            params,
+        );
+        let plan = match plan.map_err(Error::QueryPlanning) {
+            Ok(plan) => plan,
+            Err(e) => {
+                token.fail();
+                return Err(e);
+            }
+        };
         let token = token.planned(&ctx, Arc::clone(&plan));
 
         // TODO: Enforce concurrency limit here
         let token = token.permit();
 
-        info!("execute_stream");
+        debug!("execute stream of query results");
         match ctx.execute_stream(Arc::clone(&plan)).await {
             Ok(query_results) => {
                 token.success();
@@ -173,10 +189,10 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
         // sort them to ensure consistent order:
         databases.sort_unstable();
 
-        let mut records = Vec::with_capacity(databases.len());
+        let mut rows = Vec::with_capacity(databases.len());
         for database in databases {
             let db = self
-                .db(&database, span_ctx.child_span("get database"), false)
+                .namespace(&database, span_ctx.child_span("get database"), false)
                 .await
                 .map_err(|_| Error::DatabaseNotFound {
                     db_name: database.to_string(),
@@ -186,28 +202,69 @@ impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
                 })?;
             let duration = db.retention_time_ns();
             let (db_name, rp_name) = split_database_name(&database);
-            records.push(RetentionPolicyRecord {
+            rows.push(RetentionPolicyRow {
                 database: db_name,
                 name: rp_name,
                 duration,
             });
         }
 
-        let fields = Vec::<Field>::from_type::<RetentionPolicyRecord>(Default::default())?;
-        let arrays = serde_arrow::to_arrow(&fields, &records)?;
-        let schema = DatafusionSchema::new(fields);
-        let batch = RecordBatch::try_new(Arc::new(schema), arrays)
-            .map_err(Error::RetentionPoliciesToRecordBatch)?;
+        let batch = retention_policy_rows_to_batch(&rows);
         Ok(Box::pin(MemoryStream::new(vec![batch])))
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct RetentionPolicyRecord {
-    #[serde(rename = "iox::database")]
+#[derive(Debug)]
+struct RetentionPolicyRow {
     database: String,
     name: String,
     duration: Option<i64>,
+}
+
+#[derive(Debug, Default)]
+struct RetentionPolicyRowBuilder {
+    database: StringBuilder,
+    name: StringBuilder,
+    duration: Int64Builder,
+}
+
+impl RetentionPolicyRowBuilder {
+    fn append(&mut self, row: &RetentionPolicyRow) {
+        self.database.append_value(row.database.as_str());
+        self.name.append_value(row.name.as_str());
+        self.duration.append_option(row.duration);
+    }
+
+    // Note: may be able to use something simpler than StructArray here, this is just based
+    // directly on the arrow docs: https://docs.rs/arrow/latest/arrow/array/builder/index.html
+    fn finish(&mut self) -> StructArray {
+        StructArray::from(vec![
+            (
+                Arc::new(Field::new("iox::database", DataType::Utf8, false)),
+                Arc::new(self.database.finish()) as ArrayRef,
+            ),
+            (
+                Arc::new(Field::new("name", DataType::Utf8, false)),
+                Arc::new(self.name.finish()) as ArrayRef,
+            ),
+            (
+                Arc::new(Field::new("duration", DataType::Int64, true)),
+                Arc::new(self.duration.finish()) as ArrayRef,
+            ),
+        ])
+    }
+}
+
+impl<'a> Extend<&'a RetentionPolicyRow> for RetentionPolicyRowBuilder {
+    fn extend<T: IntoIterator<Item = &'a RetentionPolicyRow>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|row| self.append(row));
+    }
+}
+
+fn retention_policy_rows_to_batch(rows: &[RetentionPolicyRow]) -> RecordBatch {
+    let mut builder = RetentionPolicyRowBuilder::default();
+    builder.extend(rows);
+    RecordBatch::from(&builder.finish())
 }
 
 const AUTOGEN_RETENTION_POLICY: &str = "autogen";
@@ -232,17 +289,16 @@ pub enum Error {
     DatabasesToRecordBatch(#[source] ArrowError),
     #[error("unable to compose record batches from retention policies: {0}")]
     RetentionPoliciesToRecordBatch(#[source] ArrowError),
-    #[error("serde_arrow error: {0}")]
-    SerdeArrow(#[from] serde_arrow::Error),
 }
 
 // This implementation is for the Flight service
 #[async_trait]
-impl<W: WriteBuffer> QueryNamespaceProvider for QueryExecutorImpl<W> {
-    async fn db(
+impl<W: WriteBuffer> QueryDatabase for QueryExecutorImpl<W> {
+    async fn namespace(
         &self,
         name: &str,
         span: Option<Span>,
+        // We expose the `system` tables by default in the monolithic versions of InfluxDB 3
         _include_debug_info_tables: bool,
     ) -> Result<Option<Arc<dyn QueryNamespace>>, DataFusionError> {
         let _span_recorder = SpanRecorder::new(span);
@@ -253,11 +309,12 @@ impl<W: WriteBuffer> QueryNamespaceProvider for QueryExecutorImpl<W> {
             }))
         })?;
 
-        Ok(Some(Arc::new(QueryDatabase::new(
+        Ok(Some(Arc::new(Database::new(
             db_schema,
             Arc::clone(&self.write_buffer) as _,
             Arc::clone(&self.exec),
             Arc::clone(&self.datafusion_config),
+            Arc::clone(&self.query_log),
         ))))
     }
 
@@ -267,30 +324,33 @@ impl<W: WriteBuffer> QueryNamespaceProvider for QueryExecutorImpl<W> {
             .await
             .expect("Semaphore should not be closed by anyone")
     }
+
+    fn query_log(&self) -> QueryLogEntries {
+        self.query_log.entries()
+    }
 }
 
-#[derive(Debug)]
-pub struct QueryDatabase<B> {
+#[derive(Debug, Clone)]
+pub struct Database<B> {
     db_schema: Arc<DatabaseSchema>,
     write_buffer: Arc<B>,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
     query_log: Arc<QueryLog>,
+    system_schema_provider: Arc<SystemSchemaProvider>,
 }
 
-impl<B: WriteBuffer> QueryDatabase<B> {
+impl<B: WriteBuffer> Database<B> {
     pub fn new(
         db_schema: Arc<DatabaseSchema>,
         write_buffer: Arc<B>,
         exec: Arc<Executor>,
         datafusion_config: Arc<HashMap<String, String>>,
+        query_log: Arc<QueryLog>,
     ) -> Self {
-        // TODO Fine tune this number
-        const QUERY_LOG_LIMIT: usize = 10;
-
-        let query_log = Arc::new(QueryLog::new(
-            QUERY_LOG_LIMIT,
-            Arc::new(iox_time::SystemProvider::new()),
+        let system_schema_provider = Arc::new(SystemSchemaProvider::new(
+            write_buffer.catalog(),
+            Arc::clone(&query_log),
         ));
         Self {
             db_schema,
@@ -298,6 +358,18 @@ impl<B: WriteBuffer> QueryDatabase<B> {
             exec,
             datafusion_config,
             query_log,
+            system_schema_provider,
+        }
+    }
+
+    fn from_namespace(db: &Self) -> Self {
+        Self {
+            db_schema: Arc::clone(&db.db_schema),
+            write_buffer: Arc::clone(&db.write_buffer),
+            exec: Arc::clone(&db.exec),
+            datafusion_config: Arc::clone(&db.datafusion_config),
+            query_log: Arc::clone(&db.query_log),
+            system_schema_provider: Arc::clone(&db.system_schema_provider),
         }
     }
 
@@ -314,7 +386,7 @@ impl<B: WriteBuffer> QueryDatabase<B> {
 }
 
 #[async_trait]
-impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
+impl<B: WriteBuffer> QueryNamespace for Database<B> {
     async fn chunks(
         &self,
         table_name: &str,
@@ -323,10 +395,10 @@ impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
         ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         let _span_recorder = SpanRecorder::new(ctx.child_span("QueryDatabase::chunks"));
-        debug!(%table_name, ?filters, "Finding chunks for table");
+        debug!(%table_name, ?filters, "Database as QueryNamespace::chunks");
 
         let Some(table) = self.query_table(table_name).await else {
-            trace!(%table_name, "No entry for table");
+            debug!(%table_name, "No entry for table");
             return Ok(vec![]);
         };
 
@@ -361,17 +433,10 @@ impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
         span_ctx: Option<SpanContext>,
         _config: Option<&QueryConfig>,
     ) -> IOxSessionContext {
-        let qdb = Self::new(
-            Arc::clone(&self.db_schema),
-            Arc::clone(&self.write_buffer),
-            Arc::clone(&self.exec),
-            Arc::clone(&self.datafusion_config),
-        );
-
         let mut cfg = self
             .exec
-            .new_execution_config()
-            .with_default_catalog(Arc::new(qdb))
+            .new_session_config()
+            .with_default_catalog(Arc::new(Self::from_namespace(self)))
             .with_span_context(span_ctx);
 
         for (k, v) in self.datafusion_config.as_ref() {
@@ -382,34 +447,28 @@ impl<B: WriteBuffer> QueryNamespace for QueryDatabase<B> {
     }
 }
 
-impl<B: WriteBuffer> CatalogProvider for QueryDatabase<B> {
+impl<B: WriteBuffer> CatalogProvider for Database<B> {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
 
     fn schema_names(&self) -> Vec<String> {
-        info!("CatalogProvider schema_names");
-        vec![DEFAULT_SCHEMA.to_string()]
+        debug!("Database as CatalogProvider::schema_names");
+        vec![DEFAULT_SCHEMA.to_string(), SYSTEM_SCHEMA.to_string()]
     }
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
-        info!("CatalogProvider schema {}", name);
-        let qdb = Self::new(
-            Arc::clone(&self.db_schema),
-            Arc::clone(&self.write_buffer),
-            Arc::clone(&self.exec),
-            Arc::clone(&self.datafusion_config),
-        );
-
+        debug!(schema_name = %name, "Database as CatalogProvider::schema");
         match name {
-            DEFAULT_SCHEMA => Some(Arc::new(qdb)),
+            DEFAULT_SCHEMA => Some(Arc::new(Self::from_namespace(self))),
+            SYSTEM_SCHEMA => Some(Arc::clone(&self.system_schema_provider) as _),
             _ => None,
         }
     }
 }
 
 #[async_trait]
-impl<B: WriteBuffer> SchemaProvider for QueryDatabase<B> {
+impl<B: WriteBuffer> SchemaProvider for Database<B> {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -443,7 +502,6 @@ impl<B: WriteBuffer> QueryTable<B> {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        // TODO - this is only pulling from write buffer, and not parquet?
         self.write_buffer.get_table_chunks(
             &self.db_schema.name,
             self.name.as_ref(),
@@ -468,6 +526,13 @@ impl<B: WriteBuffer> TableProvider for QueryTable<B> {
         TableType::Base
     }
 
+    fn supports_filters_pushdown(
+        &self,
+        filters: &[&Expr],
+    ) -> datafusion::common::Result<Vec<TableProviderFilterPushDown>> {
+        Ok(vec![TableProviderFilterPushDown::Inexact; filters.len()])
+    }
+
     async fn scan(
         &self,
         ctx: &SessionState,
@@ -476,9 +541,11 @@ impl<B: WriteBuffer> TableProvider for QueryTable<B> {
         limit: Option<usize>,
     ) -> datafusion::common::Result<Arc<dyn ExecutionPlan>> {
         let filters = filters.to_vec();
-        info!(
-            "TableProvider scan {:?} {:?} {:?}",
-            projection, filters, limit
+        debug!(
+            ?projection,
+            ?filters,
+            ?limit,
+            "QueryTable as TableProvider::scan"
         );
         let mut builder = ProviderBuilder::new(Arc::clone(&self.name), self.schema.clone());
 
@@ -494,4 +561,271 @@ impl<B: WriteBuffer> TableProvider for QueryTable<B> {
 
         provider.scan(ctx, projection, &filters, limit).await
     }
+}
+
+pub const SYSTEM_SCHEMA: &str = "system";
+
+const QUERIES_TABLE: &str = "queries";
+const _PARQUET_FILES_TABLE: &str = "parquet_files";
+
+struct SystemSchemaProvider {
+    tables: HashMap<&'static str, Arc<dyn TableProvider>>,
+}
+
+impl std::fmt::Debug for SystemSchemaProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut keys = self.tables.keys().copied().collect::<Vec<_>>();
+        keys.sort_unstable();
+
+        f.debug_struct("SystemSchemaProvider")
+            .field("tables", &keys.join(", "))
+            .finish()
+    }
+}
+
+impl SystemSchemaProvider {
+    fn new(_catalog: Arc<Catalog>, query_log: Arc<QueryLog>) -> Self {
+        let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
+        let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
+            query_log,
+        ))));
+        tables.insert(QUERIES_TABLE, queries);
+        Self { tables }
+    }
+}
+
+#[async_trait]
+impl SchemaProvider for SystemSchemaProvider {
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
+
+    fn table_names(&self) -> Vec<String> {
+        let mut names = self
+            .tables
+            .keys()
+            .map(|s| (*s).to_owned())
+            .collect::<Vec<_>>();
+        names.sort();
+        names
+    }
+
+    async fn table(&self, name: &str) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {
+        Ok(self.tables.get(name).cloned())
+    }
+
+    fn table_exist(&self, name: &str) -> bool {
+        self.tables.contains_key(name)
+    }
+}
+
+struct QueriesTable {
+    schema: SchemaRef,
+    query_log: Arc<QueryLog>,
+}
+
+impl QueriesTable {
+    fn new(query_log: Arc<QueryLog>) -> Self {
+        Self {
+            schema: queries_schema(),
+            query_log,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl IoxSystemTable for QueriesTable {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&self.schema)
+    }
+
+    async fn scan(
+        &self,
+        _filters: Option<Vec<Expr>>,
+        _limit: Option<usize>,
+    ) -> Result<RecordBatch, DataFusionError> {
+        let schema = self.schema();
+
+        let entries = self
+            .query_log
+            .entries()
+            .entries
+            .into_iter()
+            .map(|e| e.state())
+            .collect::<Vec<_>>();
+
+        from_query_log_entries(Arc::clone(&schema), &entries)
+    }
+}
+
+fn queries_schema() -> SchemaRef {
+    let columns = vec![
+        Field::new("id", DataType::Utf8, false),
+        Field::new("phase", DataType::Utf8, false),
+        Field::new(
+            "issue_time",
+            DataType::Timestamp(TimeUnit::Nanosecond, None),
+            false,
+        ),
+        Field::new("query_type", DataType::Utf8, false),
+        Field::new("query_text", DataType::Utf8, false),
+        Field::new("partitions", DataType::Int64, true),
+        Field::new("parquet_files", DataType::Int64, true),
+        Field::new(
+            "plan_duration",
+            DataType::Duration(TimeUnit::Nanosecond),
+            true,
+        ),
+        Field::new(
+            "permit_duration",
+            DataType::Duration(TimeUnit::Nanosecond),
+            true,
+        ),
+        Field::new(
+            "execute_duration",
+            DataType::Duration(TimeUnit::Nanosecond),
+            true,
+        ),
+        Field::new(
+            "end2end_duration",
+            DataType::Duration(TimeUnit::Nanosecond),
+            true,
+        ),
+        Field::new(
+            "compute_duration",
+            DataType::Duration(TimeUnit::Nanosecond),
+            true,
+        ),
+        Field::new("max_memory", DataType::Int64, true),
+        Field::new("success", DataType::Boolean, false),
+        Field::new("running", DataType::Boolean, false),
+        Field::new("cancelled", DataType::Boolean, false),
+        Field::new("trace_id", DataType::Utf8, true),
+    ];
+
+    Arc::new(DatafusionSchema::new(columns))
+}
+
+fn from_query_log_entries(
+    schema: SchemaRef,
+    entries: &[Arc<QueryLogEntryState>],
+) -> Result<RecordBatch, DataFusionError> {
+    let mut columns: Vec<ArrayRef> = vec![];
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(e.id.to_string()))
+            .collect::<StringArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(e.phase.name()))
+            .collect::<StringArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.issue_time)
+            .map(|ts| Some(ts.timestamp_nanos()))
+            .collect::<TimestampNanosecondArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(&e.query_type))
+            .collect::<StringArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(e.query_text.to_string()))
+            .collect::<StringArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries.iter().map(|e| e.partitions).collect::<Int64Array>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.parquet_files)
+            .collect::<Int64Array>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.plan_duration.map(|d| d.as_nanos() as i64))
+            .collect::<DurationNanosecondArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.permit_duration.map(|d| d.as_nanos() as i64))
+            .collect::<DurationNanosecondArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.execute_duration.map(|d| d.as_nanos() as i64))
+            .collect::<DurationNanosecondArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.end2end_duration.map(|d| d.as_nanos() as i64))
+            .collect::<DurationNanosecondArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.compute_duration.map(|d| d.as_nanos() as i64))
+            .collect::<DurationNanosecondArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries.iter().map(|e| e.max_memory).collect::<Int64Array>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(e.success))
+            .collect::<BooleanArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(e.running))
+            .collect::<BooleanArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| Some(e.phase == QueryPhase::Cancel))
+            .collect::<BooleanArray>(),
+    ));
+
+    columns.push(Arc::new(
+        entries
+            .iter()
+            .map(|e| e.trace_id.map(|x| format!("{:x}", x.0)))
+            .collect::<StringArray>(),
+    ));
+
+    let batch = RecordBatch::try_new(schema, columns)?;
+    Ok(batch)
 }

@@ -4,6 +4,7 @@ use clap_blocks::{
     memory_size::MemorySize,
     object_store::{make_object_store, ObjectStoreConfig},
     socket_addr::SocketAddr,
+    tokio::TokioDatafusionConfig,
 };
 use datafusion_util::config::register_iox_object_store;
 use influxdb3_compactor::Compactor;
@@ -18,7 +19,7 @@ use influxdb3_write::persister::PersisterImpl;
 use influxdb3_write::wal::WalImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
 use influxdb3_write::SegmentDuration;
-use iox_query::exec::{Executor, ExecutorConfig};
+use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
 use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use object_store::DynObjectStore;
@@ -42,7 +43,7 @@ use trogging::cli::LoggingConfig;
 pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 
 /// The default bind address for the HTTP API.
-pub const DEFAULT_HTTP_BIND_ADDR: &str = "127.0.0.1:8181";
+pub const DEFAULT_HTTP_BIND_ADDR: &str = "0.0.0.0:8181";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -51,6 +52,9 @@ pub enum Error {
 
     #[error("Tracing config error: {0}")]
     TracingConfig(#[from] trace_exporters::Error),
+
+    #[error("Error initializing tokio runtime: {0}")]
+    TokioRuntime(#[source] std::io::Error),
 
     #[error("Server error: {0}")]
     Server(#[from] influxdb3_server::Error),
@@ -69,6 +73,22 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
+    /// object store options
+    #[clap(flatten)]
+    object_store_config: ObjectStoreConfig,
+
+    /// logging options
+    #[clap(flatten)]
+    pub(crate) logging_config: LoggingConfig,
+
+    /// tracing options
+    #[clap(flatten)]
+    pub(crate) tracing_config: TracingConfig,
+
+    /// tokio datafusion config
+    #[clap(flatten)]
+    pub(crate) tokio_datafusion_config: TokioDatafusionConfig,
+
     /// Maximum size of HTTP requests.
     #[clap(
     long = "max-http-request-size",
@@ -77,9 +97,6 @@ pub struct Config {
     action,
     )]
     pub max_http_request_size: usize,
-
-    #[clap(flatten)]
-    object_store_config: ObjectStoreConfig,
 
     /// The directory to store the write ahead log
     ///
@@ -118,14 +135,6 @@ pub struct Config {
     )]
     pub exec_mem_pool_bytes: MemorySize,
 
-    /// logging options
-    #[clap(flatten)]
-    pub(crate) logging_config: LoggingConfig,
-
-    /// tracing options
-    #[clap(flatten)]
-    pub(crate) tracing_config: TracingConfig,
-
     /// DataFusion config.
     #[clap(
     long = "datafusion-config",
@@ -149,6 +158,27 @@ pub struct Config {
         action
     )]
     pub segment_duration: SegmentDuration,
+
+    // TODO - tune this default:
+    /// The size of the query log. Up to this many queries will remain in the log before
+    /// old queries are evicted to make room for new ones.
+    #[clap(
+        long = "query-log-size",
+        env = "INFLUXDB3_QUERY_LOG_SIZE",
+        default_value = "1000",
+        action
+    )]
+    pub query_log_size: usize,
+
+    // TODO - make this default to 70% of available memory:
+    /// The size limit of the open segments in the write buffer.
+    #[clap(
+        long = "buffer-mem-limit-mb",
+        env = "INFLUXDB3_BUFFER_MEM_LIMIT_MB",
+        default_value = "5000",
+        action
+    )]
+    pub buffer_mem_limit_mb: usize,
 }
 
 /// If `p` does not exist, try to create it as a directory.
@@ -196,18 +226,22 @@ pub async fn command(config: Config) -> Result<()> {
 
     let trace_exporter = config.tracing_config.build()?;
 
-    // TODO: make this a parameter
-    let num_threads =
-        NonZeroUsize::new(num_cpus::get()).unwrap_or_else(|| NonZeroUsize::new(1).unwrap());
-
-    info!(%num_threads, "Creating shared query executor");
     let parquet_store =
         ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-    let exec = Arc::new(Executor::new_with_config(
-        "datafusion",
+
+    let mut tokio_datafusion_config = config.tokio_datafusion_config;
+    tokio_datafusion_config.num_threads = tokio_datafusion_config
+        .num_threads
+        .or_else(|| NonZeroUsize::new(num_cpus::get()))
+        .or_else(|| NonZeroUsize::new(1));
+    info!(
+        num_threads = tokio_datafusion_config.num_threads.map(|n| n.get()),
+        "Creating shared query executor"
+    );
+
+    let exec = Arc::new(Executor::new_with_config_and_executor(
         ExecutorConfig {
-            num_threads,
-            target_query_partitions: num_threads,
+            target_query_partitions: tokio_datafusion_config.num_threads.unwrap(),
             object_stores: [&parquet_store]
                 .into_iter()
                 .map(|store| (store.id(), Arc::clone(store.object_store())))
@@ -215,6 +249,13 @@ pub async fn command(config: Config) -> Result<()> {
             metric_registry: Arc::clone(&metrics),
             mem_pool_size: config.exec_mem_pool_bytes.bytes(),
         },
+        DedicatedExecutor::new(
+            "datafusion",
+            tokio_datafusion_config
+                .builder()
+                .map_err(Error::TokioRuntime)?,
+            Arc::clone(&metrics),
+        ),
     ));
     let runtime_env = exec.new_context().inner().runtime_env();
     register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
@@ -247,6 +288,7 @@ pub async fn command(config: Config) -> Result<()> {
             Arc::clone(&time_provider),
             config.segment_duration,
             Arc::clone(&exec),
+            config.buffer_mem_limit_mb,
         )
         .await?,
     );
@@ -257,6 +299,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&metrics),
         Arc::new(config.datafusion_config),
         10,
+        config.query_log_size,
     ));
     let compactor = Compactor::new(Arc::clone(&write_buffer), Arc::clone(&persister));
 

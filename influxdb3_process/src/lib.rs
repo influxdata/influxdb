@@ -7,43 +7,28 @@ use once_cell::sync::Lazy;
 /// The process name on the local OS running `influxdb3`
 pub const INFLUXDB3_PROCESS_NAME: &str = "influxdb3";
 
-#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+#[cfg(feature = "jemalloc_replacing_malloc")]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+#[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc")))]
 pub mod jemalloc;
 
 #[cfg(tokio_unstable)]
 use tokio_metrics_bridge::setup_tokio_metrics;
 
-#[cfg(all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")))]
+#[cfg(any(not(feature = "jemalloc_replacing_malloc"), target_env = "msvc"))]
 pub fn build_malloc_conf() -> String {
     "system".to_string()
 }
 
-#[cfg(all(feature = "heappy", not(feature = "jemalloc_replacing_malloc")))]
-pub fn build_malloc_conf() -> String {
-    "heappy".to_string()
-}
-
-#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+#[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc")))]
 pub fn build_malloc_conf() -> String {
     tikv_jemalloc_ctl::config::malloc_conf::mib()
         .unwrap()
         .read()
         .unwrap()
         .to_string()
-}
-
-#[cfg(all(
-    feature = "heappy",
-    feature = "jemalloc_replacing_malloc",
-    not(feature = "clippy")
-))]
-pub fn build_malloc_conf() -> String {
-    compile_error!("must use exactly one memory allocator")
-}
-
-#[cfg(feature = "clippy")]
-pub fn build_malloc_conf() -> String {
-    "clippy".to_string()
 }
 
 /// Package version.
@@ -100,7 +85,7 @@ pub fn setup_metric_registry() -> Arc<metric::Registry> {
         .set(PROCESS_START_TIME.timestamp() as u64);
 
     // Register jemalloc metrics
-    #[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+    #[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc")))]
     registry.register_instrument("jemalloc_metrics", crate::jemalloc::JemallocMetrics::new);
 
     // Register tokio metric for main runtime

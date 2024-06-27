@@ -230,7 +230,7 @@ impl Persister for PersisterImpl {
 
     async fn persist_catalog(&self, segment_id: SegmentId, catalog: Catalog) -> Result<()> {
         let catalog_path = CatalogFilePath::new(segment_id);
-        let json = serde_json::to_vec_pretty(&catalog.into_inner())?;
+        let json = serde_json::to_vec_pretty(&catalog)?;
         self.object_store
             .put(catalog_path.as_ref(), Bytes::from(json))
             .await?;
@@ -542,7 +542,7 @@ mod tests {
         stream_builder.tx().send(Ok(batch1)).await.unwrap();
         stream_builder.tx().send(Ok(batch2)).await.unwrap();
 
-        let path = ParquetFilePath::new("db_one", "table_one", Utc::now(), 1);
+        let path = ParquetFilePath::new("db_one", "table_one", Utc::now(), SegmentId::new(1), 1);
         let (bytes_written, meta) = persister
             .persist_parquet_file(path.clone(), stream_builder.build())
             .await

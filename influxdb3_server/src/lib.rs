@@ -26,10 +26,10 @@ use authz::Authorizer;
 use datafusion::execution::SendableRecordBatchStream;
 use hyper::service::service_fn;
 use influxdb3_write::{Persister, WriteBuffer};
-use iox_query::QueryNamespaceProvider;
+use iox_query::QueryDatabase;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::error;
 use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
@@ -123,7 +123,7 @@ pub struct Server<W, Q, P, T> {
 }
 
 #[async_trait]
-pub trait QueryExecutor: QueryNamespaceProvider + Debug + Send + Sync + 'static {
+pub trait QueryExecutor: QueryDatabase + Debug + Send + Sync + 'static {
     type Error;
 
     async fn query(
@@ -205,6 +205,7 @@ where
 /// This method returns if either are signalled
 #[cfg(unix)]
 pub async fn wait_for_signal() {
+    use observability_deps::tracing::info;
     use tokio::signal::unix::{signal, SignalKind};
     let mut term = signal(SignalKind::terminate()).expect("failed to register signal handler");
     let mut int = signal(SignalKind::interrupt()).expect("failed to register signal handler");
@@ -231,7 +232,7 @@ mod tests {
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_write::persister::PersisterImpl;
     use influxdb3_write::SegmentDuration;
-    use iox_query::exec::{Executor, ExecutorConfig};
+    use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
@@ -256,11 +257,8 @@ mod tests {
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-        let num_threads = NonZeroUsize::new(2).unwrap();
-        let exec = Arc::new(Executor::new_with_config(
-            "datafusion",
+        let exec = Arc::new(Executor::new_with_config_and_executor(
             ExecutorConfig {
-                num_threads,
                 target_query_partitions: NonZeroUsize::new(1).unwrap(),
                 object_stores: [&parquet_store]
                     .into_iter()
@@ -269,6 +267,7 @@ mod tests {
                 metric_registry: Arc::clone(&metrics),
                 mem_pool_size: usize::MAX,
             },
+            DedicatedExecutor::new_testing(),
         ));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -280,6 +279,7 @@ mod tests {
                 Arc::clone(&time_provider),
                 SegmentDuration::new_5m(),
                 Arc::clone(&exec),
+                10000,
             )
             .await
             .unwrap(),
@@ -290,6 +290,7 @@ mod tests {
             Arc::clone(&exec),
             Arc::clone(&metrics),
             Arc::new(HashMap::new()),
+            10,
             10,
         ));
 
@@ -380,7 +381,7 @@ mod tests {
         assert_eq!(batches.len(), 1);
 
         // Check that we only have the columns we expect
-        assert_eq!(batches[0].num_columns(), 4);
+        assert_eq!(batches[0].num_columns(), 3);
         assert!(batches[0].schema().column_with_name("host").is_some());
         assert!(batches[0].schema().column_with_name("time").is_some());
         assert!(batches[0].schema().column_with_name("val").is_some());
@@ -417,11 +418,8 @@ mod tests {
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-        let num_threads = NonZeroUsize::new(2).unwrap();
-        let exec = Arc::new(Executor::new_with_config(
-            "datafusion",
+        let exec = Arc::new(Executor::new_with_config_and_executor(
             ExecutorConfig {
-                num_threads,
                 target_query_partitions: NonZeroUsize::new(1).unwrap(),
                 object_stores: [&parquet_store]
                     .into_iter()
@@ -430,6 +428,7 @@ mod tests {
                 metric_registry: Arc::clone(&metrics),
                 mem_pool_size: usize::MAX,
             },
+            DedicatedExecutor::new_testing(),
         ));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -441,6 +440,7 @@ mod tests {
                 Arc::clone(&time_provider),
                 SegmentDuration::new_5m(),
                 Arc::clone(&exec),
+                10000,
             )
             .await
             .unwrap(),
@@ -451,6 +451,7 @@ mod tests {
             Arc::clone(&exec),
             Arc::clone(&metrics),
             Arc::new(HashMap::new()),
+            10,
             10,
         );
 
@@ -623,11 +624,8 @@ mod tests {
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-        let num_threads = NonZeroUsize::new(2).unwrap();
-        let exec = Arc::new(Executor::new_with_config(
-            "datafusion",
+        let exec = Arc::new(Executor::new_with_config_and_executor(
             ExecutorConfig {
-                num_threads,
                 target_query_partitions: NonZeroUsize::new(1).unwrap(),
                 object_stores: [&parquet_store]
                     .into_iter()
@@ -636,6 +634,7 @@ mod tests {
                 metric_registry: Arc::clone(&metrics),
                 mem_pool_size: usize::MAX,
             },
+            DedicatedExecutor::new_testing(),
         ));
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(
@@ -649,6 +648,7 @@ mod tests {
                 Arc::clone(&time_provider),
                 SegmentDuration::new_5m(),
                 Arc::clone(&exec),
+                10000,
             )
             .await
             .unwrap(),
@@ -659,6 +659,7 @@ mod tests {
             Arc::clone(&exec),
             Arc::clone(&metrics),
             Arc::new(HashMap::new()),
+            10,
             10,
         );
 

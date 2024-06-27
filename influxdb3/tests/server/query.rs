@@ -272,26 +272,22 @@ async fn api_v3_query_influxql() {
         TestCase {
             database: Some("foo"),
             query: "SHOW FIELD KEYS",
-            expected: "+------------------+------------+-----------+\n\
-                    | iox::measurement | fieldKey   | fieldType |\n\
-                    +------------------+------------+-----------+\n\
-                    | cpu              | _series_id | string    |\n\
-                    | cpu              | usage      | float     |\n\
-                    | mem              | _series_id | string    |\n\
-                    | mem              | usage      | float     |\n\
-                    +------------------+------------+-----------+",
+            expected: "+------------------+----------+-----------+\n\
+                    | iox::measurement | fieldKey | fieldType |\n\
+                    +------------------+----------+-----------+\n\
+                    | cpu              | usage    | float     |\n\
+                    | mem              | usage    | float     |\n\
+                    +------------------+----------+-----------+",
         },
         TestCase {
             database: None,
             query: "SHOW FIELD KEYS ON foo",
-            expected: "+------------------+------------+-----------+\n\
-                    | iox::measurement | fieldKey   | fieldType |\n\
-                    +------------------+------------+-----------+\n\
-                    | cpu              | _series_id | string    |\n\
-                    | cpu              | usage      | float     |\n\
-                    | mem              | _series_id | string    |\n\
-                    | mem              | usage      | float     |\n\
-                    +------------------+------------+-----------+",
+            expected: "+------------------+----------+-----------+\n\
+                    | iox::measurement | fieldKey | fieldType |\n\
+                    +------------------+----------+-----------+\n\
+                    | cpu              | usage    | float     |\n\
+                    | mem              | usage    | float     |\n\
+                    +------------------+----------+-----------+",
         },
         TestCase {
             database: Some("foo"),
@@ -518,7 +514,168 @@ async fn api_v3_query_influxql_params() {
 }
 
 #[tokio::test]
-async fn api_v1_query() {
+async fn api_v3_query_json_format() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=a,region=us-east usage=0.9 1
+            cpu,host=b,region=us-east usage=0.50 1
+            cpu,host=a,region=us-east usage=0.80 2
+            cpu,host=b,region=us-east usage=0.60 2
+            cpu,host=a,region=us-east usage=0.70 3
+            cpu,host=b,region=us-east usage=0.70 3
+            cpu,host=a,region=us-east usage=0.50 4
+            cpu,host=b,region=us-east usage=0.80 4",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    struct TestCase<'a> {
+        database: Option<&'a str>,
+        query: &'a str,
+        expected: Value,
+    }
+
+    let test_cases = [
+        TestCase {
+            database: Some("foo"),
+            query: "SELECT time, host, region, usage FROM cpu",
+            expected: json!([
+                {
+                    "host": "a",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:01",
+                    "usage": 0.9
+                },
+                {
+                    "host": "b",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:01",
+                    "usage": 0.5
+                },
+                {
+                    "host": "a",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:02",
+                    "usage": 0.8
+                },
+                {
+                    "host": "b",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:02",
+                    "usage": 0.6
+                },
+                {
+                    "host": "a",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:03",
+                    "usage": 0.7
+                },
+                {
+                    "host": "b",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:03",
+                    "usage": 0.7
+                },
+                {
+                    "host": "a",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:04",
+                    "usage": 0.5
+                },
+                {
+                    "host": "b",
+                    "iox::measurement": "cpu",
+                    "region": "us-east",
+                    "time": "1970-01-01T00:00:04",
+                    "usage": 0.8
+                }
+            ]),
+        },
+        TestCase {
+            database: Some("foo"),
+            query: "SHOW MEASUREMENTS",
+            expected: json!([
+                {
+                  "iox::measurement": "measurements",
+                  "name": "cpu",
+                }
+            ]),
+        },
+        TestCase {
+            database: Some("foo"),
+            query: "SHOW FIELD KEYS",
+            expected: json!([
+                {
+                  "iox::measurement": "cpu",
+                  "fieldKey": "usage",
+                  "fieldType": "float"
+                }
+            ]),
+        },
+        TestCase {
+            database: Some("foo"),
+            query: "SHOW TAG KEYS",
+            expected: json!([
+                {
+                  "iox::measurement": "cpu",
+                  "tagKey": "host",
+                },
+                {
+                  "iox::measurement": "cpu",
+                  "tagKey": "region",
+                }
+            ]),
+        },
+        TestCase {
+            database: None,
+            query: "SHOW DATABASES",
+            expected: json!([
+                {
+                  "iox::database": "foo",
+                },
+            ]),
+        },
+        TestCase {
+            database: None,
+            query: "SHOW RETENTION POLICIES",
+            expected: json!([
+                {
+                  "iox::database": "foo",
+                  "name": "autogen",
+                },
+            ]),
+        },
+    ];
+    for t in test_cases {
+        let mut params = vec![("q", t.query), ("format", "json")];
+        if let Some(db) = t.database {
+            params.push(("db", db))
+        }
+        let resp = server
+            .api_v3_query_influxql(&params)
+            .await
+            .json::<Value>()
+            .await
+            .unwrap();
+        println!("\n{q}", q = t.query);
+        println!("{resp}");
+        assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
+    }
+}
+
+#[tokio::test]
+async fn api_v1_query_json_format() {
     let server = TestServer::spawn().await;
 
     server
@@ -679,9 +836,102 @@ async fn api_v1_query() {
             params.push(("epoch", epoch));
         }
         let resp = server
-            .api_v1_query(&params)
+            .api_v1_query(&params, None)
             .await
             .json::<Value>()
+            .await
+            .unwrap();
+        println!("\n{q}", q = t.query);
+        println!("{resp:#}");
+        assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
+    }
+}
+
+#[tokio::test]
+async fn api_v1_query_csv_format() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=a usage=0.9 1\n\
+          cpu,host=a usage=0.89 2\n\
+          cpu,host=a usage=0.85 3\n\
+          mem,host=a usage=0.5 4\n\
+          mem,host=a usage=0.6 5\n\
+          mem,host=a usage=0.7 6",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    struct TestCase<'a> {
+        database: Option<&'a str>,
+        epoch: Option<&'a str>,
+        query: &'a str,
+        expected: &'a str,
+    }
+
+    let test_cases = [
+        // Basic Query:
+        TestCase {
+            database: Some("foo"),
+            epoch: None,
+            query: "SELECT time, host, usage FROM cpu",
+            expected: "name,tags,time,host,usage\n\
+            cpu,,1970-01-01T00:00:01,a,0.9\n\
+            cpu,,1970-01-01T00:00:02,a,0.89\n\
+            cpu,,1970-01-01T00:00:03,a,0.85\n\r\n",
+        },
+        // Basic Query with multiple measurements:
+        TestCase {
+            database: Some("foo"),
+            epoch: None,
+            query: "SELECT time, host, usage FROM cpu, mem",
+            expected: "name,tags,time,host,usage\n\
+            mem,,1970-01-01T00:00:04,a,0.5\n\
+            mem,,1970-01-01T00:00:05,a,0.6\n\
+            mem,,1970-01-01T00:00:06,a,0.7\n\
+            cpu,,1970-01-01T00:00:01,a,0.9\n\
+            cpu,,1970-01-01T00:00:02,a,0.89\n\
+            cpu,,1970-01-01T00:00:03,a,0.85\n\r\n",
+        },
+        // Basic Query with db in query string:
+        TestCase {
+            database: None,
+            epoch: None,
+            query: "SELECT time, host, usage FROM foo.autogen.cpu",
+            expected: "name,tags,time,host,usage\n\
+          cpu,,1970-01-01T00:00:01,a,0.9\n\
+          cpu,,1970-01-01T00:00:02,a,0.89\n\
+          cpu,,1970-01-01T00:00:03,a,0.85\n\r\n",
+        },
+        // Basic Query epoch parameter set:
+        TestCase {
+            database: Some("foo"),
+            epoch: Some("s"),
+            query: "SELECT time, host, usage FROM cpu",
+            expected: "name,tags,time,host,usage\n\
+        cpu,,1,a,0.9\n\
+        cpu,,2,a,0.89\n\
+        cpu,,3,a,0.85\n\r\n",
+        },
+    ];
+
+    for t in test_cases {
+        let mut params = vec![("q", t.query)];
+        if let Some(db) = t.database {
+            params.push(("db", db));
+        }
+        if let Some(epoch) = t.epoch {
+            params.push(("epoch", epoch));
+        }
+        let headers = vec![("Accept", "application/csv")];
+
+        let resp = server
+            .api_v1_query(&params, Some(&headers))
+            .await
+            .text()
             .await
             .unwrap();
         println!("\n{q}", q = t.query);
@@ -906,7 +1156,7 @@ async fn api_v1_query_chunked() {
         if let Some(chunk_size) = t.chunk_size {
             params.push(("chunk_size", chunk_size));
         }
-        let stream = server.api_v1_query(&params).await.bytes_stream();
+        let stream = server.api_v1_query(&params, None).await.bytes_stream();
         let values = stream
             .map(|chunk| {
                 println!("{chunk:?}");
