@@ -5,6 +5,7 @@ use crate::catalog::TIME_COLUMN_NAME;
 use crate::chunk::BufferChunk;
 use crate::paths::ParquetFilePath;
 use crate::write_buffer::buffer_segment::{ClosedBufferSegment, SegmentSizes};
+use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::segment_state::SegmentState;
 use crate::{persister, write_buffer, ParquetFile, Persister, SegmentDuration, SegmentId, Wal};
 use arrow::array::TimestampNanosecondArray;
@@ -37,6 +38,7 @@ const PERSISTER_CHECK_INTERVAL: Duration = Duration::from_secs(1);
 pub(crate) async fn run_buffer_segment_persist_and_cleanup<P, T, W>(
     persister: Arc<P>,
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
+    persisted_files: Arc<PersistedFiles>,
     mut shutdown_rx: watch::Receiver<()>,
     time_provider: Arc<T>,
     wal: Option<Arc<W>>,
@@ -54,7 +56,7 @@ pub(crate) async fn run_buffer_segment_persist_and_cleanup<P, T, W>(
                 break;
             }
             _ = tokio::time::sleep(PERSISTER_CHECK_INTERVAL) => {
-                if let Err(e) = persist_and_cleanup_ready_segments(Arc::clone(&persister), Arc::clone(&segment_state), Arc::clone(&time_provider), wal.clone(), Arc::clone(&executor)).await {
+                if let Err(e) = persist_and_cleanup_ready_segments(Arc::clone(&persister), Arc::clone(&segment_state), Arc::clone(&persisted_files), Arc::clone(&time_provider), wal.clone(), Arc::clone(&executor)).await {
                     error!("Error persisting and cleaning up segments: {}", e);
                 }
             }
@@ -65,6 +67,7 @@ pub(crate) async fn run_buffer_segment_persist_and_cleanup<P, T, W>(
 async fn persist_and_cleanup_ready_segments<P, T, W>(
     persister: Arc<P>,
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
+    persisted_files: Arc<PersistedFiles>,
     time_provider: Arc<T>,
     wal: Option<Arc<W>>,
     executor: Arc<iox_query::exec::Executor>,
@@ -88,6 +91,7 @@ where
             segment,
             Arc::clone(&persister),
             Arc::clone(&segment_state),
+            Arc::clone(&persisted_files),
             wal.clone(),
             Arc::clone(&executor),
         )
@@ -113,6 +117,7 @@ where
                 closed_segment,
                 Arc::clone(&persister),
                 Arc::clone(&segment_state),
+                Arc::clone(&persisted_files),
                 wal.clone(),
                 Arc::clone(&executor),
             )
@@ -131,6 +136,7 @@ async fn persist_closed_segment_and_cleanup<P, T, W>(
     closed_segment: Arc<ClosedBufferSegment>,
     persister: Arc<P>,
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
+    persisted_files: Arc<PersistedFiles>,
     wal: Option<Arc<W>>,
     executor: Arc<iox_query::exec::Executor>,
 ) -> Result<(), crate::Error>
@@ -147,7 +153,8 @@ where
 
     {
         let mut segment_state = segment_state.write();
-        segment_state.mark_segment_as_persisted(closed_segment_start_time, persisted_segment);
+        segment_state.remove_persisting_segment(closed_segment_start_time);
+        persisted_files.add_persisted_segment_files(persisted_segment);
     }
 
     if let Some(wal) = wal {
@@ -683,10 +690,10 @@ mod tests {
             Arc::clone(&time_provider),
             vec![open_segment2, open_segment3],
             vec![open_segment1.into_closed_segment(Arc::clone(&catalog))],
-            vec![],
             Some(Arc::clone(&wal)),
         );
         let segment_state = Arc::new(RwLock::new(segment_state));
+        let persisted_files = Arc::new(PersistedFiles::default());
 
         let persister = Arc::new(TestPersister::default());
 
@@ -695,6 +702,7 @@ mod tests {
         persist_and_cleanup_ready_segments(
             Arc::clone(&persister),
             Arc::clone(&segment_state),
+            Arc::clone(&persisted_files),
             Arc::clone(&time_provider),
             Some(Arc::clone(&wal)),
             crate::test_help::make_exec(),
@@ -717,6 +725,8 @@ mod tests {
         let deleted_segments = wal_state.deleted_wal_segments.lock().clone();
 
         assert_eq!(deleted_segments, vec![SegmentId::new(1), SegmentId::new(2)]);
+
+        assert_eq!(persisted_files.get_files("foo", "cpu").len(), 2);
     }
 
     #[tokio::test]
@@ -757,7 +767,6 @@ mod tests {
             Arc::clone(&catalog),
             Arc::clone(&time_provider),
             vec![open_segment],
-            vec![],
             vec![],
             Some(Arc::clone(&wal)),
         );
@@ -848,13 +857,13 @@ mod tests {
             .write()
             .close_segment(first_segment_range.start_time)
             .unwrap();
-        let persisted = closed_segment
+        let _persisted = closed_segment
             .persist(Arc::clone(&persister), exec, None)
             .await
             .unwrap();
         segment_state
             .write()
-            .mark_segment_as_persisted(first_segment_range.start_time, persisted);
+            .remove_persisting_segment(first_segment_range.start_time);
         let segments = persister.load_segments(10).await.unwrap();
         assert_eq!(segments.len(), 1);
         let segment = segments.first().unwrap();
