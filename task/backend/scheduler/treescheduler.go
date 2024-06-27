@@ -63,7 +63,7 @@ const (
 type TreeScheduler struct {
 	mu            sync.RWMutex
 	priorityQueue *btree.BTree
-	nextTime      map[ID]int64 // we need this index so we can delete items from the scheduled
+	nextTime      map[ID]time.Time // we need this index so we can delete items from the scheduled
 	when          time.Time
 	executor      Executor
 	onErr         ErrorFunc
@@ -114,7 +114,7 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 	s := &TreeScheduler{
 		executor:      executor,
 		priorityQueue: btree.New(degreeBtreeScheduled),
-		nextTime:      map[ID]int64{},
+		nextTime:      map[ID]time.Time{},
 		onErr:         func(_ context.Context, _ ID, _ time.Time, _ error) {},
 		time:          clock.New(),
 		done:          make(chan struct{}, 1),
@@ -173,7 +173,7 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 						continue schedulerLoop
 					}
 					it := min.(Item)
-					if ts := s.time.Now().UTC(); it.When().After(ts) {
+					if ts := s.time.Now(); it.When().After(ts) {
 						s.timer.Reset(ts.Sub(it.When()))
 						s.mu.Unlock()
 						continue schedulerLoop
@@ -245,7 +245,7 @@ func (s *TreeScheduler) iterator(ts time.Time) btree.ItemIterator {
 			return false
 		}
 		it := i.(Item) // we want it to panic if things other than Items are populating the scheduler, as it is something we can't recover from.
-		if time.Unix(it.next+it.Offset, 0).After(ts) {
+		if it.next.Add(it.Offset).After(ts) {
 			return false
 		}
 		// distribute to the right worker.
@@ -310,7 +310,7 @@ func (s *TreeScheduler) work(ctx context.Context, ch chan Item) {
 		s.wg.Done()
 	}()
 	for it = range ch {
-		t := time.Unix(it.next, 0)
+		t := it.next
 		err := func() (err error) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -342,7 +342,7 @@ func (s *TreeScheduler) Schedule(sch Schedulable) error {
 	it := Item{
 		cron:   sch.Schedule(),
 		id:     sch.ID(),
-		Offset: int64(sch.Offset().Seconds()),
+		Offset: sch.Offset(),
 		//last:   sch.LastScheduled().Unix(),
 	}
 	nt, err := it.cron.Next(sch.LastScheduled())
@@ -351,8 +351,8 @@ func (s *TreeScheduler) Schedule(sch Schedulable) error {
 		s.onErr(context.Background(), it.id, time.Time{}, err)
 		return err
 	}
-	it.next = nt.UTC().Unix()
-	it.when = it.next + it.Offset
+	it.next = nt
+	it.when = it.next.Add(it.Offset)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -377,7 +377,7 @@ func (s *TreeScheduler) Schedule(sch Schedulable) error {
 			id:   it.id,
 		})
 	}
-	s.nextTime[it.id] = it.next + it.Offset
+	s.nextTime[it.id] = it.next.Add(it.Offset)
 
 	// insert the new task run time
 	s.priorityQueue.ReplaceOrInsert(it)
@@ -386,33 +386,33 @@ func (s *TreeScheduler) Schedule(sch Schedulable) error {
 
 // Item is a task in the scheduler.
 type Item struct {
-	when   int64
+	when   time.Time
 	id     ID
 	cron   Schedule
-	next   int64
-	Offset int64
+	next   time.Time
+	Offset time.Duration
 }
 
 func (it Item) Next() time.Time {
-	return time.Unix(it.next, 0)
+	return it.next
 }
 
 func (it Item) When() time.Time {
-	return time.Unix(it.when, 0)
+	return it.when
 }
 
 // Less tells us if one Item is less than another
 func (it Item) Less(bItem btree.Item) bool {
 	it2 := bItem.(Item)
-	return it.when < it2.when || ((it.when == it2.when) && it.id < it2.id)
+	return it2.when.After(it.when) || (it.when.Equal(it2.when) && it.id < it2.id)
 }
 
 func (it *Item) updateNext() error {
-	newNext, err := it.cron.Next(time.Unix(it.next, 0))
+	newNext, err := it.cron.Next(it.next)
 	if err != nil {
 		return err
 	}
-	it.next = newNext.UTC().Unix()
-	it.when = it.next + it.Offset
+	it.next = newNext
+	it.when = it.next.Add(it.Offset)
 	return nil
 }
