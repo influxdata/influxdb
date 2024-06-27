@@ -250,7 +250,7 @@ impl CacheColumn {
         if self.data.len() == self.size {
             self.data.pop_back();
         }
-        self.data.push_front(&field_data);
+        self.data.push_front(field_data);
     }
 }
 
