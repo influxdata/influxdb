@@ -117,6 +117,7 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
                 "| public       | information_schema | tables      | VIEW       |",
                 "| public       | information_schema | views       | VIEW       |",
                 "| public       | iox                | cpu         | BASE TABLE |",
+                "| public       | system             | queries     | BASE TABLE |",
                 "+--------------+--------------------+-------------+------------+",
             ],
             &batches
@@ -159,7 +160,9 @@ async fn flight_influxql() {
 
     let mut client = server.flight_client().await;
 
-    // Ad-hoc query, using qualified measurement name:
+    // Ad-hoc query, using qualified measurement name
+    // This is no longer supported in 3.0, see
+    // https://github.com/influxdata/influxdb_iox/pull/11254
     {
         let ticket = Ticket::new(
             r#"{
@@ -168,21 +171,9 @@ async fn flight_influxql() {
                     "query_type": "influxql"
                 }"#,
         );
-        let response = client.do_get(ticket).await.unwrap();
+        let response = client.do_get(ticket).await.unwrap_err().to_string();
 
-        let batches = collect_stream(response).await;
-        assert_batches_sorted_eq!(
-            [
-                "+------------------+--------------------------------+------+---------+-------+",
-                "| iox::measurement | time                           | host | region  | usage |",
-                "+------------------+--------------------------------+------+---------+-------+",
-                "| cpu              | 1970-01-01T00:00:00.000000001Z | s1   | us-east | 0.9   |",
-                "| cpu              | 1970-01-01T00:00:00.000000002Z | s1   | us-east | 0.89  |",
-                "| cpu              | 1970-01-01T00:00:00.000000003Z | s1   | us-east | 0.85  |",
-                "+------------------+--------------------------------+------+---------+-------+",
-            ],
-            &batches
-        );
+        assert_contains!(response, "database prefix in qualified measurement syntax");
     }
 
     // InfluxQL-specific query to show measurements:

@@ -14,7 +14,6 @@ pub mod persister;
 pub mod wal;
 pub mod write_buffer;
 
-use crate::catalog::Catalog;
 use crate::paths::{ParquetFilePath, SegmentWalFilePath};
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -85,18 +84,15 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         precision: Precision,
     ) -> write_buffer::Result<BufferedWriteRequest>;
 
-    /// Closes the open segment and returns it so that it can be persisted or thrown away. A new segment will be opened
-    /// with the catalog rolling over.
-    async fn close_open_segment(&self) -> Result<Arc<dyn BufferSegment>>;
-
-    /// Once a process opens segments with the Persister, they'll know the last segment that was persisted.
-    /// This can be used with a `Bufferer` to pass into this method, which will look for any WAL segments with an
-    /// ID greater than the one passed in.
-    async fn load_segments_after(
+    /// Write v3 line protocol
+    async fn write_lp_v3(
         &self,
-        segment_id: SegmentId,
-        catalog: Catalog,
-    ) -> Result<Vec<Arc<dyn BufferSegment>>>;
+        database: NamespaceName<'static>,
+        lp: &str,
+        ingest_time: Time,
+        accept_partial: bool,
+        precision: Precision,
+    ) -> write_buffer::Result<BufferedWriteRequest>;
 
     /// Returns the configured WAL, if there is one.
     fn wal(&self) -> Option<Arc<impl Wal>>;
@@ -438,6 +434,7 @@ pub struct WalOpBatch {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum WalOp {
     LpWrite(LpWriteOp),
+    ParquetWrite(ParquetWriteOp),
 }
 
 /// A write of 1 or more lines of line protocol to a single database. The default time is set by the server at the
@@ -447,6 +444,19 @@ pub struct LpWriteOp {
     pub db_name: String,
     pub lp: String,
     pub default_time: i64,
+    pub precision: Precision,
+}
+
+/// A Parquet file that has been persisted to object storage ahead of a segment being closed.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct ParquetWriteOp {
+    pub db_name: String,
+    pub table_name: String,
+    pub path: String,
+    pub size_bytes: u64,
+    pub row_count: u64,
+    pub min_time: i64,
+    pub max_time: i64,
 }
 
 /// A single write request can have many lines in it. A writer can request to accept all lines that are valid, while
@@ -466,7 +476,7 @@ pub struct BufferedWriteRequest {
     pub invalid_lines: Vec<WriteLineError>,
     pub line_count: usize,
     pub field_count: usize,
-    pub tag_count: usize,
+    pub index_count: usize,
 }
 
 /// A persisted Catalog that contains the database, table, and column schemas.
@@ -500,7 +510,7 @@ pub struct PersistedSegment {
 
 #[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
 pub struct DatabaseTables {
-    pub tables: HashMap<String, TableParquetFiles>,
+    pub tables: hashbrown::HashMap<String, TableParquetFiles>,
 }
 
 /// A collection of parquet files persisted in a segment for a specific table.
@@ -533,8 +543,8 @@ impl ParquetFile {
     }
 }
 
-/// The summary data for a persisted parquet file in a segment.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+/// The precision of the timestamp
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Precision {
     Auto,
@@ -596,35 +606,30 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
 mod test_helpers {
     use crate::catalog::Catalog;
     use crate::write_buffer::buffer_segment::WriteBatch;
-    use crate::write_buffer::{parse_validate_and_update_schema, TableBatch};
-    use crate::{Precision, SegmentDuration, SequenceNumber};
+    use crate::write_buffer::validator::WriteValidator;
+    use crate::write_buffer::TableBatch;
+    use crate::{Precision, SegmentDuration};
     use data_types::NamespaceName;
     use iox_time::Time;
     use std::collections::HashMap;
     use std::sync::Arc;
 
     pub(crate) fn lp_to_write_batch(
-        catalog: &Catalog,
+        catalog: Arc<Catalog>,
         db_name: &'static str,
         lp: &str,
     ) -> WriteBatch {
         let db_name = NamespaceName::new(db_name).unwrap();
         let mut write_batch = WriteBatch::default();
-        let (seq, db) = catalog.db_or_create(db_name.as_str()).unwrap();
-        let mut result = parse_validate_and_update_schema(
-            lp,
-            &db,
-            db_name.clone(),
-            Time::from_timestamp_nanos(0),
-            SegmentDuration::new_5m(),
-            false,
-            Precision::Nanosecond,
-            seq,
-        )
-        .unwrap();
-        if let Some(db) = result.schema {
-            catalog.replace_database(seq, Arc::new(db)).unwrap();
-        }
+        let mut result = WriteValidator::initialize(db_name.clone(), catalog)
+            .unwrap()
+            .v1_parse_lines_and_update_schema(lp, false)
+            .unwrap()
+            .convert_lines_to_buffer(
+                Time::from_timestamp_nanos(0),
+                SegmentDuration::new_5m(),
+                Precision::Nanosecond,
+            );
 
         write_batch.add_db_write(
             db_name,
@@ -634,28 +639,21 @@ mod test_helpers {
     }
 
     pub(crate) fn lp_to_table_batches(
-        catalog: &Catalog,
+        catalog: Arc<Catalog>,
         db_name: &str,
         lp: &str,
         default_time: i64,
     ) -> HashMap<String, TableBatch> {
-        let (seq, db) = catalog.db_or_create(db_name).unwrap();
         let db_name = NamespaceName::new(db_name.to_string()).unwrap();
-        let mut result = parse_validate_and_update_schema(
-            lp,
-            &db,
-            db_name,
-            Time::from_timestamp_nanos(default_time),
-            SegmentDuration::new_5m(),
-            false,
-            Precision::Nanosecond,
-            SequenceNumber::new(0),
-        )
-        .unwrap();
-
-        if let Some(db) = result.schema {
-            catalog.replace_database(seq, Arc::new(db)).unwrap();
-        }
+        let mut result = WriteValidator::initialize(db_name, catalog)
+            .unwrap()
+            .v1_parse_lines_and_update_schema(lp, false)
+            .unwrap()
+            .convert_lines_to_buffer(
+                Time::from_timestamp_nanos(default_time),
+                SegmentDuration::new_5m(),
+                Precision::Nanosecond,
+            );
 
         result.valid_segmented_data.pop().unwrap().table_batches
     }
@@ -733,6 +731,7 @@ mod tests {
 
 #[cfg(test)]
 pub(crate) mod test_help {
+    use iox_query::exec::DedicatedExecutor;
     use iox_query::exec::Executor;
     use iox_query::exec::ExecutorConfig;
     use object_store::memory::InMemory;
@@ -744,18 +743,15 @@ pub(crate) mod test_help {
 
     pub(crate) fn make_exec() -> Arc<Executor> {
         let metrics = Arc::new(metric::Registry::default());
-        let num_threads = NonZeroUsize::new(1).unwrap();
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
 
         let parquet_store = ParquetStorage::new(
             Arc::clone(&object_store),
             StorageId::from("test_exec_storage"),
         );
-        Arc::new(Executor::new_with_config(
-            "datafusion",
+        Arc::new(Executor::new_with_config_and_executor(
             ExecutorConfig {
-                num_threads,
-                target_query_partitions: num_threads,
+                target_query_partitions: NonZeroUsize::new(1).unwrap(),
                 object_stores: [&parquet_store]
                     .into_iter()
                     .map(|store| (store.id(), Arc::clone(store.object_store())))
@@ -764,6 +760,7 @@ pub(crate) mod test_help {
                 // Default to 1gb
                 mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
             },
+            DedicatedExecutor::new_testing(),
         ))
     }
 }

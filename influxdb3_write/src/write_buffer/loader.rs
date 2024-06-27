@@ -75,6 +75,7 @@ where
             let buffer = load_buffer_from_segment(&catalog, segment_reader)?;
 
             let segment = OpenBufferSegment::new(
+                Arc::clone(&catalog),
                 segment_header.id,
                 segment_header.range,
                 server_load_time,
@@ -100,6 +101,7 @@ where
             max_segment_id = current_segment_id;
 
             let current_segment = OpenBufferSegment::new(
+                Arc::clone(&catalog),
                 current_segment_id,
                 current_segment_range,
                 server_load_time,
@@ -116,6 +118,7 @@ where
         max_segment_id = current_segment_id;
 
         let current_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             current_segment_id,
             current_segment_range,
             server_load_time,
@@ -142,6 +145,7 @@ mod tests {
     use crate::persister::PersisterImpl;
     use crate::test_helpers::lp_to_write_batch;
     use crate::wal::{WalImpl, WalSegmentWriterNoopImpl};
+    use crate::Precision;
     use crate::{
         DatabaseTables, LpWriteOp, ParquetFile, SegmentRange, SequenceNumber, TableParquetFiles,
         WalOp,
@@ -157,10 +161,12 @@ mod tests {
     async fn loads_without_wal() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let catalog = Arc::new(Catalog::new());
 
         let segment_id = SegmentId::new(4);
         let segment_writer = Box::new(WalSegmentWriterNoopImpl::new(segment_id));
         let mut open_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             segment_id,
             SegmentRange::test_range(),
             Time::from_timestamp_nanos(0),
@@ -169,17 +175,16 @@ mod tests {
             None,
         );
 
-        let catalog = Catalog::new();
-
         let lp = "cpu,tag1=cupcakes bar=1 10\nmem,tag2=turtles bar=3 15\nmem,tag2=snakes bar=2 20";
 
         let wal_op = WalOp::LpWrite(LpWriteOp {
             db_name: "db1".to_string(),
             lp: lp.to_string(),
             default_time: 0,
+            precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, "db1", lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), "db1", lp);
 
         open_segment.write_wal_ops(vec![wal_op]).unwrap();
         open_segment.buffer_writes(write_batch).unwrap();
@@ -264,9 +269,10 @@ mod tests {
             db_name: db_name.to_string(),
             lp: lp.to_string(),
             default_time: 0,
+            precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         current_segment.write_wal_ops(vec![wal_op.clone()]).unwrap();
         current_segment.buffer_writes(write_batch).unwrap();
@@ -290,28 +296,30 @@ mod tests {
 
         let cpu_table = db.get_table("cpu").unwrap();
         let cpu_data = current_segment
-            .table_record_batches(db_name, "cpu", cpu_table.schema())
+            .table_record_batches(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
-            "+------------------------------------------------------------------+-----+----------+--------------------------------+",
-            "| _series_id                                                       | bar | tag1     | time                           |",
-            "+------------------------------------------------------------------+-----+----------+--------------------------------+",
-            "| 505f9f5fc3347ac9d6ba45f2b2c94ad53a313e456e86e61db85ba1935369b238 | 1.0 | cupcakes | 1970-01-01T00:00:00.000000010Z |",
-            "+------------------------------------------------------------------+-----+----------+--------------------------------+",
+            "+-----+----------+--------------------------------+",
+            "| bar | tag1     | time                           |",
+            "+-----+----------+--------------------------------+",
+            "| 1.0 | cupcakes | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+----------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &cpu_data);
 
         let mem_table = db.get_table("mem").unwrap();
         let mem_data = current_segment
-            .table_record_batches(db_name, "mem", mem_table.schema())
+            .table_record_batches(db_name, "mem", mem_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
-            "+------------------------------------------------------------------+-----+---------+--------------------------------+",
-            "| _series_id                                                       | bar | tag2    | time                           |",
-            "+------------------------------------------------------------------+-----+---------+--------------------------------+",
-            "| 635ef196e32aca85c36626ce7cdd298ad84e78caec369f4f0fe75e509750c8f7 | 3.0 | turtles | 1970-01-01T00:00:00.000000015Z |",
-            "| 5ae2bb295e8b0dec713daf0da555ecd3f2899a8967f18db799e26557029198f3 | 2.0 | snakes  | 1970-01-01T00:00:00.000000020Z |",
-            "+------------------------------------------------------------------+-----+---------+--------------------------------+",
+            "+-----+---------+--------------------------------+",
+            "| bar | tag2    | time                           |",
+            "+-----+---------+--------------------------------+",
+            "| 3.0 | turtles | 1970-01-01T00:00:00.000000015Z |",
+            "| 2.0 | snakes  | 1970-01-01T00:00:00.000000020Z |",
+            "+-----+---------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &mem_data);
 
@@ -347,9 +355,10 @@ mod tests {
             db_name: db_name.to_string(),
             lp: lp.to_string(),
             default_time: 0,
+            precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         current_segment.write_wal_ops(vec![wal_op]).unwrap();
         current_segment.buffer_writes(write_batch).unwrap();
@@ -374,14 +383,16 @@ mod tests {
             db_name: db_name.to_string(),
             lp: lp.to_string(),
             default_time: 0,
+            precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         let segment_writer = wal
             .new_segment_writer(next_segment_id, next_segment_range)
             .unwrap();
         let mut next_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(2),
             SegmentRange::test_range().next(),
             Time::from_timestamp_nanos(0),
@@ -411,23 +422,23 @@ mod tests {
             loaded_state.persisted_segments[0],
             PersistedSegment {
                 segment_id,
-                segment_wal_size_bytes: 227,
-                segment_parquet_size_bytes: 5476,
+                segment_wal_size_bytes: 252,
+                segment_parquet_size_bytes: 3650,
                 segment_row_count: 3,
                 segment_min_time: 10,
                 segment_max_time: 20,
                 databases: HashMap::from([(
                     "db1".to_string(),
                     DatabaseTables {
-                        tables: HashMap::from([
+                        tables: hashbrown::HashMap::from([
                             (
                                 "cpu".to_string(),
                                 TableParquetFiles {
                                     table_name: "cpu".to_string(),
                                     parquet_files: vec![ParquetFile {
-                                        path: "dbs/db1/cpu/1970-01-01T00-00/4294967294.parquet"
+                                        path: "dbs/db1/cpu/1970-01-01T00-00/4294967294/1.parquet"
                                             .to_string(),
-                                        size_bytes: 2712,
+                                        size_bytes: 1817,
                                         row_count: 1,
                                         min_time: 10,
                                         max_time: 10,
@@ -440,9 +451,9 @@ mod tests {
                                 TableParquetFiles {
                                     table_name: "mem".to_string(),
                                     parquet_files: vec![ParquetFile {
-                                        path: "dbs/db1/mem/1970-01-01T00-00/4294967294.parquet"
+                                        path: "dbs/db1/mem/1970-01-01T00-00/4294967294/1.parquet"
                                             .to_string(),
-                                        size_bytes: 2764,
+                                        size_bytes: 1833,
                                         row_count: 2,
                                         min_time: 15,
                                         max_time: 20,
@@ -463,27 +474,29 @@ mod tests {
 
         let cpu_table = db.get_table("cpu").unwrap();
         let cpu_data = loaded_state.open_segments[0]
-            .table_record_batches(db_name, "cpu", cpu_table.schema())
+            .table_record_batches(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
-            "+------------------------------------------------------------------+-----+----------+--------------------------------+",
-            "| _series_id                                                       | bar | tag1     | time                           |",
-            "+------------------------------------------------------------------+-----+----------+--------------------------------+",
-            "| 505f9f5fc3347ac9d6ba45f2b2c94ad53a313e456e86e61db85ba1935369b238 | 3.0 | cupcakes | 1970-01-01T00:00:00.000000020Z |",
-            "+------------------------------------------------------------------+-----+----------+--------------------------------+",
+            "+-----+----------+--------------------------------+",
+            "| bar | tag1     | time                           |",
+            "+-----+----------+--------------------------------+",
+            "| 3.0 | cupcakes | 1970-01-01T00:00:00.000000020Z |",
+            "+-----+----------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &cpu_data);
 
         let foo_table = db.get_table("foo").unwrap();
         let foo_data = loaded_state.open_segments[0]
-            .table_record_batches(db_name, "foo", foo_table.schema())
+            .table_record_batches(db_name, "foo", foo_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
-            "+------------------------------------------------------------------+--------------------------------+-----+",
-            "| _series_id                                                       | time                           | val |",
-            "+------------------------------------------------------------------+--------------------------------+-----+",
-            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 1970-01-01T00:00:00.000000123Z | 1.0 |",
-            "+------------------------------------------------------------------+--------------------------------+-----+",
+            "+--------------------------------+-----+",
+            "| time                           | val |",
+            "+--------------------------------+-----+",
+            "| 1970-01-01T00:00:00.000000123Z | 1.0 |",
+            "+--------------------------------+-----+",
         ];
         assert_batches_eq!(&expected, &foo_data);
 
@@ -518,9 +531,10 @@ mod tests {
             db_name: db_name.to_string(),
             lp: lp.to_string(),
             default_time: 0,
+            precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         current_segment.write_wal_ops(vec![wal_op]).unwrap();
         current_segment.buffer_writes(write_batch).unwrap();
@@ -538,14 +552,16 @@ mod tests {
             db_name: db_name.to_string(),
             lp: lp.to_string(),
             default_time: 0,
+            precision: Precision::Nanosecond,
         });
 
-        let write_batch = lp_to_write_batch(&catalog, db_name, lp);
+        let write_batch = lp_to_write_batch(Arc::clone(&catalog), db_name, lp);
 
         let segment_writer = wal
             .new_segment_writer(next_segment_id, next_segment_range)
             .unwrap();
         let mut next_segment = OpenBufferSegment::new(
+            Arc::clone(&catalog),
             SegmentId::new(2),
             SegmentRange::test_range().next(),
             Time::from_timestamp_nanos(0),
@@ -593,27 +609,29 @@ mod tests {
 
         let cpu_table = db.get_table("cpu").unwrap();
         let cpu_data = loaded_state.open_segments[0]
-            .table_record_batches(db_name, "cpu", cpu_table.schema())
+            .table_record_batches(db_name, "cpu", cpu_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
-            "+------------------------------------------------------------------+-----+--------+--------------------------------+",
-            "| _series_id                                                       | bar | tag1   | time                           |",
-            "+------------------------------------------------------------------+-----+--------+--------------------------------+",
-            "| 82a59579ecb9ae1adf113fe3a09a2ebd61aa15f92c570d26278d3f1dfe8bcbd8 | 3.0 | apples | 1970-01-01T00:00:00.000000020Z |",
-            "+------------------------------------------------------------------+-----+--------+--------------------------------+",
+            "+-----+--------+--------------------------------+",
+            "| bar | tag1   | time                           |",
+            "+-----+--------+--------------------------------+",
+            "| 3.0 | apples | 1970-01-01T00:00:00.000000020Z |",
+            "+-----+--------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &cpu_data);
 
         let foo_table = db.get_table("foo").unwrap();
         let foo_data = loaded_state.open_segments[0]
-            .table_record_batches(db_name, "foo", foo_table.schema())
+            .table_record_batches(db_name, "foo", foo_table.schema().as_arrow(), &[])
+            .unwrap()
             .unwrap();
         let expected = [
-            "+------------------------------------------------------------------+--------------------------------+-----+",
-            "| _series_id                                                       | time                           | val |",
-            "+------------------------------------------------------------------+--------------------------------+-----+",
-            "| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 1970-01-01T00:00:00.000000123Z | 1.0 |",
-            "+------------------------------------------------------------------+--------------------------------+-----+",
+            "+--------------------------------+-----+",
+            "| time                           | val |",
+            "+--------------------------------+-----+",
+            "| 1970-01-01T00:00:00.000000123Z | 1.0 |",
+            "+--------------------------------+-----+",
         ];
         assert_batches_eq!(&expected, &foo_data);
 

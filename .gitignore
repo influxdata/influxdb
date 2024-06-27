@@ -1,3 +1,10 @@
+# default results directory for the load generator:
+results/
+# datafusion-cli history:
+**.history
+# rust compiled binary target directory:
+**/target
+# other:
 **/*.rs.bk
 **/*.rs.bk
 **/.DS_Store
@@ -16,5 +23,5 @@ massif.out.*
 perf.data*
 perf.svg
 perf.txt
-results/
 valgrind-out.txt
+*.pending-snap

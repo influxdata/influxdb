@@ -39,7 +39,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::convert::Infallible;
 use std::fmt::Debug;
-use std::num::NonZeroI32;
 use std::pin::Pin;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
@@ -80,6 +79,9 @@ pub enum Error {
     #[error("error decoding gzip stream: {0}")]
     InvalidGzip(std::io::Error),
 
+    #[error("invalid mime type ({0})")]
+    InvalidMimeType(String),
+
     /// NamespaceName validation error.
     #[error("error validating namespace name: {0}")]
     InvalidNamespaceName(#[from] data_types::NamespaceNameError),
@@ -105,18 +107,6 @@ pub enum Error {
     #[error("unsupported method")]
     UnsupportedMethod,
 
-    /// PProf support is not compiled
-    #[error("pprof support is not compiled")]
-    PProfIsNotCompiled,
-
-    /// Heappy support is not compiled
-    #[error("heappy support is not compiled")]
-    HeappyIsNotCompiled,
-
-    #[cfg(feature = "heappy")]
-    #[error("heappy error: {0}")]
-    Heappy(heappy::Error),
-
     /// Hyper serving error
     #[error("error serving http: {0}")]
     ServingHttp(#[from] hyper::Error),
@@ -129,12 +119,12 @@ pub enum Error {
     #[error("missing query parameter 'db'")]
     MissingWriteParams,
 
+    #[error("the mime type specified was not valid UTF8: {0}")]
+    NonUtf8MimeType(#[from] FromUtf8Error),
+
     /// Serde decode error
     #[error("serde error: {0}")]
     Serde(#[from] serde_urlencoded::de::Error),
-
-    #[error("error in query parameters: {0}")]
-    QueryParams(#[from] QueryParamsError),
 
     /// Arrow error
     #[error("arrow error: {0}")]
@@ -342,7 +332,13 @@ where
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
-        self.write_lp_inner(params, req, false).await
+        self.write_lp_inner(params, req, false, false).await
+    }
+
+    async fn write_v3(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
+        let params: WriteParams = serde_urlencoded::from_str(query)?;
+        self.write_lp_inner(params, req, false, true).await
     }
 
     async fn write_lp_inner(
@@ -350,6 +346,7 @@ where
         params: WriteParams,
         req: Request<Body>,
         accept_rp: bool,
+        use_v3: bool,
     ) -> Result<Response<Body>> {
         validate_db_name(&params.db, accept_rp)?;
         info!("write_lp to {}", params.db);
@@ -361,16 +358,27 @@ where
 
         let default_time = self.time_provider.now();
 
-        let result = self
-            .write_buffer
-            .write_lp(
-                database,
-                body,
-                default_time,
-                params.accept_partial,
-                params.precision,
-            )
-            .await?;
+        let result = if use_v3 {
+            self.write_buffer
+                .write_lp_v3(
+                    database,
+                    body,
+                    default_time,
+                    params.accept_partial,
+                    params.precision,
+                )
+                .await?
+        } else {
+            self.write_buffer
+                .write_lp(
+                    database,
+                    body,
+                    default_time,
+                    params.accept_partial,
+                    params.precision,
+                )
+                .await?
+        };
 
         if result.invalid_lines.is_empty() {
             Ok(Response::new(Body::empty()))
@@ -763,17 +771,6 @@ pub(crate) struct QueryRequest<D, F, P> {
     pub(crate) params: Option<P>,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum QueryParamsError {
-    #[error(
-        "invalid mime type ({0}), available types are \
-        application/vnd.apache.parquet, text/csv, text/plain, and application/json"
-    )]
-    InvalidMimeType(String),
-    #[error("the mime type specified was not valid UTF8: {0}")]
-    NonUtf8MimeType(#[from] FromUtf8Error),
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum QueryFormat {
@@ -805,8 +802,8 @@ impl QueryFormat {
             Some(b"text/plain") => Ok(Self::Pretty),
             Some(b"application/json" | b"*/*") | None => Ok(Self::Json),
             Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
-                Ok(s) => Err(QueryParamsError::InvalidMimeType(s).into()),
-                Err(e) => Err(QueryParamsError::NonUtf8MimeType(e).into()),
+                Ok(s) => Err(Error::InvalidMimeType(s)),
+                Err(e) => Err(Error::NonUtf8MimeType(e)),
             },
         }
     }
@@ -817,10 +814,14 @@ async fn record_batch_stream_to_body(
     format: QueryFormat,
 ) -> Result<Body, Error> {
     fn to_json(batches: Vec<RecordBatch>) -> Result<Bytes> {
-        let batches: Vec<&RecordBatch> = batches.iter().collect();
-        Ok(Bytes::from(serde_json::to_string(
-            &arrow_json::writer::record_batches_to_json_rows(batches.as_slice())?,
-        )?))
+        let mut writer = arrow_json::ArrayWriter::new(Vec::new());
+        for batch in batches {
+            writer.write(&batch)?;
+        }
+
+        writer.finish()?;
+
+        Ok(Bytes::from(writer.into_inner()))
     }
 
     fn to_csv(batches: Vec<RecordBatch>) -> Result<Bytes> {
@@ -891,8 +892,6 @@ pub(crate) async fn route_request<W: WriteBuffer, Q: QueryExecutor, T: TimeProvi
     mut req: Request<Body>,
 ) -> Result<Response<Body>, Infallible>
 where
-    W: WriteBuffer,
-    Q: QueryExecutor,
     Error: From<<Q as QueryExecutor>::Error>,
 {
     if let Err(e) = http_server.authorize_request(&mut req).await {
@@ -940,7 +939,7 @@ where
                 Err(e) => return Ok(legacy_write_error_to_response(e)),
             };
 
-            http_server.write_lp_inner(params, req, true).await
+            http_server.write_lp_inner(params, req, true, false).await
         }
         (Method::POST, "/api/v2/write") => {
             let params = match http_server.legacy_write_param_unifier.parse_v2(&req).await {
@@ -948,8 +947,9 @@ where
                 Err(e) => return Ok(legacy_write_error_to_response(e)),
             };
 
-            http_server.write_lp_inner(params, req, false).await
+            http_server.write_lp_inner(params, req, false, false).await
         }
+        (Method::POST, "/api/v3/write") => http_server.write_v3(req).await,
         (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,
         (Method::GET | Method::POST, "/api/v3/query_sql") => http_server.query_sql(req).await,
         (Method::GET | Method::POST, "/api/v3/query_influxql") => {
@@ -959,9 +959,6 @@ where
         (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
         (Method::GET | Method::POST, "/ping") => http_server.ping(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
-        (Method::GET, "/debug/pprof") => pprof_home(req).await,
-        (Method::GET, "/debug/pprof/profile") => pprof_profile(req).await,
-        (Method::GET, "/debug/pprof/allocs") => pprof_heappy_profile(req).await,
         (Method::POST, "/api/v3/pro/echo") => http_server.pro_echo(req).await,
         _ => {
             let body = Body::from("not found");
@@ -998,162 +995,6 @@ fn legacy_write_error_to_response(e: WriteParseError) -> Response<Body> {
         WriteParseError::MultiTenantError(e) => StatusCode::from(&e),
     };
     Response::builder().status(status).body(body).unwrap()
-}
-
-async fn pprof_home(req: Request<Body>) -> Result<Response<Body>> {
-    let default_host = HeaderValue::from_static("localhost");
-    let host = req
-        .headers()
-        .get("host")
-        .unwrap_or(&default_host)
-        .to_str()
-        .unwrap_or_default();
-    let profile_cmd = format!(
-        "/debug/pprof/profile?seconds={}",
-        PProfArgs::default_seconds()
-    );
-    let allocs_cmd = format!(
-        "/debug/pprof/allocs?seconds={}",
-        PProfAllocsArgs::default_seconds()
-    );
-    Ok(Response::new(Body::from(format!(
-        r#"<a href="{profile_cmd}">http://{host}{profile_cmd}</a><br><a href="{allocs_cmd}">http://{host}{allocs_cmd}</a>"#,
-    ))))
-}
-
-#[derive(Debug, Deserialize)]
-struct PProfArgs {
-    #[serde(default = "PProfArgs::default_seconds")]
-    #[allow(dead_code)]
-    seconds: u64,
-    #[serde(default = "PProfArgs::default_frequency")]
-    #[allow(dead_code)]
-    frequency: NonZeroI32,
-}
-
-impl PProfArgs {
-    fn default_seconds() -> u64 {
-        30
-    }
-
-    // 99Hz to avoid coinciding with special periods
-    fn default_frequency() -> NonZeroI32 {
-        NonZeroI32::new(99).unwrap()
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct PProfAllocsArgs {
-    #[serde(default = "PProfAllocsArgs::default_seconds")]
-    #[allow(dead_code)]
-    seconds: u64,
-    // The sampling interval is a number of bytes that have to cumulatively allocated for a sample to be taken.
-    //
-    // For example if the sampling interval is 99, and you're doing a million of 40 bytes allocations,
-    // the allocations profile will account for 16MB instead of 40MB.
-    // Heappy will adjust the estimate for sampled recordings, but now that feature is not yet implemented.
-    #[serde(default = "PProfAllocsArgs::default_interval")]
-    #[allow(dead_code)]
-    interval: NonZeroI32,
-}
-
-impl PProfAllocsArgs {
-    fn default_seconds() -> u64 {
-        30
-    }
-
-    // 1 means: sample every allocation.
-    fn default_interval() -> NonZeroI32 {
-        NonZeroI32::new(1).unwrap()
-    }
-}
-
-#[cfg(feature = "pprof")]
-async fn pprof_profile(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
-    use ::pprof::protos::Message;
-    use snafu::ResultExt;
-
-    let query_string = req.uri().query().unwrap_or_default();
-    let query: PProfArgs = serde_urlencoded::from_str(query_string)
-        .context(InvalidQueryStringSnafu { query_string })?;
-
-    let report = self::pprof::dump_rsprof(query.seconds, query.frequency.get())
-        .await
-        .map_err(|e| Box::new(e) as _)
-        .context(PProfSnafu)?;
-
-    let mut body: Vec<u8> = Vec::new();
-
-    // render flamegraph when opening in the browser
-    // otherwise render as protobuf; works great with: go tool pprof http://..../debug/pprof/profile
-    if req
-        .headers()
-        .get_all("Accept")
-        .iter()
-        .flat_map(|i| i.to_str().unwrap_or_default().split(','))
-        .any(|i| i == "text/html" || i == "image/svg+xml")
-    {
-        report
-            .flamegraph(&mut body)
-            .map_err(|e| Box::new(e) as _)
-            .context(PProfSnafu)?;
-        if body.is_empty() {
-            return EmptyFlamegraphSnafu.fail();
-        }
-    } else {
-        let profile = report
-            .pprof()
-            .map_err(|e| Box::new(e) as _)
-            .context(PProfSnafu)?;
-        profile
-            .encode(&mut body)
-            .map_err(|e| Box::new(e) as _)
-            .context(ProstSnafu)?;
-    }
-
-    Ok(Response::new(Body::from(body)))
-}
-
-#[cfg(not(feature = "pprof"))]
-async fn pprof_profile(_req: Request<Body>) -> Result<Response<Body>> {
-    Err(Error::PProfIsNotCompiled)
-}
-
-// If heappy support is enabled, call it
-#[cfg(feature = "heappy")]
-async fn pprof_heappy_profile(req: Request<Body>) -> Result<Response<Body>> {
-    let query_string = req.uri().query().unwrap_or_default();
-    let query: PProfAllocsArgs = serde_urlencoded::from_str(query_string)?;
-
-    let report = self::heappy::dump_heappy_rsprof(query.seconds, query.interval.get()).await?;
-
-    let mut body: Vec<u8> = Vec::new();
-
-    // render flamegraph when opening in the browser
-    // otherwise render as protobuf;
-    // works great with: go tool pprof http://..../debug/pprof/allocs
-    if req
-        .headers()
-        .get_all("Accept")
-        .iter()
-        .flat_map(|i| i.to_str().unwrap_or_default().split(','))
-        .any(|i| i == "text/html" || i == "image/svg+xml")
-    {
-        report.flamegraph(&mut body);
-        if body.is_empty() {
-            return EmptyFlamegraphSnafu.fail();
-        }
-    } else {
-        report.write_pprof(&mut body)?
-    }
-
-    Ok(Response::new(Body::from(body)))
-}
-
-//  Return error if heappy not enabled
-#[cfg(not(feature = "heappy"))]
-async fn pprof_heappy_profile(_req: Request<Body>) -> Result<Response<Body>> {
-    Err(Error::HeappyIsNotCompiled)
 }
 
 #[cfg(test)]
