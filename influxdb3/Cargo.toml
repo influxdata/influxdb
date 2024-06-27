@@ -34,6 +34,7 @@ backtrace.workspace = true
 base64.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
+hashbrown.workspace = true
 hex.workspace = true
 libc.workspace = true
 num_cpus.workspace = true
@@ -50,7 +51,6 @@ uuid.workspace = true
 
 # Optional Dependencies
 console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
-hashbrown = { workspace = true, features = ["serde"] }
 
 [features]
 default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]

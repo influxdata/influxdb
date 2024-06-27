@@ -11,7 +11,7 @@ pub(crate) mod validator;
 use crate::cache::ParquetCache;
 use crate::catalog::{Catalog, DatabaseSchema};
 use crate::chunk::ParquetChunk;
-use crate::last_cache::LastCacheProvider;
+use crate::last_cache::{self, LastCacheProvider};
 use crate::persister::PersisterImpl;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
@@ -82,6 +82,15 @@ pub enum Error {
 
     #[error("error from table buffer: {0}")]
     TableBufferError(#[from] table_buffer::Error),
+
+    #[error("error in last cache: {0}")]
+    LastCacheError(#[from] last_cache::Error),
+
+    #[error("tried accessing database and table that do not exist")]
+    DbDoesNotExist,
+
+    #[error("tried accessing database and table that do not exist")]
+    TableDoesNotExist,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -110,6 +119,7 @@ pub struct WriteBufferImpl<W, T> {
     shutdown_segment_persist_tx: watch::Sender<()>,
     #[allow(dead_code)]
     buffer_check_handle: Mutex<tokio::task::JoinHandle<()>>,
+    last_cache: Arc<LastCacheProvider>,
 }
 
 impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
@@ -188,6 +198,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             segment_persist_handle: Mutex::new(segment_persist_handle),
             shutdown_segment_persist_tx,
             buffer_check_handle: Mutex::new(buffer_check_handle),
+            last_cache,
         })
     }
 
@@ -390,6 +401,27 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         Ok(self.parquet_cache.purge_cache().await?)
     }
 
+    pub fn create_last_cache(
+        &self,
+        db_name: impl Into<String>,
+        tbl_name: impl Into<String>,
+        count: usize,
+        key_columns: impl IntoIterator<Item: Into<String>>,
+    ) -> Result<(), Error> {
+        let db_name = db_name.into();
+        let tbl_name = tbl_name.into();
+        let db_schema = self
+            .catalog()
+            .db_schema(&db_name)
+            .ok_or(Error::DbDoesNotExist)?;
+        let schema = db_schema
+            .get_table_schema(&tbl_name)
+            .ok_or(Error::TableDoesNotExist)?;
+        self.last_cache
+            .create_cache(db_name, tbl_name, count, key_columns, schema.as_arrow())
+            .map_err(Into::into)
+    }
+
     #[cfg(test)]
     fn get_table_record_batches(
         &self,
@@ -483,6 +515,10 @@ impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
 
     fn catalog(&self) -> Arc<Catalog> {
         self.catalog()
+    }
+
+    fn last_cache(&self) -> Arc<LastCacheProvider> {
+        Arc::clone(&self.last_cache)
     }
 }
 

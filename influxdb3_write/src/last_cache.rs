@@ -2,10 +2,11 @@ use std::{any::Any, collections::VecDeque, sync::Arc};
 
 use arrow::{
     array::{
-        ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, RecordBatch, StringBuilder,
-        TimestampNanosecondBuilder, UInt64Builder,
+        ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder, Int64Builder,
+        RecordBatch, StringBuilder, StringDictionaryBuilder, TimestampNanosecondBuilder,
+        UInt64Builder,
     },
-    datatypes::{DataType, SchemaRef, TimeUnit},
+    datatypes::{DataType, GenericStringType, Int32Type, SchemaRef, TimeUnit},
     error::ArrowError,
 };
 use async_trait::async_trait;
@@ -27,7 +28,7 @@ use crate::{
 };
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum Error {
+pub enum Error {
     #[error("invalid cache size")]
     InvalidCacheSize,
     #[error("last cache already exists for database and table")]
@@ -35,10 +36,16 @@ pub(crate) enum Error {
 }
 
 /// A three level hashmap storing Database -> Table
-type CacheMap = RwLock<HashMap<String, RwLock<HashMap<String, LastCache>>>>;
+type CacheMap = RwLock<HashMap<String, HashMap<String, RwLock<LastCache>>>>;
 
-pub(crate) struct LastCacheProvider {
+pub struct LastCacheProvider {
     cache_map: CacheMap,
+}
+
+impl std::fmt::Debug for LastCacheProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "LastCacheProvider")
+    }
 }
 
 impl LastCacheProvider {
@@ -46,6 +53,23 @@ impl LastCacheProvider {
         Self {
             cache_map: Default::default(),
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn get_cache_record_batches<D, T>(
+        &self,
+        db_name: D,
+        tbl_name: T,
+    ) -> Option<Result<RecordBatch, ArrowError>>
+    where
+        D: AsRef<str>,
+        T: AsRef<str>,
+    {
+        self.cache_map
+            .read()
+            .get(db_name.as_ref())
+            .and_then(|db| db.get(tbl_name.as_ref()))
+            .map(|lc| lc.read().to_record_batch())
     }
 
     pub(crate) fn create_cache<D, T>(
@@ -66,16 +90,15 @@ impl LastCacheProvider {
             .cache_map
             .read()
             .get(&db_name)
-            .is_some_and(|db| db.read().contains_key(&tbl_name))
+            .is_some_and(|db| db.contains_key(&tbl_name))
         {
             return Err(Error::CacheAlreadyExists);
         }
-        let last_cache = LastCache::new(count, key_columns, schema)?;
+        let last_cache = RwLock::new(LastCache::new(count, key_columns, schema)?);
         self.cache_map
             .write()
             .entry(db_name)
             .or_default()
-            .write()
             .insert(tbl_name, last_cache);
         Ok(())
     }
@@ -86,11 +109,10 @@ impl LastCacheProvider {
                 if let Some(db) = self.cache_map.read().get(db_name.as_str()) {
                     for row in &tbl_batch.rows {
                         if db
-                            .read()
                             .get(tbl_name)
-                            .is_some_and(|t| row.time > t.last_time.timestamp_nanos())
+                            .is_some_and(|t| row.time > t.read().last_time.timestamp_nanos())
                         {
-                            db.write().get_mut(tbl_name).unwrap().push(row);
+                            db.get(tbl_name).unwrap().write().push(row);
                         }
                     }
                 }
@@ -126,7 +148,7 @@ impl LastCache {
             _key_columns: key_columns.into_iter().map(Into::into).collect(),
             schema,
             cache,
-            last_time: Time::MIN,
+            last_time: Time::from_timestamp_nanos(0),
         })
     }
 
@@ -219,6 +241,7 @@ enum CacheColumnData {
     F64(VecDeque<f64>),
     String(VecDeque<String>),
     Bool(VecDeque<bool>),
+    Tag(VecDeque<String>),
     Time(VecDeque<i64>),
 }
 
@@ -234,7 +257,7 @@ impl CacheColumnData {
             }
             DataType::Utf8 => Self::String(VecDeque::with_capacity(size)),
             DataType::Dictionary(k, v) if **k == DataType::Int32 && **v == DataType::Utf8 => {
-                Self::String(VecDeque::with_capacity(size))
+                Self::Tag(VecDeque::with_capacity(size))
             }
             _ => panic!("unsupported data type for last cache: {data_type}"),
         }
@@ -247,18 +270,8 @@ impl CacheColumnData {
             CacheColumnData::F64(v) => v.len(),
             CacheColumnData::String(v) => v.len(),
             CacheColumnData::Bool(v) => v.len(),
+            CacheColumnData::Tag(v) => v.len(),
             CacheColumnData::Time(v) => v.len(),
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        match self {
-            CacheColumnData::I64(v) => v.is_empty(),
-            CacheColumnData::U64(v) => v.is_empty(),
-            CacheColumnData::F64(v) => v.is_empty(),
-            CacheColumnData::String(v) => v.is_empty(),
-            CacheColumnData::Bool(v) => v.is_empty(),
-            CacheColumnData::Time(v) => v.is_empty(),
         }
     }
 
@@ -279,6 +292,9 @@ impl CacheColumnData {
             CacheColumnData::Bool(v) => {
                 v.pop_back();
             }
+            CacheColumnData::Tag(v) => {
+                v.pop_back();
+            }
             CacheColumnData::Time(v) => {
                 v.pop_back();
             }
@@ -289,7 +305,7 @@ impl CacheColumnData {
         match (field_data, self) {
             (FieldData::Timestamp(d), CacheColumnData::Time(v)) => v.push_front(*d),
             (FieldData::Key(d), CacheColumnData::String(v)) => v.push_front(d.to_owned()),
-            (FieldData::Tag(d), CacheColumnData::String(v)) => v.push_front(d.to_owned()),
+            (FieldData::Tag(d), CacheColumnData::Tag(v)) => v.push_front(d.to_owned()),
             (FieldData::String(d), CacheColumnData::String(v)) => v.push_front(d.to_owned()),
             (FieldData::Integer(d), CacheColumnData::I64(v)) => v.push_front(*d),
             (FieldData::UInteger(d), CacheColumnData::U64(v)) => v.push_front(*d),
@@ -326,11 +342,126 @@ impl CacheColumnData {
                 v.iter().for_each(|val| b.append_value(*val));
                 Arc::new(b.finish())
             }
+            CacheColumnData::Tag(v) => {
+                let mut b: GenericByteDictionaryBuilder<Int32Type, GenericStringType<i32>> =
+                    StringDictionaryBuilder::new();
+                v.iter().for_each(|val| {
+                    b.append(val)
+                        .expect("should not overflow 32 bit dictionary");
+                });
+                Arc::new(b.finish())
+            }
             CacheColumnData::Time(v) => {
                 let mut b = TimestampNanosecondBuilder::new();
                 v.iter().for_each(|val| b.append_value(*val));
                 Arc::new(b.finish())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use ::object_store::{memory::InMemory, ObjectStore};
+    use arrow_util::assert_batches_eq;
+    use data_types::NamespaceName;
+    use iox_time::{MockProvider, Time};
+
+    use crate::{
+        persister::PersisterImpl, wal::WalImpl, write_buffer::WriteBufferImpl, Bufferer, Precision,
+        SegmentDuration,
+    };
+
+    #[tokio::test]
+    async fn pick_up_latest_write() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let persister = Arc::new(PersisterImpl::new(obj_store));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let wbuf = WriteBufferImpl::new(
+            persister,
+            Option::<Arc<WalImpl>>::None,
+            time_provider,
+            SegmentDuration::new_5m(),
+            crate::test_help::make_exec(),
+            1000,
+        )
+        .await
+        .unwrap();
+
+        let db_name = "foo";
+        let tbl_name = "cpu";
+
+        // Do a write to update the catalog:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name},host=a,region=us usage=120").as_str(),
+            Time::from_timestamp_nanos(1_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Create the last cache:
+        wbuf.create_last_cache(db_name, tbl_name, 1, ["host"])
+            .expect("create the last cache");
+
+        // Do a write to update the catalog:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name},host=a,region=us usage=99").as_str(),
+            Time::from_timestamp_nanos(2_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        let batch = wbuf
+            .last_cache()
+            .get_cache_record_batches(db_name, tbl_name)
+            .unwrap()
+            .unwrap();
+
+        assert_batches_eq!(
+            [
+                "+------+--------+-----------------------------+-------+",
+                "| host | region | time                        | usage |",
+                "+------+--------+-----------------------------+-------+",
+                "| a    | us     | 1970-01-01T00:00:00.000002Z | 99.0  |",
+                "+------+--------+-----------------------------+-------+",
+            ],
+            &[batch]
+        );
+
+        // Do another write and see that the cache only holds the latest value:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name},host=a,region=us usage=88").as_str(),
+            Time::from_timestamp_nanos(3_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        let batch = wbuf
+            .last_cache()
+            .get_cache_record_batches(db_name, tbl_name)
+            .unwrap()
+            .unwrap();
+
+        assert_batches_eq!(
+            [
+                "+------+--------+-----------------------------+-------+",
+                "| host | region | time                        | usage |",
+                "+------+--------+-----------------------------+-------+",
+                "| a    | us     | 1970-01-01T00:00:00.000003Z | 88.0  |",
+                "+------+--------+-----------------------------+-------+",
+            ],
+            &[batch]
+        );
     }
 }

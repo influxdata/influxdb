@@ -26,6 +26,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::Expr;
 use iox_query::QueryChunk;
 use iox_time::Time;
+use last_cache::LastCacheProvider;
 use parquet::format::FileMetaData;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::any::Any;
@@ -100,6 +101,8 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
 
     /// Returns the catalog
     fn catalog(&self) -> Arc<catalog::Catalog>;
+
+    fn last_cache(&self) -> Arc<LastCacheProvider>;
 }
 
 /// A segment in the buffer that corresponds to a single WAL segment file. It contains a catalog with any updates
