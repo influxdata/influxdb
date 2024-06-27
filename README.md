@@ -1,14 +1,24 @@
-# InfluxDB [![Circle CI](https://circleci.com/gh/influxdata/influxdb/tree/master-1.x.svg?style=svg)](https://circleci.com/gh/influxdata/influxdb/tree/master-1.x) [![Go Report Card](https://goreportcard.com/badge/github.com/influxdata/influxdb)](https://goreportcard.com/report/github.com/influxdata/influxdb) [![Docker pulls](https://img.shields.io/docker/pulls/library/influxdb.svg)](https://hub.docker.com/_/influxdb/)
+<div align="center">
+ <picture>
+    <source media="(prefers-color-scheme: light)" srcset="assets/influxdb-logo.png">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/influxdb-logo-dark.png">
+    <img src="assets/influxdb-logo.png" alt="InfluxDB Logo" width="600">
+  </picture>
+ <p>
+InfluxDB is the leading open source time series database for metrics, events, and real-time analytics.</p>
 
-# ATTENTION:
+</div>
 
-Around January 11th, 2019, `master` on this repository will become InfluxDB 2.0 code. The content of `infludata/platform` will be moved to this repository. If you rely on `master`, you should update your dependencies to track the `maxter-1.x` branch.
+## Learn InfluxDB
+[Documentation](https://docs.influxdata.com/) | [Community Forum](https://community.influxdata.com/) | [Community Slack](https://www.influxdata.com/slack/) | [Blog](https://www.influxdata.com/blog/) | [InfluxDB University](https://university.influxdata.com/) | [YouTube](https://www.youtube.com/@influxdata8893)
 
 ## An Open-Source Time Series Database
 
 InfluxDB is an open source **time series database** with
 **no external dependencies**. It's useful for recording metrics,
 events, and performing analytics.
+
+This branch, `master-1.x`, is for InfluxDB 1.x. If you'd like to leverage InfluxDB 2.x, please switch to the `main-2.x` branch. The `main` branch is currently being used for active development on the open source version of InfluxDB 3.x and is **not** ready for production use. 
 
 ## Features
 
