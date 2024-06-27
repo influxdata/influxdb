@@ -2710,6 +2710,7 @@ dependencies = [
  "futures-util",
  "hashbrown 0.14.5",
  "hex",
+ "indexmap 2.2.6",
  "influxdb-line-protocol",
  "insta",
  "iox_catalog",

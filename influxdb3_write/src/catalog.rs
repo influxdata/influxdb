@@ -415,6 +415,18 @@ impl From<LastCacheSize> for usize {
     }
 }
 
+impl PartialEq<usize> for LastCacheSize {
+    fn eq(&self, other: &usize) -> bool {
+        self.0.eq(other)
+    }
+}
+
+impl PartialEq<LastCacheSize> for usize {
+    fn eq(&self, other: &LastCacheSize) -> bool {
+        self.eq(&other.0)
+    }
+}
+
 pub fn influx_column_type_from_field_value(fv: &FieldValue<'_>) -> InfluxColumnType {
     match fv {
         FieldValue::I64(_) => InfluxColumnType::Field(InfluxFieldType::Integer),

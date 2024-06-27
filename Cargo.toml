@@ -62,6 +62,7 @@ http = "0.2.9"
 humantime = "2.1.0"
 hyper = "0.14"
 insta = { version = "1.39", features = ["json"] }
+indexmap = { version = "2.2.6" }
 libc = { version = "0.2" }
 mockito = { version = "1.4.0", default-features = false }
 num_cpus = "1.16.0"
