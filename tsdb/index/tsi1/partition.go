@@ -572,7 +572,7 @@ func (p *Partition) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDItera
 	if err != nil {
 		return nil, err
 	}
-	return newFileSetSeriesIDIterator(fs, fs.MeasurementSeriesIDIterator(name)), nil
+	return newFilterDeletedSeriesIDIterator(p, newFileSetSeriesIDIterator(fs, fs.MeasurementSeriesIDIterator(name))), nil
 }
 
 // DropMeasurement deletes a measurement from the index. DropMeasurement does
@@ -797,7 +797,7 @@ func (p *Partition) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDItera
 		fs.Release()
 		return nil, nil
 	}
-	return newFileSetSeriesIDIterator(fs, itr), nil
+	return newFilterDeletedSeriesIDIterator(p, newFileSetSeriesIDIterator(fs, itr)), nil
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a single key value.
@@ -815,7 +815,7 @@ func (p *Partition) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.Seri
 		fs.Release()
 		return nil, nil
 	}
-	return newFileSetSeriesIDIterator(fs, itr), nil
+	return newFilterDeletedSeriesIDIterator(p, newFileSetSeriesIDIterator(fs, itr)), nil
 }
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
@@ -1447,4 +1447,38 @@ func IsPartitionDir(path string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+type filterDeletedSeriesIDIterator struct {
+	itr tsdb.SeriesIDIterator
+	p   *Partition
+}
+
+func newFilterDeletedSeriesIDIterator(p *Partition, itr tsdb.SeriesIDIterator) tsdb.SeriesIDIterator {
+	if itr == nil {
+		return nil
+	}
+
+	return &filterDeletedSeriesIDIterator{
+		itr: itr,
+		p:   p,
+	}
+}
+
+func (itr *filterDeletedSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
+	for {
+		e, err := itr.itr.Next()
+		if err != nil {
+			return tsdb.SeriesIDElem{}, err
+		} else if e.SeriesID == 0 {
+			return tsdb.SeriesIDElem{}, nil
+		} else if !itr.p.seriesIDSet.ContainsNoLock(e.SeriesID) {
+			continue
+		}
+		return e, nil
+	}
+}
+
+func (itr *filterDeletedSeriesIDIterator) Close() error {
+	return itr.itr.Close()
 }
