@@ -35,9 +35,9 @@ pub enum Error {
     CacheAlreadyExists,
 }
 
-/// A three level hashmap storing Database -> Table -> LastCache
+/// A two level hashmap storing Database Name -> Table Name -> LastCache
 ///
-/// There are two lock levels at the top and bottom:
+/// There are two lock levels, one at the top and one at the bottom:
 /// - Top: lock the entire cache for creating new entries
 /// - Bottom: lock an individual cache for pushing in new data
 type CacheMap = RwLock<HashMap<String, HashMap<String, RwLock<LastCache>>>>;
@@ -133,7 +133,7 @@ impl LastCacheProvider {
     }
 }
 
-/// A ring buffer holding a set of [`Row`]s
+/// Stores the last N values, as configured, for a given table in a database
 pub(crate) struct LastCache {
     // TODO: not sure if this is needed, given the individual columns track their size
     _count: LastCacheSize,
@@ -423,7 +423,7 @@ mod tests {
         let db_name = "foo";
         let tbl_name = "cpu";
 
-        // Do a write to update the catalog:
+        // Do a write to update the catalog with a database and table:
         wbuf.write_lp(
             NamespaceName::new(db_name).unwrap(),
             format!("{tbl_name},host=a,region=us usage=120").as_str(),
@@ -438,7 +438,7 @@ mod tests {
         wbuf.create_last_cache(db_name, tbl_name, 1, ["host"])
             .expect("create the last cache");
 
-        // Do a write to update the catalog:
+        // Do a write to update the last cache:
         wbuf.write_lp(
             NamespaceName::new(db_name).unwrap(),
             format!("{tbl_name},host=a,region=us usage=99").as_str(),
@@ -449,6 +449,7 @@ mod tests {
         .await
         .unwrap();
 
+        // Check what is in the last cache:
         let batch = wbuf
             .last_cache()
             .get_cache_record_batches(db_name, tbl_name)
