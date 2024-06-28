@@ -79,7 +79,8 @@ func TestRetention_DeletionCheck(t *testing.T) {
 	shardDuration := time.Hour * 24 * 14
 	shardGroupDuration := time.Hour * 24
 	foreverShard := uint64(1003) // a shard that can't be deleted
-	phantomShard := uint64(1006)
+	phantomShard := uint64(1006) // a shard that exists in meta data but not TSDB store
+	activeShard := uint64(1007)  // a shard that is active
 	dataUT := &meta.Data{
 		Users: []meta.UserInfo{},
 		Databases: []meta.DatabaseInfo{
@@ -160,6 +161,18 @@ func TestRetention_DeletionCheck(t *testing.T) {
 									},
 								},
 							},
+							// Shard group 7 is deleted and expired, but its shard is in-use and should not be deleted.
+							{
+								ID:        7,
+								StartTime: now.Truncate(time.Hour * 24).Add(-2*shardDuration + 2*shardGroupDuration).Add(meta.ShardGroupDeletedExpiration),
+								EndTime:   now.Truncate(time.Hour * 24).Add(-2*shardDuration + 1*shardGroupDuration).Add(meta.ShardGroupDeletedExpiration),
+								DeletedAt: now.Truncate(time.Hour * 24).Add(-1 * shardDuration).Add(meta.ShardGroupDeletedExpiration),
+								Shards: []meta.ShardInfo{
+									{
+										ID: activeShard,
+									},
+								},
+							},
 						},
 					},
 				},
@@ -211,19 +224,47 @@ func TestRetention_DeletionCheck(t *testing.T) {
 	shardIDs := func() []uint64 {
 		return maps.Keys(shards)
 	}
+	inUseShards := map[uint64]struct{}{
+		activeShard: struct{}{},
+	}
+	newReaderBlocks := make(map[uint64]int) // ShsrdID to number of active blocks
+	setShardNewReadersBlocked := func(shardID uint64, blocked bool) error {
+		t.Helper()
+		require.Contains(t, shards, shardID, "SetShardNewReadersBlocked for non-existant shard %d", shardID)
+		if blocked {
+			newReaderBlocks[shardID]++
+		} else {
+			require.Greater(t, newReaderBlocks[shardID], 0)
+			newReaderBlocks[shardID]--
+		}
+		return nil
+	}
 	deleteShard := func(shardID uint64) error {
+		t.Helper()
 		if _, ok := shards[shardID]; !ok {
 			return tsdb.ErrShardNotFound
 		}
+		require.Greater(t, newReaderBlocks[shardID], 0, "DeleteShard called on shard without a reader block (%d)", shardID)
+		require.NotContains(t, inUseShards, shardID, "DeleteShard called on an active shard (%d)", shardID)
 		if shardID == foreverShard {
 			return fmt.Errorf("unknown error deleting shard files for shard %d", shardID)
 		}
 		delete(shards, shardID)
+		delete(newReaderBlocks, shardID)
 		return nil
 	}
+	shardInUse := func(shardID uint64) (bool, error) {
+		if _, valid := shards[shardID]; !valid {
+			return false, tsdb.ErrShardNotFound
+		}
+		_, inUse := inUseShards[shardID]
+		return inUse, nil
+	}
 	store := &internal.TSDBStoreMock{
-		DeleteShardFn: deleteShard,
-		ShardIDsFn:    shardIDs,
+		DeleteShardFn:               deleteShard,
+		ShardIDsFn:                  shardIDs,
+		SetShardNewReadersBlockedFn: setShardNewReadersBlocked,
+		ShardInUseFn:                shardInUse,
 	}
 
 	s := retention.NewService(cfg)
@@ -231,7 +272,14 @@ func TestRetention_DeletionCheck(t *testing.T) {
 	s.TSDBStore = store
 	s.DropShardMetaRef = retention.OSSDropShardMetaRef(s.MetaClient)
 	require.NoError(t, s.Open(context.Background()))
-	s.DeletionCheck()
+	deletionCheck := func() {
+		t.Helper()
+		s.DeletionCheck(context.Background())
+		for k, v := range newReaderBlocks {
+			require.Zero(t, v, "shard %d has %d active blocks, should be zero", k, v)
+		}
+	}
+	deletionCheck()
 
 	// Adjust expData to make it look like we expect.
 	require.NoError(t, helpers.DataNukeShardGroup(expData, "servers", "autogen", 1))
@@ -245,14 +293,14 @@ func TestRetention_DeletionCheck(t *testing.T) {
 	// Check that multiple duplicate calls to DeletionCheck don't make further changes.
 	// This is mostly for our friend foreverShard.
 	for i := 0; i < 10; i++ {
-		s.DeletionCheck()
+		deletionCheck()
 		require.Equal(t, expData, dataUT)
 		require.Equal(t, collectShards(expData), shards)
 	}
 
 	// Our heroic support team hos fixed the issue with foreverShard.
 	foreverShard = math.MaxUint64
-	s.DeletionCheck()
+	deletionCheck()
 	require.NoError(t, helpers.DataNukeShardGroup(expData, "servers", "autogen", 3))
 	require.Equal(t, expData, dataUT)
 	require.Equal(t, collectShards(expData), shards)
@@ -402,6 +450,30 @@ func TestService_CheckShards(t *testing.T) {
 		delete(activeShards, shardID)
 		deletedShards[shardID] = struct{}{}
 		return nil
+	}
+
+	shardBlockCount := map[uint64]int{}
+	s.TSDBStore.SetShardNewReadersBlockedFn = func(shardID uint64, blocked bool) error {
+		c := shardBlockCount[shardID]
+		if blocked {
+			c++
+		} else {
+			c--
+			if c < 0 {
+				return fmt.Errorf("too many unblocks: %d", shardID)
+			}
+		}
+		shardBlockCount[shardID] = c
+		return nil
+	}
+
+	s.TSDBStore.ShardInUseFn = func(shardID uint64) (bool, error) {
+		c := shardBlockCount[shardID]
+		if c <= 0 {
+			return false, fmt.Errorf("ShardInUse called on unblocked shard: %d", shardID)
+		}
+		// TestService_DeletionCheck has tests for active shards. We're just checking for proper use.
+		return false, nil
 	}
 
 	if err := s.Open(context.Background()); err != nil {
@@ -618,6 +690,16 @@ func testService_8819_repro(t *testing.T) (*Service, chan error, chan struct{}) 
 			return fmt.Errorf("shard %d not found locally", id)
 		}
 		return nil
+	}
+
+	s.TSDBStore.SetShardNewReadersBlockedFn = func(shardID uint64, blocked bool) error {
+		// This test does not simulate active / in-use shards. This can just be a stub.
+		return nil
+	}
+
+	s.TSDBStore.ShardInUseFn = func(shardID uint64) (bool, error) {
+		// This does not simulate active / in-use shards. This can just be a stub.
+		return false, nil
 	}
 
 	return s, errC, done
