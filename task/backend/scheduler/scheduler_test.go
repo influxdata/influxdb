@@ -388,6 +388,96 @@ func TestSchedule_Next(t *testing.T) {
 	})
 }
 
+func TestTreeScheduler_TimeChange(t *testing.T) {
+	loc := mustParseLocation("America/Los_Angeles")
+	tests := []struct {
+		name        string // also used as the cron time string
+		start       time.Time
+		timeElapsed time.Duration
+	}{
+		{
+			// Daylight Savings time boundary autumn (fall back)
+			start:       time.Date(2023, 11, 05, 01, 58, 00, 0, loc),
+			name:        "@every 1m",
+			timeElapsed: time.Minute,
+		},
+		{
+			// Daylight Savings time boundary autumn (fall back)
+			start:       time.Date(2023, 11, 05, 00, 00, 00, 0, loc),
+			name:        "@every 1h",
+			timeElapsed: time.Hour,
+		},
+		{
+			// Daylight Savings time boundary (spring forward)
+			start:       time.Date(2023, 3, 12, 00, 00, 00, 0, loc),
+			name:        "@every 1h",
+			timeElapsed: time.Hour,
+		},
+		{
+			// Daylight Savings time boundary (spring forward)
+			start:       time.Date(2023, 3, 12, 01, 58, 00, 0, loc),
+			name:        "@every 1m",
+			timeElapsed: time.Minute,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := make(chan time.Time, 100)
+			exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+				select {
+				case <-ctx.Done():
+					t.Log("ctx done")
+				case c <- scheduledAt:
+				}
+			}}
+			mockTime := clock.NewMock()
+			mockTime.Set(tt.start)
+			sch, _, err := NewScheduler(
+				exe,
+				&mockSchedulableService{fn: func(ctx context.Context, id ID, t time.Time) error {
+					return nil
+				}},
+				WithTime(mockTime),
+				WithMaxConcurrentWorkers(20))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer sch.Stop()
+			schedule, ts, err := NewSchedule(tt.name, mockTime.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			err = sch.Schedule(mockSchedulable{id: 1, schedule: schedule, offset: time.Second, lastScheduled: ts})
+			if err != nil {
+				t.Fatal(err)
+			}
+			go func() {
+				sch.mu.Lock()
+				mockTime.Set(mockTime.Now().UTC().Add(17 * tt.timeElapsed))
+				sch.mu.Unlock()
+			}()
+
+			after := time.After(6 * time.Second)
+			oldCheckC := ts
+			for i := 0; i < 16; i++ {
+				select {
+				case checkC := <-c:
+					if checkC.Sub(oldCheckC) != tt.timeElapsed {
+						t.Fatalf("task didn't fire on correct interval fired on %s interval", checkC.Sub(oldCheckC))
+					}
+					if !checkC.Truncate(tt.timeElapsed).Equal(checkC) {
+						t.Fatalf("task didn't fire at the correct time boundary")
+					}
+					oldCheckC = checkC
+				case <-after:
+					t.Fatalf("test timed out, only fired %d times but should have fired 16 times", i)
+				}
+			}
+		})
+	}
+}
+
 func TestTreeScheduler_Stop(t *testing.T) {
 	now := time.Now().Add(-20 * time.Second)
 	mockTime := clock.NewMock()
@@ -640,4 +730,12 @@ func TestNewSchedule(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustParseLocation(tzname string) *time.Location {
+	loc, err := time.LoadLocation(tzname)
+	if err != nil {
+		panic(err)
+	}
+	return loc
 }
