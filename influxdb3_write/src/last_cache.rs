@@ -40,7 +40,7 @@ pub enum Error {
 /// There are two lock levels, one at the top and one at the bottom:
 /// - Top: lock the entire cache for creating new entries
 /// - Bottom: lock an individual cache for pushing in new data
-type CacheMap = RwLock<HashMap<String, HashMap<String, RwLock<LastCache>>>>;
+type CacheMap = RwLock<HashMap<String, HashMap<String, LastCache>>>;
 
 pub struct LastCacheProvider {
     cache_map: CacheMap,
@@ -75,7 +75,7 @@ impl LastCacheProvider {
             .read()
             .get(db_name.as_ref())
             .and_then(|db| db.get(tbl_name.as_ref()))
-            .map(|lc| lc.read().to_record_batch())
+            .map(|lc| lc.to_record_batch())
     }
 
     /// Create a new entry in the last cache for a given database and table, along with the given
@@ -102,7 +102,7 @@ impl LastCacheProvider {
         {
             return Err(Error::CacheAlreadyExists);
         }
-        let last_cache = RwLock::new(LastCache::new(count, key_columns, schema)?);
+        let last_cache = LastCache::new(count, key_columns, schema)?;
         self.cache_map
             .write()
             .entry(db_name)
@@ -118,13 +118,10 @@ impl LastCacheProvider {
     pub(crate) fn write_batch_to_cache(&self, write_batch: &WriteBatch) {
         for (db_name, db_batch) in &write_batch.database_batches {
             for (tbl_name, tbl_batch) in &db_batch.table_batches {
-                if let Some(db) = self.cache_map.read().get(db_name.as_str()) {
-                    for row in &tbl_batch.rows {
-                        if db
-                            .get(tbl_name)
-                            .is_some_and(|t| row.time > t.read().last_time.timestamp_nanos())
-                        {
-                            db.get(tbl_name).unwrap().write().push(row);
+                if let Some(db) = self.cache_map.write().get_mut(db_name.as_str()) {
+                    if let Some(lc) = db.get_mut(tbl_name) {
+                        for row in &tbl_batch.rows {
+                            lc.push(row);
                         }
                     }
                 }
@@ -168,6 +165,9 @@ impl LastCache {
 
     /// Push a [`Row`] from the buffer into this cache
     pub(crate) fn push(&mut self, row: &Row) {
+        if row.time < self.last_time.timestamp_nanos() {
+            return;
+        }
         let time_col = self
             .cache
             .get_mut(TIME_COLUMN_NAME)
