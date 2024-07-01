@@ -3,6 +3,7 @@
 pub(crate) mod buffer_segment;
 mod flusher;
 mod loader;
+pub mod persisted_files;
 mod persister;
 mod segment_state;
 mod table_buffer;
@@ -14,6 +15,7 @@ use crate::chunk::ParquetChunk;
 use crate::persister::PersisterImpl;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
+use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::persister::{
     run_buffer_segment_persist_and_cleanup, run_buffer_size_check_and_persist,
 };
@@ -98,6 +100,7 @@ pub struct WriteBufferImpl<W, T> {
     persister: Arc<PersisterImpl>,
     parquet_cache: Arc<ParquetCache>,
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
+    persisted_files: Arc<PersistedFiles>,
     wal: Option<Arc<W>>,
     write_buffer_flusher: WriteBufferFlusher,
     segment_duration: SegmentDuration,
@@ -131,13 +134,17 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             Arc::clone(&time_provider),
             loaded_state.open_segments,
             loaded_state.persisting_buffer_segments,
-            loaded_state.persisted_segments,
             wal.clone(),
         )));
+
+        let persisted_files = Arc::new(PersistedFiles::new_from_persisted_segments(
+            loaded_state.persisted_segments,
+        ));
 
         let write_buffer_flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
 
         let segment_state_persister = Arc::clone(&segment_state);
+        let persisted_files_persister = Arc::clone(&persisted_files);
         let time_provider_persister = Arc::clone(&time_provider);
         let wal_perister = wal.clone();
         let cloned_persister = Arc::clone(&persister);
@@ -149,6 +156,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             run_buffer_segment_persist_and_cleanup(
                 cloned_persister,
                 segment_state_persister,
+                persisted_files_persister,
                 shutdown_rx,
                 time_provider_persister,
                 wal_perister,
@@ -184,11 +192,16 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             segment_persist_handle: Mutex::new(segment_persist_handle),
             shutdown_segment_persist_tx,
             buffer_check_handle: Mutex::new(buffer_check_handle),
+            persisted_files,
         })
     }
 
     pub fn catalog(&self) -> Arc<Catalog> {
         Arc::clone(&self.catalog)
+    }
+
+    pub fn persisted_files(&self) -> Arc<PersistedFiles> {
+        Arc::clone(&self.persisted_files)
     }
 
     async fn write_lp(
@@ -279,7 +292,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             self.persister.object_store(),
             ctx,
         )?;
-        let parquet_files = segment_state.get_parquet_files(database_name, table_name);
+        let parquet_files = self.persisted_files.get_files(database_name, table_name);
 
         let mut chunk_order = chunks.len() as i64;
 
@@ -693,7 +706,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn returns_chunks_across_buffered_persisted_and_persisting_data() {
+    async fn returns_chunks_across_buffered_and_persisted_data() {
         let dir = test_helpers::tmp_dir().unwrap().into_path();
         let wal = Some(Arc::new(WalImpl::new(dir.clone()).unwrap()));
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
@@ -738,8 +751,12 @@ mod tests {
         // advance the time and wait for it to persist
         time_provider.set(Time::from_timestamp(800, 0).unwrap());
         loop {
-            let segment_state = write_buffer.segment_state.read();
-            if !segment_state.persisted_segments().is_empty() {
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+            if !write_buffer
+                .persisted_files
+                .get_files("foo", "cpu")
+                .is_empty()
+            {
                 break;
             }
         }

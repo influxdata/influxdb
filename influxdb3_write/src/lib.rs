@@ -510,7 +510,7 @@ pub struct PersistedSegment {
 
 #[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
 pub struct DatabaseTables {
-    pub tables: HashMap<String, TableParquetFiles>,
+    pub tables: hashbrown::HashMap<String, TableParquetFiles>,
 }
 
 /// A collection of parquet files persisted in a segment for a specific table.

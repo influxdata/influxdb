@@ -212,9 +212,9 @@ impl OpenBufferSegment {
             let db_buffer = self
                 .buffered_data
                 .database_buffers
-                .entry(db_name.to_string())
+                .entry_ref(db_name.as_str())
                 .or_insert_with(|| DatabaseBuffer {
-                    table_buffers: HashMap::new(),
+                    table_buffers: hashbrown::HashMap::new(),
                 });
 
             let schema = self
@@ -342,18 +342,13 @@ pub(crate) fn load_buffer_from_segment(
                         );
 
                     let db_name = &write.db_name;
-                    if !loaded_buffer
+                    loaded_buffer
                         .buffered_data
                         .database_buffers
-                        .contains_key(db_name)
-                    {
-                        loaded_buffer.buffered_data.database_buffers.insert(
-                            db_name.clone(),
-                            DatabaseBuffer {
-                                table_buffers: HashMap::new(),
-                            },
-                        );
-                    }
+                        .entry_ref(db_name)
+                        .or_insert(DatabaseBuffer {
+                            table_buffers: hashbrown::HashMap::new(),
+                        });
                     let db_buffer = loaded_buffer
                         .buffered_data
                         .database_buffers
@@ -391,27 +386,18 @@ pub(crate) fn load_buffer_from_segment(
                         .entry(parquet_write.db_name)
                         .or_default();
 
-                    if !db.tables.contains_key(&parquet_write.table_name) {
-                        db.tables.insert(
-                            parquet_write.table_name.clone(),
-                            TableParquetFiles {
-                                table_name: parquet_write.table_name.clone(),
-                                parquet_files: vec![],
-                                sort_key: vec![],
-                            },
-                        );
-                    }
-
                     db.tables
-                        .get_mut(&parquet_write.table_name)
-                        .unwrap()
-                        .parquet_files
-                        .push(ParquetFile {
-                            path: parquet_write.path,
-                            size_bytes: parquet_write.size_bytes,
-                            row_count: parquet_write.row_count,
-                            min_time: parquet_write.min_time,
-                            max_time: parquet_write.max_time,
+                        .entry_ref(&parquet_write.table_name)
+                        .or_insert(TableParquetFiles {
+                            table_name: parquet_write.table_name.clone(),
+                            parquet_files: vec![ParquetFile {
+                                path: parquet_write.path,
+                                size_bytes: parquet_write.size_bytes,
+                                row_count: parquet_write.row_count,
+                                min_time: parquet_write.min_time,
+                                max_time: parquet_write.max_time,
+                            }],
+                            sort_key: vec![],
                         });
                 }
             }
@@ -458,7 +444,7 @@ pub struct BufferedWrite {
 
 #[derive(Debug, Default)]
 pub struct BufferedData {
-    database_buffers: HashMap<String, DatabaseBuffer>,
+    database_buffers: hashbrown::HashMap<String, DatabaseBuffer>,
 }
 
 impl BufferedData {
@@ -502,7 +488,7 @@ impl BufferedData {
 
 #[derive(Debug)]
 struct DatabaseBuffer {
-    table_buffers: HashMap<String, TableBuffer>,
+    table_buffers: hashbrown::HashMap<String, TableBuffer>,
 }
 
 impl DatabaseBuffer {
