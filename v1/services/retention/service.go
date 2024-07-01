@@ -28,6 +28,9 @@ type Service struct {
 	TSDBStore interface {
 		ShardIDs() []uint64
 		DeleteShard(shardID uint64) error
+
+		SetShardNewReadersBlocked(shardID uint64, blocked bool) error
+		ShardInUse(shardID uint64) (bool, error)
 	}
 
 	// DropShardRef is a function that takes a shard ID and removes the
@@ -140,13 +143,13 @@ func (s *Service) run(ctx context.Context) {
 			return
 
 		case <-ticker.C:
-			s.DeletionCheck()
+			s.DeletionCheck(ctx)
 		}
 	}
 }
 
-func (s *Service) DeletionCheck() {
-	log, logEnd := logger.NewOperation(context.Background(), s.logger, "Retention policy deletion check", "retention_delete_check")
+func (s *Service) DeletionCheck(ctx context.Context) {
+	log, logEnd := logger.NewOperation(ctx, s.logger, "Retention policy deletion check", "retention_delete_check")
 	defer logEnd()
 
 	type deletionInfo struct {
@@ -162,18 +165,6 @@ func (s *Service) DeletionCheck() {
 		return deletionInfo{db: db, rp: rp, owners: owners}
 	}
 	deletedShardIDs := make(map[uint64]deletionInfo)
-
-	dropShardMetaRef := func(id uint64, info deletionInfo) error {
-		if err := s.DropShardMetaRef(id, info.owners); err != nil {
-			log.Error("Failed to drop shard meta reference",
-				logger.Database(info.db),
-				logger.Shard(id),
-				logger.RetentionPolicy(info.rp),
-				zap.Error(err))
-			return err
-		}
-		return nil
-	}
 
 	// Mark down if an error occurred during this function so we can inform the
 	// user that we will try again on the next interval.
@@ -192,25 +183,26 @@ func (s *Service) DeletionCheck() {
 
 			// Determine all shards that have expired and need to be deleted.
 			for _, g := range r.ExpiredShardGroups(time.Now().UTC()) {
-				if err := s.MetaClient.DeleteShardGroup(d.Name, r.Name, g.ID); err != nil {
-					log.Info("Failed to delete shard group",
-						logger.Database(d.Name),
-						logger.ShardGroup(g.ID),
-						logger.RetentionPolicy(r.Name),
-						zap.Error(err))
-					retryNeeded = true
-					continue
-				}
+				func() {
+					log, logEnd := logger.NewOperation(ctx, log, "Deleting expired shard group", "retention_delete_expired_shard_group",
+						logger.Database(d.Name), logger.ShardGroup(g.ID), logger.RetentionPolicy(r.Name))
+					defer logEnd()
+					if err := s.MetaClient.DeleteShardGroup(d.Name, r.Name, g.ID); err != nil {
+						log.Error("Failed to delete shard group", zap.Error(err))
+						retryNeeded = true
+						return
+					}
 
-				log.Info("Deleted shard group",
-					logger.Database(d.Name),
-					logger.ShardGroup(g.ID),
-					logger.RetentionPolicy(r.Name))
+					log.Info("Deleted shard group")
 
-				// Store all the shard IDs that may possibly need to be removed locally.
-				for _, sh := range g.Shards {
-					deletedShardIDs[sh.ID] = newDeletionInfo(d.Name, r.Name, sh)
-				}
+					// Store all the shard IDs that may possibly need to be removed locally.
+					groupShards := make([]uint64, len(g.Shards))
+					for _, sh := range g.Shards {
+						groupShards = append(groupShards, sh.ID)
+						deletedShardIDs[sh.ID] = newDeletionInfo(d.Name, r.Name, sh)
+					}
+					log.Info("Group's shards will be removed from local storage if found", zap.Uint64s("shards", groupShards))
+				}()
 			}
 		}
 	}
@@ -219,58 +211,91 @@ func (s *Service) DeletionCheck() {
 	for _, id := range s.TSDBStore.ShardIDs() {
 		if info, ok := deletedShardIDs[id]; ok {
 			delete(deletedShardIDs, id)
-			log.Info("Attempting deletion of shard from store",
-				logger.Database(info.db),
-				logger.Shard(id),
-				logger.RetentionPolicy(info.rp))
-			if err := s.TSDBStore.DeleteShard(id); err != nil {
-				log.Error("Failed to delete shard",
-					logger.Database(info.db),
-					logger.Shard(id),
-					logger.RetentionPolicy(info.rp),
-					zap.Error(err))
-				if errors.Is(err, tsdb.ErrShardNotFound) {
-					// At first you wouldn't think this could happen, we're iterating over shards
-					// in the store. However, if this has been a very long running operation the
-					// shard could have been dropped from the store while we were working on other shards.
-					log.Warn("Shard does not exist in store, continuing retention removal",
-						logger.Database(info.db),
-						logger.Shard(id),
-						logger.RetentionPolicy(info.rp))
-				} else {
-					retryNeeded = true
-					continue
+
+			err := func() (rErr error) {
+				log, logEnd := logger.NewOperation(ctx, log, "Deleting shard from shard group deleted based on retention policy", "retention_delete_shard",
+					logger.Database(info.db), logger.Shard(id), logger.RetentionPolicy(info.rp))
+				defer func() {
+					if rErr != nil {
+						// Log the error before logEnd().
+						log.Error("Error deleting shard", zap.Error(rErr))
+					}
+					logEnd()
+				}()
+
+				// Block new readers for shard and check if it is in-use before deleting. This is to prevent
+				// an issue where a shard that is stuck in-use will block the retention service.
+				if err := s.TSDBStore.SetShardNewReadersBlocked(id, true); err != nil {
+					return fmt.Errorf("error blocking new readers for shard: %w", err)
 				}
-			}
-			log.Info("Deleted shard",
-				logger.Database(info.db),
-				logger.Shard(id),
-				logger.RetentionPolicy(info.rp))
-			if err := dropShardMetaRef(id, info); err != nil {
-				// removeShardMetaReference already logged the error.
+				defer func() {
+					if rErr != nil && !errors.Is(rErr, tsdb.ErrShardNotFound) {
+						log.Info("Unblocking new readers for shard after delete failed")
+						if unblockErr := s.TSDBStore.SetShardNewReadersBlocked(id, false); unblockErr != nil {
+							log.Error("Error unblocking new readers for shard", zap.Error(unblockErr))
+						}
+					}
+				}()
+
+				// We should only try to delete shards that are not in-use.
+				if inUse, err := s.TSDBStore.ShardInUse(id); err != nil {
+					return fmt.Errorf("error checking if shard is in-use: %w", err)
+				} else if inUse {
+					return errors.New("can not delete an in-use shard")
+				}
+
+				// Now it's time to delete the shard
+				if err := s.TSDBStore.DeleteShard(id); err != nil {
+					return fmt.Errorf("error deleting shard from store: %w", err)
+				}
+				log.Info("Deleted shard")
+				return nil
+			}()
+			// Check for error deleting the shard from the TSDB. Continue onto DropShardMetaRef if the
+			// error was tsdb.ErrShardNotFound. We got here because the shard was in the metadata,
+			// but it wasn't really in the store, so try deleting it out of the metadata.
+			if err != nil && !errors.Is(err, tsdb.ErrShardNotFound) {
+				// Logging of error was handled by the lambda in a defer so that it is within
+				// the operation instead of after the operation.
 				retryNeeded = true
 				continue
 			}
+
+			func() {
+				log, logEnd := logger.NewOperation(ctx, log, "Dropping shard meta references", "retention_drop_refs",
+					logger.Database(info.db), logger.Shard(id), logger.RetentionPolicy(info.rp), zap.Uint64s("owners", info.owners))
+				defer logEnd()
+				if err := s.DropShardMetaRef(id, info.owners); err != nil {
+					log.Error("Error dropping shard meta reference", zap.Error(err))
+					retryNeeded = true
+					return
+				}
+			}()
 		}
 	}
 
 	// Check for expired phantom shards that exist in the metadata but not in the store.
 	for id, info := range deletedShardIDs {
-		log.Error("Expired phantom shard detected during retention check, removing from metadata",
-			logger.Database(info.db),
-			logger.Shard(id),
-			logger.RetentionPolicy(info.rp))
-		if err := dropShardMetaRef(id, info); err != nil {
-			// removeShardMetaReference already logged the error.
-			retryNeeded = true
-			continue
-		}
+		func() {
+			log, logEnd := logger.NewOperation(ctx, log, "Drop phantom shard references", "retention_drop_phantom_refs",
+				logger.Database(info.db), logger.Shard(id), logger.RetentionPolicy(info.rp), zap.Uint64s("owners", info.owners))
+			defer logEnd()
+			log.Warn("Expired phantom shard detected during retention check, removing from metadata")
+			if err := s.DropShardMetaRef(id, info.owners); err != nil {
+				log.Error("Error dropping shard meta reference for phantom shard", zap.Error(err))
+				retryNeeded = true
+			}
+		}()
 	}
 
-	if err := s.MetaClient.PruneShardGroups(); err != nil {
-		log.Info("Problem pruning shard groups", zap.Error(err))
-		retryNeeded = true
-	}
+	func() {
+		log, logEnd := logger.NewOperation(ctx, log, "Pruning shard groups after retention check", "retention_prune_shard_groups")
+		defer logEnd()
+		if err := s.MetaClient.PruneShardGroups(); err != nil {
+			log.Error("Error pruning shard groups", zap.Error(err))
+			retryNeeded = true
+		}
+	}()
 
 	if retryNeeded {
 		log.Info("One or more errors occurred during shard deletion and will be retried on the next check", logger.DurationLiteral("check_interval", time.Duration(s.config.CheckInterval)))

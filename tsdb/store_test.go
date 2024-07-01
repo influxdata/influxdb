@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/predicate"
 	"math"
 	"math/rand"
 	"os"
@@ -18,6 +17,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/predicate"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/v2/influxql/query"
@@ -650,6 +651,82 @@ func TestShards_CreateIterator(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) { test(t, index) })
+	}
+}
+
+// Test new reader blocking.
+func TestStore_NewReadersBlocked(t *testing.T) {
+	//t.Parallel()
+
+	test := func(index string) {
+		t.Helper()
+		s := MustOpenStore(t, index)
+		defer s.Close()
+
+		shardInUse := func(shardID uint64) bool {
+			t.Helper()
+			require.NoError(t, s.SetShardNewReadersBlocked(shardID, true))
+			inUse, err := s.ShardInUse(shardID)
+			require.NoError(t, err)
+			require.NoError(t, s.SetShardNewReadersBlocked(shardID, false))
+			return inUse
+		}
+
+		// Create shard #0 with data.
+		s.MustCreateShardWithData("db0", "rp0", 0,
+			`cpu,host=serverA value=1  0`,
+			`cpu,host=serverA value=2 10`,
+			`cpu,host=serverB value=3 20`,
+		)
+
+		// Flush WAL to TSM files.
+		sh0 := s.Shard(0)
+		require.NotNil(t, sh0)
+		sh0.ScheduleFullCompaction()
+
+		// Retrieve shard group.
+		shards := s.ShardGroup([]uint64{0})
+
+		m := &influxql.Measurement{Name: "cpu"}
+		opts := query.IteratorOptions{
+			Expr:       influxql.MustParseExpr(`value`),
+			Dimensions: []string{"host"},
+			Ascending:  true,
+			StartTime:  influxql.MinTime,
+			EndTime:    influxql.MaxTime,
+		}
+
+		// Block new readers, iterator we get will be a faux iterator with no data.
+		require.NoError(t, s.SetShardNewReadersBlocked(0, true))
+		require.False(t, shardInUse(0))
+		itr, err := shards.CreateIterator(context.Background(), m, opts)
+		require.NoError(t, err)
+		require.False(t, shardInUse(0)) // Remember, itr is a faux iterator.
+		fitr, ok := itr.(query.FloatIterator)
+		require.True(t, ok)
+		p, err := fitr.Next()
+		require.NoError(t, err)
+		require.Nil(t, p)
+		require.NoError(t, itr.Close())
+		require.False(t, shardInUse(0))
+		require.NoError(t, s.SetShardNewReadersBlocked(0, false))
+
+		// Create iterator, no blocks present.
+		require.False(t, shardInUse(0))
+		itr, err = shards.CreateIterator(context.Background(), m, opts)
+		require.NoError(t, err)
+		require.True(t, shardInUse(0))
+		fitr, ok = itr.(query.FloatIterator)
+		require.True(t, ok)
+		p, err = fitr.Next()
+		require.NoError(t, err)
+		require.NotNil(t, p)
+		require.NoError(t, itr.Close())
+		require.False(t, shardInUse(0))
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(fmt.Sprintf("TestStore_NewReadersBlocked_%s", index), func(t *testing.T) { test(index) })
 	}
 }
 

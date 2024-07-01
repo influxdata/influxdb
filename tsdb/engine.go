@@ -34,6 +34,9 @@ type Engine interface {
 	SetCompactionsEnabled(enabled bool)
 	ScheduleFullCompaction() error
 
+	SetNewReadersBlocked(blocked bool) error
+	InUse() (bool, error)
+
 	WithLogger(*zap.Logger)
 
 	LoadMetadataIndex(shardID uint64, index Index) error
