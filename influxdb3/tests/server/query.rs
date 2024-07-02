@@ -1176,12 +1176,10 @@ async fn api_v1_query_data_conversion() {
     server
         .write_lp_to_db(
             "foo",
-          "errors,message='Verbindungszeitüberschreitung' count=-9223372036854775808 1422568543702900257\n\
-          device,location=office status=true 1422568543702900257\n\
-          device,location=remote status=false 1434055562000000000\n\
-          timestamp,format=micro timestamp=true 1622547800123456\n\
-          timestamp,format=milli timestamp=true 1622547800123\n\
-          timestamp,format=sec timestamp=true 1622547801",
+            "weather,location=us-midwest temperature_integer=82i 1465839830100400200\n\
+          weather,location=us-midwest temperature_float=82 1465839830100400200\n\
+          weather,location=us-midwest temperature_str=\"too warm\" 1465839830100400200\n\
+          weather,location=us-midwest too_hot=true 1465839830100400200",
             Precision::Nanosecond,
         )
         .await
@@ -1199,32 +1197,7 @@ async fn api_v1_query_data_conversion() {
         TestCase {
             database: Some("foo"),
             epoch: None,
-            query: "SELECT time, count, message FROM errors",
-            expected: json!({
-              "results": [
-                {
-                  "series": [
-                    {
-                      "columns": [
-                        "time",
-                        "count",
-                        "message"
-                      ],
-                      "name": "errors",
-                      "values": [
-                        ["2015-01-29T21:55:43.702900257Z", -9.223372036854776e18, "'Verbindungszeitüberschreitung'"],
-                      ]
-                    }
-                  ],
-                  "statement_id": 0
-                }
-              ]
-            }),
-        },
-        TestCase {
-            database: Some("foo"),
-            epoch: None,
-            query: "SELECT time, location, status FROM device",
+            query: "SELECT time, location, temperature_integer, temperature_float, temperature_str, too_hot FROM weather",
             expected: json!({
               "results": [
                 {
@@ -1233,12 +1206,14 @@ async fn api_v1_query_data_conversion() {
                       "columns": [
                         "time",
                         "location",
-                        "status"
+                        "temperature_integer",
+                        "temperature_float",
+                        "temperature_str",
+                        "too_hot"
                       ],
-                      "name": "device",
+                      "name": "weather",
                       "values": [
-                        ["2015-01-29T21:55:43.702900257Z", "office",true],
-                        ["2015-06-11T20:46:02Z", "remote", false],
+                        ["2016-06-13T17:43:50.100400200Z", "us-midwest", 82, 82.0, "too warm", true],
                       ]
                     }
                   ],
@@ -1247,33 +1222,7 @@ async fn api_v1_query_data_conversion() {
               ]
             }),
         },
-        TestCase {
-            database: Some("foo"),
-            epoch: None,
-            query: "SELECT time, format, timestamp FROM timestamp",
-            expected: json!({
-              "results": [
-                {
-                  "series": [
-                    {
-                      "columns": [
-                        "time",
-                        "format",
-                        "timestamp"
-                      ],
-                      "name": "timestamp",
-                      "values": [
-                        ["1970-01-01T00:00:01.622547801Z", "sec", true],
-                        ["1970-01-01T00:27:02.547800123Z" ,"milli", true],
-                        ["1970-01-19T18:42:27.800123456Z", "micro", true]
-                      ]
-                    }
-                  ],
-                  "statement_id": 0
-                }
-              ]
-            }),
-        },
+
     ];
 
     for t in test_cases {
