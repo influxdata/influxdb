@@ -13,8 +13,9 @@ use async_trait::async_trait;
 use datafusion::{
     datasource::{TableProvider, TableType},
     execution::context::SessionState,
-    logical_expr::{Expr, TableProviderFilterPushDown},
+    logical_expr::{BinaryExpr, Expr, Operator, TableProviderFilterPushDown},
     physical_plan::{memory::MemoryExec, ExecutionPlan},
+    scalar::ScalarValue,
 };
 use hashbrown::HashMap;
 use indexmap::IndexMap;
@@ -165,7 +166,6 @@ impl LastCacheProvider {
                 .map_err(|_| Error::InvalidCacheSize)?,
             ttl.unwrap_or(DEFAULT_CACHE_TTL),
             key_columns.into(),
-            value_columns.into(),
             schema_builder.build()?,
         );
 
@@ -240,19 +240,12 @@ pub(crate) struct LastCache {
     count: LastCacheSize,
     ttl: Duration,
     key_columns: Vec<String>,
-    value_columns: Vec<String>,
     schema: Schema,
     state: LastCacheState,
 }
 
 impl LastCache {
-    fn new(
-        count: LastCacheSize,
-        ttl: Duration,
-        key_columns: Vec<String>,
-        value_columns: Vec<String>,
-        schema: Schema,
-    ) -> Self {
+    fn new(count: LastCacheSize, ttl: Duration, key_columns: Vec<String>, schema: Schema) -> Self {
         let mut state =
             LastCacheState::Store(LastCacheStore::new(count.into(), ttl, schema.as_arrow()));
         for column_name in key_columns.iter().cloned().rev() {
@@ -265,7 +258,6 @@ impl LastCache {
             count,
             ttl,
             key_columns,
-            value_columns,
             schema,
             state,
         }
@@ -344,6 +336,45 @@ impl LastCache {
         caches.into_iter().map(|c| {
             c.as_store().expect("caches should all be stores after iterating through all key column-mapped predicates").to_record_batch()
         }).collect()
+    }
+
+    fn convert_filter_exprs(&self, exprs: &[Expr]) -> Vec<Predicate> {
+        exprs
+            .iter()
+            .filter_map(|expr| {
+                if let Expr::BinaryExpr(BinaryExpr { left, op, right }) = expr {
+                    if *op == Operator::Eq {
+                        if let Expr::Column(c) = left.as_ref() {
+                            let key = c.name.to_string();
+                            if !self.key_columns.contains(&key) {
+                                return None;
+                            }
+                            return match right.as_ref() {
+                                Expr::Literal(ScalarValue::Utf8(Some(v))) => Some(Predicate {
+                                    key,
+                                    value: Some(KeyValue::String(v.to_owned())),
+                                }),
+                                Expr::Literal(ScalarValue::Boolean(Some(v))) => Some(Predicate {
+                                    key,
+                                    value: Some(KeyValue::Bool(*v)),
+                                }),
+                                // TODO: handle integer types that can be casted up to i64/u64:
+                                Expr::Literal(ScalarValue::Int64(Some(v))) => Some(Predicate {
+                                    key,
+                                    value: Some(KeyValue::Int(*v)),
+                                }),
+                                Expr::Literal(ScalarValue::UInt64(Some(v))) => Some(Predicate {
+                                    key,
+                                    value: Some(KeyValue::UInt(*v)),
+                                }),
+                                _ => None,
+                            };
+                        }
+                    }
+                }
+                None
+            })
+            .collect()
     }
 }
 
@@ -486,7 +517,7 @@ impl LastCacheStore {
     /// Convert the contents of this cache into a arrow [`RecordBatch`]
     fn to_record_batch(&self) -> Result<RecordBatch, ArrowError> {
         RecordBatch::try_new(
-            self.schema(),
+            Arc::clone(&self.schema),
             // This is where using IndexMap is important, because we inserted the cache entries
             // using the schema field ordering, we will get the correct order by iterating directly
             // over the map here:
@@ -496,13 +527,13 @@ impl LastCacheStore {
 }
 
 #[async_trait]
-impl TableProvider for LastCacheStore {
+impl TableProvider for LastCache {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
 
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&self.schema)
+        self.schema.as_arrow()
     }
 
     fn table_type(&self) -> TableType {
@@ -520,11 +551,11 @@ impl TableProvider for LastCacheStore {
         &self,
         ctx: &SessionState,
         projection: Option<&Vec<usize>>,
-        // TODO: need to handle filters on the key columns as predicates here
-        _filters: &[Expr],
+        filters: &[Expr],
         _limit: Option<usize>,
     ) -> datafusion::common::Result<Arc<dyn ExecutionPlan>> {
-        let partitions = vec![vec![self.to_record_batch()?]];
+        let predicates = self.convert_filter_exprs(filters);
+        let partitions = vec![self.to_record_batches(&predicates)?];
         let mut exec = MemoryExec::try_new(&partitions, self.schema(), projection.cloned())?;
 
         let show_sizes = ctx.config_options().explain.show_sizes;
