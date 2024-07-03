@@ -1,4 +1,9 @@
-use std::{any::Any, collections::VecDeque, sync::Arc, time::Duration};
+use std::{
+    any::Any,
+    collections::VecDeque,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use arrow::{
     array::{
@@ -11,6 +16,7 @@ use arrow::{
 };
 use async_trait::async_trait;
 use datafusion::{
+    common::Result as DFResult,
     datasource::{TableProvider, TableType},
     execution::context::SessionState,
     logical_expr::{BinaryExpr, Expr, Operator, TableProviderFilterPushDown},
@@ -185,10 +191,11 @@ impl LastCacheProvider {
     ///
     /// Only if rows are newer than the latest entry in the cache will they be entered.
     pub(crate) fn write_batch_to_cache(&self, write_batch: &WriteBatch) {
-        if self.cache_map.read().is_empty() {
-            return;
-        }
         let mut cache_map = self.cache_map.write();
+        cache_map.iter_mut().for_each(|(_, db)| {
+            db.iter_mut()
+                .for_each(|(_, tbl)| tbl.iter_mut().for_each(|(_, lc)| lc.remove_expired()))
+        });
         for (db_name, db_batch) in &write_batch.database_batches {
             if let Some(db_cache) = cache_map.get_mut(db_name.as_str()) {
                 if db_cache.is_empty() {
@@ -212,7 +219,7 @@ impl LastCacheProvider {
 
     /// Output the records for a given cache as arrow [`RecordBatch`]es
     #[cfg(test)]
-    pub(crate) fn get_cache_record_batches(
+    fn get_cache_record_batches(
         &self,
         db_name: &str,
         tbl_name: &str,
@@ -300,10 +307,7 @@ impl LastCache {
             .push(row);
     }
 
-    pub(crate) fn to_record_batches(
-        &self,
-        predicates: &[Predicate],
-    ) -> Result<Vec<RecordBatch>, ArrowError> {
+    fn to_record_batches(&self, predicates: &[Predicate]) -> Result<Vec<RecordBatch>, ArrowError> {
         // map the provided predicates on to the key columns
         // there may not be predicates provided for each key column, hence the Option
         let predicates: Vec<Option<Predicate>> = self
@@ -376,10 +380,14 @@ impl LastCache {
             })
             .collect()
     }
+
+    fn remove_expired(&mut self) {
+        self.state.remove_expired();
+    }
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Predicate {
+struct Predicate {
     key: String,
     value: Option<KeyValue>,
 }
@@ -394,7 +402,7 @@ impl Predicate {
     }
 }
 
-pub(crate) enum LastCacheState {
+enum LastCacheState {
     Key(LastCacheKey),
     Store(LastCacheStore),
 }
@@ -427,9 +435,16 @@ impl LastCacheState {
             LastCacheState::Store(store) => Some(store),
         }
     }
+
+    fn remove_expired(&mut self) {
+        match self {
+            LastCacheState::Key(k) => k.remove_expired(),
+            LastCacheState::Store(s) => s.remove_expired(),
+        }
+    }
 }
 
-pub(crate) struct LastCacheKey {
+struct LastCacheKey {
     column_name: String,
     value_map: HashMap<Option<KeyValue>, LastCacheState>,
 }
@@ -438,10 +453,16 @@ impl LastCacheKey {
     fn evaluate_predicate(&self, predicate: &Predicate) -> Option<&LastCacheState> {
         self.value_map.get(&predicate.value)
     }
+
+    fn remove_expired(&mut self) {
+        self.value_map
+            .iter_mut()
+            .for_each(|(_, m)| m.remove_expired());
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub(crate) enum KeyValue {
+enum KeyValue {
     String(String),
     Int(i64),
     UInt(u64),
@@ -471,33 +492,38 @@ impl From<&FieldData> for KeyValue {
 }
 
 /// Stores the last N values, as configured, for a given table in a database
-pub(crate) struct LastCacheStore {
+struct LastCacheStore {
     schema: SchemaRef,
     // use an IndexMap to preserve insertion order:
     cache: IndexMap<String, CacheColumn>,
-    // TODO: use the TTL to evict old cache values
-    ttl: Duration,
+    // TODO: will need to use this if new columns are added for * caches
+    _ttl: Duration,
     last_time: Time,
 }
 
 impl LastCacheStore {
     /// Create a new [`LastCache`]
-    pub(crate) fn new(count: usize, ttl: Duration, schema: SchemaRef) -> Self {
+    fn new(count: usize, ttl: Duration, schema: SchemaRef) -> Self {
         let cache = schema
             .fields()
             .iter()
-            .map(|f| (f.name().to_string(), CacheColumn::new(f.data_type(), count)))
+            .map(|f| {
+                (
+                    f.name().to_string(),
+                    CacheColumn::new(f.data_type(), count, ttl),
+                )
+            })
             .collect();
         Self {
             schema,
             cache,
-            ttl,
+            _ttl: ttl,
             last_time: Time::from_timestamp_nanos(0),
         }
     }
 
     /// Push a [`Row`] from the buffer into this cache
-    pub(crate) fn push(&mut self, row: &Row) {
+    fn push(&mut self, row: &Row) {
         if row.time <= self.last_time.timestamp_nanos() {
             return;
         }
@@ -524,6 +550,10 @@ impl LastCacheStore {
             self.cache.iter().map(|(_, c)| c.data.as_array()).collect(),
         )
     }
+
+    fn remove_expired(&mut self) {
+        self.cache.iter_mut().for_each(|(_, c)| c.remove_expired());
+    }
 }
 
 #[async_trait]
@@ -543,7 +573,7 @@ impl TableProvider for LastCache {
     fn supports_filters_pushdown(
         &self,
         filters: &[&Expr],
-    ) -> datafusion::common::Result<Vec<TableProviderFilterPushDown>> {
+    ) -> DFResult<Vec<TableProviderFilterPushDown>> {
         Ok(vec![TableProviderFilterPushDown::Inexact; filters.len()])
     }
 
@@ -553,7 +583,7 @@ impl TableProvider for LastCache {
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
         _limit: Option<usize>,
-    ) -> datafusion::common::Result<Arc<dyn ExecutionPlan>> {
+    ) -> DFResult<Arc<dyn ExecutionPlan>> {
         let predicates = self.convert_filter_exprs(filters);
         let partitions = vec![self.to_record_batches(&predicates)?];
         let mut exec = MemoryExec::try_new(&partitions, self.schema(), projection.cloned())?;
@@ -570,53 +600,59 @@ impl TableProvider for LastCache {
 /// Stores its size so it can evict old data on push.
 struct CacheColumn {
     size: usize,
+    ttl: Duration,
     data: CacheColumnData,
 }
 
 impl CacheColumn {
     /// Create a new [`CacheColumn`] for the given arrow [`DataType`] and size
-    fn new(data_type: &DataType, size: usize) -> Self {
+    fn new(data_type: &DataType, size: usize, ttl: Duration) -> Self {
         Self {
             size,
+            ttl,
             data: CacheColumnData::new(data_type, size),
         }
     }
 
     /// Push [`FieldData`] from the buffer into this column
     fn push(&mut self, field_data: &FieldData) {
-        if self.data.len() == self.size {
+        if self.data.len() >= self.size {
             self.data.pop_back();
         }
         self.data.push_front(field_data);
+    }
+
+    fn remove_expired(&mut self) {
+        self.data.remove_expired(self.ttl);
     }
 }
 
 /// Enumerated type for storing column data for the cache in a ring buffer
 #[derive(Debug)]
 enum CacheColumnData {
-    I64(VecDeque<i64>),
-    U64(VecDeque<u64>),
-    F64(VecDeque<f64>),
-    String(VecDeque<String>),
-    Bool(VecDeque<bool>),
-    Tag(VecDeque<String>),
-    Time(VecDeque<i64>),
+    I64(ColumnBuffer<i64>),
+    U64(ColumnBuffer<u64>),
+    F64(ColumnBuffer<f64>),
+    String(ColumnBuffer<String>),
+    Bool(ColumnBuffer<bool>),
+    Tag(ColumnBuffer<String>),
+    Time(ColumnBuffer<i64>),
 }
 
 impl CacheColumnData {
     /// Create a new [`CacheColumnData`]
     fn new(data_type: &DataType, size: usize) -> Self {
         match data_type {
-            DataType::Boolean => Self::Bool(VecDeque::with_capacity(size)),
-            DataType::Int64 => Self::I64(VecDeque::with_capacity(size)),
-            DataType::UInt64 => Self::U64(VecDeque::with_capacity(size)),
-            DataType::Float64 => Self::F64(VecDeque::with_capacity(size)),
+            DataType::Boolean => Self::Bool(ColumnBuffer::with_capacity(size)),
+            DataType::Int64 => Self::I64(ColumnBuffer::with_capacity(size)),
+            DataType::UInt64 => Self::U64(ColumnBuffer::with_capacity(size)),
+            DataType::Float64 => Self::F64(ColumnBuffer::with_capacity(size)),
             DataType::Timestamp(TimeUnit::Nanosecond, _) => {
-                Self::Time(VecDeque::with_capacity(size))
+                Self::Time(ColumnBuffer::with_capacity(size))
             }
-            DataType::Utf8 => Self::String(VecDeque::with_capacity(size)),
+            DataType::Utf8 => Self::String(ColumnBuffer::with_capacity(size)),
             DataType::Dictionary(k, v) if **k == DataType::Int32 && **v == DataType::Utf8 => {
-                Self::Tag(VecDeque::with_capacity(size))
+                Self::Tag(ColumnBuffer::with_capacity(size))
             }
             _ => panic!("unsupported data type for last cache: {data_type}"),
         }
@@ -677,6 +713,18 @@ impl CacheColumnData {
         }
     }
 
+    fn remove_expired(&mut self, ttl: Duration) {
+        match self {
+            CacheColumnData::I64(b) => b.remove_expired(ttl),
+            CacheColumnData::U64(b) => b.remove_expired(ttl),
+            CacheColumnData::F64(b) => b.remove_expired(ttl),
+            CacheColumnData::String(b) => b.remove_expired(ttl),
+            CacheColumnData::Bool(b) => b.remove_expired(ttl),
+            CacheColumnData::Tag(b) => b.remove_expired(ttl),
+            CacheColumnData::Time(b) => b.remove_expired(ttl),
+        }
+    }
+
     /// Produce an arrow [`ArrayRef`] from this column for the sake of producing [`RecordBatch`]es
     fn as_array(&self) -> ArrayRef {
         match self {
@@ -720,6 +768,41 @@ impl CacheColumnData {
                 Arc::new(b.finish())
             }
         }
+    }
+}
+
+#[derive(Debug)]
+struct ColumnBuffer<T>(VecDeque<(Instant, T)>);
+
+impl<T> ColumnBuffer<T> {
+    fn with_capacity(capacity: usize) -> Self {
+        Self(VecDeque::with_capacity(capacity))
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn pop_back(&mut self) {
+        self.0.pop_back();
+    }
+
+    fn push_front(&mut self, value: T) {
+        self.0.push_front((Instant::now(), value));
+    }
+
+    fn remove_expired(&mut self, ttl: Duration) {
+        while let Some((ins, _)) = self.0.back() {
+            if ins.elapsed() >= ttl {
+                self.0.pop_back();
+            } else {
+                return;
+            }
+        }
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &T> {
+        self.0.iter().map(|(_, v)| v)
     }
 }
 
