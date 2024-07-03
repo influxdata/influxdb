@@ -798,8 +798,8 @@ impl<T> ColumnBuffer<T> {
     }
 
     fn remove_expired(&mut self, ttl: Duration) {
-        while let Some((ins, _)) = self.0.back() {
-            if ins.elapsed() >= ttl {
+        while let Some((created, _)) = self.0.back() {
+            if created.elapsed() >= ttl {
                 self.0.pop_back();
             } else {
                 return;
