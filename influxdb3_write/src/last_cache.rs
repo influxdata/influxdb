@@ -11,7 +11,10 @@ use arrow::{
         RecordBatch, StringBuilder, StringDictionaryBuilder, TimestampNanosecondBuilder,
         UInt64Builder,
     },
-    datatypes::{DataType, GenericStringType, Int32Type, SchemaRef, TimeUnit},
+    datatypes::{
+        DataType, Field as ArrowField, FieldRef, GenericStringType, Int32Type,
+        SchemaBuilder as ArrowSchemaBuilder, SchemaRef as ArrowSchemaRef, TimeUnit,
+    },
     error::ArrowError,
 };
 use async_trait::async_trait;
@@ -253,32 +256,37 @@ pub(crate) struct LastCache {
 
 impl LastCache {
     fn new(count: LastCacheSize, ttl: Duration, key_columns: Vec<String>, schema: Schema) -> Self {
-        let mut state =
-            LastCacheState::Store(LastCacheStore::new(count.into(), ttl, schema.as_arrow()));
-        for column_name in key_columns.iter().cloned().rev() {
-            state = LastCacheState::Key(LastCacheKey {
-                column_name,
-                value_map: [(None, state)].into(),
-            });
-        }
         Self {
             count,
             ttl,
             key_columns,
             schema,
-            state,
+            state: LastCacheState::Init,
         }
     }
 
+    /// Push a [`Row`] from the write buffer into the cache
+    ///
+    /// If a key column is not present in the row, the row will be ignored.
     pub(crate) fn push(&mut self, row: &Row) {
         let mut target = &mut self.state;
         let mut key_iter = self.key_columns.iter().peekable();
         while let (Some(key), peek) = (key_iter.next(), key_iter.peek()) {
-            let value = row
+            if target.is_init() {
+                *target = LastCacheState::Key(LastCacheKey {
+                    column_name: key.to_string(),
+                    value_map: Default::default(),
+                });
+            }
+            let Some(value) = row
                 .fields
                 .iter()
                 .find(|f| f.name == *key)
-                .map(|f| KeyValue::from(&f.value));
+                .map(|f| KeyValue::from(&f.value))
+            else {
+                // ignore the row if it does not contain all key columns
+                return;
+            };
             let cache_key = target.as_key_mut().unwrap();
             assert_eq!(
                 &cache_key.column_name, key,
@@ -316,30 +324,40 @@ impl LastCache {
             .map(|key| predicates.iter().find(|p| p.key == *key).cloned())
             .collect();
 
-        let mut caches = vec![&self.state];
-        let mut predicate_iter = predicates.into_iter();
+        let mut caches = vec![ExtendedLastCacheState {
+            state: &self.state,
+            additional_columns: vec![],
+        }];
 
-        while let Some(predicate) = predicate_iter.next() {
+        for predicate in predicates {
             if caches.is_empty() {
                 return Ok(vec![]);
             }
             let mut new_caches = vec![];
-            for c in caches.iter() {
-                let cache_key = c.as_key().unwrap();
+            for c in caches {
+                let cache_key = c.state.as_key().unwrap();
                 if let Some(ref pred) = predicate {
                     if let Some(next_state) = cache_key.evaluate_predicate(pred) {
-                        new_caches.push(next_state);
+                        new_caches.push(ExtendedLastCacheState {
+                            state: next_state,
+                            additional_columns: vec![],
+                        });
                     }
                 } else {
-                    new_caches.extend(cache_key.value_map.iter().map(|(_, s)| s));
+                    new_caches.extend(cache_key.value_map.iter().map(|(v, state)| {
+                        let mut additional_columns = c.additional_columns.clone();
+                        additional_columns.push((&cache_key.column_name, v));
+                        ExtendedLastCacheState {
+                            state,
+                            additional_columns,
+                        }
+                    }));
                 }
             }
             caches = new_caches;
         }
 
-        caches.into_iter().map(|c| {
-            c.as_store().expect("caches should all be stores after iterating through all key column-mapped predicates").to_record_batch()
-        }).collect()
+        caches.into_iter().map(|c| c.to_record_batch()).collect()
     }
 
     fn convert_filter_exprs(&self, exprs: &[Expr]) -> Vec<Predicate> {
@@ -356,20 +374,20 @@ impl LastCache {
                             return match right.as_ref() {
                                 Expr::Literal(ScalarValue::Utf8(Some(v))) => Some(Predicate {
                                     key,
-                                    value: Some(KeyValue::String(v.to_owned())),
+                                    value: KeyValue::String(v.to_owned()),
                                 }),
                                 Expr::Literal(ScalarValue::Boolean(Some(v))) => Some(Predicate {
                                     key,
-                                    value: Some(KeyValue::Bool(*v)),
+                                    value: KeyValue::Bool(*v),
                                 }),
                                 // TODO: handle integer types that can be casted up to i64/u64:
                                 Expr::Literal(ScalarValue::Int64(Some(v))) => Some(Predicate {
                                     key,
-                                    value: Some(KeyValue::Int(*v)),
+                                    value: KeyValue::Int(*v),
                                 }),
                                 Expr::Literal(ScalarValue::UInt64(Some(v))) => Some(Predicate {
                                     key,
-                                    value: Some(KeyValue::UInt(*v)),
+                                    value: KeyValue::UInt(*v),
                                 }),
                                 _ => None,
                             };
@@ -386,15 +404,74 @@ impl LastCache {
     }
 }
 
+struct ExtendedLastCacheState<'a> {
+    state: &'a LastCacheState,
+    additional_columns: Vec<(&'a String, &'a KeyValue)>,
+}
+
+impl<'a> ExtendedLastCacheState<'a> {
+    fn to_record_batch(self) -> Result<RecordBatch, ArrowError> {
+        let store = self
+            .state
+            .as_store()
+            .expect("should only be calling to_record_batch when using a store");
+        let n = store.len();
+        let extended: Option<(Vec<FieldRef>, Vec<ArrayRef>)> = if self.additional_columns.is_empty()
+        {
+            None
+        } else {
+            Some(
+                self.additional_columns
+                    .into_iter()
+                    .map(|(name, value)| {
+                        let field = Arc::new(value.as_arrow_field(name));
+                        match value {
+                            KeyValue::String(v) => {
+                                let mut builder = StringBuilder::new();
+                                for _ in 0..n {
+                                    builder.append_value(&v);
+                                }
+                                (field, Arc::new(builder.finish()) as ArrayRef)
+                            }
+                            KeyValue::Int(v) => {
+                                let mut builder = Int64Builder::new();
+                                for _ in 0..n {
+                                    builder.append_value(*v);
+                                }
+                                (field, Arc::new(builder.finish()) as ArrayRef)
+                            }
+                            KeyValue::UInt(v) => {
+                                let mut builder = UInt64Builder::new();
+                                for _ in 0..n {
+                                    builder.append_value(*v);
+                                }
+                                (field, Arc::new(builder.finish()) as ArrayRef)
+                            }
+                            KeyValue::Bool(v) => {
+                                let mut builder = BooleanBuilder::new();
+                                for _ in 0..n {
+                                    builder.append_value(*v);
+                                }
+                                (field, Arc::new(builder.finish()) as ArrayRef)
+                            }
+                        }
+                    })
+                    .collect(),
+            )
+        };
+        store.to_record_batch(extended)
+    }
+}
+
 #[derive(Debug, Clone)]
 struct Predicate {
     key: String,
-    value: Option<KeyValue>,
+    value: KeyValue,
 }
 
 #[cfg(test)]
 impl Predicate {
-    fn new(key: impl Into<String>, value: Option<KeyValue>) -> Self {
+    fn new(key: impl Into<String>, value: KeyValue) -> Self {
         Self {
             key: key.into(),
             value,
@@ -403,21 +480,26 @@ impl Predicate {
 }
 
 enum LastCacheState {
+    Init,
     Key(LastCacheKey),
     Store(LastCacheStore),
 }
 
 impl LastCacheState {
+    fn is_init(&self) -> bool {
+        matches!(self, Self::Init)
+    }
+
     fn as_key(&self) -> Option<&LastCacheKey> {
         match self {
             LastCacheState::Key(key) => Some(key),
-            LastCacheState::Store(_) => None,
+            LastCacheState::Store(_) | LastCacheState::Init => None,
         }
     }
 
     fn as_store(&self) -> Option<&LastCacheStore> {
         match self {
-            LastCacheState::Key(_) => None,
+            LastCacheState::Key(_) | LastCacheState::Init => None,
             LastCacheState::Store(store) => Some(store),
         }
     }
@@ -425,13 +507,13 @@ impl LastCacheState {
     fn as_key_mut(&mut self) -> Option<&mut LastCacheKey> {
         match self {
             LastCacheState::Key(key) => Some(key),
-            LastCacheState::Store(_) => None,
+            LastCacheState::Store(_) | LastCacheState::Init => None,
         }
     }
 
     fn as_store_mut(&mut self) -> Option<&mut LastCacheStore> {
         match self {
-            LastCacheState::Key(_) => None,
+            LastCacheState::Key(_) | LastCacheState::Init => None,
             LastCacheState::Store(store) => Some(store),
         }
     }
@@ -440,13 +522,14 @@ impl LastCacheState {
         match self {
             LastCacheState::Key(k) => k.remove_expired(),
             LastCacheState::Store(s) => s.remove_expired(),
+            LastCacheState::Init => (),
         }
     }
 }
 
 struct LastCacheKey {
     column_name: String,
-    value_map: HashMap<Option<KeyValue>, LastCacheState>,
+    value_map: HashMap<KeyValue, LastCacheState>,
 }
 
 impl LastCacheKey {
@@ -482,6 +565,17 @@ impl KeyValue {
     }
 }
 
+impl KeyValue {
+    fn as_arrow_field(&self, name: impl Into<String>) -> ArrowField {
+        match self {
+            KeyValue::String(_) => ArrowField::new(name, DataType::Utf8, false),
+            KeyValue::Int(_) => ArrowField::new(name, DataType::Int64, false),
+            KeyValue::UInt(_) => ArrowField::new(name, DataType::UInt64, false),
+            KeyValue::Bool(_) => ArrowField::new(name, DataType::Boolean, false),
+        }
+    }
+}
+
 impl From<&FieldData> for KeyValue {
     fn from(field: &FieldData) -> Self {
         match field {
@@ -499,8 +593,15 @@ impl From<&FieldData> for KeyValue {
 
 /// Stores the last N values, as configured, for a given table in a database
 struct LastCacheStore {
-    schema: SchemaRef,
-    // use an IndexMap to preserve insertion order:
+    schema: ArrowSchemaRef,
+    /// A map of column name to a [`CacheColumn`] which holds the buffer of data for the column
+    /// in the cache.
+    ///
+    /// This uses an IndexMap to preserve insertion order, so that when producing record batches
+    /// the order of columns are accessed in the same order that they were inserted. Since they are
+    /// inserted in the same order that they appear in the arrow schema associated with the cache,
+    /// this allows record batch creation with a straight iteration through the map, vs. having
+    /// to look up columns on the fly to get the correct order.
     cache: IndexMap<String, CacheColumn>,
     // TODO: will need to use this if new columns are added for * caches
     _ttl: Duration,
@@ -509,7 +610,7 @@ struct LastCacheStore {
 
 impl LastCacheStore {
     /// Create a new [`LastCache`]
-    fn new(count: usize, ttl: Duration, schema: SchemaRef) -> Self {
+    fn new(count: usize, ttl: Duration, schema: ArrowSchemaRef) -> Self {
         let cache = schema
             .fields()
             .iter()
@@ -526,6 +627,10 @@ impl LastCacheStore {
             _ttl: ttl,
             last_time: Time::from_timestamp_nanos(0),
         }
+    }
+
+    fn len(&self) -> usize {
+        self.cache.first().map_or(0, |(_, c)| c.len())
     }
 
     /// Push a [`Row`] from the buffer into this cache
@@ -547,14 +652,24 @@ impl LastCacheStore {
     }
 
     /// Convert the contents of this cache into a arrow [`RecordBatch`]
-    fn to_record_batch(&self) -> Result<RecordBatch, ArrowError> {
-        RecordBatch::try_new(
-            Arc::clone(&self.schema),
-            // This is where using IndexMap is important, because we inserted the cache entries
-            // using the schema field ordering, we will get the correct order by iterating directly
-            // over the map here:
-            self.cache.iter().map(|(_, c)| c.data.as_array()).collect(),
-        )
+    fn to_record_batch(
+        &self,
+        extended: Option<(Vec<FieldRef>, Vec<ArrayRef>)>,
+    ) -> Result<RecordBatch, ArrowError> {
+        // This is where using IndexMap is important, because we inserted the cache entries
+        // using the schema field ordering, we will get the correct order by iterating directly
+        // over the map here:
+        let cache_arrays = self.cache.iter().map(|(_, c)| c.data.as_array());
+        let (schema, arrays) = if let Some((fields, mut arrays)) = extended {
+            let mut sb = ArrowSchemaBuilder::new();
+            sb.extend(fields.into_iter());
+            sb.extend(self.schema.fields().iter().map(|f| Arc::clone(f)));
+            arrays.extend(cache_arrays);
+            (Arc::new(sb.finish()), arrays)
+        } else {
+            (Arc::clone(&self.schema), cache_arrays.collect())
+        };
+        RecordBatch::try_new(schema, arrays)
     }
 
     fn remove_expired(&mut self) {
@@ -568,7 +683,7 @@ impl TableProvider for LastCache {
         self as &dyn Any
     }
 
-    fn schema(&self) -> SchemaRef {
+    fn schema(&self) -> ArrowSchemaRef {
         self.schema.as_arrow()
     }
 
@@ -618,6 +733,10 @@ impl CacheColumn {
             ttl,
             data: CacheColumnData::new(data_type, size),
         }
+    }
+
+    fn len(&self) -> usize {
+        self.data.len()
     }
 
     /// Push [`FieldData`] from the buffer into this column
@@ -817,7 +936,7 @@ mod tests {
     use std::sync::Arc;
 
     use ::object_store::{memory::InMemory, ObjectStore};
-    use arrow_util::assert_batches_eq;
+    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::NamespaceName;
     use iox_time::{MockProvider, Time};
 
@@ -829,12 +948,11 @@ mod tests {
         Bufferer, Precision, SegmentDuration,
     };
 
-    #[tokio::test]
-    async fn pick_up_latest_write() {
+    async fn setup_write_buffer() -> WriteBufferImpl<WalImpl, MockProvider> {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(PersisterImpl::new(obj_store));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let wbuf = WriteBufferImpl::new(
+        WriteBufferImpl::new(
             persister,
             Option::<Arc<WalImpl>>::None,
             time_provider,
@@ -843,10 +961,15 @@ mod tests {
             1000,
         )
         .await
-        .unwrap();
+        .unwrap()
+    }
 
+    #[tokio::test]
+    async fn pick_up_latest_write() {
         let db_name = "foo";
         let tbl_name = "cpu";
+
+        let wbuf = setup_write_buffer().await;
 
         // Do a write to update the catalog with a database and table:
         wbuf.write_lp(
@@ -882,7 +1005,7 @@ mod tests {
         .await
         .unwrap();
 
-        let predicates = &[Predicate::new("host", Some(KeyValue::string("a")))];
+        let predicates = &[Predicate::new("host", KeyValue::string("a"))];
 
         // Check what is in the last cache:
         let batch = wbuf
@@ -929,5 +1052,130 @@ mod tests {
             ],
             &batch
         );
+    }
+
+    #[tokio::test]
+    async fn cache_key_column_predicates() {
+        let db_name = "foo";
+        let tbl_name = "cpu";
+        let wbuf = setup_write_buffer().await;
+
+        // Do one write to update the catalog with a db and table:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "\
+                {tbl_name},region=us,host=a usage=100\n\
+                {tbl_name},region=us,host=b usage=80\n\
+                {tbl_name},region=us,host=c usage=60\n\
+                "
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(1_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Create the last cache with keys on all tag columns:
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            Some("cache"),
+            None,
+            None,
+            Some(vec!["region".to_string(), "host".to_string()]),
+            None,
+        )
+        .expect("create last cache");
+
+        // Write some lines to fill multiple keys in the cache:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "\
+                {tbl_name},region=us,host=a usage=100\n\
+                {tbl_name},region=us,host=b usage=80\n\
+                {tbl_name},region=us,host=c usage=60\n\
+                {tbl_name},region=ca,host=d usage=40\n\
+                {tbl_name},region=ca,host=e usage=20\n\
+                {tbl_name},region=ca,host=f usage=30\n\
+                "
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(1_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        struct TestCase<'a> {
+            predicates: &'a [Predicate],
+            expected: &'a [&'a str],
+        }
+
+        let test_cases = [
+            TestCase {
+                predicates: &[Predicate::new("region", KeyValue::string("us"))],
+                expected: &[
+                    "+------+-----------------------------+-------+",
+                    "| host | time                        | usage |",
+                    "+------+-----------------------------+-------+",
+                    "| a    | 1970-01-01T00:00:00.000001Z | 100.0 |",
+                    "| c    | 1970-01-01T00:00:00.000001Z | 60.0  |",
+                    "| b    | 1970-01-01T00:00:00.000001Z | 80.0  |",
+                    "+------+-----------------------------+-------+",
+                ],
+            },
+            TestCase {
+                predicates: &[Predicate::new("region", KeyValue::string("ca"))],
+                expected: &[
+                    "+------+-----------------------------+-------+",
+                    "| host | time                        | usage |",
+                    "+------+-----------------------------+-------+",
+                    "| d    | 1970-01-01T00:00:00.000001Z | 40.0  |",
+                    "| e    | 1970-01-01T00:00:00.000001Z | 20.0  |",
+                    "| f    | 1970-01-01T00:00:00.000001Z | 30.0  |",
+                    "+------+-----------------------------+-------+",
+                ],
+            },
+            TestCase {
+                predicates: &[Predicate::new("host", KeyValue::string("a"))],
+                expected: &[
+                    "+-----------------------------+-------+",
+                    "| time                        | usage |",
+                    "+-----------------------------+-------+",
+                    "| 1970-01-01T00:00:00.000001Z | 100.0 |",
+                    "+-----------------------------+-------+",
+                ],
+            },
+            TestCase {
+                predicates: &[],
+                expected: &[
+                    "+--------+------+-----------------------------+-------+",
+                    "| region | host | time                        | usage |",
+                    "+--------+------+-----------------------------+-------+",
+                    "| ca     | d    | 1970-01-01T00:00:00.000001Z | 40.0  |",
+                    "| ca     | e    | 1970-01-01T00:00:00.000001Z | 20.0  |",
+                    "| ca     | f    | 1970-01-01T00:00:00.000001Z | 30.0  |",
+                    "| us     | a    | 1970-01-01T00:00:00.000001Z | 100.0 |",
+                    "| us     | b    | 1970-01-01T00:00:00.000001Z | 80.0  |",
+                    "| us     | c    | 1970-01-01T00:00:00.000001Z | 60.0  |",
+                    "+--------+------+-----------------------------+-------+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let batches = wbuf
+                .last_cache()
+                .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
+                .unwrap()
+                .unwrap();
+
+            assert_batches_sorted_eq!(t.expected, &batches);
+        }
     }
 }
