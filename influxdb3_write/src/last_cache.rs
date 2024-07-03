@@ -1,4 +1,4 @@
-use std::{any::Any, collections::VecDeque, sync::Arc};
+use std::{any::Any, collections::VecDeque, sync::Arc, time::Duration};
 
 use arrow::{
     array::{
@@ -16,11 +16,11 @@ use datafusion::{
     logical_expr::{Expr, TableProviderFilterPushDown},
     physical_plan::{memory::MemoryExec, ExecutionPlan},
 };
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use indexmap::IndexMap;
 use iox_time::Time;
 use parking_lot::RwLock;
-use schema::TIME_COLUMN_NAME;
+use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder, TIME_COLUMN_NAME};
 
 use crate::{
     catalog::LastCacheSize,
@@ -33,14 +33,18 @@ pub enum Error {
     InvalidCacheSize,
     #[error("last cache already exists for database and table")]
     CacheAlreadyExists,
+    #[error("specified key column ({column_name}) does not exist in the table schema")]
+    KeyColumnDoesNotExist { column_name: String },
+    #[error("key column must be string, int, uint, or bool types")]
+    InvalidKeyColumn,
+    #[error("specified value column ({column_name}) does not exist in the table schema")]
+    ValueColumnDoesNotExist { column_name: String },
+    #[error("schema builder error: {0}")]
+    SchemaBuilderError(#[from] schema::builder::Error),
 }
 
-/// A two level hashmap storing Database Name -> Table Name -> LastCache
-///
-/// There are two lock levels, one at the top and one at the bottom:
-/// - Top: lock the entire cache for creating new entries
-/// - Bottom: lock an individual cache for pushing in new data
-type CacheMap = RwLock<HashMap<String, HashMap<String, LastCache>>>;
+/// A three level hashmap storing Database Name -> Table Name -> Cache Name -> LastCache
+type CacheMap = RwLock<HashMap<String, HashMap<String, HashMap<String, LastCache>>>>;
 
 pub struct LastCacheProvider {
     cache_map: CacheMap,
@@ -52,6 +56,9 @@ impl std::fmt::Debug for LastCacheProvider {
     }
 }
 
+/// The default cache time-to-live (TTL) is 4 hours
+const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(60 * 60 * 4);
+
 impl LastCacheProvider {
     /// Create a new [`LastCacheProvider`]
     pub(crate) fn new() -> Self {
@@ -60,38 +67,19 @@ impl LastCacheProvider {
         }
     }
 
-    /// Output the records for a given cache as arrow [`RecordBatch`]es
-    #[cfg(test)]
-    pub(crate) fn get_cache_record_batches<D, T>(
-        &self,
-        db_name: D,
-        tbl_name: T,
-    ) -> Option<Result<RecordBatch, ArrowError>>
-    where
-        D: AsRef<str>,
-        T: AsRef<str>,
-    {
-        self.cache_map
-            .read()
-            .get(db_name.as_ref())
-            .and_then(|db| db.get(tbl_name.as_ref()))
-            .map(|lc| lc.to_record_batch())
-    }
-
     /// Create a new entry in the last cache for a given database and table, along with the given
     /// parameters.
-    pub(crate) fn create_cache<D, T>(
+    pub(crate) fn create_cache(
         &self,
-        db_name: D,
-        tbl_name: T,
-        count: usize,
-        key_columns: impl IntoIterator<Item: Into<String>>,
-        schema: SchemaRef,
-    ) -> Result<(), Error>
-    where
-        D: Into<String>,
-        T: Into<String>,
-    {
+        db_name: String,
+        tbl_name: String,
+        schema: Schema,
+        cache_name: Option<String>,
+        count: Option<usize>,
+        ttl: Option<Duration>,
+        key_columns: Option<Vec<String>>,
+        value_columns: Option<Vec<String>>,
+    ) -> Result<(), Error> {
         let db_name = db_name.into();
         let tbl_name = tbl_name.into();
         if self
@@ -102,12 +90,93 @@ impl LastCacheProvider {
         {
             return Err(Error::CacheAlreadyExists);
         }
-        let last_cache = LastCache::new(count, key_columns, schema)?;
+        let key_columns = if let Some(keys) = key_columns {
+            // validate the key columns specified to ensure correct type (string, int, unit, or bool)
+            for key in keys.iter() {
+                use InfluxColumnType::*;
+                use InfluxFieldType::*;
+                match schema.field_by_name(key) {
+                    Some((
+                        Tag | Field(Integer) | Field(UInteger) | Field(String) | Field(Boolean),
+                        _,
+                    )) => (),
+                    Some((_, _)) => return Err(Error::InvalidKeyColumn),
+                    None => {
+                        return Err(Error::KeyColumnDoesNotExist {
+                            column_name: key.into(),
+                        })
+                    }
+                }
+            }
+            keys
+        } else {
+            // use primary key, which defaults to series key if present, then lexicographically
+            // ordered tags otherwise, there is no user-defined sort order in the schema, so if that
+            // is introduced, we will need to make sure that is accommodated here.
+            let mut keys = schema.primary_key();
+            if let Some(&TIME_COLUMN_NAME) = keys.last() {
+                keys.pop();
+            }
+            keys.iter().map(|s| s.to_string()).collect()
+        };
+
+        let cache_name = cache_name.unwrap_or_else(|| {
+            format!("{tbl_name}_{keys}_last_cache", keys = key_columns.join("_"))
+        });
+
+        let value_columns = if let Some(mut vals) = value_columns {
+            for name in vals.iter() {
+                if schema.field_by_name(name).is_none() {
+                    return Err(Error::ValueColumnDoesNotExist {
+                        column_name: name.into(),
+                    });
+                }
+            }
+            let time_col = TIME_COLUMN_NAME.to_string();
+            if !vals.contains(&time_col) {
+                vals.push(time_col);
+            }
+            vals
+        } else {
+            schema
+                .iter()
+                .filter_map(|(_, f)| {
+                    if key_columns.contains(f.name()) {
+                        None
+                    } else {
+                        Some(f.name().to_string())
+                    }
+                })
+                .collect::<Vec<String>>()
+        };
+
+        let mut schema_builder = SchemaBuilder::new();
+        for (t, name) in schema
+            .iter()
+            .filter_map(|(t, f)| value_columns.contains(f.name()).then(|| (t, f.name())))
+        {
+            schema_builder.influx_column(name, t);
+        }
+
+        let last_cache = LastCache::new(
+            count
+                .unwrap_or(1)
+                .try_into()
+                .map_err(|_| Error::InvalidCacheSize)?,
+            ttl.unwrap_or(DEFAULT_CACHE_TTL),
+            key_columns.into(),
+            value_columns.into(),
+            schema_builder.build()?,
+        );
+
         self.cache_map
             .write()
             .entry(db_name)
             .or_default()
-            .insert(tbl_name, last_cache);
+            .entry(tbl_name)
+            .or_default()
+            .insert(cache_name, last_cache);
+
         Ok(())
     }
 
@@ -116,56 +185,289 @@ impl LastCacheProvider {
     ///
     /// Only if rows are newer than the latest entry in the cache will they be entered.
     pub(crate) fn write_batch_to_cache(&self, write_batch: &WriteBatch) {
+        if self.cache_map.read().is_empty() {
+            return;
+        }
+        let mut cache_map = self.cache_map.write();
         for (db_name, db_batch) in &write_batch.database_batches {
-            for (tbl_name, tbl_batch) in &db_batch.table_batches {
-                if let Some(db) = self.cache_map.write().get_mut(db_name.as_str()) {
-                    if let Some(lc) = db.get_mut(tbl_name) {
-                        for row in &tbl_batch.rows {
-                            lc.push(row);
+            if let Some(db_cache) = cache_map.get_mut(db_name.as_str()) {
+                if db_cache.is_empty() {
+                    continue;
+                }
+                for (tbl_name, tbl_batch) in &db_batch.table_batches {
+                    if let Some(tbl_cache) = db_cache.get_mut(tbl_name) {
+                        if tbl_cache.is_empty() {
+                            continue;
+                        }
+                        for (_, last_cache) in tbl_cache.iter_mut() {
+                            for row in &tbl_batch.rows {
+                                last_cache.push(row);
+                            }
                         }
                     }
                 }
             }
         }
     }
+
+    /// Output the records for a given cache as arrow [`RecordBatch`]es
+    #[cfg(test)]
+    pub(crate) fn get_cache_record_batches(
+        &self,
+        db_name: &str,
+        tbl_name: &str,
+        cache_name: Option<&str>,
+        predicates: &[Predicate],
+    ) -> Option<Result<Vec<RecordBatch>, ArrowError>> {
+        self.cache_map
+            .read()
+            .get(db_name)
+            .and_then(|db| db.get(tbl_name))
+            .and_then(|tbl| {
+                if let Some(name) = cache_name {
+                    tbl.get(name)
+                } else if tbl.len() == 1 {
+                    tbl.iter().next().map(|(_, lc)| lc)
+                } else {
+                    None
+                }
+            })
+            .map(|lc| lc.to_record_batches(predicates))
+    }
 }
 
-/// Stores the last N values, as configured, for a given table in a database
 pub(crate) struct LastCache {
-    // TODO: not sure if this is needed, given the individual columns track their size
-    _count: LastCacheSize,
-    // TODO: use for filter predicates
-    _key_columns: HashSet<String>,
-    schema: SchemaRef,
-    // use an IndexMap to preserve insertion order:
-    cache: IndexMap<String, CacheColumn>,
-    last_time: Time,
+    count: LastCacheSize,
+    ttl: Duration,
+    key_columns: Vec<String>,
+    value_columns: Vec<String>,
+    schema: Schema,
+    state: LastCacheState,
 }
 
 impl LastCache {
+    fn new(
+        count: LastCacheSize,
+        ttl: Duration,
+        key_columns: Vec<String>,
+        value_columns: Vec<String>,
+        schema: Schema,
+    ) -> Self {
+        let mut state =
+            LastCacheState::Store(LastCacheStore::new(count.into(), ttl, schema.as_arrow()));
+        for column_name in key_columns.iter().cloned().rev() {
+            state = LastCacheState::Key(LastCacheKey {
+                column_name,
+                value_map: [(None, state)].into(),
+            });
+        }
+        Self {
+            count,
+            ttl,
+            key_columns,
+            value_columns,
+            schema,
+            state,
+        }
+    }
+
+    pub(crate) fn push(&mut self, row: &Row) {
+        let mut target = &mut self.state;
+        let mut key_iter = self.key_columns.iter().peekable();
+        while let (Some(key), peek) = (key_iter.next(), key_iter.peek()) {
+            let value = row
+                .fields
+                .iter()
+                .find(|f| f.name == *key)
+                .map(|f| KeyValue::from(&f.value));
+            let cache_key = target.as_key_mut().unwrap();
+            assert_eq!(
+                &cache_key.column_name, key,
+                "key columns must match cache key order"
+            );
+            target = cache_key.value_map.entry(value).or_insert_with(|| {
+                if let Some(next_key) = peek {
+                    LastCacheState::Key(LastCacheKey {
+                        column_name: next_key.to_string(),
+                        value_map: Default::default(),
+                    })
+                } else {
+                    LastCacheState::Store(LastCacheStore::new(
+                        self.count.into(),
+                        self.ttl,
+                        self.schema.as_arrow(),
+                    ))
+                }
+            });
+        }
+        target
+            .as_store_mut()
+            .expect(
+                "cache target should be the actual store after iterating through all key columns",
+            )
+            .push(row);
+    }
+
+    pub(crate) fn to_record_batches(
+        &self,
+        predicates: &[Predicate],
+    ) -> Result<Vec<RecordBatch>, ArrowError> {
+        // map the provided predicates on to the key columns
+        // there may not be predicates provided for each key column, hence the Option
+        let predicates: Vec<Option<Predicate>> = self
+            .key_columns
+            .iter()
+            .map(|key| predicates.iter().find(|p| p.key == *key).cloned())
+            .collect();
+
+        let mut caches = vec![&self.state];
+        let mut predicate_iter = predicates.into_iter();
+
+        while let Some(predicate) = predicate_iter.next() {
+            if caches.is_empty() {
+                return Ok(vec![]);
+            }
+            let mut new_caches = vec![];
+            for c in caches.iter() {
+                let cache_key = c.as_key().unwrap();
+                if let Some(ref pred) = predicate {
+                    if let Some(next_state) = cache_key.evaluate_predicate(pred) {
+                        new_caches.push(next_state);
+                    }
+                } else {
+                    new_caches.extend(cache_key.value_map.iter().map(|(_, s)| s));
+                }
+            }
+            caches = new_caches;
+        }
+
+        caches.into_iter().map(|c| {
+            c.as_store().expect("caches should all be stores after iterating through all key column-mapped predicates").to_record_batch()
+        }).collect()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct Predicate {
+    key: String,
+    value: Option<KeyValue>,
+}
+
+#[cfg(test)]
+impl Predicate {
+    fn new(key: impl Into<String>, value: Option<KeyValue>) -> Self {
+        Self {
+            key: key.into(),
+            value,
+        }
+    }
+}
+
+pub(crate) enum LastCacheState {
+    Key(LastCacheKey),
+    Store(LastCacheStore),
+}
+
+impl LastCacheState {
+    fn as_key(&self) -> Option<&LastCacheKey> {
+        match self {
+            LastCacheState::Key(key) => Some(key),
+            LastCacheState::Store(_) => None,
+        }
+    }
+
+    fn as_store(&self) -> Option<&LastCacheStore> {
+        match self {
+            LastCacheState::Key(_) => None,
+            LastCacheState::Store(store) => Some(store),
+        }
+    }
+
+    fn as_key_mut(&mut self) -> Option<&mut LastCacheKey> {
+        match self {
+            LastCacheState::Key(key) => Some(key),
+            LastCacheState::Store(_) => None,
+        }
+    }
+
+    fn as_store_mut(&mut self) -> Option<&mut LastCacheStore> {
+        match self {
+            LastCacheState::Key(_) => None,
+            LastCacheState::Store(store) => Some(store),
+        }
+    }
+}
+
+pub(crate) struct LastCacheKey {
+    column_name: String,
+    value_map: HashMap<Option<KeyValue>, LastCacheState>,
+}
+
+impl LastCacheKey {
+    fn evaluate_predicate(&self, predicate: &Predicate) -> Option<&LastCacheState> {
+        self.value_map.get(&predicate.value)
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub(crate) enum KeyValue {
+    String(String),
+    Int(i64),
+    UInt(u64),
+    Bool(bool),
+}
+
+#[cfg(test)]
+impl KeyValue {
+    fn string(s: impl Into<String>) -> Self {
+        Self::String(s.into())
+    }
+}
+
+impl From<&FieldData> for KeyValue {
+    fn from(field: &FieldData) -> Self {
+        match field {
+            FieldData::Key(s) | FieldData::Tag(s) | FieldData::String(s) => {
+                Self::String(s.to_owned())
+            }
+            FieldData::Integer(i) => Self::Int(*i),
+            FieldData::UInteger(u) => Self::UInt(*u),
+            FieldData::Boolean(b) => Self::Bool(*b),
+            FieldData::Timestamp(_) => panic!("unexpected time stamp as key value"),
+            FieldData::Float(_) => panic!("unexpected float as key value"),
+        }
+    }
+}
+
+/// Stores the last N values, as configured, for a given table in a database
+pub(crate) struct LastCacheStore {
+    schema: SchemaRef,
+    // use an IndexMap to preserve insertion order:
+    cache: IndexMap<String, CacheColumn>,
+    // TODO: use the TTL to evict old cache values
+    ttl: Duration,
+    last_time: Time,
+}
+
+impl LastCacheStore {
     /// Create a new [`LastCache`]
-    pub(crate) fn new(
-        count: usize,
-        key_columns: impl IntoIterator<Item: Into<String>>,
-        schema: SchemaRef,
-    ) -> Result<Self, Error> {
+    pub(crate) fn new(count: usize, ttl: Duration, schema: SchemaRef) -> Self {
         let cache = schema
             .fields()
             .iter()
             .map(|f| (f.name().to_string(), CacheColumn::new(f.data_type(), count)))
             .collect();
-        Ok(Self {
-            _count: count.try_into().map_err(|_| Error::InvalidCacheSize)?,
-            _key_columns: key_columns.into_iter().map(Into::into).collect(),
+        Self {
             schema,
             cache,
+            ttl,
             last_time: Time::from_timestamp_nanos(0),
-        })
+        }
     }
 
     /// Push a [`Row`] from the buffer into this cache
     pub(crate) fn push(&mut self, row: &Row) {
-        if row.time < self.last_time.timestamp_nanos() {
+        if row.time <= self.last_time.timestamp_nanos() {
             return;
         }
         let time_col = self
@@ -194,7 +496,7 @@ impl LastCache {
 }
 
 #[async_trait]
-impl TableProvider for LastCache {
+impl TableProvider for LastCacheStore {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -400,8 +702,11 @@ mod tests {
     use iox_time::{MockProvider, Time};
 
     use crate::{
-        persister::PersisterImpl, wal::WalImpl, write_buffer::WriteBufferImpl, Bufferer, Precision,
-        SegmentDuration,
+        last_cache::{KeyValue, Predicate},
+        persister::PersisterImpl,
+        wal::WalImpl,
+        write_buffer::WriteBufferImpl,
+        Bufferer, Precision, SegmentDuration,
     };
 
     #[tokio::test]
@@ -435,8 +740,16 @@ mod tests {
         .unwrap();
 
         // Create the last cache:
-        wbuf.create_last_cache(db_name, tbl_name, 1, ["host"])
-            .expect("create the last cache");
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            Some("cache"),
+            None,
+            None,
+            Some(vec!["host".to_string()]),
+            None,
+        )
+        .expect("create the last cache");
 
         // Do a write to update the last cache:
         wbuf.write_lp(
@@ -449,22 +762,24 @@ mod tests {
         .await
         .unwrap();
 
+        let predicates = &[Predicate::new("host", Some(KeyValue::string("a")))];
+
         // Check what is in the last cache:
         let batch = wbuf
             .last_cache()
-            .get_cache_record_batches(db_name, tbl_name)
+            .get_cache_record_batches(db_name, tbl_name, None, predicates)
             .unwrap()
             .unwrap();
 
         assert_batches_eq!(
             [
-                "+------+--------+-----------------------------+-------+",
-                "| host | region | time                        | usage |",
-                "+------+--------+-----------------------------+-------+",
-                "| a    | us     | 1970-01-01T00:00:00.000002Z | 99.0  |",
-                "+------+--------+-----------------------------+-------+",
+                "+--------+-----------------------------+-------+",
+                "| region | time                        | usage |",
+                "+--------+-----------------------------+-------+",
+                "| us     | 1970-01-01T00:00:00.000002Z | 99.0  |",
+                "+--------+-----------------------------+-------+",
             ],
-            &[batch]
+            &batch
         );
 
         // Do another write and see that the cache only holds the latest value:
@@ -480,19 +795,19 @@ mod tests {
 
         let batch = wbuf
             .last_cache()
-            .get_cache_record_batches(db_name, tbl_name)
+            .get_cache_record_batches(db_name, tbl_name, None, predicates)
             .unwrap()
             .unwrap();
 
         assert_batches_eq!(
             [
-                "+------+--------+-----------------------------+-------+",
-                "| host | region | time                        | usage |",
-                "+------+--------+-----------------------------+-------+",
-                "| a    | us     | 1970-01-01T00:00:00.000003Z | 88.0  |",
-                "+------+--------+-----------------------------+-------+",
+                "+--------+-----------------------------+-------+",
+                "| region | time                        | usage |",
+                "+--------+-----------------------------+-------+",
+                "| us     | 1970-01-01T00:00:00.000003Z | 88.0  |",
+                "+--------+-----------------------------+-------+",
             ],
-            &[batch]
+            &batch
         );
     }
 }

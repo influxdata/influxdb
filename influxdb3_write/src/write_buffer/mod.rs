@@ -44,6 +44,7 @@ use parquet_file::storage::ParquetExecInput;
 use schema::Schema;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::watch;
 
@@ -405,20 +406,38 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         &self,
         db_name: impl Into<String>,
         tbl_name: impl Into<String>,
-        count: usize,
-        key_columns: impl IntoIterator<Item: Into<String>>,
+        cache_name: Option<impl Into<String>>,
+        count: Option<usize>,
+        ttl: Option<Duration>,
+        key_columns: Option<Vec<String>>,
+        value_columns: Option<Vec<String>>,
     ) -> Result<(), Error> {
         let db_name = db_name.into();
         let tbl_name = tbl_name.into();
+        let cache_name = cache_name.map(Into::into);
+        let key_columns =
+            key_columns.map(|kc| kc.into_iter().map(Into::into).collect::<Vec<String>>());
+        let value_columns =
+            value_columns.map(|vc| vc.into_iter().map(Into::into).collect::<Vec<String>>());
         let db_schema = self
             .catalog()
             .db_schema(&db_name)
             .ok_or(Error::DbDoesNotExist)?;
         let schema = db_schema
             .get_table_schema(&tbl_name)
-            .ok_or(Error::TableDoesNotExist)?;
+            .ok_or(Error::TableDoesNotExist)?
+            .clone();
         self.last_cache
-            .create_cache(db_name, tbl_name, count, key_columns, schema.as_arrow())
+            .create_cache(
+                db_name,
+                tbl_name,
+                schema,
+                cache_name,
+                count,
+                ttl,
+                key_columns,
+                value_columns,
+            )
             .map_err(Into::into)
     }
 
