@@ -340,7 +340,7 @@ impl LastCache {
                     if let Some(next_state) = cache_key.evaluate_predicate(pred) {
                         new_caches.push(ExtendedLastCacheState {
                             state: next_state,
-                            additional_columns: vec![],
+                            additional_columns: c.additional_columns.clone(),
                         });
                     }
                 } else {
@@ -404,6 +404,7 @@ impl LastCache {
     }
 }
 
+#[derive(Debug)]
 struct ExtendedLastCacheState<'a> {
     state: &'a LastCacheState,
     additional_columns: Vec<(&'a String, &'a KeyValue)>,
@@ -479,6 +480,7 @@ impl Predicate {
     }
 }
 
+#[derive(Debug)]
 enum LastCacheState {
     Init,
     Key(LastCacheKey),
@@ -527,6 +529,7 @@ impl LastCacheState {
     }
 }
 
+#[derive(Debug)]
 struct LastCacheKey {
     column_name: String,
     value_map: HashMap<KeyValue, LastCacheState>,
@@ -592,6 +595,7 @@ impl From<&FieldData> for KeyValue {
 }
 
 /// Stores the last N values, as configured, for a given table in a database
+#[derive(Debug)]
 struct LastCacheStore {
     schema: ArrowSchemaRef,
     /// A map of column name to a [`CacheColumn`] which holds the buffer of data for the column
@@ -719,6 +723,7 @@ impl TableProvider for LastCache {
 /// A column in a [`LastCache`]
 ///
 /// Stores its size so it can evict old data on push.
+#[derive(Debug)]
 struct CacheColumn {
     size: usize,
     ttl: Duration,
@@ -1054,6 +1059,21 @@ mod tests {
         );
     }
 
+    /// Test to ensure that predicates on caches that contain multiple
+    /// key columns work as expected.
+    ///
+    /// When a cache contains multiple key columns, if only a subset, or none of those key columns
+    /// are used as predicates, then the remaining key columns, along with their respective values,
+    /// will be returned in the query output.
+    ///
+    /// For example, give the key columns 'region' and 'host', along with the following query:
+    ///
+    /// ```sql
+    /// SELECT * FROM last_cache('cpu') WHERE region = 'us-east';
+    /// ```
+    ///
+    /// We expect that the query result will include a `host` column, to delineate rows associated
+    /// with different host values in the cache.
     #[tokio::test]
     async fn cache_key_column_predicates() {
         let db_name = "foo";
@@ -1063,15 +1083,8 @@ mod tests {
         // Do one write to update the catalog with a db and table:
         wbuf.write_lp(
             NamespaceName::new(db_name).unwrap(),
-            format!(
-                "\
-                {tbl_name},region=us,host=a usage=100\n\
-                {tbl_name},region=us,host=b usage=80\n\
-                {tbl_name},region=us,host=c usage=60\n\
-                "
-            )
-            .as_str(),
-            Time::from_timestamp_nanos(1_000),
+            format!("{tbl_name},region=us,host=a usage=1").as_str(),
+            Time::from_timestamp_nanos(500),
             false,
             Precision::Nanosecond,
         )
@@ -1117,6 +1130,22 @@ mod tests {
         }
 
         let test_cases = [
+            // Predicate including both key columns only produces value columns from the cache
+            TestCase {
+                predicates: &[
+                    Predicate::new("region", KeyValue::string("us")),
+                    Predicate::new("host", KeyValue::string("c")),
+                ],
+                expected: &[
+                    "+-----------------------------+-------+",
+                    "| time                        | usage |",
+                    "+-----------------------------+-------+",
+                    "| 1970-01-01T00:00:00.000001Z | 60.0  |",
+                    "+-----------------------------+-------+",
+                ],
+            },
+            // Predicate on only region key column will have host column outputted in addition to
+            // the value columns:
             TestCase {
                 predicates: &[Predicate::new("region", KeyValue::string("us"))],
                 expected: &[
@@ -1129,6 +1158,7 @@ mod tests {
                     "+------+-----------------------------+-------+",
                 ],
             },
+            // Similar to previous, with a different region predicate:
             TestCase {
                 predicates: &[Predicate::new("region", KeyValue::string("ca"))],
                 expected: &[
@@ -1141,16 +1171,20 @@ mod tests {
                     "+------+-----------------------------+-------+",
                 ],
             },
+            // Predicate on only host key column will have region column outputted in addition to
+            // the value columns:
             TestCase {
                 predicates: &[Predicate::new("host", KeyValue::string("a"))],
                 expected: &[
-                    "+-----------------------------+-------+",
-                    "| time                        | usage |",
-                    "+-----------------------------+-------+",
-                    "| 1970-01-01T00:00:00.000001Z | 100.0 |",
-                    "+-----------------------------+-------+",
+                    "+--------+-----------------------------+-------+",
+                    "| region | time                        | usage |",
+                    "+--------+-----------------------------+-------+",
+                    "| us     | 1970-01-01T00:00:00.000001Z | 100.0 |",
+                    "+--------+-----------------------------+-------+",
                 ],
             },
+            // Omitting all key columns from the predicate will have all key columns included in
+            // the query result:
             TestCase {
                 predicates: &[],
                 expected: &[
