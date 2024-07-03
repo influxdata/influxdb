@@ -402,6 +402,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         Ok(self.parquet_cache.purge_cache().await?)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn create_last_cache(
         &self,
         db_name: impl Into<String>,
@@ -415,10 +416,6 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         let db_name = db_name.into();
         let tbl_name = tbl_name.into();
         let cache_name = cache_name.map(Into::into);
-        let key_columns =
-            key_columns.map(|kc| kc.into_iter().map(Into::into).collect::<Vec<String>>());
-        let value_columns =
-            value_columns.map(|vc| vc.into_iter().map(Into::into).collect::<Vec<String>>());
         let db_schema = self
             .catalog()
             .db_schema(&db_name)

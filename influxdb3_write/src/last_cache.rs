@@ -50,7 +50,7 @@ pub enum Error {
     #[error("specified value column ({column_name}) does not exist in the table schema")]
     ValueColumnDoesNotExist { column_name: String },
     #[error("schema builder error: {0}")]
-    SchemaBuilderError(#[from] schema::builder::Error),
+    SchemaBuilder(#[from] schema::builder::Error),
 }
 
 /// A three level hashmap storing Database Name -> Table Name -> Cache Name -> LastCache
@@ -79,6 +79,7 @@ impl LastCacheProvider {
 
     /// Create a new entry in the last cache for a given database and table, along with the given
     /// parameters.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_cache(
         &self,
         db_name: String,
@@ -90,8 +91,6 @@ impl LastCacheProvider {
         key_columns: Option<Vec<String>>,
         value_columns: Option<Vec<String>>,
     ) -> Result<(), Error> {
-        let db_name = db_name.into();
-        let tbl_name = tbl_name.into();
         if self
             .cache_map
             .read()
@@ -163,7 +162,8 @@ impl LastCacheProvider {
         let mut schema_builder = SchemaBuilder::new();
         for (t, name) in schema
             .iter()
-            .filter_map(|(t, f)| value_columns.contains(f.name()).then(|| (t, f.name())))
+            .filter(|&(_, f)| value_columns.contains(f.name()))
+            .map(|(t, f)| (t, f.name()))
         {
             schema_builder.influx_column(name, t);
         }
@@ -174,7 +174,7 @@ impl LastCacheProvider {
                 .try_into()
                 .map_err(|_| Error::InvalidCacheSize)?,
             ttl.unwrap_or(DEFAULT_CACHE_TTL),
-            key_columns.into(),
+            key_columns,
             schema_builder.build()?,
         );
 
@@ -411,7 +411,7 @@ struct ExtendedLastCacheState<'a> {
 }
 
 impl<'a> ExtendedLastCacheState<'a> {
-    fn to_record_batch(self) -> Result<RecordBatch, ArrowError> {
+    fn to_record_batch(&self) -> Result<RecordBatch, ArrowError> {
         let store = self
             .state
             .as_store()
@@ -423,14 +423,14 @@ impl<'a> ExtendedLastCacheState<'a> {
         } else {
             Some(
                 self.additional_columns
-                    .into_iter()
+                    .iter()
                     .map(|(name, value)| {
-                        let field = Arc::new(value.as_arrow_field(name));
+                        let field = Arc::new(value.as_arrow_field(*name));
                         match value {
                             KeyValue::String(v) => {
                                 let mut builder = StringBuilder::new();
                                 for _ in 0..n {
-                                    builder.append_value(&v);
+                                    builder.append_value(v);
                                 }
                                 (field, Arc::new(builder.finish()) as ArrayRef)
                             }
@@ -666,8 +666,8 @@ impl LastCacheStore {
         let cache_arrays = self.cache.iter().map(|(_, c)| c.data.as_array());
         let (schema, arrays) = if let Some((fields, mut arrays)) = extended {
             let mut sb = ArrowSchemaBuilder::new();
-            sb.extend(fields.into_iter());
-            sb.extend(self.schema.fields().iter().map(|f| Arc::clone(f)));
+            sb.extend(fields);
+            sb.extend(self.schema.fields().iter().map(Arc::clone));
             arrays.extend(cache_arrays);
             (Arc::new(sb.finish()), arrays)
         } else {
