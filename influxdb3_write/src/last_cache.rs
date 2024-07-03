@@ -451,6 +451,12 @@ struct LastCacheKey {
 
 impl LastCacheKey {
     fn evaluate_predicate(&self, predicate: &Predicate) -> Option<&LastCacheState> {
+        if predicate.key != self.column_name {
+            panic!(
+                "attempted to evaluate unexpected predicate with key {} for column named {}",
+                predicate.key, self.column_name
+            );
+        }
         self.value_map.get(&predicate.value)
     }
 
