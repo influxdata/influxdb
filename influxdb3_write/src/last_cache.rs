@@ -307,6 +307,14 @@ impl LastCache {
                 }
             });
         }
+        // If there are no key columns we still need to initialize the state the first time:
+        if target.is_init() {
+            *target = LastCacheState::Store(LastCacheStore::new(
+                self.count.into(),
+                self.ttl,
+                self.schema.as_arrow(),
+            ));
+        }
         target
             .as_store_mut()
             .expect(
@@ -334,15 +342,16 @@ impl LastCache {
                 return Ok(vec![]);
             }
             let mut new_caches = vec![];
-            for c in caches {
+            'cache_loop: for c in caches {
                 let cache_key = c.state.as_key().unwrap();
                 if let Some(ref pred) = predicate {
-                    if let Some(next_state) = cache_key.evaluate_predicate(pred) {
-                        new_caches.push(ExtendedLastCacheState {
-                            state: next_state,
-                            additional_columns: c.additional_columns.clone(),
-                        });
-                    }
+                    let Some(next_state) = cache_key.evaluate_predicate(pred) else {
+                        continue 'cache_loop;
+                    };
+                    new_caches.push(ExtendedLastCacheState {
+                        state: next_state,
+                        additional_columns: c.additional_columns.clone(),
+                    });
                 } else {
                     new_caches.extend(cache_key.value_map.iter().map(|(v, state)| {
                         let mut additional_columns = c.additional_columns.clone();
