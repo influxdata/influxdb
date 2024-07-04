@@ -1661,4 +1661,135 @@ mod tests {
             assert_batches_sorted_eq!(t.expected, &batches);
         }
     }
+
+    #[tokio::test]
+    async fn series_key_as_default_cache() {
+        let db_name = "windmills";
+        let tbl_name = "wind_speed";
+        let wbuf = setup_write_buffer().await;
+
+        // Do one write to update the catalog with a db and table:
+        wbuf.write_lp_v3(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name} state/ca/county/napa/farm/10-01 speed=60").as_str(),
+            Time::from_timestamp_nanos(500),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Create the last cache with keys on some field columns:
+        wbuf.create_last_cache(db_name, tbl_name, Some("cache"), None, None, None, None)
+            .expect("create last cache");
+
+        // Write some lines to fill the cache:
+        wbuf.write_lp_v3(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "\
+                {tbl_name} state/ca/county/napa/farm/10-01 speed=50\n\
+                {tbl_name} state/ca/county/napa/farm/10-02 speed=49\n\
+                {tbl_name} state/ca/county/orange/farm/20-01 speed=40\n\
+                {tbl_name} state/ca/county/orange/farm/20-02 speed=33\n\
+                {tbl_name} state/ca/county/yolo/farm/30-01 speed=62\n\
+                {tbl_name} state/ca/county/nevada/farm/40-01 speed=66\n\
+                "
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(1_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        struct TestCase<'a> {
+            predicates: &'a [Predicate],
+            expected: &'a [&'a str],
+        }
+
+        let test_cases = [
+            // No predicates yields everything in the cache
+            TestCase {
+                predicates: &[],
+                expected: &[
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| state | county | farm  | speed | time                        |",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| ca    | napa   | 10-01 | 50.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | napa   | 10-02 | 49.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | nevada | 40-01 | 66.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | orange | 20-01 | 40.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | orange | 20-02 | 33.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | yolo   | 30-01 | 62.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                ],
+            },
+            // Predicate on state column, which is part of the series key:
+            TestCase {
+                predicates: &[Predicate::new("state", KeyValue::string("ca"))],
+                expected: &[
+                    "+--------+-------+-------+-----------------------------+",
+                    "| county | farm  | speed | time                        |",
+                    "+--------+-------+-------+-----------------------------+",
+                    "| napa   | 10-01 | 50.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| napa   | 10-02 | 49.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| nevada | 40-01 | 66.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| orange | 20-01 | 40.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| orange | 20-02 | 33.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| yolo   | 30-01 | 62.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+--------+-------+-------+-----------------------------+",
+                ],
+            },
+            // Predicate on county column, which is part of the series key:
+            TestCase {
+                predicates: &[Predicate::new("county", KeyValue::string("napa"))],
+                expected: &[
+                    "+-------+-------+-------+-----------------------------+",
+                    "| state | farm  | speed | time                        |",
+                    "+-------+-------+-------+-----------------------------+",
+                    "| ca    | 10-01 | 50.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | 10-02 | 49.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+-------+-------+-------+-----------------------------+",
+                ],
+            },
+            // Predicate on farm column, which is part of the series key:
+            TestCase {
+                predicates: &[Predicate::new("farm", KeyValue::string("30-01"))],
+                expected: &[
+                    "+-------+--------+-------+-----------------------------+",
+                    "| state | county | speed | time                        |",
+                    "+-------+--------+-------+-----------------------------+",
+                    "| ca    | yolo   | 62.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+-------+--------+-------+-----------------------------+",
+                ],
+            },
+            // Predicate on all series key columns:
+            TestCase {
+                predicates: &[
+                    Predicate::new("state", KeyValue::string("ca")),
+                    Predicate::new("county", KeyValue::string("nevada")),
+                    Predicate::new("farm", KeyValue::string("40-01")),
+                ],
+                expected: &[
+                    "+-------+-----------------------------+",
+                    "| speed | time                        |",
+                    "+-------+-----------------------------+",
+                    "| 66.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+-------+-----------------------------+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let batches = wbuf
+                .last_cache()
+                .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
+                .unwrap()
+                .unwrap();
+
+            assert_batches_sorted_eq!(t.expected, &batches);
+        }
+    }
 }
