@@ -11,7 +11,7 @@ pub(crate) mod validator;
 use crate::cache::ParquetCache;
 use crate::catalog::{Catalog, DatabaseSchema};
 use crate::chunk::ParquetChunk;
-use crate::last_cache::{self, LastCacheProvider};
+use crate::last_cache::{self, CreateCacheArguments, LastCacheProvider};
 use crate::persister::PersisterImpl;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
@@ -425,7 +425,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             .ok_or(Error::TableDoesNotExist)?
             .clone();
         self.last_cache
-            .create_cache(
+            .create_cache(CreateCacheArguments {
                 db_name,
                 tbl_name,
                 schema,
@@ -434,7 +434,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
                 ttl,
                 key_columns,
                 value_columns,
-            )
+            })
             .map_err(Into::into)
     }
 

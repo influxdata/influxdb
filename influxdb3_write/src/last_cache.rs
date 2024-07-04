@@ -56,6 +56,7 @@ pub enum Error {
 /// A three level hashmap storing Database Name -> Table Name -> Cache Name -> LastCache
 type CacheMap = RwLock<HashMap<String, HashMap<String, HashMap<String, LastCache>>>>;
 
+/// Provides all last-N-value caches for the entire database
 pub struct LastCacheProvider {
     cache_map: CacheMap,
 }
@@ -69,6 +70,38 @@ impl std::fmt::Debug for LastCacheProvider {
 /// The default cache time-to-live (TTL) is 4 hours
 const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(60 * 60 * 4);
 
+/// Arguments to the [`LastCacheProvider::create_cache`] method
+pub(crate) struct CreateCacheArguments {
+    /// The name of the database to create the cache for
+    pub(crate) db_name: String,
+    /// The name of the table in the database to create the cache for
+    pub(crate) tbl_name: String,
+    /// The Influx Schema of the table
+    pub(crate) schema: Schema,
+    /// An optional name for the cache
+    ///
+    /// The cache name will default to `<table_name>_<keys>_last_cache`
+    pub(crate) cache_name: Option<String>,
+    /// The number of values to hold in the created cache
+    ///
+    /// This will default to 1.
+    pub(crate) count: Option<usize>,
+    /// The time-to-live (TTL) for the created cache
+    ///
+    /// This will default to [`DEFAULT_CACHE_TTL`]
+    pub(crate) ttl: Option<Duration>,
+    /// The key column names to use in the cache hierarchy
+    ///
+    /// This will default to:
+    /// - the series key columns for a v3 table
+    /// - the lexicographically ordered tag set for a v1 table
+    pub(crate) key_columns: Option<Vec<String>>,
+    /// The value columns to use in the cache
+    ///
+    /// This will default to all non-key columns. The `time` column is always included.
+    pub(crate) value_columns: Option<Vec<String>>,
+}
+
 impl LastCacheProvider {
     /// Create a new [`LastCacheProvider`]
     pub(crate) fn new() -> Self {
@@ -79,17 +112,18 @@ impl LastCacheProvider {
 
     /// Create a new entry in the last cache for a given database and table, along with the given
     /// parameters.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_cache(
         &self,
-        db_name: String,
-        tbl_name: String,
-        schema: Schema,
-        cache_name: Option<String>,
-        count: Option<usize>,
-        ttl: Option<Duration>,
-        key_columns: Option<Vec<String>>,
-        value_columns: Option<Vec<String>>,
+        CreateCacheArguments {
+            db_name,
+            tbl_name,
+            schema,
+            cache_name,
+            count,
+            ttl,
+            key_columns,
+            value_columns,
+        }: CreateCacheArguments,
     ) -> Result<(), Error> {
         if self
             .cache_map
@@ -202,9 +236,6 @@ impl LastCacheProvider {
                 }
                 for (tbl_name, tbl_batch) in &db_batch.table_batches {
                     if let Some(tbl_cache) = db_cache.get_mut(tbl_name) {
-                        if tbl_cache.is_empty() {
-                            continue;
-                        }
                         for (_, last_cache) in tbl_cache.iter_mut() {
                             for row in &tbl_batch.rows {
                                 last_cache.push(row);
@@ -252,15 +283,31 @@ impl LastCacheProvider {
     }
 }
 
+/// A Last-N-Values Cache
+///
+/// A hierarchical cache whose structure is determined by a set of `key_columns`, each of which
+/// represents a level in the hierarchy. The lowest level of the hierarchy holds the last N values
+/// for the field columns in the cache.
 pub(crate) struct LastCache {
+    /// The number of values to hold in the cache
+    ///
+    /// Once the cache reaches this size, old values will be evicted when new values are pushed in.
     count: LastCacheSize,
+    /// The time-to-live (TTL) for values in the cache
+    ///
+    /// Once values have lived in the cache beyond this [`Duration`], they can be evicted using
+    /// the [`remove_expired`][LastCache::remove_expired] method.
     ttl: Duration,
+    /// The key columns for this cache
     key_columns: Vec<String>,
+    /// The Influx Schema for the table that this cache is associated with
     schema: Schema,
+    /// The internal state of the cache
     state: LastCacheState,
 }
 
 impl LastCache {
+    /// Create a new [`LastCache`]
     fn new(count: LastCacheSize, ttl: Duration, key_columns: Vec<String>, schema: Schema) -> Self {
         Self {
             count,
@@ -274,6 +321,11 @@ impl LastCache {
     /// Push a [`Row`] from the write buffer into the cache
     ///
     /// If a key column is not present in the row, the row will be ignored.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the internal cache state's keys are out-of-order with respect to the
+    /// order of the `key_columns` on this [`LastCache`]
     pub(crate) fn push(&mut self, row: &Row) {
         let mut target = &mut self.state;
         let mut key_iter = self.key_columns.iter().peekable();
@@ -329,6 +381,7 @@ impl LastCache {
             .push(row);
     }
 
+    /// Produce a set of [`RecordBatch`]es from the cache, using the given set of [`Predicate`]s
     fn to_record_batches(&self, predicates: &[Predicate]) -> Result<Vec<RecordBatch>, ArrowError> {
         // map the provided predicates on to the key columns
         // there may not be predicates provided for each key column, hence the Option
@@ -375,6 +428,10 @@ impl LastCache {
         caches.into_iter().map(|c| c.to_record_batch()).collect()
     }
 
+    /// Convert a set of DataFusion filter [`Expr`]s into [`Predicate`]s
+    ///
+    /// This only handles binary expressions, e.g., `foo = 'bar'`, and will use the `key_columns`
+    /// to filter out expressions that do not match key columns in the cache.
     fn convert_filter_exprs(&self, exprs: &[Expr]) -> Vec<Predicate> {
         exprs
             .iter()
@@ -414,11 +471,16 @@ impl LastCache {
             .collect()
     }
 
+    /// Remove expired values from the internal cache state
     fn remove_expired(&mut self) {
         self.state.remove_expired();
     }
 }
 
+/// Extend a [`LastCacheState`] with additional columns
+///
+/// This is used for scenarios where key column values need to be produced in query outputs. Since
+/// They are not stored in the terminal [`LastCacheStore`], we pass them down using this structure.
 #[derive(Debug)]
 struct ExtendedLastCacheState<'a> {
     state: &'a LastCacheState,
@@ -426,6 +488,14 @@ struct ExtendedLastCacheState<'a> {
 }
 
 impl<'a> ExtendedLastCacheState<'a> {
+    /// Produce a set of [`RecordBatch`]es from this extended state
+    ///
+    /// This converts any additional columns to arrow arrays which will extend the [`RecordBatch`]es
+    /// produced by the inner [`LastCacheStore`]
+    ///
+    /// # Panics
+    ///
+    /// This assumes taht the `state` is a [`LastCacheStore`] and will panic otherwise.
     fn to_record_batch(&self) -> Result<RecordBatch, ArrowError> {
         let store = self
             .state
@@ -479,9 +549,12 @@ impl<'a> ExtendedLastCacheState<'a> {
     }
 }
 
+/// A predicate used for evaluating key column values in the cache on query
 #[derive(Debug, Clone)]
 struct Predicate {
+    /// The left-hand-side of the predicate
     key: String,
+    /// The right-hand-side of the predicate
     value: KeyValue,
 }
 
@@ -495,10 +568,14 @@ impl Predicate {
     }
 }
 
+/// Represents the hierarchical last cache structure
 #[derive(Debug)]
 enum LastCacheState {
+    /// An initialized state that is used for easy construction of the cache
     Init,
+    /// Represents a branch node in the hierarchy of key columns for the cache
     Key(LastCacheKey),
+    /// Represents a terminal node in the hierarchy, i.e., the cache of field values
     Store(LastCacheStore),
 }
 
@@ -535,6 +612,7 @@ impl LastCacheState {
         }
     }
 
+    /// Remove expired values from this [`LastCacheState`]
     fn remove_expired(&mut self) {
         match self {
             LastCacheState::Key(k) => k.remove_expired(),
@@ -544,13 +622,25 @@ impl LastCacheState {
     }
 }
 
+/// Holds a node within a [`LastCache`] for a given key column
 #[derive(Debug)]
 struct LastCacheKey {
+    /// The name of the key column
     column_name: String,
+    /// A map of key column value to nested [`LastCacheState`]
+    ///
+    /// All values should point at either another key or a [`LastCacheStore`]
     value_map: HashMap<KeyValue, LastCacheState>,
 }
 
 impl LastCacheKey {
+    /// Evaluate the provided [`Predicate`] by using its value to lookup in this [`LastCacheKey`]'s
+    /// value map.
+    ///
+    /// # Panics
+    ///
+    /// This assumes that a predicate for this [`LastCacheKey`]'s column was provided, and will panic
+    /// otherwise.
     fn evaluate_predicate(&self, predicate: &Predicate) -> Option<&LastCacheState> {
         if predicate.key != self.column_name {
             panic!(
@@ -561,6 +651,7 @@ impl LastCacheKey {
         self.value_map.get(&predicate.value)
     }
 
+    /// Remove expired values from any cache nested within this [`LastCacheKey`]
     fn remove_expired(&mut self) {
         self.value_map
             .iter_mut()
@@ -568,6 +659,7 @@ impl LastCacheKey {
     }
 }
 
+/// A value for a key column in a [`LastCache`]
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum KeyValue {
     String(String),
@@ -584,6 +676,7 @@ impl KeyValue {
 }
 
 impl KeyValue {
+    /// Get the corresponding arrow field definition for this [`KeyValue`]
     fn as_arrow_field(&self, name: impl Into<String>) -> ArrowField {
         match self {
             KeyValue::String(_) => ArrowField::new(name, DataType::Utf8, false),
@@ -609,9 +702,10 @@ impl From<&FieldData> for KeyValue {
     }
 }
 
-/// Stores the last N values, as configured, for a given table in a database
+/// Stores the cached column data for the field columns of a given [`LastCache`]
 #[derive(Debug)]
 struct LastCacheStore {
+    /// Holds a copy of the arrow schema for the sake of producing [`RecordBatch`]es.
     schema: ArrowSchemaRef,
     /// A map of column name to a [`CacheColumn`] which holds the buffer of data for the column
     /// in the cache.
@@ -624,11 +718,14 @@ struct LastCacheStore {
     cache: IndexMap<String, CacheColumn>,
     // TODO: will need to use this if new columns are added for * caches
     _ttl: Duration,
+    /// The timestamp of the last [`Row`] that was pushed into this store from the buffer.
+    ///
+    /// This is used to ignore rows that are received with older timestamps.
     last_time: Time,
 }
 
 impl LastCacheStore {
-    /// Create a new [`LastCache`]
+    /// Create a new [`LastCacheStore`]
     fn new(count: usize, ttl: Duration, schema: ArrowSchemaRef) -> Self {
         let cache = schema
             .fields()
@@ -648,6 +745,9 @@ impl LastCacheStore {
         }
     }
 
+    /// Get the number of values in the cache.
+    ///
+    /// Assumes that all columns are the same length, and only checks the first.
     fn len(&self) -> usize {
         self.cache.first().map_or(0, |(_, c)| c.len())
     }
@@ -666,6 +766,11 @@ impl LastCacheStore {
     }
 
     /// Convert the contents of this cache into a arrow [`RecordBatch`]
+    ///
+    /// Accepts an optional `extended` argument containing additional columns to add to the
+    /// produced set of [`RecordBatch`]es. These are for the scenario where key columns are
+    /// included in the outputted batches, as the [`LastCacheStore`] only holds the field columns
+    /// for the cache.
     fn to_record_batch(
         &self,
         extended: Option<(Vec<FieldRef>, Vec<ArrayRef>)>,
@@ -686,6 +791,7 @@ impl LastCacheStore {
         RecordBatch::try_new(schema, arrays)
     }
 
+    /// Remove expired values from the [`LastCacheStore`]
     fn remove_expired(&mut self) {
         self.cache.iter_mut().for_each(|(_, c)| c.remove_expired());
     }
@@ -732,7 +838,8 @@ impl TableProvider for LastCache {
 
 /// A column in a [`LastCache`]
 ///
-/// Stores its size so it can evict old data on push.
+/// Stores its size so it can evict old data on push. Stores the time-to-live (TTL) in order
+/// to remove expired data.
 #[derive(Debug)]
 struct CacheColumn {
     size: usize,
@@ -750,6 +857,7 @@ impl CacheColumn {
         }
     }
 
+    /// Get the length of the [`CacheColumn`]
     fn len(&self) -> usize {
         self.data.len()
     }
@@ -762,12 +870,13 @@ impl CacheColumn {
         self.data.push_front(field_data);
     }
 
+    /// Remove expired values from this [`CacheColumn`]
     fn remove_expired(&mut self) {
         self.data.remove_expired(self.ttl);
     }
 }
 
-/// Enumerated type for storing column data for the cache in a ring buffer
+/// Enumerated type for storing column data for the cache in a buffer
 #[derive(Debug)]
 enum CacheColumnData {
     I64(ColumnBuffer<i64>),
@@ -853,6 +962,7 @@ impl CacheColumnData {
         }
     }
 
+    /// Remove expired values from the inner [`ColumnBuffer`]
     fn remove_expired(&mut self, ttl: Duration) {
         match self {
             CacheColumnData::I64(b) => b.remove_expired(ttl),
@@ -868,69 +978,77 @@ impl CacheColumnData {
     /// Produce an arrow [`ArrayRef`] from this column for the sake of producing [`RecordBatch`]es
     fn as_array(&self) -> ArrayRef {
         match self {
-            CacheColumnData::I64(v) => {
+            CacheColumnData::I64(col_buf) => {
                 let mut b = Int64Builder::new();
-                v.iter().for_each(|val| b.append_value(*val));
+                col_buf.iter().for_each(|val| b.append_value(*val));
                 Arc::new(b.finish())
             }
-            CacheColumnData::U64(v) => {
+            CacheColumnData::U64(col_buf) => {
                 let mut b = UInt64Builder::new();
-                v.iter().for_each(|val| b.append_value(*val));
+                col_buf.iter().for_each(|val| b.append_value(*val));
                 Arc::new(b.finish())
             }
-            CacheColumnData::F64(v) => {
+            CacheColumnData::F64(col_buf) => {
                 let mut b = Float64Builder::new();
-                v.iter().for_each(|val| b.append_value(*val));
+                col_buf.iter().for_each(|val| b.append_value(*val));
                 Arc::new(b.finish())
             }
-            CacheColumnData::String(v) => {
+            CacheColumnData::String(col_buf) => {
                 let mut b = StringBuilder::new();
-                v.iter().for_each(|val| b.append_value(val));
+                col_buf.iter().for_each(|val| b.append_value(val));
                 Arc::new(b.finish())
             }
-            CacheColumnData::Bool(v) => {
+            CacheColumnData::Bool(col_buf) => {
                 let mut b = BooleanBuilder::new();
-                v.iter().for_each(|val| b.append_value(*val));
+                col_buf.iter().for_each(|val| b.append_value(*val));
                 Arc::new(b.finish())
             }
-            CacheColumnData::Tag(v) => {
+            CacheColumnData::Tag(col_buf) => {
                 let mut b: GenericByteDictionaryBuilder<Int32Type, GenericStringType<i32>> =
                     StringDictionaryBuilder::new();
-                v.iter().for_each(|val| {
+                col_buf.iter().for_each(|val| {
                     b.append(val)
                         .expect("should not overflow 32 bit dictionary");
                 });
                 Arc::new(b.finish())
             }
-            CacheColumnData::Time(v) => {
+            CacheColumnData::Time(col_buf) => {
                 let mut b = TimestampNanosecondBuilder::new();
-                v.iter().for_each(|val| b.append_value(*val));
+                col_buf.iter().for_each(|val| b.append_value(*val));
                 Arc::new(b.finish())
             }
         }
     }
 }
 
+/// Newtype wrapper around a [`VecDeque`] whose values are paired with an [`Instant`] that
+/// represents the time at which each value was pushed into the buffer.
 #[derive(Debug)]
 struct ColumnBuffer<T>(VecDeque<(Instant, T)>);
 
 impl<T> ColumnBuffer<T> {
+    /// Create a new [`ColumnBuffer`] with the given capacity
     fn with_capacity(capacity: usize) -> Self {
         Self(VecDeque::with_capacity(capacity))
     }
 
+    /// Get the length of the [`ColumnBuffer`]
     fn len(&self) -> usize {
         self.0.len()
     }
 
+    /// Pop the last element off of the [`ColumnBuffer`]
     fn pop_back(&mut self) {
         self.0.pop_back();
     }
 
+    /// Push a value to the front of the [`ColumnBuffer`], the value will be paired with an
+    /// [`Instant`].
     fn push_front(&mut self, value: T) {
         self.0.push_front((Instant::now(), value));
     }
 
+    /// Remove any elements in the [`ColumnBuffer`] that have outlived a given time-to-live (TTL)
     fn remove_expired(&mut self, ttl: Duration) {
         while let Some((created, _)) = self.0.back() {
             if created.elapsed() >= ttl {
@@ -941,6 +1059,7 @@ impl<T> ColumnBuffer<T> {
         }
     }
 
+    /// Produce an iterator over the values in the buffer
     fn iter(&self) -> impl Iterator<Item = &T> {
         self.0.iter().map(|(_, v)| v)
     }
