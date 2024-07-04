@@ -127,6 +127,7 @@ impl LastCacheProvider {
     ) -> Result<(), Error> {
         let key_columns = if let Some(keys) = key_columns {
             // validate the key columns specified to ensure correct type (string, int, unit, or bool)
+            // and that they exist in the table's schema.
             for key in keys.iter() {
                 use InfluxColumnType::*;
                 use InfluxFieldType::*;
@@ -155,10 +156,12 @@ impl LastCacheProvider {
             keys.iter().map(|s| s.to_string()).collect()
         };
 
+        // Generate the cache name if it was not provided
         let cache_name = cache_name.unwrap_or_else(|| {
             format!("{tbl_name}_{keys}_last_cache", keys = key_columns.join("_"))
         });
 
+        // reject creation if there is already a cache with specified database, table, and cache name
         if self
             .cache_map
             .read()
@@ -170,6 +173,7 @@ impl LastCacheProvider {
         }
 
         let value_columns = if let Some(mut vals) = value_columns {
+            // if value columns are specified, check that they are present in the table schema
             for name in vals.iter() {
                 if schema.field_by_name(name).is_none() {
                     return Err(Error::ValueColumnDoesNotExist {
@@ -177,12 +181,14 @@ impl LastCacheProvider {
                     });
                 }
             }
+            // double-check that time column is included
             let time_col = TIME_COLUMN_NAME.to_string();
             if !vals.contains(&time_col) {
                 vals.push(time_col);
             }
             vals
         } else {
+            // default to all non-key columns
             schema
                 .iter()
                 .filter_map(|(_, f)| {
@@ -195,6 +201,7 @@ impl LastCacheProvider {
                 .collect::<Vec<String>>()
         };
 
+        // build a schema that only holds the field columns
         let mut schema_builder = SchemaBuilder::new();
         for (t, name) in schema
             .iter()
@@ -204,6 +211,7 @@ impl LastCacheProvider {
             schema_builder.influx_column(name, t);
         }
 
+        // create the actual last cache:
         let last_cache = LastCache::new(
             count
                 .unwrap_or(1)
@@ -214,6 +222,7 @@ impl LastCacheProvider {
             schema_builder.build()?,
         );
 
+        // get the write lock and insert:
         self.cache_map
             .write()
             .entry(db_name)
