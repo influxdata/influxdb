@@ -1532,4 +1532,133 @@ mod tests {
             &batches
         );
     }
+
+    #[tokio::test]
+    async fn fields_as_key_columns() {
+        let db_name = "cassini_mission";
+        let tbl_name = "temp";
+        let wbuf = setup_write_buffer().await;
+
+        // Do one write to update the catalog with a db and table:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "{tbl_name},component_id=111 active=true,type=\"camera\",loc=\"port\",reading=150"
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(500),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Create the last cache with keys on some field columns:
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            Some("cache"),
+            None,
+            Some(Duration::from_millis(50)),
+            Some(vec![
+                "component_id".to_string(),
+                "active".to_string(),
+                "type".to_string(),
+                "loc".to_string(),
+            ]),
+            None,
+        )
+        .expect("create last cache");
+
+        // Write some lines to fill the cache:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "\
+                {tbl_name},component_id=111 active=true,type=\"camera\",loc=\"port\",reading=150\n\
+                {tbl_name},component_id=222 active=true,type=\"camera\",loc=\"starboard\",reading=250\n\
+                {tbl_name},component_id=333 active=true,type=\"camera\",loc=\"fore\",reading=145\n\
+                {tbl_name},component_id=444 active=true,type=\"solar-panel\",loc=\"port\",reading=233\n\
+                {tbl_name},component_id=555 active=false,type=\"solar-panel\",loc=\"huygens\",reading=200\n\
+                {tbl_name},component_id=666 active=false,type=\"comms-dish\",loc=\"huygens\",reading=220\n\
+                "
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(1_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        struct TestCase<'a> {
+            predicates: &'a [Predicate],
+            expected: &'a [&'a str],
+        }
+
+        let test_cases = [
+            // No predicates gives everything:
+            TestCase {
+                predicates: &[],
+                expected: &[
+                    "+--------------+--------+-------------+-----------+---------+-----------------------------+",
+                    "| component_id | active | type        | loc       | reading | time                        |",
+                    "+--------------+--------+-------------+-----------+---------+-----------------------------+",
+                    "| 111          | true   | camera      | port      | 150.0   | 1970-01-01T00:00:00.000001Z |",
+                    "| 222          | true   | camera      | starboard | 250.0   | 1970-01-01T00:00:00.000001Z |",
+                    "| 333          | true   | camera      | fore      | 145.0   | 1970-01-01T00:00:00.000001Z |",
+                    "| 444          | true   | solar-panel | port      | 233.0   | 1970-01-01T00:00:00.000001Z |",
+                    "| 555          | false  | solar-panel | huygens   | 200.0   | 1970-01-01T00:00:00.000001Z |",
+                    "| 666          | false  | comms-dish  | huygens   | 220.0   | 1970-01-01T00:00:00.000001Z |",
+                    "+--------------+--------+-------------+-----------+---------+-----------------------------+",
+                ],
+            },
+            // Predicates on tag key column work as expected:
+            TestCase {
+                predicates: &[Predicate::new("component_id", KeyValue::string("333"))],
+                expected: &[
+                    "+--------+--------+------+---------+-----------------------------+",
+                    "| active | type   | loc  | reading | time                        |",
+                    "+--------+--------+------+---------+-----------------------------+",
+                    "| true   | camera | fore | 145.0   | 1970-01-01T00:00:00.000001Z |",
+                    "+--------+--------+------+---------+-----------------------------+",
+                ],
+            },
+            // Predicate on a non-string field key:
+            TestCase {
+                predicates: &[Predicate::new("active", KeyValue::Bool(false))],
+                expected: &[
+                    "+--------------+-------------+---------+---------+-----------------------------+",
+                    "| component_id | type        | loc     | reading | time                        |",
+                    "+--------------+-------------+---------+---------+-----------------------------+",
+                    "| 555          | solar-panel | huygens | 200.0   | 1970-01-01T00:00:00.000001Z |",
+                    "| 666          | comms-dish  | huygens | 220.0   | 1970-01-01T00:00:00.000001Z |",
+                    "+--------------+-------------+---------+---------+-----------------------------+",
+                ],
+            },
+            // Predicate on a string field key:
+            TestCase {
+                predicates: &[Predicate::new("type", KeyValue::string("camera"))],
+                expected: &[
+                    "+--------------+--------+-----------+---------+-----------------------------+",
+                    "| component_id | active | loc       | reading | time                        |",
+                    "+--------------+--------+-----------+---------+-----------------------------+",
+                    "| 111          | true   | port      | 150.0   | 1970-01-01T00:00:00.000001Z |",
+                    "| 222          | true   | starboard | 250.0   | 1970-01-01T00:00:00.000001Z |",
+                    "| 333          | true   | fore      | 145.0   | 1970-01-01T00:00:00.000001Z |",
+                    "+--------------+--------+-----------+---------+-----------------------------+",
+                ],
+            }
+        ];
+
+        for t in test_cases {
+            let batches = wbuf
+                .last_cache()
+                .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
+                .unwrap()
+                .unwrap();
+
+            assert_batches_sorted_eq!(t.expected, &batches);
+        }
+    }
 }
