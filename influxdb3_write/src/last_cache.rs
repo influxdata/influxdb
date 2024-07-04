@@ -125,14 +125,6 @@ impl LastCacheProvider {
             value_columns,
         }: CreateCacheArguments,
     ) -> Result<(), Error> {
-        if self
-            .cache_map
-            .read()
-            .get(&db_name)
-            .is_some_and(|db| db.contains_key(&tbl_name))
-        {
-            return Err(Error::CacheAlreadyExists);
-        }
         let key_columns = if let Some(keys) = key_columns {
             // validate the key columns specified to ensure correct type (string, int, unit, or bool)
             for key in keys.iter() {
@@ -166,6 +158,16 @@ impl LastCacheProvider {
         let cache_name = cache_name.unwrap_or_else(|| {
             format!("{tbl_name}_{keys}_last_cache", keys = key_columns.join("_"))
         });
+
+        if self
+            .cache_map
+            .read()
+            .get(&db_name)
+            .and_then(|db| db.get(&tbl_name))
+            .is_some_and(|tbl| tbl.contains_key(&cache_name))
+        {
+            return Err(Error::CacheAlreadyExists);
+        }
 
         let value_columns = if let Some(mut vals) = value_columns {
             for name in vals.iter() {
