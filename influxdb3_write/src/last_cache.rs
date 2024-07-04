@@ -1210,6 +1210,47 @@ mod tests {
                     "+--------+------+-----------------------------+-------+",
                 ],
             },
+            // Using a non-existent key column as a predicate has no effect:
+            // TODO: should this be an error?
+            TestCase {
+                predicates: &[Predicate::new("container_id", KeyValue::string("12345"))],
+                expected: &[
+                    "+--------+------+-----------------------------+-------+",
+                    "| region | host | time                        | usage |",
+                    "+--------+------+-----------------------------+-------+",
+                    "| ca     | d    | 1970-01-01T00:00:00.000001Z | 40.0  |",
+                    "| ca     | e    | 1970-01-01T00:00:00.000001Z | 20.0  |",
+                    "| ca     | f    | 1970-01-01T00:00:00.000001Z | 30.0  |",
+                    "| us     | a    | 1970-01-01T00:00:00.000001Z | 100.0 |",
+                    "| us     | b    | 1970-01-01T00:00:00.000001Z | 80.0  |",
+                    "| us     | c    | 1970-01-01T00:00:00.000001Z | 60.0  |",
+                    "+--------+------+-----------------------------+-------+",
+                ],
+            },
+            // Using a non existent key column value yields empty result set:
+            TestCase {
+                predicates: &[Predicate::new("region", KeyValue::string("eu"))],
+                expected: &["++", "++"],
+            },
+            // Using an invalid combination of key column values yields an empty result set:
+            TestCase {
+                predicates: &[
+                    Predicate::new("region", KeyValue::string("ca")),
+                    Predicate::new("host", KeyValue::string("a")),
+                ],
+                expected: &["++", "++"],
+            },
+            // Using a non-existent key column value (for host column) also yields empty result set:
+            TestCase {
+                predicates: &[Predicate::new("host", KeyValue::string("g"))],
+                expected: &["++", "++"],
+            },
+            // Using an incorrect type for a key column value in predicate also yields empty result
+            // set. TODO: should this be an error?
+            TestCase {
+                predicates: &[Predicate::new("host", KeyValue::Bool(true))],
+                expected: &["++", "++"],
+            },
         ];
 
         for t in test_cases {
