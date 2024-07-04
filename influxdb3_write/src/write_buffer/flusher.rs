@@ -151,6 +151,8 @@ async fn run_wal_op_buffer<T: TimeProvider, W: Wal>(
                 notifies.push(buffered_write.response_tx);
             },
             _ = interval.tick() => {
+                last_cache.evict_expired_cache_entries();
+
                 if ops.is_empty() {
                     continue;
                 }

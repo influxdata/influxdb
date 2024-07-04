@@ -195,10 +195,6 @@ impl LastCacheProvider {
     /// Only if rows are newer than the latest entry in the cache will they be entered.
     pub(crate) fn write_batch_to_cache(&self, write_batch: &WriteBatch) {
         let mut cache_map = self.cache_map.write();
-        cache_map.iter_mut().for_each(|(_, db)| {
-            db.iter_mut()
-                .for_each(|(_, tbl)| tbl.iter_mut().for_each(|(_, lc)| lc.remove_expired()))
-        });
         for (db_name, db_batch) in &write_batch.database_batches {
             if let Some(db_cache) = cache_map.get_mut(db_name.as_str()) {
                 if db_cache.is_empty() {
@@ -218,6 +214,16 @@ impl LastCacheProvider {
                 }
             }
         }
+    }
+
+    /// Recurse down the cache structure to evict expired cache entries, based on their respective
+    /// time-to-live (TTL).
+    pub(crate) fn evict_expired_cache_entries(&self) {
+        let mut cache_map = self.cache_map.write();
+        cache_map.iter_mut().for_each(|(_, db)| {
+            db.iter_mut()
+                .for_each(|(_, tbl)| tbl.iter_mut().for_each(|(_, lc)| lc.remove_expired()))
+        });
     }
 
     /// Output the records for a given cache as arrow [`RecordBatch`]es
@@ -651,11 +657,6 @@ impl LastCacheStore {
         if row.time <= self.last_time.timestamp_nanos() {
             return;
         }
-        let time_col = self
-            .cache
-            .get_mut(TIME_COLUMN_NAME)
-            .expect("there should always be a time column");
-        time_col.push(&FieldData::Timestamp(row.time));
         for field in &row.fields {
             if let Some(c) = self.cache.get_mut(&field.name) {
                 c.push(&field.value);
@@ -947,7 +948,7 @@ impl<T> ColumnBuffer<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{sync::Arc, time::Duration};
 
     use ::object_store::{memory::InMemory, ObjectStore};
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
@@ -1220,5 +1221,274 @@ mod tests {
 
             assert_batches_sorted_eq!(t.expected, &batches);
         }
+    }
+
+    #[tokio::test]
+    async fn non_default_cache_size() {
+        let db_name = "foo";
+        let tbl_name = "cpu";
+        let wbuf = setup_write_buffer().await;
+
+        // Do one write to update the catalog with a db and table:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name},region=us,host=a usage=1").as_str(),
+            Time::from_timestamp_nanos(500),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Create the last cache with keys on all tag columns:
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            Some("cache"),
+            Some(10),
+            None,
+            Some(vec!["region".to_string(), "host".to_string()]),
+            None,
+        )
+        .expect("create last cache");
+
+        // Do several writes to populate the cache:
+        struct Write {
+            lp: String,
+            time: i64,
+        }
+
+        let writes = [
+            Write {
+                lp: format!(
+                    "{tbl_name},region=us,host=a usage=100\n\
+                    {tbl_name},region=us,host=b usage=80"
+                ),
+                time: 1_000,
+            },
+            Write {
+                lp: format!(
+                    "{tbl_name},region=us,host=a usage=99\n\
+                    {tbl_name},region=us,host=b usage=88"
+                ),
+                time: 1_500,
+            },
+            Write {
+                lp: format!(
+                    "{tbl_name},region=us,host=a usage=95\n\
+                    {tbl_name},region=us,host=b usage=92"
+                ),
+                time: 2_000,
+            },
+            Write {
+                lp: format!(
+                    "{tbl_name},region=us,host=a usage=90\n\
+                    {tbl_name},region=us,host=b usage=99"
+                ),
+                time: 2_500,
+            },
+        ];
+
+        for write in writes {
+            wbuf.write_lp(
+                NamespaceName::new(db_name).unwrap(),
+                write.lp.as_str(),
+                Time::from_timestamp_nanos(write.time),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+        }
+
+        struct TestCase<'a> {
+            predicates: &'a [Predicate],
+            expected: &'a [&'a str],
+        }
+
+        let test_cases = [
+            TestCase {
+                predicates: &[
+                    Predicate::new("region", KeyValue::string("us")),
+                    Predicate::new("host", KeyValue::string("a")),
+                ],
+                expected: &[
+                    "+--------------------------------+-------+",
+                    "| time                           | usage |",
+                    "+--------------------------------+-------+",
+                    "| 1970-01-01T00:00:00.000001500Z | 99.0  |",
+                    "| 1970-01-01T00:00:00.000001Z    | 100.0 |",
+                    "| 1970-01-01T00:00:00.000002500Z | 90.0  |",
+                    "| 1970-01-01T00:00:00.000002Z    | 95.0  |",
+                    "+--------------------------------+-------+",
+                ],
+            },
+            TestCase {
+                predicates: &[Predicate::new("region", KeyValue::string("us"))],
+                expected: &[
+                    "+------+--------------------------------+-------+",
+                    "| host | time                           | usage |",
+                    "+------+--------------------------------+-------+",
+                    "| a    | 1970-01-01T00:00:00.000001500Z | 99.0  |",
+                    "| a    | 1970-01-01T00:00:00.000001Z    | 100.0 |",
+                    "| a    | 1970-01-01T00:00:00.000002500Z | 90.0  |",
+                    "| a    | 1970-01-01T00:00:00.000002Z    | 95.0  |",
+                    "| b    | 1970-01-01T00:00:00.000001500Z | 88.0  |",
+                    "| b    | 1970-01-01T00:00:00.000001Z    | 80.0  |",
+                    "| b    | 1970-01-01T00:00:00.000002500Z | 99.0  |",
+                    "| b    | 1970-01-01T00:00:00.000002Z    | 92.0  |",
+                    "+------+--------------------------------+-------+",
+                ],
+            },
+            TestCase {
+                predicates: &[Predicate::new("host", KeyValue::string("a"))],
+                expected: &[
+                    "+--------+--------------------------------+-------+",
+                    "| region | time                           | usage |",
+                    "+--------+--------------------------------+-------+",
+                    "| us     | 1970-01-01T00:00:00.000001500Z | 99.0  |",
+                    "| us     | 1970-01-01T00:00:00.000001Z    | 100.0 |",
+                    "| us     | 1970-01-01T00:00:00.000002500Z | 90.0  |",
+                    "| us     | 1970-01-01T00:00:00.000002Z    | 95.0  |",
+                    "+--------+--------------------------------+-------+",
+                ],
+            },
+            TestCase {
+                predicates: &[Predicate::new("host", KeyValue::string("b"))],
+                expected: &[
+                    "+--------+--------------------------------+-------+",
+                    "| region | time                           | usage |",
+                    "+--------+--------------------------------+-------+",
+                    "| us     | 1970-01-01T00:00:00.000001500Z | 88.0  |",
+                    "| us     | 1970-01-01T00:00:00.000001Z    | 80.0  |",
+                    "| us     | 1970-01-01T00:00:00.000002500Z | 99.0  |",
+                    "| us     | 1970-01-01T00:00:00.000002Z    | 92.0  |",
+                    "+--------+--------------------------------+-------+",
+                ],
+            },
+            TestCase {
+                predicates: &[],
+                expected: &[
+                    "+--------+------+--------------------------------+-------+",
+                    "| region | host | time                           | usage |",
+                    "+--------+------+--------------------------------+-------+",
+                    "| us     | a    | 1970-01-01T00:00:00.000001500Z | 99.0  |",
+                    "| us     | a    | 1970-01-01T00:00:00.000001Z    | 100.0 |",
+                    "| us     | a    | 1970-01-01T00:00:00.000002500Z | 90.0  |",
+                    "| us     | a    | 1970-01-01T00:00:00.000002Z    | 95.0  |",
+                    "| us     | b    | 1970-01-01T00:00:00.000001500Z | 88.0  |",
+                    "| us     | b    | 1970-01-01T00:00:00.000001Z    | 80.0  |",
+                    "| us     | b    | 1970-01-01T00:00:00.000002500Z | 99.0  |",
+                    "| us     | b    | 1970-01-01T00:00:00.000002Z    | 92.0  |",
+                    "+--------+------+--------------------------------+-------+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let batches = wbuf
+                .last_cache()
+                .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
+                .unwrap()
+                .unwrap();
+
+            assert_batches_sorted_eq!(t.expected, &batches);
+        }
+    }
+
+    #[tokio::test]
+    async fn cache_ttl() {
+        let db_name = "foo";
+        let tbl_name = "cpu";
+        let wbuf = setup_write_buffer().await;
+
+        // Do one write to update the catalog with a db and table:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name},region=us,host=a usage=1").as_str(),
+            Time::from_timestamp_nanos(500),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Create the last cache with keys on all tag columns:
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            Some("cache"),
+            // use a cache size greater than 1 to ensure the TTL is doing the evicting
+            Some(10),
+            Some(Duration::from_millis(50)),
+            Some(vec!["region".to_string(), "host".to_string()]),
+            None,
+        )
+        .expect("create last cache");
+
+        // Write some lines to fill the cache:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "\
+                {tbl_name},region=us,host=a usage=100\n\
+                {tbl_name},region=us,host=b usage=80\n\
+                {tbl_name},region=us,host=c usage=60\n\
+                {tbl_name},region=ca,host=d usage=40\n\
+                {tbl_name},region=ca,host=e usage=20\n\
+                {tbl_name},region=ca,host=f usage=30\n\
+                "
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(1_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Check the cache for values:
+        let predicates = &[
+            Predicate::new("region", KeyValue::string("us")),
+            Predicate::new("host", KeyValue::string("a")),
+        ];
+
+        // Check what is in the last cache:
+        let batches = wbuf
+            .last_cache()
+            .get_cache_record_batches(db_name, tbl_name, None, predicates)
+            .unwrap()
+            .unwrap();
+
+        assert_batches_sorted_eq!(
+            [
+                "+-----------------------------+-------+",
+                "| time                        | usage |",
+                "+-----------------------------+-------+",
+                "| 1970-01-01T00:00:00.000001Z | 100.0 |",
+                "+-----------------------------+-------+",
+            ],
+            &batches
+        );
+
+        // wait for the TTL to clear the cache
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Check what is in the last cache:
+        let batches = wbuf
+            .last_cache()
+            .get_cache_record_batches(db_name, tbl_name, None, predicates)
+            .unwrap()
+            .unwrap();
+
+        assert_batches_sorted_eq!(
+            [
+                "+------+-------+",
+                "| time | usage |",
+                "+------+-------+",
+                "+------+-------+",
+            ],
+            &batches
+        );
     }
 }
