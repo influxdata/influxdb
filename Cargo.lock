@@ -2172,6 +2172,7 @@ checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 dependencies = [
  "ahash",
  "allocator-api2",
+ "serde",
 ]
 
 [[package]]
@@ -2528,6 +2529,7 @@ dependencies = [
  "datafusion_util",
  "dotenvy",
  "futures",
+ "hashbrown 0.14.5",
  "hex",
  "hyper 0.14.29",
  "influxdb3_client",
@@ -2629,6 +2631,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arrow",
+ "arrow-array",
  "arrow-csv",
  "arrow-flight",
  "arrow-json",
@@ -2706,6 +2709,7 @@ dependencies = [
  "datafusion",
  "datafusion_util",
  "futures-util",
+ "hashbrown 0.14.5",
  "hex",
  "influxdb-line-protocol",
  "insta",

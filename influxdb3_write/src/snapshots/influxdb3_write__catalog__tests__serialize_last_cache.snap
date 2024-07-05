@@ -1,0 +1,77 @@
+---
+source: influxdb3_write/src/catalog.rs
+expression: catalog
+---
+{
+  "databases": {
+    "test_db": {
+      "name": "test_db",
+      "tables": {
+        "test_table_1": {
+          "name": "test",
+          "cols": {
+            "field": {
+              "type": "str",
+              "influx_type": "field",
+              "nullable": true
+            },
+            "tag_1": {
+              "type": {
+                "dict": [
+                  "i32",
+                  "str"
+                ]
+              },
+              "influx_type": "tag",
+              "nullable": true
+            },
+            "tag_2": {
+              "type": {
+                "dict": [
+                  "i32",
+                  "str"
+                ]
+              },
+              "influx_type": "tag",
+              "nullable": true
+            },
+            "tag_3": {
+              "type": {
+                "dict": [
+                  "i32",
+                  "str"
+                ]
+              },
+              "influx_type": "tag",
+              "nullable": true
+            },
+            "time": {
+              "type": {
+                "time": [
+                  "ns",
+                  null
+                ]
+              },
+              "influx_type": "time",
+              "nullable": false
+            }
+          },
+          "last_caches": [
+            {
+              "name": "test_table_last_cache",
+              "keys": [
+                "tag_2",
+                "tag_3"
+              ],
+              "vals": [
+                "field"
+              ],
+              "n": 1
+            }
+          ]
+        }
+      }
+    }
+  },
+  "sequence": 1
+}

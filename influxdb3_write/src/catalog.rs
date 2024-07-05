@@ -34,6 +34,9 @@ pub enum Error {
         Catalog::NUM_DBS_LIMIT
     )]
     TooManyDbs,
+
+    #[error("last cache size must be from 1 to 10")]
+    InvalidLastCacheSize,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -242,6 +245,7 @@ impl DatabaseSchema {
 pub struct TableDefinition {
     pub name: String,
     pub schema: Schema,
+    pub last_caches: Vec<LastCacheDefinition>,
 }
 
 impl TableDefinition {
@@ -269,7 +273,11 @@ impl TableDefinition {
         }
         let schema = schema_builder.build().unwrap();
 
-        Self { name, schema }
+        Self {
+            name,
+            schema,
+            last_caches: vec![],
+        }
     }
 
     /// Check if the column exists in the [`TableDefinition`]s schema
@@ -326,6 +334,84 @@ impl TableDefinition {
 
     pub(crate) fn is_v3(&self) -> bool {
         self.schema.series_key().is_some()
+    }
+
+    /// Add a new last cache to this table definition
+    #[cfg(test)]
+    pub(crate) fn add_last_cache<L>(&mut self, last_cache: L)
+    where
+        L: Into<LastCacheDefinition>,
+    {
+        self.last_caches.push(last_cache.into());
+    }
+}
+
+/// Defines a last cache in a given table and database
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct LastCacheDefinition {
+    /// Given name of the cache
+    pub name: String,
+    /// Columns intended to be used as predicates in the cache
+    pub key_columns: Vec<String>,
+    /// Columns that store values in the cache
+    pub value_columns: Vec<String>,
+    /// The number of last values to hold in the cache
+    count: LastCacheSize,
+}
+
+impl LastCacheDefinition {
+    /// Create a new [`LastCacheDefinition`]
+    #[cfg(test)]
+    pub(crate) fn new<N, K, V>(
+        name: N,
+        key_columns: K,
+        value_columns: V,
+        count: usize,
+    ) -> Result<Self, Error>
+    where
+        N: Into<String>,
+        K: IntoIterator<Item: Into<String>>,
+        V: IntoIterator<Item: Into<String>>,
+    {
+        Ok(Self {
+            name: name.into(),
+            key_columns: key_columns.into_iter().map(Into::into).collect(),
+            value_columns: value_columns.into_iter().map(Into::into).collect(),
+            count: count.try_into()?,
+        })
+    }
+}
+
+/// The maximum allowed size for a last cache
+const LAST_CACHE_MAX_SIZE: usize = 10;
+
+/// The size of the last cache
+///
+/// Must be between 1 and [`LAST_CACHE_MAX_SIZE`]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
+pub struct LastCacheSize(usize);
+
+impl LastCacheSize {
+    pub fn new(size: usize) -> Result<Self, Error> {
+        if size == 0 || size > LAST_CACHE_MAX_SIZE {
+            Err(Error::InvalidLastCacheSize)
+        } else {
+            Ok(Self(size))
+        }
+    }
+}
+
+impl TryFrom<usize> for LastCacheSize {
+    type Error = Error;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<LastCacheSize> for usize {
+    fn from(value: LastCacheSize) -> Self {
+        value.0
     }
 }
 
@@ -508,5 +594,83 @@ mod tests {
             InfluxColumnType::Field(InfluxFieldType::String)
         );
         assert_eq!(schema.field(1).0, InfluxColumnType::Tag);
+    }
+
+    #[test]
+    fn serialize_series_keys() {
+        let catalog = Catalog::new();
+        let mut database = DatabaseSchema {
+            name: "test_db".to_string(),
+            tables: BTreeMap::new(),
+        };
+        use InfluxColumnType::*;
+        use InfluxFieldType::*;
+        database.tables.insert(
+            "test_table_1".into(),
+            TableDefinition::new(
+                "test_table_1",
+                [
+                    ("tag_1", Tag),
+                    ("tag_2", Tag),
+                    ("tag_3", Tag),
+                    ("time", Timestamp),
+                    ("field", Field(String)),
+                ],
+                SeriesKey::Some(vec![
+                    "tag_1".to_string(),
+                    "tag_2".to_string(),
+                    "tag_3".to_string(),
+                ]),
+            ),
+        );
+        let database = Arc::new(database);
+        catalog
+            .replace_database(SequenceNumber::new(0), database)
+            .unwrap();
+
+        assert_json_snapshot!(catalog);
+
+        let serialized = serde_json::to_string(&catalog).unwrap();
+        let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
+        let deserialized = Catalog::from_inner(deserialized_inner);
+        assert_eq!(catalog, deserialized);
+    }
+
+    #[test]
+    fn serialize_last_cache() {
+        let catalog = Catalog::new();
+        let mut database = DatabaseSchema {
+            name: "test_db".to_string(),
+            tables: BTreeMap::new(),
+        };
+        use InfluxColumnType::*;
+        use InfluxFieldType::*;
+        let mut table_def = TableDefinition::new(
+            "test",
+            [
+                ("tag_1", Tag),
+                ("tag_2", Tag),
+                ("tag_3", Tag),
+                ("time", Timestamp),
+                ("field", Field(String)),
+            ],
+            SeriesKey::None,
+        );
+        table_def.add_last_cache(
+            LastCacheDefinition::new("test_table_last_cache", ["tag_2", "tag_3"], ["field"], 1)
+                .unwrap(),
+        );
+        database.tables.insert("test_table_1".into(), table_def);
+        let database = Arc::new(database);
+        catalog
+            .replace_database(SequenceNumber::new(0), database)
+            .unwrap();
+
+        assert_json_snapshot!(catalog);
+
+        let serialized = serde_json::to_string(&catalog).unwrap();
+        let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
+        let deserialized = Catalog::from_inner(deserialized_inner);
+        assert_eq!(catalog, deserialized);
     }
 }

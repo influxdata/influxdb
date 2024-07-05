@@ -9,8 +9,8 @@ use crate::write_buffer::buffer_segment::{
 };
 use crate::write_buffer::parquet_chunk_from_file;
 use crate::{
-    wal, write_buffer, ParquetFile, PersistedSegment, SegmentDuration, SegmentId, SegmentRange,
-    SequenceNumber, Wal, WalOp,
+    wal, write_buffer, ParquetFile, SegmentDuration, SegmentId, SegmentRange, SequenceNumber, Wal,
+    WalOp,
 };
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
@@ -44,11 +44,9 @@ pub(crate) struct SegmentState<T, W> {
     // start time that time.now falls into.
     segments: BTreeMap<Time, OpenBufferSegment>,
     persisting_segments: BTreeMap<Time, Arc<ClosedBufferSegment>>,
-    persisted_segments: BTreeMap<Time, Arc<PersistedSegment>>,
 }
 
 impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         segment_duration: SegmentDuration,
         last_segment_id: SegmentId,
@@ -56,7 +54,6 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         time_provider: Arc<T>,
         open_segments: Vec<OpenBufferSegment>,
         persisting_segments: Vec<ClosedBufferSegment>,
-        persisted_segments: Vec<PersistedSegment>,
         wal: Option<Arc<W>>,
     ) -> Self {
         let mut segments = BTreeMap::new();
@@ -69,14 +66,6 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
             persisting_segments_map.insert(segment.segment_range.start_time, Arc::new(segment));
         }
 
-        let mut persisted_segments_map = BTreeMap::new();
-        for segment in persisted_segments {
-            persisted_segments_map.insert(
-                Time::from_timestamp_nanos(segment.segment_min_time),
-                Arc::new(segment),
-            );
-        }
-
         Self {
             segment_duration,
             last_segment_id,
@@ -85,7 +74,6 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
             wal,
             segments,
             persisting_segments: persisting_segments_map,
-            persisted_segments: persisted_segments_map,
         }
     }
 
@@ -239,24 +227,6 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         Ok(chunks)
     }
 
-    pub(crate) fn get_parquet_files(
-        &self,
-        database_name: &str,
-        table_name: &str,
-    ) -> Vec<ParquetFile> {
-        let mut parquet_files = vec![];
-
-        for segment in self.persisted_segments.values() {
-            segment.databases.get(database_name).map(|db| {
-                db.tables.get(table_name).map(|table| {
-                    parquet_files.extend(table.parquet_files.clone());
-                })
-            });
-        }
-
-        parquet_files
-    }
-
     pub(crate) fn split_table_for_persistence(
         &mut self,
         segment_id: SegmentId,
@@ -292,11 +262,6 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
             // and say it's ok.
             Ok(())
         }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn persisted_segments(&self) -> Vec<Arc<PersistedSegment>> {
-        self.persisted_segments.values().cloned().collect()
     }
 
     #[cfg(test)]
@@ -362,14 +327,8 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         })
     }
 
-    pub(crate) fn mark_segment_as_persisted(
-        &mut self,
-        segment_start: Time,
-        persisted_segment: PersistedSegment,
-    ) {
+    pub(crate) fn remove_persisting_segment(&mut self, segment_start: Time) {
         self.persisting_segments.remove(&segment_start);
-        self.persisted_segments
-            .insert(segment_start, Arc::new(persisted_segment));
     }
 
     // return the segment with this start time or open up a new one if it isn't currently open.
@@ -479,7 +438,6 @@ mod tests {
             Arc::clone(&catalog),
             Arc::clone(&time_provider),
             vec![open_segment1, open_segment2, open_segment3],
-            vec![],
             vec![],
             None,
         );
