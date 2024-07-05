@@ -27,14 +27,14 @@ use datafusion::{
     scalar::ScalarValue,
 };
 use hashbrown::{HashMap, HashSet};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use iox_time::Time;
 use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder, TIME_COLUMN_NAME};
 
 use crate::{
     catalog::LastCacheSize,
-    write_buffer::{buffer_segment::WriteBatch, FieldData, Row},
+    write_buffer::{buffer_segment::WriteBatch, Field, FieldData, Row},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -172,7 +172,7 @@ impl LastCacheProvider {
             return Err(Error::CacheAlreadyExists);
         }
 
-        let value_columns = if let Some(mut vals) = value_columns {
+        let (value_columns, accept_new) = if let Some(mut vals) = value_columns {
             // if value columns are specified, check that they are present in the table schema
             for name in vals.iter() {
                 if schema.field_by_name(name).is_none() {
@@ -186,19 +186,22 @@ impl LastCacheProvider {
             if !vals.contains(&time_col) {
                 vals.push(time_col);
             }
-            vals
+            (vals, false)
         } else {
             // default to all non-key columns
-            schema
-                .iter()
-                .filter_map(|(_, f)| {
-                    if key_columns.contains(f.name()) {
-                        None
-                    } else {
-                        Some(f.name().to_string())
-                    }
-                })
-                .collect::<Vec<String>>()
+            (
+                schema
+                    .iter()
+                    .filter_map(|(_, f)| {
+                        if key_columns.contains(f.name()) {
+                            None
+                        } else {
+                            Some(f.name().to_string())
+                        }
+                    })
+                    .collect::<Vec<String>>(),
+                true,
+            )
         };
 
         // build a schema that only holds the field columns
@@ -211,6 +214,10 @@ impl LastCacheProvider {
             schema_builder.influx_column(name, t);
         }
 
+        let series_key = schema
+            .series_key()
+            .map(|keys| keys.into_iter().map(|s| s.to_string()).collect());
+
         // create the actual last cache:
         let last_cache = LastCache::new(
             count
@@ -219,7 +226,9 @@ impl LastCacheProvider {
                 .map_err(|_| Error::InvalidCacheSize)?,
             ttl.unwrap_or(DEFAULT_CACHE_TTL),
             key_columns,
-            schema_builder.build()?,
+            schema_builder.build()?.as_arrow(),
+            series_key,
+            accept_new,
         );
 
         // get the write lock and insert:
@@ -310,21 +319,35 @@ pub(crate) struct LastCache {
     /// the [`remove_expired`][LastCache::remove_expired] method.
     ttl: Duration,
     /// The key columns for this cache
-    key_columns: Vec<String>,
-    /// The Influx Schema for the table that this cache is associated with
-    schema: Schema,
+    key_columns: IndexSet<String>,
+    /// The Arrow Schema for the table that this cache is associated with
+    schema: ArrowSchemaRef,
+    /// Optionally store the series key for tables that use it for ensuring non-nullability in the
+    /// column buffer for series key columns
+    series_key: Option<HashSet<String>>,
+    /// Whether or not this cache accepts newly written fields
+    accept_new: bool,
     /// The internal state of the cache
     state: LastCacheState,
 }
 
 impl LastCache {
     /// Create a new [`LastCache`]
-    fn new(count: LastCacheSize, ttl: Duration, key_columns: Vec<String>, schema: Schema) -> Self {
+    fn new(
+        count: LastCacheSize,
+        ttl: Duration,
+        key_columns: Vec<String>,
+        schema: ArrowSchemaRef,
+        series_key: Option<HashSet<String>>,
+        accept_new: bool,
+    ) -> Self {
         Self {
             count,
             ttl,
-            key_columns,
+            key_columns: key_columns.into_iter().collect(),
             schema,
+            series_key,
+            accept_new,
             state: LastCacheState::Init,
         }
     }
@@ -371,7 +394,8 @@ impl LastCache {
                     LastCacheState::Store(LastCacheStore::new(
                         self.count.into(),
                         self.ttl,
-                        self.schema.clone(),
+                        Arc::clone(&self.schema),
+                        self.series_key.as_ref(),
                     ))
                 }
             });
@@ -381,15 +405,29 @@ impl LastCache {
             *target = LastCacheState::Store(LastCacheStore::new(
                 self.count.into(),
                 self.ttl,
-                self.schema.clone(),
+                Arc::clone(&self.schema),
+                self.series_key.as_ref(),
             ));
         }
-        target
-            .as_store_mut()
-            .expect(
-                "cache target should be the actual store after iterating through all key columns",
-            )
-            .push(row);
+        let store = target.as_store_mut().expect(
+            "cache target should be the actual store after iterating through all key columns",
+        );
+        let Some(new_columns) = store.push(row, self.accept_new, &self.key_columns) else {
+            // Unless new columns were added, and we need to update the schema, we are done.
+            return;
+        };
+        println!("we got some new columns: {new_columns:#?}");
+
+        let mut sb = ArrowSchemaBuilder::new();
+        for f in self.schema.fields().iter() {
+            sb.push(Arc::clone(&f));
+        }
+        for (name, data_type) in new_columns {
+            sb.push(Arc::new(ArrowField::new(name, data_type, true)));
+        }
+        let new_schema = Arc::new(sb.finish());
+        self.schema = new_schema;
+        store.update_schema(Arc::clone(&self.schema));
     }
 
     /// Produce a set of [`RecordBatch`]es from the cache, using the given set of [`Predicate`]s
@@ -727,8 +765,10 @@ struct LastCacheStore {
     /// this allows record batch creation with a straight iteration through the map, vs. having
     /// to look up columns on the fly to get the correct order.
     cache: IndexMap<String, CacheColumn>,
+    /// The capacity of the internal cache buffers
+    count: usize,
     // TODO: will need to use this if new columns are added for * caches
-    _ttl: Duration,
+    ttl: Duration,
     /// The timestamp of the last [`Row`] that was pushed into this store from the buffer.
     ///
     /// This is used to ignore rows that are received with older timestamps.
@@ -737,30 +777,32 @@ struct LastCacheStore {
 
 impl LastCacheStore {
     /// Create a new [`LastCacheStore`]
-    fn new(count: usize, ttl: Duration, schema: Schema) -> Self {
-        let series_keys: HashSet<&str> = schema
-            .series_key()
-            .unwrap_or_default()
-            .into_iter()
-            .collect();
+    fn new(
+        count: usize,
+        ttl: Duration,
+        schema: ArrowSchemaRef,
+        series_keys: Option<&HashSet<String>>,
+    ) -> Self {
         let cache = schema
+            .fields()
             .iter()
-            .map(|(_, f)| {
+            .map(|f| {
                 (
                     f.name().to_string(),
                     CacheColumn::new(
                         f.data_type(),
                         count,
                         ttl,
-                        series_keys.contains(f.name().as_str()),
+                        series_keys.is_some_and(|sk| sk.contains(f.name().as_str())),
                     ),
                 )
             })
             .collect();
         Self {
-            schema: schema.as_arrow(),
+            schema,
             cache,
-            _ttl: ttl,
+            count,
+            ttl,
             last_time: Time::from_timestamp_nanos(0),
         }
     }
@@ -780,18 +822,60 @@ impl LastCacheStore {
     }
 
     /// Push a [`Row`] from the buffer into this cache
-    fn push(&mut self, row: &Row) {
+    fn push<'a>(
+        &mut self,
+        row: &'a Row,
+        accept_new: bool,
+        key_columns: &IndexSet<String>,
+    ) -> Option<Vec<(&'a str, DataType)>> {
         if row.time <= self.last_time.timestamp_nanos() {
-            return;
+            return None;
         }
-        for (name, column) in self.cache.iter_mut() {
-            if let Some(field) = row.fields.iter().find(|f| f.name == *name) {
-                column.push(&field.value);
-            } else {
-                column.push_null();
+        let mut result = None;
+        if accept_new {
+            // check the length before any rows are added to ensure that the correct amount
+            // of nulls are back-filled when new fields/columns are added:
+            let n = self.len();
+            let mut seen: HashSet<&str> = HashSet::new();
+            for field in row.fields.iter() {
+                if let Some(col) = self.cache.get_mut(&field.name) {
+                    seen.insert(field.name.as_str());
+                    col.push(&field.value);
+                } else if !key_columns.contains(&field.name) {
+                    let data_type = data_type_from_buffer_field(&field);
+                    let col = self.cache.entry(field.name.to_string()).or_insert_with(|| {
+                        CacheColumn::new(&data_type, self.count, self.ttl, false)
+                    });
+                    for _ in 0..n {
+                        col.push_null();
+                    }
+                    col.push(&field.value);
+                    result
+                        .get_or_insert_with(|| vec![])
+                        .push((field.name.as_str(), data_type));
+                }
+            }
+            for (name, column) in self.cache.iter_mut() {
+                if !seen.contains(name.as_str()) {
+                    column.push_null();
+                }
+            }
+        } else {
+            for (name, column) in self.cache.iter_mut() {
+                if let Some(field) = row.fields.iter().find(|f| f.name == *name) {
+                    column.push(&field.value);
+                } else {
+                    column.push_null();
+                }
             }
         }
         self.last_time = Time::from_timestamp_nanos(row.time);
+        result
+    }
+
+    /// Update the schema on this [`LastCacheStore`]
+    fn update_schema(&mut self, schema: ArrowSchemaRef) {
+        self.schema = schema;
     }
 
     /// Convert the contents of this cache into a arrow [`RecordBatch`]
@@ -837,7 +921,7 @@ impl TableProvider for LastCache {
     }
 
     fn schema(&self) -> ArrowSchemaRef {
-        self.schema.as_arrow()
+        Arc::clone(&self.schema)
     }
 
     fn table_type(&self) -> TableType {
@@ -1176,6 +1260,23 @@ impl<T> ColumnBuffer<T> {
     /// Produce an iterator over the values in the buffer
     fn iter(&self) -> impl Iterator<Item = &T> {
         self.0.iter().map(|(_, v)| v)
+    }
+}
+
+fn data_type_from_buffer_field(field: &Field) -> DataType {
+    match field.value {
+        FieldData::Timestamp(_) => DataType::Timestamp(TimeUnit::Nanosecond, None),
+        FieldData::Key(_) => {
+            DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8))
+        }
+        FieldData::Tag(_) => {
+            DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8))
+        }
+        FieldData::String(_) => DataType::Utf8,
+        FieldData::Integer(_) => DataType::Int64,
+        FieldData::UInteger(_) => DataType::UInt64,
+        FieldData::Float(_) => DataType::Float64,
+        FieldData::Boolean(_) => DataType::Boolean,
     }
 }
 
@@ -2189,7 +2290,7 @@ mod tests {
                 {tbl_name},province=on,county=bruce,township=culrock lo=13,avg=15\n\
                 {tbl_name},province=on,county=wentworth,township=ancaster lo=18,hi=23,avg=20\n\
                 {tbl_name},province=on,county=york,township=york lo=20\n\
-                {tbl_name},province=on,county=welland,township=bertie med=20\n\
+                {tbl_name},province=on,county=welland,township=bertie avg=20\n\
                 "
             )
             .as_str(),
@@ -2214,7 +2315,7 @@ mod tests {
                 "| bruce     | on       | culrock    | 15.0 |      | 13.0 | 1970-01-01T00:00:00.000001Z |",
                 "| bruce     | on       | kincardine | 18.0 | 21.0 |      | 1970-01-01T00:00:00.000001Z |",
                 "| huron     | on       | goderich   |      | 22.0 | 16.0 | 1970-01-01T00:00:00.000001Z |",
-                "| welland   | on       | bertie     |      |      |      | 1970-01-01T00:00:00.000001Z |",
+                "| welland   | on       | bertie     | 20.0 |      |      | 1970-01-01T00:00:00.000001Z |",
                 "| wentworth | on       | ancaster   | 20.0 | 23.0 | 18.0 | 1970-01-01T00:00:00.000001Z |",
                 "| york      | on       | york       |      |      | 20.0 | 1970-01-01T00:00:00.000001Z |",
                 "+-----------+----------+------------+------+------+------+-----------------------------+",
