@@ -7,9 +7,9 @@ use std::{
 
 use arrow::{
     array::{
-        ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder, Int64Builder,
-        RecordBatch, StringBuilder, StringDictionaryBuilder, TimestampNanosecondBuilder,
-        UInt64Builder,
+        new_null_array, ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder,
+        Int64Builder, RecordBatch, StringBuilder, StringDictionaryBuilder,
+        TimestampNanosecondBuilder, UInt64Builder,
     },
     datatypes::{
         DataType, Field as ArrowField, FieldRef, GenericStringType, Int32Type,
@@ -416,7 +416,6 @@ impl LastCache {
             // Unless new columns were added, and we need to update the schema, we are done.
             return;
         };
-        println!("we got some new columns: {new_columns:#?}");
 
         let mut sb = ArrowSchemaBuilder::new();
         for f in self.schema.fields().iter() {
@@ -474,7 +473,10 @@ impl LastCache {
             caches = new_caches;
         }
 
-        caches.into_iter().map(|c| c.to_record_batch()).collect()
+        caches
+            .into_iter()
+            .map(|c| c.to_record_batch(&self.schema))
+            .collect()
     }
 
     /// Convert a set of DataFusion filter [`Expr`]s into [`Predicate`]s
@@ -545,7 +547,7 @@ impl<'a> ExtendedLastCacheState<'a> {
     /// # Panics
     ///
     /// This assumes taht the `state` is a [`LastCacheStore`] and will panic otherwise.
-    fn to_record_batch(&self) -> Result<RecordBatch, ArrowError> {
+    fn to_record_batch(&self, output_schema: &ArrowSchemaRef) -> Result<RecordBatch, ArrowError> {
         let store = self
             .state
             .as_store()
@@ -594,7 +596,7 @@ impl<'a> ExtendedLastCacheState<'a> {
                     .collect(),
             )
         };
-        store.to_record_batch(extended)
+        store.to_record_batch(output_schema, extended)
     }
 }
 
@@ -838,8 +840,8 @@ impl LastCacheStore {
             let n = self.len();
             let mut seen: HashSet<&str> = HashSet::new();
             for field in row.fields.iter() {
+                seen.insert(field.name.as_str());
                 if let Some(col) = self.cache.get_mut(&field.name) {
-                    seen.insert(field.name.as_str());
                     col.push(&field.value);
                 } else if !key_columns.contains(&field.name) {
                     let data_type = data_type_from_buffer_field(&field);
@@ -886,22 +888,47 @@ impl LastCacheStore {
     /// for the cache.
     fn to_record_batch(
         &self,
+        output_schema: &ArrowSchemaRef,
         extended: Option<(Vec<FieldRef>, Vec<ArrayRef>)>,
     ) -> Result<RecordBatch, ArrowError> {
         // This is where using IndexMap is important, because we inserted the cache entries
         // using the schema field ordering, we will get the correct order by iterating directly
         // over the map here:
-        let cache_arrays = self.cache.iter().map(|(_, c)| c.data.as_array());
-        let (schema, arrays) = if let Some((fields, mut arrays)) = extended {
-            let mut sb = ArrowSchemaBuilder::new();
-            sb.extend(fields);
-            sb.extend(self.schema.fields().iter().map(Arc::clone));
-            arrays.extend(cache_arrays);
-            (Arc::new(sb.finish()), arrays)
-        } else {
-            (Arc::clone(&self.schema), cache_arrays.collect())
-        };
-        RecordBatch::try_new(schema, arrays)
+        let (fields, mut arrays): (Vec<FieldRef>, Vec<ArrayRef>) =
+            if output_schema.fields().len() > self.cache.len() {
+                (
+                    self.schema
+                        .fields()
+                        .iter()
+                        .chain(output_schema.fields().iter().skip(self.cache.len()))
+                        .cloned()
+                        .collect(),
+                    self.cache
+                        .iter()
+                        .map(|(_, c)| c.data.as_array())
+                        .chain(
+                            output_schema
+                                .fields()
+                                .iter()
+                                .skip(self.cache.len())
+                                .map(|f| new_null_array(f.data_type(), self.len())),
+                        )
+                        .collect(),
+                )
+            } else {
+                (
+                    self.schema.fields().iter().cloned().collect(),
+                    self.cache.iter().map(|(_, c)| c.data.as_array()).collect(),
+                )
+            };
+        let mut sb = ArrowSchemaBuilder::new();
+        if let Some((ext_fields, mut ext_arrays)) = extended {
+            sb.extend(ext_fields);
+            ext_arrays.extend(arrays.drain(..));
+            arrays = ext_arrays;
+        }
+        sb.extend(fields);
+        RecordBatch::try_new(Arc::new(sb.finish()), arrays)
     }
 
     /// Remove expired values from the [`LastCacheStore`]
@@ -2322,5 +2349,101 @@ mod tests {
             ],
             &batches
         );
+    }
+
+    #[tokio::test]
+    async fn new_fields_added_to_default_cache() {
+        let db_name = "nhl_stats";
+        let tbl_name = "plays";
+        let wbuf = setup_write_buffer().await;
+
+        // Do a write to setup catalog:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(r#"{tbl_name},game_id=1 type="shot",player="kessel""#).as_str(),
+            Time::from_timestamp_nanos(500),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Create the last cache using default tags as keys
+        wbuf.create_last_cache(db_name, tbl_name, None, Some(10), None, None, None)
+            .expect("create last cache");
+
+        // Write some lines to fill the cache. The last two lines include a new field "zone" which
+        // should be added and appear in queries:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "\
+                {tbl_name},game_id=1 type=\"shot\",player=\"mackinnon\"\n\
+                {tbl_name},game_id=2 type=\"shot\",player=\"matthews\"\n\
+                {tbl_name},game_id=3 type=\"hit\",player=\"tkachuk\",zone=\"away\"\n\
+                {tbl_name},game_id=4 type=\"save\",player=\"bobrovsky\",zone=\"home\"\n\
+                "
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(1_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        struct TestCase<'a> {
+            predicates: &'a [Predicate],
+            expected: &'a [&'a str],
+        }
+
+        let test_cases = [
+            // Cache that has values in the zone columns should produce them:
+            TestCase {
+                predicates: &[Predicate::new("game_id", KeyValue::string("4"))],
+                expected: &[
+                    "+-----------+-----------------------------+------+------+",
+                    "| player    | time                        | type | zone |",
+                    "+-----------+-----------------------------+------+------+",
+                    "| bobrovsky | 1970-01-01T00:00:00.000001Z | save | home |",
+                    "+-----------+-----------------------------+------+------+",
+                ],
+            },
+            // Cache that does not have a zone column will produce it with nulls:
+            TestCase {
+                predicates: &[Predicate::new("game_id", KeyValue::string("1"))],
+                expected: &[
+                    "+-----------+-----------------------------+------+------+",
+                    "| player    | time                        | type | zone |",
+                    "+-----------+-----------------------------+------+------+",
+                    "| mackinnon | 1970-01-01T00:00:00.000001Z | shot |      |",
+                    "+-----------+-----------------------------+------+------+",
+                ],
+            },
+            // Pulling from multiple caches will fill in with nulls:
+            TestCase {
+                predicates: &[],
+                expected: &[
+                    "+---------+-----------+-----------------------------+------+------+",
+                    "| game_id | player    | time                        | type | zone |",
+                    "+---------+-----------+-----------------------------+------+------+",
+                    "| 1       | mackinnon | 1970-01-01T00:00:00.000001Z | shot |      |",
+                    "| 2       | matthews  | 1970-01-01T00:00:00.000001Z | shot |      |",
+                    "| 3       | tkachuk   | 1970-01-01T00:00:00.000001Z | hit  | away |",
+                    "| 4       | bobrovsky | 1970-01-01T00:00:00.000001Z | save | home |",
+                    "+---------+-----------+-----------------------------+------+------+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let batches = wbuf
+                .last_cache()
+                .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
+                .unwrap()
+                .unwrap();
+
+            assert_batches_sorted_eq!(t.expected, &batches);
+        }
     }
 }
