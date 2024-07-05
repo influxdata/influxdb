@@ -772,6 +772,13 @@ impl LastCacheStore {
         self.cache.first().map_or(0, |(_, c)| c.len())
     }
 
+    /// Check if the cache is empty
+    ///
+    /// Assumes that all columns are the same length, and only checks the first.
+    fn is_empty(&self) -> bool {
+        self.cache.first().map_or(false, |(_, c)| c.is_empty())
+    }
+
     /// Push a [`Row`] from the buffer into this cache
     fn push(&mut self, row: &Row) {
         if row.time <= self.last_time.timestamp_nanos() {
@@ -816,6 +823,10 @@ impl LastCacheStore {
     /// Remove expired values from the [`LastCacheStore`]
     fn remove_expired(&mut self) {
         self.cache.iter_mut().for_each(|(_, c)| c.remove_expired());
+        // reset the last_time if TTL evicts everything from the cache
+        if self.is_empty() {
+            self.last_time = Time::from_timestamp_nanos(0);
+        }
     }
 }
 
@@ -884,6 +895,11 @@ impl CacheColumn {
         self.data.len()
     }
 
+    /// Check if the column is empty
+    fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     /// Push [`FieldData`] from the buffer into this column
     fn push(&mut self, field_data: &FieldData) {
         if self.data.len() >= self.size {
@@ -944,14 +960,28 @@ impl CacheColumnData {
     /// Get the length of the [`CacheColumn`]
     fn len(&self) -> usize {
         match self {
-            CacheColumnData::I64(v) => v.len(),
-            CacheColumnData::U64(v) => v.len(),
-            CacheColumnData::F64(v) => v.len(),
-            CacheColumnData::String(v) => v.len(),
-            CacheColumnData::Bool(v) => v.len(),
-            CacheColumnData::Tag(v) => v.len(),
-            CacheColumnData::Key(v) => v.len(),
-            CacheColumnData::Time(v) => v.len(),
+            CacheColumnData::I64(buf) => buf.len(),
+            CacheColumnData::U64(buf) => buf.len(),
+            CacheColumnData::F64(buf) => buf.len(),
+            CacheColumnData::String(buf) => buf.len(),
+            CacheColumnData::Bool(buf) => buf.len(),
+            CacheColumnData::Tag(buf) => buf.len(),
+            CacheColumnData::Key(buf) => buf.len(),
+            CacheColumnData::Time(buf) => buf.len(),
+        }
+    }
+
+    /// Check if the column is empty
+    fn is_empty(&self) -> bool {
+        match self {
+            CacheColumnData::I64(buf) => buf.is_empty(),
+            CacheColumnData::U64(buf) => buf.is_empty(),
+            CacheColumnData::F64(buf) => buf.is_empty(),
+            CacheColumnData::String(buf) => buf.is_empty(),
+            CacheColumnData::Bool(buf) => buf.is_empty(),
+            CacheColumnData::Tag(buf) => buf.is_empty(),
+            CacheColumnData::Key(buf) => buf.is_empty(),
+            CacheColumnData::Time(buf) => buf.is_empty(),
         }
     }
 
@@ -1114,6 +1144,11 @@ impl<T> ColumnBuffer<T> {
     /// Get the length of the [`ColumnBuffer`]
     fn len(&self) -> usize {
         self.0.len()
+    }
+
+    /// Check if the buffer is empty
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     /// Pop the last element off of the [`ColumnBuffer`]
