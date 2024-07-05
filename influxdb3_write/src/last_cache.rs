@@ -419,7 +419,7 @@ impl LastCache {
 
         let mut sb = ArrowSchemaBuilder::new();
         for f in self.schema.fields().iter() {
-            sb.push(Arc::clone(&f));
+            sb.push(Arc::clone(f));
         }
         for (name, data_type) in new_columns {
             sb.push(Arc::new(ArrowField::new(name, data_type, true)));
@@ -844,7 +844,7 @@ impl LastCacheStore {
                 if let Some(col) = self.cache.get_mut(&field.name) {
                     col.push(&field.value);
                 } else if !key_columns.contains(&field.name) {
-                    let data_type = data_type_from_buffer_field(&field);
+                    let data_type = data_type_from_buffer_field(field);
                     let col = self.cache.entry(field.name.to_string()).or_insert_with(|| {
                         CacheColumn::new(&data_type, self.count, self.ttl, false)
                     });
@@ -853,7 +853,7 @@ impl LastCacheStore {
                     }
                     col.push(&field.value);
                     result
-                        .get_or_insert_with(|| vec![])
+                        .get_or_insert_with(Vec::new)
                         .push((field.name.as_str(), data_type));
                 }
             }
@@ -924,7 +924,7 @@ impl LastCacheStore {
         let mut sb = ArrowSchemaBuilder::new();
         if let Some((ext_fields, mut ext_arrays)) = extended {
             sb.extend(ext_fields);
-            ext_arrays.extend(arrays.drain(..));
+            ext_arrays.append(&mut arrays);
             arrays = ext_arrays;
         }
         sb.extend(fields);
