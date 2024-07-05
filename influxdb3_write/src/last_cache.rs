@@ -26,7 +26,7 @@ use datafusion::{
     physical_plan::{memory::MemoryExec, ExecutionPlan},
     scalar::ScalarValue,
 };
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use indexmap::IndexMap;
 use iox_time::Time;
 use parking_lot::RwLock;
@@ -371,7 +371,7 @@ impl LastCache {
                     LastCacheState::Store(LastCacheStore::new(
                         self.count.into(),
                         self.ttl,
-                        self.schema.as_arrow(),
+                        self.schema.clone(),
                     ))
                 }
             });
@@ -381,7 +381,7 @@ impl LastCache {
             *target = LastCacheState::Store(LastCacheStore::new(
                 self.count.into(),
                 self.ttl,
-                self.schema.as_arrow(),
+                self.schema.clone(),
             ));
         }
         target
@@ -737,19 +737,28 @@ struct LastCacheStore {
 
 impl LastCacheStore {
     /// Create a new [`LastCacheStore`]
-    fn new(count: usize, ttl: Duration, schema: ArrowSchemaRef) -> Self {
+    fn new(count: usize, ttl: Duration, schema: Schema) -> Self {
+        let series_keys: HashSet<&str> = schema
+            .series_key()
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         let cache = schema
-            .fields()
             .iter()
-            .map(|f| {
+            .map(|(_, f)| {
                 (
                     f.name().to_string(),
-                    CacheColumn::new(f.data_type(), count, ttl),
+                    CacheColumn::new(
+                        f.data_type(),
+                        count,
+                        ttl,
+                        series_keys.contains(f.name().as_str()),
+                    ),
                 )
             })
             .collect();
         Self {
-            schema,
+            schema: schema.as_arrow(),
             cache,
             _ttl: ttl,
             last_time: Time::from_timestamp_nanos(0),
@@ -768,9 +777,11 @@ impl LastCacheStore {
         if row.time <= self.last_time.timestamp_nanos() {
             return;
         }
-        for field in &row.fields {
-            if let Some(c) = self.cache.get_mut(&field.name) {
-                c.push(&field.value);
+        for (name, column) in self.cache.iter_mut() {
+            if let Some(field) = row.fields.iter().find(|f| f.name == *name) {
+                column.push(&field.value);
+            } else {
+                column.push_null();
             }
         }
         self.last_time = Time::from_timestamp_nanos(row.time);
@@ -860,11 +871,11 @@ struct CacheColumn {
 
 impl CacheColumn {
     /// Create a new [`CacheColumn`] for the given arrow [`DataType`] and size
-    fn new(data_type: &DataType, size: usize, ttl: Duration) -> Self {
+    fn new(data_type: &DataType, size: usize, ttl: Duration, is_series_key: bool) -> Self {
         Self {
             size,
             ttl,
-            data: CacheColumnData::new(data_type, size),
+            data: CacheColumnData::new(data_type, size, is_series_key),
         }
     }
 
@@ -881,6 +892,13 @@ impl CacheColumn {
         self.data.push_front(field_data);
     }
 
+    fn push_null(&mut self) {
+        if self.data.len() >= self.size {
+            self.data.pop_back();
+        }
+        self.data.push_front_null();
+    }
+
     /// Remove expired values from this [`CacheColumn`]
     fn remove_expired(&mut self) {
         self.data.remove_expired(self.ttl);
@@ -890,18 +908,19 @@ impl CacheColumn {
 /// Enumerated type for storing column data for the cache in a buffer
 #[derive(Debug)]
 enum CacheColumnData {
-    I64(ColumnBuffer<i64>),
-    U64(ColumnBuffer<u64>),
-    F64(ColumnBuffer<f64>),
-    String(ColumnBuffer<String>),
-    Bool(ColumnBuffer<bool>),
-    Tag(ColumnBuffer<String>),
+    I64(ColumnBuffer<Option<i64>>),
+    U64(ColumnBuffer<Option<u64>>),
+    F64(ColumnBuffer<Option<f64>>),
+    String(ColumnBuffer<Option<String>>),
+    Bool(ColumnBuffer<Option<bool>>),
+    Tag(ColumnBuffer<Option<String>>),
+    Key(ColumnBuffer<String>),
     Time(ColumnBuffer<i64>),
 }
 
 impl CacheColumnData {
     /// Create a new [`CacheColumnData`]
-    fn new(data_type: &DataType, size: usize) -> Self {
+    fn new(data_type: &DataType, size: usize, is_series_key: bool) -> Self {
         match data_type {
             DataType::Boolean => Self::Bool(ColumnBuffer::with_capacity(size)),
             DataType::Int64 => Self::I64(ColumnBuffer::with_capacity(size)),
@@ -912,7 +931,11 @@ impl CacheColumnData {
             }
             DataType::Utf8 => Self::String(ColumnBuffer::with_capacity(size)),
             DataType::Dictionary(k, v) if **k == DataType::Int32 && **v == DataType::Utf8 => {
-                Self::Tag(ColumnBuffer::with_capacity(size))
+                if is_series_key {
+                    Self::Key(ColumnBuffer::with_capacity(size))
+                } else {
+                    Self::Tag(ColumnBuffer::with_capacity(size))
+                }
             }
             _ => panic!("unsupported data type for last cache: {data_type}"),
         }
@@ -927,6 +950,7 @@ impl CacheColumnData {
             CacheColumnData::String(v) => v.len(),
             CacheColumnData::Bool(v) => v.len(),
             CacheColumnData::Tag(v) => v.len(),
+            CacheColumnData::Key(v) => v.len(),
             CacheColumnData::Time(v) => v.len(),
         }
     }
@@ -952,6 +976,9 @@ impl CacheColumnData {
             CacheColumnData::Tag(v) => {
                 v.pop_back();
             }
+            CacheColumnData::Key(v) => {
+                v.pop_back();
+            }
             CacheColumnData::Time(v) => {
                 v.pop_back();
             }
@@ -961,71 +988,112 @@ impl CacheColumnData {
     /// Push a new element into the [`CacheColumn`]
     fn push_front(&mut self, field_data: &FieldData) {
         match (field_data, self) {
-            (FieldData::Timestamp(d), CacheColumnData::Time(v)) => v.push_front(*d),
-            (FieldData::Key(d), CacheColumnData::String(v)) => v.push_front(d.to_owned()),
-            (FieldData::Tag(d), CacheColumnData::Tag(v)) => v.push_front(d.to_owned()),
-            (FieldData::String(d), CacheColumnData::String(v)) => v.push_front(d.to_owned()),
-            (FieldData::Integer(d), CacheColumnData::I64(v)) => v.push_front(*d),
-            (FieldData::UInteger(d), CacheColumnData::U64(v)) => v.push_front(*d),
-            (FieldData::Float(d), CacheColumnData::F64(v)) => v.push_front(*d),
-            (FieldData::Boolean(d), CacheColumnData::Bool(v)) => v.push_front(*d),
+            (FieldData::Timestamp(val), CacheColumnData::Time(buf)) => buf.push_front(*val),
+            (FieldData::Key(val), CacheColumnData::Key(buf)) => buf.push_front(val.to_owned()),
+            (FieldData::Tag(val), CacheColumnData::Tag(buf)) => {
+                buf.push_front(Some(val.to_owned()))
+            }
+            (FieldData::String(val), CacheColumnData::String(buf)) => {
+                buf.push_front(Some(val.to_owned()))
+            }
+            (FieldData::Integer(val), CacheColumnData::I64(buf)) => buf.push_front(Some(*val)),
+            (FieldData::UInteger(val), CacheColumnData::U64(buf)) => buf.push_front(Some(*val)),
+            (FieldData::Float(val), CacheColumnData::F64(buf)) => buf.push_front(Some(*val)),
+            (FieldData::Boolean(val), CacheColumnData::Bool(buf)) => buf.push_front(Some(*val)),
             _ => panic!("invalid field data for cache column"),
+        }
+    }
+
+    fn push_front_null(&mut self) {
+        match self {
+            CacheColumnData::I64(buf) => buf.push_front(None),
+            CacheColumnData::U64(buf) => buf.push_front(None),
+            CacheColumnData::F64(buf) => buf.push_front(None),
+            CacheColumnData::String(buf) => buf.push_front(None),
+            CacheColumnData::Bool(buf) => buf.push_front(None),
+            CacheColumnData::Tag(buf) => buf.push_front(None),
+            CacheColumnData::Key(_) => panic!("pushed null value to series key column in cache"),
+            CacheColumnData::Time(_) => panic!("pushed null value to time column in cache"),
         }
     }
 
     /// Remove expired values from the inner [`ColumnBuffer`]
     fn remove_expired(&mut self, ttl: Duration) {
         match self {
-            CacheColumnData::I64(b) => b.remove_expired(ttl),
-            CacheColumnData::U64(b) => b.remove_expired(ttl),
-            CacheColumnData::F64(b) => b.remove_expired(ttl),
-            CacheColumnData::String(b) => b.remove_expired(ttl),
-            CacheColumnData::Bool(b) => b.remove_expired(ttl),
-            CacheColumnData::Tag(b) => b.remove_expired(ttl),
-            CacheColumnData::Time(b) => b.remove_expired(ttl),
+            CacheColumnData::I64(buf) => buf.remove_expired(ttl),
+            CacheColumnData::U64(buf) => buf.remove_expired(ttl),
+            CacheColumnData::F64(buf) => buf.remove_expired(ttl),
+            CacheColumnData::String(buf) => buf.remove_expired(ttl),
+            CacheColumnData::Bool(buf) => buf.remove_expired(ttl),
+            CacheColumnData::Tag(buf) => buf.remove_expired(ttl),
+            CacheColumnData::Key(buf) => buf.remove_expired(ttl),
+            CacheColumnData::Time(buf) => buf.remove_expired(ttl),
         }
     }
 
     /// Produce an arrow [`ArrayRef`] from this column for the sake of producing [`RecordBatch`]es
     fn as_array(&self) -> ArrayRef {
         match self {
-            CacheColumnData::I64(col_buf) => {
+            CacheColumnData::I64(buf) => {
                 let mut b = Int64Builder::new();
-                col_buf.iter().for_each(|val| b.append_value(*val));
-                Arc::new(b.finish())
-            }
-            CacheColumnData::U64(col_buf) => {
-                let mut b = UInt64Builder::new();
-                col_buf.iter().for_each(|val| b.append_value(*val));
-                Arc::new(b.finish())
-            }
-            CacheColumnData::F64(col_buf) => {
-                let mut b = Float64Builder::new();
-                col_buf.iter().for_each(|val| b.append_value(*val));
-                Arc::new(b.finish())
-            }
-            CacheColumnData::String(col_buf) => {
-                let mut b = StringBuilder::new();
-                col_buf.iter().for_each(|val| b.append_value(val));
-                Arc::new(b.finish())
-            }
-            CacheColumnData::Bool(col_buf) => {
-                let mut b = BooleanBuilder::new();
-                col_buf.iter().for_each(|val| b.append_value(*val));
-                Arc::new(b.finish())
-            }
-            CacheColumnData::Tag(col_buf) => {
-                let mut b: GenericByteDictionaryBuilder<Int32Type, GenericStringType<i32>> =
-                    StringDictionaryBuilder::new();
-                col_buf.iter().for_each(|val| {
-                    b.append(val)
-                        .expect("should not overflow 32 bit dictionary");
+                buf.iter().for_each(|val| match val {
+                    Some(v) => b.append_value(*v),
+                    None => b.append_null(),
                 });
                 Arc::new(b.finish())
             }
-            CacheColumnData::Time(col_buf) => {
+            CacheColumnData::U64(buf) => {
+                let mut b = UInt64Builder::new();
+                buf.iter().for_each(|val| match val {
+                    Some(v) => b.append_value(*v),
+                    None => b.append_null(),
+                });
+                Arc::new(b.finish())
+            }
+            CacheColumnData::F64(buf) => {
+                let mut b = Float64Builder::new();
+                buf.iter().for_each(|val| match val {
+                    Some(v) => b.append_value(*v),
+                    None => b.append_null(),
+                });
+                Arc::new(b.finish())
+            }
+            CacheColumnData::String(buf) => {
+                let mut b = StringBuilder::new();
+                buf.iter().for_each(|val| match val {
+                    Some(v) => b.append_value(v),
+                    None => b.append_null(),
+                });
+                Arc::new(b.finish())
+            }
+            CacheColumnData::Bool(buf) => {
+                let mut b = BooleanBuilder::new();
+                buf.iter().for_each(|val| match val {
+                    Some(v) => b.append_value(*v),
+                    None => b.append_null(),
+                });
+                Arc::new(b.finish())
+            }
+            CacheColumnData::Tag(buf) => {
+                let mut b: GenericByteDictionaryBuilder<Int32Type, GenericStringType<i32>> =
+                    StringDictionaryBuilder::new();
+                buf.iter().for_each(|val| match val {
+                    Some(v) => b.append_value(v),
+                    None => b.append_null(),
+                });
+                Arc::new(b.finish())
+            }
+            CacheColumnData::Key(buf) => {
+                let mut b: GenericByteDictionaryBuilder<Int32Type, GenericStringType<i32>> =
+                    StringDictionaryBuilder::new();
+                buf.iter().for_each(|val| {
+                    b.append_value(val);
+                });
+                Arc::new(b.finish())
+            }
+            CacheColumnData::Time(buf) => {
                 let mut b = TimestampNanosecondBuilder::new();
-                col_buf.iter().for_each(|val| b.append_value(*val));
+                buf.iter().for_each(|val| b.append_value(*val));
                 Arc::new(b.finish())
             }
         }
@@ -2052,5 +2120,71 @@ mod tests {
 
             assert_batches_sorted_eq!(t.expected, &batches);
         }
+    }
+
+    #[tokio::test]
+    async fn null_values() {
+        let db_name = "weather";
+        let tbl_name = "temp";
+        let wbuf = setup_write_buffer().await;
+
+        // Do a write to update catalog
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name},province=on,county=bruce,township=kincardine lo=15,hi=21,avg=18")
+                .as_str(),
+            Time::from_timestamp_nanos(500),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Create the last cache using default tags as keys
+        wbuf.create_last_cache(db_name, tbl_name, None, Some(10), None, None, None)
+            .expect("create last cache");
+
+        // Write some lines to fill the cache, but omit fields to produce nulls:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "\
+                {tbl_name},province=on,county=bruce,township=kincardine hi=21,avg=18\n\
+                {tbl_name},province=on,county=huron,township=goderich lo=16,hi=22\n\
+                {tbl_name},province=on,county=bruce,township=culrock lo=13,avg=15\n\
+                {tbl_name},province=on,county=wentworth,township=ancaster lo=18,hi=23,avg=20\n\
+                {tbl_name},province=on,county=york,township=york lo=20\n\
+                {tbl_name},province=on,county=welland,township=bertie med=20\n\
+                "
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(1_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        let batches = wbuf
+            .last_cache()
+            .get_cache_record_batches(db_name, tbl_name, None, &[])
+            .unwrap()
+            .unwrap();
+
+        assert_batches_sorted_eq!(
+            [
+                "+-----------+----------+------------+------+------+------+-----------------------------+",
+                "| county    | province | township   | avg  | hi   | lo   | time                        |",
+                "+-----------+----------+------------+------+------+------+-----------------------------+",
+                "| bruce     | on       | culrock    | 15.0 |      | 13.0 | 1970-01-01T00:00:00.000001Z |",
+                "| bruce     | on       | kincardine | 18.0 | 21.0 |      | 1970-01-01T00:00:00.000001Z |",
+                "| huron     | on       | goderich   |      | 22.0 | 16.0 | 1970-01-01T00:00:00.000001Z |",
+                "| welland   | on       | bertie     |      |      |      | 1970-01-01T00:00:00.000001Z |",
+                "| wentworth | on       | ancaster   | 20.0 | 23.0 | 18.0 | 1970-01-01T00:00:00.000001Z |",
+                "| york      | on       | york       |      |      | 20.0 | 1970-01-01T00:00:00.000001Z |",
+                "+-----------+----------+------------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
     }
 }

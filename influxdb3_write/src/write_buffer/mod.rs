@@ -419,7 +419,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         &self,
         db_name: impl Into<String>,
         tbl_name: impl Into<String>,
-        cache_name: Option<impl Into<String>>,
+        cache_name: Option<&str>,
         count: Option<usize>,
         ttl: Option<Duration>,
         key_columns: Option<Vec<String>>,
