@@ -22,7 +22,10 @@ use chrono::{format::SecondsFormat, DateTime};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{ready, stream::Fuse, Stream, StreamExt};
 use hyper::http::HeaderValue;
-use hyper::{header::ACCEPT, header::CONTENT_TYPE, Body, Request, Response, StatusCode};
+use hyper::{
+    header::ACCEPT, header::CONTENT_TYPE, header::TRANSFER_ENCODING, Body, Request, Response,
+    StatusCode,
+};
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
 use observability_deps::tracing::info;
@@ -35,6 +38,7 @@ use crate::QueryExecutor;
 use super::{Error, HttpApi, Result};
 
 const DEFAULT_CHUNK_SIZE: usize = 10_000;
+const TRANSFER_ENCODING_CHUNKED: &str = "chunked";
 
 impl<W, Q, T> HttpApi<W, Q, T>
 where
@@ -74,11 +78,17 @@ where
             QueryResponseStream::new(0, stream, chunk_size, format, epoch).map_err(QueryError)?;
         let body = Body::wrap_stream(stream);
 
-        Ok(Response::builder()
+        let mut builder = Response::builder()
             .status(StatusCode::OK)
-            .header(CONTENT_TYPE, format.as_content_type())
-            .body(body)
-            .unwrap())
+            .header(CONTENT_TYPE, format.as_content_type());
+
+        // Check if the response is chunked.
+        // If it is, add the "Transfer-Encoding: chunked" header to the response builder.
+        if chunked {
+            builder = builder.header(TRANSFER_ENCODING, TRANSFER_ENCODING_CHUNKED);
+        }
+
+        Ok(builder.body(body).unwrap())
     }
 }
 
@@ -303,6 +313,8 @@ impl From<QueryResponse> for Bytes {
 struct StatementResponse {
     statement_id: usize,
     series: Vec<Series>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    partial: Option<bool>,
 }
 
 /// The records produced for a single time series (measurement)
@@ -311,6 +323,8 @@ struct Series {
     name: String,
     columns: Vec<String>,
     values: Vec<Row>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    partial: Option<bool>,
 }
 
 /// A single row, or record in a time series
@@ -535,6 +549,9 @@ impl QueryResponseStream {
     /// Flush a single chunk, or time series, when operating in chunked mode
     fn flush_one(&mut self) -> QueryResponse {
         let columns = self.columns();
+
+        let partial = self.buffer.can_flush().then_some(true);
+
         // this unwrap is okay because we only ever call flush_one
         // after calling can_flush on the buffer:
         let (name, values) = self.buffer.flush_one().unwrap();
@@ -542,11 +559,13 @@ impl QueryResponseStream {
             name,
             columns,
             values,
+            partial,
         }];
         QueryResponse {
             results: vec![StatementResponse {
                 statement_id: self.statement_id,
                 series,
+                partial,
             }],
             format: self.format,
         }
@@ -563,12 +582,14 @@ impl QueryResponseStream {
                 name,
                 columns: columns.clone(),
                 values,
+                partial: None,
             })
             .collect();
         Ok(QueryResponse {
             results: vec![StatementResponse {
                 statement_id: self.statement_id,
                 series,
+                partial: None,
             }],
             format: self.format,
         })
