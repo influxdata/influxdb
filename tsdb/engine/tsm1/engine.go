@@ -1189,6 +1189,12 @@ func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
 			return err
 		}
 	}
+
+	// Save the field set index so we don't have to rebuild it next time
+	if err := e.fieldset.Save(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
