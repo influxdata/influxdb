@@ -319,6 +319,8 @@ pub(crate) struct LastCache {
     /// the [`remove_expired`][LastCache::remove_expired] method.
     ttl: Duration,
     /// The key columns for this cache
+    ///
+    /// Uses an [`IndexSet`] for both fast iteration and fast lookup.
     key_columns: IndexSet<String>,
     /// The Arrow Schema for the table that this cache is associated with
     schema: ArrowSchemaRef,
@@ -769,7 +771,7 @@ struct LastCacheStore {
     cache: IndexMap<String, CacheColumn>,
     /// The capacity of the internal cache buffers
     count: usize,
-    // TODO: will need to use this if new columns are added for * caches
+    /// Time-to-live (TTL) for values in the cache
     ttl: Duration,
     /// The timestamp of the last [`Row`] that was pushed into this store from the buffer.
     ///
@@ -824,6 +826,9 @@ impl LastCacheStore {
     }
 
     /// Push a [`Row`] from the buffer into this cache
+    ///
+    /// If new fields were added to the [`LastCacheStore`] by this push, the return will be a
+    /// list of those field's name and arrow [`DataType`], and `None` otherwise.
     fn push<'a>(
         &mut self,
         row: &'a Row,
@@ -835,34 +840,46 @@ impl LastCacheStore {
         }
         let mut result = None;
         if accept_new {
-            // check the length before any rows are added to ensure that the correct amount
+            // Check the length before any rows are added to ensure that the correct amount
             // of nulls are back-filled when new fields/columns are added:
             let n = self.len();
+            // Track the names of fields seen in the row data from the buffer:
             let mut seen: HashSet<&str> = HashSet::new();
             for field in row.fields.iter() {
                 seen.insert(field.name.as_str());
                 if let Some(col) = self.cache.get_mut(&field.name) {
+                    // In this case, the field already has an entry in the cache, so just push:
                     col.push(&field.value);
                 } else if !key_columns.contains(&field.name) {
+                    // In this case, there is not an entry for the field in the cache, so if the
+                    // value is not one of the key columns, then it is a new field being added.
                     let data_type = data_type_from_buffer_field(field);
                     let col = self.cache.entry(field.name.to_string()).or_insert_with(|| {
                         CacheColumn::new(&data_type, self.count, self.ttl, false)
                     });
+                    // Back-fill the new cache entry with nulls, then push the new value:
                     for _ in 0..n {
                         col.push_null();
                     }
                     col.push(&field.value);
+                    // Add the new field to the list of new columns returned:
                     result
                         .get_or_insert_with(Vec::new)
                         .push((field.name.as_str(), data_type));
                 }
+                // There is no else block, because the only alternative would be that this is a
+                // key column, which we ignore.
             }
+            // Need to check for columns not seen in the buffered row data, to push nulls into
+            // those respective cache entries:
             for (name, column) in self.cache.iter_mut() {
                 if !seen.contains(name.as_str()) {
                     column.push_null();
                 }
             }
         } else {
+            // In this case we don't care about new fields, so we can just iterate over the entries
+            // in the cache:
             for (name, column) in self.cache.iter_mut() {
                 if let Some(field) = row.fields.iter().find(|f| f.name == *name) {
                     column.push(&field.value);
@@ -893,16 +910,25 @@ impl LastCacheStore {
     ) -> Result<RecordBatch, ArrowError> {
         // This is where using IndexMap is important, because we inserted the cache entries
         // using the schema field ordering, we will get the correct order by iterating directly
-        // over the map here:
+        // over the map here, i.e., where calling self.cache.iter().
         let (fields, mut arrays): (Vec<FieldRef>, Vec<ArrayRef>) =
             if output_schema.fields().len() > self.cache.len() {
+                // If the output schema has more fields than this cache, then that means there
+                // were fields added in an adjacent cache, i.e., for a different combination of
+                // key column values.
                 (
+                    // If this cache has N fields, then the output schema's first N fields should
+                    // be the same as that of this cache; therefore, we combine the two by taking
+                    // the fields from this cache's schema, and extending it with whatever is after
+                    // the Nth field in the output schema (hence the skip).
                     self.schema
                         .fields()
                         .iter()
                         .chain(output_schema.fields().iter().skip(self.cache.len()))
                         .cloned()
                         .collect(),
+                    // For the array data, we just use null arrays in place of the fields that
+                    // this schema does not contain.
                     self.cache
                         .iter()
                         .map(|(_, c)| c.data.as_array())
@@ -923,6 +949,8 @@ impl LastCacheStore {
             };
         let mut sb = ArrowSchemaBuilder::new();
         if let Some((ext_fields, mut ext_arrays)) = extended {
+            // If there are key column values being outputted, they get prepended to appear before
+            // all value columns in the query output:
             sb.extend(ext_fields);
             ext_arrays.append(&mut arrays);
             arrays = ext_arrays;
