@@ -424,7 +424,8 @@ impl LastCache {
             sb.push(Arc::clone(f));
         }
         for (name, data_type) in new_columns {
-            sb.push(Arc::new(ArrowField::new(name, data_type, true)));
+            let field = Arc::new(ArrowField::new(name, data_type, true));
+            sb.try_merge(&field).expect("buffer should have validated incoming writes to prevent against data type conflicts");
         }
         let new_schema = Arc::new(sb.finish());
         self.schema = new_schema;
@@ -2460,6 +2461,125 @@ mod tests {
                     "| 3       | tkachuk   | 1970-01-01T00:00:00.000001Z | hit  | away |",
                     "| 4       | bobrovsky | 1970-01-01T00:00:00.000001Z | save | home |",
                     "+---------+-----------+-----------------------------+------+------+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let batches = wbuf
+                .last_cache()
+                .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
+                .unwrap()
+                .unwrap();
+
+            assert_batches_sorted_eq!(t.expected, &batches);
+        }
+    }
+
+    #[tokio::test]
+    async fn new_field_ordering() {
+        let db_name = "db";
+        let tbl_name = "tbl";
+        let wbuf = setup_write_buffer().await;
+
+        // Do a write to setup catalog:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(r#"{tbl_name},t1=a f1=1"#).as_str(),
+            Time::from_timestamp_nanos(500),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Create the last cache using the single `t1` tag column as key
+        // and using the default for fields, so that new fields will get added
+        // to the cache.
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            None,
+            None, // use default cache size of 1
+            None,
+            Some(vec!["t1".to_string()]),
+            None,
+        )
+        .expect("create last cache");
+
+        // Write some lines to fill the cache. In this case, with just the existing
+        // columns in the table, i.e., t1 and f1
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "\
+                {tbl_name},t1=a f1=1
+                {tbl_name},t1=b f1=10
+                "
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(1_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Write lines containing new fields f2 and f3, but with different orders for
+        // each key column value, i.e., t1=a and t1=b:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "\
+                {tbl_name},t1=a f1=1,f2=2,f3=3
+                {tbl_name},t1=b f1=10,f3=30,f2=20
+                "
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(1_500),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        struct TestCase<'a> {
+            predicates: &'a [Predicate],
+            expected: &'a [&'a str],
+        }
+
+        let test_cases = [
+            // Can query on specific key column values:
+            TestCase {
+                predicates: &[Predicate::new("t1", KeyValue::string("a"))],
+                expected: &[
+                    "+-----+--------------------------------+-----+-----+",
+                    "| f1  | time                           | f2  | f3  |",
+                    "+-----+--------------------------------+-----+-----+",
+                    "| 1.0 | 1970-01-01T00:00:00.000001500Z | 2.0 | 3.0 |",
+                    "+-----+--------------------------------+-----+-----+",
+                ],
+            },
+            TestCase {
+                predicates: &[Predicate::new("t1", KeyValue::string("b"))],
+                expected: &[
+                    "+------+--------------------------------+------+------+",
+                    "| f1   | time                           | f2   | f3   |",
+                    "+------+--------------------------------+------+------+",
+                    "| 10.0 | 1970-01-01T00:00:00.000001500Z | 30.0 | 20.0 |",
+                    "+------+--------------------------------+------+------+",
+                ],
+            },
+            // Can query accross key column values:
+            TestCase {
+                predicates: &[],
+                expected: &[
+                    "+----+------+--------------------------------+------+------+",
+                    "| t1 | f1   | time                           | f2   | f3   |",
+                    "+----+------+--------------------------------+------+------+",
+                    "| a  | 1.0  | 1970-01-01T00:00:00.000001500Z | 2.0  | 3.0  |",
+                    "| b  | 10.0 | 1970-01-01T00:00:00.000001500Z | 30.0 | 20.0 |",
+                    "+----+------+--------------------------------+------+------+",
                 ],
             },
         ];
