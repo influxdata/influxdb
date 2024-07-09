@@ -7,7 +7,7 @@ use once_cell::sync::Lazy;
 /// The process name on the local OS running `influxdb3`
 pub const INFLUXDB3_PROCESS_NAME: &str = "influxdb3";
 
-#[cfg(feature = "jemalloc_replacing_malloc")]
+#[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc")))]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
