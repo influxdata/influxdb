@@ -326,6 +326,9 @@ pub(crate) struct LastCache {
     schema: ArrowSchemaRef,
     /// Optionally store the series key for tables that use it for ensuring non-nullability in the
     /// column buffer for series key columns
+    ///
+    /// We only use this to check for columns that are part of the series key, so we don't care
+    /// about the order, and a HashSet is sufficient.
     series_key: Option<HashSet<String>>,
     /// Whether or not this cache accepts newly written fields
     accept_new: bool,
@@ -429,7 +432,6 @@ impl LastCache {
         }
         let new_schema = Arc::new(sb.finish());
         self.schema = new_schema;
-        store.update_schema(Arc::clone(&self.schema));
     }
 
     /// Produce a set of [`RecordBatch`]es from the cache, using the given set of [`Predicate`]s
@@ -759,16 +761,13 @@ impl From<&FieldData> for KeyValue {
 /// Stores the cached column data for the field columns of a given [`LastCache`]
 #[derive(Debug)]
 struct LastCacheStore {
-    /// Holds a copy of the arrow schema for the sake of producing [`RecordBatch`]es.
-    schema: ArrowSchemaRef,
     /// A map of column name to a [`CacheColumn`] which holds the buffer of data for the column
     /// in the cache.
     ///
-    /// This uses an IndexMap to preserve insertion order, so that when producing record batches
-    /// the order of columns are accessed in the same order that they were inserted. Since they are
-    /// inserted in the same order that they appear in the arrow schema associated with the cache,
-    /// this allows record batch creation with a straight iteration through the map, vs. having
-    /// to look up columns on the fly to get the correct order.
+    /// An `IndexMap` is used for its performance characteristics: namely, fast iteration as well
+    /// as fast lookup (see [here][perf]).
+    ///
+    /// [perf]: https://github.com/indexmap-rs/indexmap?tab=readme-ov-file#performance
     cache: IndexMap<String, CacheColumn>,
     /// The capacity of the internal cache buffers
     count: usize,
@@ -804,7 +803,6 @@ impl LastCacheStore {
             })
             .collect();
         Self {
-            schema,
             cache,
             count,
             ttl,
@@ -893,11 +891,6 @@ impl LastCacheStore {
         result
     }
 
-    /// Update the schema on this [`LastCacheStore`]
-    fn update_schema(&mut self, schema: ArrowSchemaRef) {
-        self.schema = schema;
-    }
-
     /// Convert the contents of this cache into a arrow [`RecordBatch`]
     ///
     /// Accepts an optional `extended` argument containing additional columns to add to the
@@ -909,45 +902,19 @@ impl LastCacheStore {
         output_schema: &ArrowSchemaRef,
         extended: Option<(Vec<FieldRef>, Vec<ArrayRef>)>,
     ) -> Result<RecordBatch, ArrowError> {
-        // This is where using IndexMap is important, because we inserted the cache entries
-        // using the schema field ordering, we will get the correct order by iterating directly
-        // over the map here, i.e., where calling self.cache.iter().
-        let (fields, mut arrays): (Vec<FieldRef>, Vec<ArrayRef>) =
-            if output_schema.fields().len() > self.cache.len() {
-                // If the output schema has more fields than this cache, then that means there
-                // were fields added in an adjacent cache, i.e., for a different combination of
-                // key column values.
-                (
-                    // If this cache has N fields, then the output schema's first N fields should
-                    // be the same as that of this cache; therefore, we combine the two by taking
-                    // the fields from this cache's schema, and extending it with whatever is after
-                    // the Nth field in the output schema (hence the skip).
-                    self.schema
-                        .fields()
-                        .iter()
-                        .chain(output_schema.fields().iter().skip(self.cache.len()))
-                        .cloned()
-                        .collect(),
-                    // For the array data, we just use null arrays in place of the fields that
-                    // this schema does not contain.
-                    self.cache
-                        .iter()
-                        .map(|(_, c)| c.data.as_array())
-                        .chain(
-                            output_schema
-                                .fields()
-                                .iter()
-                                .skip(self.cache.len())
-                                .map(|f| new_null_array(f.data_type(), self.len())),
-                        )
-                        .collect(),
-                )
-            } else {
-                (
-                    self.schema.fields().iter().cloned().collect(),
-                    self.cache.iter().map(|(_, c)| c.data.as_array()).collect(),
-                )
-            };
+        let (fields, mut arrays): (Vec<FieldRef>, Vec<ArrayRef>) = output_schema
+            .fields()
+            .iter()
+            .cloned()
+            .map(|f| {
+                if let Some(c) = self.cache.get(f.name()) {
+                    (f, c.data.as_array())
+                } else {
+                    (Arc::clone(&f), new_null_array(f.data_type(), self.len()))
+                }
+            })
+            .collect();
+
         let mut sb = ArrowSchemaBuilder::new();
         if let Some((ext_fields, mut ext_arrays)) = extended {
             // If there are key column values being outputted, they get prepended to appear before
@@ -2515,6 +2482,7 @@ mod tests {
                 "\
                 {tbl_name},t1=a f1=1
                 {tbl_name},t1=b f1=10
+                {tbl_name},t1=c f1=100
                 "
             )
             .as_str(),
@@ -2531,8 +2499,9 @@ mod tests {
             NamespaceName::new(db_name).unwrap(),
             format!(
                 "\
-                {tbl_name},t1=a f1=1,f2=2,f3=3
-                {tbl_name},t1=b f1=10,f3=30,f2=20
+                {tbl_name},t1=a f1=1,f2=2,f3=3,f4=4
+                {tbl_name},t1=b f1=10,f4=40,f3=30
+                {tbl_name},t1=c f1=100,f3=300,f2=200
                 "
             )
             .as_str(),
@@ -2553,33 +2522,44 @@ mod tests {
             TestCase {
                 predicates: &[Predicate::new("t1", KeyValue::string("a"))],
                 expected: &[
-                    "+-----+--------------------------------+-----+-----+",
-                    "| f1  | time                           | f2  | f3  |",
-                    "+-----+--------------------------------+-----+-----+",
-                    "| 1.0 | 1970-01-01T00:00:00.000001500Z | 2.0 | 3.0 |",
-                    "+-----+--------------------------------+-----+-----+",
+                    "+-----+--------------------------------+-----+-----+-----+",
+                    "| f1  | time                           | f2  | f3  | f4  |",
+                    "+-----+--------------------------------+-----+-----+-----+",
+                    "| 1.0 | 1970-01-01T00:00:00.000001500Z | 2.0 | 3.0 | 4.0 |",
+                    "+-----+--------------------------------+-----+-----+-----+",
                 ],
             },
             TestCase {
                 predicates: &[Predicate::new("t1", KeyValue::string("b"))],
                 expected: &[
-                    "+------+--------------------------------+------+------+",
-                    "| f1   | time                           | f2   | f3   |",
-                    "+------+--------------------------------+------+------+",
-                    "| 10.0 | 1970-01-01T00:00:00.000001500Z | 30.0 | 20.0 |",
-                    "+------+--------------------------------+------+------+",
+                    "+------+--------------------------------+----+------+------+",
+                    "| f1   | time                           | f2 | f3   | f4   |",
+                    "+------+--------------------------------+----+------+------+",
+                    "| 10.0 | 1970-01-01T00:00:00.000001500Z |    | 30.0 | 40.0 |",
+                    "+------+--------------------------------+----+------+------+",
+                ],
+            },
+            TestCase {
+                predicates: &[Predicate::new("t1", KeyValue::string("c"))],
+                expected: &[
+                    "+-------+--------------------------------+-------+-------+----+",
+                    "| f1    | time                           | f2    | f3    | f4 |",
+                    "+-------+--------------------------------+-------+-------+----+",
+                    "| 100.0 | 1970-01-01T00:00:00.000001500Z | 200.0 | 300.0 |    |",
+                    "+-------+--------------------------------+-------+-------+----+",
                 ],
             },
             // Can query accross key column values:
             TestCase {
                 predicates: &[],
                 expected: &[
-                    "+----+------+--------------------------------+------+------+",
-                    "| t1 | f1   | time                           | f2   | f3   |",
-                    "+----+------+--------------------------------+------+------+",
-                    "| a  | 1.0  | 1970-01-01T00:00:00.000001500Z | 2.0  | 3.0  |",
-                    "| b  | 10.0 | 1970-01-01T00:00:00.000001500Z | 30.0 | 20.0 |",
-                    "+----+------+--------------------------------+------+------+",
+                    "+----+-------+--------------------------------+-------+-------+------+",
+                    "| t1 | f1    | time                           | f2    | f3    | f4   |",
+                    "+----+-------+--------------------------------+-------+-------+------+",
+                    "| a  | 1.0   | 1970-01-01T00:00:00.000001500Z | 2.0   | 3.0   | 4.0  |",
+                    "| b  | 10.0  | 1970-01-01T00:00:00.000001500Z |       | 30.0  | 40.0 |",
+                    "| c  | 100.0 | 1970-01-01T00:00:00.000001500Z | 200.0 | 300.0 |      |",
+                    "+----+-------+--------------------------------+-------+-------+------+",
                 ],
             },
         ];
