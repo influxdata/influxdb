@@ -1,5 +1,6 @@
 //! Buffers writes and flushes them to the configured wal
 
+use crate::last_cache::LastCacheProvider;
 use crate::write_buffer::buffer_segment::{BufferedWrite, WriteBatch};
 use crate::write_buffer::{Error, SegmentState, ValidSegmentedData};
 use crate::{wal, SequenceNumber, Wal, WalOp};
@@ -43,7 +44,10 @@ pub struct WriteBufferFlusher {
 }
 
 impl WriteBufferFlusher {
-    pub fn new<T: TimeProvider, W: Wal>(segment_state: Arc<RwLock<SegmentState<T, W>>>) -> Self {
+    pub fn new<T: TimeProvider, W: Wal>(
+        segment_state: Arc<RwLock<SegmentState<T, W>>>,
+        last_cache: Arc<LastCacheProvider>,
+    ) -> Self {
         let (shutdown_tx, shutdown_rx) = watch::channel(());
         let (buffer_tx, buffer_rx) = mpsc::channel(BUFFER_CHANNEL_LIMIT);
         let (io_flush_tx, io_flush_rx) = bounded(1);
@@ -70,6 +74,7 @@ impl WriteBufferFlusher {
         *flusher.join_handle.lock() = Some(tokio::task::spawn(async move {
             run_wal_op_buffer(
                 wal_op_buffer_segment_state,
+                last_cache,
                 buffer_rx,
                 io_flush_tx,
                 io_flush_notify_rx,
@@ -112,6 +117,7 @@ impl WriteBufferFlusher {
 
 async fn run_wal_op_buffer<T: TimeProvider, W: Wal>(
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
+    last_cache: Arc<LastCacheProvider>,
     mut buffer_rx: mpsc::Receiver<BufferedWrite>,
     io_flush_tx: CrossbeamSender<SegmentedWalOps>,
     io_flush_notify_rx: CrossbeamReceiver<wal::Result<()>>,
@@ -119,6 +125,7 @@ async fn run_wal_op_buffer<T: TimeProvider, W: Wal>(
 ) {
     let mut ops = SegmentedWalOps::new();
     let mut write_batch = SegmentedWriteBatch::new();
+    let mut latest_segment_time = Time::MIN;
     let mut notifies = Vec::new();
     let mut interval = tokio::time::interval(BUFFER_FLUSH_INTERVAL);
     interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
@@ -133,6 +140,9 @@ async fn run_wal_op_buffer<T: TimeProvider, W: Wal>(
                     });
                     segment_ops.1.push(segmented_data.wal_op);
 
+                    if segmented_data.segment_start > latest_segment_time {
+                        latest_segment_time = segmented_data.segment_start;
+                    }
                     let segment_write_batch = write_batch.entry(segmented_data.segment_start).or_insert_with(|| {
                         (segmented_data.starting_catalog_sequence_number, WriteBatch::default())
                     });
@@ -141,6 +151,8 @@ async fn run_wal_op_buffer<T: TimeProvider, W: Wal>(
                 notifies.push(buffered_write.response_tx);
             },
             _ = interval.tick() => {
+                last_cache.evict_expired_cache_entries();
+
                 if ops.is_empty() {
                     continue;
                 }
@@ -155,6 +167,11 @@ async fn run_wal_op_buffer<T: TimeProvider, W: Wal>(
                         let mut segment_state = segment_state.write();
 
                         for (time, (sequence_number, write_batch)) in write_batch {
+                            if time >= latest_segment_time {
+                                // should only be last caching batches from the latest segment
+                                // TODO: should this be offloaded to a separate thread/task?
+                                last_cache.write_batch_to_cache(&write_batch);
+                            }
                             if let Err(e) = segment_state.write_batch_to_segment(time, write_batch, sequence_number) {
                                 err = BufferedWriteResult::Error(e.to_string());
                                 break;
@@ -260,7 +277,8 @@ mod tests {
             vec![],
             None,
         )));
-        let flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
+        let last_cache = Arc::new(LastCacheProvider::new());
+        let flusher = WriteBufferFlusher::new(Arc::clone(&segment_state), Arc::clone(&last_cache));
 
         let db_name = NamespaceName::new("db1").unwrap();
         let ingest_time = Time::from_timestamp_nanos(0);

@@ -12,6 +12,7 @@ pub(crate) mod validator;
 use crate::cache::ParquetCache;
 use crate::catalog::{Catalog, DatabaseSchema};
 use crate::chunk::ParquetChunk;
+use crate::last_cache::{self, CreateCacheArguments, LastCacheProvider};
 use crate::persister::PersisterImpl;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
@@ -45,6 +46,7 @@ use parquet_file::storage::ParquetExecInput;
 use schema::Schema;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::watch;
 
@@ -83,6 +85,15 @@ pub enum Error {
 
     #[error("error from table buffer: {0}")]
     TableBufferError(#[from] table_buffer::Error),
+
+    #[error("error in last cache: {0}")]
+    LastCacheError(#[from] last_cache::Error),
+
+    #[error("tried accessing database and table that do not exist")]
+    DbDoesNotExist,
+
+    #[error("tried accessing database and table that do not exist")]
+    TableDoesNotExist,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -112,6 +123,7 @@ pub struct WriteBufferImpl<W, T> {
     shutdown_segment_persist_tx: watch::Sender<()>,
     #[allow(dead_code)]
     buffer_check_handle: Mutex<tokio::task::JoinHandle<()>>,
+    last_cache: Arc<LastCacheProvider>,
 }
 
 impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
@@ -137,11 +149,13 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             wal.clone(),
         )));
 
+        let last_cache = Arc::new(LastCacheProvider::new());
+        let write_buffer_flusher =
+            WriteBufferFlusher::new(Arc::clone(&segment_state), Arc::clone(&last_cache));
+
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_segments(
             loaded_state.persisted_segments,
         ));
-
-        let write_buffer_flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
 
         let segment_state_persister = Arc::clone(&segment_state);
         let persisted_files_persister = Arc::clone(&persisted_files);
@@ -192,6 +206,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             segment_persist_handle: Mutex::new(segment_persist_handle),
             shutdown_segment_persist_tx,
             buffer_check_handle: Mutex::new(buffer_check_handle),
+            last_cache,
             persisted_files,
         })
     }
@@ -399,6 +414,42 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         Ok(self.parquet_cache.purge_cache().await?)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_last_cache(
+        &self,
+        db_name: impl Into<String>,
+        tbl_name: impl Into<String>,
+        cache_name: Option<&str>,
+        count: Option<usize>,
+        ttl: Option<Duration>,
+        key_columns: Option<Vec<String>>,
+        value_columns: Option<Vec<String>>,
+    ) -> Result<(), Error> {
+        let db_name = db_name.into();
+        let tbl_name = tbl_name.into();
+        let cache_name = cache_name.map(Into::into);
+        let db_schema = self
+            .catalog()
+            .db_schema(&db_name)
+            .ok_or(Error::DbDoesNotExist)?;
+        let schema = db_schema
+            .get_table_schema(&tbl_name)
+            .ok_or(Error::TableDoesNotExist)?
+            .clone();
+        self.last_cache
+            .create_cache(CreateCacheArguments {
+                db_name,
+                tbl_name,
+                schema,
+                cache_name,
+                count,
+                ttl,
+                key_columns,
+                value_columns,
+            })
+            .map_err(Into::into)
+    }
+
     #[cfg(test)]
     fn get_table_record_batches(
         &self,
@@ -492,6 +543,10 @@ impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
 
     fn catalog(&self) -> Arc<Catalog> {
         self.catalog()
+    }
+
+    fn last_cache(&self) -> Arc<LastCacheProvider> {
+        Arc::clone(&self.last_cache)
     }
 }
 
