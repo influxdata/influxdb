@@ -172,7 +172,7 @@ impl LastCacheProvider {
             return Err(Error::CacheAlreadyExists);
         }
 
-        let (value_columns, accept_new) = if let Some(mut vals) = value_columns {
+        let (value_columns, accept_new_fields) = if let Some(mut vals) = value_columns {
             // if value columns are specified, check that they are present in the table schema
             for name in vals.iter() {
                 if schema.field_by_name(name).is_none() {
@@ -228,7 +228,7 @@ impl LastCacheProvider {
             key_columns,
             schema_builder.build()?.as_arrow(),
             series_key,
-            accept_new,
+            accept_new_fields,
         );
 
         // get the write lock and insert:
@@ -331,7 +331,7 @@ pub(crate) struct LastCache {
     /// about the order, and a HashSet is sufficient.
     series_key: Option<HashSet<String>>,
     /// Whether or not this cache accepts newly written fields
-    accept_new: bool,
+    accept_new_fields: bool,
     /// The internal state of the cache
     state: LastCacheState,
 }
@@ -344,7 +344,7 @@ impl LastCache {
         key_columns: Vec<String>,
         schema: ArrowSchemaRef,
         series_key: Option<HashSet<String>>,
-        accept_new: bool,
+        accept_new_fields: bool,
     ) -> Self {
         Self {
             count,
@@ -352,7 +352,7 @@ impl LastCache {
             key_columns: key_columns.into_iter().collect(),
             schema,
             series_key,
-            accept_new,
+            accept_new_fields,
             state: LastCacheState::Init,
         }
     }
@@ -417,7 +417,7 @@ impl LastCache {
         let store = target.as_store_mut().expect(
             "cache target should be the actual store after iterating through all key columns",
         );
-        let Some(new_columns) = store.push(row, self.accept_new, &self.key_columns) else {
+        let Some(new_columns) = store.push(row, self.accept_new_fields, &self.key_columns) else {
             // Unless new columns were added, and we need to update the schema, we are done.
             return;
         };
@@ -831,19 +831,18 @@ impl LastCacheStore {
     fn push<'a>(
         &mut self,
         row: &'a Row,
-        accept_new: bool,
+        accept_new_fields: bool,
         key_columns: &IndexSet<String>,
     ) -> Option<Vec<(&'a str, DataType)>> {
         if row.time <= self.last_time.timestamp_nanos() {
             return None;
         }
         let mut result = None;
-        if accept_new {
+        let mut seen = HashSet::<&str>::new();
+        if accept_new_fields {
             // Check the length before any rows are added to ensure that the correct amount
             // of nulls are back-filled when new fields/columns are added:
-            let n = self.len();
-            // Track the names of fields seen in the row data from the buffer:
-            let mut seen: HashSet<&str> = HashSet::new();
+            let starting_cache_size = self.len();
             for field in row.fields.iter() {
                 seen.insert(field.name.as_str());
                 if let Some(col) = self.cache.get_mut(&field.name) {
@@ -857,7 +856,7 @@ impl LastCacheStore {
                         CacheColumn::new(&data_type, self.count, self.ttl, false)
                     });
                     // Back-fill the new cache entry with nulls, then push the new value:
-                    for _ in 0..n {
+                    for _ in 0..starting_cache_size {
                         col.push_null();
                     }
                     col.push(&field.value);
@@ -869,22 +868,19 @@ impl LastCacheStore {
                 // There is no else block, because the only alternative would be that this is a
                 // key column, which we ignore.
             }
-            // Need to check for columns not seen in the buffered row data, to push nulls into
-            // those respective cache entries:
-            for (name, column) in self.cache.iter_mut() {
-                if !seen.contains(name.as_str()) {
-                    column.push_null();
+        } else {
+            for field in row.fields.iter() {
+                seen.insert(field.name.as_str());
+                if let Some(c) = self.cache.get_mut(&field.name) {
+                    c.push(&field.value);
                 }
             }
-        } else {
-            // In this case we don't care about new fields, so we can just iterate over the entries
-            // in the cache:
-            for (name, column) in self.cache.iter_mut() {
-                if let Some(field) = row.fields.iter().find(|f| f.name == *name) {
-                    column.push(&field.value);
-                } else {
-                    column.push_null();
-                }
+        }
+        // Need to check for columns not seen in the buffered row data, to push nulls into
+        // those respective cache entries.
+        for (name, column) in self.cache.iter_mut() {
+            if !seen.contains(name.as_str()) {
+                column.push_null();
             }
         }
         self.last_time = Time::from_timestamp_nanos(row.time);
