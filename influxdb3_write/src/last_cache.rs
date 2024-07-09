@@ -821,6 +821,10 @@ struct LastCacheStore {
     ///
     /// [perf]: https://github.com/indexmap-rs/indexmap?tab=readme-ov-file#performance
     cache: IndexMap<String, CacheColumn>,
+    /// A ring buffer holding the instants at which entries in the cache were inserted
+    ///
+    /// This is used to evict cache values that outlive the `ttl`
+    instants: VecDeque<Instant>,
     /// The capacity of the internal cache buffers
     count: usize,
     /// Time-to-live (TTL) for values in the cache
@@ -848,7 +852,6 @@ impl LastCacheStore {
                     CacheColumn::new(
                         f.data_type(),
                         count,
-                        ttl,
                         series_keys.is_some_and(|sk| sk.contains(f.name().as_str())),
                     ),
                 )
@@ -856,6 +859,7 @@ impl LastCacheStore {
             .collect();
         Self {
             cache,
+            instants: VecDeque::with_capacity(count),
             count,
             ttl,
             last_time: Time::from_timestamp_nanos(0),
@@ -863,17 +867,13 @@ impl LastCacheStore {
     }
 
     /// Get the number of values in the cache.
-    ///
-    /// Assumes that all columns are the same length, and only checks the first.
     fn len(&self) -> usize {
-        self.cache.first().map_or(0, |(_, c)| c.len())
+        self.instants.len()
     }
 
     /// Check if the cache is empty
-    ///
-    /// Assumes that all columns are the same length, and only checks the first.
     fn is_empty(&self) -> bool {
-        self.cache.first().map_or(false, |(_, c)| c.is_empty())
+        self.instants.is_empty()
     }
 
     /// Push a [`Row`] from the buffer into this cache
@@ -904,9 +904,10 @@ impl LastCacheStore {
                     // In this case, there is not an entry for the field in the cache, so if the
                     // value is not one of the key columns, then it is a new field being added.
                     let data_type = data_type_from_buffer_field(field);
-                    let col = self.cache.entry(field.name.to_string()).or_insert_with(|| {
-                        CacheColumn::new(&data_type, self.count, self.ttl, false)
-                    });
+                    let col = self
+                        .cache
+                        .entry(field.name.to_string())
+                        .or_insert_with(|| CacheColumn::new(&data_type, self.count, false));
                     // Back-fill the new cache entry with nulls, then push the new value:
                     for _ in 0..starting_cache_size {
                         col.push_null();
@@ -935,6 +936,10 @@ impl LastCacheStore {
                 column.push_null();
             }
         }
+        if self.instants.len() == self.count {
+            self.instants.pop_back();
+        }
+        self.instants.push_front(Instant::now());
         self.last_time = Time::from_timestamp_nanos(row.time);
         result
     }
@@ -977,7 +982,16 @@ impl LastCacheStore {
 
     /// Remove expired values from the [`LastCacheStore`]
     fn remove_expired(&mut self) {
-        self.cache.iter_mut().for_each(|(_, c)| c.remove_expired());
+        while let Some(instant) = self.instants.back() {
+            if instant.elapsed() > self.ttl {
+                self.instants.pop_back();
+            } else {
+                break;
+            }
+        }
+        self.cache
+            .iter_mut()
+            .for_each(|(_, c)| c.truncate(self.instants.len()));
         // reset the last_time if TTL evicts everything from the cache
         if self.is_empty() {
             self.last_time = Time::from_timestamp_nanos(0);
@@ -1031,28 +1045,16 @@ impl TableProvider for LastCache {
 #[derive(Debug)]
 struct CacheColumn {
     size: usize,
-    ttl: Duration,
     data: CacheColumnData,
 }
 
 impl CacheColumn {
     /// Create a new [`CacheColumn`] for the given arrow [`DataType`] and size
-    fn new(data_type: &DataType, size: usize, ttl: Duration, is_series_key: bool) -> Self {
+    fn new(data_type: &DataType, size: usize, is_series_key: bool) -> Self {
         Self {
             size,
-            ttl,
             data: CacheColumnData::new(data_type, size, is_series_key),
         }
-    }
-
-    /// Get the length of the [`CacheColumn`]
-    fn len(&self) -> usize {
-        self.data.len()
-    }
-
-    /// Check if the column is empty
-    fn is_empty(&self) -> bool {
-        self.data.is_empty()
     }
 
     /// Push [`FieldData`] from the buffer into this column
@@ -1070,42 +1072,42 @@ impl CacheColumn {
         self.data.push_front_null();
     }
 
-    /// Remove expired values from this [`CacheColumn`]
-    fn remove_expired(&mut self) {
-        self.data.remove_expired(self.ttl);
+    /// Truncate the [`CacheColumn`]. This is useful for evicting expired entries.
+    fn truncate(&mut self, len: usize) {
+        self.data.truncate(len);
     }
 }
 
 /// Enumerated type for storing column data for the cache in a buffer
 #[derive(Debug)]
 enum CacheColumnData {
-    I64(ColumnBuffer<Option<i64>>),
-    U64(ColumnBuffer<Option<u64>>),
-    F64(ColumnBuffer<Option<f64>>),
-    String(ColumnBuffer<Option<String>>),
-    Bool(ColumnBuffer<Option<bool>>),
-    Tag(ColumnBuffer<Option<String>>),
-    Key(ColumnBuffer<String>),
-    Time(ColumnBuffer<i64>),
+    I64(VecDeque<Option<i64>>),
+    U64(VecDeque<Option<u64>>),
+    F64(VecDeque<Option<f64>>),
+    String(VecDeque<Option<String>>),
+    Bool(VecDeque<Option<bool>>),
+    Tag(VecDeque<Option<String>>),
+    Key(VecDeque<String>),
+    Time(VecDeque<i64>),
 }
 
 impl CacheColumnData {
     /// Create a new [`CacheColumnData`]
     fn new(data_type: &DataType, size: usize, is_series_key: bool) -> Self {
         match data_type {
-            DataType::Boolean => Self::Bool(ColumnBuffer::with_capacity(size)),
-            DataType::Int64 => Self::I64(ColumnBuffer::with_capacity(size)),
-            DataType::UInt64 => Self::U64(ColumnBuffer::with_capacity(size)),
-            DataType::Float64 => Self::F64(ColumnBuffer::with_capacity(size)),
+            DataType::Boolean => Self::Bool(VecDeque::with_capacity(size)),
+            DataType::Int64 => Self::I64(VecDeque::with_capacity(size)),
+            DataType::UInt64 => Self::U64(VecDeque::with_capacity(size)),
+            DataType::Float64 => Self::F64(VecDeque::with_capacity(size)),
             DataType::Timestamp(TimeUnit::Nanosecond, _) => {
-                Self::Time(ColumnBuffer::with_capacity(size))
+                Self::Time(VecDeque::with_capacity(size))
             }
-            DataType::Utf8 => Self::String(ColumnBuffer::with_capacity(size)),
+            DataType::Utf8 => Self::String(VecDeque::with_capacity(size)),
             DataType::Dictionary(k, v) if **k == DataType::Int32 && **v == DataType::Utf8 => {
                 if is_series_key {
-                    Self::Key(ColumnBuffer::with_capacity(size))
+                    Self::Key(VecDeque::with_capacity(size))
                 } else {
-                    Self::Tag(ColumnBuffer::with_capacity(size))
+                    Self::Tag(VecDeque::with_capacity(size))
                 }
             }
             _ => panic!("unsupported data type for last cache: {data_type}"),
@@ -1123,20 +1125,6 @@ impl CacheColumnData {
             CacheColumnData::Tag(buf) => buf.len(),
             CacheColumnData::Key(buf) => buf.len(),
             CacheColumnData::Time(buf) => buf.len(),
-        }
-    }
-
-    /// Check if the column is empty
-    fn is_empty(&self) -> bool {
-        match self {
-            CacheColumnData::I64(buf) => buf.is_empty(),
-            CacheColumnData::U64(buf) => buf.is_empty(),
-            CacheColumnData::F64(buf) => buf.is_empty(),
-            CacheColumnData::String(buf) => buf.is_empty(),
-            CacheColumnData::Bool(buf) => buf.is_empty(),
-            CacheColumnData::Tag(buf) => buf.is_empty(),
-            CacheColumnData::Key(buf) => buf.is_empty(),
-            CacheColumnData::Time(buf) => buf.is_empty(),
         }
     }
 
@@ -1199,20 +1187,6 @@ impl CacheColumnData {
             CacheColumnData::Tag(buf) => buf.push_front(None),
             CacheColumnData::Key(_) => panic!("pushed null value to series key column in cache"),
             CacheColumnData::Time(_) => panic!("pushed null value to time column in cache"),
-        }
-    }
-
-    /// Remove expired values from the inner [`ColumnBuffer`]
-    fn remove_expired(&mut self, ttl: Duration) {
-        match self {
-            CacheColumnData::I64(buf) => buf.remove_expired(ttl),
-            CacheColumnData::U64(buf) => buf.remove_expired(ttl),
-            CacheColumnData::F64(buf) => buf.remove_expired(ttl),
-            CacheColumnData::String(buf) => buf.remove_expired(ttl),
-            CacheColumnData::Bool(buf) => buf.remove_expired(ttl),
-            CacheColumnData::Tag(buf) => buf.remove_expired(ttl),
-            CacheColumnData::Key(buf) => buf.remove_expired(ttl),
-            CacheColumnData::Time(buf) => buf.remove_expired(ttl),
         }
     }
 
@@ -1283,54 +1257,18 @@ impl CacheColumnData {
             }
         }
     }
-}
 
-/// Newtype wrapper around a [`VecDeque`] whose values are paired with an [`Instant`] that
-/// represents the time at which each value was pushed into the buffer.
-#[derive(Debug)]
-struct ColumnBuffer<T>(VecDeque<(Instant, T)>);
-
-impl<T> ColumnBuffer<T> {
-    /// Create a new [`ColumnBuffer`] with the given capacity
-    fn with_capacity(capacity: usize) -> Self {
-        Self(VecDeque::with_capacity(capacity))
-    }
-
-    /// Get the length of the [`ColumnBuffer`]
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Check if the buffer is empty
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Pop the last element off of the [`ColumnBuffer`]
-    fn pop_back(&mut self) {
-        self.0.pop_back();
-    }
-
-    /// Push a value to the front of the [`ColumnBuffer`], the value will be paired with an
-    /// [`Instant`].
-    fn push_front(&mut self, value: T) {
-        self.0.push_front((Instant::now(), value));
-    }
-
-    /// Remove any elements in the [`ColumnBuffer`] that have outlived a given time-to-live (TTL)
-    fn remove_expired(&mut self, ttl: Duration) {
-        while let Some((created, _)) = self.0.back() {
-            if created.elapsed() >= ttl {
-                self.0.pop_back();
-            } else {
-                return;
-            }
+    fn truncate(&mut self, len: usize) {
+        match self {
+            CacheColumnData::I64(buf) => buf.truncate(len),
+            CacheColumnData::U64(buf) => buf.truncate(len),
+            CacheColumnData::F64(buf) => buf.truncate(len),
+            CacheColumnData::String(buf) => buf.truncate(len),
+            CacheColumnData::Bool(buf) => buf.truncate(len),
+            CacheColumnData::Tag(buf) => buf.truncate(len),
+            CacheColumnData::Key(buf) => buf.truncate(len),
+            CacheColumnData::Time(buf) => buf.truncate(len),
         }
-    }
-
-    /// Produce an iterator over the values in the buffer
-    fn iter(&self) -> impl Iterator<Item = &T> {
-        self.0.iter().map(|(_, v)| v)
     }
 }
 
