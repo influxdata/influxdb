@@ -721,11 +721,11 @@ impl LastCacheState {
     }
 
     /// Remove expired values from this [`LastCacheState`]
-    fn remove_expired(&mut self) {
+    fn remove_expired(&mut self) -> bool {
         match self {
             LastCacheState::Key(k) => k.remove_expired(),
             LastCacheState::Store(s) => s.remove_expired(),
-            LastCacheState::Init => (),
+            LastCacheState::Init => false,
         }
     }
 }
@@ -760,10 +760,14 @@ impl LastCacheKey {
     }
 
     /// Remove expired values from any cache nested within this [`LastCacheKey`]
-    fn remove_expired(&mut self) {
-        self.value_map
-            .iter_mut()
-            .for_each(|(_, m)| m.remove_expired());
+    ///
+    /// This will recurse down the cache hierarchy, removing all expired cache values from individual
+    /// [`LastCacheStore`]s at the lowest level, then dropping any [`LastCacheStore`] that is
+    /// completeley empty. As it walks back up the hierarchy, any [`LastCacheKey`] that is empty will
+    /// also be dropped from its parent map.
+    fn remove_expired(&mut self) -> bool {
+        self.value_map.retain(|_, s| !s.remove_expired());
+        self.value_map.is_empty()
     }
 }
 
@@ -981,7 +985,9 @@ impl LastCacheStore {
     }
 
     /// Remove expired values from the [`LastCacheStore`]
-    fn remove_expired(&mut self) {
+    ///
+    /// Returns whether or not the store is empty after expired entries are removed.
+    fn remove_expired(&mut self) -> bool {
         while let Some(instant) = self.instants.back() {
             if instant.elapsed() > self.ttl {
                 self.instants.pop_back();
@@ -996,6 +1002,7 @@ impl LastCacheStore {
         if self.is_empty() {
             self.last_time = Time::from_timestamp_nanos(0);
         }
+        self.is_empty()
     }
 }
 
@@ -1865,12 +1872,42 @@ mod tests {
             .unwrap()
             .unwrap();
 
+        // The cache is completely empty after the TTL evicted data, so it will give back nothing:
+        assert_batches_sorted_eq!(["++", "++",], &batches);
+
+        // Ensure that records can be written to the cache again:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "\
+                {tbl_name},region=us,host=a usage=333\n\
+                "
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(500_000_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Check the cache for values:
+        let predicates = &[Predicate::new("host", KeyValue::string("a"))];
+
+        // Check what is in the last cache:
+        let batches = wbuf
+            .last_cache()
+            .get_cache_record_batches(db_name, tbl_name, None, predicates)
+            .unwrap()
+            .unwrap();
+
         assert_batches_sorted_eq!(
             [
-                "+------+-------+",
-                "| time | usage |",
-                "+------+-------+",
-                "+------+-------+",
+                "+--------+--------------------------+-------+",
+                "| region | time                     | usage |",
+                "+--------+--------------------------+-------+",
+                "| us     | 1970-01-01T00:00:00.500Z | 333.0 |",
+                "+--------+--------------------------+-------+",
             ],
             &batches
         );
