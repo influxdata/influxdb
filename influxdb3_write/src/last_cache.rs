@@ -41,8 +41,8 @@ use crate::{
 pub enum Error {
     #[error("invalid cache size")]
     InvalidCacheSize,
-    #[error("last cache already exists for database and table")]
-    CacheAlreadyExists,
+    #[error("last cache already exists for database and table, but it was configured differently: {reason}")]
+    CacheAlreadyExists { reason: String },
     #[error("specified key column ({column_name}) does not exist in the table schema")]
     KeyColumnDoesNotExist { column_name: String },
     #[error("key column must be string, int, uint, or bool types")]
@@ -51,6 +51,14 @@ pub enum Error {
     ValueColumnDoesNotExist { column_name: String },
     #[error("schema builder error: {0}")]
     SchemaBuilder(#[from] schema::builder::Error),
+}
+
+impl Error {
+    fn cache_already_exists(reason: impl Into<String>) -> Self {
+        Self::CacheAlreadyExists {
+            reason: reason.into(),
+        }
+    }
 }
 
 /// A three level hashmap storing Database Name -> Table Name -> Cache Name -> LastCache
@@ -124,7 +132,7 @@ impl LastCacheProvider {
             key_columns,
             value_columns,
         }: CreateCacheArguments,
-    ) -> Result<(), Error> {
+    ) -> Result<String, Error> {
         let key_columns = if let Some(keys) = key_columns {
             // validate the key columns specified to ensure correct type (string, int, unit, or bool)
             // and that they exist in the table's schema.
@@ -160,17 +168,6 @@ impl LastCacheProvider {
         let cache_name = cache_name.unwrap_or_else(|| {
             format!("{tbl_name}_{keys}_last_cache", keys = key_columns.join("_"))
         });
-
-        // reject creation if there is already a cache with specified database, table, and cache name
-        if self
-            .cache_map
-            .read()
-            .get(&db_name)
-            .and_then(|db| db.get(&tbl_name))
-            .is_some_and(|tbl| tbl.contains_key(&cache_name))
-        {
-            return Err(Error::CacheAlreadyExists);
-        }
 
         let (value_columns, accept_new_fields) = if let Some(mut vals) = value_columns {
             // if value columns are specified, check that they are present in the table schema
@@ -231,6 +228,18 @@ impl LastCacheProvider {
             accept_new_fields,
         );
 
+        // reject creation if there is already a cache with specified database, table, and cache name
+        // having different configuration that what was provided.
+        if let Some(lc) = self
+            .cache_map
+            .read()
+            .get(&db_name)
+            .and_then(|db| db.get(&tbl_name))
+            .and_then(|tbl| tbl.get(&cache_name))
+        {
+            return lc.compare_config(&last_cache).map(|_| cache_name);
+        }
+
         // get the write lock and insert:
         self.cache_map
             .write()
@@ -238,9 +247,9 @@ impl LastCacheProvider {
             .or_default()
             .entry(tbl_name)
             .or_default()
-            .insert(cache_name, last_cache);
+            .insert(cache_name.clone(), last_cache);
 
-        Ok(())
+        Ok(cache_name)
     }
 
     /// Write a batch from the buffer into the cache by iterating over its database and table batches
@@ -301,6 +310,16 @@ impl LastCacheProvider {
             })
             .map(|lc| lc.to_record_batches(predicates))
     }
+
+    /// Returns the total number of caches contained in the provider
+    #[cfg(test)]
+    fn size(&self) -> usize {
+        self.cache_map
+            .read()
+            .iter()
+            .flat_map(|(_, db)| db.iter().flat_map(|(_, tbl)| tbl.iter()))
+            .count()
+    }
 }
 
 /// A Last-N-Values Cache
@@ -355,6 +374,39 @@ impl LastCache {
             accept_new_fields,
             state: LastCacheState::Init,
         }
+    }
+
+    /// Compare this cache's configuration with that of another
+    fn compare_config(&self, other: &Self) -> Result<(), Error> {
+        if self.count != other.count {
+            return Err(Error::cache_already_exists(
+                "different cache size specified",
+            ));
+        }
+        if self.ttl != other.ttl {
+            return Err(Error::cache_already_exists("different ttl specified"));
+        }
+        if self.key_columns != other.key_columns {
+            return Err(Error::cache_already_exists("key columns are not the same"));
+        }
+        if self.accept_new_fields != other.accept_new_fields {
+            return Err(Error::cache_already_exists(if self.accept_new_fields {
+                "new configuration does not accept new fields"
+            } else {
+                "new configuration accepts new fields while the existing does not"
+            }));
+        }
+        if !self.schema.contains(&other.schema) {
+            return Err(Error::cache_already_exists(
+                "the schema from specified value columns do not align",
+            ));
+        }
+        if self.series_key != other.series_key {
+            return Err(Error::cache_already_exists(
+                "the series key is not the same",
+            ));
+        }
+        Ok(())
     }
 
     /// Push a [`Row`] from the write buffer into the cache
@@ -1309,7 +1361,7 @@ mod tests {
     use iox_time::{MockProvider, Time};
 
     use crate::{
-        last_cache::{KeyValue, Predicate},
+        last_cache::{KeyValue, Predicate, DEFAULT_CACHE_TTL},
         persister::PersisterImpl,
         wal::WalImpl,
         write_buffer::WriteBufferImpl,
@@ -2569,5 +2621,107 @@ mod tests {
 
             assert_batches_sorted_eq!(t.expected, &batches);
         }
+    }
+
+    #[tokio::test]
+    async fn idempotent_cache_creation() {
+        let db_name = "db";
+        let tbl_name = "tbl";
+        let wbuf = setup_write_buffer().await;
+
+        // Do a write to setup catalog:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(r#"{tbl_name},t1=a,t2=b f1=1,f2=2"#).as_str(),
+            Time::from_timestamp_nanos(500),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Create a last cache using all default settings
+        wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+            .expect("create last cache");
+        assert_eq!(wbuf.last_cache().size(), 1);
+
+        // Doing the same should be fine:
+        wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+            .expect("create last cache");
+        assert_eq!(wbuf.last_cache().size(), 1);
+
+        // Specify the same arguments as what the defaults would produce (minus the value columns)
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            Some("tbl_t1_t2_last_cache"),
+            Some(1),
+            Some(DEFAULT_CACHE_TTL),
+            Some(vec!["t1".to_string(), "t2".to_string()]),
+            None,
+        )
+        .expect("create last cache");
+        assert_eq!(wbuf.last_cache().size(), 1);
+
+        // Specify value columns, which would deviate from above, as that implies different cache
+        // behaviour, i.e., no new fields are accepted:
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            None,
+            None,
+            None,
+            None,
+            Some(vec!["f1".to_string(), "f2".to_string()]),
+        )
+        .expect_err("create last cache should have failed");
+        assert_eq!(wbuf.last_cache().size(), 1);
+
+        // Specify different key columns, along with the same cache name will produce error:
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            Some("tbl_t1_t2_last_cache"),
+            None,
+            None,
+            Some(vec!["t1".to_string()]),
+            None,
+        )
+        .expect_err("create last cache should have failed");
+        assert_eq!(wbuf.last_cache().size(), 1);
+
+        // However, just specifying different key columns and no cache name will result in a
+        // different generated cache name, and therefore cache, so it will work:
+        let name = wbuf
+            .create_last_cache(
+                db_name,
+                tbl_name,
+                None,
+                None,
+                None,
+                Some(vec!["t1".to_string()]),
+                None,
+            )
+            .expect("create last cache should have failed");
+        assert_eq!(wbuf.last_cache().size(), 2);
+        assert_eq!("tbl_t1_last_cache", name);
+
+        // Specify different TTL:
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            None,
+            None,
+            Some(Duration::from_secs(10)),
+            None,
+            None,
+        )
+        .expect_err("create last cache should have failed");
+        assert_eq!(wbuf.last_cache().size(), 2);
+
+        // Specify different count:
+        wbuf.create_last_cache(db_name, tbl_name, None, Some(10), None, None, None)
+            .expect_err("create last cache should have failed");
+        assert_eq!(wbuf.last_cache().size(), 2);
     }
 }
