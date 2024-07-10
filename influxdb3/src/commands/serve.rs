@@ -20,7 +20,6 @@ use influxdb3_write::write_buffer::WriteBufferImpl;
 use influxdb3_write::SegmentDuration;
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
-use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
@@ -34,6 +33,7 @@ use std::{
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use trace_exporters::TracingConfig;
+use trace_http::ctx::TraceHeaderParser;
 use trogging::cli::LoggingConfig;
 
 /// The default name of the influxdb_iox data directory

@@ -173,9 +173,7 @@ impl<'a> From<&'a ArrowDataType> for DataType<'a> {
             ArrowDataType::Float16 => Self::F16,
             ArrowDataType::Float32 => Self::F32,
             ArrowDataType::Float64 => Self::F64,
-            // Arrow's TimeUnit does not impl Copy, so we cheaply clone it:
-            // See <https://github.com/apache/arrow-rs/issues/5839>
-            ArrowDataType::Timestamp(unit, tz) => Self::Time(unit.clone().into(), tz.as_deref()),
+            ArrowDataType::Timestamp(unit, tz) => Self::Time((*unit).into(), tz.as_deref()),
             ArrowDataType::Date32 => todo!(),
             ArrowDataType::Date64 => todo!(),
             ArrowDataType::Time32(_) => todo!(),
