@@ -414,6 +414,10 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         Ok(self.parquet_cache.purge_cache().await?)
     }
 
+    /// Create a new last-N-value cache in the specified database and table, along with the given
+    /// parameters.
+    ///
+    /// Returns the name of the newly created cache.
     #[allow(clippy::too_many_arguments)]
     pub fn create_last_cache(
         &self,
@@ -424,7 +428,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         ttl: Option<Duration>,
         key_columns: Option<Vec<String>>,
         value_columns: Option<Vec<String>>,
-    ) -> Result<(), Error> {
+    ) -> Result<String, Error> {
         let db_name = db_name.into();
         let tbl_name = tbl_name.into();
         let cache_name = cache_name.map(Into::into);

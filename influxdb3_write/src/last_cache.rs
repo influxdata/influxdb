@@ -41,8 +41,8 @@ use crate::{
 pub enum Error {
     #[error("invalid cache size")]
     InvalidCacheSize,
-    #[error("last cache already exists for database and table")]
-    CacheAlreadyExists,
+    #[error("last cache already exists for database and table, but it was configured differently: {reason}")]
+    CacheAlreadyExists { reason: String },
     #[error("specified key column ({column_name}) does not exist in the table schema")]
     KeyColumnDoesNotExist { column_name: String },
     #[error("key column must be string, int, uint, or bool types")]
@@ -51,6 +51,14 @@ pub enum Error {
     ValueColumnDoesNotExist { column_name: String },
     #[error("schema builder error: {0}")]
     SchemaBuilder(#[from] schema::builder::Error),
+}
+
+impl Error {
+    fn cache_already_exists(reason: impl Into<String>) -> Self {
+        Self::CacheAlreadyExists {
+            reason: reason.into(),
+        }
+    }
 }
 
 /// A three level hashmap storing Database Name -> Table Name -> Cache Name -> LastCache
@@ -124,7 +132,7 @@ impl LastCacheProvider {
             key_columns,
             value_columns,
         }: CreateCacheArguments,
-    ) -> Result<(), Error> {
+    ) -> Result<String, Error> {
         let key_columns = if let Some(keys) = key_columns {
             // validate the key columns specified to ensure correct type (string, int, unit, or bool)
             // and that they exist in the table's schema.
@@ -160,17 +168,6 @@ impl LastCacheProvider {
         let cache_name = cache_name.unwrap_or_else(|| {
             format!("{tbl_name}_{keys}_last_cache", keys = key_columns.join("_"))
         });
-
-        // reject creation if there is already a cache with specified database, table, and cache name
-        if self
-            .cache_map
-            .read()
-            .get(&db_name)
-            .and_then(|db| db.get(&tbl_name))
-            .is_some_and(|tbl| tbl.contains_key(&cache_name))
-        {
-            return Err(Error::CacheAlreadyExists);
-        }
 
         let (value_columns, accept_new_fields) = if let Some(mut vals) = value_columns {
             // if value columns are specified, check that they are present in the table schema
@@ -231,6 +228,18 @@ impl LastCacheProvider {
             accept_new_fields,
         );
 
+        // reject creation if there is already a cache with specified database, table, and cache name
+        // having different configuration that what was provided.
+        if let Some(lc) = self
+            .cache_map
+            .read()
+            .get(&db_name)
+            .and_then(|db| db.get(&tbl_name))
+            .and_then(|tbl| tbl.get(&cache_name))
+        {
+            return lc.compare_config(&last_cache).map(|_| cache_name);
+        }
+
         // get the write lock and insert:
         self.cache_map
             .write()
@@ -238,9 +247,9 @@ impl LastCacheProvider {
             .or_default()
             .entry(tbl_name)
             .or_default()
-            .insert(cache_name, last_cache);
+            .insert(cache_name.clone(), last_cache);
 
-        Ok(())
+        Ok(cache_name)
     }
 
     /// Write a batch from the buffer into the cache by iterating over its database and table batches
@@ -301,6 +310,16 @@ impl LastCacheProvider {
             })
             .map(|lc| lc.to_record_batches(predicates))
     }
+
+    /// Returns the total number of caches contained in the provider
+    #[cfg(test)]
+    fn size(&self) -> usize {
+        self.cache_map
+            .read()
+            .iter()
+            .flat_map(|(_, db)| db.iter().flat_map(|(_, tbl)| tbl.iter()))
+            .count()
+    }
 }
 
 /// A Last-N-Values Cache
@@ -355,6 +374,39 @@ impl LastCache {
             accept_new_fields,
             state: LastCacheState::Init,
         }
+    }
+
+    /// Compare this cache's configuration with that of another
+    fn compare_config(&self, other: &Self) -> Result<(), Error> {
+        if self.count != other.count {
+            return Err(Error::cache_already_exists(
+                "different cache size specified",
+            ));
+        }
+        if self.ttl != other.ttl {
+            return Err(Error::cache_already_exists("different ttl specified"));
+        }
+        if self.key_columns != other.key_columns {
+            return Err(Error::cache_already_exists("key columns are not the same"));
+        }
+        if self.accept_new_fields != other.accept_new_fields {
+            return Err(Error::cache_already_exists(if self.accept_new_fields {
+                "new configuration does not accept new fields"
+            } else {
+                "new configuration accepts new fields while the existing does not"
+            }));
+        }
+        if !self.schema.contains(&other.schema) {
+            return Err(Error::cache_already_exists(
+                "the schema from specified value columns do not align",
+            ));
+        }
+        if self.series_key != other.series_key {
+            return Err(Error::cache_already_exists(
+                "the series key is not the same",
+            ));
+        }
+        Ok(())
     }
 
     /// Push a [`Row`] from the write buffer into the cache
@@ -669,11 +721,11 @@ impl LastCacheState {
     }
 
     /// Remove expired values from this [`LastCacheState`]
-    fn remove_expired(&mut self) {
+    fn remove_expired(&mut self) -> bool {
         match self {
             LastCacheState::Key(k) => k.remove_expired(),
             LastCacheState::Store(s) => s.remove_expired(),
-            LastCacheState::Init => (),
+            LastCacheState::Init => false,
         }
     }
 }
@@ -708,10 +760,14 @@ impl LastCacheKey {
     }
 
     /// Remove expired values from any cache nested within this [`LastCacheKey`]
-    fn remove_expired(&mut self) {
-        self.value_map
-            .iter_mut()
-            .for_each(|(_, m)| m.remove_expired());
+    ///
+    /// This will recurse down the cache hierarchy, removing all expired cache values from individual
+    /// [`LastCacheStore`]s at the lowest level, then dropping any [`LastCacheStore`] that is
+    /// completeley empty. As it walks back up the hierarchy, any [`LastCacheKey`] that is empty will
+    /// also be dropped from its parent map.
+    fn remove_expired(&mut self) -> bool {
+        self.value_map.retain(|_, s| !s.remove_expired());
+        self.value_map.is_empty()
     }
 }
 
@@ -769,6 +825,10 @@ struct LastCacheStore {
     ///
     /// [perf]: https://github.com/indexmap-rs/indexmap?tab=readme-ov-file#performance
     cache: IndexMap<String, CacheColumn>,
+    /// A ring buffer holding the instants at which entries in the cache were inserted
+    ///
+    /// This is used to evict cache values that outlive the `ttl`
+    instants: VecDeque<Instant>,
     /// The capacity of the internal cache buffers
     count: usize,
     /// Time-to-live (TTL) for values in the cache
@@ -796,7 +856,6 @@ impl LastCacheStore {
                     CacheColumn::new(
                         f.data_type(),
                         count,
-                        ttl,
                         series_keys.is_some_and(|sk| sk.contains(f.name().as_str())),
                     ),
                 )
@@ -804,6 +863,7 @@ impl LastCacheStore {
             .collect();
         Self {
             cache,
+            instants: VecDeque::with_capacity(count),
             count,
             ttl,
             last_time: Time::from_timestamp_nanos(0),
@@ -811,17 +871,13 @@ impl LastCacheStore {
     }
 
     /// Get the number of values in the cache.
-    ///
-    /// Assumes that all columns are the same length, and only checks the first.
     fn len(&self) -> usize {
-        self.cache.first().map_or(0, |(_, c)| c.len())
+        self.instants.len()
     }
 
     /// Check if the cache is empty
-    ///
-    /// Assumes that all columns are the same length, and only checks the first.
     fn is_empty(&self) -> bool {
-        self.cache.first().map_or(false, |(_, c)| c.is_empty())
+        self.instants.is_empty()
     }
 
     /// Push a [`Row`] from the buffer into this cache
@@ -852,9 +908,10 @@ impl LastCacheStore {
                     // In this case, there is not an entry for the field in the cache, so if the
                     // value is not one of the key columns, then it is a new field being added.
                     let data_type = data_type_from_buffer_field(field);
-                    let col = self.cache.entry(field.name.to_string()).or_insert_with(|| {
-                        CacheColumn::new(&data_type, self.count, self.ttl, false)
-                    });
+                    let col = self
+                        .cache
+                        .entry(field.name.to_string())
+                        .or_insert_with(|| CacheColumn::new(&data_type, self.count, false));
                     // Back-fill the new cache entry with nulls, then push the new value:
                     for _ in 0..starting_cache_size {
                         col.push_null();
@@ -883,6 +940,10 @@ impl LastCacheStore {
                 column.push_null();
             }
         }
+        if self.instants.len() == self.count {
+            self.instants.pop_back();
+        }
+        self.instants.push_front(Instant::now());
         self.last_time = Time::from_timestamp_nanos(row.time);
         result
     }
@@ -924,12 +985,24 @@ impl LastCacheStore {
     }
 
     /// Remove expired values from the [`LastCacheStore`]
-    fn remove_expired(&mut self) {
-        self.cache.iter_mut().for_each(|(_, c)| c.remove_expired());
+    ///
+    /// Returns whether or not the store is empty after expired entries are removed.
+    fn remove_expired(&mut self) -> bool {
+        while let Some(instant) = self.instants.back() {
+            if instant.elapsed() > self.ttl {
+                self.instants.pop_back();
+            } else {
+                break;
+            }
+        }
+        self.cache
+            .iter_mut()
+            .for_each(|(_, c)| c.truncate(self.instants.len()));
         // reset the last_time if TTL evicts everything from the cache
         if self.is_empty() {
             self.last_time = Time::from_timestamp_nanos(0);
         }
+        self.is_empty()
     }
 }
 
@@ -979,28 +1052,16 @@ impl TableProvider for LastCache {
 #[derive(Debug)]
 struct CacheColumn {
     size: usize,
-    ttl: Duration,
     data: CacheColumnData,
 }
 
 impl CacheColumn {
     /// Create a new [`CacheColumn`] for the given arrow [`DataType`] and size
-    fn new(data_type: &DataType, size: usize, ttl: Duration, is_series_key: bool) -> Self {
+    fn new(data_type: &DataType, size: usize, is_series_key: bool) -> Self {
         Self {
             size,
-            ttl,
             data: CacheColumnData::new(data_type, size, is_series_key),
         }
-    }
-
-    /// Get the length of the [`CacheColumn`]
-    fn len(&self) -> usize {
-        self.data.len()
-    }
-
-    /// Check if the column is empty
-    fn is_empty(&self) -> bool {
-        self.data.is_empty()
     }
 
     /// Push [`FieldData`] from the buffer into this column
@@ -1018,42 +1079,42 @@ impl CacheColumn {
         self.data.push_front_null();
     }
 
-    /// Remove expired values from this [`CacheColumn`]
-    fn remove_expired(&mut self) {
-        self.data.remove_expired(self.ttl);
+    /// Truncate the [`CacheColumn`]. This is useful for evicting expired entries.
+    fn truncate(&mut self, len: usize) {
+        self.data.truncate(len);
     }
 }
 
 /// Enumerated type for storing column data for the cache in a buffer
 #[derive(Debug)]
 enum CacheColumnData {
-    I64(ColumnBuffer<Option<i64>>),
-    U64(ColumnBuffer<Option<u64>>),
-    F64(ColumnBuffer<Option<f64>>),
-    String(ColumnBuffer<Option<String>>),
-    Bool(ColumnBuffer<Option<bool>>),
-    Tag(ColumnBuffer<Option<String>>),
-    Key(ColumnBuffer<String>),
-    Time(ColumnBuffer<i64>),
+    I64(VecDeque<Option<i64>>),
+    U64(VecDeque<Option<u64>>),
+    F64(VecDeque<Option<f64>>),
+    String(VecDeque<Option<String>>),
+    Bool(VecDeque<Option<bool>>),
+    Tag(VecDeque<Option<String>>),
+    Key(VecDeque<String>),
+    Time(VecDeque<i64>),
 }
 
 impl CacheColumnData {
     /// Create a new [`CacheColumnData`]
     fn new(data_type: &DataType, size: usize, is_series_key: bool) -> Self {
         match data_type {
-            DataType::Boolean => Self::Bool(ColumnBuffer::with_capacity(size)),
-            DataType::Int64 => Self::I64(ColumnBuffer::with_capacity(size)),
-            DataType::UInt64 => Self::U64(ColumnBuffer::with_capacity(size)),
-            DataType::Float64 => Self::F64(ColumnBuffer::with_capacity(size)),
+            DataType::Boolean => Self::Bool(VecDeque::with_capacity(size)),
+            DataType::Int64 => Self::I64(VecDeque::with_capacity(size)),
+            DataType::UInt64 => Self::U64(VecDeque::with_capacity(size)),
+            DataType::Float64 => Self::F64(VecDeque::with_capacity(size)),
             DataType::Timestamp(TimeUnit::Nanosecond, _) => {
-                Self::Time(ColumnBuffer::with_capacity(size))
+                Self::Time(VecDeque::with_capacity(size))
             }
-            DataType::Utf8 => Self::String(ColumnBuffer::with_capacity(size)),
+            DataType::Utf8 => Self::String(VecDeque::with_capacity(size)),
             DataType::Dictionary(k, v) if **k == DataType::Int32 && **v == DataType::Utf8 => {
                 if is_series_key {
-                    Self::Key(ColumnBuffer::with_capacity(size))
+                    Self::Key(VecDeque::with_capacity(size))
                 } else {
-                    Self::Tag(ColumnBuffer::with_capacity(size))
+                    Self::Tag(VecDeque::with_capacity(size))
                 }
             }
             _ => panic!("unsupported data type for last cache: {data_type}"),
@@ -1071,20 +1132,6 @@ impl CacheColumnData {
             CacheColumnData::Tag(buf) => buf.len(),
             CacheColumnData::Key(buf) => buf.len(),
             CacheColumnData::Time(buf) => buf.len(),
-        }
-    }
-
-    /// Check if the column is empty
-    fn is_empty(&self) -> bool {
-        match self {
-            CacheColumnData::I64(buf) => buf.is_empty(),
-            CacheColumnData::U64(buf) => buf.is_empty(),
-            CacheColumnData::F64(buf) => buf.is_empty(),
-            CacheColumnData::String(buf) => buf.is_empty(),
-            CacheColumnData::Bool(buf) => buf.is_empty(),
-            CacheColumnData::Tag(buf) => buf.is_empty(),
-            CacheColumnData::Key(buf) => buf.is_empty(),
-            CacheColumnData::Time(buf) => buf.is_empty(),
         }
     }
 
@@ -1147,20 +1194,6 @@ impl CacheColumnData {
             CacheColumnData::Tag(buf) => buf.push_front(None),
             CacheColumnData::Key(_) => panic!("pushed null value to series key column in cache"),
             CacheColumnData::Time(_) => panic!("pushed null value to time column in cache"),
-        }
-    }
-
-    /// Remove expired values from the inner [`ColumnBuffer`]
-    fn remove_expired(&mut self, ttl: Duration) {
-        match self {
-            CacheColumnData::I64(buf) => buf.remove_expired(ttl),
-            CacheColumnData::U64(buf) => buf.remove_expired(ttl),
-            CacheColumnData::F64(buf) => buf.remove_expired(ttl),
-            CacheColumnData::String(buf) => buf.remove_expired(ttl),
-            CacheColumnData::Bool(buf) => buf.remove_expired(ttl),
-            CacheColumnData::Tag(buf) => buf.remove_expired(ttl),
-            CacheColumnData::Key(buf) => buf.remove_expired(ttl),
-            CacheColumnData::Time(buf) => buf.remove_expired(ttl),
         }
     }
 
@@ -1231,54 +1264,18 @@ impl CacheColumnData {
             }
         }
     }
-}
 
-/// Newtype wrapper around a [`VecDeque`] whose values are paired with an [`Instant`] that
-/// represents the time at which each value was pushed into the buffer.
-#[derive(Debug)]
-struct ColumnBuffer<T>(VecDeque<(Instant, T)>);
-
-impl<T> ColumnBuffer<T> {
-    /// Create a new [`ColumnBuffer`] with the given capacity
-    fn with_capacity(capacity: usize) -> Self {
-        Self(VecDeque::with_capacity(capacity))
-    }
-
-    /// Get the length of the [`ColumnBuffer`]
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Check if the buffer is empty
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Pop the last element off of the [`ColumnBuffer`]
-    fn pop_back(&mut self) {
-        self.0.pop_back();
-    }
-
-    /// Push a value to the front of the [`ColumnBuffer`], the value will be paired with an
-    /// [`Instant`].
-    fn push_front(&mut self, value: T) {
-        self.0.push_front((Instant::now(), value));
-    }
-
-    /// Remove any elements in the [`ColumnBuffer`] that have outlived a given time-to-live (TTL)
-    fn remove_expired(&mut self, ttl: Duration) {
-        while let Some((created, _)) = self.0.back() {
-            if created.elapsed() >= ttl {
-                self.0.pop_back();
-            } else {
-                return;
-            }
+    fn truncate(&mut self, len: usize) {
+        match self {
+            CacheColumnData::I64(buf) => buf.truncate(len),
+            CacheColumnData::U64(buf) => buf.truncate(len),
+            CacheColumnData::F64(buf) => buf.truncate(len),
+            CacheColumnData::String(buf) => buf.truncate(len),
+            CacheColumnData::Bool(buf) => buf.truncate(len),
+            CacheColumnData::Tag(buf) => buf.truncate(len),
+            CacheColumnData::Key(buf) => buf.truncate(len),
+            CacheColumnData::Time(buf) => buf.truncate(len),
         }
-    }
-
-    /// Produce an iterator over the values in the buffer
-    fn iter(&self) -> impl Iterator<Item = &T> {
-        self.0.iter().map(|(_, v)| v)
     }
 }
 
@@ -1309,7 +1306,7 @@ mod tests {
     use iox_time::{MockProvider, Time};
 
     use crate::{
-        last_cache::{KeyValue, Predicate},
+        last_cache::{KeyValue, Predicate, DEFAULT_CACHE_TTL},
         persister::PersisterImpl,
         wal::WalImpl,
         write_buffer::WriteBufferImpl,
@@ -1875,12 +1872,42 @@ mod tests {
             .unwrap()
             .unwrap();
 
+        // The cache is completely empty after the TTL evicted data, so it will give back nothing:
+        assert_batches_sorted_eq!(["++", "++",], &batches);
+
+        // Ensure that records can be written to the cache again:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "\
+                {tbl_name},region=us,host=a usage=333\n\
+                "
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(500_000_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Check the cache for values:
+        let predicates = &[Predicate::new("host", KeyValue::string("a"))];
+
+        // Check what is in the last cache:
+        let batches = wbuf
+            .last_cache()
+            .get_cache_record_batches(db_name, tbl_name, None, predicates)
+            .unwrap()
+            .unwrap();
+
         assert_batches_sorted_eq!(
             [
-                "+------+-------+",
-                "| time | usage |",
-                "+------+-------+",
-                "+------+-------+",
+                "+--------+--------------------------+-------+",
+                "| region | time                     | usage |",
+                "+--------+--------------------------+-------+",
+                "| us     | 1970-01-01T00:00:00.500Z | 333.0 |",
+                "+--------+--------------------------+-------+",
             ],
             &batches
         );
@@ -2569,5 +2596,107 @@ mod tests {
 
             assert_batches_sorted_eq!(t.expected, &batches);
         }
+    }
+
+    #[tokio::test]
+    async fn idempotent_cache_creation() {
+        let db_name = "db";
+        let tbl_name = "tbl";
+        let wbuf = setup_write_buffer().await;
+
+        // Do a write to setup catalog:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(r#"{tbl_name},t1=a,t2=b f1=1,f2=2"#).as_str(),
+            Time::from_timestamp_nanos(500),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Create a last cache using all default settings
+        wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+            .expect("create last cache");
+        assert_eq!(wbuf.last_cache().size(), 1);
+
+        // Doing the same should be fine:
+        wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+            .expect("create last cache");
+        assert_eq!(wbuf.last_cache().size(), 1);
+
+        // Specify the same arguments as what the defaults would produce (minus the value columns)
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            Some("tbl_t1_t2_last_cache"),
+            Some(1),
+            Some(DEFAULT_CACHE_TTL),
+            Some(vec!["t1".to_string(), "t2".to_string()]),
+            None,
+        )
+        .expect("create last cache");
+        assert_eq!(wbuf.last_cache().size(), 1);
+
+        // Specify value columns, which would deviate from above, as that implies different cache
+        // behaviour, i.e., no new fields are accepted:
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            None,
+            None,
+            None,
+            None,
+            Some(vec!["f1".to_string(), "f2".to_string()]),
+        )
+        .expect_err("create last cache should have failed");
+        assert_eq!(wbuf.last_cache().size(), 1);
+
+        // Specify different key columns, along with the same cache name will produce error:
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            Some("tbl_t1_t2_last_cache"),
+            None,
+            None,
+            Some(vec!["t1".to_string()]),
+            None,
+        )
+        .expect_err("create last cache should have failed");
+        assert_eq!(wbuf.last_cache().size(), 1);
+
+        // However, just specifying different key columns and no cache name will result in a
+        // different generated cache name, and therefore cache, so it will work:
+        let name = wbuf
+            .create_last_cache(
+                db_name,
+                tbl_name,
+                None,
+                None,
+                None,
+                Some(vec!["t1".to_string()]),
+                None,
+            )
+            .expect("create last cache should have failed");
+        assert_eq!(wbuf.last_cache().size(), 2);
+        assert_eq!("tbl_t1_last_cache", name);
+
+        // Specify different TTL:
+        wbuf.create_last_cache(
+            db_name,
+            tbl_name,
+            None,
+            None,
+            Some(Duration::from_secs(10)),
+            None,
+            None,
+        )
+        .expect_err("create last cache should have failed");
+        assert_eq!(wbuf.last_cache().size(), 2);
+
+        // Specify different count:
+        wbuf.create_last_cache(db_name, tbl_name, None, Some(10), None, None, None)
+            .expect_err("create last cache should have failed");
+        assert_eq!(wbuf.last_cache().size(), 2);
     }
 }
