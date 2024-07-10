@@ -12,7 +12,6 @@ clap_blocks.workspace = true
 datafusion_util.workspace = true
 iox_query.workspace = true
 iox_time.workspace = true
-ioxd_common.workspace = true
 metric.workspace = true
 object_store.workspace = true
 observability_deps.workspace = true
@@ -20,6 +19,7 @@ panic_logging.workspace = true
 parquet_file.workspace = true
 tokio_metrics_bridge.workspace = true
 trace.workspace = true
+trace_http.workspace = true
 trace_exporters.workspace = true
 trogging.workspace = true
 

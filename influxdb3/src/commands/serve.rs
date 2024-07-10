@@ -20,7 +20,7 @@ use influxdb3_write::write_buffer::WriteBufferImpl;
 use influxdb3_write::SegmentDuration;
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
-use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
+use trace_http::ctx::TraceHeaderParser;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
