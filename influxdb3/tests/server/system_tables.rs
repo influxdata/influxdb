@@ -31,7 +31,7 @@ async fn queries_table() {
         assert_batches_sorted_eq!(
             [
                 "+----------+",
-                "| COUNT(*) |",
+                "| count(*) |",
                 "+----------+",
                 "| 0        |",
                 "+----------+",
