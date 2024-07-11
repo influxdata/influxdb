@@ -52,9 +52,18 @@ impl TableProvider for LastCache {
     }
 }
 
-pub(crate) struct LastCacheFunction {
+pub struct LastCacheFunction {
     db_name: String,
     provider: Arc<LastCacheProvider>,
+}
+
+impl LastCacheFunction {
+    pub fn new(db_name: impl Into<String>, provider: Arc<LastCacheProvider>) -> Self {
+        Self {
+            db_name: db_name.into(),
+            provider,
+        }
+    }
 }
 
 impl TableFunctionImpl for LastCacheFunction {

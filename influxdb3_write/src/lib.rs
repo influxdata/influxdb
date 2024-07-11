@@ -9,7 +9,7 @@
 pub mod cache;
 pub mod catalog;
 mod chunk;
-mod last_cache;
+pub mod last_cache;
 pub mod paths;
 pub mod persister;
 pub mod wal;

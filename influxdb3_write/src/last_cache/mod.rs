@@ -32,6 +32,7 @@ use crate::{
 };
 
 mod table_function;
+pub use table_function::LastCacheFunction;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
