@@ -42,8 +42,8 @@ impl TableProvider for LastCache {
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let predicates = self.convert_filter_exprs(filters);
-        let partitions = vec![self.to_record_batches(&predicates)?];
-        let mut exec = MemoryExec::try_new(&partitions, self.schema(), projection.cloned())?;
+        let batches = self.to_record_batches(&predicates)?;
+        let mut exec = MemoryExec::try_new(&[batches], self.schema(), projection.cloned())?;
 
         let show_sizes = ctx.config_options().explain.show_sizes;
         exec = exec.with_show_sizes(show_sizes);
