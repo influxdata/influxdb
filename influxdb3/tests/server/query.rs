@@ -1046,8 +1046,7 @@ async fn api_v1_query_chunked() {
                             [1, "a", 0.9],
                             [2, "a", 0.89],
                             [3, "a", 0.85]
-                          ],
-                          "partial": true
+                          ]
                         }
                       ],
                       "statement_id": 0,
@@ -1108,8 +1107,7 @@ async fn api_v1_query_chunked() {
                           "columns": ["time","host","usage"],
                           "values": [
                             [3, "a", 0.85]
-                          ],
-                          "partial": true
+                          ]
                         }
                       ],
                       "statement_id": 0,

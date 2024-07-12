@@ -393,6 +393,15 @@ impl ChunkBuffer {
         }
     }
 
+    /// This function returns true if the number of rows in the current series exceeds the chunk size
+    fn is_partial_series(&self) -> bool {
+        if let (Some(size), Some(m)) = (self.size, self.series.back()) {
+            m.1.len() > size
+        } else {
+            false
+        }
+    }
+
     /// The [`ChunkBuffer`] is operating in chunked mode, and can flush a chunk
     fn can_flush(&self) -> bool {
         if let (Some(size), Some(m)) = (self.size, self.series.back()) {
@@ -550,8 +559,8 @@ impl QueryResponseStream {
     fn flush_one(&mut self) -> QueryResponse {
         let columns = self.columns();
 
-        let partial = self.buffer.can_flush().then_some(true);
-
+        let partial_series = self.buffer.is_partial_series().then_some(true);
+        let partial_results = self.buffer.can_flush().then_some(true);
         // this unwrap is okay because we only ever call flush_one
         // after calling can_flush on the buffer:
         let (name, values) = self.buffer.flush_one().unwrap();
@@ -559,13 +568,13 @@ impl QueryResponseStream {
             name,
             columns,
             values,
-            partial,
+            partial: partial_series,
         }];
         QueryResponse {
             results: vec![StatementResponse {
                 statement_id: self.statement_id,
                 series,
-                partial,
+                partial: partial_results,
             }],
             format: self.format,
         }
