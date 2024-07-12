@@ -1003,10 +1003,12 @@ async fn api_v1_query_chunked() {
                           "values": [
                             [1, "a", 0.9],
                             [2, "a", 0.89],
-                          ]
+                          ],
+                          "partial": true
                         }
                       ],
-                      "statement_id": 0
+                      "statement_id": 0,
+                      "partial": true
                     }
                   ]
                 }),
@@ -1047,7 +1049,8 @@ async fn api_v1_query_chunked() {
                           ]
                         }
                       ],
-                      "statement_id": 0
+                      "statement_id": 0,
+                      "partial": true
                     }
                   ]
                 }),
@@ -1086,10 +1089,12 @@ async fn api_v1_query_chunked() {
                           "values": [
                             [1, "a", 0.9],
                             [2, "a", 0.89],
-                          ]
+                          ],
+                          "partial": true
                         }
                       ],
-                      "statement_id": 0
+                      "statement_id": 0,
+                      "partial": true
                     }
                   ]
                 }),
@@ -1105,7 +1110,8 @@ async fn api_v1_query_chunked() {
                           ]
                         }
                       ],
-                      "statement_id": 0
+                      "statement_id": 0,
+                      "partial": true
                     }
                   ]
                 }),
@@ -1119,10 +1125,12 @@ async fn api_v1_query_chunked() {
                           "values": [
                             [4, "a", 0.5],
                             [5, "a", 0.6],
-                          ]
+                          ],
+                          "partial": true
                         }
                       ],
-                      "statement_id": 0
+                      "statement_id": 0,
+                      "partial": true
                     }
                   ]
                 }),
