@@ -141,6 +141,9 @@ impl LastCacheProvider {
 
     /// Create a new entry in the last cache for a given database and table, along with the given
     /// parameters.
+    ///
+    /// If a new cache is created, it will return its name. If the provided arguments are identical
+    /// to an existing cache (along with any defaults), then `None` will be returned.
     pub fn create_cache(
         &self,
         CreateCacheArguments {
