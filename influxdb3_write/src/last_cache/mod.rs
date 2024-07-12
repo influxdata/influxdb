@@ -46,8 +46,6 @@ pub enum Error {
     InvalidKeyColumn,
     #[error("specified value column ({column_name}) does not exist in the table schema")]
     ValueColumnDoesNotExist { column_name: String },
-    #[error("schema builder error: {0}")]
-    SchemaBuilder(#[from] schema::builder::Error),
     #[error("requested last cache does not exist")]
     CacheDoesNotExist,
 }

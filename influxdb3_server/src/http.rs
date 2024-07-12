@@ -294,6 +294,27 @@ impl Error {
                     .body(body)
                     .unwrap()
             }
+            Self::SerdeJson(_) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
+            Self::LastCache(ref lc_err) => match lc_err {
+                last_cache::Error::InvalidCacheSize
+                | last_cache::Error::CacheAlreadyExists { .. }
+                | last_cache::Error::KeyColumnDoesNotExist { .. }
+                | last_cache::Error::InvalidKeyColumn
+                | last_cache::Error::ValueColumnDoesNotExist { .. } => Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(Body::from(lc_err.to_string()))
+                    .unwrap(),
+                // This variant should not be encountered by the API, as it is thrown during
+                // query execution and would be captured there, but avoiding a catch-all arm here
+                // in case new variants are added to the enum:
+                last_cache::Error::CacheDoesNotExist => Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(Body::from(self.to_string()))
+                    .unwrap(),
+            },
             _ => {
                 let body = Body::from(self.to_string());
                 Response::builder()
