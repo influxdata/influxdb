@@ -279,6 +279,7 @@ mod tests {
                 Arc::clone(&time_provider),
                 SegmentDuration::new_5m(),
                 Arc::clone(&exec),
+                10000,
             )
             .await
             .unwrap(),
@@ -439,6 +440,7 @@ mod tests {
                 Arc::clone(&time_provider),
                 SegmentDuration::new_5m(),
                 Arc::clone(&exec),
+                10000,
             )
             .await
             .unwrap(),
@@ -646,6 +648,7 @@ mod tests {
                 Arc::clone(&time_provider),
                 SegmentDuration::new_5m(),
                 Arc::clone(&exec),
+                10000,
             )
             .await
             .unwrap(),

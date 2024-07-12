@@ -3,6 +3,8 @@
 pub(crate) mod buffer_segment;
 mod flusher;
 mod loader;
+pub mod persisted_files;
+mod persister;
 mod segment_state;
 mod table_buffer;
 pub(crate) mod validator;
@@ -10,18 +12,24 @@ pub(crate) mod validator;
 use crate::cache::ParquetCache;
 use crate::catalog::{Catalog, DatabaseSchema};
 use crate::chunk::ParquetChunk;
+use crate::last_cache::{self, CreateCacheArguments, LastCacheProvider};
 use crate::persister::PersisterImpl;
 use crate::write_buffer::flusher::WriteBufferFlusher;
 use crate::write_buffer::loader::load_starting_state;
-use crate::write_buffer::segment_state::{run_buffer_segment_persist_and_cleanup, SegmentState};
+use crate::write_buffer::persisted_files::PersistedFiles;
+use crate::write_buffer::persister::{
+    run_buffer_segment_persist_and_cleanup, run_buffer_size_check_and_persist,
+};
+use crate::write_buffer::segment_state::SegmentState;
 use crate::write_buffer::validator::WriteValidator;
 use crate::{
-    BufferedWriteRequest, Bufferer, ChunkContainer, Persister, Precision, SegmentDuration,
-    SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
+    BufferedWriteRequest, Bufferer, ChunkContainer, ParquetFile, Persister, Precision,
+    SegmentDuration, SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError};
 use datafusion::common::DataFusionError;
+use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -31,12 +39,14 @@ use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use object_store::path::Path as ObjPath;
-use object_store::ObjectMeta;
+use object_store::{ObjectMeta, ObjectStore};
 use observability_deps::tracing::{debug, error};
 use parking_lot::{Mutex, RwLock};
 use parquet_file::storage::ParquetExecInput;
+use schema::Schema;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::watch;
 
@@ -75,6 +85,15 @@ pub enum Error {
 
     #[error("error from table buffer: {0}")]
     TableBufferError(#[from] table_buffer::Error),
+
+    #[error("error in last cache: {0}")]
+    LastCacheError(#[from] last_cache::Error),
+
+    #[error("tried accessing database and table that do not exist")]
+    DbDoesNotExist,
+
+    #[error("tried accessing database and table that do not exist")]
+    TableDoesNotExist,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -92,6 +111,7 @@ pub struct WriteBufferImpl<W, T> {
     persister: Arc<PersisterImpl>,
     parquet_cache: Arc<ParquetCache>,
     segment_state: Arc<RwLock<SegmentState<T, W>>>,
+    persisted_files: Arc<PersistedFiles>,
     wal: Option<Arc<W>>,
     write_buffer_flusher: WriteBufferFlusher,
     segment_duration: SegmentDuration,
@@ -101,6 +121,9 @@ pub struct WriteBufferImpl<W, T> {
     segment_persist_handle: Mutex<tokio::task::JoinHandle<()>>,
     #[allow(dead_code)]
     shutdown_segment_persist_tx: watch::Sender<()>,
+    #[allow(dead_code)]
+    buffer_check_handle: Mutex<tokio::task::JoinHandle<()>>,
+    last_cache: Arc<LastCacheProvider>,
 }
 
 impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
@@ -110,6 +133,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         time_provider: Arc<T>,
         segment_duration: SegmentDuration,
         executor: Arc<iox_query::exec::Executor>,
+        buffer_mem_limit_mb: usize,
     ) -> Result<Self> {
         let now = time_provider.now();
         let loaded_state =
@@ -122,26 +146,50 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             Arc::clone(&time_provider),
             loaded_state.open_segments,
             loaded_state.persisting_buffer_segments,
-            loaded_state.persisted_segments,
             wal.clone(),
         )));
 
-        let write_buffer_flusher = WriteBufferFlusher::new(Arc::clone(&segment_state));
+        let last_cache = Arc::new(LastCacheProvider::new());
+        let write_buffer_flusher =
+            WriteBufferFlusher::new(Arc::clone(&segment_state), Arc::clone(&last_cache));
+
+        let persisted_files = Arc::new(PersistedFiles::new_from_persisted_segments(
+            loaded_state.persisted_segments,
+        ));
 
         let segment_state_persister = Arc::clone(&segment_state);
+        let persisted_files_persister = Arc::clone(&persisted_files);
         let time_provider_persister = Arc::clone(&time_provider);
         let wal_perister = wal.clone();
         let cloned_persister = Arc::clone(&persister);
+        let cloned_executor = Arc::clone(&executor);
 
         let (shutdown_segment_persist_tx, shutdown_rx) = watch::channel(());
+        let shutdown = shutdown_rx.clone();
         let segment_persist_handle = tokio::task::spawn(async move {
             run_buffer_segment_persist_and_cleanup(
                 cloned_persister,
                 segment_state_persister,
+                persisted_files_persister,
                 shutdown_rx,
                 time_provider_persister,
                 wal_perister,
-                executor,
+                cloned_executor,
+            )
+            .await;
+        });
+
+        let segment_state_persister = Arc::clone(&segment_state);
+        let cloned_persister = Arc::clone(&persister);
+        let cloned_executor = Arc::clone(&executor);
+
+        let buffer_check_handle = tokio::task::spawn(async move {
+            run_buffer_size_check_and_persist(
+                cloned_persister,
+                segment_state_persister,
+                shutdown,
+                cloned_executor,
+                buffer_mem_limit_mb,
             )
             .await;
         });
@@ -157,11 +205,18 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             segment_duration,
             segment_persist_handle: Mutex::new(segment_persist_handle),
             shutdown_segment_persist_tx,
+            buffer_check_handle: Mutex::new(buffer_check_handle),
+            last_cache,
+            persisted_files,
         })
     }
 
     pub fn catalog(&self) -> Arc<Catalog> {
         Arc::clone(&self.catalog)
+    }
+
+    pub fn persisted_files(&self) -> Arc<PersistedFiles> {
+        Arc::clone(&self.persisted_files)
     }
 
     async fn write_lp(
@@ -240,52 +295,30 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             table.schema.clone()
         };
 
-        let segment_state = self.segment_state.read();
-        let mut chunks =
-            segment_state.get_table_chunks(db_schema, table_name, filters, projection, ctx)?;
-        let parquet_files = segment_state.get_parquet_files(database_name, table_name);
-
-        let mut chunk_order = chunks.len() as i64;
         let object_store_url = self.persister.object_store_url();
 
+        let segment_state = self.segment_state.read();
+        let mut chunks = segment_state.get_table_chunks(
+            db_schema,
+            table_name,
+            filters,
+            projection,
+            object_store_url.clone(),
+            self.persister.object_store(),
+            ctx,
+        )?;
+        let parquet_files = self.persisted_files.get_files(database_name, table_name);
+
+        let mut chunk_order = chunks.len() as i64;
+
         for parquet_file in parquet_files {
-            // TODO: update persisted segments to serialize their key to use here
-            let partition_key = data_types::PartitionKey::from(parquet_file.path.clone());
-            let partition_id = data_types::partition::TransitionPartitionId::new(
-                data_types::TableId::new(0),
-                &partition_key,
-            );
-
-            let chunk_stats = create_chunk_statistics(
-                Some(parquet_file.row_count as usize),
+            let parquet_chunk = parquet_chunk_from_file(
+                &parquet_file,
                 &table_schema,
-                Some(parquet_file.timestamp_min_max()),
-                &NoColumnRanges,
+                object_store_url.clone(),
+                Arc::clone(&self.persister.object_store()),
+                chunk_order,
             );
-
-            let location = ObjPath::from(parquet_file.path.clone());
-
-            let parquet_exec = ParquetExecInput {
-                object_store_url: object_store_url.clone(),
-                object_meta: ObjectMeta {
-                    location,
-                    last_modified: Default::default(),
-                    size: parquet_file.size_bytes as usize,
-                    e_tag: None,
-                    version: None,
-                },
-                object_store: self.persister.object_store(),
-            };
-
-            let parquet_chunk = ParquetChunk {
-                schema: table_schema.clone(),
-                stats: Arc::new(chunk_stats),
-                partition_id,
-                sort_key: None,
-                id: ChunkId::new(),
-                chunk_order: ChunkOrder::new(chunk_order),
-                parquet_exec,
-            };
 
             chunk_order += 1;
 
@@ -381,6 +414,46 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         Ok(self.parquet_cache.purge_cache().await?)
     }
 
+    /// Create a new last-N-value cache in the specified database and table, along with the given
+    /// parameters.
+    ///
+    /// Returns the name of the newly created cache.
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_last_cache(
+        &self,
+        db_name: impl Into<String>,
+        tbl_name: impl Into<String>,
+        cache_name: Option<&str>,
+        count: Option<usize>,
+        ttl: Option<Duration>,
+        key_columns: Option<Vec<String>>,
+        value_columns: Option<Vec<String>>,
+    ) -> Result<String, Error> {
+        let db_name = db_name.into();
+        let tbl_name = tbl_name.into();
+        let cache_name = cache_name.map(Into::into);
+        let db_schema = self
+            .catalog()
+            .db_schema(&db_name)
+            .ok_or(Error::DbDoesNotExist)?;
+        let schema = db_schema
+            .get_table_schema(&tbl_name)
+            .ok_or(Error::TableDoesNotExist)?
+            .clone();
+        self.last_cache
+            .create_cache(CreateCacheArguments {
+                db_name,
+                tbl_name,
+                schema,
+                cache_name,
+                count,
+                ttl,
+                key_columns,
+                value_columns,
+            })
+            .map_err(Into::into)
+    }
+
     #[cfg(test)]
     fn get_table_record_batches(
         &self,
@@ -393,6 +466,52 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
 
         let segment_state = self.segment_state.read();
         segment_state.open_segments_table_record_batches(datbase_name, table_name, &schema)
+    }
+}
+
+pub(crate) fn parquet_chunk_from_file(
+    parquet_file: &ParquetFile,
+    table_schema: &Schema,
+    object_store_url: ObjectStoreUrl,
+    object_store: Arc<dyn ObjectStore>,
+    chunk_order: i64,
+) -> ParquetChunk {
+    // TODO: update persisted segments to serialize their key to use here
+    let partition_key = data_types::PartitionKey::from(parquet_file.path.clone());
+    let partition_id = data_types::partition::TransitionPartitionId::new(
+        data_types::TableId::new(0),
+        &partition_key,
+    );
+
+    let chunk_stats = create_chunk_statistics(
+        Some(parquet_file.row_count as usize),
+        table_schema,
+        Some(parquet_file.timestamp_min_max()),
+        &NoColumnRanges,
+    );
+
+    let location = ObjPath::from(parquet_file.path.clone());
+
+    let parquet_exec = ParquetExecInput {
+        object_store_url,
+        object_meta: ObjectMeta {
+            location,
+            last_modified: Default::default(),
+            size: parquet_file.size_bytes as usize,
+            e_tag: None,
+            version: None,
+        },
+        object_store,
+    };
+
+    ParquetChunk {
+        schema: table_schema.clone(),
+        stats: Arc::new(chunk_stats),
+        partition_id,
+        sort_key: None,
+        id: ChunkId::new(),
+        chunk_order: ChunkOrder::new(chunk_order),
+        parquet_exec,
     }
 }
 
@@ -428,6 +547,10 @@ impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
 
     fn catalog(&self) -> Arc<Catalog> {
         self.catalog()
+    }
+
+    fn last_cache(&self) -> Arc<LastCacheProvider> {
+        Arc::clone(&self.last_cache)
     }
 }
 
@@ -581,6 +704,7 @@ mod tests {
             Arc::clone(&time_provider),
             segment_duration,
             crate::test_help::make_exec(),
+            1000,
         )
         .await
         .unwrap();
@@ -632,6 +756,7 @@ mod tests {
             time_provider,
             segment_duration,
             crate::test_help::make_exec(),
+            1000,
         )
         .await
         .unwrap();
@@ -640,7 +765,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn returns_chunks_across_buffered_persisted_and_persisting_data() {
+    async fn returns_chunks_across_buffered_and_persisted_data() {
         let dir = test_helpers::tmp_dir().unwrap().into_path();
         let wal = Some(Arc::new(WalImpl::new(dir.clone()).unwrap()));
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
@@ -653,6 +778,7 @@ mod tests {
             Arc::clone(&time_provider),
             segment_duration,
             crate::test_help::make_exec(),
+            1000,
         )
         .await
         .unwrap();
@@ -684,8 +810,12 @@ mod tests {
         // advance the time and wait for it to persist
         time_provider.set(Time::from_timestamp(800, 0).unwrap());
         loop {
-            let segment_state = write_buffer.segment_state.read();
-            if !segment_state.persisted_segments().is_empty() {
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+            if !write_buffer
+                .persisted_files
+                .get_files("foo", "cpu")
+                .is_empty()
+            {
                 break;
             }
         }
@@ -730,6 +860,7 @@ mod tests {
             Arc::clone(&time_provider),
             segment_duration,
             crate::test_help::make_exec(),
+            1000,
         )
         .await
         .unwrap();
@@ -774,6 +905,7 @@ mod tests {
             Arc::clone(&time_provider),
             segment_duration,
             crate::test_help::make_exec(),
+            1000,
         )
         .await
         .unwrap();

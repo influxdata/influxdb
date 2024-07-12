@@ -20,7 +20,6 @@ use influxdb3_write::write_buffer::WriteBufferImpl;
 use influxdb3_write::SegmentDuration;
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
-use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
@@ -34,6 +33,7 @@ use std::{
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use trace_exporters::TracingConfig;
+use trace_http::ctx::TraceHeaderParser;
 use trogging::cli::LoggingConfig;
 
 /// The default name of the influxdb_iox data directory
@@ -167,6 +167,16 @@ pub struct Config {
         action
     )]
     pub query_log_size: usize,
+
+    // TODO - make this default to 70% of available memory:
+    /// The size limit of the open segments in the write buffer.
+    #[clap(
+        long = "buffer-mem-limit-mb",
+        env = "INFLUXDB3_BUFFER_MEM_LIMIT_MB",
+        default_value = "5000",
+        action
+    )]
+    pub buffer_mem_limit_mb: usize,
 }
 
 /// If `p` does not exist, try to create it as a directory.
@@ -276,6 +286,7 @@ pub async fn command(config: Config) -> Result<()> {
             Arc::clone(&time_provider),
             config.segment_duration,
             Arc::clone(&exec),
+            config.buffer_mem_limit_mb,
         )
         .await?,
     );

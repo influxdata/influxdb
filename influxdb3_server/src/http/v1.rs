@@ -5,20 +5,24 @@ use std::{
     task::{Context, Poll},
 };
 
-use anyhow::Context as AnyhowContext;
+use anyhow::{bail, Context as AnyhowContext};
 use arrow::{
+    array::{as_string_array, ArrayRef, AsArray},
     compute::{cast_with_options, CastOptions},
+    datatypes::{
+        DataType, Float16Type, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type, Int8Type,
+        TimeUnit, TimestampMicrosecondType, TimestampMillisecondType, TimestampNanosecondType,
+        TimestampSecondType, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+    },
     record_batch::RecordBatch,
 };
-// Note: see https://github.com/influxdata/influxdb/issues/24981
-#[allow(deprecated)]
-use arrow_json::writer::record_batches_to_json_rows;
 
-use arrow_schema::DataType;
 use bytes::Bytes;
+use chrono::{format::SecondsFormat, DateTime};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{ready, stream::Fuse, Stream, StreamExt};
-use hyper::{Body, Request, Response};
+use hyper::http::HeaderValue;
+use hyper::{header::ACCEPT, header::CONTENT_TYPE, Body, Request, Response, StatusCode};
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
 use observability_deps::tracing::info;
@@ -58,16 +62,23 @@ where
             query,
         } = params;
 
+        let format = QueryFormat::from_request(&req, pretty)?;
+        info!(?format, "handle v1 format API");
+
         let chunk_size = chunked.then(|| chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE));
 
         // TODO - Currently not supporting parameterized queries, see
         //        https://github.com/influxdata/influxdb/issues/24805
         let stream = self.query_influxql_inner(database, &query, None).await?;
         let stream =
-            QueryResponseStream::new(0, stream, chunk_size, pretty, epoch).map_err(QueryError)?;
+            QueryResponseStream::new(0, stream, chunk_size, format, epoch).map_err(QueryError)?;
         let body = Body::wrap_stream(stream);
 
-        Ok(Response::builder().status(200).body(body).unwrap())
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, format.as_content_type())
+            .body(body)
+            .unwrap())
     }
 }
 
@@ -106,6 +117,71 @@ impl QueryParams {
     }
 }
 
+/// Enum representing the query format for the v1/query API.
+///
+/// The original API supports CSV, JSON, and "pretty" JSON formats.
+#[derive(Debug, Deserialize, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum QueryFormat {
+    Csv,
+    Json,
+    JsonPretty,
+}
+
+impl QueryFormat {
+    /// Returns the content type as a string slice for the query format.
+    ///
+    /// Maps the `QueryFormat` variants to their corresponding MIME types as strings.
+    /// This is useful for setting the `Content-Type` header in HTTP responses.
+    fn as_content_type(&self) -> &str {
+        match self {
+            Self::Csv => "application/csv",
+            Self::Json | Self::JsonPretty => "application/json",
+        }
+    }
+
+    /// Checks if the query format is 'JsonPretty'.
+    ///
+    /// Determines if the `QueryFormat` is `JsonPretty`, which indicates that the JSON
+    /// output should be formatted in a human-readable way. Returns `true` if the
+    /// format is `JsonPretty`, otherwise returns `false`.
+    fn is_pretty(&self) -> bool {
+        match self {
+            Self::Csv | Self::Json => false,
+            Self::JsonPretty => true,
+        }
+    }
+
+    /// Extracts the [`QueryFormat`] from an HTTP [`Request`].
+    ///
+    /// Parses the HTTP request to determine the desired query format. The `pretty`
+    /// parameter indicates if the pretty format is requested via a query parameter.
+    /// The function inspects the `Accept` header of the request to determine the
+    /// format, defaulting to JSON if no specific format is requested. If the format
+    /// is invalid or non-UTF8, an error is returned.
+    fn from_request(req: &Request<Body>, pretty: bool) -> Result<Self> {
+        let mime_type = req.headers().get(ACCEPT).map(HeaderValue::as_bytes);
+
+        match mime_type {
+            Some(b"application/csv" | b"text/csv") => Ok(Self::Csv),
+            Some(b"application/json" | b"*/*") | None => {
+                // If no specific format is requested via the Accept header,
+                // and the 'pretty' parameter is true, use the pretty JSON format.
+                // Otherwise, default to the regular JSON format.
+                if pretty {
+                    Ok(Self::JsonPretty)
+                } else {
+                    Ok(Self::Json)
+                }
+            }
+            Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
+                Ok(s) => Err(Error::InvalidMimeType(s)),
+                Err(e) => Err(Error::NonUtf8MimeType(e)),
+            },
+        }
+    }
+}
+
 /// UNIX epoch precision
 #[derive(Debug, Deserialize, Clone, Copy)]
 enum Precision {
@@ -140,23 +216,85 @@ pub struct QueryError(#[from] anyhow::Error);
 struct QueryResponse {
     results: Vec<StatementResponse>,
     #[serde(skip_serializing)]
-    pretty: bool,
+    format: QueryFormat,
 }
 
 /// Convert [`QueryResponse`] to [`Bytes`] for `hyper`'s [`Body::wrap_stream`] method
 impl From<QueryResponse> for Bytes {
     fn from(s: QueryResponse) -> Self {
-        if s.pretty {
-            serde_json::to_vec_pretty(&s)
-        } else {
-            serde_json::to_vec(&s)
+        /// Convert a [`QueryResponse`] to a JSON byte vector.
+        ///
+        /// This function serializes the `QueryResponse` to JSON. If the format is
+        /// `JsonPretty`, it will produce human-readable JSON, otherwise it produces
+        /// compact JSON.
+        fn to_json(s: QueryResponse) -> Vec<u8> {
+            if s.format.is_pretty() {
+                serde_json::to_vec_pretty(&s)
+                    .expect("Failed to serialize QueryResponse to pretty JSON")
+            } else {
+                serde_json::to_vec(&s).expect("Failed to serialize QueryResponse to JSON")
+            }
         }
-        .map(|mut b| {
-            b.extend_from_slice(b"\r\n");
-            b
-        })
-        .expect("valid bytes in statement result")
-        .into()
+
+        /// Convert a [`QueryResponse`] to a CSV byte vector.
+        ///
+        /// This function serializes the `QueryResponse` to CSV format. It dynamically
+        /// extracts column names from the first series and writes the header and data
+        /// rows to the CSV writer.
+        fn to_csv(s: QueryResponse) -> Vec<u8> {
+            let mut wtr = csv::WriterBuilder::new()
+                .quote_style(csv::QuoteStyle::Never)
+                .from_writer(vec![]);
+            // Extract column names dynamically from the first series
+            let mut headers = vec!["name", "tags"];
+            if let Some(first_statement) = s.results.first() {
+                if let Some(first_series) = first_statement.series.first() {
+                    headers.extend(first_series.columns.iter().map(|s| s.as_str()));
+                }
+            }
+            // Write the header
+            wtr.write_record(&headers)
+                .expect("Failed to write CSV header");
+
+            // Iterate through the hierarchical structure of QueryResponse to write data
+            // to the CSV writer. The loop processes each statement, series, and row to
+            // build and write CSV records. Each record is initialized with the series name
+            // and an empty tag field, followed by the string representations of the row's values.
+            // Finally, the record is written to the CSV writer
+            for statement in s.results {
+                for series in statement.series {
+                    for row in series.values {
+                        let mut record = vec![series.name.clone(), "".to_string()];
+                        for v in row.0 {
+                            record.push(match v {
+                                Value::String(s) => s.clone(),
+                                _ => v.to_string(),
+                            });
+                        }
+                        wtr.write_record(&record)
+                            .expect("Failed to write CSV record");
+                    }
+                }
+            }
+
+            // Flush the CSV writer to ensure all data is written
+            wtr.flush().expect("flush csv writer");
+
+            wtr.into_inner().expect("into_inner from csv writer")
+        }
+        /// Extend a byte vector with CRLF and convert it to [`Bytes`].
+        ///
+        /// This function appends a CRLF (`\r\n`) sequence to the given byte vector
+        /// and converts it to a `Bytes` object.
+        fn extend_with_crlf(mut bytes: Vec<u8>) -> Bytes {
+            bytes.extend_from_slice(b"\r\n");
+            Bytes::from(bytes)
+        }
+
+        match s.format {
+            QueryFormat::Json | QueryFormat::JsonPretty => extend_with_crlf(to_json(s)),
+            QueryFormat::Csv => extend_with_crlf(to_csv(s)),
+        }
     }
 }
 
@@ -264,7 +402,7 @@ impl ChunkBuffer {
 /// `chunked` mode, the entire input stream of [`RecordBatch`]es will be buffered
 /// into memory before being emitted.
 ///
-/// `pretty` will emit pretty formatted JSON.
+/// `format` will emit CSV, JSON or pretty formatted JSON.
 ///
 /// Providing an `epoch` [`Precision`] will have the `time` column values emitted
 /// as UNIX epoch times with the given precision.
@@ -276,7 +414,7 @@ struct QueryResponseStream {
     input: Fuse<SendableRecordBatchStream>,
     column_map: HashMap<String, usize>,
     statement_id: usize,
-    pretty: bool,
+    format: QueryFormat,
     epoch: Option<Precision>,
 }
 
@@ -288,7 +426,7 @@ impl QueryResponseStream {
         statement_id: usize,
         input: SendableRecordBatchStream,
         chunk_size: Option<usize>,
-        pretty: bool,
+        format: QueryFormat,
         epoch: Option<Precision>,
     ) -> Result<Self, anyhow::Error> {
         let buffer = ChunkBuffer::new(chunk_size);
@@ -310,7 +448,7 @@ impl QueryResponseStream {
             buffer,
             column_map,
             input: input.fuse(),
-            pretty,
+            format,
             statement_id,
             epoch,
         })
@@ -337,41 +475,49 @@ impl QueryResponseStream {
             }))
             .context("failed to cast batch time column with `epoch` parameter specified")?;
         }
-        // See https://github.com/influxdata/influxdb/issues/24981
-        #[allow(deprecated)]
-        let json_rows = record_batches_to_json_rows(&[&batch])
-            .context("failed to convert RecordBatch to JSON rows")?;
-        for json_row in json_rows {
-            let mut row = vec![Value::Null; self.column_map.len()];
-            for (k, v) in json_row {
-                if k == INFLUXQL_MEASUREMENT_COLUMN_NAME
-                    && (self.buffer.current_measurement_name().is_none()
-                        || self
-                            .buffer
-                            .current_measurement_name()
-                            .is_some_and(|n| *n != v))
-                {
-                    // we are on the "iox::measurement" column, which gives the name of the time series
-                    // if we are on the first row, or if the measurement changes, we push into the
-                    // buffer queue
-                    self.buffer
-                        .push_next_measurement(v.as_str().with_context(|| {
-                            format!("{INFLUXQL_MEASUREMENT_COLUMN_NAME} value was not a string")
-                        })?);
-                } else if k == INFLUXQL_MEASUREMENT_COLUMN_NAME {
-                    // we are still working on the current measurement in the buffer, so ignore
+        let column_map = &self.column_map;
+        let columns = batch.columns();
+        let schema = batch.schema();
+
+        for row_index in 0..batch.num_rows() {
+            let mut row = vec![Value::Null; column_map.len()];
+
+            for (col_index, column) in columns.iter().enumerate() {
+                let field = schema.field(col_index);
+                let column_name = field.name();
+
+                let mut cell_value = if !column.is_valid(row_index) {
                     continue;
                 } else {
-                    // this is a column value that is part of the time series, add it to the row
-                    let j = self.column_map.get(&k).unwrap();
-                    row[*j] = if let (Some(precision), TIME_COLUMN_NAME) = (self.epoch, k.as_str())
-                    {
-                        // specially handle the time column if `epoch` parameter provided
-                        convert_ns_epoch(v, precision)?
-                    } else {
-                        v
-                    };
+                    cast_column_value(column, row_index)?
+                };
+
+                // Handle the special case for the measurement column
+                if column_name == INFLUXQL_MEASUREMENT_COLUMN_NAME {
+                    if let Value::String(ref measurement_name) = cell_value {
+                        if self.buffer.current_measurement_name().is_none()
+                            || self
+                                .buffer
+                                .current_measurement_name()
+                                .is_some_and(|n| n != measurement_name)
+                        {
+                            // we are on the "iox::measurement" column, which gives the name of the time series
+                            // if we are on the first row, or if the measurement changes, we push into the
+                            // buffer queue
+                            self.buffer.push_next_measurement(measurement_name);
+                        }
+                    }
+                    continue;
                 }
+                if column_name == TIME_COLUMN_NAME {
+                    if let Some(precision) = self.epoch {
+                        cell_value = convert_ns_epoch(cell_value, precision)?
+                    }
+                }
+                let col_position = column_map
+                    .get(column_name)
+                    .context("failed to retrieve column position")?;
+                row[*col_position] = cell_value;
             }
             self.buffer.push_row(Row(row))?;
         }
@@ -402,7 +548,7 @@ impl QueryResponseStream {
                 statement_id: self.statement_id,
                 series,
             }],
-            pretty: self.pretty,
+            format: self.format,
         }
     }
 
@@ -424,7 +570,7 @@ impl QueryResponseStream {
                 statement_id: self.statement_id,
                 series,
             }],
-            pretty: self.pretty,
+            format: self.format,
         })
     }
 }
@@ -443,6 +589,109 @@ fn convert_ns_epoch(value: Value, precision: Precision) -> Result<Value, anyhow:
         Precision::Hours => epoch_ns / (1_000_000_000 * 60 * 60),
     }
     .into())
+}
+
+/// Converts a value from an Arrow `ArrayRef` at a given row index into a `serde_json::Value`.
+///
+/// This function handles various Arrow data types, converting them into their corresponding
+/// JSON representations. For unsupported data types, it returns an error using the `anyhow` crate.
+fn cast_column_value(column: &ArrayRef, row_index: usize) -> Result<Value, anyhow::Error> {
+    let value = match column.data_type() {
+        DataType::Boolean => Value::Bool(column.as_boolean().value(row_index)),
+        DataType::Null => Value::Null,
+        DataType::Int8 => Value::Number(column.as_primitive::<Int8Type>().value(row_index).into()),
+        DataType::Int16 => {
+            Value::Number(column.as_primitive::<Int16Type>().value(row_index).into())
+        }
+        DataType::Int32 => {
+            Value::Number(column.as_primitive::<Int32Type>().value(row_index).into())
+        }
+        DataType::Int64 => {
+            Value::Number(column.as_primitive::<Int64Type>().value(row_index).into())
+        }
+        DataType::UInt8 => {
+            Value::Number(column.as_primitive::<UInt8Type>().value(row_index).into())
+        }
+        DataType::UInt16 => {
+            Value::Number(column.as_primitive::<UInt16Type>().value(row_index).into())
+        }
+        DataType::UInt32 => {
+            Value::Number(column.as_primitive::<UInt32Type>().value(row_index).into())
+        }
+        DataType::UInt64 => {
+            Value::Number(column.as_primitive::<UInt64Type>().value(row_index).into())
+        }
+        DataType::Float16 => Value::Number(
+            serde_json::Number::from_f64(
+                column
+                    .as_primitive::<Float16Type>()
+                    .value(row_index)
+                    .to_f64(),
+            )
+            .context("failed to downcast Float16 column")?,
+        ),
+        DataType::Float32 => Value::Number(
+            serde_json::Number::from_f64(
+                column.as_primitive::<Float32Type>().value(row_index).into(),
+            )
+            .context("failed to downcast Float32 column")?,
+        ),
+        DataType::Float64 => Value::Number(
+            serde_json::Number::from_f64(column.as_primitive::<Float64Type>().value(row_index))
+                .context("failed to downcast Float64 column")?,
+        ),
+        DataType::Utf8 => Value::String(column.as_string::<i32>().value(row_index).to_string()),
+        DataType::LargeUtf8 => {
+            Value::String(column.as_string::<i64>().value(row_index).to_string())
+        }
+        DataType::Dictionary(key, value) => match (key.as_ref(), value.as_ref()) {
+            (DataType::Int32, DataType::Utf8) => {
+                let dict_array = column.as_dictionary::<Int32Type>();
+                let keys = dict_array.keys();
+                let values = as_string_array(dict_array.values());
+                Value::String(values.value(keys.value(row_index) as usize).to_string())
+            }
+            _ => Value::Null,
+        },
+        DataType::Timestamp(TimeUnit::Nanosecond, None) => Value::String(
+            DateTime::from_timestamp_nanos(
+                column
+                    .as_primitive::<TimestampNanosecondType>()
+                    .value(row_index),
+            )
+            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        ),
+        DataType::Timestamp(TimeUnit::Microsecond, None) => Value::String(
+            DateTime::from_timestamp_micros(
+                column
+                    .as_primitive::<TimestampMicrosecondType>()
+                    .value(row_index),
+            )
+            .context("failed to downcast TimestampMicrosecondType column")?
+            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        ),
+        DataType::Timestamp(TimeUnit::Millisecond, None) => Value::String(
+            DateTime::from_timestamp_millis(
+                column
+                    .as_primitive::<TimestampMillisecondType>()
+                    .value(row_index),
+            )
+            .context("failed to downcast TimestampNillisecondType column")?
+            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        ),
+        DataType::Timestamp(TimeUnit::Second, None) => Value::String(
+            DateTime::from_timestamp(
+                column
+                    .as_primitive::<TimestampSecondType>()
+                    .value(row_index),
+                0,
+            )
+            .context("failed to downcast TimestampSecondType column")?
+            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        ),
+        t => bail!("Unsupported data type: {:?}", t),
+    };
+    Ok(value)
 }
 
 impl Stream for QueryResponseStream {

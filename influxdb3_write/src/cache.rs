@@ -72,7 +72,7 @@ impl ParquetCache {
         let path = parquet_path.to_string();
         task::block_in_place(move || -> Result<_, Error> {
             Handle::current()
-                .block_on(self.object_store.put(&parquet_path, parquet.bytes))
+                .block_on(self.object_store.put(&parquet_path, parquet.bytes.into()))
                 .map_err(Into::into)
         })?;
 

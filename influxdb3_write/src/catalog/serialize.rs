@@ -4,7 +4,7 @@ use arrow::datatypes::DataType as ArrowDataType;
 use schema::{InfluxColumnType, SchemaBuilder};
 use serde::{Deserialize, Serialize};
 
-use super::TableDefinition;
+use super::{LastCacheDefinition, TableDefinition};
 
 impl Serialize for TableDefinition {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -35,8 +35,12 @@ impl<'de> Deserialize<'de> for TableDefinition {
 #[derive(Debug, Serialize, Deserialize)]
 struct TableSnapshot<'a> {
     name: &'a str,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    key: Option<Vec<&'a str>>,
     #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
     cols: BTreeMap<&'a str, ColumnDefinition<'a>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    last_caches: Vec<LastCacheSnapshot<'a>>,
 }
 
 /// Representation of Arrow's `DataType` for table snapshots.
@@ -142,7 +146,14 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
                 )
             })
             .collect();
-        Self { name, cols }
+        let keys = def.schema().series_key();
+        let last_caches = def.last_caches.iter().map(Into::into).collect();
+        Self {
+            name,
+            cols,
+            key: keys,
+            last_caches,
+        }
     }
 }
 
@@ -162,9 +173,7 @@ impl<'a> From<&'a ArrowDataType> for DataType<'a> {
             ArrowDataType::Float16 => Self::F16,
             ArrowDataType::Float32 => Self::F32,
             ArrowDataType::Float64 => Self::F64,
-            // Arrow's TimeUnit does not impl Copy, so we cheaply clone it:
-            // See <https://github.com/apache/arrow-rs/issues/5839>
-            ArrowDataType::Timestamp(unit, tz) => Self::Time(unit.clone().into(), tz.as_deref()),
+            ArrowDataType::Timestamp(unit, tz) => Self::Time((*unit).into(), tz.as_deref()),
             ArrowDataType::Date32 => todo!(),
             ArrowDataType::Date64 => todo!(),
             ArrowDataType::Time32(_) => todo!(),
@@ -202,6 +211,9 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
         let name = snap.name.to_owned();
         let mut b = SchemaBuilder::new();
         b.measurement(&name);
+        if let Some(keys) = snap.key {
+            b.with_series_key(keys);
+        }
         for (name, col) in snap.cols {
             match col.influx_type {
                 InfluxType::Tag => {
@@ -217,8 +229,13 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
         }
 
         let schema = b.build().expect("valid schema from snapshot");
+        let last_caches = snap.last_caches.into_iter().map(Into::into).collect();
 
-        Self { name, schema }
+        Self {
+            name,
+            schema,
+            last_caches,
+        }
     }
 }
 
@@ -237,6 +254,39 @@ impl<'a> From<DataType<'a>> for schema::InfluxFieldType {
             DataType::F64 => Self::Float,
             DataType::Str => Self::String,
             other => unimplemented!("unsupported data type in catalog {other:?}"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct LastCacheSnapshot<'a> {
+    name: &'a str,
+    keys: Vec<&'a str>,
+    vals: Vec<&'a str>,
+    n: usize,
+}
+
+impl<'a> From<&'a LastCacheDefinition> for LastCacheSnapshot<'a> {
+    fn from(lcd: &'a LastCacheDefinition) -> Self {
+        Self {
+            name: &lcd.name,
+            keys: lcd.key_columns.iter().map(|v| v.as_str()).collect(),
+            vals: lcd.value_columns.iter().map(|v| v.as_str()).collect(),
+            n: lcd.count.into(),
+        }
+    }
+}
+
+impl<'a> From<LastCacheSnapshot<'a>> for LastCacheDefinition {
+    fn from(snap: LastCacheSnapshot<'a>) -> Self {
+        Self {
+            name: snap.name.to_string(),
+            key_columns: snap.keys.iter().map(|s| s.to_string()).collect(),
+            value_columns: snap.vals.iter().map(|s| s.to_string()).collect(),
+            count: snap
+                .n
+                .try_into()
+                .expect("catalog contains invalid last cache size"),
         }
     }
 }

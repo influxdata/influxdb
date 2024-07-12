@@ -9,6 +9,7 @@
 pub mod cache;
 pub mod catalog;
 mod chunk;
+mod last_cache;
 pub mod paths;
 pub mod persister;
 pub mod wal;
@@ -25,6 +26,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::Expr;
 use iox_query::QueryChunk;
 use iox_time::Time;
+use last_cache::LastCacheProvider;
 use parquet::format::FileMetaData;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::any::Any;
@@ -99,6 +101,8 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
 
     /// Returns the catalog
     fn catalog(&self) -> Arc<catalog::Catalog>;
+
+    fn last_cache(&self) -> Arc<LastCacheProvider>;
 }
 
 /// A segment in the buffer that corresponds to a single WAL segment file. It contains a catalog with any updates
@@ -434,6 +438,7 @@ pub struct WalOpBatch {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum WalOp {
     LpWrite(LpWriteOp),
+    ParquetWrite(ParquetWriteOp),
 }
 
 /// A write of 1 or more lines of line protocol to a single database. The default time is set by the server at the
@@ -444,6 +449,18 @@ pub struct LpWriteOp {
     pub lp: String,
     pub default_time: i64,
     pub precision: Precision,
+}
+
+/// A Parquet file that has been persisted to object storage ahead of a segment being closed.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct ParquetWriteOp {
+    pub db_name: String,
+    pub table_name: String,
+    pub path: String,
+    pub size_bytes: u64,
+    pub row_count: u64,
+    pub min_time: i64,
+    pub max_time: i64,
 }
 
 /// A single write request can have many lines in it. A writer can request to accept all lines that are valid, while
@@ -497,7 +514,7 @@ pub struct PersistedSegment {
 
 #[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
 pub struct DatabaseTables {
-    pub tables: HashMap<String, TableParquetFiles>,
+    pub tables: hashbrown::HashMap<String, TableParquetFiles>,
 }
 
 /// A collection of parquet files persisted in a segment for a specific table.

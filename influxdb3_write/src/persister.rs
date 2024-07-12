@@ -232,7 +232,7 @@ impl Persister for PersisterImpl {
         let catalog_path = CatalogFilePath::new(segment_id);
         let json = serde_json::to_vec_pretty(&catalog)?;
         self.object_store
-            .put(catalog_path.as_ref(), Bytes::from(json))
+            .put(catalog_path.as_ref(), json.into())
             .await?;
         Ok(())
     }
@@ -241,7 +241,7 @@ impl Persister for PersisterImpl {
         let segment_file_path = SegmentInfoFilePath::new(persisted_segment.segment_id);
         let json = serde_json::to_vec_pretty(persisted_segment)?;
         self.object_store
-            .put(segment_file_path.as_ref(), Bytes::from(json))
+            .put(segment_file_path.as_ref(), json.into())
             .await?;
         Ok(())
     }
@@ -253,7 +253,9 @@ impl Persister for PersisterImpl {
     ) -> Result<(u64, FileMetaData)> {
         let parquet = self.serialize_to_parquet(record_batch).await?;
         let bytes_written = parquet.bytes.len() as u64;
-        self.object_store.put(path.as_ref(), parquet.bytes).await?;
+        self.object_store
+            .put(path.as_ref(), parquet.bytes.into())
+            .await?;
 
         Ok((bytes_written, parquet.meta_data))
     }
@@ -542,7 +544,7 @@ mod tests {
         stream_builder.tx().send(Ok(batch1)).await.unwrap();
         stream_builder.tx().send(Ok(batch2)).await.unwrap();
 
-        let path = ParquetFilePath::new("db_one", "table_one", Utc::now(), 1);
+        let path = ParquetFilePath::new("db_one", "table_one", Utc::now(), SegmentId::new(1), 1);
         let (bytes_written, meta) = persister
             .persist_parquet_file(path.clone(), stream_builder.build())
             .await
