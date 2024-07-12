@@ -52,6 +52,7 @@ flate2.workspace = true
 futures.workspace = true
 hex.workspace = true
 hyper.workspace = true
+mime.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 pin-project-lite.workspace = true
