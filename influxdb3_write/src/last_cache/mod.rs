@@ -124,8 +124,8 @@ impl LastCacheProvider {
         tbl_name: &str,
         cache_name: Option<&str>,
     ) -> Result<Arc<LastCache>, Error> {
-        let cache_map = self.cache_map.read();
-        cache_map
+        self.cache_map
+            .read()
             .get(db_name)
             .and_then(|db| db.get(tbl_name))
             .and_then(|tbl| {
@@ -231,7 +231,8 @@ impl LastCacheProvider {
             .filter(|&(_, f)| key_columns.contains(f.name()))
         {
             if let InfluxColumnType::Tag = t {
-                // override tags with string type in the schema
+                // override tags with string type in the schema, because the KeyValue type stores
+                // them as strings, and produces them as StringArray when creating RecordBatches:
                 schema_builder.push(ArrowField::new(field.name(), DataType::Utf8, false))
             } else {
                 schema_builder.push(field.clone());
@@ -560,7 +561,7 @@ impl LastCache {
             let mut new_caches = vec![];
             'cache_loop: for c in caches {
                 let cache_key = c.state.as_key().unwrap();
-                if let Some(ref pred) = predicate {
+                if let Some(pred) = predicate {
                     let Some(next_state) = cache_key.evaluate_predicate(pred) else {
                         continue 'cache_loop;
                     };
@@ -907,17 +908,16 @@ impl LastCacheStore {
         let cache = schema
             .fields()
             .iter()
-            .filter_map(|f| {
-                (!key_columns.contains(f.name())).then(|| {
-                    (
-                        f.name().to_string(),
-                        CacheColumn::new(
-                            f.data_type(),
-                            count,
-                            series_keys.is_some_and(|sk| sk.contains(f.name().as_str())),
-                        ),
-                    )
-                })
+            .filter(|f| !key_columns.contains(f.name()))
+            .map(|f| {
+                (
+                    f.name().to_string(),
+                    CacheColumn::new(
+                        f.data_type(),
+                        count,
+                        series_keys.is_some_and(|sk| sk.contains(f.name().as_str())),
+                    ),
+                )
             })
             .collect();
         Self {
@@ -1074,7 +1074,9 @@ impl LastCacheStore {
 /// to remove expired data.
 #[derive(Debug)]
 struct CacheColumn {
+    /// The number of entries the [`CacheColumn`] will hold before evicting old ones on push
     size: usize,
+    /// The buffer containing data for the column
     data: CacheColumnData,
 }
 

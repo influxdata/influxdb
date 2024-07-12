@@ -68,7 +68,7 @@ impl LastCacheFunction {
 
 impl TableFunctionImpl for LastCacheFunction {
     fn call(&self, args: &[Expr]) -> Result<Arc<dyn TableProvider>> {
-        let Some(Expr::Literal(ScalarValue::Utf8(Some(table_name)))) = args.get(0) else {
+        let Some(Expr::Literal(ScalarValue::Utf8(Some(table_name)))) = args.first() else {
             return plan_err!("first argument must be the table name as a string");
         };
 
@@ -80,13 +80,14 @@ impl TableFunctionImpl for LastCacheFunction {
             None => None,
         };
 
-        let Ok(last_cache) =
-            self.provider
-                .get_cache(&self.db_name, &table_name, cache_name.map(|x| x.as_str()))
-        else {
-            return plan_err!("unable to retrieve last cache using provided arguments");
-        };
-
-        Ok(last_cache)
+        // Note: the compiler seems to get upset when using a functional approach, due to the
+        // dyn Trait, so I've resorted to using a match:
+        match self
+            .provider
+            .get_cache(&self.db_name, table_name, cache_name.map(|x| x.as_str()))
+        {
+            Ok(last_cache) => Ok(last_cache),
+            Err(_) => plan_err!("unable to retrieve last cache using provided arguments"),
+        }
     }
 }

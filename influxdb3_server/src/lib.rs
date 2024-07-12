@@ -52,9 +52,6 @@ const TRACE_SERVER_NAME: &str = "influxdb3_http";
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("tokio io error: {0}")]
-    TokioIo(#[from] tokio::io::Error),
-
     #[error("hyper error: {0}")]
     Hyper(#[from] hyper::Error),
 
@@ -196,7 +193,7 @@ where
 
     let hybrid_make_service = hybrid(rest_service, grpc_service);
 
-    let addr = AddrIncoming::from_listener(server.listener).unwrap();
+    let addr = AddrIncoming::from_listener(server.listener)?;
     hyper::server::Builder::new(addr, Http::new())
         .serve(hybrid_make_service)
         .with_graceful_shutdown(shutdown.cancelled())
@@ -702,8 +699,6 @@ mod tests {
         CancellationToken,
         Arc<WriteBufferImpl<WalImpl, MockProvider>>,
     ) {
-        // bind to port 0 will assign a random available port:
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
         let common_state =
@@ -748,7 +743,11 @@ mod tests {
             10,
         );
 
-        let listener = TcpListener::bind(addr).await.expect("bind tcp address");
+        // bind to port 0 will assign a random available port:
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
+        let listener = TcpListener::bind(socket_addr)
+            .await
+            .expect("bind tcp address");
         let addr = listener.local_addr().unwrap();
 
         let server = ServerBuilder::new(common_state)
