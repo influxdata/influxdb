@@ -2276,10 +2276,12 @@ func (fscm *measurementFieldSetChangeMgr) appendToChangesFile(first writeRequest
 	// requests
 	for {
 		select {
-		case wr := <-fscm.writeRequests:
-			changes = append(changes, wr.changes)
-			errorChannels = append(errorChannels, wr.errorReturn)
-			continue
+		case wr, ok := <-fscm.writeRequests:
+			if ok {
+				changes = append(changes, wr.changes)
+				errorChannels = append(errorChannels, wr.errorReturn)
+				continue
+			}
 		default:
 		}
 		break
