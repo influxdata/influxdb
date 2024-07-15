@@ -264,11 +264,13 @@ impl LastCacheProvider {
             accept_new_fields,
         );
 
-        // reject creation if there is already a cache with specified database, table, and cache name
-        // having different configuration that what was provided.
-        if let Some(lc) = self
-            .cache_map
-            .read()
+        // Check to see if there is already a cache for the same database/table/cache name, and with
+        // the exact same configuration. If so, we return None, indicating that the operation did
+        // not fail, but that a cache was not created because it already exists. If the underlying
+        // configuration of the newly created cache is different than the one that already exists,
+        // then this is an error.
+        let mut lock = self.cache_map.write();
+        if let Some(lc) = lock
             .get(&db_name)
             .and_then(|db| db.get(&tbl_name))
             .and_then(|tbl| tbl.get(&cache_name))
@@ -276,16 +278,49 @@ impl LastCacheProvider {
             return lc.compare_config(&last_cache).map(|_| None);
         }
 
-        // get the write lock and insert:
-        self.cache_map
-            .write()
-            .entry(db_name)
+        lock.entry(db_name)
             .or_default()
             .entry(tbl_name)
             .or_default()
             .insert(cache_name.clone(), Arc::new(last_cache));
 
         Ok(Some(cache_name))
+    }
+
+    /// Delete a cache from the provider
+    ///
+    /// This will also clean up empty levels in the provider hierarchy, so if there are no more
+    /// caches for a given table, that table's entry will be removed from the parent map for that
+    /// table's database; likewise for the database's entry in the provider's cache map.
+    pub fn delete_cache(
+        &self,
+        db_name: &str,
+        table_name: &str,
+        cache_name: &str,
+    ) -> Result<(), Error> {
+        let mut lock = self.cache_map.write();
+
+        let Some(db) = lock.get_mut(db_name) else {
+            return Err(Error::CacheDoesNotExist);
+        };
+
+        let Some(tbl) = db.get_mut(table_name) else {
+            return Err(Error::CacheDoesNotExist);
+        };
+
+        if tbl.remove(cache_name).is_none() {
+            return Err(Error::CacheDoesNotExist);
+        }
+
+        if tbl.is_empty() {
+            db.remove(table_name);
+        }
+
+        if db.is_empty() {
+            lock.remove(db_name);
+        }
+
+        Ok(())
     }
 
     /// Write a batch from the buffer into the cache by iterating over its database and table batches
