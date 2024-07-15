@@ -61,7 +61,7 @@ impl Error {
 }
 
 /// A three level hashmap storing Database Name -> Table Name -> Cache Name -> LastCache
-type CacheMap = RwLock<HashMap<String, HashMap<String, HashMap<String, Arc<LastCache>>>>>;
+type CacheMap = RwLock<HashMap<String, HashMap<String, HashMap<String, LastCache>>>>;
 
 /// Provides all last-N-value caches for the entire database
 pub struct LastCacheProvider {
@@ -118,12 +118,12 @@ impl LastCacheProvider {
     }
 
     /// Get a read guard on a [`LastCache`] from the provider
-    fn get_cache(
+    fn contains_cache(
         &self,
         db_name: &str,
         tbl_name: &str,
         cache_name: Option<&str>,
-    ) -> Result<Arc<LastCache>, Error> {
+    ) -> Option<(String, ArrowSchemaRef)> {
         self.cache_map
             .read()
             .get(db_name)
@@ -131,14 +131,15 @@ impl LastCacheProvider {
             .and_then(|tbl| {
                 if let Some(name) = cache_name {
                     tbl.get(name)
+                        .map(|lc| (name.to_string(), Arc::clone(&lc.schema)))
                 } else if tbl.len() == 1 {
-                    tbl.iter().map(|(_, lc)| lc).next()
+                    tbl.iter()
+                        .map(|(name, lc)| (name.to_string(), Arc::clone(&lc.schema)))
+                        .next()
                 } else {
                     None
                 }
             })
-            .ok_or(Error::CacheDoesNotExist)
-            .map(Arc::clone)
     }
 
     /// Create a new entry in the last cache for a given database and table, along with the given
@@ -282,7 +283,7 @@ impl LastCacheProvider {
             .or_default()
             .entry(tbl_name)
             .or_default()
-            .insert(cache_name.clone(), Arc::new(last_cache));
+            .insert(cache_name.clone(), last_cache);
 
         Ok(cache_name)
     }
@@ -384,11 +385,6 @@ pub(crate) struct LastCache {
     series_key: Option<HashSet<String>>,
     /// Whether or not this cache accepts newly written fields
     accept_new_fields: bool,
-    /// Contains the arrow schema and internal cache state
-    inner: RwLock<LastCacheInner>,
-}
-
-struct LastCacheInner {
     /// The Arrow Schema for the table that this cache is associated with
     schema: ArrowSchemaRef,
     /// The internal state of the cache
@@ -411,10 +407,8 @@ impl LastCache {
             key_columns: Arc::new(key_columns.into_iter().collect()),
             series_key,
             accept_new_fields,
-            inner: RwLock::new(LastCacheInner {
-                schema,
-                state: LastCacheState::Init,
-            }),
+            schema,
+            state: LastCacheState::Init,
         }
     }
 
@@ -438,12 +432,7 @@ impl LastCache {
                 "new configuration accepts new fields while the existing does not"
             }));
         }
-        if !self
-            .inner
-            .read()
-            .schema
-            .contains(&other.inner.read().schema)
-        {
+        if !self.schema.contains(&other.schema) {
             return Err(Error::cache_already_exists(
                 "the schema from specified value columns do not align",
             ));
@@ -464,10 +453,9 @@ impl LastCache {
     ///
     /// This will panic if the internal cache state's keys are out-of-order with respect to the
     /// order of the `key_columns` on this [`LastCache`]
-    pub(crate) fn push(&self, row: &Row) {
-        let mut inner = self.inner.write();
-        let schema = Arc::clone(&inner.schema);
-        let mut target = &mut inner.state;
+    pub(crate) fn push(&mut self, row: &Row) {
+        let schema = Arc::clone(&self.schema);
+        let mut target = &mut self.state;
         let mut key_iter = self.key_columns.iter().peekable();
         while let (Some(key), peek) = (key_iter.next(), key_iter.peek()) {
             if target.is_init() {
@@ -526,7 +514,7 @@ impl LastCache {
         };
 
         let mut sb = ArrowSchemaBuilder::new();
-        for f in inner.schema.fields().iter() {
+        for f in self.schema.fields().iter() {
             sb.push(Arc::clone(f));
         }
         for (name, data_type) in new_columns {
@@ -534,7 +522,7 @@ impl LastCache {
             sb.try_merge(&field).expect("buffer should have validated incoming writes to prevent against data type conflicts");
         }
         let new_schema = Arc::new(sb.finish());
-        inner.schema = new_schema;
+        self.schema = new_schema;
     }
 
     /// Produce a set of [`RecordBatch`]es from the cache, using the given set of [`Predicate`]s
@@ -547,10 +535,8 @@ impl LastCache {
             .map(|key| predicates.iter().find(|p| p.key == *key))
             .collect();
 
-        let inner = self.inner.read();
-
         let mut caches = vec![ExtendedLastCacheState {
-            state: &inner.state,
+            state: &self.state,
             additional_columns: vec![],
         }];
 
@@ -587,7 +573,7 @@ impl LastCache {
 
         caches
             .into_iter()
-            .map(|c| c.to_record_batch(&inner.schema))
+            .map(|c| c.to_record_batch(&self.schema))
             .collect()
     }
 
@@ -635,8 +621,8 @@ impl LastCache {
     }
 
     /// Remove expired values from the internal cache state
-    fn remove_expired(&self) {
-        self.inner.write().state.remove_expired();
+    fn remove_expired(&mut self) {
+        self.state.remove_expired();
     }
 }
 
