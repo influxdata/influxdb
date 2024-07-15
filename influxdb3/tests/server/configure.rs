@@ -43,6 +43,12 @@ async fn api_v3_configure_last_cache_create() {
             expected: StatusCode::BAD_REQUEST,
             ..Default::default()
         },
+        // Missing database name:
+        TestCase {
+            table: Some(tbl_name),
+            expected: StatusCode::BAD_REQUEST,
+            ..Default::default()
+        },
         // Missing table name:
         TestCase {
             db: Some(db_name),
