@@ -267,7 +267,6 @@ async fn api_v3_configure_last_cache_delete() {
                 db: Some(db_name),
                 table: Some(tbl_name),
                 name: Some(cache_name),
-                ..Default::default()
             }),
             expected: StatusCode::OK,
         },
@@ -277,7 +276,6 @@ async fn api_v3_configure_last_cache_delete() {
                 db: Some(db_name),
                 table: Some(tbl_name),
                 name: Some(cache_name),
-                ..Default::default()
             }),
             expected: StatusCode::NOT_FOUND,
         },
