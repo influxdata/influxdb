@@ -133,7 +133,7 @@ pub enum Error {
 
     /// Serde decode error
     #[error("serde error: {0}")]
-    Serde(#[from] serde_urlencoded::de::Error),
+    SerdeUrlDecoding(#[from] serde_urlencoded::de::Error),
 
     /// Arrow error
     #[error("arrow error: {0}")]
@@ -307,14 +307,23 @@ impl Error {
                     .status(StatusCode::BAD_REQUEST)
                     .body(Body::from(lc_err.to_string()))
                     .unwrap(),
-                // This variant should not be encountered by the API, as it is thrown during
-                // query execution and would be captured there, but avoiding a catch-all arm here
-                // in case new variants are added to the enum:
                 last_cache::Error::CacheDoesNotExist => Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .status(StatusCode::NOT_FOUND)
                     .body(Body::from(self.to_string()))
                     .unwrap(),
             },
+            Self::InvalidContentEncoding(_) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
+            Self::InvalidContentType { .. } => Response::builder()
+                .status(StatusCode::UNSUPPORTED_MEDIA_TYPE)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
+            Self::SerdeUrlDecoding(_) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
             _ => {
                 let body = Body::from(self.to_string());
                 Response::builder()
@@ -1132,7 +1141,7 @@ where
         (Method::POST, "/api/v3/configure/last_cache") => {
             http_server.configure_last_cache_create(req).await
         }
-        (Method::DELETE, "api/v3/configure/last_cache") => {
+        (Method::DELETE, "/api/v3/configure/last_cache") => {
             http_server.configure_last_cache_delete(req).await
         }
         _ => {
