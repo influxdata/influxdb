@@ -1,5 +1,4 @@
 use std::{
-    any::Any,
     collections::VecDeque,
     sync::Arc,
     time::{Duration, Instant},
@@ -17,25 +16,23 @@ use arrow::{
     },
     error::ArrowError,
 };
-use async_trait::async_trait;
 use datafusion::{
-    common::Result as DFResult,
-    datasource::{TableProvider, TableType},
-    execution::context::SessionState,
-    logical_expr::{BinaryExpr, Expr, Operator, TableProviderFilterPushDown},
-    physical_plan::{memory::MemoryExec, ExecutionPlan},
+    logical_expr::{BinaryExpr, Expr, Operator},
     scalar::ScalarValue,
 };
 use hashbrown::{HashMap, HashSet};
 use indexmap::{IndexMap, IndexSet};
 use iox_time::Time;
 use parking_lot::RwLock;
-use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder, TIME_COLUMN_NAME};
+use schema::{InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
 
 use crate::{
     catalog::LastCacheSize,
     write_buffer::{buffer_segment::WriteBatch, Field, FieldData, Row},
 };
+
+mod table_function;
+pub use table_function::LastCacheFunction;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -51,6 +48,8 @@ pub enum Error {
     ValueColumnDoesNotExist { column_name: String },
     #[error("schema builder error: {0}")]
     SchemaBuilder(#[from] schema::builder::Error),
+    #[error("requested last cache does not exist")]
+    CacheDoesNotExist,
 }
 
 impl Error {
@@ -116,6 +115,34 @@ impl LastCacheProvider {
         Self {
             cache_map: Default::default(),
         }
+    }
+
+    /// Get a particular cache's name and arrow schema
+    ///
+    /// This is used for the implementation of DataFusion's `TableFunctionImpl` and `TableProvider`
+    /// traits.
+    fn get_cache_name_and_schema(
+        &self,
+        db_name: &str,
+        tbl_name: &str,
+        cache_name: Option<&str>,
+    ) -> Option<(String, ArrowSchemaRef)> {
+        self.cache_map
+            .read()
+            .get(db_name)
+            .and_then(|db| db.get(tbl_name))
+            .and_then(|tbl| {
+                if let Some(name) = cache_name {
+                    tbl.get(name)
+                        .map(|lc| (name.to_string(), Arc::clone(&lc.schema)))
+                } else if tbl.len() == 1 {
+                    tbl.iter()
+                        .map(|(name, lc)| (name.to_string(), Arc::clone(&lc.schema)))
+                        .next()
+                } else {
+                    None
+                }
+            })
     }
 
     /// Create a new entry in the last cache for a given database and table, along with the given
@@ -201,14 +228,26 @@ impl LastCacheProvider {
             )
         };
 
-        // build a schema that only holds the field columns
-        let mut schema_builder = SchemaBuilder::new();
-        for (t, name) in schema
+        let mut schema_builder = ArrowSchemaBuilder::new();
+        // Add key columns first:
+        for (t, field) in schema
+            .iter()
+            .filter(|&(_, f)| key_columns.contains(f.name()))
+        {
+            if let InfluxColumnType::Tag = t {
+                // override tags with string type in the schema, because the KeyValue type stores
+                // them as strings, and produces them as StringArray when creating RecordBatches:
+                schema_builder.push(ArrowField::new(field.name(), DataType::Utf8, false))
+            } else {
+                schema_builder.push(field.clone());
+            };
+        }
+        // Add value columns second:
+        for (_, field) in schema
             .iter()
             .filter(|&(_, f)| value_columns.contains(f.name()))
-            .map(|(t, f)| (t, f.name()))
         {
-            schema_builder.influx_column(name, t);
+            schema_builder.push(field.clone());
         }
 
         let series_key = schema
@@ -223,7 +262,7 @@ impl LastCacheProvider {
                 .map_err(|_| Error::InvalidCacheSize)?,
             ttl.unwrap_or(DEFAULT_CACHE_TTL),
             key_columns,
-            schema_builder.build()?.as_arrow(),
+            Arc::new(schema_builder.finish()),
             series_key,
             accept_new_fields,
         );
@@ -340,9 +379,7 @@ pub(crate) struct LastCache {
     /// The key columns for this cache
     ///
     /// Uses an [`IndexSet`] for both fast iteration and fast lookup.
-    key_columns: IndexSet<String>,
-    /// The Arrow Schema for the table that this cache is associated with
-    schema: ArrowSchemaRef,
+    key_columns: Arc<IndexSet<String>>,
     /// Optionally store the series key for tables that use it for ensuring non-nullability in the
     /// column buffer for series key columns
     ///
@@ -351,6 +388,8 @@ pub(crate) struct LastCache {
     series_key: Option<HashSet<String>>,
     /// Whether or not this cache accepts newly written fields
     accept_new_fields: bool,
+    /// The Arrow Schema for the table that this cache is associated with
+    schema: ArrowSchemaRef,
     /// The internal state of the cache
     state: LastCacheState,
 }
@@ -368,10 +407,10 @@ impl LastCache {
         Self {
             count,
             ttl,
-            key_columns: key_columns.into_iter().collect(),
-            schema,
+            key_columns: Arc::new(key_columns.into_iter().collect()),
             series_key,
             accept_new_fields,
+            schema,
             state: LastCacheState::Init,
         }
     }
@@ -418,6 +457,7 @@ impl LastCache {
     /// This will panic if the internal cache state's keys are out-of-order with respect to the
     /// order of the `key_columns` on this [`LastCache`]
     pub(crate) fn push(&mut self, row: &Row) {
+        let schema = Arc::clone(&self.schema);
         let mut target = &mut self.state;
         let mut key_iter = self.key_columns.iter().peekable();
         while let (Some(key), peek) = (key_iter.next(), key_iter.peek()) {
@@ -451,7 +491,8 @@ impl LastCache {
                     LastCacheState::Store(LastCacheStore::new(
                         self.count.into(),
                         self.ttl,
-                        Arc::clone(&self.schema),
+                        Arc::clone(&schema),
+                        Arc::clone(&self.key_columns),
                         self.series_key.as_ref(),
                     ))
                 }
@@ -462,14 +503,15 @@ impl LastCache {
             *target = LastCacheState::Store(LastCacheStore::new(
                 self.count.into(),
                 self.ttl,
-                Arc::clone(&self.schema),
+                Arc::clone(&schema),
+                Arc::clone(&self.key_columns),
                 self.series_key.as_ref(),
             ));
         }
         let store = target.as_store_mut().expect(
             "cache target should be the actual store after iterating through all key columns",
         );
-        let Some(new_columns) = store.push(row, self.accept_new_fields, &self.key_columns) else {
+        let Some(new_columns) = store.push(row, self.accept_new_fields) else {
             // Unless new columns were added, and we need to update the schema, we are done.
             return;
         };
@@ -490,10 +532,10 @@ impl LastCache {
     fn to_record_batches(&self, predicates: &[Predicate]) -> Result<Vec<RecordBatch>, ArrowError> {
         // map the provided predicates on to the key columns
         // there may not be predicates provided for each key column, hence the Option
-        let predicates: Vec<Option<Predicate>> = self
+        let predicates: Vec<Option<&Predicate>> = self
             .key_columns
             .iter()
-            .map(|key| predicates.iter().find(|p| p.key == *key).cloned())
+            .map(|key| predicates.iter().find(|p| p.key == *key))
             .collect();
 
         let mut caches = vec![ExtendedLastCacheState {
@@ -508,13 +550,15 @@ impl LastCache {
             let mut new_caches = vec![];
             'cache_loop: for c in caches {
                 let cache_key = c.state.as_key().unwrap();
-                if let Some(ref pred) = predicate {
+                if let Some(pred) = predicate {
                     let Some(next_state) = cache_key.evaluate_predicate(pred) else {
                         continue 'cache_loop;
                     };
+                    let mut additional_columns = c.additional_columns.clone();
+                    additional_columns.push((&cache_key.column_name, &pred.value));
                     new_caches.push(ExtendedLastCacheState {
                         state: next_state,
-                        additional_columns: c.additional_columns.clone(),
+                        additional_columns,
                     });
                 } else {
                     new_caches.extend(cache_key.value_map.iter().map(|(v, state)| {
@@ -825,6 +869,8 @@ struct LastCacheStore {
     ///
     /// [perf]: https://github.com/indexmap-rs/indexmap?tab=readme-ov-file#performance
     cache: IndexMap<String, CacheColumn>,
+    /// A reference to the set of key columns for the cache
+    key_columns: Arc<IndexSet<String>>,
     /// A ring buffer holding the instants at which entries in the cache were inserted
     ///
     /// This is used to evict cache values that outlive the `ttl`
@@ -845,11 +891,13 @@ impl LastCacheStore {
         count: usize,
         ttl: Duration,
         schema: ArrowSchemaRef,
+        key_columns: Arc<IndexSet<String>>,
         series_keys: Option<&HashSet<String>>,
     ) -> Self {
         let cache = schema
             .fields()
             .iter()
+            .filter(|f| !key_columns.contains(f.name()))
             .map(|f| {
                 (
                     f.name().to_string(),
@@ -863,6 +911,7 @@ impl LastCacheStore {
             .collect();
         Self {
             cache,
+            key_columns,
             instants: VecDeque::with_capacity(count),
             count,
             ttl,
@@ -888,7 +937,6 @@ impl LastCacheStore {
         &mut self,
         row: &'a Row,
         accept_new_fields: bool,
-        key_columns: &IndexSet<String>,
     ) -> Option<Vec<(&'a str, DataType)>> {
         if row.time <= self.last_time.timestamp_nanos() {
             return None;
@@ -904,7 +952,7 @@ impl LastCacheStore {
                 if let Some(col) = self.cache.get_mut(&field.name) {
                     // In this case, the field already has an entry in the cache, so just push:
                     col.push(&field.value);
-                } else if !key_columns.contains(&field.name) {
+                } else if !self.key_columns.contains(&field.name) {
                     // In this case, there is not an entry for the field in the cache, so if the
                     // value is not one of the key columns, then it is a new field being added.
                     let data_type = data_type_from_buffer_field(field);
@@ -963,11 +1011,14 @@ impl LastCacheStore {
             .fields()
             .iter()
             .cloned()
-            .map(|f| {
+            .filter_map(|f| {
                 if let Some(c) = self.cache.get(f.name()) {
-                    (f, c.data.as_array())
+                    Some((f, c.data.as_array()))
+                } else if self.key_columns.contains(f.name()) {
+                    // We prepend key columns with the extended set provided
+                    None
                 } else {
-                    (Arc::clone(&f), new_null_array(f.data_type(), self.len()))
+                    Some((Arc::clone(&f), new_null_array(f.data_type(), self.len())))
                 }
             })
             .collect();
@@ -1006,52 +1057,15 @@ impl LastCacheStore {
     }
 }
 
-#[async_trait]
-impl TableProvider for LastCache {
-    fn as_any(&self) -> &dyn Any {
-        self as &dyn Any
-    }
-
-    fn schema(&self) -> ArrowSchemaRef {
-        Arc::clone(&self.schema)
-    }
-
-    fn table_type(&self) -> TableType {
-        TableType::Temporary
-    }
-
-    fn supports_filters_pushdown(
-        &self,
-        filters: &[&Expr],
-    ) -> DFResult<Vec<TableProviderFilterPushDown>> {
-        Ok(vec![TableProviderFilterPushDown::Inexact; filters.len()])
-    }
-
-    async fn scan(
-        &self,
-        ctx: &SessionState,
-        projection: Option<&Vec<usize>>,
-        filters: &[Expr],
-        _limit: Option<usize>,
-    ) -> DFResult<Arc<dyn ExecutionPlan>> {
-        let predicates = self.convert_filter_exprs(filters);
-        let partitions = vec![self.to_record_batches(&predicates)?];
-        let mut exec = MemoryExec::try_new(&partitions, self.schema(), projection.cloned())?;
-
-        let show_sizes = ctx.config_options().explain.show_sizes;
-        exec = exec.with_show_sizes(show_sizes);
-
-        Ok(Arc::new(exec))
-    }
-}
-
 /// A column in a [`LastCache`]
 ///
 /// Stores its size so it can evict old data on push. Stores the time-to-live (TTL) in order
 /// to remove expired data.
 #[derive(Debug)]
 struct CacheColumn {
+    /// The number of entries the [`CacheColumn`] will hold before evicting old ones on push
     size: usize,
+    /// The buffer containing data for the column
     data: CacheColumnData,
 }
 
@@ -1381,11 +1395,11 @@ mod tests {
 
         assert_batches_eq!(
             [
-                "+--------+-----------------------------+-------+",
-                "| region | time                        | usage |",
-                "+--------+-----------------------------+-------+",
-                "| us     | 1970-01-01T00:00:00.000002Z | 99.0  |",
-                "+--------+-----------------------------+-------+",
+                "+------+--------+-----------------------------+-------+",
+                "| host | region | time                        | usage |",
+                "+------+--------+-----------------------------+-------+",
+                "| a    | us     | 1970-01-01T00:00:00.000002Z | 99.0  |",
+                "+------+--------+-----------------------------+-------+",
             ],
             &batch
         );
@@ -1409,11 +1423,11 @@ mod tests {
 
         assert_batches_eq!(
             [
-                "+--------+-----------------------------+-------+",
-                "| region | time                        | usage |",
-                "+--------+-----------------------------+-------+",
-                "| us     | 1970-01-01T00:00:00.000003Z | 88.0  |",
-                "+--------+-----------------------------+-------+",
+                "+------+--------+-----------------------------+-------+",
+                "| host | region | time                        | usage |",
+                "+------+--------+-----------------------------+-------+",
+                "| a    | us     | 1970-01-01T00:00:00.000003Z | 88.0  |",
+                "+------+--------+-----------------------------+-------+",
             ],
             &batch
         );
@@ -1497,11 +1511,11 @@ mod tests {
                     Predicate::new("host", KeyValue::string("c")),
                 ],
                 expected: &[
-                    "+-----------------------------+-------+",
-                    "| time                        | usage |",
-                    "+-----------------------------+-------+",
-                    "| 1970-01-01T00:00:00.000001Z | 60.0  |",
-                    "+-----------------------------+-------+",
+                    "+--------+------+-----------------------------+-------+",
+                    "| region | host | time                        | usage |",
+                    "+--------+------+-----------------------------+-------+",
+                    "| us     | c    | 1970-01-01T00:00:00.000001Z | 60.0  |",
+                    "+--------+------+-----------------------------+-------+",
                 ],
             },
             // Predicate on only region key column will have host column outputted in addition to
@@ -1509,26 +1523,26 @@ mod tests {
             TestCase {
                 predicates: &[Predicate::new("region", KeyValue::string("us"))],
                 expected: &[
-                    "+------+-----------------------------+-------+",
-                    "| host | time                        | usage |",
-                    "+------+-----------------------------+-------+",
-                    "| a    | 1970-01-01T00:00:00.000001Z | 100.0 |",
-                    "| c    | 1970-01-01T00:00:00.000001Z | 60.0  |",
-                    "| b    | 1970-01-01T00:00:00.000001Z | 80.0  |",
-                    "+------+-----------------------------+-------+",
+                    "+--------+------+-----------------------------+-------+",
+                    "| region | host | time                        | usage |",
+                    "+--------+------+-----------------------------+-------+",
+                    "| us     | a    | 1970-01-01T00:00:00.000001Z | 100.0 |",
+                    "| us     | b    | 1970-01-01T00:00:00.000001Z | 80.0  |",
+                    "| us     | c    | 1970-01-01T00:00:00.000001Z | 60.0  |",
+                    "+--------+------+-----------------------------+-------+",
                 ],
             },
             // Similar to previous, with a different region predicate:
             TestCase {
                 predicates: &[Predicate::new("region", KeyValue::string("ca"))],
                 expected: &[
-                    "+------+-----------------------------+-------+",
-                    "| host | time                        | usage |",
-                    "+------+-----------------------------+-------+",
-                    "| d    | 1970-01-01T00:00:00.000001Z | 40.0  |",
-                    "| e    | 1970-01-01T00:00:00.000001Z | 20.0  |",
-                    "| f    | 1970-01-01T00:00:00.000001Z | 30.0  |",
-                    "+------+-----------------------------+-------+",
+                    "+--------+------+-----------------------------+-------+",
+                    "| region | host | time                        | usage |",
+                    "+--------+------+-----------------------------+-------+",
+                    "| ca     | d    | 1970-01-01T00:00:00.000001Z | 40.0  |",
+                    "| ca     | e    | 1970-01-01T00:00:00.000001Z | 20.0  |",
+                    "| ca     | f    | 1970-01-01T00:00:00.000001Z | 30.0  |",
+                    "+--------+------+-----------------------------+-------+",
                 ],
             },
             // Predicate on only host key column will have region column outputted in addition to
@@ -1536,11 +1550,11 @@ mod tests {
             TestCase {
                 predicates: &[Predicate::new("host", KeyValue::string("a"))],
                 expected: &[
-                    "+--------+-----------------------------+-------+",
-                    "| region | time                        | usage |",
-                    "+--------+-----------------------------+-------+",
-                    "| us     | 1970-01-01T00:00:00.000001Z | 100.0 |",
-                    "+--------+-----------------------------+-------+",
+                    "+--------+------+-----------------------------+-------+",
+                    "| region | host | time                        | usage |",
+                    "+--------+------+-----------------------------+-------+",
+                    "| us     | a    | 1970-01-01T00:00:00.000001Z | 100.0 |",
+                    "+--------+------+-----------------------------+-------+",
                 ],
             },
             // Omitting all key columns from the predicate will have all key columns included in
@@ -1704,57 +1718,57 @@ mod tests {
                     Predicate::new("host", KeyValue::string("a")),
                 ],
                 expected: &[
-                    "+--------------------------------+-------+",
-                    "| time                           | usage |",
-                    "+--------------------------------+-------+",
-                    "| 1970-01-01T00:00:00.000001500Z | 99.0  |",
-                    "| 1970-01-01T00:00:00.000001Z    | 100.0 |",
-                    "| 1970-01-01T00:00:00.000002500Z | 90.0  |",
-                    "| 1970-01-01T00:00:00.000002Z    | 95.0  |",
-                    "+--------------------------------+-------+",
+                    "+--------+------+--------------------------------+-------+",
+                    "| region | host | time                           | usage |",
+                    "+--------+------+--------------------------------+-------+",
+                    "| us     | a    | 1970-01-01T00:00:00.000001500Z | 99.0  |",
+                    "| us     | a    | 1970-01-01T00:00:00.000001Z    | 100.0 |",
+                    "| us     | a    | 1970-01-01T00:00:00.000002500Z | 90.0  |",
+                    "| us     | a    | 1970-01-01T00:00:00.000002Z    | 95.0  |",
+                    "+--------+------+--------------------------------+-------+",
                 ],
             },
             TestCase {
                 predicates: &[Predicate::new("region", KeyValue::string("us"))],
                 expected: &[
-                    "+------+--------------------------------+-------+",
-                    "| host | time                           | usage |",
-                    "+------+--------------------------------+-------+",
-                    "| a    | 1970-01-01T00:00:00.000001500Z | 99.0  |",
-                    "| a    | 1970-01-01T00:00:00.000001Z    | 100.0 |",
-                    "| a    | 1970-01-01T00:00:00.000002500Z | 90.0  |",
-                    "| a    | 1970-01-01T00:00:00.000002Z    | 95.0  |",
-                    "| b    | 1970-01-01T00:00:00.000001500Z | 88.0  |",
-                    "| b    | 1970-01-01T00:00:00.000001Z    | 80.0  |",
-                    "| b    | 1970-01-01T00:00:00.000002500Z | 99.0  |",
-                    "| b    | 1970-01-01T00:00:00.000002Z    | 92.0  |",
-                    "+------+--------------------------------+-------+",
+                    "+--------+------+--------------------------------+-------+",
+                    "| region | host | time                           | usage |",
+                    "+--------+------+--------------------------------+-------+",
+                    "| us     | a    | 1970-01-01T00:00:00.000001500Z | 99.0  |",
+                    "| us     | a    | 1970-01-01T00:00:00.000001Z    | 100.0 |",
+                    "| us     | a    | 1970-01-01T00:00:00.000002500Z | 90.0  |",
+                    "| us     | a    | 1970-01-01T00:00:00.000002Z    | 95.0  |",
+                    "| us     | b    | 1970-01-01T00:00:00.000001500Z | 88.0  |",
+                    "| us     | b    | 1970-01-01T00:00:00.000001Z    | 80.0  |",
+                    "| us     | b    | 1970-01-01T00:00:00.000002500Z | 99.0  |",
+                    "| us     | b    | 1970-01-01T00:00:00.000002Z    | 92.0  |",
+                    "+--------+------+--------------------------------+-------+",
                 ],
             },
             TestCase {
                 predicates: &[Predicate::new("host", KeyValue::string("a"))],
                 expected: &[
-                    "+--------+--------------------------------+-------+",
-                    "| region | time                           | usage |",
-                    "+--------+--------------------------------+-------+",
-                    "| us     | 1970-01-01T00:00:00.000001500Z | 99.0  |",
-                    "| us     | 1970-01-01T00:00:00.000001Z    | 100.0 |",
-                    "| us     | 1970-01-01T00:00:00.000002500Z | 90.0  |",
-                    "| us     | 1970-01-01T00:00:00.000002Z    | 95.0  |",
-                    "+--------+--------------------------------+-------+",
+                    "+--------+------+--------------------------------+-------+",
+                    "| region | host | time                           | usage |",
+                    "+--------+------+--------------------------------+-------+",
+                    "| us     | a    | 1970-01-01T00:00:00.000001500Z | 99.0  |",
+                    "| us     | a    | 1970-01-01T00:00:00.000001Z    | 100.0 |",
+                    "| us     | a    | 1970-01-01T00:00:00.000002500Z | 90.0  |",
+                    "| us     | a    | 1970-01-01T00:00:00.000002Z    | 95.0  |",
+                    "+--------+------+--------------------------------+-------+",
                 ],
             },
             TestCase {
                 predicates: &[Predicate::new("host", KeyValue::string("b"))],
                 expected: &[
-                    "+--------+--------------------------------+-------+",
-                    "| region | time                           | usage |",
-                    "+--------+--------------------------------+-------+",
-                    "| us     | 1970-01-01T00:00:00.000001500Z | 88.0  |",
-                    "| us     | 1970-01-01T00:00:00.000001Z    | 80.0  |",
-                    "| us     | 1970-01-01T00:00:00.000002500Z | 99.0  |",
-                    "| us     | 1970-01-01T00:00:00.000002Z    | 92.0  |",
-                    "+--------+--------------------------------+-------+",
+                    "+--------+------+--------------------------------+-------+",
+                    "| region | host | time                           | usage |",
+                    "+--------+------+--------------------------------+-------+",
+                    "| us     | b    | 1970-01-01T00:00:00.000001500Z | 88.0  |",
+                    "| us     | b    | 1970-01-01T00:00:00.000001Z    | 80.0  |",
+                    "| us     | b    | 1970-01-01T00:00:00.000002500Z | 99.0  |",
+                    "| us     | b    | 1970-01-01T00:00:00.000002Z    | 92.0  |",
+                    "+--------+------+--------------------------------+-------+",
                 ],
             },
             TestCase {
@@ -1853,11 +1867,11 @@ mod tests {
 
         assert_batches_sorted_eq!(
             [
-                "+-----------------------------+-------+",
-                "| time                        | usage |",
-                "+-----------------------------+-------+",
-                "| 1970-01-01T00:00:00.000001Z | 100.0 |",
-                "+-----------------------------+-------+",
+                "+--------+------+-----------------------------+-------+",
+                "| region | host | time                        | usage |",
+                "+--------+------+-----------------------------+-------+",
+                "| us     | a    | 1970-01-01T00:00:00.000001Z | 100.0 |",
+                "+--------+------+-----------------------------+-------+",
             ],
             &batches
         );
@@ -1903,11 +1917,11 @@ mod tests {
 
         assert_batches_sorted_eq!(
             [
-                "+--------+--------------------------+-------+",
-                "| region | time                     | usage |",
-                "+--------+--------------------------+-------+",
-                "| us     | 1970-01-01T00:00:00.500Z | 333.0 |",
-                "+--------+--------------------------+-------+",
+                "+--------+------+--------------------------+-------+",
+                "| region | host | time                     | usage |",
+                "+--------+------+--------------------------+-------+",
+                "| us     | a    | 1970-01-01T00:00:00.500Z | 333.0 |",
+                "+--------+------+--------------------------+-------+",
             ],
             &batches
         );
@@ -1997,36 +2011,36 @@ mod tests {
             TestCase {
                 predicates: &[Predicate::new("component_id", KeyValue::string("333"))],
                 expected: &[
-                    "+--------+--------+------+---------+-----------------------------+",
-                    "| active | type   | loc  | reading | time                        |",
-                    "+--------+--------+------+---------+-----------------------------+",
-                    "| true   | camera | fore | 145.0   | 1970-01-01T00:00:00.000001Z |",
-                    "+--------+--------+------+---------+-----------------------------+",
+                    "+--------------+--------+--------+------+---------+-----------------------------+",
+                    "| component_id | active | type   | loc  | reading | time                        |",
+                    "+--------------+--------+--------+------+---------+-----------------------------+",
+                    "| 333          | true   | camera | fore | 145.0   | 1970-01-01T00:00:00.000001Z |",
+                    "+--------------+--------+--------+------+---------+-----------------------------+",
                 ],
             },
             // Predicate on a non-string field key:
             TestCase {
                 predicates: &[Predicate::new("active", KeyValue::Bool(false))],
                 expected: &[
-                    "+--------------+-------------+---------+---------+-----------------------------+",
-                    "| component_id | type        | loc     | reading | time                        |",
-                    "+--------------+-------------+---------+---------+-----------------------------+",
-                    "| 555          | solar-panel | huygens | 200.0   | 1970-01-01T00:00:00.000001Z |",
-                    "| 666          | comms-dish  | huygens | 220.0   | 1970-01-01T00:00:00.000001Z |",
-                    "+--------------+-------------+---------+---------+-----------------------------+",
+                    "+--------------+--------+-------------+---------+---------+-----------------------------+",
+                    "| component_id | active | type        | loc     | reading | time                        |",
+                    "+--------------+--------+-------------+---------+---------+-----------------------------+",
+                    "| 555          | false  | solar-panel | huygens | 200.0   | 1970-01-01T00:00:00.000001Z |",
+                    "| 666          | false  | comms-dish  | huygens | 220.0   | 1970-01-01T00:00:00.000001Z |",
+                    "+--------------+--------+-------------+---------+---------+-----------------------------+",
                 ],
             },
             // Predicate on a string field key:
             TestCase {
                 predicates: &[Predicate::new("type", KeyValue::string("camera"))],
                 expected: &[
-                    "+--------------+--------+-----------+---------+-----------------------------+",
-                    "| component_id | active | loc       | reading | time                        |",
-                    "+--------------+--------+-----------+---------+-----------------------------+",
-                    "| 111          | true   | port      | 150.0   | 1970-01-01T00:00:00.000001Z |",
-                    "| 222          | true   | starboard | 250.0   | 1970-01-01T00:00:00.000001Z |",
-                    "| 333          | true   | fore      | 145.0   | 1970-01-01T00:00:00.000001Z |",
-                    "+--------------+--------+-----------+---------+-----------------------------+",
+                    "+--------------+--------+--------+-----------+---------+-----------------------------+",
+                    "| component_id | active | type   | loc       | reading | time                        |",
+                    "+--------------+--------+--------+-----------+---------+-----------------------------+",
+                    "| 111          | true   | camera | port      | 150.0   | 1970-01-01T00:00:00.000001Z |",
+                    "| 222          | true   | camera | starboard | 250.0   | 1970-01-01T00:00:00.000001Z |",
+                    "| 333          | true   | camera | fore      | 145.0   | 1970-01-01T00:00:00.000001Z |",
+                    "+--------------+--------+--------+-----------+---------+-----------------------------+",
                 ],
             }
         ];
@@ -2110,39 +2124,39 @@ mod tests {
             TestCase {
                 predicates: &[Predicate::new("state", KeyValue::string("ca"))],
                 expected: &[
-                    "+--------+-------+-------+-----------------------------+",
-                    "| county | farm  | speed | time                        |",
-                    "+--------+-------+-------+-----------------------------+",
-                    "| napa   | 10-01 | 50.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| napa   | 10-02 | 49.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| nevada | 40-01 | 66.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| orange | 20-01 | 40.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| orange | 20-02 | 33.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| yolo   | 30-01 | 62.0  | 1970-01-01T00:00:00.000001Z |",
-                    "+--------+-------+-------+-----------------------------+",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| state | county | farm  | speed | time                        |",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| ca    | napa   | 10-01 | 50.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | napa   | 10-02 | 49.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | nevada | 40-01 | 66.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | orange | 20-01 | 40.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | orange | 20-02 | 33.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | yolo   | 30-01 | 62.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+-------+--------+-------+-------+-----------------------------+",
                 ],
             },
             // Predicate on county column, which is part of the series key:
             TestCase {
                 predicates: &[Predicate::new("county", KeyValue::string("napa"))],
                 expected: &[
-                    "+-------+-------+-------+-----------------------------+",
-                    "| state | farm  | speed | time                        |",
-                    "+-------+-------+-------+-----------------------------+",
-                    "| ca    | 10-01 | 50.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| ca    | 10-02 | 49.0  | 1970-01-01T00:00:00.000001Z |",
-                    "+-------+-------+-------+-----------------------------+",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| state | county | farm  | speed | time                        |",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| ca    | napa   | 10-01 | 50.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | napa   | 10-02 | 49.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+-------+--------+-------+-------+-----------------------------+",
                 ],
             },
             // Predicate on farm column, which is part of the series key:
             TestCase {
                 predicates: &[Predicate::new("farm", KeyValue::string("30-01"))],
                 expected: &[
-                    "+-------+--------+-------+-----------------------------+",
-                    "| state | county | speed | time                        |",
-                    "+-------+--------+-------+-----------------------------+",
-                    "| ca    | yolo   | 62.0  | 1970-01-01T00:00:00.000001Z |",
-                    "+-------+--------+-------+-----------------------------+",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| state | county | farm  | speed | time                        |",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| ca    | yolo   | 30-01 | 62.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+-------+--------+-------+-------+-----------------------------+",
                 ],
             },
             // Predicate on all series key columns:
@@ -2153,11 +2167,11 @@ mod tests {
                     Predicate::new("farm", KeyValue::string("40-01")),
                 ],
                 expected: &[
-                    "+-------+-----------------------------+",
-                    "| speed | time                        |",
-                    "+-------+-----------------------------+",
-                    "| 66.0  | 1970-01-01T00:00:00.000001Z |",
-                    "+-------+-----------------------------+",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| state | county | farm  | speed | time                        |",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| ca    | nevada | 40-01 | 66.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+-------+--------+-------+-------+-----------------------------+",
                 ],
             },
         ];
@@ -2241,39 +2255,39 @@ mod tests {
             TestCase {
                 predicates: &[Predicate::new("state", KeyValue::string("ca"))],
                 expected: &[
-                    "+--------+-------+-------+-----------------------------+",
-                    "| county | farm  | speed | time                        |",
-                    "+--------+-------+-------+-----------------------------+",
-                    "| napa   | 10-01 | 50.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| napa   | 10-02 | 49.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| nevada | 40-01 | 66.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| orange | 20-01 | 40.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| orange | 20-02 | 33.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| yolo   | 30-01 | 62.0  | 1970-01-01T00:00:00.000001Z |",
-                    "+--------+-------+-------+-----------------------------+",
+                    "+--------+-------+-------+-------+-----------------------------+",
+                    "| county | farm  | state | speed | time                        |",
+                    "+--------+-------+-------+-------+-----------------------------+",
+                    "| napa   | 10-01 | ca    | 50.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| napa   | 10-02 | ca    | 49.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| nevada | 40-01 | ca    | 66.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| orange | 20-01 | ca    | 40.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| orange | 20-02 | ca    | 33.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| yolo   | 30-01 | ca    | 62.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+--------+-------+-------+-------+-----------------------------+",
                 ],
             },
             // Predicate on county column, which is part of the series key:
             TestCase {
                 predicates: &[Predicate::new("county", KeyValue::string("napa"))],
                 expected: &[
-                    "+-------+-------+-------+-----------------------------+",
-                    "| farm  | state | speed | time                        |",
-                    "+-------+-------+-------+-----------------------------+",
-                    "| 10-01 | ca    | 50.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| 10-02 | ca    | 49.0  | 1970-01-01T00:00:00.000001Z |",
-                    "+-------+-------+-------+-----------------------------+",
+                    "+--------+-------+-------+-------+-----------------------------+",
+                    "| county | farm  | state | speed | time                        |",
+                    "+--------+-------+-------+-------+-----------------------------+",
+                    "| napa   | 10-01 | ca    | 50.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| napa   | 10-02 | ca    | 49.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+--------+-------+-------+-------+-----------------------------+",
                 ],
             },
             // Predicate on farm column, which is part of the series key:
             TestCase {
                 predicates: &[Predicate::new("farm", KeyValue::string("30-01"))],
                 expected: &[
-                    "+--------+-------+-------+-----------------------------+",
-                    "| county | state | speed | time                        |",
-                    "+--------+-------+-------+-----------------------------+",
-                    "| yolo   | ca    | 62.0  | 1970-01-01T00:00:00.000001Z |",
-                    "+--------+-------+-------+-----------------------------+",
+                    "+--------+-------+-------+-------+-----------------------------+",
+                    "| county | farm  | state | speed | time                        |",
+                    "+--------+-------+-------+-------+-----------------------------+",
+                    "| yolo   | 30-01 | ca    | 62.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+--------+-------+-------+-------+-----------------------------+",
                 ],
             },
             // Predicate on all series key columns:
@@ -2284,11 +2298,11 @@ mod tests {
                     Predicate::new("farm", KeyValue::string("40-01")),
                 ],
                 expected: &[
-                    "+-------+-----------------------------+",
-                    "| speed | time                        |",
-                    "+-------+-----------------------------+",
-                    "| 66.0  | 1970-01-01T00:00:00.000001Z |",
-                    "+-------+-----------------------------+",
+                    "+--------+-------+-------+-------+-----------------------------+",
+                    "| county | farm  | state | speed | time                        |",
+                    "+--------+-------+-------+-------+-----------------------------+",
+                    "| nevada | 40-01 | ca    | 66.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+--------+-------+-------+-------+-----------------------------+",
                 ],
             },
         ];
@@ -2421,22 +2435,22 @@ mod tests {
             TestCase {
                 predicates: &[Predicate::new("game_id", KeyValue::string("4"))],
                 expected: &[
-                    "+-----------+-----------------------------+------+------+",
-                    "| player    | time                        | type | zone |",
-                    "+-----------+-----------------------------+------+------+",
-                    "| bobrovsky | 1970-01-01T00:00:00.000001Z | save | home |",
-                    "+-----------+-----------------------------+------+------+",
+                    "+---------+-----------+-----------------------------+------+------+",
+                    "| game_id | player    | time                        | type | zone |",
+                    "+---------+-----------+-----------------------------+------+------+",
+                    "| 4       | bobrovsky | 1970-01-01T00:00:00.000001Z | save | home |",
+                    "+---------+-----------+-----------------------------+------+------+",
                 ],
             },
             // Cache that does not have a zone column will produce it with nulls:
             TestCase {
                 predicates: &[Predicate::new("game_id", KeyValue::string("1"))],
                 expected: &[
-                    "+-----------+-----------------------------+------+------+",
-                    "| player    | time                        | type | zone |",
-                    "+-----------+-----------------------------+------+------+",
-                    "| mackinnon | 1970-01-01T00:00:00.000001Z | shot |      |",
-                    "+-----------+-----------------------------+------+------+",
+                    "+---------+-----------+-----------------------------+------+------+",
+                    "| game_id | player    | time                        | type | zone |",
+                    "+---------+-----------+-----------------------------+------+------+",
+                    "| 1       | mackinnon | 1970-01-01T00:00:00.000001Z | shot |      |",
+                    "+---------+-----------+-----------------------------+------+------+",
                 ],
             },
             // Pulling from multiple caches will fill in with nulls:
@@ -2545,31 +2559,31 @@ mod tests {
             TestCase {
                 predicates: &[Predicate::new("t1", KeyValue::string("a"))],
                 expected: &[
-                    "+-----+--------------------------------+-----+-----+-----+",
-                    "| f1  | time                           | f2  | f3  | f4  |",
-                    "+-----+--------------------------------+-----+-----+-----+",
-                    "| 1.0 | 1970-01-01T00:00:00.000001500Z | 2.0 | 3.0 | 4.0 |",
-                    "+-----+--------------------------------+-----+-----+-----+",
+                    "+----+-----+--------------------------------+-----+-----+-----+",
+                    "| t1 | f1  | time                           | f2  | f3  | f4  |",
+                    "+----+-----+--------------------------------+-----+-----+-----+",
+                    "| a  | 1.0 | 1970-01-01T00:00:00.000001500Z | 2.0 | 3.0 | 4.0 |",
+                    "+----+-----+--------------------------------+-----+-----+-----+",
                 ],
             },
             TestCase {
                 predicates: &[Predicate::new("t1", KeyValue::string("b"))],
                 expected: &[
-                    "+------+--------------------------------+----+------+------+",
-                    "| f1   | time                           | f2 | f3   | f4   |",
-                    "+------+--------------------------------+----+------+------+",
-                    "| 10.0 | 1970-01-01T00:00:00.000001500Z |    | 30.0 | 40.0 |",
-                    "+------+--------------------------------+----+------+------+",
+                    "+----+------+--------------------------------+----+------+------+",
+                    "| t1 | f1   | time                           | f2 | f3   | f4   |",
+                    "+----+------+--------------------------------+----+------+------+",
+                    "| b  | 10.0 | 1970-01-01T00:00:00.000001500Z |    | 30.0 | 40.0 |",
+                    "+----+------+--------------------------------+----+------+------+",
                 ],
             },
             TestCase {
                 predicates: &[Predicate::new("t1", KeyValue::string("c"))],
                 expected: &[
-                    "+-------+--------------------------------+-------+-------+----+",
-                    "| f1    | time                           | f2    | f3    | f4 |",
-                    "+-------+--------------------------------+-------+-------+----+",
-                    "| 100.0 | 1970-01-01T00:00:00.000001500Z | 200.0 | 300.0 |    |",
-                    "+-------+--------------------------------+-------+-------+----+",
+                    "+----+-------+--------------------------------+-------+-------+----+",
+                    "| t1 | f1    | time                           | f2    | f3    | f4 |",
+                    "+----+-------+--------------------------------+-------+-------+----+",
+                    "| c  | 100.0 | 1970-01-01T00:00:00.000001500Z | 200.0 | 300.0 |    |",
+                    "+----+-------+--------------------------------+-------+-------+----+",
                 ],
             },
             // Can query accross key column values:

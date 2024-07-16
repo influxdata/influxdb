@@ -24,6 +24,8 @@ use crate::http::HttpApi;
 use async_trait::async_trait;
 use authz::Authorizer;
 use datafusion::execution::SendableRecordBatchStream;
+use hyper::server::conn::AddrIncoming;
+use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use influxdb3_write::{Persister, WriteBuffer};
 use iox_query::QueryDatabase;
@@ -33,9 +35,9 @@ use observability_deps::tracing::error;
 use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use thiserror::Error;
+use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 use tower::Layer;
 use trace::ctx::SpanContext;
@@ -76,7 +78,6 @@ pub struct CommonServerState {
     metrics: Arc<metric::Registry>,
     trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
     trace_header_parser: TraceHeaderParser,
-    http_addr: SocketAddr,
 }
 
 impl CommonServerState {
@@ -84,13 +85,11 @@ impl CommonServerState {
         metrics: Arc<metric::Registry>,
         trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
         trace_header_parser: TraceHeaderParser,
-        http_addr: SocketAddr,
     ) -> Result<Self> {
         Ok(Self {
             metrics,
             trace_exporter,
             trace_header_parser,
-            http_addr,
         })
     }
 
@@ -120,6 +119,7 @@ pub struct Server<W, Q, P, T> {
     http: Arc<HttpApi<W, Q, T>>,
     persister: Arc<P>,
     authorizer: Arc<dyn Authorizer>,
+    listener: TcpListener,
 }
 
 #[async_trait]
@@ -193,7 +193,8 @@ where
 
     let hybrid_make_service = hybrid(rest_service, grpc_service);
 
-    hyper::Server::bind(&server.common_state.http_addr)
+    let addr = AddrIncoming::from_listener(server.listener)?;
+    hyper::server::Builder::new(addr, Http::new())
         .serve(hybrid_make_service)
         .with_graceful_shutdown(shutdown.cancelled())
         .await?;
@@ -231,6 +232,8 @@ mod tests {
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_write::persister::PersisterImpl;
+    use influxdb3_write::wal::WalImpl;
+    use influxdb3_write::write_buffer::WriteBufferImpl;
     use influxdb3_write::SegmentDuration;
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
@@ -238,75 +241,17 @@ mod tests {
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
     use std::collections::HashMap;
-    use std::net::{SocketAddr, SocketAddrV4};
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::num::NonZeroUsize;
-    use std::sync::atomic::{AtomicU16, Ordering};
     use std::sync::Arc;
+    use tokio::net::TcpListener;
     use tokio_util::sync::CancellationToken;
-
-    static NEXT_PORT: AtomicU16 = AtomicU16::new(8090);
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn write_and_query() {
-        let addr = get_free_port();
-        let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
-        let metrics = Arc::new(metric::Registry::new());
-        let common_state =
-            crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser, addr)
-                .unwrap();
-        let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
-        let parquet_store =
-            ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-        let exec = Arc::new(Executor::new_with_config_and_executor(
-            ExecutorConfig {
-                target_query_partitions: NonZeroUsize::new(1).unwrap(),
-                object_stores: [&parquet_store]
-                    .into_iter()
-                    .map(|store| (store.id(), Arc::clone(store.object_store())))
-                    .collect(),
-                metric_registry: Arc::clone(&metrics),
-                mem_pool_size: usize::MAX,
-            },
-            DedicatedExecutor::new_testing(),
-        ));
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let start_time = 0;
+        let (server, shutdown, _) = setup_server(start_time).await;
 
-        let write_buffer = Arc::new(
-            influxdb3_write::write_buffer::WriteBufferImpl::new(
-                Arc::clone(&persister),
-                None::<Arc<influxdb3_write::wal::WalImpl>>,
-                Arc::clone(&time_provider),
-                SegmentDuration::new_5m(),
-                Arc::clone(&exec),
-                10000,
-            )
-            .await
-            .unwrap(),
-        );
-        let query_executor = Arc::new(crate::query_executor::QueryExecutorImpl::new(
-            write_buffer.catalog(),
-            Arc::clone(&write_buffer),
-            Arc::clone(&exec),
-            Arc::clone(&metrics),
-            Arc::new(HashMap::new()),
-            10,
-            10,
-        ));
-
-        let server = ServerBuilder::new(common_state)
-            .write_buffer(Arc::clone(&write_buffer))
-            .query_executor(Arc::clone(&query_executor))
-            .persister(Arc::clone(&persister))
-            .authorizer(Arc::new(DefaultAuthorizer))
-            .time_provider(Arc::clone(&time_provider))
-            .build();
-        let frontend_shutdown = CancellationToken::new();
-        let shutdown = frontend_shutdown.clone();
-
-        tokio::spawn(async move { serve(server, frontend_shutdown).await });
-
-        let server = format!("http://{}", addr);
         write_lp(
             &server,
             "foo",
@@ -409,66 +354,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn write_lp_tests() {
-        let addr = get_free_port();
-        let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
-        let metrics = Arc::new(metric::Registry::new());
-        let common_state =
-            crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser, addr)
-                .unwrap();
-        let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
-        let parquet_store =
-            ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-        let exec = Arc::new(Executor::new_with_config_and_executor(
-            ExecutorConfig {
-                target_query_partitions: NonZeroUsize::new(1).unwrap(),
-                object_stores: [&parquet_store]
-                    .into_iter()
-                    .map(|store| (store.id(), Arc::clone(store.object_store())))
-                    .collect(),
-                metric_registry: Arc::clone(&metrics),
-                mem_pool_size: usize::MAX,
-            },
-            DedicatedExecutor::new_testing(),
-        ));
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let start_time = 0;
+        let (server, shutdown, _) = setup_server(start_time).await;
 
-        let write_buffer = Arc::new(
-            influxdb3_write::write_buffer::WriteBufferImpl::new(
-                Arc::clone(&persister),
-                None::<Arc<influxdb3_write::wal::WalImpl>>,
-                Arc::clone(&time_provider),
-                SegmentDuration::new_5m(),
-                Arc::clone(&exec),
-                10000,
-            )
-            .await
-            .unwrap(),
-        );
-        let query_executor = crate::query_executor::QueryExecutorImpl::new(
-            write_buffer.catalog(),
-            Arc::clone(&write_buffer),
-            Arc::clone(&exec),
-            Arc::clone(&metrics),
-            Arc::new(HashMap::new()),
-            10,
-            10,
-        );
-
-        let server = ServerBuilder::new(common_state)
-            .write_buffer(Arc::clone(&write_buffer))
-            .query_executor(Arc::new(query_executor))
-            .persister(persister)
-            .authorizer(Arc::new(DefaultAuthorizer))
-            .time_provider(Arc::clone(&time_provider))
-            .build();
-        let frontend_shutdown = CancellationToken::new();
-        let shutdown = frontend_shutdown.clone();
-
-        tokio::spawn(async move { serve(server, frontend_shutdown).await });
-
-        // Test that only one error comes back
-        let server = format!("http://{}", addr);
         let resp = write_lp(
             &server,
             "foo",
@@ -615,67 +503,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn write_lp_precision_tests() {
-        let addr = get_free_port();
-        let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
-        let metrics = Arc::new(metric::Registry::new());
-        let common_state =
-            crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser, addr)
-                .unwrap();
-        let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
-        let parquet_store =
-            ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-        let exec = Arc::new(Executor::new_with_config_and_executor(
-            ExecutorConfig {
-                target_query_partitions: NonZeroUsize::new(1).unwrap(),
-                object_stores: [&parquet_store]
-                    .into_iter()
-                    .map(|store| (store.id(), Arc::clone(store.object_store())))
-                    .collect(),
-                metric_registry: Arc::clone(&metrics),
-                mem_pool_size: usize::MAX,
-            },
-            DedicatedExecutor::new_testing(),
-        ));
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(
-            1708473607000000000,
-        )));
+        let start_time = 1708473607000000000;
+        let (server, shutdown, _) = setup_server(start_time).await;
 
-        let write_buffer = Arc::new(
-            influxdb3_write::write_buffer::WriteBufferImpl::new(
-                Arc::clone(&persister),
-                None::<Arc<influxdb3_write::wal::WalImpl>>,
-                Arc::clone(&time_provider),
-                SegmentDuration::new_5m(),
-                Arc::clone(&exec),
-                10000,
-            )
-            .await
-            .unwrap(),
-        );
-        let query_executor = crate::query_executor::QueryExecutorImpl::new(
-            write_buffer.catalog(),
-            Arc::clone(&write_buffer),
-            Arc::clone(&exec),
-            Arc::clone(&metrics),
-            Arc::new(HashMap::new()),
-            10,
-            10,
-        );
-
-        let server = ServerBuilder::new(common_state)
-            .write_buffer(Arc::clone(&write_buffer))
-            .query_executor(Arc::new(query_executor))
-            .persister(persister)
-            .authorizer(Arc::new(DefaultAuthorizer))
-            .time_provider(Arc::clone(&time_provider))
-            .build();
-        let frontend_shutdown = CancellationToken::new();
-        let shutdown = frontend_shutdown.clone();
-
-        tokio::spawn(async move { serve(server, frontend_shutdown).await });
-
-        let server = format!("http://{}", addr);
         let resp = write_lp(
             &server,
             "foo",
@@ -789,6 +619,153 @@ mod tests {
         shutdown.cancel();
     }
 
+    #[tokio::test]
+    async fn query_from_last_cache() {
+        let start_time = 0;
+        let (url, shutdown, wbuf) = setup_server(start_time).await;
+        let db_name = "foo";
+        let tbl_name = "cpu";
+
+        // Write to generate a db/table in the catalog:
+        let resp = write_lp(
+            &url,
+            db_name,
+            format!("{tbl_name},region=us,host=a usage=50 500"),
+            None,
+            false,
+            "second",
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Create the last cache:
+        wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+            .expect("create last cache");
+
+        // Write to put something in the last cache:
+        let resp = write_lp(
+            &url,
+            db_name,
+            format!(
+                "\
+                {tbl_name},region=us,host=a usage=11 1000\n\
+                {tbl_name},region=us,host=b usage=22 1000\n\
+                {tbl_name},region=us,host=c usage=33 1000\n\
+                {tbl_name},region=ca,host=d usage=44 1000\n\
+                {tbl_name},region=ca,host=e usage=55 1000\n\
+                {tbl_name},region=eu,host=f usage=66 1000\n\
+                "
+            ),
+            None,
+            false,
+            "second",
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Query from the last cache:
+        let res = query(
+            &url,
+            db_name,
+            format!("SELECT * FROM last_cache('{tbl_name}') ORDER BY host"),
+            "pretty",
+            None,
+        )
+        .await;
+        let body = body::to_bytes(res.into_body()).await.unwrap();
+        let body = String::from_utf8(body.as_bytes().to_vec()).unwrap();
+        assert_eq!(
+            "\
+            +------+--------+---------------------+-------+\n\
+            | host | region | time                | usage |\n\
+            +------+--------+---------------------+-------+\n\
+            | a    | us     | 1970-01-01T00:16:40 | 11.0  |\n\
+            | b    | us     | 1970-01-01T00:16:40 | 22.0  |\n\
+            | c    | us     | 1970-01-01T00:16:40 | 33.0  |\n\
+            | d    | ca     | 1970-01-01T00:16:40 | 44.0  |\n\
+            | e    | ca     | 1970-01-01T00:16:40 | 55.0  |\n\
+            | f    | eu     | 1970-01-01T00:16:40 | 66.0  |\n\
+            +------+--------+---------------------+-------+",
+            body
+        );
+
+        shutdown.cancel();
+    }
+
+    async fn setup_server(
+        start_time: i64,
+    ) -> (
+        String,
+        CancellationToken,
+        Arc<WriteBufferImpl<WalImpl, MockProvider>>,
+    ) {
+        let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
+        let metrics = Arc::new(metric::Registry::new());
+        let common_state =
+            crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser).unwrap();
+        let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
+        let parquet_store =
+            ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
+        let exec = Arc::new(Executor::new_with_config_and_executor(
+            ExecutorConfig {
+                target_query_partitions: NonZeroUsize::new(1).unwrap(),
+                object_stores: [&parquet_store]
+                    .into_iter()
+                    .map(|store| (store.id(), Arc::clone(store.object_store())))
+                    .collect(),
+                metric_registry: Arc::clone(&metrics),
+                mem_pool_size: usize::MAX,
+            },
+            DedicatedExecutor::new_testing(),
+        ));
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
+
+        let write_buffer = Arc::new(
+            influxdb3_write::write_buffer::WriteBufferImpl::new(
+                Arc::clone(&persister),
+                None::<Arc<influxdb3_write::wal::WalImpl>>,
+                Arc::clone(&time_provider),
+                SegmentDuration::new_5m(),
+                Arc::clone(&exec),
+                10000,
+            )
+            .await
+            .unwrap(),
+        );
+        let query_executor = crate::query_executor::QueryExecutorImpl::new(
+            write_buffer.catalog(),
+            Arc::clone(&write_buffer),
+            Arc::clone(&exec),
+            Arc::clone(&metrics),
+            Arc::new(HashMap::new()),
+            10,
+            10,
+        );
+
+        // bind to port 0 will assign a random available port:
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
+        let listener = TcpListener::bind(socket_addr)
+            .await
+            .expect("bind tcp address");
+        let addr = listener.local_addr().unwrap();
+
+        let server = ServerBuilder::new(common_state)
+            .write_buffer(Arc::clone(&write_buffer))
+            .query_executor(Arc::new(query_executor))
+            .persister(persister)
+            .authorizer(Arc::new(DefaultAuthorizer))
+            .time_provider(Arc::clone(&time_provider))
+            .tcp_listener(listener)
+            .build();
+        let frontend_shutdown = CancellationToken::new();
+        let shutdown = frontend_shutdown.clone();
+
+        tokio::spawn(async move { serve(server, frontend_shutdown).await });
+
+        (format!("http://{addr}"), shutdown, write_buffer)
+    }
+
     pub(crate) async fn write_lp(
         server: impl Into<String> + Send,
         database: impl Into<String> + Send,
@@ -852,18 +829,5 @@ mod tests {
             .request(request)
             .await
             .expect("http error sending query")
-    }
-
-    pub(crate) fn get_free_port() -> SocketAddr {
-        let ip = std::net::Ipv4Addr::new(127, 0, 0, 1);
-
-        loop {
-            let port = NEXT_PORT.fetch_add(1, Ordering::SeqCst);
-            let addr = SocketAddrV4::new(ip, port);
-
-            if std::net::TcpListener::bind(addr).is_ok() {
-                return addr.into();
-            }
-        }
     }
 }

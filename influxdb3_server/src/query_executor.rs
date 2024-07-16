@@ -22,6 +22,7 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
+use influxdb3_write::last_cache::LastCacheFunction;
 use influxdb3_write::{
     catalog::{Catalog, DatabaseSchema},
     WriteBuffer,
@@ -443,9 +444,19 @@ impl<B: WriteBuffer> QueryNamespace for Database<B> {
             cfg = cfg.with_config_option(k, v);
         }
 
-        cfg.build()
+        let ctx = cfg.build();
+        ctx.inner().register_udtf(
+            LAST_CACHE_UDTF_NAME,
+            Arc::new(LastCacheFunction::new(
+                &self.db_schema.name,
+                self.write_buffer.last_cache(),
+            )),
+        );
+        ctx
     }
 }
+
+const LAST_CACHE_UDTF_NAME: &str = "last_cache";
 
 impl<B: WriteBuffer> CatalogProvider for Database<B> {
     fn as_any(&self) -> &dyn Any {
