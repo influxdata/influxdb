@@ -619,10 +619,15 @@ pub struct CreateLastCacheRequestBuilder<'c> {
     client: &'c Client,
     db: String,
     table: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     key_columns: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     value_columns: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     ttl: Option<u64>,
 }
 
@@ -944,5 +949,93 @@ mod tests {
         mock.assert_async().await;
 
         r.expect("sent request successfully");
+    }
+
+    #[tokio::test]
+    async fn api_v3_configure_last_cache_create_201() {
+        let db = "db";
+        let table = "table";
+        let name = "cache_name";
+        let key_columns = ["col1", "col2"];
+        let val_columns = vec!["col3", "col4"];
+        let ttl = 120;
+        let count = 5;
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v3/configure/last_cache")
+            .match_body(Matcher::Json(serde_json::json!({
+                "db": db,
+                "table": table,
+                "name": name,
+                "key_columns": key_columns,
+                "value_columns": val_columns,
+                "count": count,
+                "ttl": ttl,
+            })))
+            .with_status(201)
+            .with_body(r#"{"cache_name":"cache_name"}"#)
+            .create_async()
+            .await;
+        let client = Client::new(mock_server.url()).unwrap();
+        let resp = client
+            .api_v3_configure_last_cache_create(db, table)
+            .name(name)
+            .key_columns(key_columns)
+            .value_columns(val_columns)
+            .ttl(ttl)
+            .count(count)
+            .send()
+            .await
+            .unwrap();
+        mock.assert_async().await;
+        assert_eq!(Some(name), resp.as_deref());
+    }
+
+    #[tokio::test]
+    async fn api_v3_configure_last_cache_create_204() {
+        let db = "db";
+        let table = "table";
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v3/configure/last_cache")
+            .match_body(Matcher::Json(serde_json::json!({
+                "db": db,
+                "table": table,
+            })))
+            .with_status(204)
+            .create_async()
+            .await;
+        let client = Client::new(mock_server.url()).unwrap();
+        let resp = client
+            .api_v3_configure_last_cache_create(db, table)
+            .send()
+            .await
+            .unwrap();
+        mock.assert_async().await;
+        assert!(resp.is_none());
+    }
+
+    #[tokio::test]
+    async fn api_v3_configure_last_cache_delete() {
+        let db = "db";
+        let table = "table";
+        let name = "cache_name";
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("DELETE", "/api/v3/configure/last_cache")
+            .match_body(Matcher::Json(serde_json::json!({
+                "db": db,
+                "table": table,
+                "name": name,
+            })))
+            .with_status(200)
+            .create_async()
+            .await;
+        let client = Client::new(mock_server.url()).unwrap();
+        client
+            .api_v3_configure_last_cache_delete(db, table, name)
+            .await
+            .unwrap();
+        mock.assert_async().await;
     }
 }
