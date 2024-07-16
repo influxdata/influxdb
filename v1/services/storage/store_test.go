@@ -4,9 +4,74 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/internal"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/stretchr/testify/require"
 )
+
+func TestValidateArgs(t *testing.T) {
+	type inputParams struct {
+		orgID    uint64
+		bucketID uint64
+		start    int64
+		end      int64
+	}
+
+	type outputParams struct {
+		database string
+		rp       string
+		start    int64
+		end      int64
+		err      error
+	}
+
+	testCases := []struct {
+		desc     string
+		store    *Store
+		input    inputParams
+		expected outputParams
+	}{
+		{
+			desc: "start not < models.MinNanoTime and end not > models.MaxNanoTime",
+			store: NewStore(nil, &internal.MetaClientMock{
+				DatabaseFn: func(name string) *meta.DatabaseInfo {
+					return &meta.DatabaseInfo{
+						Name: name,
+						RetentionPolicies: []meta.RetentionPolicyInfo{
+							{
+								Name: meta.DefaultRetentionPolicyName,
+							},
+						},
+					}
+				},
+			}),
+			input: inputParams{
+				orgID:    1,
+				bucketID: 2,
+				start:    models.MinNanoTime - 1,
+				end:      models.MaxNanoTime + 1,
+			},
+			expected: outputParams{
+				database: "0000000000000002",
+				rp:       meta.DefaultRetentionPolicyName,
+				start:    models.MinNanoTime,
+				end:      models.MaxNanoTime,
+			},
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			database, rp, start, end, err := tC.store.validateArgs(tC.input.orgID, tC.input.bucketID, tC.input.start, tC.input.end)
+
+			require.Equal(t, tC.expected.database, database)
+			require.Equal(t, tC.expected.rp, rp)
+			require.Equal(t, tC.expected.start, start)
+			require.Equal(t, tC.expected.end, end)
+			require.Equal(t, tC.expected.err, err)
+		})
+	}
+}
 
 func TestGroupShardsByTime(t *testing.T) {
 	tests := []struct {
