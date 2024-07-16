@@ -133,7 +133,7 @@ pub enum Error {
 
     /// Serde decode error
     #[error("serde error: {0}")]
-    Serde(#[from] serde_urlencoded::de::Error),
+    SerdeUrlDecoding(#[from] serde_urlencoded::de::Error),
 
     /// Arrow error
     #[error("arrow error: {0}")]
@@ -307,14 +307,23 @@ impl Error {
                     .status(StatusCode::BAD_REQUEST)
                     .body(Body::from(lc_err.to_string()))
                     .unwrap(),
-                // This variant should not be encountered by the API, as it is thrown during
-                // query execution and would be captured there, but avoiding a catch-all arm here
-                // in case new variants are added to the enum:
                 last_cache::Error::CacheDoesNotExist => Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .status(StatusCode::NOT_FOUND)
                     .body(Body::from(self.to_string()))
                     .unwrap(),
             },
+            Self::InvalidContentEncoding(_) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
+            Self::InvalidContentType { .. } => Response::builder()
+                .status(StatusCode::UNSUPPORTED_MEDIA_TYPE)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
+            Self::SerdeUrlDecoding(_) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
             _ => {
                 let body = Body::from(self.to_string());
                 Response::builder()
@@ -675,7 +684,7 @@ where
         .map_err(Into::into)
     }
 
-    async fn config_last_cache_create(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn configure_last_cache_create(&self, req: Request<Body>) -> Result<Response<Body>> {
         let LastCacheCreateRequest {
             db,
             table,
@@ -719,6 +728,27 @@ where
                 .body(Body::empty())
                 .map_err(Into::into),
         }
+    }
+
+    /// Delete a last cache entry with the given [`LastCacheDeleteRequest`] parameters
+    ///
+    /// This will first attempt to parse the parameters from the URI query string, if a query string
+    /// is provided, but if not, will attempt to parse them from the request body as JSON.
+    async fn configure_last_cache_delete(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let LastCacheDeleteRequest { db, table, name } = if let Some(query) = req.uri().query() {
+            serde_urlencoded::from_str(query)?
+        } else {
+            self.read_body_json(req).await?
+        };
+
+        self.write_buffer
+            .last_cache()
+            .delete_cache(&db, &table, &name)?;
+
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())
+            .unwrap())
     }
 
     async fn read_body_json<ReqBody: DeserializeOwned>(
@@ -1011,6 +1041,7 @@ impl From<iox_http::write::WriteParams> for WriteParams {
     }
 }
 
+/// Request definition for the `POST /api/v3/configure/last_cache` API
 #[derive(Debug, Deserialize)]
 struct LastCacheCreateRequest {
     db: String,
@@ -1025,6 +1056,14 @@ struct LastCacheCreateRequest {
 #[derive(Debug, Serialize)]
 struct LastCacheCreatedResponse {
     cache_name: String,
+}
+
+/// Request definition for the `DELETE /api/v3/configure/last_cache` API
+#[derive(Debug, Deserialize)]
+struct LastCacheDeleteRequest {
+    db: String,
+    table: String,
+    name: String,
 }
 
 pub(crate) async fn route_request<W: WriteBuffer, Q: QueryExecutor, T: TimeProvider>(
@@ -1100,7 +1139,10 @@ where
         (Method::GET | Method::POST, "/ping") => http_server.ping(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
         (Method::POST, "/api/v3/configure/last_cache") => {
-            http_server.config_last_cache_create(req).await
+            http_server.configure_last_cache_create(req).await
+        }
+        (Method::DELETE, "/api/v3/configure/last_cache") => {
+            http_server.configure_last_cache_delete(req).await
         }
         _ => {
             let body = Body::from("not found");

@@ -169,3 +169,194 @@ async fn api_v3_configure_last_cache_create() {
         assert_eq!(t.expected, status, "test case ({i}) failed");
     }
 }
+
+#[tokio::test]
+async fn api_v3_configure_last_cache_delete() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/last_cache",
+        base = server.client_addr()
+    );
+
+    // Write some LP to the database to initialize the catalog:
+    let db_name = "db";
+    let tbl_name = "tbl";
+    let cache_name = "test_cache";
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    struct TestCase {
+        request: Request,
+        // This is the status code expected in the response:
+        expected: StatusCode,
+    }
+
+    enum Request {
+        Create(serde_json::Value),
+        Delete(DeleteRequest),
+    }
+
+    #[derive(Default)]
+    struct DeleteRequest {
+        db: Option<&'static str>,
+        table: Option<&'static str>,
+        name: Option<&'static str>,
+    }
+
+    use Request::*;
+    let mut test_cases = [
+        // Create a cache:
+        TestCase {
+            request: Create(serde_json::json!({
+                "db": db_name,
+                "table": tbl_name,
+                "name": cache_name,
+            })),
+            expected: StatusCode::CREATED,
+        },
+        // Missing all params:
+        TestCase {
+            request: Delete(DeleteRequest {
+                ..Default::default()
+            }),
+            expected: StatusCode::BAD_REQUEST,
+        },
+        // Partial params:
+        TestCase {
+            request: Delete(DeleteRequest {
+                db: Some(db_name),
+                ..Default::default()
+            }),
+            expected: StatusCode::BAD_REQUEST,
+        },
+        // Partial params:
+        TestCase {
+            request: Delete(DeleteRequest {
+                table: Some(tbl_name),
+                ..Default::default()
+            }),
+            expected: StatusCode::BAD_REQUEST,
+        },
+        // Partial params:
+        TestCase {
+            request: Delete(DeleteRequest {
+                name: Some(cache_name),
+                ..Default::default()
+            }),
+            expected: StatusCode::BAD_REQUEST,
+        },
+        // Partial params:
+        TestCase {
+            request: Delete(DeleteRequest {
+                db: Some(db_name),
+                table: Some(tbl_name),
+                ..Default::default()
+            }),
+            expected: StatusCode::BAD_REQUEST,
+        },
+        // All params, good:
+        TestCase {
+            request: Delete(DeleteRequest {
+                db: Some(db_name),
+                table: Some(tbl_name),
+                name: Some(cache_name),
+            }),
+            expected: StatusCode::OK,
+        },
+        // Same as previous, with correct parameters provided, but gest 404, as its already deleted:
+        TestCase {
+            request: Delete(DeleteRequest {
+                db: Some(db_name),
+                table: Some(tbl_name),
+                name: Some(cache_name),
+            }),
+            expected: StatusCode::NOT_FOUND,
+        },
+    ];
+
+    // Do one pass using the JSON body to delete:
+    for (i, t) in test_cases.iter().enumerate() {
+        match &t.request {
+            Create(body) => assert!(
+                client
+                    .post(&url)
+                    .json(&body)
+                    .send()
+                    .await
+                    .expect("create request succeeds")
+                    .status()
+                    .is_success(),
+                "Creation test case ({i}) failed"
+            ),
+            Delete(req) => {
+                let body = serde_json::json!({
+                    "db": req.db,
+                    "table": req.table,
+                    "name": req.name,
+                });
+                let resp = client
+                    .delete(&url)
+                    .json(&body)
+                    .send()
+                    .await
+                    .expect("send /api/v3/configure/last_cache request");
+                let status = resp.status();
+                assert_eq!(
+                    t.expected, status,
+                    "Deletion test case ({i}) using JSON body failed"
+                );
+            }
+        }
+    }
+
+    // Do another pass using the URI query string to delete:
+    // Note: this particular test exhibits different status code, because the empty query string
+    // as a result of there being no parameters provided makes the request handler attempt to
+    // parse the body as JSON - which gives a 415 error, because there is no body or content type
+    test_cases[1].expected = StatusCode::UNSUPPORTED_MEDIA_TYPE;
+    for (i, t) in test_cases.iter().enumerate() {
+        match &t.request {
+            Create(body) => assert!(
+                client
+                    .post(&url)
+                    .json(&body)
+                    .send()
+                    .await
+                    .expect("create request succeeds")
+                    .status()
+                    .is_success(),
+                "Creation test case ({i}) failed"
+            ),
+            Delete(req) => {
+                let mut params = vec![];
+                if let Some(db) = req.db {
+                    params.push(("db", db));
+                }
+                if let Some(table) = req.table {
+                    params.push(("table", table));
+                }
+                if let Some(name) = req.name {
+                    params.push(("name", name));
+                }
+                let resp = client
+                    .delete(&url)
+                    .query(&params)
+                    .send()
+                    .await
+                    .expect("send /api/v3/configure/last_cache request");
+                let status = resp.status();
+                assert_eq!(
+                    t.expected, status,
+                    "Deletion test case ({i}) using URI query string failed"
+                );
+            }
+        }
+    }
+}
