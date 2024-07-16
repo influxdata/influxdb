@@ -119,7 +119,7 @@ impl LastCacheProvider {
 
     /// Get a particular cache's name and arrow schema
     ///
-    /// This is used for the implementation of DataFusion's `TableFunctionImpl` and [`TableProvider`]
+    /// This is used for the implementation of DataFusion's `TableFunctionImpl` and `TableProvider`
     /// traits.
     fn get_cache_name_and_schema(
         &self,
