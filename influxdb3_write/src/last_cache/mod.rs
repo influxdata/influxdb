@@ -143,6 +143,22 @@ impl LastCacheProvider {
             })
     }
 
+    /// Get the [`LastCacheInfo`] for all caches contained in a database
+    pub fn get_last_caches_for_db(&self, db: &str) -> Vec<LastCacheInfo> {
+        let read = self.cache_map.read();
+        read.get(db)
+            .map(|tbl| {
+                tbl.iter()
+                    .flat_map(|(tbl_name, tbl_map)| {
+                        tbl_map
+                            .iter()
+                            .map(|(lc_name, lc)| LastCacheInfo::new(&**tbl_name, lc_name, lc))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// Create a new entry in the last cache for a given database and table, along with the given
     /// parameters.
     ///
@@ -1343,6 +1359,34 @@ fn data_type_from_buffer_field(field: &Field) -> DataType {
         FieldData::UInteger(_) => DataType::UInt64,
         FieldData::Float(_) => DataType::Float64,
         FieldData::Boolean(_) => DataType::Boolean,
+    }
+}
+
+pub struct LastCacheInfo {
+    pub table: String,
+    pub name: String,
+    pub key_columns: Vec<String>,
+    pub value_columns: Vec<String>,
+    pub count: usize,
+    pub ttl: Duration,
+}
+
+impl LastCacheInfo {
+    fn new(table: impl Into<String>, name: impl Into<String>, cache: &LastCache) -> Self {
+        Self {
+            table: table.into(),
+            name: name.into(),
+            key_columns: cache.key_columns.iter().cloned().collect(),
+            value_columns: cache
+                .schema
+                .fields()
+                .iter()
+                .filter(|f| !cache.key_columns.contains(f.name()))
+                .map(|f| f.name().to_owned())
+                .collect(),
+            count: cache.count.into(),
+            ttl: cache.ttl,
+        }
     }
 }
 

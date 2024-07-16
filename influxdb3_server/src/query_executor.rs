@@ -1,11 +1,12 @@
 //! module for query executor
 use crate::{QueryExecutor, QueryKind};
 use arrow::array::{
-    ArrayRef, BooleanArray, DurationNanosecondArray, Int64Array, Int64Builder, StringBuilder,
-    StructArray, TimestampNanosecondArray,
+    ArrayRef, BooleanArray, DurationNanosecondArray, GenericListBuilder, Int64Array, Int64Builder,
+    StringBuilder, StructArray, TimestampNanosecondArray,
 };
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
+use arrow_array::UInt64Array;
 use arrow_schema::{ArrowError, TimeUnit};
 use async_trait::async_trait;
 use data_types::NamespaceId;
@@ -22,7 +23,7 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
-use influxdb3_write::last_cache::LastCacheFunction;
+use influxdb3_write::last_cache::{LastCacheFunction, LastCacheInfo, LastCacheProvider};
 use influxdb3_write::{
     catalog::{Catalog, DatabaseSchema},
     WriteBuffer,
@@ -350,8 +351,10 @@ impl<B: WriteBuffer> Database<B> {
         query_log: Arc<QueryLog>,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
+            &db_schema.name,
             write_buffer.catalog(),
             Arc::clone(&query_log),
+            write_buffer.last_cache(),
         ));
         Self {
             db_schema,
@@ -577,6 +580,7 @@ impl<B: WriteBuffer> TableProvider for QueryTable<B> {
 pub const SYSTEM_SCHEMA: &str = "system";
 
 const QUERIES_TABLE: &str = "queries";
+const LAST_CACHES_TABLE: &str = "last_caches";
 const _PARQUET_FILES_TABLE: &str = "parquet_files";
 
 struct SystemSchemaProvider {
@@ -595,12 +599,22 @@ impl std::fmt::Debug for SystemSchemaProvider {
 }
 
 impl SystemSchemaProvider {
-    fn new(_catalog: Arc<Catalog>, query_log: Arc<QueryLog>) -> Self {
+    fn new(
+        db_name: impl Into<String>,
+        _catalog: Arc<Catalog>,
+        query_log: Arc<QueryLog>,
+        last_cache_provider: Arc<LastCacheProvider>,
+    ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
             query_log,
         ))));
         tables.insert(QUERIES_TABLE, queries);
+        let last_caches = Arc::new(SystemTableProvider::new(Arc::new(LastCachesTable::new(
+            db_name,
+            last_cache_provider,
+        ))));
+        tables.insert(LAST_CACHES_TABLE, last_caches);
         Self { tables }
     }
 }
@@ -839,4 +853,118 @@ fn from_query_log_entries(
 
     let batch = RecordBatch::try_new(schema, columns)?;
     Ok(batch)
+}
+
+struct LastCachesTable {
+    db_name: String,
+    schema: SchemaRef,
+    provider: Arc<LastCacheProvider>,
+}
+
+impl LastCachesTable {
+    fn new(db: impl Into<String>, provider: Arc<LastCacheProvider>) -> Self {
+        Self {
+            db_name: db.into(),
+            schema: last_caches_schema(),
+            provider,
+        }
+    }
+}
+
+fn last_caches_schema() -> SchemaRef {
+    let columns = vec![
+        Field::new("table", DataType::Utf8, false),
+        Field::new("name", DataType::Utf8, false),
+        Field::new(
+            "key_columns",
+            DataType::List(Arc::new(Field::new("column_name", DataType::Utf8, false))),
+            false,
+        ),
+        Field::new(
+            "value_columns",
+            DataType::List(Arc::new(Field::new("column_name", DataType::Utf8, false))),
+            false,
+        ),
+        Field::new("count", DataType::UInt64, false),
+        Field::new("ttl", DataType::UInt64, false),
+    ];
+    Arc::new(DatafusionSchema::new(columns))
+}
+
+#[async_trait::async_trait]
+impl IoxSystemTable for LastCachesTable {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&self.schema)
+    }
+
+    async fn scan(
+        &self,
+        _filters: Option<Vec<Expr>>,
+        _limit: Option<usize>,
+    ) -> Result<RecordBatch, DataFusionError> {
+        let caches = self.provider.get_last_caches_for_db(&self.db_name);
+        from_last_cache_infos(self.schema(), &caches)
+    }
+}
+
+fn from_last_cache_infos(
+    schema: SchemaRef,
+    caches: &[LastCacheInfo],
+) -> Result<RecordBatch, DataFusionError> {
+    let mut columns: Vec<ArrayRef> = vec![];
+
+    // Table Name
+    columns.push(Arc::new(
+        caches
+            .iter()
+            .map(|c| Some(c.table.to_string()))
+            .collect::<StringArray>(),
+    ));
+    // Cache Name
+    columns.push(Arc::new(
+        caches
+            .iter()
+            .map(|c| Some(c.name.to_string()))
+            .collect::<StringArray>(),
+    ));
+    // Key Columns
+    columns.push({
+        let values_builder = StringBuilder::new();
+        let mut builder = GenericListBuilder::<i32, _>::new(values_builder);
+
+        for c in caches {
+            c.key_columns
+                .iter()
+                .for_each(|k| builder.values().append_value(k));
+            builder.append(true);
+        }
+        Arc::new(builder.finish())
+    });
+    // Value Columns
+    columns.push({
+        let values_builder = StringBuilder::new();
+        let mut builder = GenericListBuilder::<i32, _>::new(values_builder);
+
+        for c in caches {
+            c.value_columns
+                .iter()
+                .for_each(|v| builder.values().append_value(v));
+            builder.append(true);
+        }
+        Arc::new(builder.finish())
+    });
+    columns.push(Arc::new(
+        caches
+            .iter()
+            .map(|e| Some(e.count as u64))
+            .collect::<UInt64Array>(),
+    ));
+    columns.push(Arc::new(
+        caches
+            .iter()
+            .map(|e| Some(e.ttl.as_secs()))
+            .collect::<UInt64Array>(),
+    ));
+
+    Ok(RecordBatch::try_new(schema, columns)?)
 }
