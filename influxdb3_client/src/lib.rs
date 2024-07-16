@@ -197,6 +197,25 @@ impl Client {
     }
 
     /// Compose a request to the `POST /api/v3/configure/last_cache` API
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use influxdb3_client::Client;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// let client = Client::new("http://localhost:8181")?;
+    /// let resp = client
+    ///     .api_v3_configure_last_cache_create("db_name", "table_name")
+    ///     .ttl(120)
+    ///     .name("cache_name")
+    ///     .count(5)
+    ///     .key_columns(["col1", "col2"])
+    ///     .send()
+    ///     .await
+    ///     .expect("send create last cache request");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn api_v3_configure_last_cache_create(
         &self,
         db: impl Into<String>,
@@ -623,37 +642,31 @@ impl<'c> CreateLastCacheRequestBuilder<'c> {
     }
 
     /// Specify a cache name
-    pub fn name(&mut self, name: impl Into<String>) -> &mut Self {
+    pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self
     }
 
     /// Speciffy the key columns for the cache
-    pub fn key_columns(
-        &mut self,
-        column_names: impl IntoIterator<Item: Into<String>>,
-    ) -> &mut Self {
+    pub fn key_columns(mut self, column_names: impl IntoIterator<Item: Into<String>>) -> Self {
         self.key_columns = Some(column_names.into_iter().map(Into::into).collect());
         self
     }
 
     /// Specify the value columns for the cache
-    pub fn value_columns(
-        &mut self,
-        column_names: impl IntoIterator<Item: Into<String>>,
-    ) -> &mut Self {
+    pub fn value_columns(mut self, column_names: impl IntoIterator<Item: Into<String>>) -> Self {
         self.value_columns = Some(column_names.into_iter().map(Into::into).collect());
         self
     }
 
     /// Specify the size, or number of new entries a cache will hold before evicting old ones
-    pub fn count(&mut self, count: usize) -> &mut Self {
+    pub fn count(mut self, count: usize) -> Self {
         self.count = Some(count);
         self
     }
 
     /// Specify the time-to-live (TTL) in seconds for entries in the cache
-    pub fn ttl(&mut self, ttl: u64) -> &mut Self {
+    pub fn ttl(mut self, ttl: u64) -> Self {
         self.ttl = Some(ttl);
         self
     }
