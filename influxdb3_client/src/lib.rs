@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, string::FromUtf8Error};
 
 use bytes::Bytes;
 use iox_query_params::StatementParam;
-use reqwest::{Body, IntoUrl, StatusCode};
+use reqwest::{Body, IntoUrl, Method, StatusCode};
 use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -16,21 +16,8 @@ pub enum Error {
     #[error("request URL error: {0}")]
     RequestUrl(#[from] url::ParseError),
 
-    #[error("failed to send /api/v3/write_lp request: {0}")]
-    WriteLpSend(#[source] reqwest::Error),
-
-    #[error("failed to send /ping request: {0}")]
-    PingSend(#[source] reqwest::Error),
-
     #[error("failed to read the API response bytes: {0}")]
     Bytes(#[source] reqwest::Error),
-
-    #[error("failed to send /api/v3/query_{kind} request: {source}")]
-    QuerySend {
-        kind: QueryKind,
-        #[source]
-        source: reqwest::Error,
-    },
 
     #[error(
         "provided parameter ('{name}') could not be converted \
@@ -53,6 +40,24 @@ pub enum Error {
 
     #[error("server responded with error [{code}]: {message}")]
     ApiError { code: StatusCode, message: String },
+
+    #[error("failed to send {method} {url} request: {source}")]
+    RequestSend {
+        method: Method,
+        url: String,
+        #[source]
+        source: reqwest::Error,
+    },
+}
+
+impl Error {
+    fn request_send(method: Method, url: impl Into<String>, source: reqwest::Error) -> Self {
+        Self::RequestSend {
+            method,
+            url: url.into(),
+            source,
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -191,6 +196,15 @@ impl Client {
         }
     }
 
+    /// Compose a request to the `POST /api/v3/configure/last_cache` API
+    pub fn api_v3_configure_last_cache_create(
+        &self,
+        db: impl Into<String>,
+        table: impl Into<String>,
+    ) -> CreateLastCacheRequestBuilder<'_> {
+        CreateLastCacheRequestBuilder::new(self, db, table)
+    }
+
     /// Send a `/ping` request to the target `influxdb3` server to check its
     /// status and gather `version` and `revision` information
     pub async fn ping(&self) -> Result<PingResponse> {
@@ -199,7 +213,10 @@ impl Client {
         if let Some(t) = &self.auth_token {
             req = req.bearer_auth(t.expose_secret());
         }
-        let resp = req.send().await.map_err(Error::PingSend)?;
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::GET, "/ping", src))?;
         if resp.status().is_success() {
             resp.json().await.map_err(Error::Json)
         } else {
@@ -317,7 +334,7 @@ impl<'c> WriteRequestBuilder<'c, Body> {
             .body(self.body)
             .send()
             .await
-            .map_err(Error::WriteLpSend)?;
+            .map_err(|src| Error::request_send(Method::POST, "/api/v3/write_lp", src))?;
         let status = resp.status();
         let content = resp.bytes().await.map_err(Error::Bytes)?;
         match status {
@@ -479,9 +496,8 @@ impl<'c> QueryRequestBuilder<'c> {
         if let Some(token) = &self.client.auth_token {
             req = req.bearer_auth(token.expose_secret());
         }
-        let resp = req.send().await.map_err(|source| Error::QuerySend {
-            kind: self.kind,
-            source,
+        let resp = req.send().await.map_err(|src| {
+            Error::request_send(Method::POST, format!("/api/v3/query_{}", self.kind), src)
         })?;
         let status = resp.status();
         let content = resp.bytes().await.map_err(Error::Bytes)?;
@@ -541,6 +557,103 @@ pub enum Format {
     Csv,
     Parquet,
     Pretty,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateLastCacheRequestBuilder<'c> {
+    #[serde(skip_serializing)]
+    client: &'c Client,
+    db: String,
+    table: String,
+    name: Option<String>,
+    key_columns: Option<Vec<String>>,
+    value_columns: Option<Vec<String>>,
+    count: Option<usize>,
+    ttl: Option<u64>,
+}
+
+impl<'c> CreateLastCacheRequestBuilder<'c> {
+    /// Create a new [`CreateLastCacheRequestBuilder`]
+    fn new(client: &'c Client, db: impl Into<String>, table: impl Into<String>) -> Self {
+        Self {
+            client,
+            db: db.into(),
+            table: table.into(),
+            name: None,
+            key_columns: None,
+            value_columns: None,
+            count: None,
+            ttl: None,
+        }
+    }
+
+    /// Specify a cache name
+    pub fn name(&mut self, name: impl Into<String>) -> &mut Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Speciffy the key columns for the cache
+    pub fn key_columns(
+        &mut self,
+        column_names: impl IntoIterator<Item: Into<String>>,
+    ) -> &mut Self {
+        self.key_columns = Some(column_names.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Specify the value columns for the cache
+    pub fn value_columns(
+        &mut self,
+        column_names: impl IntoIterator<Item: Into<String>>,
+    ) -> &mut Self {
+        self.value_columns = Some(column_names.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Specify the size, or number of new entries a cache will hold before evicting old ones
+    pub fn count(&mut self, count: usize) -> &mut Self {
+        self.count = Some(count);
+        self
+    }
+
+    /// Specify the time-to-live (TTL) in seconds for entries in the cache
+    pub fn ttl(&mut self, ttl: u64) -> &mut Self {
+        self.ttl = Some(ttl);
+        self
+    }
+
+    /// Send the request to `POST /api/v3/configure/last_cache`
+    pub async fn send(self) -> Result<Option<String>> {
+        let url = self.client.base_url.join("/api/v3/configure/last_cache")?;
+        let mut req = self.client.http_client.post(url).json(&self);
+        if let Some(token) = &self.client.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req.send().await.map_err(|src| {
+            Error::request_send(Method::POST, "/api/v3/configure/last_cache", src)
+        })?;
+        let status = resp.status();
+        match status {
+            StatusCode::CREATED => {
+                let content = resp
+                    .json::<LastCacheCreatedResponse>()
+                    .await
+                    .map_err(Error::Json)?;
+                Ok(Some(content.cache_name))
+            }
+            StatusCode::NO_CONTENT => Ok(None),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct LastCacheCreatedResponse {
+    cache_name: String,
 }
 
 #[cfg(test)]
