@@ -2535,6 +2535,7 @@ dependencies = [
  "iox_time",
  "metric",
  "metric_exporters",
+ "mime",
  "object_store",
  "observability_deps",
  "parking_lot",

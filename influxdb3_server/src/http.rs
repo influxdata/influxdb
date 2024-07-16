@@ -22,6 +22,7 @@ use hyper::HeaderMap;
 use hyper::{Body, Method, Request, Response, StatusCode};
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
 use influxdb3_write::catalog::Error as CatalogError;
+use influxdb3_write::last_cache::{self, CreateCacheArguments};
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
@@ -43,6 +44,7 @@ use std::pin::Pin;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -60,11 +62,19 @@ pub enum Error {
 
     /// The `Content-Encoding` header is invalid and cannot be read.
     #[error("invalid content-encoding header: {0}")]
-    NonUtf8ContentHeader(hyper::header::ToStrError),
+    NonUtf8ContentEncodingHeader(hyper::header::ToStrError),
+
+    /// The `Content-Type` header is invalid and cannot be read.
+    #[error("invalid content-type header: {0}")]
+    NonUtf8ContentTypeHeader(hyper::header::ToStrError),
 
     /// The specified `Content-Encoding` is not acceptable.
     #[error("unacceptable content-encoding: {0}")]
     InvalidContentEncoding(String),
+
+    /// The specified `Content-Type` is not acceptable.
+    #[error("unacceptable content-type, expected: {expected}")]
+    InvalidContentType { expected: mime::Mime },
 
     /// The client disconnected.
     #[error("client disconnected")]
@@ -187,6 +197,15 @@ pub enum Error {
 
     #[error("v1 query API error: {0}")]
     V1Query(#[from] v1::QueryError),
+
+    #[error("last cache error: {0}")]
+    LastCache(#[from] last_cache::Error),
+
+    #[error("provided database name does not exist")]
+    DatabaseDoesNotExist,
+
+    #[error("provided table name does not exist for database")]
+    TableDoesNotExist,
 }
 
 #[derive(Debug, Error)]
@@ -275,6 +294,27 @@ impl Error {
                     .body(body)
                     .unwrap()
             }
+            Self::SerdeJson(_) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
+            Self::LastCache(ref lc_err) => match lc_err {
+                last_cache::Error::InvalidCacheSize
+                | last_cache::Error::CacheAlreadyExists { .. }
+                | last_cache::Error::KeyColumnDoesNotExist { .. }
+                | last_cache::Error::InvalidKeyColumn
+                | last_cache::Error::ValueColumnDoesNotExist { .. } => Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(Body::from(lc_err.to_string()))
+                    .unwrap(),
+                // This variant should not be encountered by the API, as it is thrown during
+                // query execution and would be captured there, but avoiding a catch-all arm here
+                // in case new variants are added to the enum:
+                last_cache::Error::CacheDoesNotExist => Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(Body::from(self.to_string()))
+                    .unwrap(),
+            },
             _ => {
                 let body = Body::from(self.to_string());
                 Response::builder()
@@ -464,7 +504,7 @@ where
         let encoding = req
             .headers()
             .get(&CONTENT_ENCODING)
-            .map(|v| v.to_str().map_err(Error::NonUtf8ContentHeader))
+            .map(|v| v.to_str().map_err(Error::NonUtf8ContentEncodingHeader))
             .transpose()?;
         let ungzip = match encoding {
             None | Some("identity") => false,
@@ -634,6 +674,91 @@ where
         }
         .map_err(Into::into)
     }
+
+    async fn config_last_cache_create(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let LastCacheCreateRequest {
+            db,
+            table,
+            name,
+            key_columns,
+            value_columns,
+            count,
+            ttl,
+        } = self.read_body_json(req).await?;
+
+        let Some(db_schema) = self.write_buffer.catalog().db_schema(&db) else {
+            return Err(Error::DatabaseDoesNotExist);
+        };
+
+        let Some(tbl_schema) = db_schema.get_table_schema(&table) else {
+            return Err(Error::TableDoesNotExist);
+        };
+
+        match self
+            .write_buffer
+            .last_cache()
+            .create_cache(CreateCacheArguments {
+                db_name: db,
+                tbl_name: table,
+                schema: tbl_schema.clone(),
+                cache_name: name,
+                count,
+                ttl: ttl.map(Duration::from_secs),
+                key_columns,
+                value_columns,
+            })? {
+            Some(cache_name) => Response::builder()
+                .status(StatusCode::CREATED)
+                .header(CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .body(Body::from(
+                    serde_json::to_string(&LastCacheCreatedResponse { cache_name }).unwrap(),
+                ))
+                .map_err(Into::into),
+            None => Response::builder()
+                .status(StatusCode::NO_CONTENT)
+                .body(Body::empty())
+                .map_err(Into::into),
+        }
+    }
+
+    async fn read_body_json<ReqBody: DeserializeOwned>(
+        &self,
+        req: hyper::Request<Body>,
+    ) -> Result<ReqBody> {
+        if !json_content_type(req.headers()) {
+            return Err(Error::InvalidContentType {
+                expected: mime::APPLICATION_JSON,
+            });
+        }
+        let bytes = self.read_body(req).await?;
+        serde_json::from_slice(&bytes).map_err(Into::into)
+    }
+}
+
+/// Check that the content type is application/json
+fn json_content_type(headers: &HeaderMap) -> bool {
+    let content_type = if let Some(content_type) = headers.get(CONTENT_TYPE) {
+        content_type
+    } else {
+        return false;
+    };
+
+    let content_type = if let Ok(content_type) = content_type.to_str() {
+        content_type
+    } else {
+        return false;
+    };
+
+    let mime = if let Ok(mime) = content_type.parse::<mime::Mime>() {
+        mime
+    } else {
+        return false;
+    };
+
+    let is_json_content_type = mime.type_() == "application"
+        && (mime.subtype() == "json" || mime.suffix().map_or(false, |name| name == "json"));
+
+    is_json_content_type
 }
 
 #[derive(Debug, Deserialize)]
@@ -886,6 +1011,22 @@ impl From<iox_http::write::WriteParams> for WriteParams {
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct LastCacheCreateRequest {
+    db: String,
+    table: String,
+    name: Option<String>,
+    key_columns: Option<Vec<String>>,
+    value_columns: Option<Vec<String>>,
+    count: Option<usize>,
+    ttl: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+struct LastCacheCreatedResponse {
+    cache_name: String,
+}
+
 pub(crate) async fn route_request<W: WriteBuffer, Q: QueryExecutor, T: TimeProvider>(
     http_server: Arc<HttpApi<W, Q, T>>,
     mut req: Request<Body>,
@@ -958,6 +1099,9 @@ where
         (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
         (Method::GET | Method::POST, "/ping") => http_server.ping(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
+        (Method::POST, "/api/v3/configure/last_cache") => {
+            http_server.config_last_cache_create(req).await
+        }
         _ => {
             let body = Body::from("not found");
             Ok(Response::builder()

@@ -46,8 +46,6 @@ pub enum Error {
     InvalidKeyColumn,
     #[error("specified value column ({column_name}) does not exist in the table schema")]
     ValueColumnDoesNotExist { column_name: String },
-    #[error("schema builder error: {0}")]
-    SchemaBuilder(#[from] schema::builder::Error),
     #[error("requested last cache does not exist")]
     CacheDoesNotExist,
 }
@@ -78,35 +76,35 @@ impl std::fmt::Debug for LastCacheProvider {
 const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(60 * 60 * 4);
 
 /// Arguments to the [`LastCacheProvider::create_cache`] method
-pub(crate) struct CreateCacheArguments {
+pub struct CreateCacheArguments {
     /// The name of the database to create the cache for
-    pub(crate) db_name: String,
+    pub db_name: String,
     /// The name of the table in the database to create the cache for
-    pub(crate) tbl_name: String,
+    pub tbl_name: String,
     /// The Influx Schema of the table
-    pub(crate) schema: Schema,
+    pub schema: Schema,
     /// An optional name for the cache
     ///
     /// The cache name will default to `<table_name>_<keys>_last_cache`
-    pub(crate) cache_name: Option<String>,
+    pub cache_name: Option<String>,
     /// The number of values to hold in the created cache
     ///
     /// This will default to 1.
-    pub(crate) count: Option<usize>,
+    pub count: Option<usize>,
     /// The time-to-live (TTL) for the created cache
     ///
     /// This will default to [`DEFAULT_CACHE_TTL`]
-    pub(crate) ttl: Option<Duration>,
+    pub ttl: Option<Duration>,
     /// The key column names to use in the cache hierarchy
     ///
     /// This will default to:
     /// - the series key columns for a v3 table
     /// - the lexicographically ordered tag set for a v1 table
-    pub(crate) key_columns: Option<Vec<String>>,
+    pub key_columns: Option<Vec<String>>,
     /// The value columns to use in the cache
     ///
     /// This will default to all non-key columns. The `time` column is always included.
-    pub(crate) value_columns: Option<Vec<String>>,
+    pub value_columns: Option<Vec<String>>,
 }
 
 impl LastCacheProvider {
@@ -147,7 +145,10 @@ impl LastCacheProvider {
 
     /// Create a new entry in the last cache for a given database and table, along with the given
     /// parameters.
-    pub(crate) fn create_cache(
+    ///
+    /// If a new cache is created, it will return its name. If the provided arguments are identical
+    /// to an existing cache (along with any defaults), then `None` will be returned.
+    pub fn create_cache(
         &self,
         CreateCacheArguments {
             db_name,
@@ -159,7 +160,7 @@ impl LastCacheProvider {
             key_columns,
             value_columns,
         }: CreateCacheArguments,
-    ) -> Result<String, Error> {
+    ) -> Result<Option<String>, Error> {
         let key_columns = if let Some(keys) = key_columns {
             // validate the key columns specified to ensure correct type (string, int, unit, or bool)
             // and that they exist in the table's schema.
@@ -276,7 +277,7 @@ impl LastCacheProvider {
             .and_then(|db| db.get(&tbl_name))
             .and_then(|tbl| tbl.get(&cache_name))
         {
-            return lc.compare_config(&last_cache).map(|_| cache_name);
+            return lc.compare_config(&last_cache).map(|_| None);
         }
 
         // get the write lock and insert:
@@ -288,7 +289,7 @@ impl LastCacheProvider {
             .or_default()
             .insert(cache_name.clone(), last_cache);
 
-        Ok(cache_name)
+        Ok(Some(cache_name))
     }
 
     /// Write a batch from the buffer into the cache by iterating over its database and table batches
@@ -2693,7 +2694,7 @@ mod tests {
             )
             .expect("create last cache should have failed");
         assert_eq!(wbuf.last_cache().size(), 2);
-        assert_eq!("tbl_t1_last_cache", name);
+        assert_eq!(Some("tbl_t1_last_cache"), name.as_deref());
 
         // Specify different TTL:
         wbuf.create_last_cache(

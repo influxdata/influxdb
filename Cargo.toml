@@ -64,6 +64,7 @@ hyper = "0.14"
 insta = { version = "1.39", features = ["json"] }
 indexmap = { version = "2.2.6" }
 libc = { version = "0.2" }
+mime = "0.3.17"
 mockito = { version = "1.4.0", default-features = false }
 num_cpus = "1.16.0"
 object_store = "0.10.1"
