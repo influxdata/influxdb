@@ -11,16 +11,24 @@ use datafusion::{
     scalar::ScalarValue,
 };
 
-use super::{LastCache, LastCacheProvider};
+use super::LastCacheProvider;
+
+struct LastCacheFunctionProvider {
+    db_name: String,
+    table_name: String,
+    cache_name: String,
+    schema: SchemaRef,
+    provider: Arc<LastCacheProvider>,
+}
 
 #[async_trait]
-impl TableProvider for LastCache {
+impl TableProvider for LastCacheFunctionProvider {
     fn as_any(&self) -> &dyn Any {
-        &self.inner as &dyn Any
+        self as &dyn Any
     }
 
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&self.inner.read().schema)
+        Arc::clone(&self.schema)
     }
 
     fn table_type(&self) -> TableType {
@@ -41,8 +49,19 @@ impl TableProvider for LastCache {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let predicates = self.convert_filter_exprs(filters);
-        let batches = self.to_record_batches(&predicates)?;
+        let read = self.provider.cache_map.read();
+        let batches = if let Some(cache) = read
+            .get(&self.db_name)
+            .and_then(|db| db.get(&self.table_name))
+            .and_then(|tbl| tbl.get(&self.cache_name))
+        {
+            let predicates = cache.convert_filter_exprs(filters);
+            cache.to_record_batches(&predicates)?
+        } else {
+            // If there is no cache, it means that it was removed, in which case, we just return
+            // an empty set of record batches.
+            vec![]
+        };
         let mut exec = MemoryExec::try_new(&[batches], self.schema(), projection.cloned())?;
 
         let show_sizes = ctx.config_options().explain.show_sizes;
@@ -80,14 +99,19 @@ impl TableFunctionImpl for LastCacheFunction {
             None => None,
         };
 
-        // Note: the compiler seems to get upset when using a functional approach, due to the
-        // dyn Trait, so I've resorted to using a match:
-        match self
-            .provider
-            .get_cache(&self.db_name, table_name, cache_name.map(|x| x.as_str()))
-        {
-            Ok(last_cache) => Ok(last_cache),
-            Err(_) => plan_err!("unable to retrieve last cache using provided arguments"),
+        match self.provider.get_cache_name_and_schema(
+            &self.db_name,
+            table_name,
+            cache_name.map(|x| x.as_str()),
+        ) {
+            Some((cache_name, schema)) => Ok(Arc::new(LastCacheFunctionProvider {
+                db_name: self.db_name.clone(),
+                table_name: table_name.clone(),
+                cache_name,
+                schema,
+                provider: Arc::clone(&self.provider),
+            })),
+            None => plan_err!("could not find cache for the given arguments"),
         }
     }
 }
