@@ -124,7 +124,7 @@ async fn last_caches_table() {
     // Check that there are no last caches:
     {
         let resp = server
-            .flight_sql_client(&db1_name)
+            .flight_sql_client(db1_name)
             .await
             .query("SELECT * FROM system.last_caches")
             .await
@@ -134,7 +134,7 @@ async fn last_caches_table() {
     }
     {
         let resp = server
-            .flight_sql_client(&db2_name)
+            .flight_sql_client(db2_name)
             .await
             .query("SELECT * FROM system.last_caches")
             .await
@@ -176,7 +176,7 @@ async fn last_caches_table() {
     // Check the system table for each DB:
     {
         let resp = server
-            .flight_sql_client(&db1_name)
+            .flight_sql_client(db1_name)
             .await
             .query("SELECT * FROM system.last_caches")
             .await
@@ -195,7 +195,7 @@ async fn last_caches_table() {
     }
     {
         let resp = server
-            .flight_sql_client(&db2_name)
+            .flight_sql_client(db2_name)
             .await
             .query("SELECT * FROM system.last_caches")
             .await
@@ -227,7 +227,7 @@ async fn last_caches_table() {
             .is_success());
 
         let resp = server
-            .flight_sql_client(&db1_name)
+            .flight_sql_client(db1_name)
             .await
             .query("SELECT * FROM system.last_caches")
             .await
@@ -250,7 +250,7 @@ async fn last_caches_table() {
     {
         server
             .write_lp_to_db(
-                &db2_name,
+                db2_name,
                 "cpu,region=us,host=a,cpu=2 usage=40,temp=95",
                 Precision::Second,
             )
@@ -258,7 +258,7 @@ async fn last_caches_table() {
             .unwrap();
 
         let resp = server
-            .flight_sql_client(&db2_name)
+            .flight_sql_client(db2_name)
             .await
             .query("SELECT * FROM system.last_caches")
             .await
