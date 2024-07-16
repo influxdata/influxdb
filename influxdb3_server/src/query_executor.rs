@@ -877,12 +877,12 @@ fn last_caches_schema() -> SchemaRef {
         Field::new("name", DataType::Utf8, false),
         Field::new(
             "key_columns",
-            DataType::List(Arc::new(Field::new("column_name", DataType::Utf8, false))),
+            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
             false,
         ),
         Field::new(
             "value_columns",
-            DataType::List(Arc::new(Field::new("column_name", DataType::Utf8, false))),
+            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
             false,
         ),
         Field::new("count", DataType::UInt64, false),

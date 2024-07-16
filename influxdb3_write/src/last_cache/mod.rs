@@ -418,6 +418,7 @@ impl LastCacheProvider {
 /// A hierarchical cache whose structure is determined by a set of `key_columns`, each of which
 /// represents a level in the hierarchy. The lowest level of the hierarchy holds the last N values
 /// for the field columns in the cache.
+#[derive(Debug)]
 pub(crate) struct LastCache {
     /// The number of values to hold in the cache
     ///
