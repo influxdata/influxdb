@@ -205,6 +205,41 @@ impl Client {
         CreateLastCacheRequestBuilder::new(self, db, table)
     }
 
+    /// Make a request to the `DELETE /api/v3/configure/last_cache` API
+    pub async fn api_v3_configure_last_cache_delete(
+        &self,
+        db: impl Into<String> + Send,
+        table: impl Into<String> + Send,
+        name: impl Into<String> + Send,
+    ) -> Result<()> {
+        let url = self.base_url.join("/api/v3/configure/last_cache")?;
+        #[derive(Serialize)]
+        struct Req {
+            db: String,
+            table: String,
+            name: String,
+        }
+        let mut req = self.http_client.delete(url).json(&Req {
+            db: db.into(),
+            table: table.into(),
+            name: name.into(),
+        });
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req.send().await.map_err(|src| {
+            Error::request_send(Method::DELETE, "/api/v3/configure/last_cache", src)
+        })?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+
     /// Send a `/ping` request to the target `influxdb3` server to check its
     /// status and gather `version` and `revision` information
     pub async fn ping(&self) -> Result<PingResponse> {
