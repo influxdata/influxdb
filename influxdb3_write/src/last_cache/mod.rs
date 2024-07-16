@@ -117,8 +117,11 @@ impl LastCacheProvider {
         }
     }
 
-    /// Get a read guard on a [`LastCache`] from the provider
-    fn contains_cache(
+    /// Get a particular cache's name and arrow schema
+    ///
+    /// This is used for the implementation of DataFusion's `TableFunctionImpl` and [`TableProvider`]
+    /// traits.
+    fn get_cache_name_and_schema(
         &self,
         db_name: &str,
         tbl_name: &str,

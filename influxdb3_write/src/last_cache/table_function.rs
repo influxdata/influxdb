@@ -99,9 +99,7 @@ impl TableFunctionImpl for LastCacheFunction {
             None => None,
         };
 
-        // Note: the compiler seems to get upset when using a functional approach, due to the
-        // dyn Trait, so I've resorted to using a match:
-        match self.provider.contains_cache(
+        match self.provider.get_cache_name_and_schema(
             &self.db_name,
             table_name,
             cache_name.map(|x| x.as_str()),
