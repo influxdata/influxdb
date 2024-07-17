@@ -27,6 +27,7 @@ use trogging::{
 mod commands {
     pub(crate) mod common;
     pub mod create;
+    pub mod last_cache;
     pub mod query;
     pub mod serve;
     pub mod write;
@@ -87,6 +88,9 @@ enum Command {
 
     /// Create new resources
     Create(commands::create::Config),
+
+    /// Manage last-n-value caches
+    LastCache(commands::last_cache::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -135,6 +139,12 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::Create(config)) => {
                 if let Err(e) = commands::create::command(config) {
                     eprintln!("Create command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::LastCache(config)) => {
+                if let Err(e) = commands::last_cache::command(config).await {
+                    eprintln!("Last Cache command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
