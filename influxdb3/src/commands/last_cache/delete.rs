@@ -9,11 +9,11 @@ pub struct Config {
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
 
-    /// The table name for which the cache is being created
+    /// The table under which the cache is being deleted
     #[clap(short = 't', long = "table")]
     table: String,
 
-    /// The cache name for which the cache is being created
+    /// The name of the cache being deleted
     #[clap(short = 'n', long = "cache-name")]
     cache_name: String,
 }

@@ -13,24 +13,23 @@ pub struct Config {
     #[clap(short = 't', long = "table")]
     table: String,
 
-    /// Specify a name for the cache
+    /// Give a name for the cache.
     #[clap(long = "cache-name")]
     cache_name: Option<String>,
 
-    /// Specify which columns in the table to use as keys in the cache
+    /// Which columns in the table to use as keys in the cache
     #[clap(long = "key-columns")]
     key_columns: Option<Vec<String>>,
 
-    /// Specify which columns in the table to store as values in the cache
+    /// Which columns in the table to store as values in the cache
     #[clap(long = "value-columns")]
     value_columns: Option<Vec<String>>,
 
-    /// Specify the number of entries per unique key column combination the cache will
-    /// store
+    /// The number of entries per unique key column combination the cache will store
     #[clap(long = "count")]
     count: Option<usize>,
 
-    /// Specify the time-to-live (TTL) for entries in a cache in seconds
+    /// The time-to-live (TTL) for entries in a cache in seconds
     #[clap(long = "ttl")]
     ttl: Option<u64>,
 }
