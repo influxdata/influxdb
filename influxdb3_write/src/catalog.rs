@@ -357,6 +357,8 @@ pub struct LastCacheDefinition {
     pub value_columns: Vec<String>,
     /// The number of last values to hold in the cache
     count: LastCacheSize,
+    /// The time-to-live (TTL) in seconds for entries in the cache
+    ttl: u64,
 }
 
 impl LastCacheDefinition {
@@ -367,6 +369,7 @@ impl LastCacheDefinition {
         key_columns: K,
         value_columns: V,
         count: usize,
+        ttl: u64,
     ) -> Result<Self, Error>
     where
         N: Into<String>,
@@ -378,6 +381,7 @@ impl LastCacheDefinition {
             key_columns: key_columns.into_iter().map(Into::into).collect(),
             value_columns: value_columns.into_iter().map(Into::into).collect(),
             count: count.try_into()?,
+            ttl,
         })
     }
 }
@@ -669,8 +673,14 @@ mod tests {
             SeriesKey::None,
         );
         table_def.add_last_cache(
-            LastCacheDefinition::new("test_table_last_cache", ["tag_2", "tag_3"], ["field"], 1)
-                .unwrap(),
+            LastCacheDefinition::new(
+                "test_table_last_cache",
+                ["tag_2", "tag_3"],
+                ["field"],
+                1,
+                600,
+            )
+            .unwrap(),
         );
         database.tables.insert("test_table_1".into(), table_def);
         let database = Arc::new(database);

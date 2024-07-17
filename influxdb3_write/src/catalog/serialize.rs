@@ -264,6 +264,7 @@ struct LastCacheSnapshot<'a> {
     keys: Vec<&'a str>,
     vals: Vec<&'a str>,
     n: usize,
+    ttl: u64,
 }
 
 impl<'a> From<&'a LastCacheDefinition> for LastCacheSnapshot<'a> {
@@ -273,6 +274,7 @@ impl<'a> From<&'a LastCacheDefinition> for LastCacheSnapshot<'a> {
             keys: lcd.key_columns.iter().map(|v| v.as_str()).collect(),
             vals: lcd.value_columns.iter().map(|v| v.as_str()).collect(),
             n: lcd.count.into(),
+            ttl: lcd.ttl,
         }
     }
 }
@@ -287,6 +289,7 @@ impl<'a> From<LastCacheSnapshot<'a>> for LastCacheDefinition {
                 .n
                 .try_into()
                 .expect("catalog contains invalid last cache size"),
+            ttl: snap.ttl,
         }
     }
 }
