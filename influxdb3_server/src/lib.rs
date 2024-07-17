@@ -17,6 +17,7 @@ mod grpc;
 mod http;
 pub mod query_executor;
 mod service;
+mod system_tables;
 
 use crate::grpc::make_flight_server;
 use crate::http::route_request;
