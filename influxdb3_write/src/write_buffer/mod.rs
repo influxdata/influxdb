@@ -10,7 +10,7 @@ mod table_buffer;
 pub(crate) mod validator;
 
 use crate::cache::ParquetCache;
-use crate::catalog::{Catalog, DatabaseSchema};
+use crate::catalog::{Catalog, DatabaseSchema, LastCacheDefinition};
 use crate::chunk::ParquetChunk;
 use crate::last_cache::{self, CreateCacheArguments, LastCacheProvider};
 use crate::persister::PersisterImpl;
@@ -23,8 +23,8 @@ use crate::write_buffer::persister::{
 use crate::write_buffer::segment_state::SegmentState;
 use crate::write_buffer::validator::WriteValidator;
 use crate::{
-    BufferedWriteRequest, Bufferer, ChunkContainer, ParquetFile, Persister, Precision,
-    SegmentDuration, SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
+    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile, Persister,
+    Precision, SegmentDuration, SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError};
@@ -414,47 +414,6 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         Ok(self.parquet_cache.purge_cache().await?)
     }
 
-    /// Create a new last-N-value cache in the specified database and table, along with the given
-    /// parameters.
-    ///
-    /// Returns the name of the newly created cache, or `None` if a cache was not created, but the
-    /// provided parameters match those of an existing cache.
-    #[allow(clippy::too_many_arguments)]
-    pub fn create_last_cache(
-        &self,
-        db_name: impl Into<String>,
-        tbl_name: impl Into<String>,
-        cache_name: Option<&str>,
-        count: Option<usize>,
-        ttl: Option<Duration>,
-        key_columns: Option<Vec<String>>,
-        value_columns: Option<Vec<String>>,
-    ) -> Result<Option<String>, Error> {
-        let db_name = db_name.into();
-        let tbl_name = tbl_name.into();
-        let cache_name = cache_name.map(Into::into);
-        let db_schema = self
-            .catalog()
-            .db_schema(&db_name)
-            .ok_or(Error::DbDoesNotExist)?;
-        let schema = db_schema
-            .get_table_schema(&tbl_name)
-            .ok_or(Error::TableDoesNotExist)?
-            .clone();
-        self.last_cache
-            .create_cache(CreateCacheArguments {
-                db_name,
-                tbl_name,
-                schema,
-                cache_name,
-                count,
-                ttl,
-                key_columns,
-                value_columns,
-            })
-            .map_err(Into::into)
-    }
-
     #[cfg(test)]
     fn get_table_record_batches(
         &self,
@@ -549,10 +508,6 @@ impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
     fn catalog(&self) -> Arc<Catalog> {
         self.catalog()
     }
-
-    fn last_cache(&self) -> Arc<LastCacheProvider> {
-        Arc::clone(&self.last_cache)
-    }
 }
 
 impl<W: Wal, T: TimeProvider> ChunkContainer for WriteBufferImpl<W, T> {
@@ -565,6 +520,88 @@ impl<W: Wal, T: TimeProvider> ChunkContainer for WriteBufferImpl<W, T> {
         ctx: &SessionState,
     ) -> crate::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         self.get_table_chunks(database_name, table_name, filters, projection, ctx)
+    }
+}
+
+impl<W: Wal, T: TimeProvider> LastCacheManager for WriteBufferImpl<W, T> {
+    fn last_cache_provider(&self) -> Arc<LastCacheProvider> {
+        Arc::clone(&self.last_cache)
+    }
+
+    /// Create a new last-N-value cache in the specified database and table, along with the given
+    /// parameters.
+    ///
+    /// Returns the name of the newly created cache, or `None` if a cache was not created, but the
+    /// provided parameters match those of an existing cache.
+    #[allow(clippy::too_many_arguments)]
+    fn create_last_cache(
+        &self,
+        db_name: &str,
+        tbl_name: &str,
+        cache_name: Option<&str>,
+        count: Option<usize>,
+        ttl: Option<Duration>,
+        key_columns: Option<Vec<String>>,
+        value_columns: Option<Vec<String>>,
+    ) -> Result<Option<LastCacheDefinition>, Error> {
+        let cache_name = cache_name.map(Into::into);
+        let catalog = self.catalog();
+        let sequence = catalog.sequence_number();
+        let db_schema = catalog.db_schema(db_name).ok_or(Error::DbDoesNotExist)?;
+        let table = db_schema
+            .get_table(tbl_name)
+            .ok_or(Error::TableDoesNotExist)?;
+        let schema = table.schema.clone();
+        if let Some(info) = self.last_cache.create_cache(CreateCacheArguments {
+            db_name: db_name.to_string(),
+            tbl_name: tbl_name.to_string(),
+            schema,
+            cache_name,
+            count,
+            ttl,
+            key_columns,
+            value_columns,
+        })? {
+            let mut db_schema = db_schema.as_ref().clone();
+            let mut table = table.clone();
+            table.add_last_cache(info.clone());
+            assert!(
+                db_schema
+                    .tables
+                    .insert(tbl_name.to_string(), table)
+                    .is_some(),
+                "there should have been an existing table when adding last cache"
+            );
+            // TODO: if this fails, that seems like a problem:
+            catalog.replace_database(sequence, Arc::new(db_schema))?;
+            Ok(Some(info))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn delete_last_cache(
+        &self,
+        db_name: &str,
+        tbl_name: &str,
+        cache_name: &str,
+    ) -> crate::Result<(), self::Error> {
+        let catalog = self.catalog();
+        let sequence = catalog.sequence_number();
+        self.last_cache
+            .delete_cache(db_name, tbl_name, cache_name)?;
+        let mut db_schema = catalog
+            .db_schema(db_name)
+            .ok_or(Error::DbDoesNotExist)?
+            .as_ref()
+            .clone();
+        let table = db_schema
+            .get_table_mut(tbl_name)
+            .ok_or(Error::TableDoesNotExist)?;
+        table.remove_last_cache(cache_name);
+        // TODO: if this fails, that seems like a problem:
+        catalog.replace_database(sequence, Arc::new(db_schema))?;
+        Ok(())
     }
 }
 

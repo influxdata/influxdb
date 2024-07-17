@@ -58,6 +58,7 @@ expression: catalog
           },
           "last_caches": [
             {
+              "table": "test",
               "name": "test_table_last_cache",
               "keys": [
                 "tag_2",

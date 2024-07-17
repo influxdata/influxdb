@@ -350,7 +350,7 @@ impl<B: WriteBuffer> Database<B> {
             &db_schema.name,
             write_buffer.catalog(),
             Arc::clone(&query_log),
-            write_buffer.last_cache(),
+            write_buffer.last_cache_provider(),
         ));
         Self {
             db_schema,
@@ -448,7 +448,7 @@ impl<B: WriteBuffer> QueryNamespace for Database<B> {
             LAST_CACHE_UDTF_NAME,
             Arc::new(LastCacheFunction::new(
                 &self.db_schema.name,
-                self.write_buffer.last_cache(),
+                self.write_buffer.last_cache_provider(),
             )),
         );
         ctx

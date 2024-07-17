@@ -1,5 +1,6 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
+use crate::last_cache::LastCache;
 use crate::SequenceNumber;
 use influxdb_line_protocol::FieldValue;
 use observability_deps::tracing::info;
@@ -232,6 +233,10 @@ impl DatabaseSchema {
         self.tables.get(table_name)
     }
 
+    pub fn get_table_mut(&mut self, table_name: &str) -> Option<&mut TableDefinition> {
+        self.tables.get_mut(table_name)
+    }
+
     pub fn table_names(&self) -> Vec<String> {
         self.tables.keys().cloned().collect()
     }
@@ -245,7 +250,7 @@ impl DatabaseSchema {
 pub struct TableDefinition {
     pub name: String,
     pub schema: Schema,
-    pub last_caches: Vec<LastCacheDefinition>,
+    pub last_caches: BTreeMap<String, LastCacheDefinition>,
 }
 
 impl TableDefinition {
@@ -276,7 +281,7 @@ impl TableDefinition {
         Self {
             name,
             schema,
-            last_caches: vec![],
+            last_caches: BTreeMap::new(),
         }
     }
 
@@ -337,18 +342,22 @@ impl TableDefinition {
     }
 
     /// Add a new last cache to this table definition
-    #[cfg(test)]
-    pub(crate) fn add_last_cache<L>(&mut self, last_cache: L)
-    where
-        L: Into<LastCacheDefinition>,
-    {
-        self.last_caches.push(last_cache.into());
+    pub(crate) fn add_last_cache(&mut self, last_cache: LastCacheDefinition) {
+        self.last_caches
+            .insert(last_cache.name.to_string(), last_cache);
+    }
+
+    /// Remove a last cache from the table definition
+    pub(crate) fn remove_last_cache(&mut self, name: &str) {
+        self.last_caches.remove(name);
     }
 }
 
 /// Defines a last cache in a given table and database
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct LastCacheDefinition {
+    /// The table name the cache is associated with
+    pub table: String,
     /// Given name of the cache
     pub name: String,
     /// Columns intended to be used as predicates in the cache
@@ -356,33 +365,51 @@ pub struct LastCacheDefinition {
     /// Columns that store values in the cache
     pub value_columns: Vec<String>,
     /// The number of last values to hold in the cache
-    count: LastCacheSize,
+    pub count: LastCacheSize,
     /// The time-to-live (TTL) in seconds for entries in the cache
-    ttl: u64,
+    pub ttl: u64,
 }
 
 impl LastCacheDefinition {
     /// Create a new [`LastCacheDefinition`]
     #[cfg(test)]
-    pub(crate) fn new<N, K, V>(
-        name: N,
-        key_columns: K,
-        value_columns: V,
+    pub(crate) fn new(
+        table: impl Into<String>,
+        name: impl Into<String>,
+        key_columns: impl IntoIterator<Item: Into<String>>,
+        value_columns: impl IntoIterator<Item: Into<String>>,
         count: usize,
         ttl: u64,
-    ) -> Result<Self, Error>
-    where
-        N: Into<String>,
-        K: IntoIterator<Item: Into<String>>,
-        V: IntoIterator<Item: Into<String>>,
-    {
+    ) -> Result<Self, Error> {
         Ok(Self {
+            table: table.into(),
             name: name.into(),
             key_columns: key_columns.into_iter().map(Into::into).collect(),
             value_columns: value_columns.into_iter().map(Into::into).collect(),
             count: count.try_into()?,
             ttl,
         })
+    }
+
+    pub(crate) fn from_cache(
+        table: impl Into<String>,
+        name: impl Into<String>,
+        cache: &LastCache,
+    ) -> Self {
+        Self {
+            table: table.into(),
+            name: name.into(),
+            key_columns: cache.key_columns.iter().cloned().collect(),
+            value_columns: cache
+                .schema
+                .fields()
+                .iter()
+                .filter(|f| !cache.key_columns.contains(f.name()))
+                .map(|f| f.name().to_owned())
+                .collect(),
+            count: cache.count,
+            ttl: cache.ttl.as_secs(),
+        }
     }
 }
 
@@ -416,6 +443,12 @@ impl TryFrom<usize> for LastCacheSize {
 impl From<LastCacheSize> for usize {
     fn from(value: LastCacheSize) -> Self {
         value.0
+    }
+}
+
+impl From<LastCacheSize> for u64 {
+    fn from(value: LastCacheSize) -> Self {
+        value.0 as u64
     }
 }
 
@@ -674,6 +707,7 @@ mod tests {
         );
         table_def.add_last_cache(
             LastCacheDefinition::new(
+                "test",
                 "test_table_last_cache",
                 ["tag_2", "tag_3"],
                 ["field"],

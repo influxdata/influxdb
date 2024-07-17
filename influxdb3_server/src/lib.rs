@@ -235,6 +235,7 @@ mod tests {
     use influxdb3_write::persister::PersisterImpl;
     use influxdb3_write::wal::WalImpl;
     use influxdb3_write::write_buffer::WriteBufferImpl;
+    use influxdb3_write::LastCacheManager;
     use influxdb3_write::SegmentDuration;
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};

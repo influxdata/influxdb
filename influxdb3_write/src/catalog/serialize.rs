@@ -147,7 +147,7 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
             })
             .collect();
         let keys = def.schema().series_key();
-        let last_caches = def.last_caches.iter().map(Into::into).collect();
+        let last_caches = def.last_caches.values().map(Into::into).collect();
         Self {
             name,
             cols,
@@ -229,7 +229,11 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
         }
 
         let schema = b.build().expect("valid schema from snapshot");
-        let last_caches = snap.last_caches.into_iter().map(Into::into).collect();
+        let last_caches = snap
+            .last_caches
+            .into_iter()
+            .map(|lc_snap| (lc_snap.name.to_string(), lc_snap.into()))
+            .collect();
 
         Self {
             name,
@@ -260,6 +264,7 @@ impl<'a> From<DataType<'a>> for schema::InfluxFieldType {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct LastCacheSnapshot<'a> {
+    table: &'a str,
     name: &'a str,
     keys: Vec<&'a str>,
     vals: Vec<&'a str>,
@@ -270,6 +275,7 @@ struct LastCacheSnapshot<'a> {
 impl<'a> From<&'a LastCacheDefinition> for LastCacheSnapshot<'a> {
     fn from(lcd: &'a LastCacheDefinition) -> Self {
         Self {
+            table: &lcd.table,
             name: &lcd.name,
             keys: lcd.key_columns.iter().map(|v| v.as_str()).collect(),
             vals: lcd.value_columns.iter().map(|v| v.as_str()).collect(),
@@ -282,6 +288,7 @@ impl<'a> From<&'a LastCacheDefinition> for LastCacheSnapshot<'a> {
 impl<'a> From<LastCacheSnapshot<'a>> for LastCacheDefinition {
     fn from(snap: LastCacheSnapshot<'a>) -> Self {
         Self {
+            table: snap.table.to_string(),
             name: snap.name.to_string(),
             key_columns: snap.keys.iter().map(|s| s.to_string()).collect(),
             value_columns: snap.vals.iter().map(|s| s.to_string()).collect(),
