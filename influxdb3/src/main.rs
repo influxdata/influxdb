@@ -26,10 +26,10 @@ use trogging::{
 
 mod commands {
     pub(crate) mod common;
-    pub mod create;
     pub mod last_cache;
     pub mod query;
     pub mod serve;
+    pub mod token;
     pub mod write;
 }
 
@@ -86,8 +86,8 @@ enum Command {
     /// Perform a set of writes to a running InfluxDB 3.0 server
     Write(commands::write::Config),
 
-    /// Create new resources
-    Create(commands::create::Config),
+    /// Manage tokens for your InfluxDB 3.0 server
+    Token(commands::token::Config),
 
     /// Manage last-n-value caches
     LastCache(commands::last_cache::Config),
@@ -136,9 +136,9 @@ fn main() -> Result<(), std::io::Error> {
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Some(Command::Create(config)) => {
-                if let Err(e) = commands::create::command(config) {
-                    eprintln!("Create command failed: {e}");
+            Some(Command::Token(config)) => {
+                if let Err(e) = commands::token::command(config) {
+                    eprintln!("Token command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
