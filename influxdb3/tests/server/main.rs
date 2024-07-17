@@ -229,6 +229,36 @@ impl TestServer {
             .await
             .expect("send /query request to server")
     }
+
+    pub async fn api_v3_configure_last_cache_create(
+        &self,
+        request: &serde_json::Value,
+    ) -> Response {
+        self.http_client
+            .post(format!(
+                "{base}/api/v3/configure/last_cache",
+                base = self.client_addr()
+            ))
+            .json(request)
+            .send()
+            .await
+            .expect("failed to send request to create last cache")
+    }
+
+    pub async fn api_v3_configure_last_cache_delete(
+        &self,
+        request: &serde_json::Value,
+    ) -> Response {
+        self.http_client
+            .delete(format!(
+                "{base}/api/v3/configure/last_cache",
+                base = self.client_addr()
+            ))
+            .json(request)
+            .send()
+            .await
+            .expect("failed to send request to delete last cache")
+    }
 }
 
 /// Get an available bind address on localhost
