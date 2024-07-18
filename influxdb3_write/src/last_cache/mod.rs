@@ -388,7 +388,7 @@ impl LastCacheProvider {
 
     /// Output the records for a given cache as arrow [`RecordBatch`]es
     #[cfg(test)]
-    fn get_cache_record_batches(
+    pub(crate) fn get_cache_record_batches(
         &self,
         db_name: &str,
         tbl_name: &str,
@@ -765,7 +765,7 @@ impl<'a> ExtendedLastCacheState<'a> {
 
 /// A predicate used for evaluating key column values in the cache on query
 #[derive(Debug, Clone)]
-struct Predicate {
+pub(crate) struct Predicate {
     /// The left-hand-side of the predicate
     key: String,
     /// The right-hand-side of the predicate

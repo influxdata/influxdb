@@ -715,12 +715,14 @@ pub(crate) struct TableBatchMap<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::paths::CatalogFilePath;
     use crate::persister::PersisterImpl;
     use crate::wal::WalImpl;
     use crate::{LpWriteOp, SegmentId, SequenceNumber, WalOpBatch};
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
     use datafusion_util::config::register_iox_object_store;
+    use futures_util::StreamExt;
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
@@ -1004,6 +1006,104 @@ mod tests {
             segment.starting_catalog_sequence_number(),
             starting_catalog_sequence_number
         );
+    }
+
+    #[tokio::test]
+    async fn persists_catalog_on_last_cache_create() {
+        let (wbuf, _ctx) = setup(Time::from_timestamp_nanos(0)).await;
+        let db_name = "db";
+        let tbl_name = "table";
+        let cache_name = "cache";
+        // Write some data to the current segment and update the catalog:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name},t1=a f1=true").as_str(),
+            Time::from_timestamp(30, 0).unwrap(),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+        // Create a last cache:
+        wbuf.create_last_cache(db_name, tbl_name, Some(cache_name), None, None, None, None)
+            .await
+            .unwrap();
+        // Do another write that will update the state of the catalog, specifically, the table
+        // that the last cache was created for, and add a new field to the table/cache `f2`:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name},t1=a f1=true,f2=42i").as_str(),
+            Time::from_timestamp(30, 0).unwrap(),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+        // Advance time to allow for persistence:
+        wbuf.time_provider
+            .set(Time::from_timestamp(800, 0).unwrap());
+        let mut count = 0;
+        loop {
+            count += 1;
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+            if !wbuf.persisted_files.get_files(db_name, tbl_name).is_empty() {
+                break;
+            } else if count > 9 {
+                panic!("not persisting");
+            }
+        }
+        let obj_store = wbuf.persister.object_store();
+        let mut list = obj_store.list(Some(&CatalogFilePath::dir()));
+        let Some(item) = list.next().await else {
+            panic!("there should have been a catalog file persisted");
+        };
+        let item = item.expect("item from object store");
+        let obj = obj_store.get(&item.location).await.expect("get catalog");
+        let catalog_json =
+            serde_json::from_slice::<serde_json::Value>(obj.bytes().await.unwrap().as_ref())
+                .unwrap();
+        // NOTE: the asserted snapshot is correct in-so-far as the catalog contains the last cache
+        // configuration; however, it is not correct w.r.t. the fields. The second write adds a new
+        // field `f2` to the last cache (which you can see in the query below), but the persisted
+        // catalog does not have `f2` in the value columns. This will need to be fixed, see
+        // https://github.com/influxdata/influxdb/issues/25171
+        insta::assert_json_snapshot!(catalog_json);
+        let expected = [
+            "+----+------+----------------------+----+",
+            "| t1 | f1   | time                 | f2 |",
+            "+----+------+----------------------+----+",
+            "| a  | true | 1970-01-01T00:00:30Z | 42 |",
+            "+----+------+----------------------+----+",
+        ];
+        let actual = wbuf
+            .last_cache_provider()
+            .get_cache_record_batches(db_name, tbl_name, None, &[])
+            .unwrap()
+            .unwrap();
+        assert_batches_eq!(&expected, &actual);
+    }
+
+    async fn setup(start: Time) -> (WriteBufferImpl<WalImpl, MockProvider>, IOxSessionContext) {
+        let dir = test_helpers::tmp_dir().unwrap().into_path();
+        let wal = Some(Arc::new(WalImpl::new(dir.clone()).unwrap()));
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let time_provider = Arc::new(MockProvider::new(start));
+        let segment_duration = SegmentDuration::new_5m();
+        let wbuf = WriteBufferImpl::new(
+            Arc::clone(&persister),
+            wal.clone(),
+            Arc::clone(&time_provider),
+            segment_duration,
+            crate::test_help::make_exec(),
+            1000,
+        )
+        .await
+        .unwrap();
+        let ctx = IOxSessionContext::with_testing();
+        let runtime_env = ctx.inner().runtime_env();
+        register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&object_store));
+        (wbuf, ctx)
     }
 
     async fn get_table_batches(
