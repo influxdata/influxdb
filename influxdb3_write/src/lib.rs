@@ -136,10 +136,11 @@ pub trait ChunkContainer: Debug + Send + Sync + 'static {
 /// [`LastCacheManager`] is used to manage ineraction with a last-n-value cache provider. This enables
 /// cache creation, deletion, and getting access to existing caches in underlying [`LastCacheProvider`].
 /// It is important that the state of the cache is also maintained in the catalog.
+#[async_trait::async_trait]
 pub trait LastCacheManager: Debug + Send + Sync + 'static {
     fn last_cache_provider(&self) -> Arc<LastCacheProvider>;
     #[allow(clippy::too_many_arguments)]
-    fn create_last_cache(
+    async fn create_last_cache(
         &self,
         db_name: &str,
         tbl_name: &str,
@@ -149,7 +150,7 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
         key_columns: Option<Vec<String>>,
         value_columns: Option<Vec<String>>,
     ) -> Result<Option<LastCacheDefinition>, write_buffer::Error>;
-    fn delete_last_cache(
+    async fn delete_last_cache(
         &self,
         db_name: &str,
         tbl_name: &str,

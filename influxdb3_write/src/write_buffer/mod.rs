@@ -523,6 +523,7 @@ impl<W: Wal, T: TimeProvider> ChunkContainer for WriteBufferImpl<W, T> {
     }
 }
 
+#[async_trait::async_trait]
 impl<W: Wal, T: TimeProvider> LastCacheManager for WriteBufferImpl<W, T> {
     fn last_cache_provider(&self) -> Arc<LastCacheProvider> {
         Arc::clone(&self.last_cache)
@@ -534,7 +535,7 @@ impl<W: Wal, T: TimeProvider> LastCacheManager for WriteBufferImpl<W, T> {
     /// Returns the name of the newly created cache, or `None` if a cache was not created, but the
     /// provided parameters match those of an existing cache.
     #[allow(clippy::too_many_arguments)]
-    fn create_last_cache(
+    async fn create_last_cache(
         &self,
         db_name: &str,
         tbl_name: &str,
@@ -545,13 +546,15 @@ impl<W: Wal, T: TimeProvider> LastCacheManager for WriteBufferImpl<W, T> {
         value_columns: Option<Vec<String>>,
     ) -> Result<Option<LastCacheDefinition>, Error> {
         let cache_name = cache_name.map(Into::into);
+        let segment_id = self.segment_state.read().current_segment_id();
         let catalog = self.catalog();
         let sequence = catalog.sequence_number();
         let db_schema = catalog.db_schema(db_name).ok_or(Error::DbDoesNotExist)?;
-        let table = db_schema
+        let schema = db_schema
             .get_table(tbl_name)
-            .ok_or(Error::TableDoesNotExist)?;
-        let schema = table.schema.clone();
+            .ok_or(Error::TableDoesNotExist)?
+            .schema()
+            .clone();
         if let Some(info) = self.last_cache.create_cache(CreateCacheArguments {
             db_name: db_name.to_string(),
             tbl_name: tbl_name.to_string(),
@@ -563,29 +566,30 @@ impl<W: Wal, T: TimeProvider> LastCacheManager for WriteBufferImpl<W, T> {
             value_columns,
         })? {
             let mut db_schema = db_schema.as_ref().clone();
-            let mut table = table.clone();
+            let table = db_schema.get_table_mut(tbl_name).unwrap();
             table.add_last_cache(info.clone());
-            assert!(
-                db_schema
-                    .tables
-                    .insert(tbl_name.to_string(), table)
-                    .is_some(),
-                "there should have been an existing table when adding last cache"
-            );
-            // TODO: if this fails, that seems like a problem:
+            // NOTE: if this fails then the cache will not persist beyond server restart.
+            // It will probably be good to have the cache creation inserted to the WAL, which
+            // should harden against a failure here:
             catalog.replace_database(sequence, Arc::new(db_schema))?;
+            let inner_catalog = catalog.clone_inner();
+            // Force persistence to the catalog, since we aren't going through the WAL:
+            self.persister
+                .persist_catalog(segment_id, Catalog::from_inner(inner_catalog))
+                .await?;
             Ok(Some(info))
         } else {
             Ok(None)
         }
     }
 
-    fn delete_last_cache(
+    async fn delete_last_cache(
         &self,
         db_name: &str,
         tbl_name: &str,
         cache_name: &str,
     ) -> crate::Result<(), self::Error> {
+        let segment_id = self.segment_state.read().current_segment_id();
         let catalog = self.catalog();
         let sequence = catalog.sequence_number();
         self.last_cache
@@ -599,8 +603,15 @@ impl<W: Wal, T: TimeProvider> LastCacheManager for WriteBufferImpl<W, T> {
             .get_table_mut(tbl_name)
             .ok_or(Error::TableDoesNotExist)?;
         table.remove_last_cache(cache_name);
-        // TODO: if this fails, that seems like a problem:
+        // NOTE: if this fails then the cache will be resurrected on server restart.
+        // As for create, if this operation can go through the WAL, then that would protect
+        // against this kind of failure.
         catalog.replace_database(sequence, Arc::new(db_schema))?;
+        let inner_catalog = catalog.clone_inner();
+        // Force persistence to the catalog, since we aren't going through the WAL:
+        self.persister
+            .persist_catalog(segment_id, Catalog::from_inner(inner_catalog))
+            .await?;
         Ok(())
     }
 }

@@ -686,15 +686,19 @@ where
             ttl,
         } = self.read_body_json(req).await?;
 
-        match self.write_buffer.create_last_cache(
-            &db,
-            &table,
-            name.as_deref(),
-            count,
-            ttl.map(Duration::from_secs),
-            key_columns,
-            value_columns,
-        )? {
+        match self
+            .write_buffer
+            .create_last_cache(
+                &db,
+                &table,
+                name.as_deref(),
+                count,
+                ttl.map(Duration::from_secs),
+                key_columns,
+                value_columns,
+            )
+            .await?
+        {
             Some(def) => Response::builder()
                 .status(StatusCode::CREATED)
                 .header(CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
@@ -720,7 +724,9 @@ where
             self.read_body_json(req).await?
         };
 
-        self.write_buffer.delete_last_cache(&db, &table, &name)?;
+        self.write_buffer
+            .delete_last_cache(&db, &table, &name)
+            .await?;
 
         Ok(Response::builder()
             .status(StatusCode::OK)

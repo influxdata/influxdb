@@ -77,6 +77,11 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         }
     }
 
+    /// Get the [`SegmentId`] for the currently open segment
+    pub(crate) fn current_segment_id(&self) -> SegmentId {
+        self.segments.iter().rev().next().unwrap().1.segment_id()
+    }
+
     pub(crate) fn write_ops_to_segment(
         &mut self,
         segment_start: Time,

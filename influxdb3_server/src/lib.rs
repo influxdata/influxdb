@@ -642,6 +642,7 @@ mod tests {
 
         // Create the last cache:
         wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+            .await
             .expect("create last cache");
 
         // Write to put something in the last cache:

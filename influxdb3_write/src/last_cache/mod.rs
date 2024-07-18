@@ -1433,6 +1433,7 @@ mod tests {
             Some(vec!["host".to_string()]),
             None,
         )
+        .await
         .expect("create the last cache");
 
         // Do a write to update the last cache:
@@ -1537,6 +1538,7 @@ mod tests {
             Some(vec!["region".to_string(), "host".to_string()]),
             None,
         )
+        .await
         .expect("create last cache");
 
         // Write some lines to fill multiple keys in the cache:
@@ -1717,6 +1719,7 @@ mod tests {
             Some(vec!["region".to_string(), "host".to_string()]),
             None,
         )
+        .await
         .expect("create last cache");
 
         // Do several writes to populate the cache:
@@ -1891,6 +1894,7 @@ mod tests {
             Some(vec!["region".to_string(), "host".to_string()]),
             None,
         )
+        .await
         .expect("create last cache");
 
         // Write some lines to fill the cache:
@@ -2024,6 +2028,7 @@ mod tests {
             ]),
             None,
         )
+        .await
         .expect("create last cache");
 
         // Write some lines to fill the cache:
@@ -2137,6 +2142,7 @@ mod tests {
 
         // Create the last cache with keys on some field columns:
         wbuf.create_last_cache(db_name, tbl_name, Some("cache"), None, None, None, None)
+            .await
             .expect("create last cache");
 
         // Write some lines to fill the cache:
@@ -2268,6 +2274,7 @@ mod tests {
 
         // Create the last cache with keys on some field columns:
         wbuf.create_last_cache(db_name, tbl_name, Some("cache"), None, None, None, None)
+            .await
             .expect("create last cache");
 
         // Write some lines to fill the cache:
@@ -2400,6 +2407,7 @@ mod tests {
 
         // Create the last cache using default tags as keys
         wbuf.create_last_cache(db_name, tbl_name, None, Some(10), None, None, None)
+            .await
             .expect("create last cache");
 
         // Write some lines to fill the cache, but omit fields to produce nulls:
@@ -2465,6 +2473,7 @@ mod tests {
 
         // Create the last cache using default tags as keys
         wbuf.create_last_cache(db_name, tbl_name, None, Some(10), None, None, None)
+            .await
             .expect("create last cache");
 
         // Write some lines to fill the cache. The last two lines include a new field "zone" which
@@ -2571,6 +2580,7 @@ mod tests {
             Some(vec!["t1".to_string()]),
             None,
         )
+        .await
         .expect("create last cache");
 
         // Write some lines to fill the cache. In this case, with just the existing
@@ -2693,11 +2703,13 @@ mod tests {
 
         // Create a last cache using all default settings
         wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+            .await
             .expect("create last cache");
         assert_eq!(wbuf.last_cache_provider().size(), 1);
 
         // Doing the same should be fine:
         wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+            .await
             .expect("create last cache");
         assert_eq!(wbuf.last_cache_provider().size(), 1);
 
@@ -2711,6 +2723,7 @@ mod tests {
             Some(vec!["t1".to_string(), "t2".to_string()]),
             None,
         )
+        .await
         .expect("create last cache");
         assert_eq!(wbuf.last_cache_provider().size(), 1);
 
@@ -2725,6 +2738,7 @@ mod tests {
             None,
             Some(vec!["f1".to_string(), "f2".to_string()]),
         )
+        .await
         .expect_err("create last cache should have failed");
         assert_eq!(wbuf.last_cache_provider().size(), 1);
 
@@ -2738,6 +2752,7 @@ mod tests {
             Some(vec!["t1".to_string()]),
             None,
         )
+        .await
         .expect_err("create last cache should have failed");
         assert_eq!(wbuf.last_cache_provider().size(), 1);
 
@@ -2753,6 +2768,7 @@ mod tests {
                 Some(vec!["t1".to_string()]),
                 None,
             )
+            .await
             .expect("create last cache should have failed");
         assert_eq!(wbuf.last_cache_provider().size(), 2);
         assert_eq!(
@@ -2770,11 +2786,13 @@ mod tests {
             None,
             None,
         )
+        .await
         .expect_err("create last cache should have failed");
         assert_eq!(wbuf.last_cache_provider().size(), 2);
 
         // Specify different count:
         wbuf.create_last_cache(db_name, tbl_name, None, Some(10), None, None, None)
+            .await
             .expect_err("create last cache should have failed");
         assert_eq!(wbuf.last_cache_provider().size(), 2);
     }
