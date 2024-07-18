@@ -23,10 +23,10 @@ UI_RELEASE="OSS-v2.7.1"
 # Download the SHA256 checksum attached to the release. To verify the integrity
 # of the download, this checksum will be used to check the download tar file
 # containing the built UI assets.
-curl -Ls https://github.com/influxdata/ui/releases/download/$UI_RELEASE/sha256.txt --output sha256.txt
+curl -Ls https://influxdata-unpublished.s3.amazonaws.com/influxdb-ui/v2.7.8-test/sha256.txt --output sha256.txt
 
 # Download the tar file containing the built UI assets.
-curl -L https://github.com/influxdata/ui/releases/download/$UI_RELEASE/build.tar.gz --output build.tar.gz
+curl -Ls https://influxdata-unpublished.s3.amazonaws.com/influxdb-ui/v2.7.8-test/build.tar.gz --output build.tar.gz
 
 # Verify the checksums match; exit if they don't.
 case "$(uname -s)" in
