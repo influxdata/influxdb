@@ -138,7 +138,12 @@ pub trait ChunkContainer: Debug + Send + Sync + 'static {
 /// It is important that the state of the cache is also maintained in the catalog.
 #[async_trait::async_trait]
 pub trait LastCacheManager: Debug + Send + Sync + 'static {
+    /// Get a reference to the last cache provider
     fn last_cache_provider(&self) -> Arc<LastCacheProvider>;
+    /// Create a new last-n-value cache
+    ///
+    /// This should handle updating the catalog with the cache information, so that it will be
+    /// preserved on server restarts.
     #[allow(clippy::too_many_arguments)]
     async fn create_last_cache(
         &self,
@@ -150,6 +155,9 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
         key_columns: Option<Vec<String>>,
         value_columns: Option<Vec<String>>,
     ) -> Result<Option<LastCacheDefinition>, write_buffer::Error>;
+    /// Delete a last-n-value cache
+    ///
+    /// This should handle removal of the cache's information from the catalog as well
     async fn delete_last_cache(
         &self,
         db_name: &str,

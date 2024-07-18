@@ -73,7 +73,7 @@ impl std::fmt::Debug for LastCacheProvider {
 }
 
 /// The default cache time-to-live (TTL) is 4 hours
-const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(60 * 60 * 4);
+pub const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(60 * 60 * 4);
 
 /// Arguments to the [`LastCacheProvider::create_cache`] method
 pub struct CreateCacheArguments {
@@ -143,7 +143,7 @@ impl LastCacheProvider {
             })
     }
 
-    /// Get the [`LastCacheInfo`] for all caches contained in a database
+    /// Get the [`LastCacheDefinition`] for all caches contained in a database
     pub fn get_last_caches_for_db(&self, db: &str) -> Vec<LastCacheDefinition> {
         let read = self.cache_map.read();
         read.get(db)

@@ -678,7 +678,6 @@ impl<'c> CreateLastCacheRequestBuilder<'c> {
 
     /// Send the request to `POST /api/v3/configure/last_cache`
     pub async fn send(self) -> Result<Option<LastCacheCreatedResponse>> {
-        println!("sending");
         let url = self.client.base_url.join("/api/v3/configure/last_cache")?;
         let mut req = self.client.http_client.post(url).json(&self);
         if let Some(token) = &self.client.auth_token {
@@ -688,7 +687,6 @@ impl<'c> CreateLastCacheRequestBuilder<'c> {
             Error::request_send(Method::POST, "/api/v3/configure/last_cache", src)
         })?;
         let status = resp.status();
-        println!("{status}");
         match status {
             StatusCode::CREATED => {
                 let content = resp

@@ -414,7 +414,7 @@ impl LastCacheDefinition {
 }
 
 /// The maximum allowed size for a last cache
-const LAST_CACHE_MAX_SIZE: usize = 10;
+pub const LAST_CACHE_MAX_SIZE: usize = 10;
 
 /// The size of the last cache
 ///
@@ -448,7 +448,10 @@ impl From<LastCacheSize> for usize {
 
 impl From<LastCacheSize> for u64 {
     fn from(value: LastCacheSize) -> Self {
-        value.0 as u64
+        value
+            .0
+            .try_into()
+            .expect("usize fits into a 64 bit unsigned integer")
     }
 }
 

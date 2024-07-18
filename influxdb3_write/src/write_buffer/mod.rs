@@ -94,6 +94,12 @@ pub enum Error {
 
     #[error("tried accessing database and table that do not exist")]
     TableDoesNotExist,
+
+    #[error(
+        "updating catalog on delete of last cache failed, you will need to delete the cache \
+        again on server restart"
+    )]
+    DeleteLastCache(#[source] crate::catalog::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -568,10 +574,12 @@ impl<W: Wal, T: TimeProvider> LastCacheManager for WriteBufferImpl<W, T> {
             let mut db_schema = db_schema.as_ref().clone();
             let table = db_schema.get_table_mut(tbl_name).unwrap();
             table.add_last_cache(info.clone());
-            // NOTE: if this fails then the cache will not persist beyond server restart.
-            // It will probably be good to have the cache creation inserted to the WAL, which
-            // should harden against a failure here:
-            catalog.replace_database(sequence, Arc::new(db_schema))?;
+            if let Err(e) = catalog.replace_database(sequence, Arc::new(db_schema)) {
+                self.last_cache
+                    .delete_cache(db_name, tbl_name, &info.name)
+                    .expect("cache must exist at this point");
+                return Err(e.into());
+            };
             let inner_catalog = catalog.clone_inner();
             // Force persistence to the catalog, since we aren't going through the WAL:
             self.persister
@@ -603,10 +611,11 @@ impl<W: Wal, T: TimeProvider> LastCacheManager for WriteBufferImpl<W, T> {
             .get_table_mut(tbl_name)
             .ok_or(Error::TableDoesNotExist)?;
         table.remove_last_cache(cache_name);
-        // NOTE: if this fails then the cache will be resurrected on server restart.
-        // As for create, if this operation can go through the WAL, then that would protect
-        // against this kind of failure.
-        catalog.replace_database(sequence, Arc::new(db_schema))?;
+        // NOTE: if this fails then the cache will be gone from the running server, but will be
+        // resurrected on server restart. Hence the special error case.
+        catalog
+            .replace_database(sequence, Arc::new(db_schema))
+            .map_err(self::Error::DeleteLastCache)?;
         let inner_catalog = catalog.clone_inner();
         // Force persistence to the catalog, since we aren't going through the WAL:
         self.persister
