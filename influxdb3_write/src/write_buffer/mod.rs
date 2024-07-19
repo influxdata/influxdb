@@ -1009,7 +1009,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn persists_catalog_on_last_cache_create() {
+    async fn persists_catalog_on_last_cache_create_and_delete() {
         let (wbuf, _ctx) = setup(Time::from_timestamp_nanos(0)).await;
         let db_name = "db";
         let tbl_name = "table";
@@ -1028,6 +1028,10 @@ mod tests {
         wbuf.create_last_cache(db_name, tbl_name, Some(cache_name), None, None, None, None)
             .await
             .unwrap();
+        // Check that the catalog was persisted, without advancing time:
+        let object_store = wbuf.persister.object_store();
+        let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
+        insta::assert_json_snapshot!(catalog_json);
         // Do another write that will update the state of the catalog, specifically, the table
         // that the last cache was created for, and add a new field to the table/cache `f2`:
         wbuf.write_lp(
@@ -1039,7 +1043,7 @@ mod tests {
         )
         .await
         .unwrap();
-        // Advance time to allow for persistence:
+        // Advance time to allow for persistence of segment data:
         wbuf.time_provider
             .set(Time::from_timestamp(800, 0).unwrap());
         let mut count = 0;
@@ -1052,16 +1056,9 @@ mod tests {
                 panic!("not persisting");
             }
         }
-        let obj_store = wbuf.persister.object_store();
-        let mut list = obj_store.list(Some(&CatalogFilePath::dir()));
-        let Some(item) = list.next().await else {
-            panic!("there should have been a catalog file persisted");
-        };
-        let item = item.expect("item from object store");
-        let obj = obj_store.get(&item.location).await.expect("get catalog");
-        let catalog_json =
-            serde_json::from_slice::<serde_json::Value>(obj.bytes().await.unwrap().as_ref())
-                .unwrap();
+        // Check the catalog again, to make sure it still has the last cache with the correct
+        // configuration:
+        let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
         // NOTE: the asserted snapshot is correct in-so-far as the catalog contains the last cache
         // configuration; however, it is not correct w.r.t. the fields. The second write adds a new
         // field `f2` to the last cache (which you can see in the query below), but the persisted
@@ -1081,6 +1078,55 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_batches_eq!(&expected, &actual);
+        // Delete the last cache:
+        wbuf.delete_last_cache(db_name, tbl_name, cache_name)
+            .await
+            .unwrap();
+        // Catalog should be persisted, and not longer have the last cache, without advancing time:
+        let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
+        insta::assert_json_snapshot!(catalog_json);
+        // Do another write so there is data to be persisted in teh buffer:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name},t1=b f1=false,f2=1337i").as_str(),
+            Time::from_timestamp(830, 0).unwrap(),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+        // Advance time to allow for persistence of segment data:
+        wbuf.time_provider
+            .set(Time::from_timestamp(1600, 0).unwrap());
+        let mut count = 0;
+        loop {
+            count += 1;
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            if !wbuf.persisted_files.get_files(db_name, tbl_name).is_empty() {
+                break;
+            } else if count > 9 {
+                panic!("not persisting");
+            }
+        }
+        // Check the catalog again, to ensure the last cache is still gone:
+        let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
+        insta::assert_json_snapshot!(catalog_json);
+    }
+
+    async fn fetch_catalog_as_json(object_store: Arc<dyn ObjectStore>) -> serde_json::Value {
+        let mut list = object_store.list(Some(&CatalogFilePath::dir()));
+        let Some(item) = list.next().await else {
+            panic!("there should have been a catalog file persisted");
+        };
+        let item = item.expect("item from object store");
+        let obj = object_store.get(&item.location).await.expect("get catalog");
+        serde_json::from_slice::<serde_json::Value>(
+            obj.bytes()
+                .await
+                .expect("get bytes from GetResult")
+                .as_ref(),
+        )
+        .expect("parse bytes as JSON")
     }
 
     async fn setup(start: Time) -> (WriteBufferImpl<WalImpl, MockProvider>, IOxSessionContext) {
