@@ -1031,7 +1031,7 @@ mod tests {
         // Check that the catalog was persisted, without advancing time:
         let object_store = wbuf.persister.object_store();
         let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
-        insta::assert_json_snapshot!(catalog_json);
+        insta::assert_json_snapshot!("catalog-immediately-after-last-cache-create", catalog_json);
         // Do another write that will update the state of the catalog, specifically, the table
         // that the last cache was created for, and add a new field to the table/cache `f2`:
         wbuf.write_lp(
@@ -1064,7 +1064,11 @@ mod tests {
         // field `f2` to the last cache (which you can see in the query below), but the persisted
         // catalog does not have `f2` in the value columns. This will need to be fixed, see
         // https://github.com/influxdata/influxdb/issues/25171
-        insta::assert_json_snapshot!(catalog_json);
+        insta::assert_json_snapshot!(
+            "catalog-after-allowing-time-to-persist-segments-after-create",
+            catalog_json
+        );
+        // Fetch record batches from the last cache directly:
         let expected = [
             "+----+------+----------------------+----+",
             "| t1 | f1   | time                 | f2 |",
@@ -1082,10 +1086,10 @@ mod tests {
         wbuf.delete_last_cache(db_name, tbl_name, cache_name)
             .await
             .unwrap();
-        // Catalog should be persisted, and not longer have the last cache, without advancing time:
+        // Catalog should be persisted, and no longer have the last cache, without advancing time:
         let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
-        insta::assert_json_snapshot!(catalog_json);
-        // Do another write so there is data to be persisted in teh buffer:
+        insta::assert_json_snapshot!("catalog-immediately-after-last-cache-delete", catalog_json);
+        // Do another write so there is data to be persisted in the buffer:
         wbuf.write_lp(
             NamespaceName::new(db_name).unwrap(),
             format!("{tbl_name},t1=b f1=false,f2=1337i").as_str(),
@@ -1110,7 +1114,10 @@ mod tests {
         }
         // Check the catalog again, to ensure the last cache is still gone:
         let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
-        insta::assert_json_snapshot!(catalog_json);
+        insta::assert_json_snapshot!(
+            "catalog-after-allowing-time-to-persist-segments-after-delete",
+            catalog_json
+        );
     }
 
     async fn fetch_catalog_as_json(object_store: Arc<dyn ObjectStore>) -> serde_json::Value {
