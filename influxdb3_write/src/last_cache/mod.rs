@@ -681,7 +681,7 @@ impl LastCache {
                             return None;
                         };
                         let values: Vec<KeyValue> = list
-                            .into_iter()
+                            .iter()
                             .filter_map(|e| match e {
                                 Expr::Literal(ScalarValue::Utf8(Some(v))) => {
                                     Some(KeyValue::String(v.to_owned()))
@@ -696,7 +696,7 @@ impl LastCache {
                                 Expr::Literal(ScalarValue::UInt64(Some(v))) => {
                                     Some(KeyValue::UInt(*v))
                                 }
-                                _ => return None,
+                                _ => None,
                             })
                             .collect();
                         if *negated {
