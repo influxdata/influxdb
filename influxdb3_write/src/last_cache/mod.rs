@@ -611,7 +611,9 @@ impl LastCache {
             }
             let mut new_caches = vec![];
             'cache_loop: for c in caches {
-                let cache_key = c.state.as_key().unwrap();
+                let Some(cache_key) = c.state.as_key() else {
+                    continue 'cache_loop;
+                };
                 if let Some(pred) = predicate {
                     let Some(next_state) = cache_key.evaluate_predicate(pred) else {
                         continue 'cache_loop;

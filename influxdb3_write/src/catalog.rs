@@ -202,6 +202,10 @@ impl InnerCatalog {
         self.sequence
     }
 
+    pub(crate) fn databases(&self) -> impl Iterator<Item = (&String, &Arc<DatabaseSchema>)> {
+        self.databases.iter()
+    }
+
     #[cfg(test)]
     pub fn db_exists(&self, db_name: &str) -> bool {
         self.databases.contains_key(db_name)
@@ -243,6 +247,10 @@ impl DatabaseSchema {
 
     pub fn table_exists(&self, table_name: &str) -> bool {
         self.tables.contains_key(table_name)
+    }
+
+    pub(crate) fn tables(&self) -> impl Iterator<Item = (&String, &TableDefinition)> {
+        self.tables.iter()
     }
 }
 
@@ -350,6 +358,10 @@ impl TableDefinition {
     /// Remove a last cache from the table definition
     pub(crate) fn remove_last_cache(&mut self, name: &str) {
         self.last_caches.remove(name);
+    }
+
+    pub(crate) fn last_caches(&self) -> impl Iterator<Item = (&String, &LastCacheDefinition)> {
+        self.last_caches.iter()
     }
 }
 

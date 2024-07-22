@@ -155,9 +155,10 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             wal.clone(),
         )));
 
-        let last_cache = Arc::new(LastCacheProvider::new());
-        let write_buffer_flusher =
-            WriteBufferFlusher::new(Arc::clone(&segment_state), Arc::clone(&last_cache));
+        let write_buffer_flusher = WriteBufferFlusher::new(
+            Arc::clone(&segment_state),
+            Arc::clone(&loaded_state.last_cache),
+        );
 
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_segments(
             loaded_state.persisted_segments,
@@ -212,7 +213,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             segment_persist_handle: Mutex::new(segment_persist_handle),
             shutdown_segment_persist_tx,
             buffer_check_handle: Mutex::new(buffer_check_handle),
-            last_cache,
+            last_cache: loaded_state.last_cache,
             persisted_files,
         })
     }
