@@ -17,7 +17,7 @@ use arrow::{
     error::ArrowError,
 };
 use datafusion::{
-    logical_expr::{BinaryExpr, Expr, Operator},
+    logical_expr::{expr::InList, BinaryExpr, Expr, Operator},
     scalar::ScalarValue,
 };
 use hashbrown::{HashMap, HashSet};
@@ -601,18 +601,18 @@ impl LastCache {
                 return Ok(vec![]);
             }
             let mut new_caches = vec![];
-            'cache_loop: for c in caches {
+            for c in caches {
                 let cache_key = c.state.as_key().unwrap();
                 if let Some(pred) = predicate {
-                    let Some(next_state) = cache_key.evaluate_predicate(pred) else {
-                        continue 'cache_loop;
-                    };
-                    let mut additional_columns = c.additional_columns.clone();
-                    additional_columns.push((&cache_key.column_name, &pred.value));
-                    new_caches.push(ExtendedLastCacheState {
-                        state: next_state,
-                        additional_columns,
-                    });
+                    let next_states = cache_key.evaluate_predicate(pred);
+                    new_caches.extend(next_states.into_iter().map(|(state, value)| {
+                        let mut additional_columns = c.additional_columns.clone();
+                        additional_columns.push((&cache_key.column_name, value));
+                        ExtendedLastCacheState {
+                            state,
+                            additional_columns,
+                        }
+                    }));
                 } else {
                     new_caches.extend(cache_key.value_map.iter().map(|(v, state)| {
                         let mut additional_columns = c.additional_columns.clone();
@@ -641,37 +641,72 @@ impl LastCache {
         exprs
             .iter()
             .filter_map(|expr| {
-                if let Expr::BinaryExpr(BinaryExpr { left, op, right }) = expr {
-                    if *op == Operator::Eq {
-                        if let Expr::Column(c) = left.as_ref() {
-                            let key = c.name.to_string();
-                            if !self.key_columns.contains(&key) {
+                match expr {
+                    Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
+                        let key = if let Expr::Column(c) = left.as_ref() {
+                            if !self.key_columns.contains(c.name()) {
                                 return None;
                             }
-                            return match right.as_ref() {
-                                Expr::Literal(ScalarValue::Utf8(Some(v))) => Some(Predicate {
-                                    key,
-                                    value: KeyValue::String(v.to_owned()),
-                                }),
-                                Expr::Literal(ScalarValue::Boolean(Some(v))) => Some(Predicate {
-                                    key,
-                                    value: KeyValue::Bool(*v),
-                                }),
-                                // TODO: handle integer types that can be casted up to i64/u64:
-                                Expr::Literal(ScalarValue::Int64(Some(v))) => Some(Predicate {
-                                    key,
-                                    value: KeyValue::Int(*v),
-                                }),
-                                Expr::Literal(ScalarValue::UInt64(Some(v))) => Some(Predicate {
-                                    key,
-                                    value: KeyValue::UInt(*v),
-                                }),
-                                _ => None,
-                            };
+                            c.name.to_string()
+                        } else {
+                            return None;
+                        };
+                        let value = match right.as_ref() {
+                            Expr::Literal(ScalarValue::Utf8(Some(v))) => {
+                                KeyValue::String(v.to_owned())
+                            }
+                            Expr::Literal(ScalarValue::Boolean(Some(v))) => KeyValue::Bool(*v),
+                            // TODO: handle integer types that can be casted up to i64/u64:
+                            Expr::Literal(ScalarValue::Int64(Some(v))) => KeyValue::Int(*v),
+                            Expr::Literal(ScalarValue::UInt64(Some(v))) => KeyValue::UInt(*v),
+                            _ => return None,
+                        };
+                        match op {
+                            Operator::Eq => Some(Predicate::new_eq(key, value)),
+                            Operator::NotEq => Some(Predicate::new_not_eq(key, value)),
+                            _ => None,
                         }
                     }
+                    Expr::InList(InList {
+                        expr,
+                        list,
+                        negated,
+                    }) => {
+                        let key = if let Expr::Column(c) = expr.as_ref() {
+                            if !self.key_columns.contains(c.name()) {
+                                return None;
+                            }
+                            c.name.to_string()
+                        } else {
+                            return None;
+                        };
+                        let values: Vec<KeyValue> = list
+                            .into_iter()
+                            .filter_map(|e| match e {
+                                Expr::Literal(ScalarValue::Utf8(Some(v))) => {
+                                    Some(KeyValue::String(v.to_owned()))
+                                }
+                                Expr::Literal(ScalarValue::Boolean(Some(v))) => {
+                                    Some(KeyValue::Bool(*v))
+                                }
+                                // TODO: handle integer types that can be casted up to i64/u64:
+                                Expr::Literal(ScalarValue::Int64(Some(v))) => {
+                                    Some(KeyValue::Int(*v))
+                                }
+                                Expr::Literal(ScalarValue::UInt64(Some(v))) => {
+                                    Some(KeyValue::UInt(*v))
+                                }
+                                _ => return None,
+                            })
+                            .collect();
+                        if *negated {
+                            Some(Predicate::new_not_in(key, values))
+                        } else {
+                            Some(Predicate::new_in(key, values))
+                        }
+                    }
+                    _ => None,
                 }
-                None
             })
             .collect()
     }
@@ -760,17 +795,45 @@ struct Predicate {
     /// The left-hand-side of the predicate
     key: String,
     /// The right-hand-side of the predicate
-    value: KeyValue,
+    kind: PredicateKind,
 }
 
-#[cfg(test)]
 impl Predicate {
-    fn new(key: impl Into<String>, value: KeyValue) -> Self {
+    fn new_eq(key: impl Into<String>, value: KeyValue) -> Self {
         Self {
             key: key.into(),
-            value,
+            kind: PredicateKind::Eq(value),
         }
     }
+
+    fn new_not_eq(key: impl Into<String>, value: KeyValue) -> Self {
+        Self {
+            key: key.into(),
+            kind: PredicateKind::NotEq(value),
+        }
+    }
+
+    fn new_in(key: impl Into<String>, values: Vec<KeyValue>) -> Self {
+        Self {
+            key: key.into(),
+            kind: PredicateKind::In(values),
+        }
+    }
+
+    fn new_not_in(key: impl Into<String>, values: Vec<KeyValue>) -> Self {
+        Self {
+            key: key.into(),
+            kind: PredicateKind::NotIn(values),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum PredicateKind {
+    Eq(KeyValue),
+    NotEq(KeyValue),
+    In(Vec<KeyValue>),
+    NotIn(Vec<KeyValue>),
 }
 
 /// Represents the hierarchical last cache structure
@@ -846,14 +909,37 @@ impl LastCacheKey {
     ///
     /// This assumes that a predicate for this [`LastCacheKey`]'s column was provided, and will panic
     /// otherwise.
-    fn evaluate_predicate(&self, predicate: &Predicate) -> Option<&LastCacheState> {
+    fn evaluate_predicate<'a: 'b, 'b>(
+        &'a self,
+        predicate: &'b Predicate,
+    ) -> Vec<(&'a LastCacheState, &'b KeyValue)> {
         if predicate.key != self.column_name {
             panic!(
                 "attempted to evaluate unexpected predicate with key {} for column named {}",
                 predicate.key, self.column_name
             );
         }
-        self.value_map.get(&predicate.value)
+        match &predicate.kind {
+            PredicateKind::Eq(val) => self
+                .value_map
+                .get(val)
+                .map(|s| vec![(s, val)])
+                .unwrap_or_default(),
+            PredicateKind::NotEq(val) => self
+                .value_map
+                .iter()
+                .filter_map(|(v, s)| (v != val).then_some((s, v)))
+                .collect(),
+            PredicateKind::In(vals) => vals
+                .iter()
+                .filter_map(|v| self.value_map.get(v).map(|s| (s, v)))
+                .collect(),
+            PredicateKind::NotIn(vals) => self
+                .value_map
+                .iter()
+                .filter_map(|(v, s)| (!vals.contains(v)).then_some((s, v)))
+                .collect(),
+        }
     }
 
     /// Remove expired values from any cache nested within this [`LastCacheKey`]
@@ -870,7 +956,7 @@ impl LastCacheKey {
 
 /// A value for a key column in a [`LastCache`]
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-enum KeyValue {
+pub(crate) enum KeyValue {
     String(String),
     Int(i64),
     UInt(u64),
@@ -1465,7 +1551,7 @@ mod tests {
         .await
         .unwrap();
 
-        let predicates = &[Predicate::new("host", KeyValue::string("a"))];
+        let predicates = &[Predicate::new_eq("host", KeyValue::string("a"))];
 
         // Check what is in the last cache:
         let batch = wbuf
@@ -1588,8 +1674,8 @@ mod tests {
             // Predicate including both key columns only produces value columns from the cache
             TestCase {
                 predicates: &[
-                    Predicate::new("region", KeyValue::string("us")),
-                    Predicate::new("host", KeyValue::string("c")),
+                    Predicate::new_eq("region", KeyValue::string("us")),
+                    Predicate::new_eq("host", KeyValue::string("c")),
                 ],
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
@@ -1602,7 +1688,7 @@ mod tests {
             // Predicate on only region key column will have host column outputted in addition to
             // the value columns:
             TestCase {
-                predicates: &[Predicate::new("region", KeyValue::string("us"))],
+                predicates: &[Predicate::new_eq("region", KeyValue::string("us"))],
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -1615,7 +1701,7 @@ mod tests {
             },
             // Similar to previous, with a different region predicate:
             TestCase {
-                predicates: &[Predicate::new("region", KeyValue::string("ca"))],
+                predicates: &[Predicate::new_eq("region", KeyValue::string("ca"))],
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -1629,7 +1715,7 @@ mod tests {
             // Predicate on only host key column will have region column outputted in addition to
             // the value columns:
             TestCase {
-                predicates: &[Predicate::new("host", KeyValue::string("a"))],
+                predicates: &[Predicate::new_eq("host", KeyValue::string("a"))],
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -1658,7 +1744,7 @@ mod tests {
             // Using a non-existent key column as a predicate has no effect:
             // TODO: should this be an error?
             TestCase {
-                predicates: &[Predicate::new("container_id", KeyValue::string("12345"))],
+                predicates: &[Predicate::new_eq("container_id", KeyValue::string("12345"))],
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -1674,26 +1760,26 @@ mod tests {
             },
             // Using a non existent key column value yields empty result set:
             TestCase {
-                predicates: &[Predicate::new("region", KeyValue::string("eu"))],
+                predicates: &[Predicate::new_eq("region", KeyValue::string("eu"))],
                 expected: &["++", "++"],
             },
             // Using an invalid combination of key column values yields an empty result set:
             TestCase {
                 predicates: &[
-                    Predicate::new("region", KeyValue::string("ca")),
-                    Predicate::new("host", KeyValue::string("a")),
+                    Predicate::new_eq("region", KeyValue::string("ca")),
+                    Predicate::new_eq("host", KeyValue::string("a")),
                 ],
                 expected: &["++", "++"],
             },
             // Using a non-existent key column value (for host column) also yields empty result set:
             TestCase {
-                predicates: &[Predicate::new("host", KeyValue::string("g"))],
+                predicates: &[Predicate::new_eq("host", KeyValue::string("g"))],
                 expected: &["++", "++"],
             },
             // Using an incorrect type for a key column value in predicate also yields empty result
             // set. TODO: should this be an error?
             TestCase {
-                predicates: &[Predicate::new("host", KeyValue::Bool(true))],
+                predicates: &[Predicate::new_eq("host", KeyValue::Bool(true))],
                 expected: &["++", "++"],
             },
         ];
@@ -1795,8 +1881,8 @@ mod tests {
         let test_cases = [
             TestCase {
                 predicates: &[
-                    Predicate::new("region", KeyValue::string("us")),
-                    Predicate::new("host", KeyValue::string("a")),
+                    Predicate::new_eq("region", KeyValue::string("us")),
+                    Predicate::new_eq("host", KeyValue::string("a")),
                 ],
                 expected: &[
                     "+--------+------+--------------------------------+-------+",
@@ -1810,7 +1896,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new("region", KeyValue::string("us"))],
+                predicates: &[Predicate::new_eq("region", KeyValue::string("us"))],
                 expected: &[
                     "+--------+------+--------------------------------+-------+",
                     "| region | host | time                           | usage |",
@@ -1827,7 +1913,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new("host", KeyValue::string("a"))],
+                predicates: &[Predicate::new_eq("host", KeyValue::string("a"))],
                 expected: &[
                     "+--------+------+--------------------------------+-------+",
                     "| region | host | time                           | usage |",
@@ -1840,7 +1926,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new("host", KeyValue::string("b"))],
+                predicates: &[Predicate::new_eq("host", KeyValue::string("b"))],
                 expected: &[
                     "+--------+------+--------------------------------+-------+",
                     "| region | host | time                           | usage |",
@@ -1935,8 +2021,8 @@ mod tests {
 
         // Check the cache for values:
         let predicates = &[
-            Predicate::new("region", KeyValue::string("us")),
-            Predicate::new("host", KeyValue::string("a")),
+            Predicate::new_eq("region", KeyValue::string("us")),
+            Predicate::new_eq("host", KeyValue::string("a")),
         ];
 
         // Check what is in the last cache:
@@ -1987,7 +2073,7 @@ mod tests {
         .unwrap();
 
         // Check the cache for values:
-        let predicates = &[Predicate::new("host", KeyValue::string("a"))];
+        let predicates = &[Predicate::new_eq("host", KeyValue::string("a"))];
 
         // Check what is in the last cache:
         let batches = wbuf
@@ -2090,7 +2176,7 @@ mod tests {
             },
             // Predicates on tag key column work as expected:
             TestCase {
-                predicates: &[Predicate::new("component_id", KeyValue::string("333"))],
+                predicates: &[Predicate::new_eq("component_id", KeyValue::string("333"))],
                 expected: &[
                     "+--------------+--------+--------+------+---------+-----------------------------+",
                     "| component_id | active | type   | loc  | reading | time                        |",
@@ -2101,7 +2187,7 @@ mod tests {
             },
             // Predicate on a non-string field key:
             TestCase {
-                predicates: &[Predicate::new("active", KeyValue::Bool(false))],
+                predicates: &[Predicate::new_eq("active", KeyValue::Bool(false))],
                 expected: &[
                     "+--------------+--------+-------------+---------+---------+-----------------------------+",
                     "| component_id | active | type        | loc     | reading | time                        |",
@@ -2113,7 +2199,7 @@ mod tests {
             },
             // Predicate on a string field key:
             TestCase {
-                predicates: &[Predicate::new("type", KeyValue::string("camera"))],
+                predicates: &[Predicate::new_eq("type", KeyValue::string("camera"))],
                 expected: &[
                     "+--------------+--------+--------+-----------+---------+-----------------------------+",
                     "| component_id | active | type   | loc       | reading | time                        |",
@@ -2203,7 +2289,7 @@ mod tests {
             },
             // Predicate on state column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new("state", KeyValue::string("ca"))],
+                predicates: &[Predicate::new_eq("state", KeyValue::string("ca"))],
                 expected: &[
                     "+-------+--------+-------+-------+-----------------------------+",
                     "| state | county | farm  | speed | time                        |",
@@ -2219,7 +2305,7 @@ mod tests {
             },
             // Predicate on county column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new("county", KeyValue::string("napa"))],
+                predicates: &[Predicate::new_eq("county", KeyValue::string("napa"))],
                 expected: &[
                     "+-------+--------+-------+-------+-----------------------------+",
                     "| state | county | farm  | speed | time                        |",
@@ -2231,7 +2317,7 @@ mod tests {
             },
             // Predicate on farm column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new("farm", KeyValue::string("30-01"))],
+                predicates: &[Predicate::new_eq("farm", KeyValue::string("30-01"))],
                 expected: &[
                     "+-------+--------+-------+-------+-----------------------------+",
                     "| state | county | farm  | speed | time                        |",
@@ -2243,9 +2329,9 @@ mod tests {
             // Predicate on all series key columns:
             TestCase {
                 predicates: &[
-                    Predicate::new("state", KeyValue::string("ca")),
-                    Predicate::new("county", KeyValue::string("nevada")),
-                    Predicate::new("farm", KeyValue::string("40-01")),
+                    Predicate::new_eq("state", KeyValue::string("ca")),
+                    Predicate::new_eq("county", KeyValue::string("nevada")),
+                    Predicate::new_eq("farm", KeyValue::string("40-01")),
                 ],
                 expected: &[
                     "+-------+--------+-------+-------+-----------------------------+",
@@ -2334,7 +2420,7 @@ mod tests {
             },
             // Predicate on state column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new("state", KeyValue::string("ca"))],
+                predicates: &[Predicate::new_eq("state", KeyValue::string("ca"))],
                 expected: &[
                     "+--------+-------+-------+-------+-----------------------------+",
                     "| county | farm  | state | speed | time                        |",
@@ -2350,7 +2436,7 @@ mod tests {
             },
             // Predicate on county column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new("county", KeyValue::string("napa"))],
+                predicates: &[Predicate::new_eq("county", KeyValue::string("napa"))],
                 expected: &[
                     "+--------+-------+-------+-------+-----------------------------+",
                     "| county | farm  | state | speed | time                        |",
@@ -2362,7 +2448,7 @@ mod tests {
             },
             // Predicate on farm column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new("farm", KeyValue::string("30-01"))],
+                predicates: &[Predicate::new_eq("farm", KeyValue::string("30-01"))],
                 expected: &[
                     "+--------+-------+-------+-------+-----------------------------+",
                     "| county | farm  | state | speed | time                        |",
@@ -2374,9 +2460,9 @@ mod tests {
             // Predicate on all series key columns:
             TestCase {
                 predicates: &[
-                    Predicate::new("state", KeyValue::string("ca")),
-                    Predicate::new("county", KeyValue::string("nevada")),
-                    Predicate::new("farm", KeyValue::string("40-01")),
+                    Predicate::new_eq("state", KeyValue::string("ca")),
+                    Predicate::new_eq("county", KeyValue::string("nevada")),
+                    Predicate::new_eq("farm", KeyValue::string("40-01")),
                 ],
                 expected: &[
                     "+--------+-------+-------+-------+-----------------------------+",
@@ -2514,7 +2600,7 @@ mod tests {
         let test_cases = [
             // Cache that has values in the zone columns should produce them:
             TestCase {
-                predicates: &[Predicate::new("game_id", KeyValue::string("4"))],
+                predicates: &[Predicate::new_eq("game_id", KeyValue::string("4"))],
                 expected: &[
                     "+---------+-----------+-----------------------------+------+------+",
                     "| game_id | player    | time                        | type | zone |",
@@ -2525,7 +2611,7 @@ mod tests {
             },
             // Cache that does not have a zone column will produce it with nulls:
             TestCase {
-                predicates: &[Predicate::new("game_id", KeyValue::string("1"))],
+                predicates: &[Predicate::new_eq("game_id", KeyValue::string("1"))],
                 expected: &[
                     "+---------+-----------+-----------------------------+------+------+",
                     "| game_id | player    | time                        | type | zone |",
@@ -2638,7 +2724,7 @@ mod tests {
         let test_cases = [
             // Can query on specific key column values:
             TestCase {
-                predicates: &[Predicate::new("t1", KeyValue::string("a"))],
+                predicates: &[Predicate::new_eq("t1", KeyValue::string("a"))],
                 expected: &[
                     "+----+-----+--------------------------------+-----+-----+-----+",
                     "| t1 | f1  | time                           | f2  | f3  | f4  |",
@@ -2648,7 +2734,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new("t1", KeyValue::string("b"))],
+                predicates: &[Predicate::new_eq("t1", KeyValue::string("b"))],
                 expected: &[
                     "+----+------+--------------------------------+----+------+------+",
                     "| t1 | f1   | time                           | f2 | f3   | f4   |",
@@ -2658,7 +2744,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new("t1", KeyValue::string("c"))],
+                predicates: &[Predicate::new_eq("t1", KeyValue::string("c"))],
                 expected: &[
                     "+----+-------+--------------------------------+-------+-------+----+",
                     "| t1 | f1    | time                           | f2    | f3    | f4 |",
