@@ -27,7 +27,7 @@ use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
 
 use crate::{
-    catalog::{InnerCatalog, LastCacheDefinition, LastCacheSize},
+    catalog::{InnerCatalog, LastCacheDefinition, LastCacheSize, LastCacheValueColumnsDef},
     write_buffer::{buffer_segment::WriteBatch, Field, FieldData, Row},
 };
 
@@ -131,7 +131,10 @@ impl LastCacheProvider {
                                 count: Some(cache_def.count.into()),
                                 ttl: Some(Duration::from_secs(cache_def.ttl)),
                                 key_columns: Some(cache_def.key_columns.clone()),
-                                value_columns: Some(cache_def.value_columns.clone()),
+                                value_columns: match &cache_def.value_columns {
+                                    LastCacheValueColumnsDef::Explicit(cols) => Some(cols.clone()),
+                                    LastCacheValueColumnsDef::AllNonKeyColumns => None,
+                                },
                             })?
                             .is_some(),
                         "catalog should not contain duplicate last cache definitions"
@@ -337,7 +340,11 @@ impl LastCacheProvider {
             table: tbl_name,
             name: cache_name,
             key_columns,
-            value_columns,
+            value_columns: if accept_new_fields {
+                LastCacheValueColumnsDef::AllNonKeyColumns
+            } else {
+                LastCacheValueColumnsDef::Explicit(value_columns)
+            },
             count,
             ttl: ttl.as_secs(),
         }))
@@ -471,14 +478,14 @@ pub(crate) struct LastCache {
     pub(crate) key_columns: Arc<IndexSet<String>>,
     /// The Arrow Schema for the table that this cache is associated with
     pub(crate) schema: ArrowSchemaRef,
+    /// Whether or not this cache accepts newly written fields
+    pub(crate) accept_new_fields: bool,
     /// Optionally store the series key for tables that use it for ensuring non-nullability in the
     /// column buffer for series key columns
     ///
     /// We only use this to check for columns that are part of the series key, so we don't care
     /// about the order, and a HashSet is sufficient.
     series_key: Option<HashSet<String>>,
-    /// Whether or not this cache accepts newly written fields
-    accept_new_fields: bool,
     /// The internal state of the cache
     state: LastCacheState,
 }

@@ -375,7 +375,7 @@ pub struct LastCacheDefinition {
     /// Columns intended to be used as predicates in the cache
     pub key_columns: Vec<String>,
     /// Columns that store values in the cache
-    pub value_columns: Vec<String>,
+    pub value_columns: LastCacheValueColumnsDef,
     /// The number of last values to hold in the cache
     pub count: LastCacheSize,
     /// The time-to-live (TTL) in seconds for entries in the cache
@@ -397,7 +397,9 @@ impl LastCacheDefinition {
             table: table.into(),
             name: name.into(),
             key_columns: key_columns.into_iter().map(Into::into).collect(),
-            value_columns: value_columns.into_iter().map(Into::into).collect(),
+            value_columns: LastCacheValueColumnsDef::Explicit(
+                value_columns.into_iter().map(Into::into).collect(),
+            ),
             count: count.try_into()?,
             ttl,
         })
@@ -412,17 +414,33 @@ impl LastCacheDefinition {
             table: table.into(),
             name: name.into(),
             key_columns: cache.key_columns.iter().cloned().collect(),
-            value_columns: cache
-                .schema
-                .fields()
-                .iter()
-                .filter(|f| !cache.key_columns.contains(f.name()))
-                .map(|f| f.name().to_owned())
-                .collect(),
+            value_columns: if cache.accept_new_fields {
+                LastCacheValueColumnsDef::AllNonKeyColumns
+            } else {
+                LastCacheValueColumnsDef::Explicit(
+                    cache
+                        .schema
+                        .fields()
+                        .iter()
+                        .filter(|f| !cache.key_columns.contains(f.name()))
+                        .map(|f| f.name().to_owned())
+                        .collect(),
+                )
+            },
             count: cache.count,
             ttl: cache.ttl.as_secs(),
         }
     }
+}
+
+/// A last cache will either store values for an explicit set of columns, or will accept all
+/// non-key columns
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub enum LastCacheValueColumnsDef {
+    /// Explicit list of column names
+    Explicit(Vec<String>),
+    /// Stores all non-key columns
+    AllNonKeyColumns,
 }
 
 /// The maximum allowed size for a last cache

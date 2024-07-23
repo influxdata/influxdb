@@ -49,10 +49,7 @@ expression: catalog_json
               "name": "cache",
               "table": "table",
               "ttl": 14400,
-              "vals": [
-                "f1",
-                "time"
-              ]
+              "vals": null
             }
           ],
           "name": "table"

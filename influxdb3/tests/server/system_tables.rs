@@ -158,6 +158,7 @@ async fn last_caches_table() {
             "db": db1_name,
             "table": "mem",
             "name": "mem_last_cache",
+            "value_columns": ["usage"],
             "ttl": 60
         }))
         .await
@@ -182,13 +183,14 @@ async fn last_caches_table() {
             .await
             .unwrap();
         let batches = collect_stream(resp).await;
-        assert_batches_sorted_eq!([
-                "+-------+---------------------+----------------+----------------------------+-------+-------+",
-                "| table | name                | key_columns    | value_columns              | count | ttl   |",
-                "+-------+---------------------+----------------+----------------------------+-------+-------+",
-                "| cpu   | cpu_host_last_cache | [host]         | [cpu, region, time, usage] | 1     | 14400 |",
-                "| mem   | mem_last_cache      | [host, region] | [time, usage]              | 1     | 60    |",
-                "+-------+---------------------+----------------+----------------------------+-------+-------+",
+        assert_batches_sorted_eq!(
+            [
+                "+-------+---------------------+----------------+---------------+-------+-------+",
+                "| table | name                | key_columns    | value_columns | count | ttl   |",
+                "+-------+---------------------+----------------+---------------+-------+-------+",
+                "| cpu   | cpu_host_last_cache | [host]         |               | 1     | 14400 |",
+                "| mem   | mem_last_cache      | [host, region] | [time, usage] | 1     | 60    |",
+                "+-------+---------------------+----------------+---------------+-------+-------+",
             ],
             &batches
         );
@@ -205,7 +207,7 @@ async fn last_caches_table() {
                 "+-------+--------------------------------+---------------------+---------------+-------+-------+",
                 "| table | name                           | key_columns         | value_columns | count | ttl   |",
                 "+-------+--------------------------------+---------------------+---------------+-------+-------+",
-                "| cpu   | cpu_cpu_host_region_last_cache | [cpu, host, region] | [time, usage] | 5     | 14400 |",
+                "| cpu   | cpu_cpu_host_region_last_cache | [cpu, host, region] |               | 5     | 14400 |",
                 "+-------+--------------------------------+---------------------+---------------+-------+-------+",
             ],
             &batches
@@ -246,7 +248,8 @@ async fn last_caches_table() {
     }
 
     // Add fields to one of the caches, in this case, the `temp` field will get added to the
-    // value columns for the respective cache:
+    // value columns for the respective cache, but since this cache accepts new fields, the value
+    // columns are not shown in the system table result:
     {
         server
             .write_lp_to_db(
@@ -265,11 +268,11 @@ async fn last_caches_table() {
             .unwrap();
         let batches = collect_stream(resp).await;
         assert_batches_sorted_eq!([
-                "+-------+--------------------------------+---------------------+---------------------+-------+-------+",
-                "| table | name                           | key_columns         | value_columns       | count | ttl   |",
-                "+-------+--------------------------------+---------------------+---------------------+-------+-------+",
-                "| cpu   | cpu_cpu_host_region_last_cache | [cpu, host, region] | [time, usage, temp] | 5     | 14400 |",
-                "+-------+--------------------------------+---------------------+---------------------+-------+-------+",
+                "+-------+--------------------------------+---------------------+---------------+-------+-------+",
+                "| table | name                           | key_columns         | value_columns | count | ttl   |",
+                "+-------+--------------------------------+---------------------+---------------+-------+-------+",
+                "| cpu   | cpu_cpu_host_region_last_cache | [cpu, host, region] |               | 5     | 14400 |",
+                "+-------+--------------------------------+---------------------+---------------+-------+-------+",
             ],
             &batches
         );
