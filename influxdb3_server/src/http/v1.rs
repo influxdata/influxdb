@@ -219,7 +219,7 @@ struct QueryResponse {
     format: QueryFormat,
 }
 
-/// Convert [`QueryResponse`] to [`Bytes`] for `hyper`'s [`Body::wrap_stream`] method
+/// Convert `QueryResponse` to [`Bytes`] for `hyper`'s [`Body::wrap_stream`] method
 impl From<QueryResponse> for Bytes {
     fn from(s: QueryResponse) -> Self {
         /// Convert a [`QueryResponse`] to a JSON byte vector.
