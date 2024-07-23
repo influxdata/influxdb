@@ -4,7 +4,7 @@ use arrow::array::{GenericListBuilder, StringBuilder};
 use arrow_array::{ArrayRef, RecordBatch, StringArray, UInt64Array};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use datafusion::{error::DataFusionError, logical_expr::Expr};
-use influxdb3_write::last_cache::{LastCacheInfo, LastCacheProvider};
+use influxdb3_write::{catalog::LastCacheDefinition, last_cache::LastCacheProvider};
 use iox_system_tables::IoxSystemTable;
 
 pub(super) struct LastCachesTable {
@@ -55,13 +55,13 @@ impl IoxSystemTable for LastCachesTable {
         _limit: Option<usize>,
     ) -> Result<RecordBatch, DataFusionError> {
         let caches = self.provider.get_last_caches_for_db(&self.db_name);
-        from_last_cache_infos(self.schema(), &caches)
+        from_last_cache_definitions(self.schema(), &caches)
     }
 }
 
-fn from_last_cache_infos(
+fn from_last_cache_definitions(
     schema: SchemaRef,
-    caches: &[LastCacheInfo],
+    caches: &[LastCacheDefinition],
 ) -> Result<RecordBatch, DataFusionError> {
     let mut columns: Vec<ArrayRef> = vec![];
 
@@ -108,14 +108,11 @@ fn from_last_cache_infos(
     columns.push(Arc::new(
         caches
             .iter()
-            .map(|e| Some(e.count as u64))
+            .map(|e| Some(e.count.into()))
             .collect::<UInt64Array>(),
     ));
     columns.push(Arc::new(
-        caches
-            .iter()
-            .map(|e| Some(e.ttl.as_secs()))
-            .collect::<UInt64Array>(),
+        caches.iter().map(|e| Some(e.ttl)).collect::<UInt64Array>(),
     ));
 
     Ok(RecordBatch::try_new(schema, columns)?)

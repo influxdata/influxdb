@@ -2,6 +2,7 @@
 //! if configured.
 
 use crate::catalog::Catalog;
+use crate::last_cache::LastCacheProvider;
 use crate::wal::WalSegmentWriterNoopImpl;
 use crate::write_buffer::{
     buffer_segment::{load_buffer_from_segment, ClosedBufferSegment, OpenBufferSegment},
@@ -22,6 +23,7 @@ pub struct LoadedState {
     pub persisting_buffer_segments: Vec<ClosedBufferSegment>,
     pub persisted_segments: Vec<PersistedSegment>,
     pub last_segment_id: SegmentId,
+    pub last_cache: Arc<LastCacheProvider>,
 }
 
 pub async fn load_starting_state<P, W>(
@@ -37,6 +39,9 @@ where
     write_buffer::Error: From<<P as Persister>::Error>,
 {
     let PersistedCatalog { catalog, .. } = persister.load_catalog().await?.unwrap_or_default();
+
+    let last_cache = Arc::new(LastCacheProvider::new_from_catalog(&catalog)?);
+
     let catalog = Arc::new(Catalog::from_inner(catalog));
 
     let persisted_segments = persister.load_segments(SEGMENTS_TO_LOAD).await?;
@@ -136,6 +141,7 @@ where
         open_segments,
         persisting_buffer_segments,
         persisted_segments,
+        last_cache,
     })
 }
 

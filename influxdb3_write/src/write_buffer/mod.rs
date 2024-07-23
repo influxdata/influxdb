@@ -10,7 +10,7 @@ mod table_buffer;
 pub(crate) mod validator;
 
 use crate::cache::ParquetCache;
-use crate::catalog::{Catalog, DatabaseSchema};
+use crate::catalog::{Catalog, DatabaseSchema, LastCacheDefinition};
 use crate::chunk::ParquetChunk;
 use crate::last_cache::{self, CreateCacheArguments, LastCacheProvider};
 use crate::persister::PersisterImpl;
@@ -23,8 +23,8 @@ use crate::write_buffer::persister::{
 use crate::write_buffer::segment_state::SegmentState;
 use crate::write_buffer::validator::WriteValidator;
 use crate::{
-    BufferedWriteRequest, Bufferer, ChunkContainer, ParquetFile, Persister, Precision,
-    SegmentDuration, SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
+    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile, Persister,
+    Precision, SegmentDuration, SequenceNumber, Wal, WalOp, WriteBuffer, WriteLineError,
 };
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError};
@@ -94,6 +94,12 @@ pub enum Error {
 
     #[error("tried accessing database and table that do not exist")]
     TableDoesNotExist,
+
+    #[error(
+        "updating catalog on delete of last cache failed, you will need to delete the cache \
+        again on server restart"
+    )]
+    DeleteLastCache(#[source] crate::catalog::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -149,9 +155,10 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             wal.clone(),
         )));
 
-        let last_cache = Arc::new(LastCacheProvider::new());
-        let write_buffer_flusher =
-            WriteBufferFlusher::new(Arc::clone(&segment_state), Arc::clone(&last_cache));
+        let write_buffer_flusher = WriteBufferFlusher::new(
+            Arc::clone(&segment_state),
+            Arc::clone(&loaded_state.last_cache),
+        );
 
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_segments(
             loaded_state.persisted_segments,
@@ -206,7 +213,7 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
             segment_persist_handle: Mutex::new(segment_persist_handle),
             shutdown_segment_persist_tx,
             buffer_check_handle: Mutex::new(buffer_check_handle),
-            last_cache,
+            last_cache: loaded_state.last_cache,
             persisted_files,
         })
     }
@@ -414,47 +421,6 @@ impl<W: Wal, T: TimeProvider> WriteBufferImpl<W, T> {
         Ok(self.parquet_cache.purge_cache().await?)
     }
 
-    /// Create a new last-N-value cache in the specified database and table, along with the given
-    /// parameters.
-    ///
-    /// Returns the name of the newly created cache, or `None` if a cache was not created, but the
-    /// provided parameters match those of an existing cache.
-    #[allow(clippy::too_many_arguments)]
-    pub fn create_last_cache(
-        &self,
-        db_name: impl Into<String>,
-        tbl_name: impl Into<String>,
-        cache_name: Option<&str>,
-        count: Option<usize>,
-        ttl: Option<Duration>,
-        key_columns: Option<Vec<String>>,
-        value_columns: Option<Vec<String>>,
-    ) -> Result<Option<String>, Error> {
-        let db_name = db_name.into();
-        let tbl_name = tbl_name.into();
-        let cache_name = cache_name.map(Into::into);
-        let db_schema = self
-            .catalog()
-            .db_schema(&db_name)
-            .ok_or(Error::DbDoesNotExist)?;
-        let schema = db_schema
-            .get_table_schema(&tbl_name)
-            .ok_or(Error::TableDoesNotExist)?
-            .clone();
-        self.last_cache
-            .create_cache(CreateCacheArguments {
-                db_name,
-                tbl_name,
-                schema,
-                cache_name,
-                count,
-                ttl,
-                key_columns,
-                value_columns,
-            })
-            .map_err(Into::into)
-    }
-
     #[cfg(test)]
     fn get_table_record_batches(
         &self,
@@ -549,10 +515,6 @@ impl<W: Wal, T: TimeProvider> Bufferer for WriteBufferImpl<W, T> {
     fn catalog(&self) -> Arc<Catalog> {
         self.catalog()
     }
-
-    fn last_cache(&self) -> Arc<LastCacheProvider> {
-        Arc::clone(&self.last_cache)
-    }
 }
 
 impl<W: Wal, T: TimeProvider> ChunkContainer for WriteBufferImpl<W, T> {
@@ -565,6 +527,102 @@ impl<W: Wal, T: TimeProvider> ChunkContainer for WriteBufferImpl<W, T> {
         ctx: &SessionState,
     ) -> crate::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         self.get_table_chunks(database_name, table_name, filters, projection, ctx)
+    }
+}
+
+#[async_trait::async_trait]
+impl<W: Wal, T: TimeProvider> LastCacheManager for WriteBufferImpl<W, T> {
+    fn last_cache_provider(&self) -> Arc<LastCacheProvider> {
+        Arc::clone(&self.last_cache)
+    }
+
+    /// Create a new last-N-value cache in the specified database and table, along with the given
+    /// parameters.
+    ///
+    /// Returns the name of the newly created cache, or `None` if a cache was not created, but the
+    /// provided parameters match those of an existing cache.
+    #[allow(clippy::too_many_arguments)]
+    async fn create_last_cache(
+        &self,
+        db_name: &str,
+        tbl_name: &str,
+        cache_name: Option<&str>,
+        count: Option<usize>,
+        ttl: Option<Duration>,
+        key_columns: Option<Vec<String>>,
+        value_columns: Option<Vec<String>>,
+    ) -> Result<Option<LastCacheDefinition>, Error> {
+        let cache_name = cache_name.map(Into::into);
+        let segment_id = self.segment_state.read().current_segment_id();
+        let catalog = self.catalog();
+        let sequence = catalog.sequence_number();
+        let db_schema = catalog.db_schema(db_name).ok_or(Error::DbDoesNotExist)?;
+        let schema = db_schema
+            .get_table(tbl_name)
+            .ok_or(Error::TableDoesNotExist)?
+            .schema()
+            .clone();
+        if let Some(info) = self.last_cache.create_cache(CreateCacheArguments {
+            db_name: db_name.to_string(),
+            tbl_name: tbl_name.to_string(),
+            schema,
+            cache_name,
+            count,
+            ttl,
+            key_columns,
+            value_columns,
+        })? {
+            let mut db_schema = db_schema.as_ref().clone();
+            let table = db_schema.get_table_mut(tbl_name).unwrap();
+            table.add_last_cache(info.clone());
+            if let Err(e) = catalog.replace_database(sequence, Arc::new(db_schema)) {
+                self.last_cache
+                    .delete_cache(db_name, tbl_name, &info.name)
+                    .expect("cache must exist at this point");
+                return Err(e.into());
+            };
+            let inner_catalog = catalog.clone_inner();
+            // Force persistence to the catalog, since we aren't going through the WAL:
+            self.persister
+                .persist_catalog(segment_id, Catalog::from_inner(inner_catalog))
+                .await?;
+            Ok(Some(info))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn delete_last_cache(
+        &self,
+        db_name: &str,
+        tbl_name: &str,
+        cache_name: &str,
+    ) -> crate::Result<(), self::Error> {
+        let segment_id = self.segment_state.read().current_segment_id();
+        let catalog = self.catalog();
+        let sequence = catalog.sequence_number();
+        self.last_cache
+            .delete_cache(db_name, tbl_name, cache_name)?;
+        let mut db_schema = catalog
+            .db_schema(db_name)
+            .ok_or(Error::DbDoesNotExist)?
+            .as_ref()
+            .clone();
+        let table = db_schema
+            .get_table_mut(tbl_name)
+            .ok_or(Error::TableDoesNotExist)?;
+        table.remove_last_cache(cache_name);
+        // NOTE: if this fails then the cache will be gone from the running server, but will be
+        // resurrected on server restart. Hence the special error case.
+        catalog
+            .replace_database(sequence, Arc::new(db_schema))
+            .map_err(self::Error::DeleteLastCache)?;
+        let inner_catalog = catalog.clone_inner();
+        // Force persistence to the catalog, since we aren't going through the WAL:
+        self.persister
+            .persist_catalog(segment_id, Catalog::from_inner(inner_catalog))
+            .await?;
+        Ok(())
     }
 }
 
@@ -658,12 +716,14 @@ pub(crate) struct TableBatchMap<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::paths::CatalogFilePath;
     use crate::persister::PersisterImpl;
     use crate::wal::WalImpl;
     use crate::{LpWriteOp, SegmentId, SequenceNumber, WalOpBatch};
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
     use datafusion_util::config::register_iox_object_store;
+    use futures_util::StreamExt;
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
@@ -947,6 +1007,157 @@ mod tests {
             segment.starting_catalog_sequence_number(),
             starting_catalog_sequence_number
         );
+    }
+
+    #[tokio::test]
+    async fn persists_catalog_on_last_cache_create_and_delete() {
+        let (wbuf, _ctx) = setup(Time::from_timestamp_nanos(0)).await;
+        let db_name = "db";
+        let tbl_name = "table";
+        let cache_name = "cache";
+        // Write some data to the current segment and update the catalog:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name},t1=a f1=true").as_str(),
+            Time::from_timestamp(30, 0).unwrap(),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+        // Create a last cache:
+        wbuf.create_last_cache(db_name, tbl_name, Some(cache_name), None, None, None, None)
+            .await
+            .unwrap();
+        // Check that the catalog was persisted, without advancing time:
+        let object_store = wbuf.persister.object_store();
+        let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
+        insta::assert_json_snapshot!("catalog-immediately-after-last-cache-create", catalog_json);
+        // Do another write that will update the state of the catalog, specifically, the table
+        // that the last cache was created for, and add a new field to the table/cache `f2`:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name},t1=a f1=true,f2=42i").as_str(),
+            Time::from_timestamp(30, 0).unwrap(),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+        // Advance time to allow for persistence of segment data:
+        wbuf.time_provider
+            .set(Time::from_timestamp(800, 0).unwrap());
+        let mut count = 0;
+        loop {
+            count += 1;
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+            if !wbuf.persisted_files.get_files(db_name, tbl_name).is_empty() {
+                break;
+            } else if count > 9 {
+                panic!("not persisting");
+            }
+        }
+        // Check the catalog again, to make sure it still has the last cache with the correct
+        // configuration:
+        let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
+        // NOTE: the asserted snapshot is correct in-so-far as the catalog contains the last cache
+        // configuration; however, it is not correct w.r.t. the fields. The second write adds a new
+        // field `f2` to the last cache (which you can see in the query below), but the persisted
+        // catalog does not have `f2` in the value columns. This will need to be fixed, see
+        // https://github.com/influxdata/influxdb/issues/25171
+        insta::assert_json_snapshot!(
+            "catalog-after-allowing-time-to-persist-segments-after-create",
+            catalog_json
+        );
+        // Fetch record batches from the last cache directly:
+        let expected = [
+            "+----+------+----------------------+----+",
+            "| t1 | f1   | time                 | f2 |",
+            "+----+------+----------------------+----+",
+            "| a  | true | 1970-01-01T00:00:30Z | 42 |",
+            "+----+------+----------------------+----+",
+        ];
+        let actual = wbuf
+            .last_cache_provider()
+            .get_cache_record_batches(db_name, tbl_name, None, &[])
+            .unwrap()
+            .unwrap();
+        assert_batches_eq!(&expected, &actual);
+        // Delete the last cache:
+        wbuf.delete_last_cache(db_name, tbl_name, cache_name)
+            .await
+            .unwrap();
+        // Catalog should be persisted, and no longer have the last cache, without advancing time:
+        let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
+        insta::assert_json_snapshot!("catalog-immediately-after-last-cache-delete", catalog_json);
+        // Do another write so there is data to be persisted in the buffer:
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name},t1=b f1=false,f2=1337i").as_str(),
+            Time::from_timestamp(830, 0).unwrap(),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+        // Advance time to allow for persistence of segment data:
+        wbuf.time_provider
+            .set(Time::from_timestamp(1600, 0).unwrap());
+        let mut count = 0;
+        loop {
+            count += 1;
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            if !wbuf.persisted_files.get_files(db_name, tbl_name).is_empty() {
+                break;
+            } else if count > 9 {
+                panic!("not persisting");
+            }
+        }
+        // Check the catalog again, to ensure the last cache is still gone:
+        let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
+        insta::assert_json_snapshot!(
+            "catalog-after-allowing-time-to-persist-segments-after-delete",
+            catalog_json
+        );
+    }
+
+    async fn fetch_catalog_as_json(object_store: Arc<dyn ObjectStore>) -> serde_json::Value {
+        let mut list = object_store.list(Some(&CatalogFilePath::dir()));
+        let Some(item) = list.next().await else {
+            panic!("there should have been a catalog file persisted");
+        };
+        let item = item.expect("item from object store");
+        let obj = object_store.get(&item.location).await.expect("get catalog");
+        serde_json::from_slice::<serde_json::Value>(
+            obj.bytes()
+                .await
+                .expect("get bytes from GetResult")
+                .as_ref(),
+        )
+        .expect("parse bytes as JSON")
+    }
+
+    async fn setup(start: Time) -> (WriteBufferImpl<WalImpl, MockProvider>, IOxSessionContext) {
+        let dir = test_helpers::tmp_dir().unwrap().into_path();
+        let wal = Some(Arc::new(WalImpl::new(dir.clone()).unwrap()));
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let time_provider = Arc::new(MockProvider::new(start));
+        let segment_duration = SegmentDuration::new_5m();
+        let wbuf = WriteBufferImpl::new(
+            Arc::clone(&persister),
+            wal.clone(),
+            Arc::clone(&time_provider),
+            segment_duration,
+            crate::test_help::make_exec(),
+            1000,
+        )
+        .await
+        .unwrap();
+        let ctx = IOxSessionContext::with_testing();
+        let runtime_env = ctx.inner().runtime_env();
+        register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&object_store));
+        (wbuf, ctx)
     }
 
     async fn get_table_batches(

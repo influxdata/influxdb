@@ -77,6 +77,17 @@ impl<T: TimeProvider, W: Wal> SegmentState<T, W> {
         }
     }
 
+    /// Get the [`SegmentId`] for the currently open segment
+    ///
+    /// This will take the most recent segment in time, or will use the `last_segment_id` if there
+    /// are no open segments, which, from testing, seems possible immediately on startup.
+    pub(crate) fn current_segment_id(&self) -> SegmentId {
+        self.segments
+            .iter()
+            .next_back()
+            .map_or(self.last_segment_id, |s| s.1.segment_id())
+    }
+
     pub(crate) fn write_ops_to_segment(
         &mut self,
         segment_start: Time,

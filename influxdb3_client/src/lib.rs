@@ -677,7 +677,7 @@ impl<'c> CreateLastCacheRequestBuilder<'c> {
     }
 
     /// Send the request to `POST /api/v3/configure/last_cache`
-    pub async fn send(self) -> Result<Option<String>> {
+    pub async fn send(self) -> Result<Option<LastCacheCreatedResponse>> {
         let url = self.client.base_url.join("/api/v3/configure/last_cache")?;
         let mut req = self.client.http_client.post(url).json(&self);
         if let Some(token) = &self.client.auth_token {
@@ -693,7 +693,7 @@ impl<'c> CreateLastCacheRequestBuilder<'c> {
                     .json::<LastCacheCreatedResponse>()
                     .await
                     .map_err(Error::Json)?;
-                Ok(Some(content.cache_name))
+                Ok(Some(content))
             }
             StatusCode::NO_CONTENT => Ok(None),
             code => Err(Error::ApiError {
@@ -704,9 +704,20 @@ impl<'c> CreateLastCacheRequestBuilder<'c> {
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct LastCacheCreatedResponse {
-    cache_name: String,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LastCacheCreatedResponse {
+    /// The table name the cache is associated with
+    pub table: String,
+    /// Given name of the cache
+    pub name: String,
+    /// Columns intended to be used as predicates in the cache
+    pub key_columns: Vec<String>,
+    /// Columns that store values in the cache
+    pub value_columns: Vec<String>,
+    /// The number of last values to hold in the cache
+    pub count: usize,
+    /// The time-to-live (TTL) in seconds for entries in the cache
+    pub ttl: u64,
 }
 
 #[cfg(test)]
@@ -973,11 +984,20 @@ mod tests {
                 "ttl": ttl,
             })))
             .with_status(201)
-            .with_body(r#"{"cache_name":"cache_name"}"#)
+            .with_body(
+                r#"{
+                    "table": "table",
+                    "name": "cache_name",
+                    "key_columns": ["col1", "col2"],
+                    "value_columns": ["col3", "col4"],
+                    "ttl": 120,
+                    "count": 5
+                }"#,
+            )
             .create_async()
             .await;
         let client = Client::new(mock_server.url()).unwrap();
-        let resp = client
+        client
             .api_v3_configure_last_cache_create(db, table)
             .name(name)
             .key_columns(key_columns)
@@ -986,9 +1006,8 @@ mod tests {
             .count(count)
             .send()
             .await
-            .unwrap();
+            .expect("creates last cache and parses response");
         mock.assert_async().await;
-        assert_eq!(Some(name), resp.as_deref());
     }
 
     #[tokio::test]

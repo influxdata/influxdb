@@ -27,7 +27,7 @@ use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
 
 use crate::{
-    catalog::LastCacheSize,
+    catalog::{InnerCatalog, LastCacheDefinition, LastCacheSize},
     write_buffer::{buffer_segment::WriteBatch, Field, FieldData, Row},
 };
 
@@ -73,7 +73,7 @@ impl std::fmt::Debug for LastCacheProvider {
 }
 
 /// The default cache time-to-live (TTL) is 4 hours
-const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(60 * 60 * 4);
+pub const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(60 * 60 * 4);
 
 /// Arguments to the [`LastCacheProvider::create_cache`] method
 pub struct CreateCacheArguments {
@@ -115,6 +115,33 @@ impl LastCacheProvider {
         }
     }
 
+    /// Initialize a [`LastCacheProvider`] from a [`InnerCatalog`]
+    pub(crate) fn new_from_catalog(catalog: &InnerCatalog) -> Result<Self, Error> {
+        let provider = LastCacheProvider::new();
+        for (db_name, db_schema) in catalog.databases() {
+            for (tbl_name, tbl_def) in db_schema.tables() {
+                for (cache_name, cache_def) in tbl_def.last_caches() {
+                    assert!(
+                        provider
+                            .create_cache(CreateCacheArguments {
+                                db_name: db_name.to_owned(),
+                                tbl_name: tbl_name.to_owned(),
+                                schema: tbl_def.schema.clone(),
+                                cache_name: Some(cache_name.to_owned()),
+                                count: Some(cache_def.count.into()),
+                                ttl: Some(Duration::from_secs(cache_def.ttl)),
+                                key_columns: Some(cache_def.key_columns.clone()),
+                                value_columns: Some(cache_def.value_columns.clone()),
+                            })?
+                            .is_some(),
+                        "catalog should not contain duplicate last cache definitions"
+                    );
+                }
+            }
+        }
+        Ok(provider)
+    }
+
     /// Get a particular cache's name and arrow schema
     ///
     /// This is used for the implementation of DataFusion's `TableFunctionImpl` and `TableProvider`
@@ -143,16 +170,16 @@ impl LastCacheProvider {
             })
     }
 
-    /// Get the [`LastCacheInfo`] for all caches contained in a database
-    pub fn get_last_caches_for_db(&self, db: &str) -> Vec<LastCacheInfo> {
+    /// Get the [`LastCacheDefinition`] for all caches contained in a database
+    pub fn get_last_caches_for_db(&self, db: &str) -> Vec<LastCacheDefinition> {
         let read = self.cache_map.read();
         read.get(db)
             .map(|tbl| {
                 tbl.iter()
                     .flat_map(|(tbl_name, tbl_map)| {
-                        tbl_map
-                            .iter()
-                            .map(|(lc_name, lc)| LastCacheInfo::new(&**tbl_name, lc_name, lc))
+                        tbl_map.iter().map(|(lc_name, lc)| {
+                            LastCacheDefinition::from_cache(&**tbl_name, lc_name, lc)
+                        })
                     })
                     .collect()
             })
@@ -176,7 +203,7 @@ impl LastCacheProvider {
             key_columns,
             value_columns,
         }: CreateCacheArguments,
-    ) -> Result<Option<String>, Error> {
+    ) -> Result<Option<LastCacheDefinition>, Error> {
         let key_columns = if let Some(keys) = key_columns {
             // validate the key columns specified to ensure correct type (string, int, unit, or bool)
             // and that they exist in the table's schema.
@@ -272,13 +299,15 @@ impl LastCacheProvider {
             .map(|keys| keys.into_iter().map(|s| s.to_string()).collect());
 
         // create the actual last cache:
+        let count = count
+            .unwrap_or(1)
+            .try_into()
+            .map_err(|_| Error::InvalidCacheSize)?;
+        let ttl = ttl.unwrap_or(DEFAULT_CACHE_TTL);
         let last_cache = LastCache::new(
-            count
-                .unwrap_or(1)
-                .try_into()
-                .map_err(|_| Error::InvalidCacheSize)?,
-            ttl.unwrap_or(DEFAULT_CACHE_TTL),
-            key_columns,
+            count,
+            ttl,
+            key_columns.clone(),
             Arc::new(schema_builder.finish()),
             series_key,
             accept_new_fields,
@@ -300,11 +329,18 @@ impl LastCacheProvider {
 
         lock.entry(db_name)
             .or_default()
-            .entry(tbl_name)
+            .entry_ref(&tbl_name)
             .or_default()
             .insert(cache_name.clone(), last_cache);
 
-        Ok(Some(cache_name))
+        Ok(Some(LastCacheDefinition {
+            table: tbl_name,
+            name: cache_name,
+            key_columns,
+            value_columns,
+            count,
+            ttl: ttl.as_secs(),
+        }))
     }
 
     /// Delete a cache from the provider
@@ -379,7 +415,7 @@ impl LastCacheProvider {
 
     /// Output the records for a given cache as arrow [`RecordBatch`]es
     #[cfg(test)]
-    fn get_cache_record_batches(
+    pub(crate) fn get_cache_record_batches(
         &self,
         db_name: &str,
         tbl_name: &str,
@@ -423,16 +459,18 @@ pub(crate) struct LastCache {
     /// The number of values to hold in the cache
     ///
     /// Once the cache reaches this size, old values will be evicted when new values are pushed in.
-    count: LastCacheSize,
+    pub(crate) count: LastCacheSize,
     /// The time-to-live (TTL) for values in the cache
     ///
     /// Once values have lived in the cache beyond this [`Duration`], they can be evicted using
     /// the [`remove_expired`][LastCache::remove_expired] method.
-    ttl: Duration,
+    pub(crate) ttl: Duration,
     /// The key columns for this cache
     ///
     /// Uses an [`IndexSet`] for both fast iteration and fast lookup.
-    key_columns: Arc<IndexSet<String>>,
+    pub(crate) key_columns: Arc<IndexSet<String>>,
+    /// The Arrow Schema for the table that this cache is associated with
+    pub(crate) schema: ArrowSchemaRef,
     /// Optionally store the series key for tables that use it for ensuring non-nullability in the
     /// column buffer for series key columns
     ///
@@ -441,8 +479,6 @@ pub(crate) struct LastCache {
     series_key: Option<HashSet<String>>,
     /// Whether or not this cache accepts newly written fields
     accept_new_fields: bool,
-    /// The Arrow Schema for the table that this cache is associated with
-    schema: ArrowSchemaRef,
     /// The internal state of the cache
     state: LastCacheState,
 }
@@ -602,7 +638,9 @@ impl LastCache {
             }
             let mut new_caches = vec![];
             for c in caches {
-                let cache_key = c.state.as_key().unwrap();
+                let Some(cache_key) = c.state.as_key() else {
+                    continue;
+                };
                 if let Some(pred) = predicate {
                     let next_states = cache_key.evaluate_predicate(pred);
                     new_caches.extend(next_states.into_iter().map(|(state, value)| {
@@ -791,7 +829,7 @@ impl<'a> ExtendedLastCacheState<'a> {
 
 /// A predicate used for evaluating key column values in the cache on query
 #[derive(Debug, Clone)]
-struct Predicate {
+pub(crate) struct Predicate {
     /// The left-hand-side of the predicate
     key: String,
     /// The right-hand-side of the predicate
@@ -1449,34 +1487,6 @@ fn data_type_from_buffer_field(field: &Field) -> DataType {
     }
 }
 
-pub struct LastCacheInfo {
-    pub table: String,
-    pub name: String,
-    pub key_columns: Vec<String>,
-    pub value_columns: Vec<String>,
-    pub count: usize,
-    pub ttl: Duration,
-}
-
-impl LastCacheInfo {
-    fn new(table: impl Into<String>, name: impl Into<String>, cache: &LastCache) -> Self {
-        Self {
-            table: table.into(),
-            name: name.into(),
-            key_columns: cache.key_columns.iter().cloned().collect(),
-            value_columns: cache
-                .schema
-                .fields()
-                .iter()
-                .filter(|f| !cache.key_columns.contains(f.name()))
-                .map(|f| f.name().to_owned())
-                .collect(),
-            count: cache.count.into(),
-            ttl: cache.ttl,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{sync::Arc, time::Duration};
@@ -1491,7 +1501,7 @@ mod tests {
         persister::PersisterImpl,
         wal::WalImpl,
         write_buffer::WriteBufferImpl,
-        Bufferer, Precision, SegmentDuration,
+        Bufferer, LastCacheManager, Precision, SegmentDuration,
     };
 
     async fn setup_write_buffer() -> WriteBufferImpl<WalImpl, MockProvider> {
@@ -1538,6 +1548,7 @@ mod tests {
             Some(vec!["host".to_string()]),
             None,
         )
+        .await
         .expect("create the last cache");
 
         // Do a write to update the last cache:
@@ -1555,7 +1566,7 @@ mod tests {
 
         // Check what is in the last cache:
         let batch = wbuf
-            .last_cache()
+            .last_cache_provider()
             .get_cache_record_batches(db_name, tbl_name, None, predicates)
             .unwrap()
             .unwrap();
@@ -1583,7 +1594,7 @@ mod tests {
         .unwrap();
 
         let batch = wbuf
-            .last_cache()
+            .last_cache_provider()
             .get_cache_record_batches(db_name, tbl_name, None, predicates)
             .unwrap()
             .unwrap();
@@ -1642,6 +1653,7 @@ mod tests {
             Some(vec!["region".to_string(), "host".to_string()]),
             None,
         )
+        .await
         .expect("create last cache");
 
         // Write some lines to fill multiple keys in the cache:
@@ -1831,7 +1843,7 @@ mod tests {
 
         for t in test_cases {
             let batches = wbuf
-                .last_cache()
+                .last_cache_provider()
                 .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
                 .unwrap()
                 .unwrap();
@@ -1867,6 +1879,7 @@ mod tests {
             Some(vec!["region".to_string(), "host".to_string()]),
             None,
         )
+        .await
         .expect("create last cache");
 
         // Do several writes to populate the cache:
@@ -2004,7 +2017,7 @@ mod tests {
 
         for t in test_cases {
             let batches = wbuf
-                .last_cache()
+                .last_cache_provider()
                 .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
                 .unwrap()
                 .unwrap();
@@ -2041,6 +2054,7 @@ mod tests {
             Some(vec!["region".to_string(), "host".to_string()]),
             None,
         )
+        .await
         .expect("create last cache");
 
         // Write some lines to fill the cache:
@@ -2072,7 +2086,7 @@ mod tests {
 
         // Check what is in the last cache:
         let batches = wbuf
-            .last_cache()
+            .last_cache_provider()
             .get_cache_record_batches(db_name, tbl_name, None, predicates)
             .unwrap()
             .unwrap();
@@ -2093,7 +2107,7 @@ mod tests {
 
         // Check what is in the last cache:
         let batches = wbuf
-            .last_cache()
+            .last_cache_provider()
             .get_cache_record_batches(db_name, tbl_name, None, predicates)
             .unwrap()
             .unwrap();
@@ -2122,7 +2136,7 @@ mod tests {
 
         // Check what is in the last cache:
         let batches = wbuf
-            .last_cache()
+            .last_cache_provider()
             .get_cache_record_batches(db_name, tbl_name, None, predicates)
             .unwrap()
             .unwrap();
@@ -2174,6 +2188,7 @@ mod tests {
             ]),
             None,
         )
+        .await
         .expect("create last cache");
 
         // Write some lines to fill the cache:
@@ -2259,7 +2274,7 @@ mod tests {
 
         for t in test_cases {
             let batches = wbuf
-                .last_cache()
+                .last_cache_provider()
                 .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
                 .unwrap()
                 .unwrap();
@@ -2287,6 +2302,7 @@ mod tests {
 
         // Create the last cache with keys on some field columns:
         wbuf.create_last_cache(db_name, tbl_name, Some("cache"), None, None, None, None)
+            .await
             .expect("create last cache");
 
         // Write some lines to fill the cache:
@@ -2390,7 +2406,7 @@ mod tests {
 
         for t in test_cases {
             let batches = wbuf
-                .last_cache()
+                .last_cache_provider()
                 .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
                 .unwrap()
                 .unwrap();
@@ -2418,6 +2434,7 @@ mod tests {
 
         // Create the last cache with keys on some field columns:
         wbuf.create_last_cache(db_name, tbl_name, Some("cache"), None, None, None, None)
+            .await
             .expect("create last cache");
 
         // Write some lines to fill the cache:
@@ -2521,7 +2538,7 @@ mod tests {
 
         for t in test_cases {
             let batches = wbuf
-                .last_cache()
+                .last_cache_provider()
                 .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
                 .unwrap()
                 .unwrap();
@@ -2550,6 +2567,7 @@ mod tests {
 
         // Create the last cache using default tags as keys
         wbuf.create_last_cache(db_name, tbl_name, None, Some(10), None, None, None)
+            .await
             .expect("create last cache");
 
         // Write some lines to fill the cache, but omit fields to produce nulls:
@@ -2574,7 +2592,7 @@ mod tests {
         .unwrap();
 
         let batches = wbuf
-            .last_cache()
+            .last_cache_provider()
             .get_cache_record_batches(db_name, tbl_name, None, &[])
             .unwrap()
             .unwrap();
@@ -2615,6 +2633,7 @@ mod tests {
 
         // Create the last cache using default tags as keys
         wbuf.create_last_cache(db_name, tbl_name, None, Some(10), None, None, None)
+            .await
             .expect("create last cache");
 
         // Write some lines to fill the cache. The last two lines include a new field "zone" which
@@ -2683,7 +2702,7 @@ mod tests {
 
         for t in test_cases {
             let batches = wbuf
-                .last_cache()
+                .last_cache_provider()
                 .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
                 .unwrap()
                 .unwrap();
@@ -2721,6 +2740,7 @@ mod tests {
             Some(vec!["t1".to_string()]),
             None,
         )
+        .await
         .expect("create last cache");
 
         // Write some lines to fill the cache. In this case, with just the existing
@@ -2815,7 +2835,7 @@ mod tests {
 
         for t in test_cases {
             let batches = wbuf
-                .last_cache()
+                .last_cache_provider()
                 .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
                 .unwrap()
                 .unwrap();
@@ -2843,13 +2863,15 @@ mod tests {
 
         // Create a last cache using all default settings
         wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+            .await
             .expect("create last cache");
-        assert_eq!(wbuf.last_cache().size(), 1);
+        assert_eq!(wbuf.last_cache_provider().size(), 1);
 
         // Doing the same should be fine:
         wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+            .await
             .expect("create last cache");
-        assert_eq!(wbuf.last_cache().size(), 1);
+        assert_eq!(wbuf.last_cache_provider().size(), 1);
 
         // Specify the same arguments as what the defaults would produce (minus the value columns)
         wbuf.create_last_cache(
@@ -2861,8 +2883,9 @@ mod tests {
             Some(vec!["t1".to_string(), "t2".to_string()]),
             None,
         )
+        .await
         .expect("create last cache");
-        assert_eq!(wbuf.last_cache().size(), 1);
+        assert_eq!(wbuf.last_cache_provider().size(), 1);
 
         // Specify value columns, which would deviate from above, as that implies different cache
         // behaviour, i.e., no new fields are accepted:
@@ -2875,8 +2898,9 @@ mod tests {
             None,
             Some(vec!["f1".to_string(), "f2".to_string()]),
         )
+        .await
         .expect_err("create last cache should have failed");
-        assert_eq!(wbuf.last_cache().size(), 1);
+        assert_eq!(wbuf.last_cache_provider().size(), 1);
 
         // Specify different key columns, along with the same cache name will produce error:
         wbuf.create_last_cache(
@@ -2888,8 +2912,9 @@ mod tests {
             Some(vec!["t1".to_string()]),
             None,
         )
+        .await
         .expect_err("create last cache should have failed");
-        assert_eq!(wbuf.last_cache().size(), 1);
+        assert_eq!(wbuf.last_cache_provider().size(), 1);
 
         // However, just specifying different key columns and no cache name will result in a
         // different generated cache name, and therefore cache, so it will work:
@@ -2903,9 +2928,13 @@ mod tests {
                 Some(vec!["t1".to_string()]),
                 None,
             )
+            .await
             .expect("create last cache should have failed");
-        assert_eq!(wbuf.last_cache().size(), 2);
-        assert_eq!(Some("tbl_t1_last_cache"), name.as_deref());
+        assert_eq!(wbuf.last_cache_provider().size(), 2);
+        assert_eq!(
+            Some("tbl_t1_last_cache"),
+            name.map(|info| info.name).as_deref()
+        );
 
         // Specify different TTL:
         wbuf.create_last_cache(
@@ -2917,12 +2946,14 @@ mod tests {
             None,
             None,
         )
+        .await
         .expect_err("create last cache should have failed");
-        assert_eq!(wbuf.last_cache().size(), 2);
+        assert_eq!(wbuf.last_cache_provider().size(), 2);
 
         // Specify different count:
         wbuf.create_last_cache(db_name, tbl_name, None, Some(10), None, None, None)
+            .await
             .expect_err("create last cache should have failed");
-        assert_eq!(wbuf.last_cache().size(), 2);
+        assert_eq!(wbuf.last_cache_provider().size(), 2);
     }
 }
