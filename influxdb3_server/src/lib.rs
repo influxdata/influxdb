@@ -235,6 +235,7 @@ mod tests {
     use influxdb3_write::persister::PersisterImpl;
     use influxdb3_write::wal::WalImpl;
     use influxdb3_write::write_buffer::WriteBufferImpl;
+    use influxdb3_write::LastCacheManager;
     use influxdb3_write::SegmentDuration;
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
@@ -641,6 +642,7 @@ mod tests {
 
         // Create the last cache:
         wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+            .await
             .expect("create last cache");
 
         // Write to put something in the last cache:

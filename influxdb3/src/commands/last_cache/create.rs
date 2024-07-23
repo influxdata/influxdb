@@ -65,7 +65,10 @@ pub(super) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
 
     // Make the request:
     match b.send().await? {
-        Some(cache_name) => println!("new cache created: {cache_name}"),
+        Some(def) => println!(
+            "new cache created: {}",
+            serde_json::to_string_pretty(&def).expect("serialize last cache definition as JSON")
+        ),
         None => println!("a cache already exists for the provided parameters"),
     }
 

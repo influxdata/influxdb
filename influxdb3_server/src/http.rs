@@ -21,8 +21,8 @@ use hyper::http::HeaderValue;
 use hyper::HeaderMap;
 use hyper::{Body, Method, Request, Response, StatusCode};
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
-use influxdb3_write::catalog::Error as CatalogError;
-use influxdb3_write::last_cache::{self, CreateCacheArguments};
+use influxdb3_write::catalog::{Error as CatalogError, LastCacheDefinition};
+use influxdb3_write::last_cache;
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
@@ -197,15 +197,6 @@ pub enum Error {
 
     #[error("v1 query API error: {0}")]
     V1Query(#[from] v1::QueryError),
-
-    #[error("last cache error: {0}")]
-    LastCache(#[from] last_cache::Error),
-
-    #[error("provided database name does not exist")]
-    DatabaseDoesNotExist,
-
-    #[error("provided table name does not exist for database")]
-    TableDoesNotExist,
 }
 
 #[derive(Debug, Error)]
@@ -258,6 +249,20 @@ impl Error {
                     .body(body)
                     .unwrap()
             }
+            Self::WriteBuffer(WriteBufferError::LastCacheError(ref lc_err)) => match lc_err {
+                last_cache::Error::InvalidCacheSize
+                | last_cache::Error::CacheAlreadyExists { .. }
+                | last_cache::Error::KeyColumnDoesNotExist { .. }
+                | last_cache::Error::InvalidKeyColumn
+                | last_cache::Error::ValueColumnDoesNotExist { .. } => Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(Body::from(lc_err.to_string()))
+                    .unwrap(),
+                last_cache::Error::CacheDoesNotExist => Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::from(self.to_string()))
+                    .unwrap(),
+            },
             Self::DbName(e) => {
                 let err: ErrorMessage<()> = ErrorMessage {
                     error: e.to_string(),
@@ -298,20 +303,6 @@ impl Error {
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
-            Self::LastCache(ref lc_err) => match lc_err {
-                last_cache::Error::InvalidCacheSize
-                | last_cache::Error::CacheAlreadyExists { .. }
-                | last_cache::Error::KeyColumnDoesNotExist { .. }
-                | last_cache::Error::InvalidKeyColumn
-                | last_cache::Error::ValueColumnDoesNotExist { .. } => Response::builder()
-                    .status(StatusCode::BAD_REQUEST)
-                    .body(Body::from(lc_err.to_string()))
-                    .unwrap(),
-                last_cache::Error::CacheDoesNotExist => Response::builder()
-                    .status(StatusCode::NOT_FOUND)
-                    .body(Body::from(self.to_string()))
-                    .unwrap(),
-            },
             Self::InvalidContentEncoding(_) => Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
@@ -695,32 +686,24 @@ where
             ttl,
         } = self.read_body_json(req).await?;
 
-        let Some(db_schema) = self.write_buffer.catalog().db_schema(&db) else {
-            return Err(Error::DatabaseDoesNotExist);
-        };
-
-        let Some(tbl_schema) = db_schema.get_table_schema(&table) else {
-            return Err(Error::TableDoesNotExist);
-        };
-
         match self
             .write_buffer
-            .last_cache()
-            .create_cache(CreateCacheArguments {
-                db_name: db,
-                tbl_name: table,
-                schema: tbl_schema.clone(),
-                cache_name: name,
+            .create_last_cache(
+                &db,
+                &table,
+                name.as_deref(),
                 count,
-                ttl: ttl.map(Duration::from_secs),
+                ttl.map(Duration::from_secs),
                 key_columns,
                 value_columns,
-            })? {
-            Some(cache_name) => Response::builder()
+            )
+            .await?
+        {
+            Some(def) => Response::builder()
                 .status(StatusCode::CREATED)
                 .header(CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
                 .body(Body::from(
-                    serde_json::to_string(&LastCacheCreatedResponse { cache_name }).unwrap(),
+                    serde_json::to_string(&LastCacheCreatedResponse(def)).unwrap(),
                 ))
                 .map_err(Into::into),
             None => Response::builder()
@@ -742,8 +725,8 @@ where
         };
 
         self.write_buffer
-            .last_cache()
-            .delete_cache(&db, &table, &name)?;
+            .delete_last_cache(&db, &table, &name)
+            .await?;
 
         Ok(Response::builder()
             .status(StatusCode::OK)
@@ -1054,9 +1037,7 @@ struct LastCacheCreateRequest {
 }
 
 #[derive(Debug, Serialize)]
-struct LastCacheCreatedResponse {
-    cache_name: String,
-}
+struct LastCacheCreatedResponse(LastCacheDefinition);
 
 /// Request definition for the `DELETE /api/v3/configure/last_cache` API
 #[derive(Debug, Deserialize)]
