@@ -2,7 +2,7 @@
 //! if configured.
 
 use crate::catalog::Catalog;
-use crate::last_cache::{CreateCacheArguments, LastCacheProvider};
+use crate::last_cache::LastCacheProvider;
 use crate::wal::WalSegmentWriterNoopImpl;
 use crate::write_buffer::{
     buffer_segment::{load_buffer_from_segment, ClosedBufferSegment, OpenBufferSegment},
@@ -12,7 +12,6 @@ use crate::{persister, write_buffer, PersistedCatalog, PersistedSegment, Persist
 use crate::{SegmentDuration, SegmentRange, Wal};
 use iox_time::Time;
 use std::sync::Arc;
-use std::time::Duration;
 
 const SEGMENTS_TO_LOAD: usize = 1000;
 
@@ -41,29 +40,7 @@ where
 {
     let PersistedCatalog { catalog, .. } = persister.load_catalog().await?.unwrap_or_default();
 
-    let last_cache = LastCacheProvider::new();
-    for (db_name, db_schema) in catalog.databases() {
-        for (tbl_name, tbl_def) in db_schema.tables() {
-            for (cache_name, cache_def) in tbl_def.last_caches() {
-                assert!(
-                    last_cache
-                        .create_cache(CreateCacheArguments {
-                            db_name: db_name.to_owned(),
-                            tbl_name: tbl_name.to_owned(),
-                            schema: tbl_def.schema.clone(),
-                            cache_name: Some(cache_name.to_owned()),
-                            count: Some(cache_def.count.into()),
-                            ttl: Some(Duration::from_secs(cache_def.ttl)),
-                            key_columns: Some(cache_def.key_columns.clone()),
-                            value_columns: Some(cache_def.value_columns.clone()),
-                        })?
-                        .is_some(),
-                    "catalog should not contain duplicate last cache definitions"
-                );
-            }
-        }
-    }
-    let last_cache = Arc::new(last_cache);
+    let last_cache = Arc::new(LastCacheProvider::new_from_catalog(&catalog)?);
 
     let catalog = Arc::new(Catalog::from_inner(catalog));
 
