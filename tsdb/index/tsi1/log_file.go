@@ -1086,8 +1086,8 @@ func (f *LogFile) seriesSketches() (sketch, tSketch estimator.Sketch, err error)
 }
 
 func (f *LogFile) Writes(entries []LogEntry) error {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
 	for i := range entries {
 		entry := &entries[i]
