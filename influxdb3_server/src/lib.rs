@@ -666,31 +666,79 @@ mod tests {
         .await;
         assert_eq!(resp.status(), StatusCode::OK);
 
+        struct TestCase {
+            query: &'static str,
+            expected: &'static str,
+        }
+
+        let test_cases = [
+            TestCase {
+                query: "SELECT * FROM last_cache('cpu') ORDER BY host",
+                expected: "\
+                    +------+--------+---------------------+-------+\n\
+                    | host | region | time                | usage |\n\
+                    +------+--------+---------------------+-------+\n\
+                    | a    | us     | 1970-01-01T00:16:40 | 11.0  |\n\
+                    | b    | us     | 1970-01-01T00:16:40 | 22.0  |\n\
+                    | c    | us     | 1970-01-01T00:16:40 | 33.0  |\n\
+                    | d    | ca     | 1970-01-01T00:16:40 | 44.0  |\n\
+                    | e    | ca     | 1970-01-01T00:16:40 | 55.0  |\n\
+                    | f    | eu     | 1970-01-01T00:16:40 | 66.0  |\n\
+                    +------+--------+---------------------+-------+",
+            },
+            TestCase {
+                query: "SELECT * FROM last_cache('cpu') WHERE region = 'us' ORDER BY host",
+                expected: "\
+                    +------+--------+---------------------+-------+\n\
+                    | host | region | time                | usage |\n\
+                    +------+--------+---------------------+-------+\n\
+                    | a    | us     | 1970-01-01T00:16:40 | 11.0  |\n\
+                    | b    | us     | 1970-01-01T00:16:40 | 22.0  |\n\
+                    | c    | us     | 1970-01-01T00:16:40 | 33.0  |\n\
+                    +------+--------+---------------------+-------+",
+            },
+            TestCase {
+                query: "SELECT * FROM last_cache('cpu') WHERE region != 'us' ORDER BY host",
+                expected: "\
+                    +------+--------+---------------------+-------+\n\
+                    | host | region | time                | usage |\n\
+                    +------+--------+---------------------+-------+\n\
+                    | d    | ca     | 1970-01-01T00:16:40 | 44.0  |\n\
+                    | e    | ca     | 1970-01-01T00:16:40 | 55.0  |\n\
+                    | f    | eu     | 1970-01-01T00:16:40 | 66.0  |\n\
+                    +------+--------+---------------------+-------+",
+            },
+            TestCase {
+                query: "SELECT * FROM last_cache('cpu') WHERE host IN ('a', 'b') ORDER BY host",
+                expected: "\
+                    +------+--------+---------------------+-------+\n\
+                    | host | region | time                | usage |\n\
+                    +------+--------+---------------------+-------+\n\
+                    | a    | us     | 1970-01-01T00:16:40 | 11.0  |\n\
+                    | b    | us     | 1970-01-01T00:16:40 | 22.0  |\n\
+                    +------+--------+---------------------+-------+",
+            },
+            TestCase {
+                query: "SELECT * FROM last_cache('cpu') WHERE host NOT IN ('a', 'b') ORDER BY host",
+                expected: "\
+                    +------+--------+---------------------+-------+\n\
+                    | host | region | time                | usage |\n\
+                    +------+--------+---------------------+-------+\n\
+                    | c    | us     | 1970-01-01T00:16:40 | 33.0  |\n\
+                    | d    | ca     | 1970-01-01T00:16:40 | 44.0  |\n\
+                    | e    | ca     | 1970-01-01T00:16:40 | 55.0  |\n\
+                    | f    | eu     | 1970-01-01T00:16:40 | 66.0  |\n\
+                    +------+--------+---------------------+-------+",
+            },
+        ];
+
+        for t in test_cases {
+            let res = query(&url, db_name, t.query, "pretty", None).await;
+            let body = body::to_bytes(res.into_body()).await.unwrap();
+            let body = String::from_utf8(body.as_bytes().to_vec()).unwrap();
+            assert_eq!(t.expected, body, "query failed: {}", t.query);
+        }
         // Query from the last cache:
-        let res = query(
-            &url,
-            db_name,
-            format!("SELECT * FROM last_cache('{tbl_name}') ORDER BY host"),
-            "pretty",
-            None,
-        )
-        .await;
-        let body = body::to_bytes(res.into_body()).await.unwrap();
-        let body = String::from_utf8(body.as_bytes().to_vec()).unwrap();
-        assert_eq!(
-            "\
-            +------+--------+---------------------+-------+\n\
-            | host | region | time                | usage |\n\
-            +------+--------+---------------------+-------+\n\
-            | a    | us     | 1970-01-01T00:16:40 | 11.0  |\n\
-            | b    | us     | 1970-01-01T00:16:40 | 22.0  |\n\
-            | c    | us     | 1970-01-01T00:16:40 | 33.0  |\n\
-            | d    | ca     | 1970-01-01T00:16:40 | 44.0  |\n\
-            | e    | ca     | 1970-01-01T00:16:40 | 55.0  |\n\
-            | f    | eu     | 1970-01-01T00:16:40 | 66.0  |\n\
-            +------+--------+---------------------+-------+",
-            body
-        );
 
         shutdown.cancel();
     }
