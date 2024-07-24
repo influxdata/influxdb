@@ -259,14 +259,14 @@ func scanMeasurement(bufe Escaped, i int) (int, int, error) {
 	// It can't be a space, since whitespace is stripped prior to this
 	// function call.
 	if i >= len(buf) || buf[i] == ',' {
-		return -1, i, fmt.Errorf("missing measurement")
+		return -1, i, fmt.Errorf("missing measurement in: %q", buf)
 	}
 
 	for {
 		i++
 		if i >= len(buf) {
 			// cpu
-			return -1, i, fmt.Errorf("missing fields")
+			return -1, i, fmt.Errorf("missing fields in: %d", buf)
 		}
 
 		if buf[i-1] == '\\' {
