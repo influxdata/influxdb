@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export/parquet/resultset"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export/parquet/table"
 	tsdb "github.com/influxdata/influxdb/cmd/influx_inspect/export/parquet/tsm1"
+	"github.com/influxdata/influxdb/pkg/errors"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
@@ -104,7 +105,11 @@ func (cmd *Command) writeToParquet(rs resultset.ResultSet, schema *index.Measure
 			"stdout",
 		}
 	}
-	log, _ := cfg.Build()
+
+	log, err := cfg.Build()
+	if err != nil {
+		return fmt.Errorf("failed creating logger instance: %w", err)
+	}
 
 	log.Info("Generating parquet", zap.Int("chunk_size", cmd.pqChunkSize))
 
@@ -170,16 +175,9 @@ func (cmd *Command) writeToParquet(rs resultset.ResultSet, schema *index.Measure
 				fileName := filepath.Join(cmd.out, fmt.Sprintf("table-%05d.parquet", sequence))
 				parquetFile, err = os.Create(fileName)
 				if err != nil {
-					return false, err
+					return false, fmt.Errorf("failed creating parquet file %s for export: %w", fileName, err)
 				}
-				defer func() {
-					closeErr := parquetFile.Close()
-					if err == nil {
-						// we only care if the file fails to close when there was no
-						// previous error
-						err = closeErr
-					}
-				}()
+				defer errors.Capture(&err, parquetFile.Close)
 			}
 
 			var metaFile *os.File
@@ -187,16 +185,9 @@ func (cmd *Command) writeToParquet(rs resultset.ResultSet, schema *index.Measure
 				fileName := filepath.Join(cmd.out, fmt.Sprintf("table-%05d.meta.json", sequence))
 				metaFile, err = os.Create(fileName)
 				if err != nil {
-					return false, err
+					return false, fmt.Errorf("failed creating parquet meta file %s: %w", fileName, err)
 				}
-				defer func() {
-					closeErr := metaFile.Close()
-					if err == nil {
-						// we only care if the file fails to close when there was no
-						// previous error
-						err = closeErr
-					}
-				}()
+				defer errors.Capture(&err, metaFile.Close)
 			}
 
 			stats := t.Stats()
