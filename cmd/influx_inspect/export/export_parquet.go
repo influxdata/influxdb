@@ -54,6 +54,10 @@ func (cmd *Command) writeValuesParquet(_ io.Writer, seriesKey []byte, field stri
 }
 
 func (cmd *Command) exportDoneParquet(_ string) error {
+	if len(vc) == 0 {
+		return nil
+	}
+
 	defer func() {
 		vc = nil
 	}()
@@ -87,7 +91,7 @@ func (cmd *Command) exportDoneParquet(_ string) error {
 			TagSet:   tagSet,
 			FieldSet: fieldSet,
 		}
-		// schema does not change in a table
+		// schema does not change in a table in one tsm file
 		break
 	}
 
