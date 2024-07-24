@@ -170,6 +170,12 @@ codegen-units = 16
 lto = false
 incremental = true
 
+# This profile extends the `quick-release` profile with debuginfo turned on in order to
+# produce more human friendly symbols for profiling tools
+[profile.quick-bench]
+inherits = "quick-release"
+debug = 1
+
 # Per insta docs: https://insta.rs/docs/quickstart/#optional-faster-runs
 [profile.dev.package.insta]
 opt-level = 3
