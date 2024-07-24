@@ -3,7 +3,7 @@ package exporter
 import (
 	"bytes"
 	"encoding/base64"
-	"errors"
+	"fmt"
 	"io"
 
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export/parquet/models"
@@ -35,11 +35,11 @@ func (m *Meta) UnmarshalJSON(data []byte) error {
 
 	firstSeriesKey, err := base64.StdEncoding.DecodeString(tmp.FirstSeriesKey)
 	if err != nil {
-		return errors.New("failed to decode firstSeriesKeyEscaped")
+		return fmt.Errorf("failed to decode firstSeriesKeyEscaped: %w", err)
 	}
 	lastSeriesKey, err := base64.StdEncoding.DecodeString(tmp.LastSeriesKey)
 	if err != nil {
-		return errors.New("failed to decode lastSeriesKeyEscaped")
+		return fmt.Errorf("failed to decode lastSeriesKeyEscaped: %w", err)
 	}
 
 	m.FirstSeriesKey = models.MakeEscaped(firstSeriesKey)
@@ -50,7 +50,7 @@ func (m *Meta) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (m Meta) MarshalJSON() ([]byte, error) {
+func (m *Meta) MarshalJSON() ([]byte, error) {
 	var b bytes.Buffer
 	enc := jsoniter.NewEncoder(&b)
 	err := enc.Encode(meta{
