@@ -713,11 +713,22 @@ pub struct LastCacheCreatedResponse {
     /// Columns intended to be used as predicates in the cache
     pub key_columns: Vec<String>,
     /// Columns that store values in the cache
-    pub value_columns: Vec<String>,
+    pub value_columns: LastCacheValueColumnsDef,
     /// The number of last values to hold in the cache
     pub count: usize,
     /// The time-to-live (TTL) in seconds for entries in the cache
     pub ttl: u64,
+}
+
+/// A last cache will either store values for an explicit set of columns, or will accept all
+/// non-key columns
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum LastCacheValueColumnsDef {
+    /// Explicit list of column names
+    Explicit { columns: Vec<String> },
+    /// Stores all non-key columns
+    AllNonKeyColumns,
 }
 
 #[cfg(test)]
@@ -989,7 +1000,10 @@ mod tests {
                     "table": "table",
                     "name": "cache_name",
                     "key_columns": ["col1", "col2"],
-                    "value_columns": ["col3", "col4"],
+                    "value_columns": {
+                        "type": "explicit",
+                        "columns": ["col3", "col4"]
+                    },
                     "ttl": 120,
                     "count": 5
                 }"#,

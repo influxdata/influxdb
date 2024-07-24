@@ -132,7 +132,8 @@ impl LastCacheProvider {
                                 ttl: Some(Duration::from_secs(cache_def.ttl)),
                                 key_columns: Some(cache_def.key_columns.clone()),
                                 value_columns: match &cache_def.value_columns {
-                                    LastCacheValueColumnsDef::Explicit(cols) => Some(cols.clone()),
+                                    LastCacheValueColumnsDef::Explicit { columns } =>
+                                        Some(columns.clone()),
                                     LastCacheValueColumnsDef::AllNonKeyColumns => None,
                                 },
                             })?
@@ -343,7 +344,9 @@ impl LastCacheProvider {
             value_columns: if accept_new_fields {
                 LastCacheValueColumnsDef::AllNonKeyColumns
             } else {
-                LastCacheValueColumnsDef::Explicit(value_columns)
+                LastCacheValueColumnsDef::Explicit {
+                    columns: value_columns,
+                }
             },
             count,
             ttl: ttl.as_secs(),

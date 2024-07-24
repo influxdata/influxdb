@@ -397,9 +397,9 @@ impl LastCacheDefinition {
             table: table.into(),
             name: name.into(),
             key_columns: key_columns.into_iter().map(Into::into).collect(),
-            value_columns: LastCacheValueColumnsDef::Explicit(
-                value_columns.into_iter().map(Into::into).collect(),
-            ),
+            value_columns: LastCacheValueColumnsDef::Explicit {
+                columns: value_columns.into_iter().map(Into::into).collect(),
+            },
             count: count.try_into()?,
             ttl,
         })
@@ -417,15 +417,15 @@ impl LastCacheDefinition {
             value_columns: if cache.accept_new_fields {
                 LastCacheValueColumnsDef::AllNonKeyColumns
             } else {
-                LastCacheValueColumnsDef::Explicit(
-                    cache
+                LastCacheValueColumnsDef::Explicit {
+                    columns: cache
                         .schema
                         .fields()
                         .iter()
                         .filter(|f| !cache.key_columns.contains(f.name()))
                         .map(|f| f.name().to_owned())
                         .collect(),
-                )
+                }
             },
             count: cache.count,
             ttl: cache.ttl.as_secs(),
@@ -436,9 +436,10 @@ impl LastCacheDefinition {
 /// A last cache will either store values for an explicit set of columns, or will accept all
 /// non-key columns
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum LastCacheValueColumnsDef {
     /// Explicit list of column names
-    Explicit(Vec<String>),
+    Explicit { columns: Vec<String> },
     /// Stores all non-key columns
     AllNonKeyColumns,
 }

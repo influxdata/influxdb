@@ -279,8 +279,8 @@ impl<'a> From<&'a LastCacheDefinition> for LastCacheSnapshot<'a> {
             name: &lcd.name,
             keys: lcd.key_columns.iter().map(|v| v.as_str()).collect(),
             vals: match &lcd.value_columns {
-                LastCacheValueColumnsDef::Explicit(cols) => {
-                    Some(cols.iter().map(|v| v.as_str()).collect())
+                LastCacheValueColumnsDef::Explicit { columns } => {
+                    Some(columns.iter().map(|v| v.as_str()).collect())
                 }
                 LastCacheValueColumnsDef::AllNonKeyColumns => None,
             },
@@ -297,9 +297,9 @@ impl<'a> From<LastCacheSnapshot<'a>> for LastCacheDefinition {
             name: snap.name.to_string(),
             key_columns: snap.keys.iter().map(|s| s.to_string()).collect(),
             value_columns: match snap.vals {
-                Some(cols) => {
-                    LastCacheValueColumnsDef::Explicit(cols.iter().map(|s| s.to_string()).collect())
-                }
+                Some(cols) => LastCacheValueColumnsDef::Explicit {
+                    columns: cols.iter().map(|s| s.to_string()).collect(),
+                },
                 None => LastCacheValueColumnsDef::AllNonKeyColumns,
             },
             count: snap

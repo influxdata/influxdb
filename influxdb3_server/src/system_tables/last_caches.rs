@@ -102,8 +102,10 @@ fn from_last_cache_definitions(
 
         for c in caches {
             match &c.value_columns {
-                LastCacheValueColumnsDef::Explicit(cols) => {
-                    cols.iter().for_each(|v| builder.values().append_value(v));
+                LastCacheValueColumnsDef::Explicit { columns } => {
+                    columns
+                        .iter()
+                        .for_each(|v| builder.values().append_value(v));
                     builder.append(true);
                 }
                 LastCacheValueColumnsDef::AllNonKeyColumns => {
