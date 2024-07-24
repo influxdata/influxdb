@@ -22,6 +22,11 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+const (
+	DefaultParquetPartitionSize = 100_000_000
+	MinParquetPartitionSize     = 1_000_000
+)
+
 // Command represents the program execution for "influx_inspect export".
 type Command struct {
 	// Standard input/output, overridden for testing.
@@ -83,7 +88,7 @@ func (cmd *Command) Run(args ...string) error {
 	fs.BoolVar(&cmd.lponly, "lponly", false, "Only export line protocol")
 	fs.BoolVar(&cmd.compress, "compress", false, "Compress the output")
 	fs.BoolVar(&cmd.parquet, "parquet", false, "Export to Parquet format (requires -database -retention -measurement)")
-	fs.IntVar(&cmd.pqChunkSize, "chunk-size", 100_000_000, "Size to partition Parquet files (in bytes)")
+	fs.IntVar(&cmd.pqChunkSize, "chunk-size", DefaultParquetPartitionSize, "Size to partition Parquet files (in bytes)")
 
 	fs.SetOutput(cmd.Stdout)
 	fs.Usage = func() {
@@ -146,8 +151,8 @@ func (cmd *Command) validate() error {
 		if cmd.out == "-" {
 			return fmt.Errorf("-out must point to a folder for Parquet files")
 		}
-		if cmd.pqChunkSize < 1_000_000 {
-			return fmt.Errorf("minimum Parquet partition size is 1000000 bytes")
+		if cmd.pqChunkSize < MinParquetPartitionSize {
+			return fmt.Errorf("minimum Parquet partition size is %d bytes", MinParquetPartitionSize)
 		}
 	}
 	return nil
