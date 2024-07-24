@@ -4,7 +4,7 @@ use arrow::datatypes::DataType as ArrowDataType;
 use schema::{InfluxColumnType, SchemaBuilder};
 use serde::{Deserialize, Serialize};
 
-use super::{LastCacheDefinition, TableDefinition};
+use super::{LastCacheDefinition, LastCacheValueColumnsDef, TableDefinition};
 
 impl Serialize for TableDefinition {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -267,7 +267,7 @@ struct LastCacheSnapshot<'a> {
     table: &'a str,
     name: &'a str,
     keys: Vec<&'a str>,
-    vals: Vec<&'a str>,
+    vals: Option<Vec<&'a str>>,
     n: usize,
     ttl: u64,
 }
@@ -278,7 +278,12 @@ impl<'a> From<&'a LastCacheDefinition> for LastCacheSnapshot<'a> {
             table: &lcd.table,
             name: &lcd.name,
             keys: lcd.key_columns.iter().map(|v| v.as_str()).collect(),
-            vals: lcd.value_columns.iter().map(|v| v.as_str()).collect(),
+            vals: match &lcd.value_columns {
+                LastCacheValueColumnsDef::Explicit { columns } => {
+                    Some(columns.iter().map(|v| v.as_str()).collect())
+                }
+                LastCacheValueColumnsDef::AllNonKeyColumns => None,
+            },
             n: lcd.count.into(),
             ttl: lcd.ttl,
         }
@@ -291,7 +296,12 @@ impl<'a> From<LastCacheSnapshot<'a>> for LastCacheDefinition {
             table: snap.table.to_string(),
             name: snap.name.to_string(),
             key_columns: snap.keys.iter().map(|s| s.to_string()).collect(),
-            value_columns: snap.vals.iter().map(|s| s.to_string()).collect(),
+            value_columns: match snap.vals {
+                Some(cols) => LastCacheValueColumnsDef::Explicit {
+                    columns: cols.iter().map(|s| s.to_string()).collect(),
+                },
+                None => LastCacheValueColumnsDef::AllNonKeyColumns,
+            },
             count: snap
                 .n
                 .try_into()

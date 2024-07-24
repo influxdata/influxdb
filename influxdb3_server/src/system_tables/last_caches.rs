@@ -4,7 +4,10 @@ use arrow::array::{GenericListBuilder, StringBuilder};
 use arrow_array::{ArrayRef, RecordBatch, StringArray, UInt64Array};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use datafusion::{error::DataFusionError, logical_expr::Expr};
-use influxdb3_write::{catalog::LastCacheDefinition, last_cache::LastCacheProvider};
+use influxdb3_write::{
+    catalog::{LastCacheDefinition, LastCacheValueColumnsDef},
+    last_cache::LastCacheProvider,
+};
 use iox_system_tables::IoxSystemTable;
 
 pub(super) struct LastCachesTable {
@@ -35,7 +38,7 @@ fn last_caches_schema() -> SchemaRef {
         Field::new(
             "value_columns",
             DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
-            false,
+            true,
         ),
         Field::new("count", DataType::UInt64, false),
         Field::new("ttl", DataType::UInt64, false),
@@ -98,10 +101,17 @@ fn from_last_cache_definitions(
         let mut builder = GenericListBuilder::<i32, _>::new(values_builder);
 
         for c in caches {
-            c.value_columns
-                .iter()
-                .for_each(|v| builder.values().append_value(v));
-            builder.append(true);
+            match &c.value_columns {
+                LastCacheValueColumnsDef::Explicit { columns } => {
+                    columns
+                        .iter()
+                        .for_each(|v| builder.values().append_value(v));
+                    builder.append(true);
+                }
+                LastCacheValueColumnsDef::AllNonKeyColumns => {
+                    builder.append_null();
+                }
+            }
         }
         Arc::new(builder.finish())
     });
