@@ -14,6 +14,7 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::Response;
 
 mod auth;
+mod client;
 mod configure;
 mod flight;
 mod limits;
