@@ -10,6 +10,7 @@ import (
 	"github.com/apache/arrow/go/v16/parquet/pqarrow"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export/parquet/models"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export/parquet/table"
+	errors2 "github.com/influxdata/influxdb/pkg/errors"
 	"github.com/pkg/errors"
 )
 
@@ -92,14 +93,7 @@ func (e *Exporter) WriteChunk(ctx context.Context, parquet io.Writer, metaW io.W
 	if err != nil {
 		return false, err
 	}
-	defer func() {
-		closeErr := fw.Close()
-		if err == nil {
-			// we only care if the file fails to close when there was no
-			// previous error
-			err = closeErr
-		}
-	}()
+	defer errors2.Capture(&err, fw.Close)
 
 	var (
 		firstSeriesKey     models.Escaped
