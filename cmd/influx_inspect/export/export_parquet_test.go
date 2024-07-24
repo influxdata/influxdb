@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/influxdata/influxdb/pkg/testing/assert"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
@@ -62,20 +63,24 @@ func TestExportParquet(t *testing.T) {
 	}{
 		{corpus: myCorpus},
 	} {
-		tsmFile := writeCorpusToTSMFile(c.corpus)
-		defer os.Remove(tsmFile.Name())
-		outdir := t.TempDir()
+		func() {
+			tsmFile := writeCorpusToTSMFile(c.corpus)
+			defer func() {
+				assert.NoError(t, os.Remove(tsmFile.Name()))
+			}()
+			out := t.TempDir()
 
-		cmd := newCommand()
-		cmd.out = outdir
-		cmd.writeValues = cmd.writeValuesParquet
-		cmd.exportDone = cmd.exportDoneParquet
-		cmd.measurement = "mym"
-		cmd.parquet = true
-		cmd.pqChunkSize = 100_000_000
+			cmd := newCommand()
+			cmd.out = out
+			cmd.writeValues = cmd.writeValuesParquet
+			cmd.exportDone = cmd.exportDoneParquet
+			cmd.measurement = "mym"
+			cmd.parquet = true
+			cmd.pqChunkSize = 100_000_000
 
-		if err := cmd.writeTsmFiles(io.Discard, io.Discard, []string{tsmFile.Name()}); err != nil {
-			t.Fatal(err)
-		}
+			t.Logf("cmd.writeTsmFiles: []{%s}", tsmFile.Name())
+			err := cmd.writeTsmFiles(io.Discard, io.Discard, []string{tsmFile.Name()})
+			assert.NoError(t, err)
+		}()
 	}
 }
