@@ -68,7 +68,6 @@ mime = "0.3.17"
 mockito = { version = "1.4.0", default-features = false }
 num_cpus = "1.16.0"
 object_store = "0.10.1"
-once_cell = { version = "1.18", features = ["parking_lot"] }
 parking_lot = "0.12.1"
 parquet = { version = "52.1.0", features = ["object_store"] }
 pbjson = "0.6.0"
@@ -139,20 +138,21 @@ tracker = { git = "https://github.com/influxdata/influxdb3_core", rev = "d81f63d
 trogging = { git = "https://github.com/influxdata/influxdb3_core", rev = "d81f63ddc10e3cf1c28b05e6c1cef03b71da7f8a", default-features = true, features = ["clap"] }
 
 [workspace.lints.rust]
-rust_2018_idioms = "deny"
-unreachable_pub = "deny"
-missing_debug_implementations = "deny"
 missing_copy_implementations = "deny"
+missing_debug_implementations = "deny"
+rust_2018_idioms = { level = "deny", priority = -1 }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
+unreachable_pub = "deny"
 
 [workspace.lints.clippy]
-dbg_macro = "deny"
-todo = "deny"
 clone_on_ref_ptr = "deny"
+dbg_macro = "deny"
 future_not_send = "deny"
+todo = "deny"
 
 [workspace.lints.rustdoc]
-broken_intra_doc_links = "deny"
 bare_urls = "deny"
+broken_intra_doc_links = "deny"
 
 # This profile optimizes for runtime performance and small binary size at the expense of longer
 # build times. It's most suitable for final release builds.
