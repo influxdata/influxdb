@@ -2416,7 +2416,6 @@ dependencies = [
  "num_cpus",
  "object_store",
  "observability_deps",
- "once_cell",
  "panic_logging",
  "parking_lot",
  "parquet_file",
@@ -2489,7 +2488,6 @@ version = "0.1.0"
 dependencies = [
  "iox_time",
  "metric",
- "once_cell",
  "tikv-jemalloc-ctl",
  "tikv-jemallocator",
  "tokio",
