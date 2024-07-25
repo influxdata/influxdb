@@ -1499,19 +1499,21 @@ fn data_type_from_buffer_field(field: &Field) -> DataType {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::{cmp::Ordering, collections::BTreeMap, sync::Arc, time::Duration};
 
     use ::object_store::{memory::InMemory, ObjectStore};
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::NamespaceName;
+    use insta::assert_json_snapshot;
     use iox_time::{MockProvider, Time};
 
     use crate::{
-        last_cache::{KeyValue, Predicate, DEFAULT_CACHE_TTL},
+        catalog::{Catalog, DatabaseSchema, LastCacheDefinition, TableDefinition},
+        last_cache::{KeyValue, LastCacheProvider, Predicate, DEFAULT_CACHE_TTL},
         persister::PersisterImpl,
         wal::WalImpl,
         write_buffer::WriteBufferImpl,
-        Bufferer, LastCacheManager, Precision, SegmentDuration,
+        Bufferer, LastCacheManager, Precision, SegmentDuration, SequenceNumber,
     };
 
     async fn setup_write_buffer() -> WriteBufferImpl<WalImpl, MockProvider> {
@@ -2965,5 +2967,100 @@ mod tests {
             .await
             .expect_err("create last cache should have failed");
         assert_eq!(wbuf.last_cache_provider().size(), 2);
+    }
+
+    type SeriesKey = Option<Vec<String>>;
+
+    #[test]
+    fn catalog_initialization() {
+        // Set up a database in the catalog:
+        let db_name = "test_db";
+        let mut database = DatabaseSchema {
+            name: db_name.to_string(),
+            tables: BTreeMap::new(),
+        };
+        use schema::InfluxColumnType::*;
+        use schema::InfluxFieldType::*;
+        // Add a table to it:
+        let mut table_def = TableDefinition::new(
+            "test_table_1",
+            [
+                ("t1", Tag),
+                ("t2", Tag),
+                ("t3", Tag),
+                ("time", Timestamp),
+                ("f1", Field(String)),
+                ("f2", Field(Float)),
+            ],
+            SeriesKey::None,
+        );
+        // Give that table a last cache:
+        table_def.add_last_cache(
+            LastCacheDefinition::new_all_non_key_value_columns(
+                "test_table_1",
+                "test_cache_1",
+                ["t1", "t2"],
+                1,
+                600,
+            )
+            .unwrap(),
+        );
+        database.tables.insert("test_table".into(), table_def);
+        // Add another table to it:
+        let mut table_def = TableDefinition::new(
+            "test_table_2",
+            [
+                ("t1", Tag),
+                ("time", Timestamp),
+                ("f1", Field(String)),
+                ("f2", Field(Float)),
+            ],
+            SeriesKey::None,
+        );
+        // Give that table a last cache:
+        table_def.add_last_cache(
+            LastCacheDefinition::new_with_explicit_value_columns(
+                "test_table_2",
+                "test_cache_2",
+                ["t1"],
+                ["f1"],
+                5,
+                60,
+            )
+            .unwrap(),
+        );
+        // Give that table another last cache:
+        table_def.add_last_cache(
+            LastCacheDefinition::new_with_explicit_value_columns(
+                "test_table_2",
+                "test_cache_3",
+                &[] as &[std::string::String],
+                ["f2"],
+                10,
+                500,
+            )
+            .unwrap(),
+        );
+        database.tables.insert("test_table_2".into(), table_def);
+        // Create the catalog and clone its InnerCatalog (which is what the LastCacheProvider is
+        // initialized from):
+        let catalog = Catalog::new();
+        catalog
+            .replace_database(SequenceNumber::new(0), Arc::new(database))
+            .unwrap();
+        let inner = catalog.clone_inner();
+        // This is the function we are testing, which initializes the LastCacheProvider from the catalog:
+        let provider = LastCacheProvider::new_from_catalog(&inner)
+            .expect("create last cache provider from catalog");
+        // There should be a total of 3 caches:
+        assert_eq!(3, provider.size());
+        // Get the cache definitions and snapshot them to check their content. They are sorted to
+        // ensure order, since the provider uses hashmaps and their order may not be guaranteed.
+        let mut caches = provider.get_last_caches_for_db(db_name);
+        caches.sort_by(|a, b| match a.table.partial_cmp(&b.table).unwrap() {
+            ord @ Ordering::Less | ord @ Ordering::Greater => ord,
+            Ordering::Equal => a.name.partial_cmp(&b.name).unwrap(),
+        });
+        assert_json_snapshot!(caches);
     }
 }
