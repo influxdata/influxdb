@@ -67,7 +67,7 @@ libc = { version = "0.2" }
 mime = "0.3.17"
 mockito = { version = "1.4.0", default-features = false }
 num_cpus = "1.16.0"
-object_store = "0.10.1"
+object_store = "0.10.2"
 parking_lot = "0.12.1"
 parquet = { version = "52.1.0", features = ["object_store"] }
 pbjson = "0.6.0"
