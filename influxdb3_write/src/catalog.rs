@@ -383,9 +383,9 @@ pub struct LastCacheDefinition {
 }
 
 impl LastCacheDefinition {
-    /// Create a new [`LastCacheDefinition`]
+    /// Create a new [`LastCacheDefinition`] with explicit value columns
     #[cfg(test)]
-    pub(crate) fn new(
+    pub(crate) fn new_with_explicit_value_columns(
         table: impl Into<String>,
         name: impl Into<String>,
         key_columns: impl IntoIterator<Item: Into<String>>,
@@ -400,6 +400,25 @@ impl LastCacheDefinition {
             value_columns: LastCacheValueColumnsDef::Explicit {
                 columns: value_columns.into_iter().map(Into::into).collect(),
             },
+            count: count.try_into()?,
+            ttl,
+        })
+    }
+
+    /// Create a new [`LastCacheDefinition`] with explicit value columns
+    #[cfg(test)]
+    pub(crate) fn new_all_non_key_value_columns(
+        table: impl Into<String>,
+        name: impl Into<String>,
+        key_columns: impl IntoIterator<Item: Into<String>>,
+        count: usize,
+        ttl: u64,
+    ) -> Result<Self, Error> {
+        Ok(Self {
+            table: table.into(),
+            name: name.into(),
+            key_columns: key_columns.into_iter().map(Into::into).collect(),
+            value_columns: LastCacheValueColumnsDef::AllNonKeyColumns,
             count: count.try_into()?,
             ttl,
         })
@@ -740,7 +759,7 @@ mod tests {
             SeriesKey::None,
         );
         table_def.add_last_cache(
-            LastCacheDefinition::new(
+            LastCacheDefinition::new_with_explicit_value_columns(
                 "test",
                 "test_table_last_cache",
                 ["tag_2", "tag_3"],
