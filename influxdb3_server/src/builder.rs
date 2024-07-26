@@ -1,21 +1,23 @@
 use std::sync::Arc;
 
 use authz::Authorizer;
+use tokio::net::TcpListener;
 
 use crate::{auth::DefaultAuthorizer, http::HttpApi, CommonServerState, Server};
 
 #[derive(Debug)]
-pub struct ServerBuilder<W, Q, P, T> {
+pub struct ServerBuilder<W, Q, P, T, L> {
     common_state: CommonServerState,
     time_provider: T,
     max_request_size: usize,
     write_buffer: W,
     query_executor: Q,
     persister: P,
+    listener: L,
     authorizer: Arc<dyn Authorizer>,
 }
 
-impl ServerBuilder<NoWriteBuf, NoQueryExec, NoPersister, NoTimeProvider> {
+impl ServerBuilder<NoWriteBuf, NoQueryExec, NoPersister, NoTimeProvider, NoListener> {
     pub fn new(common_state: CommonServerState) -> Self {
         Self {
             common_state,
@@ -24,12 +26,13 @@ impl ServerBuilder<NoWriteBuf, NoQueryExec, NoPersister, NoTimeProvider> {
             write_buffer: NoWriteBuf,
             query_executor: NoQueryExec,
             persister: NoPersister,
+            listener: NoListener,
             authorizer: Arc::new(DefaultAuthorizer),
         }
     }
 }
 
-impl<W, Q, P, T> ServerBuilder<W, Q, P, T> {
+impl<W, Q, P, T, L> ServerBuilder<W, Q, P, T, L> {
     pub fn max_request_size(mut self, max_request_size: usize) -> Self {
         self.max_request_size = max_request_size;
         self
@@ -57,9 +60,13 @@ pub struct WithPersister<P>(Arc<P>);
 pub struct NoTimeProvider;
 #[derive(Debug)]
 pub struct WithTimeProvider<T>(Arc<T>);
+#[derive(Debug)]
+pub struct NoListener;
+#[derive(Debug)]
+pub struct WithListener(TcpListener);
 
-impl<Q, P, T> ServerBuilder<NoWriteBuf, Q, P, T> {
-    pub fn write_buffer<W>(self, wb: Arc<W>) -> ServerBuilder<WithWriteBuf<W>, Q, P, T> {
+impl<Q, P, T, L> ServerBuilder<NoWriteBuf, Q, P, T, L> {
+    pub fn write_buffer<W>(self, wb: Arc<W>) -> ServerBuilder<WithWriteBuf<W>, Q, P, T, L> {
         ServerBuilder {
             common_state: self.common_state,
             time_provider: self.time_provider,
@@ -67,13 +74,14 @@ impl<Q, P, T> ServerBuilder<NoWriteBuf, Q, P, T> {
             write_buffer: WithWriteBuf(wb),
             query_executor: self.query_executor,
             persister: self.persister,
+            listener: self.listener,
             authorizer: self.authorizer,
         }
     }
 }
 
-impl<W, P, T> ServerBuilder<W, NoQueryExec, P, T> {
-    pub fn query_executor<Q>(self, qe: Arc<Q>) -> ServerBuilder<W, WithQueryExec<Q>, P, T> {
+impl<W, P, T, L> ServerBuilder<W, NoQueryExec, P, T, L> {
+    pub fn query_executor<Q>(self, qe: Arc<Q>) -> ServerBuilder<W, WithQueryExec<Q>, P, T, L> {
         ServerBuilder {
             common_state: self.common_state,
             time_provider: self.time_provider,
@@ -81,13 +89,14 @@ impl<W, P, T> ServerBuilder<W, NoQueryExec, P, T> {
             write_buffer: self.write_buffer,
             query_executor: WithQueryExec(qe),
             persister: self.persister,
+            listener: self.listener,
             authorizer: self.authorizer,
         }
     }
 }
 
-impl<W, Q, T> ServerBuilder<W, Q, NoPersister, T> {
-    pub fn persister<P>(self, p: Arc<P>) -> ServerBuilder<W, Q, WithPersister<P>, T> {
+impl<W, Q, T, L> ServerBuilder<W, Q, NoPersister, T, L> {
+    pub fn persister<P>(self, p: Arc<P>) -> ServerBuilder<W, Q, WithPersister<P>, T, L> {
         ServerBuilder {
             common_state: self.common_state,
             time_provider: self.time_provider,
@@ -95,13 +104,14 @@ impl<W, Q, T> ServerBuilder<W, Q, NoPersister, T> {
             write_buffer: self.write_buffer,
             query_executor: self.query_executor,
             persister: WithPersister(p),
+            listener: self.listener,
             authorizer: self.authorizer,
         }
     }
 }
 
-impl<W, Q, P> ServerBuilder<W, Q, P, NoTimeProvider> {
-    pub fn time_provider<T>(self, tp: Arc<T>) -> ServerBuilder<W, Q, P, WithTimeProvider<T>> {
+impl<W, Q, P, L> ServerBuilder<W, Q, P, NoTimeProvider, L> {
+    pub fn time_provider<T>(self, tp: Arc<T>) -> ServerBuilder<W, Q, P, WithTimeProvider<T>, L> {
         ServerBuilder {
             common_state: self.common_state,
             time_provider: WithTimeProvider(tp),
@@ -109,13 +119,35 @@ impl<W, Q, P> ServerBuilder<W, Q, P, NoTimeProvider> {
             write_buffer: self.write_buffer,
             query_executor: self.query_executor,
             persister: self.persister,
+            listener: self.listener,
+            authorizer: self.authorizer,
+        }
+    }
+}
+
+impl<W, Q, P, T> ServerBuilder<W, Q, P, T, NoListener> {
+    pub fn tcp_listener(self, listener: TcpListener) -> ServerBuilder<W, Q, P, T, WithListener> {
+        ServerBuilder {
+            common_state: self.common_state,
+            time_provider: self.time_provider,
+            max_request_size: self.max_request_size,
+            write_buffer: self.write_buffer,
+            query_executor: self.query_executor,
+            persister: self.persister,
+            listener: WithListener(listener),
             authorizer: self.authorizer,
         }
     }
 }
 
 impl<W, Q, P, T>
-    ServerBuilder<WithWriteBuf<W>, WithQueryExec<Q>, WithPersister<P>, WithTimeProvider<T>>
+    ServerBuilder<
+        WithWriteBuf<W>,
+        WithQueryExec<Q>,
+        WithPersister<P>,
+        WithTimeProvider<T>,
+        WithListener,
+    >
 {
     pub fn build(self) -> Server<W, Q, P, T> {
         let persister = Arc::clone(&self.persister.0);
@@ -133,6 +165,7 @@ impl<W, Q, P, T>
             http,
             persister,
             authorizer,
+            listener: self.listener.0,
         }
     }
 }

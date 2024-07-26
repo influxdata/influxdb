@@ -21,7 +21,6 @@ use influxdb3_write::write_buffer::WriteBufferImpl;
 use influxdb3_write::SegmentDuration;
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
-use ioxd_common::reexport::trace_http::ctx::TraceHeaderParser;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
@@ -33,9 +32,11 @@ use std::{
     sync::Arc,
 };
 use thiserror::Error;
+use tokio::net::TcpListener;
 use tokio::task;
 use tokio_util::sync::CancellationToken;
 use trace_exporters::TracingConfig;
+use trace_http::ctx::TraceHeaderParser;
 use trogging::cli::LoggingConfig;
 
 /// The default name of the influxdb_iox data directory
@@ -55,6 +56,9 @@ pub enum Error {
 
     #[error("Error initializing tokio runtime: {0}")]
     TokioRuntime(#[source] std::io::Error),
+
+    #[error("Failed to bind address")]
+    BindAddress(#[source] std::io::Error),
 
     #[error("Server error: {0}")]
     Server(#[from] influxdb3_server::Error),
@@ -268,12 +272,8 @@ pub async fn command(config: Config) -> Result<()> {
         )
         .with_jaeger_debug_name(config.tracing_config.traces_jaeger_debug_name);
 
-    let common_state = CommonServerState::new(
-        Arc::clone(&metrics),
-        trace_exporter,
-        trace_header_parser,
-        *config.http_bind_address,
-    )?;
+    let common_state =
+        CommonServerState::new(Arc::clone(&metrics), trace_exporter, trace_header_parser)?;
     let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
     let wal: Option<Arc<WalImpl>> = config
         .wal_directory
@@ -303,12 +303,17 @@ pub async fn command(config: Config) -> Result<()> {
     ));
     let compactor = Compactor::new(Arc::clone(&write_buffer), Arc::clone(&persister));
 
+    let listener = TcpListener::bind(*config.http_bind_address)
+        .await
+        .map_err(Error::BindAddress)?;
+
     let builder = ServerBuilder::new(common_state)
         .max_request_size(config.max_http_request_size)
         .write_buffer(write_buffer)
         .query_executor(query_executor)
         .time_provider(time_provider)
-        .persister(persister);
+        .persister(persister)
+        .tcp_listener(listener);
 
     let server = if let Some(token) = config.bearer_token.map(hex::decode).transpose()? {
         builder

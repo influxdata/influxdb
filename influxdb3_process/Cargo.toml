@@ -14,7 +14,6 @@ metric.workspace = true
 tokio_metrics_bridge.workspace = true
 
 # Crates.io dependencies
-once_cell.workspace = true
 tokio.workspace = true
 uuid.workspace = true
 

@@ -717,9 +717,9 @@ async fn api_v1_query_json_format() {
                       ],
                       "name": "cpu",
                       "values": [
-                        ["1970-01-01T00:00:01", "a", 0.9],
-                        ["1970-01-01T00:00:02", "a", 0.89],
-                        ["1970-01-01T00:00:03", "a", 0.85]
+                        ["1970-01-01T00:00:01Z", "a", 0.9],
+                        ["1970-01-01T00:00:02Z", "a", 0.89],
+                        ["1970-01-01T00:00:03Z", "a", 0.85]
                       ]
                     }
                   ],
@@ -745,9 +745,9 @@ async fn api_v1_query_json_format() {
                       ],
                       "name": "mem",
                       "values": [
-                        ["1970-01-01T00:00:04", "a", 0.5],
-                        ["1970-01-01T00:00:05", "a", 0.6],
-                        ["1970-01-01T00:00:06", "a", 0.7]
+                        ["1970-01-01T00:00:04Z", "a", 0.5],
+                        ["1970-01-01T00:00:05Z", "a", 0.6],
+                        ["1970-01-01T00:00:06Z", "a", 0.7]
                       ]
                     },
                     {
@@ -758,9 +758,9 @@ async fn api_v1_query_json_format() {
                       ],
                       "name": "cpu",
                       "values": [
-                        ["1970-01-01T00:00:01", "a", 0.9],
-                        ["1970-01-01T00:00:02", "a", 0.89],
-                        ["1970-01-01T00:00:03", "a", 0.85]
+                        ["1970-01-01T00:00:01Z", "a", 0.9],
+                        ["1970-01-01T00:00:02Z", "a", 0.89],
+                        ["1970-01-01T00:00:03Z", "a", 0.85]
                       ]
                     }
                   ],
@@ -786,9 +786,9 @@ async fn api_v1_query_json_format() {
                       ],
                       "name": "cpu",
                       "values": [
-                        ["1970-01-01T00:00:01", "a", 0.9],
-                        ["1970-01-01T00:00:02", "a", 0.89],
-                        ["1970-01-01T00:00:03", "a", 0.85]
+                        ["1970-01-01T00:00:01Z", "a", 0.9],
+                        ["1970-01-01T00:00:02Z", "a", 0.89],
+                        ["1970-01-01T00:00:03Z", "a", 0.85]
                       ]
                     }
                   ],
@@ -879,9 +879,9 @@ async fn api_v1_query_csv_format() {
             epoch: None,
             query: "SELECT time, host, usage FROM cpu",
             expected: "name,tags,time,host,usage\n\
-            cpu,,1970-01-01T00:00:01,a,0.9\n\
-            cpu,,1970-01-01T00:00:02,a,0.89\n\
-            cpu,,1970-01-01T00:00:03,a,0.85\n\r\n",
+            cpu,,1970-01-01T00:00:01Z,a,0.9\n\
+            cpu,,1970-01-01T00:00:02Z,a,0.89\n\
+            cpu,,1970-01-01T00:00:03Z,a,0.85\n\r\n",
         },
         // Basic Query with multiple measurements:
         TestCase {
@@ -889,12 +889,12 @@ async fn api_v1_query_csv_format() {
             epoch: None,
             query: "SELECT time, host, usage FROM cpu, mem",
             expected: "name,tags,time,host,usage\n\
-            mem,,1970-01-01T00:00:04,a,0.5\n\
-            mem,,1970-01-01T00:00:05,a,0.6\n\
-            mem,,1970-01-01T00:00:06,a,0.7\n\
-            cpu,,1970-01-01T00:00:01,a,0.9\n\
-            cpu,,1970-01-01T00:00:02,a,0.89\n\
-            cpu,,1970-01-01T00:00:03,a,0.85\n\r\n",
+            mem,,1970-01-01T00:00:04Z,a,0.5\n\
+            mem,,1970-01-01T00:00:05Z,a,0.6\n\
+            mem,,1970-01-01T00:00:06Z,a,0.7\n\
+            cpu,,1970-01-01T00:00:01Z,a,0.9\n\
+            cpu,,1970-01-01T00:00:02Z,a,0.89\n\
+            cpu,,1970-01-01T00:00:03Z,a,0.85\n\r\n",
         },
         // Basic Query with db in query string:
         TestCase {
@@ -902,9 +902,9 @@ async fn api_v1_query_csv_format() {
             epoch: None,
             query: "SELECT time, host, usage FROM foo.autogen.cpu",
             expected: "name,tags,time,host,usage\n\
-          cpu,,1970-01-01T00:00:01,a,0.9\n\
-          cpu,,1970-01-01T00:00:02,a,0.89\n\
-          cpu,,1970-01-01T00:00:03,a,0.85\n\r\n",
+          cpu,,1970-01-01T00:00:01Z,a,0.9\n\
+          cpu,,1970-01-01T00:00:02Z,a,0.89\n\
+          cpu,,1970-01-01T00:00:03Z,a,0.85\n\r\n",
         },
         // Basic Query epoch parameter set:
         TestCase {
@@ -1166,5 +1166,81 @@ async fn api_v1_query_chunked() {
             .await;
         println!("\n{q}", q = t.query);
         assert_eq!(t.expected, values, "query failed: {q}", q = t.query);
+    }
+}
+
+#[tokio::test]
+async fn api_v1_query_data_conversion() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "weather,location=us-midwest temperature_integer=82i 1465839830100400200\n\
+          weather,location=us-midwest temperature_float=82 1465839830100400200\n\
+          weather,location=us-midwest temperature_str=\"too warm\" 1465839830100400200\n\
+          weather,location=us-midwest too_hot=true 1465839830100400200",
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+    struct TestCase<'a> {
+        database: Option<&'a str>,
+        epoch: Option<&'a str>,
+        query: &'a str,
+        expected: Value,
+    }
+
+    let test_cases = [
+        // Basic Query:
+        TestCase {
+            database: Some("foo"),
+            epoch: None,
+            query: "SELECT time, location, temperature_integer, temperature_float, temperature_str, too_hot FROM weather",
+            expected: json!({
+              "results": [
+                {
+                  "series": [
+                    {
+                      "columns": [
+                        "time",
+                        "location",
+                        "temperature_integer",
+                        "temperature_float",
+                        "temperature_str",
+                        "too_hot"
+                      ],
+                      "name": "weather",
+                      "values": [
+                        ["2016-06-13T17:43:50.100400200Z", "us-midwest", 82, 82.0, "too warm", true],
+                      ]
+                    }
+                  ],
+                  "statement_id": 0
+                }
+              ]
+            }),
+        },
+
+    ];
+
+    for t in test_cases {
+        let mut params = vec![("q", t.query)];
+        if let Some(db) = t.database {
+            params.push(("db", db));
+        }
+        if let Some(epoch) = t.epoch {
+            params.push(("epoch", epoch));
+        }
+        let resp = server
+            .api_v1_query(&params, None)
+            .await
+            .json::<Value>()
+            .await
+            .unwrap();
+        println!("\n{q}", q = t.query);
+        println!("{resp:#}");
+        assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
     }
 }
