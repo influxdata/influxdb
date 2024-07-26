@@ -1,5 +1,6 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
+use crate::last_cache::LastCache;
 use crate::SequenceNumber;
 use influxdb_line_protocol::FieldValue;
 use observability_deps::tracing::info;
@@ -201,6 +202,10 @@ impl InnerCatalog {
         self.sequence
     }
 
+    pub(crate) fn databases(&self) -> impl Iterator<Item = (&String, &Arc<DatabaseSchema>)> {
+        self.databases.iter()
+    }
+
     #[cfg(test)]
     pub fn db_exists(&self, db_name: &str) -> bool {
         self.databases.contains_key(db_name)
@@ -232,6 +237,10 @@ impl DatabaseSchema {
         self.tables.get(table_name)
     }
 
+    pub fn get_table_mut(&mut self, table_name: &str) -> Option<&mut TableDefinition> {
+        self.tables.get_mut(table_name)
+    }
+
     pub fn table_names(&self) -> Vec<String> {
         self.tables.keys().cloned().collect()
     }
@@ -239,13 +248,17 @@ impl DatabaseSchema {
     pub fn table_exists(&self, table_name: &str) -> bool {
         self.tables.contains_key(table_name)
     }
+
+    pub(crate) fn tables(&self) -> impl Iterator<Item = (&String, &TableDefinition)> {
+        self.tables.iter()
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TableDefinition {
     pub name: String,
     pub schema: Schema,
-    pub last_caches: Vec<LastCacheDefinition>,
+    pub last_caches: BTreeMap<String, LastCacheDefinition>,
 }
 
 impl TableDefinition {
@@ -276,7 +289,7 @@ impl TableDefinition {
         Self {
             name,
             schema,
-            last_caches: vec![],
+            last_caches: BTreeMap::new(),
         }
     }
 
@@ -337,53 +350,121 @@ impl TableDefinition {
     }
 
     /// Add a new last cache to this table definition
-    #[cfg(test)]
-    pub(crate) fn add_last_cache<L>(&mut self, last_cache: L)
-    where
-        L: Into<LastCacheDefinition>,
-    {
-        self.last_caches.push(last_cache.into());
+    pub(crate) fn add_last_cache(&mut self, last_cache: LastCacheDefinition) {
+        self.last_caches
+            .insert(last_cache.name.to_string(), last_cache);
+    }
+
+    /// Remove a last cache from the table definition
+    pub(crate) fn remove_last_cache(&mut self, name: &str) {
+        self.last_caches.remove(name);
+    }
+
+    pub(crate) fn last_caches(&self) -> impl Iterator<Item = (&String, &LastCacheDefinition)> {
+        self.last_caches.iter()
     }
 }
 
 /// Defines a last cache in a given table and database
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct LastCacheDefinition {
+    /// The table name the cache is associated with
+    pub table: String,
     /// Given name of the cache
     pub name: String,
     /// Columns intended to be used as predicates in the cache
     pub key_columns: Vec<String>,
     /// Columns that store values in the cache
-    pub value_columns: Vec<String>,
+    pub value_columns: LastCacheValueColumnsDef,
     /// The number of last values to hold in the cache
-    count: LastCacheSize,
+    pub count: LastCacheSize,
+    /// The time-to-live (TTL) in seconds for entries in the cache
+    pub ttl: u64,
 }
 
 impl LastCacheDefinition {
-    /// Create a new [`LastCacheDefinition`]
+    /// Create a new [`LastCacheDefinition`] with explicit value columns
     #[cfg(test)]
-    pub(crate) fn new<N, K, V>(
-        name: N,
-        key_columns: K,
-        value_columns: V,
+    pub(crate) fn new_with_explicit_value_columns(
+        table: impl Into<String>,
+        name: impl Into<String>,
+        key_columns: impl IntoIterator<Item: Into<String>>,
+        value_columns: impl IntoIterator<Item: Into<String>>,
         count: usize,
-    ) -> Result<Self, Error>
-    where
-        N: Into<String>,
-        K: IntoIterator<Item: Into<String>>,
-        V: IntoIterator<Item: Into<String>>,
-    {
+        ttl: u64,
+    ) -> Result<Self, Error> {
         Ok(Self {
+            table: table.into(),
             name: name.into(),
             key_columns: key_columns.into_iter().map(Into::into).collect(),
-            value_columns: value_columns.into_iter().map(Into::into).collect(),
+            value_columns: LastCacheValueColumnsDef::Explicit {
+                columns: value_columns.into_iter().map(Into::into).collect(),
+            },
             count: count.try_into()?,
+            ttl,
         })
+    }
+
+    /// Create a new [`LastCacheDefinition`] with explicit value columns
+    #[cfg(test)]
+    pub(crate) fn new_all_non_key_value_columns(
+        table: impl Into<String>,
+        name: impl Into<String>,
+        key_columns: impl IntoIterator<Item: Into<String>>,
+        count: usize,
+        ttl: u64,
+    ) -> Result<Self, Error> {
+        Ok(Self {
+            table: table.into(),
+            name: name.into(),
+            key_columns: key_columns.into_iter().map(Into::into).collect(),
+            value_columns: LastCacheValueColumnsDef::AllNonKeyColumns,
+            count: count.try_into()?,
+            ttl,
+        })
+    }
+
+    pub(crate) fn from_cache(
+        table: impl Into<String>,
+        name: impl Into<String>,
+        cache: &LastCache,
+    ) -> Self {
+        Self {
+            table: table.into(),
+            name: name.into(),
+            key_columns: cache.key_columns.iter().cloned().collect(),
+            value_columns: if cache.accept_new_fields {
+                LastCacheValueColumnsDef::AllNonKeyColumns
+            } else {
+                LastCacheValueColumnsDef::Explicit {
+                    columns: cache
+                        .schema
+                        .fields()
+                        .iter()
+                        .filter(|f| !cache.key_columns.contains(f.name()))
+                        .map(|f| f.name().to_owned())
+                        .collect(),
+                }
+            },
+            count: cache.count,
+            ttl: cache.ttl.as_secs(),
+        }
     }
 }
 
+/// A last cache will either store values for an explicit set of columns, or will accept all
+/// non-key columns
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum LastCacheValueColumnsDef {
+    /// Explicit list of column names
+    Explicit { columns: Vec<String> },
+    /// Stores all non-key columns
+    AllNonKeyColumns,
+}
+
 /// The maximum allowed size for a last cache
-const LAST_CACHE_MAX_SIZE: usize = 10;
+pub const LAST_CACHE_MAX_SIZE: usize = 10;
 
 /// The size of the last cache
 ///
@@ -412,6 +493,27 @@ impl TryFrom<usize> for LastCacheSize {
 impl From<LastCacheSize> for usize {
     fn from(value: LastCacheSize) -> Self {
         value.0
+    }
+}
+
+impl From<LastCacheSize> for u64 {
+    fn from(value: LastCacheSize) -> Self {
+        value
+            .0
+            .try_into()
+            .expect("usize fits into a 64 bit unsigned integer")
+    }
+}
+
+impl PartialEq<usize> for LastCacheSize {
+    fn eq(&self, other: &usize) -> bool {
+        self.0.eq(other)
+    }
+}
+
+impl PartialEq<LastCacheSize> for usize {
+    fn eq(&self, other: &LastCacheSize) -> bool {
+        self.eq(&other.0)
     }
 }
 
@@ -657,8 +759,15 @@ mod tests {
             SeriesKey::None,
         );
         table_def.add_last_cache(
-            LastCacheDefinition::new("test_table_last_cache", ["tag_2", "tag_3"], ["field"], 1)
-                .unwrap(),
+            LastCacheDefinition::new_with_explicit_value_columns(
+                "test",
+                "test_table_last_cache",
+                ["tag_2", "tag_3"],
+                ["field"],
+                1,
+                600,
+            )
+            .unwrap(),
         );
         database.tables.insert("test_table_1".into(), table_def);
         let database = Arc::new(database);

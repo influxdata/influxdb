@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, string::FromUtf8Error};
 
 use bytes::Bytes;
 use iox_query_params::StatementParam;
-use reqwest::{Body, IntoUrl, StatusCode};
+use reqwest::{Body, IntoUrl, Method, StatusCode};
 use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -16,21 +16,8 @@ pub enum Error {
     #[error("request URL error: {0}")]
     RequestUrl(#[from] url::ParseError),
 
-    #[error("failed to send /api/v3/write_lp request: {0}")]
-    WriteLpSend(#[source] reqwest::Error),
-
-    #[error("failed to send /ping request: {0}")]
-    PingSend(#[source] reqwest::Error),
-
     #[error("failed to read the API response bytes: {0}")]
     Bytes(#[source] reqwest::Error),
-
-    #[error("failed to send /api/v3/query_{kind} request: {source}")]
-    QuerySend {
-        kind: QueryKind,
-        #[source]
-        source: reqwest::Error,
-    },
 
     #[error(
         "provided parameter ('{name}') could not be converted \
@@ -53,6 +40,24 @@ pub enum Error {
 
     #[error("server responded with error [{code}]: {message}")]
     ApiError { code: StatusCode, message: String },
+
+    #[error("failed to send {method} {url} request: {source}")]
+    RequestSend {
+        method: Method,
+        url: String,
+        #[source]
+        source: reqwest::Error,
+    },
+}
+
+impl Error {
+    fn request_send(method: Method, url: impl Into<String>, source: reqwest::Error) -> Self {
+        Self::RequestSend {
+            method,
+            url: url.into(),
+            source,
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -191,6 +196,69 @@ impl Client {
         }
     }
 
+    /// Compose a request to the `POST /api/v3/configure/last_cache` API
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use influxdb3_client::Client;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// let client = Client::new("http://localhost:8181")?;
+    /// let resp = client
+    ///     .api_v3_configure_last_cache_create("db_name", "table_name")
+    ///     .ttl(120)
+    ///     .name("cache_name")
+    ///     .count(5)
+    ///     .key_columns(["col1", "col2"])
+    ///     .send()
+    ///     .await
+    ///     .expect("send create last cache request");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn api_v3_configure_last_cache_create(
+        &self,
+        db: impl Into<String>,
+        table: impl Into<String>,
+    ) -> CreateLastCacheRequestBuilder<'_> {
+        CreateLastCacheRequestBuilder::new(self, db, table)
+    }
+
+    /// Make a request to the `DELETE /api/v3/configure/last_cache` API
+    pub async fn api_v3_configure_last_cache_delete(
+        &self,
+        db: impl Into<String> + Send,
+        table: impl Into<String> + Send,
+        name: impl Into<String> + Send,
+    ) -> Result<()> {
+        let url = self.base_url.join("/api/v3/configure/last_cache")?;
+        #[derive(Serialize)]
+        struct Req {
+            db: String,
+            table: String,
+            name: String,
+        }
+        let mut req = self.http_client.delete(url).json(&Req {
+            db: db.into(),
+            table: table.into(),
+            name: name.into(),
+        });
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req.send().await.map_err(|src| {
+            Error::request_send(Method::DELETE, "/api/v3/configure/last_cache", src)
+        })?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+
     /// Send a `/ping` request to the target `influxdb3` server to check its
     /// status and gather `version` and `revision` information
     pub async fn ping(&self) -> Result<PingResponse> {
@@ -199,7 +267,10 @@ impl Client {
         if let Some(t) = &self.auth_token {
             req = req.bearer_auth(t.expose_secret());
         }
-        let resp = req.send().await.map_err(Error::PingSend)?;
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::GET, "/ping", src))?;
         if resp.status().is_success() {
             resp.json().await.map_err(Error::Json)
         } else {
@@ -317,7 +388,7 @@ impl<'c> WriteRequestBuilder<'c, Body> {
             .body(self.body)
             .send()
             .await
-            .map_err(Error::WriteLpSend)?;
+            .map_err(|src| Error::request_send(Method::POST, "/api/v3/write_lp", src))?;
         let status = resp.status();
         let content = resp.bytes().await.map_err(Error::Bytes)?;
         match status {
@@ -479,9 +550,8 @@ impl<'c> QueryRequestBuilder<'c> {
         if let Some(token) = &self.client.auth_token {
             req = req.bearer_auth(token.expose_secret());
         }
-        let resp = req.send().await.map_err(|source| Error::QuerySend {
-            kind: self.kind,
-            source,
+        let resp = req.send().await.map_err(|src| {
+            Error::request_send(Method::POST, format!("/api/v3/query_{}", self.kind), src)
         })?;
         let status = resp.status();
         let content = resp.bytes().await.map_err(Error::Bytes)?;
@@ -541,6 +611,124 @@ pub enum Format {
     Csv,
     Parquet,
     Pretty,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateLastCacheRequestBuilder<'c> {
+    #[serde(skip_serializing)]
+    client: &'c Client,
+    db: String,
+    table: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_columns: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value_columns: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ttl: Option<u64>,
+}
+
+impl<'c> CreateLastCacheRequestBuilder<'c> {
+    /// Create a new [`CreateLastCacheRequestBuilder`]
+    fn new(client: &'c Client, db: impl Into<String>, table: impl Into<String>) -> Self {
+        Self {
+            client,
+            db: db.into(),
+            table: table.into(),
+            name: None,
+            key_columns: None,
+            value_columns: None,
+            count: None,
+            ttl: None,
+        }
+    }
+
+    /// Specify a cache name
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Speciffy the key columns for the cache
+    pub fn key_columns(mut self, column_names: impl IntoIterator<Item: Into<String>>) -> Self {
+        self.key_columns = Some(column_names.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Specify the value columns for the cache
+    pub fn value_columns(mut self, column_names: impl IntoIterator<Item: Into<String>>) -> Self {
+        self.value_columns = Some(column_names.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Specify the size, or number of new entries a cache will hold before evicting old ones
+    pub fn count(mut self, count: usize) -> Self {
+        self.count = Some(count);
+        self
+    }
+
+    /// Specify the time-to-live (TTL) in seconds for entries in the cache
+    pub fn ttl(mut self, ttl: u64) -> Self {
+        self.ttl = Some(ttl);
+        self
+    }
+
+    /// Send the request to `POST /api/v3/configure/last_cache`
+    pub async fn send(self) -> Result<Option<LastCacheCreatedResponse>> {
+        let url = self.client.base_url.join("/api/v3/configure/last_cache")?;
+        let mut req = self.client.http_client.post(url).json(&self);
+        if let Some(token) = &self.client.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req.send().await.map_err(|src| {
+            Error::request_send(Method::POST, "/api/v3/configure/last_cache", src)
+        })?;
+        let status = resp.status();
+        match status {
+            StatusCode::CREATED => {
+                let content = resp
+                    .json::<LastCacheCreatedResponse>()
+                    .await
+                    .map_err(Error::Json)?;
+                Ok(Some(content))
+            }
+            StatusCode::NO_CONTENT => Ok(None),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LastCacheCreatedResponse {
+    /// The table name the cache is associated with
+    pub table: String,
+    /// Given name of the cache
+    pub name: String,
+    /// Columns intended to be used as predicates in the cache
+    pub key_columns: Vec<String>,
+    /// Columns that store values in the cache
+    pub value_columns: LastCacheValueColumnsDef,
+    /// The number of last values to hold in the cache
+    pub count: usize,
+    /// The time-to-live (TTL) in seconds for entries in the cache
+    pub ttl: u64,
+}
+
+/// A last cache will either store values for an explicit set of columns, or will accept all
+/// non-key columns
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum LastCacheValueColumnsDef {
+    /// Explicit list of column names
+    Explicit { columns: Vec<String> },
+    /// Stores all non-key columns
+    AllNonKeyColumns,
 }
 
 #[cfg(test)]
@@ -783,5 +971,104 @@ mod tests {
         mock.assert_async().await;
 
         r.expect("sent request successfully");
+    }
+
+    #[tokio::test]
+    async fn api_v3_configure_last_cache_create_201() {
+        let db = "db";
+        let table = "table";
+        let name = "cache_name";
+        let key_columns = ["col1", "col2"];
+        let val_columns = vec!["col3", "col4"];
+        let ttl = 120;
+        let count = 5;
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v3/configure/last_cache")
+            .match_body(Matcher::Json(serde_json::json!({
+                "db": db,
+                "table": table,
+                "name": name,
+                "key_columns": key_columns,
+                "value_columns": val_columns,
+                "count": count,
+                "ttl": ttl,
+            })))
+            .with_status(201)
+            .with_body(
+                r#"{
+                    "table": "table",
+                    "name": "cache_name",
+                    "key_columns": ["col1", "col2"],
+                    "value_columns": {
+                        "type": "explicit",
+                        "columns": ["col3", "col4"]
+                    },
+                    "ttl": 120,
+                    "count": 5
+                }"#,
+            )
+            .create_async()
+            .await;
+        let client = Client::new(mock_server.url()).unwrap();
+        client
+            .api_v3_configure_last_cache_create(db, table)
+            .name(name)
+            .key_columns(key_columns)
+            .value_columns(val_columns)
+            .ttl(ttl)
+            .count(count)
+            .send()
+            .await
+            .expect("creates last cache and parses response");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn api_v3_configure_last_cache_create_204() {
+        let db = "db";
+        let table = "table";
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v3/configure/last_cache")
+            .match_body(Matcher::Json(serde_json::json!({
+                "db": db,
+                "table": table,
+            })))
+            .with_status(204)
+            .create_async()
+            .await;
+        let client = Client::new(mock_server.url()).unwrap();
+        let resp = client
+            .api_v3_configure_last_cache_create(db, table)
+            .send()
+            .await
+            .unwrap();
+        mock.assert_async().await;
+        assert!(resp.is_none());
+    }
+
+    #[tokio::test]
+    async fn api_v3_configure_last_cache_delete() {
+        let db = "db";
+        let table = "table";
+        let name = "cache_name";
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("DELETE", "/api/v3/configure/last_cache")
+            .match_body(Matcher::Json(serde_json::json!({
+                "db": db,
+                "table": table,
+                "name": name,
+            })))
+            .with_status(200)
+            .create_async()
+            .await;
+        let client = Client::new(mock_server.url()).unwrap();
+        client
+            .api_v3_configure_last_cache_delete(db, table, name)
+            .await
+            .unwrap();
+        mock.assert_async().await;
     }
 }

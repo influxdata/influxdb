@@ -1,13 +1,12 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use iox_time::{SystemProvider, Time, TimeProvider};
 use metric::U64Gauge;
-use once_cell::sync::Lazy;
 
 /// The process name on the local OS running `influxdb3`
 pub const INFLUXDB3_PROCESS_NAME: &str = "influxdb3";
 
-#[cfg(feature = "jemalloc_replacing_malloc")]
+#[cfg(all(feature = "jemalloc_replacing_malloc", not(target_env = "msvc")))]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
@@ -32,8 +31,8 @@ pub fn build_malloc_conf() -> String {
 }
 
 /// Package version.
-pub static INFLUXDB3_VERSION: Lazy<&'static str> =
-    Lazy::new(|| option_env!("CARGO_PKG_VERSION").unwrap_or("UNKNOWN"));
+pub static INFLUXDB3_VERSION: LazyLock<&'static str> =
+    LazyLock::new(|| option_env!("CARGO_PKG_VERSION").unwrap_or("UNKNOWN"));
 
 /// Build-time GIT revision hash.
 pub static INFLUXDB3_GIT_HASH: &str = env!(
@@ -48,7 +47,7 @@ pub static INFLUXDB3_GIT_HASH_SHORT: &str = env!(
 );
 
 /// Version string that is combined from [`INFLUXDB3_VERSION`] and [`INFLUXDB3_GIT_HASH`].
-pub static VERSION_STRING: Lazy<&'static str> = Lazy::new(|| {
+pub static VERSION_STRING: LazyLock<&'static str> = LazyLock::new(|| {
     let s = format!(
         "{}, revision {}",
         &INFLUXDB3_VERSION[..],
@@ -59,14 +58,14 @@ pub static VERSION_STRING: Lazy<&'static str> = Lazy::new(|| {
 });
 
 /// A UUID that is unique for the process lifetime.
-pub static PROCESS_UUID: Lazy<&'static str> = Lazy::new(|| {
+pub static PROCESS_UUID: LazyLock<&'static str> = LazyLock::new(|| {
     let s = uuid::Uuid::new_v4().to_string();
     let s: Box<str> = Box::from(s);
     Box::leak(s)
 });
 
 /// Process start time.
-pub static PROCESS_START_TIME: Lazy<Time> = Lazy::new(|| SystemProvider::new().now());
+pub static PROCESS_START_TIME: LazyLock<Time> = LazyLock::new(|| SystemProvider::new().now());
 
 pub fn setup_metric_registry() -> Arc<metric::Registry> {
     let registry = Arc::new(metric::Registry::default());
@@ -101,7 +100,7 @@ pub fn setup_metric_registry() -> Arc<metric::Registry> {
 
 /// String version of [`usize::MAX`].
 #[allow(dead_code)]
-pub static USIZE_MAX: Lazy<&'static str> = Lazy::new(|| {
+pub static USIZE_MAX: LazyLock<&'static str> = LazyLock::new(|| {
     let s = usize::MAX.to_string();
     let s: Box<str> = Box::from(s);
     Box::leak(s)

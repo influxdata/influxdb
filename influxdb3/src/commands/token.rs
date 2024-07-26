@@ -15,12 +15,13 @@ pub struct Config {
 
 #[derive(Debug, clap::Parser)]
 pub enum SubCommand {
-    Token,
+    /// Create a new auth token
+    Create,
 }
 
 pub fn command(config: Config) -> Result<(), Box<dyn Error>> {
     match config.cmd {
-        SubCommand::Token => {
+        SubCommand::Create => {
             let token = {
                 let mut token = String::from("apiv3_");
                 let mut key = [0u8; 64];

@@ -409,7 +409,7 @@ pub(crate) fn load_buffer_from_segment(
 
 #[derive(Debug, Default)]
 pub(crate) struct WriteBatch {
-    database_batches: HashMap<NamespaceName<'static>, DatabaseBatch>,
+    pub(crate) database_batches: HashMap<NamespaceName<'static>, DatabaseBatch>,
 }
 
 impl WriteBatch {
@@ -424,8 +424,8 @@ impl WriteBatch {
 }
 
 #[derive(Debug, Default)]
-struct DatabaseBatch {
-    table_batches: HashMap<String, TableBatch>,
+pub(crate) struct DatabaseBatch {
+    pub(crate) table_batches: HashMap<String, TableBatch>,
 }
 
 impl DatabaseBatch {

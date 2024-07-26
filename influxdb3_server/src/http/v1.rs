@@ -5,17 +5,20 @@ use std::{
     task::{Context, Poll},
 };
 
-use anyhow::Context as AnyhowContext;
+use anyhow::{bail, Context as AnyhowContext};
 use arrow::{
+    array::{as_string_array, ArrayRef, AsArray},
     compute::{cast_with_options, CastOptions},
+    datatypes::{
+        DataType, Float16Type, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type, Int8Type,
+        TimeUnit, TimestampMicrosecondType, TimestampMillisecondType, TimestampNanosecondType,
+        TimestampSecondType, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+    },
     record_batch::RecordBatch,
 };
-// Note: see https://github.com/influxdata/influxdb/issues/24981
-#[allow(deprecated)]
-use arrow_json::writer::record_batches_to_json_rows;
 
-use arrow_schema::DataType;
 use bytes::Bytes;
+use chrono::{format::SecondsFormat, DateTime};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{ready, stream::Fuse, Stream, StreamExt};
 use hyper::http::HeaderValue;
@@ -216,7 +219,7 @@ struct QueryResponse {
     format: QueryFormat,
 }
 
-/// Convert [`QueryResponse`] to [`Bytes`] for `hyper`'s [`Body::wrap_stream`] method
+/// Convert `QueryResponse` to [`Bytes`] for `hyper`'s [`Body::wrap_stream`] method
 impl From<QueryResponse> for Bytes {
     fn from(s: QueryResponse) -> Self {
         /// Convert a [`QueryResponse`] to a JSON byte vector.
@@ -472,41 +475,49 @@ impl QueryResponseStream {
             }))
             .context("failed to cast batch time column with `epoch` parameter specified")?;
         }
-        // See https://github.com/influxdata/influxdb/issues/24981
-        #[allow(deprecated)]
-        let json_rows = record_batches_to_json_rows(&[&batch])
-            .context("failed to convert RecordBatch to JSON rows")?;
-        for json_row in json_rows {
-            let mut row = vec![Value::Null; self.column_map.len()];
-            for (k, v) in json_row {
-                if k == INFLUXQL_MEASUREMENT_COLUMN_NAME
-                    && (self.buffer.current_measurement_name().is_none()
-                        || self
-                            .buffer
-                            .current_measurement_name()
-                            .is_some_and(|n| *n != v))
-                {
-                    // we are on the "iox::measurement" column, which gives the name of the time series
-                    // if we are on the first row, or if the measurement changes, we push into the
-                    // buffer queue
-                    self.buffer
-                        .push_next_measurement(v.as_str().with_context(|| {
-                            format!("{INFLUXQL_MEASUREMENT_COLUMN_NAME} value was not a string")
-                        })?);
-                } else if k == INFLUXQL_MEASUREMENT_COLUMN_NAME {
-                    // we are still working on the current measurement in the buffer, so ignore
+        let column_map = &self.column_map;
+        let columns = batch.columns();
+        let schema = batch.schema();
+
+        for row_index in 0..batch.num_rows() {
+            let mut row = vec![Value::Null; column_map.len()];
+
+            for (col_index, column) in columns.iter().enumerate() {
+                let field = schema.field(col_index);
+                let column_name = field.name();
+
+                let mut cell_value = if !column.is_valid(row_index) {
                     continue;
                 } else {
-                    // this is a column value that is part of the time series, add it to the row
-                    let j = self.column_map.get(&k).unwrap();
-                    row[*j] = if let (Some(precision), TIME_COLUMN_NAME) = (self.epoch, k.as_str())
-                    {
-                        // specially handle the time column if `epoch` parameter provided
-                        convert_ns_epoch(v, precision)?
-                    } else {
-                        v
-                    };
+                    cast_column_value(column, row_index)?
+                };
+
+                // Handle the special case for the measurement column
+                if column_name == INFLUXQL_MEASUREMENT_COLUMN_NAME {
+                    if let Value::String(ref measurement_name) = cell_value {
+                        if self.buffer.current_measurement_name().is_none()
+                            || self
+                                .buffer
+                                .current_measurement_name()
+                                .is_some_and(|n| n != measurement_name)
+                        {
+                            // we are on the "iox::measurement" column, which gives the name of the time series
+                            // if we are on the first row, or if the measurement changes, we push into the
+                            // buffer queue
+                            self.buffer.push_next_measurement(measurement_name);
+                        }
+                    }
+                    continue;
                 }
+                if column_name == TIME_COLUMN_NAME {
+                    if let Some(precision) = self.epoch {
+                        cell_value = convert_ns_epoch(cell_value, precision)?
+                    }
+                }
+                let col_position = column_map
+                    .get(column_name)
+                    .context("failed to retrieve column position")?;
+                row[*col_position] = cell_value;
             }
             self.buffer.push_row(Row(row))?;
         }
@@ -578,6 +589,109 @@ fn convert_ns_epoch(value: Value, precision: Precision) -> Result<Value, anyhow:
         Precision::Hours => epoch_ns / (1_000_000_000 * 60 * 60),
     }
     .into())
+}
+
+/// Converts a value from an Arrow `ArrayRef` at a given row index into a `serde_json::Value`.
+///
+/// This function handles various Arrow data types, converting them into their corresponding
+/// JSON representations. For unsupported data types, it returns an error using the `anyhow` crate.
+fn cast_column_value(column: &ArrayRef, row_index: usize) -> Result<Value, anyhow::Error> {
+    let value = match column.data_type() {
+        DataType::Boolean => Value::Bool(column.as_boolean().value(row_index)),
+        DataType::Null => Value::Null,
+        DataType::Int8 => Value::Number(column.as_primitive::<Int8Type>().value(row_index).into()),
+        DataType::Int16 => {
+            Value::Number(column.as_primitive::<Int16Type>().value(row_index).into())
+        }
+        DataType::Int32 => {
+            Value::Number(column.as_primitive::<Int32Type>().value(row_index).into())
+        }
+        DataType::Int64 => {
+            Value::Number(column.as_primitive::<Int64Type>().value(row_index).into())
+        }
+        DataType::UInt8 => {
+            Value::Number(column.as_primitive::<UInt8Type>().value(row_index).into())
+        }
+        DataType::UInt16 => {
+            Value::Number(column.as_primitive::<UInt16Type>().value(row_index).into())
+        }
+        DataType::UInt32 => {
+            Value::Number(column.as_primitive::<UInt32Type>().value(row_index).into())
+        }
+        DataType::UInt64 => {
+            Value::Number(column.as_primitive::<UInt64Type>().value(row_index).into())
+        }
+        DataType::Float16 => Value::Number(
+            serde_json::Number::from_f64(
+                column
+                    .as_primitive::<Float16Type>()
+                    .value(row_index)
+                    .to_f64(),
+            )
+            .context("failed to downcast Float16 column")?,
+        ),
+        DataType::Float32 => Value::Number(
+            serde_json::Number::from_f64(
+                column.as_primitive::<Float32Type>().value(row_index).into(),
+            )
+            .context("failed to downcast Float32 column")?,
+        ),
+        DataType::Float64 => Value::Number(
+            serde_json::Number::from_f64(column.as_primitive::<Float64Type>().value(row_index))
+                .context("failed to downcast Float64 column")?,
+        ),
+        DataType::Utf8 => Value::String(column.as_string::<i32>().value(row_index).to_string()),
+        DataType::LargeUtf8 => {
+            Value::String(column.as_string::<i64>().value(row_index).to_string())
+        }
+        DataType::Dictionary(key, value) => match (key.as_ref(), value.as_ref()) {
+            (DataType::Int32, DataType::Utf8) => {
+                let dict_array = column.as_dictionary::<Int32Type>();
+                let keys = dict_array.keys();
+                let values = as_string_array(dict_array.values());
+                Value::String(values.value(keys.value(row_index) as usize).to_string())
+            }
+            _ => Value::Null,
+        },
+        DataType::Timestamp(TimeUnit::Nanosecond, None) => Value::String(
+            DateTime::from_timestamp_nanos(
+                column
+                    .as_primitive::<TimestampNanosecondType>()
+                    .value(row_index),
+            )
+            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        ),
+        DataType::Timestamp(TimeUnit::Microsecond, None) => Value::String(
+            DateTime::from_timestamp_micros(
+                column
+                    .as_primitive::<TimestampMicrosecondType>()
+                    .value(row_index),
+            )
+            .context("failed to downcast TimestampMicrosecondType column")?
+            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        ),
+        DataType::Timestamp(TimeUnit::Millisecond, None) => Value::String(
+            DateTime::from_timestamp_millis(
+                column
+                    .as_primitive::<TimestampMillisecondType>()
+                    .value(row_index),
+            )
+            .context("failed to downcast TimestampNillisecondType column")?
+            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        ),
+        DataType::Timestamp(TimeUnit::Second, None) => Value::String(
+            DateTime::from_timestamp(
+                column
+                    .as_primitive::<TimestampSecondType>()
+                    .value(row_index),
+                0,
+            )
+            .context("failed to downcast TimestampSecondType column")?
+            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        ),
+        t => bail!("Unsupported data type: {:?}", t),
+    };
+    Ok(value)
 }
 
 impl Stream for QueryResponseStream {

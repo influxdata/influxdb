@@ -9,6 +9,7 @@
 pub mod cache;
 pub mod catalog;
 mod chunk;
+pub mod last_cache;
 pub mod paths;
 pub mod persister;
 pub mod wal;
@@ -17,6 +18,7 @@ pub mod write_buffer;
 use crate::paths::{ParquetFilePath, SegmentWalFilePath};
 use async_trait::async_trait;
 use bytes::Bytes;
+use catalog::LastCacheDefinition;
 use data_types::{NamespaceName, TimestampMinMax};
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::error::DataFusionError;
@@ -25,6 +27,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::Expr;
 use iox_query::QueryChunk;
 use iox_time::Time;
+use last_cache::LastCacheProvider;
 use parquet::format::FileMetaData;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::any::Any;
@@ -60,7 +63,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub trait WriteBuffer: Bufferer + ChunkContainer {}
+pub trait WriteBuffer: Bufferer + ChunkContainer + LastCacheManager {}
 
 /// The buffer is for buffering data in memory before it is persisted to object storage. The buffer is queryable and
 /// aims to use as little memory as possible, converting data into in-memory Parquet data periodically as it arrives
@@ -128,6 +131,39 @@ pub trait ChunkContainer: Debug + Send + Sync + 'static {
         projection: Option<&Vec<usize>>,
         ctx: &SessionState,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
+}
+
+/// [`LastCacheManager`] is used to manage ineraction with a last-n-value cache provider. This enables
+/// cache creation, deletion, and getting access to existing caches in underlying [`LastCacheProvider`].
+/// It is important that the state of the cache is also maintained in the catalog.
+#[async_trait::async_trait]
+pub trait LastCacheManager: Debug + Send + Sync + 'static {
+    /// Get a reference to the last cache provider
+    fn last_cache_provider(&self) -> Arc<LastCacheProvider>;
+    /// Create a new last-n-value cache
+    ///
+    /// This should handle updating the catalog with the cache information, so that it will be
+    /// preserved on server restarts.
+    #[allow(clippy::too_many_arguments)]
+    async fn create_last_cache(
+        &self,
+        db_name: &str,
+        tbl_name: &str,
+        cache_name: Option<&str>,
+        count: Option<usize>,
+        ttl: Option<Duration>,
+        key_columns: Option<Vec<String>>,
+        value_columns: Option<Vec<String>>,
+    ) -> Result<Option<LastCacheDefinition>, write_buffer::Error>;
+    /// Delete a last-n-value cache
+    ///
+    /// This should handle removal of the cache's information from the catalog as well
+    async fn delete_last_cache(
+        &self,
+        db_name: &str,
+        tbl_name: &str,
+        cache_name: &str,
+    ) -> Result<(), write_buffer::Error>;
 }
 
 /// The segment identifier, which will be monotonically increasing.

@@ -37,6 +37,7 @@ iox_query_influxql_rewrite = { path = "../iox_query_influxql_rewrite" }
 # crates.io Dependencies
 anyhow.workspace = true
 arrow.workspace = true
+arrow-array.workspace = true
 arrow-csv.workspace = true
 arrow-flight.workspace = true
 arrow-json.workspace = true
@@ -51,6 +52,7 @@ flate2.workspace = true
 futures.workspace = true
 hex.workspace = true
 hyper.workspace = true
+mime.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 pin-project-lite.workspace = true
@@ -71,7 +73,6 @@ unicode-segmentation.workspace = true
 parquet.workspace = true
 parquet_file.workspace = true
 test_helpers.workspace = true
-test_helpers_end_to_end.workspace = true
 
 # crates.io crates
 http.workspace = true

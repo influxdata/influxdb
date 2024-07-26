@@ -1,0 +1,49 @@
+---
+source: influxdb3_write/src/write_buffer/mod.rs
+expression: catalog_json
+---
+{
+  "databases": {
+    "db": {
+      "name": "db",
+      "tables": {
+        "table": {
+          "cols": {
+            "f1": {
+              "influx_type": "field",
+              "nullable": true,
+              "type": "bool"
+            },
+            "f2": {
+              "influx_type": "field",
+              "nullable": true,
+              "type": "i64"
+            },
+            "t1": {
+              "influx_type": "tag",
+              "nullable": true,
+              "type": {
+                "dict": [
+                  "i32",
+                  "str"
+                ]
+              }
+            },
+            "time": {
+              "influx_type": "time",
+              "nullable": false,
+              "type": {
+                "time": [
+                  "ns",
+                  null
+                ]
+              }
+            }
+          },
+          "name": "table"
+        }
+      }
+    }
+  },
+  "sequence": 4
+}
