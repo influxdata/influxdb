@@ -1,24 +1,27 @@
-use std::{borrow::Cow, collections::HashMap, sync::Arc};
-
-use data_types::NamespaceName;
-use influxdb_line_protocol::{parse_lines, v3, FieldValue, ParsedLine};
-use iox_time::Time;
-use schema::{InfluxColumnType, TIME_COLUMN_NAME};
+use std::{borrow::Cow, sync::Arc};
 
 use crate::{
     catalog::{influx_column_type_from_field_value, Catalog, DatabaseSchema, TableDefinition},
     write_buffer::Result,
-    LpWriteOp, Precision, SegmentDuration, SequenceNumber, WalOp, WriteLineError,
+    Level0Duration, Precision, WriteLineError,
 };
+use data_types::{NamespaceName, Timestamp};
+use hashbrown::HashMap;
+use influxdb3_wal::{
+    CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDataType, FieldDefinition, Row,
+    TableChunks, WriteBatch,
+};
+use influxdb_line_protocol::{parse_lines, v3, FieldValue, ParsedLine};
+use iox_time::Time;
+use schema::{InfluxColumnType, TIME_COLUMN_NAME};
 
-use super::{Error, Field, FieldData, Row, TableBatchMap, ValidSegmentedData};
+use super::Error;
 
 /// Type state for the [`WriteValidator`] after it has been initialized
 /// with the catalog.
 pub(crate) struct WithCatalog {
     db_name: NamespaceName<'static>,
     catalog: Arc<Catalog>,
-    sequence: SequenceNumber,
     db_schema: Arc<DatabaseSchema>,
 }
 
@@ -27,6 +30,7 @@ pub(crate) struct WithCatalog {
 pub(crate) struct LinesParsed<'raw, PL> {
     catalog: WithCatalog,
     lines: Vec<(PL, &'raw str)>,
+    catalog_batch: Option<CatalogBatch>,
     errors: Vec<WriteLineError>,
 }
 
@@ -43,12 +47,11 @@ impl WriteValidator<WithCatalog> {
         db_name: NamespaceName<'static>,
         catalog: Arc<Catalog>,
     ) -> Result<WriteValidator<WithCatalog>> {
-        let (sequence, db_schema) = catalog.db_or_create(db_name.as_str())?;
+        let db_schema = catalog.db_or_create(db_name.as_str())?;
         Ok(WriteValidator {
             state: WithCatalog {
                 db_name,
                 catalog,
-                sequence,
                 db_schema,
             },
         })
@@ -72,10 +75,11 @@ impl WriteValidator<WithCatalog> {
         let mut errors = vec![];
         let mut lp_lines = lp.lines().peekable();
         let mut lines = vec![];
+        let mut catalog_updates = vec![];
         let mut schema = Cow::Borrowed(self.state.db_schema.as_ref());
 
         for (line_idx, maybe_line) in v3::parse_lines(lp).enumerate() {
-            let line = match maybe_line
+            let (line, catalog_op) = match maybe_line
                 .map_err(|e| WriteLineError {
                     original_line: lp_lines.next().unwrap().to_string(),
                     line_number: line_idx + 1,
@@ -94,19 +98,29 @@ impl WriteValidator<WithCatalog> {
                 }
             };
 
+            if let Some(op) = catalog_op {
+                catalog_updates.push(op);
+            }
+
             lines.push((line, lp_lines.next().unwrap()));
         }
 
-        if let Cow::Owned(schema) = schema {
-            self.state
-                .catalog
-                .replace_database(self.state.sequence, Arc::new(schema))?;
-        }
+        let catalog_batch = if catalog_updates.is_empty() {
+            None
+        } else {
+            let catalog_batch = CatalogBatch {
+                database_name: Arc::clone(&self.state.db_schema.name),
+                ops: catalog_updates,
+            };
+            self.state.catalog.apply_catalog_batch(&catalog_batch)?;
+            Some(catalog_batch)
+        };
 
         Ok(WriteValidator {
             state: LinesParsed {
                 catalog: self.state,
                 lines,
+                catalog_batch,
                 errors,
             },
         })
@@ -130,10 +144,11 @@ impl WriteValidator<WithCatalog> {
         let mut errors = vec![];
         let mut lp_lines = lp.lines();
         let mut lines = vec![];
+        let mut catalog_updates = vec![];
         let mut schema = Cow::Borrowed(self.state.db_schema.as_ref());
 
         for (line_idx, maybe_line) in parse_lines(lp).enumerate() {
-            let line = match maybe_line
+            let (line, catalog_op) = match maybe_line
                 .map_err(|e| WriteLineError {
                     // This unwrap is fine because we're moving line by line
                     // alongside the output from parse_lines
@@ -153,6 +168,9 @@ impl WriteValidator<WithCatalog> {
                     continue;
                 }
             };
+            if let Some(op) = catalog_op {
+                catalog_updates.push(op);
+            }
             // This unwrap is fine because we're moving line by line
             // alongside the output from parse_lines
             lines.push((line, lp_lines.next().unwrap()));
@@ -161,17 +179,23 @@ impl WriteValidator<WithCatalog> {
         // All lines are parsed and validated, so all steps after this
         // are infallible, therefore, update the catalog if changes were
         // made to the schema:
-        if let Cow::Owned(schema) = schema {
-            self.state
-                .catalog
-                .replace_database(self.state.sequence, Arc::new(schema))?;
-        }
+        let catalog_batch = if catalog_updates.is_empty() {
+            None
+        } else {
+            let catalog_batch = CatalogBatch {
+                database_name: Arc::clone(&self.state.db_schema.name),
+                ops: catalog_updates,
+            };
+            self.state.catalog.apply_catalog_batch(&catalog_batch)?;
+            Some(catalog_batch)
+        };
 
         Ok(WriteValidator {
             state: LinesParsed {
                 catalog: self.state,
                 lines,
                 errors,
+                catalog_batch,
             },
         })
     }
@@ -191,7 +215,8 @@ fn validate_v3_line<'a>(
     line_number: usize,
     line: v3::ParsedLine<'a>,
     raw_line: &str,
-) -> Result<v3::ParsedLine<'a>, WriteLineError> {
+) -> Result<(v3::ParsedLine<'a>, Option<CatalogOp>), WriteLineError> {
+    let mut catalog_op = None;
     let table_name = line.series.measurement.as_str();
     if let Some(table_def) = db_schema.get_table(table_name) {
         if !table_def.is_v3() {
@@ -266,9 +291,33 @@ fn validate_v3_line<'a>(
                 ));
             }
         }
+
+        // if we have new columns defined, add them to the db_schema table so that subsequent lines
+        // won't try to add the same definitions. Collect these additions into a catalog op, which
+        // will be applied to the catalog with any other ops after all lines in the write request
+        // have been parsed and validated.
         if !columns.is_empty() {
+            let database_name = Arc::clone(&db_schema.name);
             let t = db_schema.to_mut().tables.get_mut(table_name).unwrap();
-            t.add_columns(columns);
+
+            let mut fields = Vec::with_capacity(columns.len());
+            for (name, influx_type) in &columns {
+                fields.push(FieldDefinition {
+                    name: name.as_str().into(),
+                    data_type: FieldDataType::from(influx_type),
+                });
+            }
+            catalog_op = Some(CatalogOp::AddFields(FieldAdditions {
+                database_name,
+                table_name: Arc::clone(&t.name),
+                field_definitions: fields,
+            }));
+
+            t.add_columns(columns).map_err(|e| WriteLineError {
+                original_line: raw_line.to_string(),
+                line_number: line_number + 1,
+                error_message: e.to_string(),
+            })?;
         }
     } else {
         let mut columns = Vec::new();
@@ -287,19 +336,43 @@ fn validate_v3_line<'a>(
         }
         // Always add time last on new table:
         columns.push((TIME_COLUMN_NAME.to_string(), InfluxColumnType::Timestamp));
-        let table = TableDefinition::new(table_name, columns, Some(key));
+
+        let table_name = table_name.into();
+
+        let mut fields = Vec::with_capacity(columns.len());
+        for (name, influx_type) in &columns {
+            fields.push(FieldDefinition {
+                name: name.as_str().into(),
+                data_type: FieldDataType::from(influx_type),
+            });
+        }
+
+        let table = TableDefinition::new(Arc::clone(&table_name), columns, Some(key.clone()))
+            .map_err(|e| WriteLineError {
+                original_line: raw_line.to_string(),
+                line_number: line_number + 1,
+                error_message: e.to_string(),
+            })?;
+
+        let table_definition_op = CatalogOp::CreateTable(influxdb3_wal::TableDefinition {
+            database_name: Arc::clone(&db_schema.name),
+            table_name: Arc::clone(&table_name),
+            field_definitions: fields,
+            key: Some(key),
+        });
+        catalog_op = Some(table_definition_op);
 
         assert!(
             db_schema
                 .to_mut()
                 .tables
-                .insert(table_name.to_string(), table)
+                .insert(table_name, table)
                 .is_none(),
             "attempted to overwrite existing table"
         )
     }
 
-    Ok(line)
+    Ok((line, catalog_op))
 }
 
 /// Validate a line of line protocol against the given schema definition
@@ -313,7 +386,8 @@ fn validate_v1_line<'a>(
     db_schema: &mut Cow<'_, DatabaseSchema>,
     line_number: usize,
     line: ParsedLine<'a>,
-) -> Result<ParsedLine<'a>, WriteLineError> {
+) -> Result<(ParsedLine<'a>, Option<CatalogOp>), WriteLineError> {
+    let mut catalog_op = None;
     let table_name = line.series.measurement.as_str();
     if let Some(table_def) = db_schema.get_table(table_name) {
         if table_def.is_v3() {
@@ -357,10 +431,40 @@ fn validate_v1_line<'a>(
                 ));
             }
         }
+
+        // if we have new columns defined, add them to the db_schema table so that subsequent lines
+        // won't try to add the same definitions. Collect these additions into a catalog op, which
+        // will be applied to the catalog with any other ops after all lines in the write request
+        // have been parsed and validated.
         if !columns.is_empty() {
+            let database_name = Arc::clone(&db_schema.name);
+            let table_name = Arc::clone(&table_def.name);
+
+            let mut fields = Vec::with_capacity(columns.len());
+            for (name, influx_type) in &columns {
+                fields.push(FieldDefinition {
+                    name: name.as_str().into(),
+                    data_type: FieldDataType::from(influx_type),
+                });
+            }
+
             // unwrap is safe due to the surrounding if let condition:
-            let t = db_schema.to_mut().tables.get_mut(table_name).unwrap();
-            t.add_columns(columns);
+            let t = db_schema
+                .to_mut()
+                .tables
+                .get_mut(table_name.as_ref())
+                .unwrap();
+            t.add_columns(columns).map_err(|e| WriteLineError {
+                original_line: line.to_string(),
+                line_number: line_number + 1,
+                error_message: e.to_string(),
+            })?;
+
+            catalog_op = Some(CatalogOp::AddFields(FieldAdditions {
+                database_name,
+                table_name,
+                field_definitions: fields,
+            }));
         }
     } else {
         // This is a new table, so build up its columns:
@@ -378,24 +482,46 @@ fn validate_v1_line<'a>(
         }
         // Always add time last on new table:
         columns.push((TIME_COLUMN_NAME.to_string(), InfluxColumnType::Timestamp));
-        let table = TableDefinition::new(table_name, columns, Option::<Vec<String>>::None);
+
+        let table_name = table_name.into();
+        let mut fields = Vec::with_capacity(columns.len());
+
+        for (name, influx_type) in &columns {
+            fields.push(FieldDefinition {
+                name: name.as_str().into(),
+                data_type: FieldDataType::from(influx_type),
+            });
+        }
+        catalog_op = Some(CatalogOp::CreateTable(influxdb3_wal::TableDefinition {
+            database_name: Arc::clone(&db_schema.name),
+            table_name: Arc::clone(&table_name),
+            field_definitions: fields,
+            key: None,
+        }));
+
+        let table = TableDefinition::new(
+            Arc::clone(&table_name),
+            columns,
+            Option::<Vec<String>>::None,
+        )
+        .unwrap();
 
         assert!(
             db_schema
                 .to_mut()
                 .tables
-                .insert(table_name.to_string(), table)
+                .insert(table_name, table)
                 .is_none(),
             "attempted to overwrite existing table"
         );
     }
 
-    Ok(line)
+    Ok((line, catalog_op))
 }
 
-/// Result of conversion from line protocol to valid segmented data
+/// Result of conversion from line protocol to valid chunked data
 /// for the buffer.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct ValidatedLines {
     /// Number of lines passed in
     pub(crate) line_count: usize,
@@ -405,30 +531,31 @@ pub(crate) struct ValidatedLines {
     pub(crate) index_count: usize,
     /// Any errors that occurred while parsing the lines
     pub(crate) errors: Vec<WriteLineError>,
-    /// Only valid lines from what was passed in to validate, segmented based on the
-    /// timestamps of the data.
-    pub(crate) valid_segmented_data: Vec<ValidSegmentedData>,
+    /// Only valid lines will be converted into a WriteBatch
+    pub(crate) valid_data: WriteBatch,
+    /// If any catalog updates were made, they will be included here
+    pub(crate) catalog_updates: Option<CatalogBatch>,
 }
 
 impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
     /// Convert a set of valid parsed `v3` lines to a [`ValidatedLines`] which will
     /// be buffered and written to the WAL, if configured.
     ///
-    /// This involves splitting out the writes into different batches for any
-    /// segment affected by the write. This function should be infallible, because
+    /// This involves splitting out the writes into different batches for each chunk, which will
+    /// map to the `Level0Duration`. This function should be infallible, because
     /// the schema for incoming writes has been fully validated.
     pub(crate) fn convert_lines_to_buffer(
         self,
         ingest_time: Time,
-        segment_duration: SegmentDuration,
+        level_0_duration: Level0Duration,
         precision: Precision,
     ) -> ValidatedLines {
-        let mut segment_table_batches = HashMap::new();
+        let mut table_chunks = HashMap::new();
         let line_count = self.state.lines.len();
         let mut field_count = 0;
         let mut series_key_count = 0;
 
-        for (line, raw_line) in self.state.lines.into_iter() {
+        for (line, _raw_line) in self.state.lines.into_iter() {
             field_count += line.field_set.len();
             series_key_count += line
                 .series
@@ -439,56 +566,55 @@ impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
 
             convert_v3_parsed_line(
                 line,
-                raw_line,
-                &mut segment_table_batches,
+                &mut table_chunks,
                 ingest_time,
-                segment_duration,
+                level_0_duration,
                 precision,
             );
         }
 
-        let valid_segmented_data = segment_table_batches
-            .into_iter()
-            .map(|(segment_start, table_batch_map)| ValidSegmentedData {
-                database_name: self.state.catalog.db_name.clone(),
-                segment_start,
-                table_batches: table_batch_map.table_batches,
-                wal_op: WalOp::LpWrite(LpWriteOp {
-                    db_name: self.state.catalog.db_name.to_string(),
-                    lp: table_batch_map.lines.join("\n"),
-                    default_time: ingest_time.timestamp_nanos(),
-                    precision,
-                }),
-                starting_catalog_sequence_number: self.state.catalog.sequence,
-            })
-            .collect();
+        let mut min_time_ns = i64::MAX;
+        let mut max_time_ns = i64::MIN;
+
+        for tc in table_chunks.values() {
+            let (min, max) = tc.min_max_time();
+            min_time_ns = min_time_ns.min(min);
+            max_time_ns = max_time_ns.max(max);
+        }
+
+        let write_batch = WriteBatch {
+            database_name: self.state.catalog.db_name.as_str().into(),
+            table_chunks,
+            min_time_ns,
+            max_time_ns,
+        };
 
         ValidatedLines {
             line_count,
             field_count,
             index_count: series_key_count,
             errors: self.state.errors,
-            valid_segmented_data,
+            valid_data: write_batch,
+            catalog_updates: self.state.catalog_batch,
         }
     }
 }
 
-fn convert_v3_parsed_line<'a>(
+fn convert_v3_parsed_line(
     line: v3::ParsedLine<'_>,
-    raw_line: &'a str,
-    segment_table_batches: &mut HashMap<Time, TableBatchMap<'a>>,
+    table_chunk_map: &mut HashMap<Arc<str>, TableChunks>,
     ingest_time: Time,
-    segment_duration: SegmentDuration,
+    level_0_duration: Level0Duration,
     precision: Precision,
 ) {
     // Set up row values:
-    let mut values = Vec::with_capacity(line.column_count() + 1);
+    let mut fields = Vec::with_capacity(line.column_count() + 1);
 
     // Add series key columns:
     if let Some(series_key) = line.series.series_key {
         for (sk, sv) in series_key.iter() {
-            values.push(Field {
-                name: sk.to_string(),
+            fields.push(Field {
+                name: sk.to_string().into(),
                 value: sv.into(),
             });
         }
@@ -496,8 +622,8 @@ fn convert_v3_parsed_line<'a>(
 
     // Add fields columns:
     for (name, val) in line.field_set {
-        values.push(Field {
-            name: name.to_string(),
+        fields.push(Field {
+            name: name.to_string().into(),
             value: val.into(),
         });
     }
@@ -508,90 +634,87 @@ fn convert_v3_parsed_line<'a>(
         .timestamp
         .map(|ts| apply_precision_to_timestamp(precision, ts))
         .unwrap_or(ingest_time.timestamp_nanos());
-    values.push(Field {
-        name: TIME_COLUMN_NAME.to_string(),
+    fields.push(Field {
+        name: TIME_COLUMN_NAME.to_string().into(),
         value: FieldData::Timestamp(time_value_nanos),
     });
 
-    // Add the row to the table batch, creating a new entry for the segment if
-    // it does not already exist:
-    let segment_start = segment_duration.start_time(time_value_nanos / 1_000_000_000);
-    let table_batch_map = segment_table_batches.entry(segment_start).or_default();
-    let table_batch = table_batch_map
-        .table_batches
-        .entry(line.series.measurement.to_string())
-        .or_default();
-    table_batch.rows.push(Row {
-        time: time_value_nanos,
-        fields: values,
-    });
-    table_batch_map.lines.push(raw_line);
+    // Add the row into the correct chunk in the table
+    let chunk_time = level_0_duration.chunk_time_for_timestamp(Timestamp::new(time_value_nanos));
+    let table_name: Arc<str> = line.series.measurement.to_string().into();
+    let table_chunks = table_chunk_map.entry(Arc::clone(&table_name)).or_default();
+    table_chunks.push_row(
+        chunk_time,
+        Row {
+            time: time_value_nanos,
+            fields,
+        },
+    );
 }
 
 impl<'lp> WriteValidator<LinesParsed<'lp, ParsedLine<'lp>>> {
     /// Convert a set of valid parsed lines to a [`ValidatedLines`] which will
     /// be buffered and written to the WAL, if configured.
     ///
-    /// This involves splitting out the writes into different batches for any
-    /// segment affected by the write. This function should be infallible, because
+    /// This involves splitting out the writes into different batches for each chunk, which will
+    /// map to the `Level0Duration`. This function should be infallible, because
     /// the schema for incoming writes has been fully validated.
     pub(crate) fn convert_lines_to_buffer(
         self,
         ingest_time: Time,
-        segment_duration: SegmentDuration,
+        level_0_duration: Level0Duration,
         precision: Precision,
     ) -> ValidatedLines {
-        let mut segment_table_batches = HashMap::new();
+        let mut table_chunks = HashMap::new();
         let line_count = self.state.lines.len();
         let mut field_count = 0;
         let mut tag_count = 0;
 
-        for (line, raw_line) in self.state.lines.into_iter() {
+        for (line, _raw_line) in self.state.lines.into_iter() {
             field_count += line.field_set.len();
             tag_count += line.series.tag_set.as_ref().map(|t| t.len()).unwrap_or(0);
 
             convert_v1_parsed_line(
                 line,
-                raw_line,
-                &mut segment_table_batches,
+                &mut table_chunks,
                 ingest_time,
-                segment_duration,
+                level_0_duration,
                 precision,
             );
         }
 
-        let valid_segmented_data = segment_table_batches
-            .into_iter()
-            .map(|(segment_start, table_batches)| ValidSegmentedData {
-                database_name: self.state.catalog.db_name.clone(),
-                segment_start,
-                table_batches: table_batches.table_batches,
-                wal_op: WalOp::LpWrite(LpWriteOp {
-                    db_name: self.state.catalog.db_name.to_string(),
-                    lp: table_batches.lines.join("\n"),
-                    default_time: ingest_time.timestamp_nanos(),
-                    precision,
-                }),
-                starting_catalog_sequence_number: self.state.catalog.sequence,
-            })
-            .collect();
+        let mut min_time_ns = i64::MAX;
+        let mut max_time_ns = i64::MIN;
+
+        for tc in table_chunks.values() {
+            let (min, max) = tc.min_max_time();
+            min_time_ns = min_time_ns.min(min);
+            max_time_ns = max_time_ns.max(max);
+        }
+
+        let write_batch = WriteBatch {
+            database_name: self.state.catalog.db_name.as_str().into(),
+            table_chunks,
+            min_time_ns,
+            max_time_ns,
+        };
 
         ValidatedLines {
             line_count,
             field_count,
             index_count: tag_count,
             errors: self.state.errors,
-            valid_segmented_data,
+            valid_data: write_batch,
+            catalog_updates: self.state.catalog_batch,
         }
     }
 }
 
-fn convert_v1_parsed_line<'a>(
+fn convert_v1_parsed_line(
     line: ParsedLine<'_>,
-    raw_line: &'a str,
-    segment_table_batches: &mut HashMap<Time, TableBatchMap<'a>>,
+    table_chunk_map: &mut HashMap<Arc<str>, TableChunks>,
     ingest_time: Time,
-    segment_duration: SegmentDuration,
+    level_0_duration: Level0Duration,
     precision: Precision,
 ) {
     // now that we've ensured all columns exist in the schema, construct the actual row and values
@@ -602,7 +725,7 @@ fn convert_v1_parsed_line<'a>(
     if let Some(tag_set) = line.series.tag_set {
         for (tag_key, value) in tag_set {
             let value = Field {
-                name: tag_key.to_string(),
+                name: tag_key.to_string().into(),
                 value: FieldData::Tag(value.to_string()),
             };
             values.push(value);
@@ -619,7 +742,7 @@ fn convert_v1_parsed_line<'a>(
             FieldValue::String(v) => FieldData::String(v.to_string()),
         };
         let value = Field {
-            name: field_name.to_string(),
+            name: field_name.to_string().into(),
             value: field_data,
         };
         values.push(value);
@@ -631,25 +754,22 @@ fn convert_v1_parsed_line<'a>(
         .map(|ts| apply_precision_to_timestamp(precision, ts))
         .unwrap_or(ingest_time.timestamp_nanos());
 
-    let segment_start = segment_duration.start_time(time_value_nanos / 1_000_000_000);
+    let chunk_time = level_0_duration.chunk_time_for_timestamp(Timestamp::new(time_value_nanos));
 
     values.push(Field {
-        name: TIME_COLUMN_NAME.to_string(),
+        name: TIME_COLUMN_NAME.to_string().into(),
         value: FieldData::Timestamp(time_value_nanos),
     });
 
-    let table_batch_map = segment_table_batches.entry(segment_start).or_default();
-
-    let table_batch = table_batch_map
-        .table_batches
-        .entry(line.series.measurement.to_string())
-        .or_default();
-    table_batch.rows.push(Row {
-        time: time_value_nanos,
-        fields: values,
-    });
-
-    table_batch_map.lines.push(raw_line);
+    let table_name: Arc<str> = line.series.measurement.to_string().into();
+    let table_chunks = table_chunk_map.entry(table_name).or_default();
+    table_chunks.push_row(
+        chunk_time,
+        Row {
+            time: time_value_nanos,
+            fields: values,
+        },
+    );
 }
 
 fn apply_precision_to_timestamp(precision: Precision, ts: i64) -> i64 {
@@ -678,7 +798,7 @@ mod tests {
     use data_types::NamespaceName;
     use iox_time::Time;
 
-    use crate::{catalog::Catalog, write_buffer::Error, Precision, SegmentDuration};
+    use crate::{catalog::Catalog, write_buffer::Error, Level0Duration, Precision};
 
     use super::WriteValidator;
 
@@ -690,7 +810,7 @@ mod tests {
             .v1_parse_lines_and_update_schema("cpu,tag1=foo val1=\"bar\" 1234", false)?
             .convert_lines_to_buffer(
                 Time::from_timestamp_nanos(0),
-                SegmentDuration::new_5m(),
+                Level0Duration::new_5m(),
                 Precision::Auto,
             );
 
@@ -699,12 +819,9 @@ mod tests {
         assert_eq!(result.index_count, 1);
         assert!(result.errors.is_empty());
 
-        let data = &result.valid_segmented_data[0];
-        assert_eq!(data.database_name, namespace);
-        let batch = data.table_batches.get("cpu").unwrap();
-        assert_eq!(batch.rows.len(), 1);
-
-        println!("{result:#?}");
+        assert_eq!(result.valid_data.database_name.as_ref(), namespace.as_str());
+        let batch = result.valid_data.table_chunks.get("cpu").unwrap();
+        assert_eq!(batch.row_count(), 1);
 
         Ok(())
     }

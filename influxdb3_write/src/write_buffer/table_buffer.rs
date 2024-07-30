@@ -1,7 +1,6 @@
 //! The in memory buffer of a table that can be quickly added to and queried
 
 use crate::catalog::TIME_COLUMN_NAME;
-use crate::write_buffer::{FieldData, Row};
 use arrow::array::{
     Array, ArrayBuilder, ArrayRef, BooleanArray, BooleanBuilder, Float64Builder,
     GenericByteDictionaryBuilder, Int64Builder, StringArray, StringBuilder,
@@ -10,10 +9,14 @@ use arrow::array::{
 use arrow::compute::filter_record_batch;
 use arrow::datatypes::{GenericStringType, Int32Type, SchemaRef};
 use arrow::record_batch::RecordBatch;
-use data_types::{PartitionKey, TimestampMinMax};
+use data_types::TimestampMinMax;
 use datafusion::logical_expr::{BinaryExpr, Expr};
+use hashbrown::HashMap;
+use influxdb3_wal::{FieldData, Row};
 use observability_deps::tracing::{debug, error};
-use std::collections::{BTreeMap, BinaryHeap, HashMap, HashSet};
+use schema::sort::SortKey;
+use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
+use std::collections::{BTreeMap, BinaryHeap, HashSet};
 use std::mem::size_of;
 use std::sync::Arc;
 use thiserror::Error;
@@ -30,110 +33,160 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct TableBuffer {
-    pub segment_key: PartitionKey,
-    // tracker for the next file number to use for parquet data persisted from this buffer
-    file_number: u32,
-    mutable_table_chunk: MutableTableChunk,
-    persisting_record_batch: Option<RecordBatch>,
+    chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
+    snapshotting_chunks: Vec<SnapshotChunk>,
+    index: BufferIndex,
+    pub(crate) sort_key: SortKey,
 }
 
 impl TableBuffer {
-    pub fn new(segment_key: PartitionKey, index_columns: &[&str]) -> Self {
+    pub fn new(index_columns: &[&str], sort_key: SortKey) -> Self {
         Self {
-            segment_key,
-            persisting_record_batch: None,
-            file_number: 1,
-            mutable_table_chunk: MutableTableChunk {
+            chunk_time_to_chunks: BTreeMap::default(),
+            snapshotting_chunks: vec![],
+            index: BufferIndex::new(index_columns),
+            sort_key,
+        }
+    }
+
+    pub fn buffer_chunk(&mut self, chunk_time: i64, rows: Vec<Row>) {
+        let buffer_chunk = self
+            .chunk_time_to_chunks
+            .entry(chunk_time)
+            .or_insert_with(|| MutableTableChunk {
                 timestamp_min: i64::MAX,
                 timestamp_max: i64::MIN,
                 data: Default::default(),
                 row_count: 0,
-                index: BufferIndex::new(index_columns),
-            },
-        }
-    }
+                index: self.index.clone(),
+            });
 
-    pub fn add_rows(&mut self, rows: Vec<Row>) {
-        self.mutable_table_chunk.add_rows(rows);
-    }
-
-    pub fn timestamp_min_max(&self) -> TimestampMinMax {
-        TimestampMinMax {
-            min: self.mutable_table_chunk.timestamp_min,
-            max: self.mutable_table_chunk.timestamp_max,
-        }
+        buffer_chunk.add_rows(rows);
     }
 
     pub fn record_batches(&self, schema: SchemaRef, filter: &[Expr]) -> Result<Vec<RecordBatch>> {
-        match self.persisting_record_batch {
-            Some(ref rb) => {
-                let newest = self
-                    .mutable_table_chunk
-                    .record_batch(schema.clone(), filter)?;
-                let cols: std::result::Result<Vec<_>, _> = schema
-                    .fields()
-                    .iter()
-                    .map(|f| {
-                        let col = rb
-                            .column_by_name(f.name())
-                            .ok_or(Error::FieldNotFound(f.name().to_string()));
-                        col.cloned()
-                    })
-                    .collect();
-                let cols = cols?;
-                let rb = RecordBatch::try_new(schema, cols)?;
-                Ok(vec![rb, newest])
-            }
-            None => {
-                let rb = self.mutable_table_chunk.record_batch(schema, filter)?;
-                Ok(vec![rb])
-            }
+        println!(
+            "chunk time to chunks: {:?}",
+            self.chunk_time_to_chunks.keys().collect::<Vec<_>>()
+        );
+        let mut batches =
+            Vec::with_capacity(self.snapshotting_chunks.len() + self.chunk_time_to_chunks.len());
+
+        for sc in &self.snapshotting_chunks {
+            let cols: std::result::Result<Vec<_>, _> = schema
+                .fields()
+                .iter()
+                .map(|f| {
+                    let col = sc
+                        .record_batch
+                        .column_by_name(f.name())
+                        .ok_or(Error::FieldNotFound(f.name().to_string()));
+                    col.cloned()
+                })
+                .collect();
+            let cols = cols?;
+            let rb = RecordBatch::try_new(schema.clone(), cols)?;
+
+            batches.push(rb);
         }
+
+        for c in self.chunk_time_to_chunks.values() {
+            batches.push(c.record_batch(schema.clone(), filter)?)
+        }
+
+        Ok(batches)
+    }
+
+    pub fn timestamp_min_max(&self) -> TimestampMinMax {
+        let (min, max) = self
+            .chunk_time_to_chunks
+            .values()
+            .map(|c| (c.timestamp_min, c.timestamp_max))
+            .fold((i64::MAX, i64::MIN), |(a_min, b_min), (a_max, b_max)| {
+                (a_min.min(b_min), a_max.max(b_max))
+            });
+        let mut timestamp_min_max = TimestampMinMax::new(min, max);
+
+        for sc in &self.snapshotting_chunks {
+            timestamp_min_max = timestamp_min_max.union(&sc.timestamp_min_max);
+        }
+
+        timestamp_min_max
     }
 
     /// Returns an estimate of the size of this table buffer based on the data and index sizes.
+    #[allow(dead_code)]
     pub fn computed_size(&self) -> usize {
         let mut size = size_of::<Self>();
-        for (k, v) in &self.mutable_table_chunk.data {
-            size += k.len() + size_of::<String>() + v.size();
+
+        for c in self.chunk_time_to_chunks.values() {
+            for (k, v) in &c.data {
+                size += k.len() + size_of::<String>() + v.size();
+            }
+
+            size += c.index.size();
         }
-        size += self.mutable_table_chunk.index._size();
+
         size
     }
 
-    /// Splits the table into 90% old and 10% new data and returns a RecordBatch of the old
-    pub fn split(&mut self, schema: SchemaRef) -> Result<PersistBatch> {
-        let (old_data, new_data) = self.mutable_table_chunk.split(schema)?;
-        self.mutable_table_chunk = new_data;
-        self.persisting_record_batch = Some(old_data.clone());
-        let file_number = self.file_number;
-        self.file_number += 1;
-        Ok(PersistBatch {
-            file_number,
-            record_batch: old_data,
-        })
+    pub fn snapshot(&mut self, older_than_chunk_time: i64) -> Vec<SnapshotChunk> {
+        let keys_to_remove = self
+            .chunk_time_to_chunks
+            .keys()
+            .filter(|k| **k < older_than_chunk_time)
+            .copied()
+            .collect::<Vec<_>>();
+        self.snapshotting_chunks = keys_to_remove
+            .into_iter()
+            .map(|chunk_time| {
+                let chunk = self.chunk_time_to_chunks.remove(&chunk_time).unwrap();
+                let timestamp_min_max = chunk.timestamp_min_max();
+                let (schema, record_batch) = chunk.into_schema_record_batch();
+
+                SnapshotChunk {
+                    chunk_time,
+                    timestamp_min_max,
+                    record_batch,
+                    schema,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        self.snapshotting_chunks.clone()
     }
 
-    pub fn clear_persisting_data(&mut self) {
-        self.persisting_record_batch = None;
+    pub fn clear_snapshots(&mut self) {
+        self.snapshotting_chunks.clear();
     }
 }
 
-/// A batch of data to be persisted to object storage ahead of a segment getting closed
-#[derive(Debug)]
-pub(crate) struct PersistBatch {
-    pub file_number: u32,
-    pub record_batch: RecordBatch,
+#[derive(Debug, Clone)]
+pub(crate) struct SnapshotChunk {
+    pub(crate) chunk_time: i64,
+    pub(crate) timestamp_min_max: TimestampMinMax,
+    pub(crate) record_batch: RecordBatch,
+    pub(crate) schema: Schema,
 }
 
 // Debug implementation for TableBuffer
 impl std::fmt::Debug for TableBuffer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (min_time, max_time, row_count) = self
+            .chunk_time_to_chunks
+            .values()
+            .map(|c| (c.timestamp_min, c.timestamp_max, c.row_count))
+            .fold(
+                (i64::MAX, i64::MIN, 0),
+                |(a_min, a_max, a_count), (b_min, b_max, b_count)| {
+                    (a_min.min(b_min), a_max.max(b_max), a_count + b_count)
+                },
+            );
         f.debug_struct("TableBuffer")
-            .field("segment_key", &self.segment_key)
-            .field("timestamp_min", &self.mutable_table_chunk.timestamp_min)
-            .field("timestamp_max", &self.mutable_table_chunk.timestamp_max)
-            .field("row_count", &self.mutable_table_chunk.row_count)
+            .field("chunk_count", &self.chunk_time_to_chunks.len())
+            .field("timestamp_min", &min_time)
+            .field("timestamp_max", &max_time)
+            .field("row_count", &row_count)
             .finish()
     }
 }
@@ -141,7 +194,7 @@ impl std::fmt::Debug for TableBuffer {
 struct MutableTableChunk {
     timestamp_min: i64,
     timestamp_max: i64,
-    data: BTreeMap<String, Builder>,
+    data: BTreeMap<Arc<str>, Builder>,
     row_count: usize,
     index: BufferIndex,
 }
@@ -315,6 +368,10 @@ impl MutableTableChunk {
         self.row_count += new_row_count;
     }
 
+    fn timestamp_min_max(&self) -> TimestampMinMax {
+        TimestampMinMax::new(self.timestamp_min, self.timestamp_max)
+    }
+
     fn record_batch(&self, schema: SchemaRef, filter: &[Expr]) -> Result<RecordBatch> {
         let row_ids = self.index.get_rows_from_index_for_filter(filter);
 
@@ -325,7 +382,7 @@ impl MutableTableChunk {
                 Some(row_ids) => {
                     let b = self
                         .data
-                        .get(f.name())
+                        .get(f.name().as_str())
                         .ok_or_else(|| Error::FieldNotFound(f.name().to_string()))?
                         .get_rows(row_ids);
                     cols.push(b);
@@ -333,7 +390,7 @@ impl MutableTableChunk {
                 None => {
                     let b = self
                         .data
-                        .get(f.name())
+                        .get(f.name().as_str())
                         .ok_or_else(|| Error::FieldNotFound(f.name().to_string()))?
                         .as_arrow();
                     cols.push(b);
@@ -344,6 +401,27 @@ impl MutableTableChunk {
         Ok(RecordBatch::try_new(schema, cols)?)
     }
 
+    fn into_schema_record_batch(self) -> (Schema, RecordBatch) {
+        let mut cols = Vec::with_capacity(self.data.len());
+        let mut schema_builder = SchemaBuilder::new();
+        for (col_name, builder) in self.data.into_iter() {
+            let (col_type, col) = builder.into_influxcol_and_arrow();
+            schema_builder.influx_column(col_name.as_ref(), col_type);
+            cols.push(col);
+        }
+        let schema = schema_builder
+            .build()
+            .expect("should always be able to build schema");
+        let arrow_schema = schema.as_arrow();
+
+        (
+            schema,
+            RecordBatch::try_new(arrow_schema, cols)
+                .expect("should always be able to build record batch"),
+        )
+    }
+
+    #[allow(dead_code)]
     pub fn split(&self, schema: SchemaRef) -> Result<(RecordBatch, MutableTableChunk)> {
         // find the timestamp that splits the data into 90% old and 10% new
         let max_count = self.row_count / 10;
@@ -390,7 +468,7 @@ impl MutableTableChunk {
         }
 
         // construct new data from the new rows
-        let data: BTreeMap<String, Builder> = self
+        let data: BTreeMap<Arc<str>, Builder> = self
             .data
             .iter()
             .map(|(k, v)| (k.clone(), v.new_from_rows(&new_rows)))
@@ -431,28 +509,30 @@ impl std::fmt::Debug for MutableTableChunk {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct BufferIndex {
     // column name -> string value -> row indexes
-    columns: HashMap<String, hashbrown::HashMap<String, Vec<usize>>>,
+    columns: HashMap<Arc<str>, HashMap<String, Vec<usize>>>,
 }
 
 impl BufferIndex {
-    fn new(columns: &[&str]) -> Self {
-        let columns = columns
-            .iter()
-            .map(|c| (c.to_string(), hashbrown::HashMap::new()))
-            .collect();
+    fn new(column_names: &[&str]) -> Self {
+        let mut columns = HashMap::new();
+
+        for c in column_names {
+            columns.insert(c.to_string().into(), HashMap::new());
+        }
+
         Self { columns }
     }
 
-    fn new_from_data(data: &BTreeMap<String, Builder>, old_index: &BufferIndex) -> Self {
-        let columns = data
+    #[allow(dead_code)]
+    fn new_from_data(data: &BTreeMap<Arc<str>, Builder>, old_index: &BufferIndex) -> Self {
+        let column_indexes = data
             .iter()
             .filter_map(|(c, b)| {
                 if old_index.columns.contains_key(c) {
-                    let mut column: hashbrown::HashMap<String, Vec<usize>> =
-                        hashbrown::HashMap::new();
+                    let mut column: HashMap<String, Vec<usize>> = HashMap::new();
                     match b {
                         Builder::Tag(b) | Builder::Key(b) => {
                             let b = b.finish_cloned();
@@ -468,7 +548,7 @@ impl BufferIndex {
                                         .or_insert(vec![i]);
                                 }
                             }
-                            Some((c.clone(), column))
+                            Some((Arc::clone(c), column))
                         }
                         _ => {
                             error!("unsupported index colun type: {}", b.column_type());
@@ -479,7 +559,12 @@ impl BufferIndex {
                     None
                 }
             })
-            .collect();
+            .collect::<Vec<_>>();
+
+        let mut columns = HashMap::new();
+        for (c, column) in column_indexes {
+            columns.insert(c, column);
+        }
 
         Self { columns }
     }
@@ -501,7 +586,10 @@ impl BufferIndex {
                         if let Expr::Literal(datafusion::scalar::ScalarValue::Utf8(Some(v))) =
                             right.as_ref()
                         {
-                            return self.columns.get(c.name.as_str()).and_then(|m| m.get(v));
+                            return self
+                                .columns
+                                .get(c.name.as_str())
+                                .and_then(|m| m.get(v.as_str()));
                         }
                     }
                 }
@@ -511,7 +599,8 @@ impl BufferIndex {
         None
     }
 
-    fn _size(&self) -> usize {
+    #[allow(dead_code)]
+    fn size(&self) -> usize {
         let mut size = size_of::<Self>();
         for (k, v) in &self.columns {
             size += k.len() + size_of::<String>() + size_of::<HashMap<String, Vec<usize>>>();
@@ -551,6 +640,35 @@ impl Builder {
         }
     }
 
+    fn into_influxcol_and_arrow(self) -> (InfluxColumnType, ArrayRef) {
+        match self {
+            Self::Bool(mut b) => (
+                InfluxColumnType::Field(InfluxFieldType::Boolean),
+                Arc::new(b.finish()),
+            ),
+            Self::I64(mut b) => (
+                InfluxColumnType::Field(InfluxFieldType::Integer),
+                Arc::new(b.finish()),
+            ),
+            Self::F64(mut b) => (
+                InfluxColumnType::Field(InfluxFieldType::Float),
+                Arc::new(b.finish()),
+            ),
+            Self::U64(mut b) => (
+                InfluxColumnType::Field(InfluxFieldType::UInteger),
+                Arc::new(b.finish()),
+            ),
+            Self::String(mut b) => (
+                InfluxColumnType::Field(InfluxFieldType::String),
+                Arc::new(b.finish()),
+            ),
+            Self::Tag(mut b) => (InfluxColumnType::Tag, Arc::new(b.finish())),
+            Self::Key(mut b) => (InfluxColumnType::Tag, Arc::new(b.finish())),
+            Self::Time(mut b) => (InfluxColumnType::Timestamp, Arc::new(b.finish())),
+        }
+    }
+
+    #[allow(dead_code)]
     fn new_from_rows(&self, rows: &[usize]) -> Self {
         match self {
             Self::Bool(b) => {
@@ -708,6 +826,7 @@ impl Builder {
         }
     }
 
+    #[allow(dead_code)]
     fn size(&self) -> usize {
         let data_size = match self {
             Self::Bool(b) => b.capacity() + b.validity_slice().map(|s| s.len()).unwrap_or(0),
@@ -734,6 +853,7 @@ impl Builder {
         size_of::<Self>() + data_size
     }
 
+    #[allow(dead_code)]
     fn column_type(&self) -> &str {
         match self {
             Self::Bool(_) => "bool",
@@ -751,14 +871,14 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::write_buffer::Field;
     use arrow_util::assert_batches_eq;
     use datafusion::common::Column;
+    use influxdb3_wal::Field;
     use schema::{InfluxFieldType, SchemaBuilder};
 
     #[test]
     fn tag_row_index() {
-        let mut table_buffer = TableBuffer::new(PartitionKey::from("table"), &["tag"]);
+        let mut table_buffer = TableBuffer::new(&["tag"], SortKey::empty());
         let schema = SchemaBuilder::with_capacity(3)
             .tag("tag")
             .influx_field("value", InfluxFieldType::Integer)
@@ -771,15 +891,15 @@ mod tests {
                 time: 1,
                 fields: vec![
                     Field {
-                        name: "tag".to_string(),
+                        name: "tag".into(),
                         value: FieldData::Tag("a".to_string()),
                     },
                     Field {
-                        name: "value".to_string(),
+                        name: "value".into(),
                         value: FieldData::Integer(1),
                     },
                     Field {
-                        name: "time".to_string(),
+                        name: "time".into(),
                         value: FieldData::Timestamp(1),
                     },
                 ],
@@ -788,15 +908,15 @@ mod tests {
                 time: 2,
                 fields: vec![
                     Field {
-                        name: "tag".to_string(),
+                        name: "tag".into(),
                         value: FieldData::Tag("b".to_string()),
                     },
                     Field {
-                        name: "value".to_string(),
+                        name: "value".into(),
                         value: FieldData::Integer(2),
                     },
                     Field {
-                        name: "time".to_string(),
+                        name: "time".into(),
                         value: FieldData::Timestamp(2),
                     },
                 ],
@@ -805,22 +925,22 @@ mod tests {
                 time: 3,
                 fields: vec![
                     Field {
-                        name: "tag".to_string(),
+                        name: "tag".into(),
                         value: FieldData::Tag("a".to_string()),
                     },
                     Field {
-                        name: "value".to_string(),
+                        name: "value".into(),
                         value: FieldData::Integer(3),
                     },
                     Field {
-                        name: "time".to_string(),
+                        name: "time".into(),
                         value: FieldData::Timestamp(3),
                     },
                 ],
             },
         ];
 
-        table_buffer.add_rows(rows);
+        table_buffer.buffer_chunk(0, rows);
 
         let filter = &[Expr::BinaryExpr(BinaryExpr {
             left: Box::new(Expr::Column(Column {
@@ -833,7 +953,9 @@ mod tests {
             )))),
         })];
         let a_rows = table_buffer
-            .mutable_table_chunk
+            .chunk_time_to_chunks
+            .get(&0)
+            .unwrap()
             .index
             .get_rows_from_index_for_filter(filter)
             .unwrap();
@@ -864,7 +986,9 @@ mod tests {
         })];
 
         let b_rows = table_buffer
-            .mutable_table_chunk
+            .chunk_time_to_chunks
+            .get(&0)
+            .unwrap()
             .index
             .get_rows_from_index_for_filter(filter)
             .unwrap();
@@ -885,22 +1009,22 @@ mod tests {
 
     #[test]
     fn computed_size_of_buffer() {
-        let mut table_buffer = TableBuffer::new(PartitionKey::from("table"), &["tag"]);
+        let mut table_buffer = TableBuffer::new(&["tag"], SortKey::empty());
 
         let rows = vec![
             Row {
                 time: 1,
                 fields: vec![
                     Field {
-                        name: "tag".to_string(),
+                        name: "tag".into(),
                         value: FieldData::Tag("a".to_string()),
                     },
                     Field {
-                        name: "value".to_string(),
+                        name: "value".into(),
                         value: FieldData::Integer(1),
                     },
                     Field {
-                        name: "time".to_string(),
+                        name: "time".into(),
                         value: FieldData::Timestamp(1),
                     },
                 ],
@@ -909,15 +1033,15 @@ mod tests {
                 time: 2,
                 fields: vec![
                     Field {
-                        name: "tag".to_string(),
+                        name: "tag".into(),
                         value: FieldData::Tag("b".to_string()),
                     },
                     Field {
-                        name: "value".to_string(),
+                        name: "value".into(),
                         value: FieldData::Integer(2),
                     },
                     Field {
-                        name: "time".to_string(),
+                        name: "time".into(),
                         value: FieldData::Timestamp(2),
                     },
                 ],
@@ -926,121 +1050,24 @@ mod tests {
                 time: 3,
                 fields: vec![
                     Field {
-                        name: "tag".to_string(),
+                        name: "tag".into(),
                         value: FieldData::Tag("this is a long tag value to store".to_string()),
                     },
                     Field {
-                        name: "value".to_string(),
+                        name: "value".into(),
                         value: FieldData::Integer(3),
                     },
                     Field {
-                        name: "time".to_string(),
+                        name: "time".into(),
                         value: FieldData::Timestamp(3),
                     },
                 ],
             },
         ];
 
-        table_buffer.add_rows(rows);
+        table_buffer.buffer_chunk(0, rows);
 
         let size = table_buffer.computed_size();
-        assert_eq!(size, 18198);
-    }
-
-    #[test]
-    fn split() {
-        let mut table_buffer = TableBuffer::new(PartitionKey::from("table"), &["tag"]);
-        let schema = SchemaBuilder::with_capacity(3)
-            .tag("tag")
-            .influx_field("value", InfluxFieldType::Integer)
-            .timestamp()
-            .build()
-            .unwrap();
-
-        let rows = (0..10)
-            .map(|i| Row {
-                time: i,
-                fields: vec![
-                    Field {
-                        name: "tag".to_string(),
-                        value: FieldData::Tag("a".to_string()),
-                    },
-                    Field {
-                        name: "value".to_string(),
-                        value: FieldData::Integer(i),
-                    },
-                    Field {
-                        name: "time".to_string(),
-                        value: FieldData::Timestamp(i),
-                    },
-                ],
-            })
-            .collect();
-
-        table_buffer.add_rows(rows);
-        assert_eq!(table_buffer.mutable_table_chunk.row_count, 10);
-
-        let split = table_buffer.split(schema.as_arrow()).unwrap();
-        assert_eq!(split.file_number, 1);
-        let expected_old = vec![
-            "+-----+-------+--------------------------------+",
-            "| tag | value | time                           |",
-            "+-----+-------+--------------------------------+",
-            "| a   | 0     | 1970-01-01T00:00:00Z           |",
-            "| a   | 1     | 1970-01-01T00:00:00.000000001Z |",
-            "| a   | 2     | 1970-01-01T00:00:00.000000002Z |",
-            "| a   | 3     | 1970-01-01T00:00:00.000000003Z |",
-            "| a   | 4     | 1970-01-01T00:00:00.000000004Z |",
-            "| a   | 5     | 1970-01-01T00:00:00.000000005Z |",
-            "| a   | 6     | 1970-01-01T00:00:00.000000006Z |",
-            "| a   | 7     | 1970-01-01T00:00:00.000000007Z |",
-            "| a   | 8     | 1970-01-01T00:00:00.000000008Z |",
-            "+-----+-------+--------------------------------+",
-        ];
-        assert_batches_eq!(&expected_old, &[split.record_batch.clone()]);
-
-        let mut batches = table_buffer.record_batches(schema.as_arrow(), &[]).unwrap();
-        assert_eq!(split.record_batch, batches[0]);
-
-        let expected_new = vec![
-            "+-----+-------+--------------------------------+",
-            "| tag | value | time                           |",
-            "+-----+-------+--------------------------------+",
-            "| a   | 9     | 1970-01-01T00:00:00.000000009Z |",
-            "+-----+-------+--------------------------------+",
-        ];
-        let batches = vec![batches.pop().unwrap()];
-        assert_batches_eq!(expected_new, &batches);
-
-        table_buffer.clear_persisting_data();
-
-        let filter = &[Expr::BinaryExpr(BinaryExpr {
-            left: Box::new(Expr::Column(Column {
-                relation: None,
-                name: "tag".to_string(),
-            })),
-            op: datafusion::logical_expr::Operator::Eq,
-            right: Box::new(Expr::Literal(datafusion::scalar::ScalarValue::Utf8(Some(
-                "a".to_string(),
-            )))),
-        })];
-        let a_rows = table_buffer
-            .mutable_table_chunk
-            .index
-            .get_rows_from_index_for_filter(filter)
-            .unwrap();
-        assert_eq!(a_rows, &[0]);
-
-        let a = table_buffer
-            .record_batches(schema.as_arrow(), filter)
-            .unwrap();
-        let expected_a = vec![
-            "+-----+-------+--------------------------------+",
-            "| tag | value | time                           |",
-            "+-----+-------+--------------------------------+",
-            "| a   | 9     | 1970-01-01T00:00:00.000000009Z |",
-            "+-----+-------+--------------------------------+",
-        ];
-        assert_batches_eq!(expected_a, &a);
+        assert_eq!(size, 18094);
     }
 }

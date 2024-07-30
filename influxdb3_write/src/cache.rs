@@ -84,6 +84,7 @@ impl ParquetCache {
                         files.insert(
                             path.clone(),
                             ParquetFile {
+                                chunk_time: min_time,
                                 path: path.clone(),
                                 size_bytes,
                                 row_count: meta_data.num_rows as u64,
@@ -96,6 +97,7 @@ impl ParquetCache {
                         HashMap::from([(
                             path.clone(),
                             ParquetFile {
+                                chunk_time: min_time,
                                 path: path.clone(),
                                 size_bytes,
                                 row_count: meta_data.num_rows as u64,
@@ -111,6 +113,7 @@ impl ParquetCache {
                     HashMap::from([(
                         path.clone(),
                         ParquetFile {
+                            chunk_time: min_time,
                             path: path.clone(),
                             size_bytes,
                             row_count: meta_data.num_rows as u64,

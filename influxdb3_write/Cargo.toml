@@ -18,6 +18,9 @@ parquet_file.workspace = true
 observability_deps.workspace = true
 schema.workspace = true
 
+# Local deps
+influxdb3_wal = { path = "../influxdb3_wal" }
+
 # crates.io dependencies
 arrow.workspace = true
 async-trait.workspace = true

@@ -1,7 +1,7 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
 use crate::last_cache::LastCache;
-use crate::SequenceNumber;
+use influxdb3_wal::{CatalogBatch, CatalogOp};
 use influxdb_line_protocol::FieldValue;
 use observability_deps::tracing::info;
 use parking_lot::RwLock;
@@ -43,6 +43,22 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub const TIME_COLUMN_NAME: &str = "time";
+
+/// The sequence number of a batch of WAL operations.
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub struct SequenceNumber(u32);
+
+impl SequenceNumber {
+    pub fn new(id: u32) -> Self {
+        Self(id)
+    }
+
+    pub fn next(&self) -> Self {
+        Self(self.0 + 1)
+    }
+}
 
 #[derive(Debug)]
 pub struct Catalog {
@@ -90,57 +106,15 @@ impl Catalog {
         }
     }
 
-    pub(crate) fn replace_database(
-        &self,
-        sequence: SequenceNumber,
-        db: Arc<DatabaseSchema>,
-    ) -> Result<()> {
-        let mut inner = self.inner.write();
-        if inner.sequence != sequence {
-            info!("catalog updated elsewhere");
-            return Err(Error::CatalogUpdatedElsewhere);
-        }
-
-        // Check we have not gone over the table limit with this updated DB
-        let mut num_tables = inner
-            .databases
-            .iter()
-            .filter(|(k, _)| *k != &db.name)
-            .map(|(_, v)| v)
-            .fold(0, |acc, db| acc + db.tables.len());
-
-        num_tables += db.tables.len();
-
-        if num_tables > Self::NUM_TABLES_LIMIT {
-            return Err(Error::TooManyTables);
-        }
-
-        for table in db.tables.values() {
-            if table.num_columns() > Self::NUM_COLUMNS_PER_TABLE_LIMIT {
-                return Err(Error::TooManyColumns);
-            }
-        }
-
-        info!("inserted/updated database in catalog: {}", db.name);
-        inner.sequence = inner.sequence.next();
-        inner.databases.insert(db.name.clone(), db);
-        Ok(())
+    pub fn apply_catalog_batch(&self, catalog_batch: &CatalogBatch) -> Result<()> {
+        self.inner.write().apply_catalog_batch(catalog_batch)
     }
 
-    pub(crate) fn db_or_create(
-        &self,
-        db_name: &str,
-    ) -> Result<(SequenceNumber, Arc<DatabaseSchema>)> {
-        let (sequence, db) = {
-            let inner = self.inner.read();
-            (inner.sequence, inner.databases.get(db_name).cloned())
-        };
+    pub(crate) fn db_or_create(&self, db_name: &str) -> Result<Arc<DatabaseSchema>> {
+        let db = self.inner.read().databases.get(db_name).cloned();
 
         let db = match db {
-            Some(db) => {
-                info!("return existing db {}", db_name);
-                db
-            }
+            Some(db) => db,
             None => {
                 let mut inner = self.inner.write();
 
@@ -149,17 +123,18 @@ impl Catalog {
                 }
 
                 info!("return new db {}", db_name);
-                let db = Arc::new(DatabaseSchema::new(db_name));
+                let db = Arc::new(DatabaseSchema::new(db_name.into()));
                 inner.databases.insert(db.name.clone(), Arc::clone(&db));
+                inner.sequence = inner.sequence.next();
+                inner.updated = true;
                 db
             }
         };
 
-        Ok((sequence, db))
+        Ok(db)
     }
 
     pub fn db_schema(&self, name: &str) -> Option<Arc<DatabaseSchema>> {
-        info!("db_schema {}", name);
         self.inner.read().databases.get(name).cloned()
     }
 
@@ -172,12 +147,55 @@ impl Catalog {
     }
 
     pub fn list_databases(&self) -> Vec<String> {
-        self.inner.read().databases.keys().cloned().collect()
+        self.inner
+            .read()
+            .databases
+            .keys()
+            .map(|db| db.to_string())
+            .collect()
+    }
+
+    pub fn add_last_cache(&self, db_name: &str, table_name: &str, last_cache: LastCacheDefinition) {
+        let mut inner = self.inner.write();
+        let mut db = inner
+            .databases
+            .get(db_name)
+            .expect("db should exist")
+            .as_ref()
+            .clone();
+        let table = db.tables.get_mut(table_name).expect("table should exist");
+        table.add_last_cache(last_cache);
+        inner.databases.insert(Arc::clone(&db.name), Arc::new(db));
+        inner.sequence = inner.sequence.next();
+        inner.updated = true;
+    }
+
+    pub fn delete_last_cache(&self, db_name: &str, table_name: &str, name: &str) {
+        let mut inner = self.inner.write();
+        let mut db = inner
+            .databases
+            .get(db_name)
+            .expect("db should exist")
+            .as_ref()
+            .clone();
+        let table = db.tables.get_mut(table_name).expect("table should exist");
+        table.remove_last_cache(name);
+        inner.databases.insert(Arc::clone(&db.name), Arc::new(db));
+        inner.sequence = inner.sequence.next();
+        inner.updated = true;
     }
 
     #[cfg(test)]
     pub fn db_exists(&self, db_name: &str) -> bool {
         self.inner.read().db_exists(db_name)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn insert_database(&mut self, db: DatabaseSchema) {
+        self.inner
+            .write()
+            .databases
+            .insert(Arc::clone(&db.name), Arc::new(db));
     }
 }
 
@@ -186,8 +204,11 @@ impl Catalog {
 pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
     #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
-    databases: HashMap<String, Arc<DatabaseSchema>>,
+    databases: HashMap<Arc<str>, Arc<DatabaseSchema>>,
     sequence: SequenceNumber,
+    /// If true, the catalog has been updated since the last time it was serialized
+    #[serde(skip)]
+    updated: bool,
 }
 
 impl InnerCatalog {
@@ -195,6 +216,7 @@ impl InnerCatalog {
         Self {
             databases: HashMap::new(),
             sequence: SequenceNumber::new(0),
+            updated: false,
         }
     }
 
@@ -202,8 +224,51 @@ impl InnerCatalog {
         self.sequence
     }
 
-    pub(crate) fn databases(&self) -> impl Iterator<Item = (&String, &Arc<DatabaseSchema>)> {
-        self.databases.iter()
+    pub fn table_count(&self) -> usize {
+        self.databases.values().map(|db| db.tables.len()).sum()
+    }
+
+    pub fn apply_catalog_batch(&mut self, catalog_batch: &CatalogBatch) -> Result<()> {
+        let table_count = self.table_count();
+
+        let db = self.databases.get(catalog_batch.database_name.as_ref());
+
+        let db = match db {
+            Some(db) => {
+                let previous_table_count = db.tables.len();
+                let db = DatabaseSchema::new_from_existing_and_batch(db, catalog_batch)?;
+
+                let new_table_count = db.tables.len() - previous_table_count;
+                if table_count + new_table_count > Catalog::NUM_TABLES_LIMIT {
+                    return Err(Error::TooManyTables);
+                }
+
+                db
+            }
+            None => {
+                if self.databases.len() >= Catalog::NUM_DBS_LIMIT {
+                    return Err(Error::TooManyDbs);
+                }
+                let db = DatabaseSchema::new_from_batch(catalog_batch)?;
+                if table_count + db.tables.len() > Catalog::NUM_TABLES_LIMIT {
+                    return Err(Error::TooManyTables);
+                }
+
+                db
+            }
+        };
+
+        self.databases
+            .insert(Arc::clone(&catalog_batch.database_name), Arc::new(db));
+        self.sequence = self.sequence.next();
+        self.updated = true;
+
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn databases(&self) -> impl Iterator<Item = &Arc<DatabaseSchema>> {
+        self.databases.values()
     }
 
     #[cfg(test)]
@@ -215,18 +280,74 @@ impl InnerCatalog {
 #[serde_with::serde_as]
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct DatabaseSchema {
-    pub name: String,
+    pub name: Arc<str>,
     /// The database is a map of tables
     #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
-    pub(crate) tables: BTreeMap<String, TableDefinition>,
+    pub(crate) tables: BTreeMap<Arc<str>, TableDefinition>,
 }
 
 impl DatabaseSchema {
-    pub fn new(name: impl Into<String>) -> Self {
+    pub fn new(name: Arc<str>) -> Self {
         Self {
-            name: name.into(),
+            name,
             tables: BTreeMap::new(),
         }
+    }
+
+    pub fn new_from_existing_and_batch(
+        db: &Arc<DatabaseSchema>,
+        catalog_batch: &CatalogBatch,
+    ) -> Result<Self> {
+        let tables = db.tables.clone();
+        Self::new_from_tables_and_batch(tables, catalog_batch)
+    }
+
+    pub fn new_from_batch(catalog_batch: &CatalogBatch) -> Result<Self> {
+        let tables = BTreeMap::new();
+        Self::new_from_tables_and_batch(tables, catalog_batch)
+    }
+
+    pub fn new_from_tables_and_batch(
+        mut tables: BTreeMap<Arc<str>, TableDefinition>,
+        catalog_batch: &CatalogBatch,
+    ) -> Result<Self> {
+        for catalog_op in &catalog_batch.ops {
+            match catalog_op {
+                CatalogOp::CreateTable(table_def) => {
+                    let table = TableDefinition::new_from_op(table_def);
+                    tables.insert(Arc::clone(&table.name), table);
+                }
+                CatalogOp::AddFields(field_additions) => {
+                    let columns: Vec<(String, InfluxColumnType)> = field_additions
+                        .field_definitions
+                        .iter()
+                        .map(|field_def| (field_def.name.to_string(), field_def.data_type.into()))
+                        .collect();
+                    let table = tables.get_mut(field_additions.table_name.as_ref());
+                    match table {
+                        Some(table) => {
+                            table.add_columns(columns)?;
+                        }
+                        None => {
+                            let table = TableDefinition::new(
+                                Arc::clone(&field_additions.table_name),
+                                columns,
+                                <Option<Vec<String>>>::None,
+                            )?;
+                            tables.insert(field_additions.table_name.clone(), table);
+                        }
+                    }
+                }
+                CatalogOp::CreateDatabase(_) => {
+                    // Do nothing
+                }
+            }
+        }
+
+        Ok(Self {
+            name: Arc::clone(&catalog_batch.database_name),
+            tables,
+        })
     }
 
     pub fn get_table_schema(&self, table_name: &str) -> Option<&Schema> {
@@ -237,11 +358,7 @@ impl DatabaseSchema {
         self.tables.get(table_name)
     }
 
-    pub fn get_table_mut(&mut self, table_name: &str) -> Option<&mut TableDefinition> {
-        self.tables.get_mut(table_name)
-    }
-
-    pub fn table_names(&self) -> Vec<String> {
+    pub fn table_names(&self) -> Vec<Arc<str>> {
         self.tables.keys().cloned().collect()
     }
 
@@ -249,14 +366,15 @@ impl DatabaseSchema {
         self.tables.contains_key(table_name)
     }
 
-    pub(crate) fn tables(&self) -> impl Iterator<Item = (&String, &TableDefinition)> {
-        self.tables.iter()
+    #[cfg(test)]
+    pub(crate) fn tables(&self) -> impl Iterator<Item = &TableDefinition> {
+        self.tables.values()
     }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TableDefinition {
-    pub name: String,
+    pub name: Arc<str>,
     pub schema: Schema,
     pub last_caches: BTreeMap<String, LastCacheDefinition>,
 }
@@ -264,20 +382,24 @@ pub struct TableDefinition {
 impl TableDefinition {
     /// Create a new [`TableDefinition`]
     ///
-    /// Ensures the the provided columns will be ordered before constructing the schema.
-    pub(crate) fn new<N: Into<String>, CN: AsRef<str>>(
-        name: N,
+    /// Ensures the provided columns will be ordered before constructing the schema.
+    pub(crate) fn new<CN: AsRef<str>>(
+        name: Arc<str>,
         columns: impl AsRef<[(CN, InfluxColumnType)]>,
         series_key: Option<impl IntoIterator<Item: AsRef<str>>>,
-    ) -> Self {
+    ) -> Result<Self> {
+        // ensure we're under the column limit
+        if columns.as_ref().len() > Catalog::NUM_COLUMNS_PER_TABLE_LIMIT {
+            return Err(Error::TooManyColumns);
+        }
+
         // Use a BTree to ensure that the columns are ordered:
         let mut ordered_columns = BTreeMap::new();
         for (name, column_type) in columns.as_ref() {
             ordered_columns.insert(name.as_ref(), column_type);
         }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.as_ref().len());
-        let name = name.into();
-        schema_builder.measurement(&name);
+        schema_builder.measurement(name.as_ref());
         if let Some(sk) = series_key {
             schema_builder.with_series_key(sk);
         }
@@ -286,11 +408,25 @@ impl TableDefinition {
         }
         let schema = schema_builder.build().unwrap();
 
-        Self {
+        Ok(Self {
             name,
             schema,
             last_caches: BTreeMap::new(),
+        })
+    }
+
+    /// Create a new table definition from a catalog op
+    pub(crate) fn new_from_op(table_definition: &influxdb3_wal::TableDefinition) -> Self {
+        let mut columns = Vec::new();
+        for field_def in &table_definition.field_definitions {
+            columns.push((field_def.name.as_ref(), field_def.data_type.into()));
         }
+        Self::new(
+            Arc::clone(&table_definition.table_name),
+            columns,
+            table_definition.key.clone(),
+        )
+        .expect("tables defined from ops should not exceed column limits")
     }
 
     /// Check if the column exists in the [`TableDefinition`]s schema
@@ -301,7 +437,7 @@ impl TableDefinition {
     /// Add the columns to this [`TableDefinition`]
     ///
     /// This ensures that the resulting schema has its columns ordered
-    pub(crate) fn add_columns(&mut self, columns: Vec<(String, InfluxColumnType)>) {
+    pub(crate) fn add_columns(&mut self, columns: Vec<(String, InfluxColumnType)>) -> Result<()> {
         // Use BTree to insert existing and new columns, and use that to generate the
         // resulting schema, to ensure column order is consistent:
         let mut cols = BTreeMap::new();
@@ -310,6 +446,11 @@ impl TableDefinition {
         }
         for (name, column_type) in columns.iter() {
             cols.insert(name, *column_type);
+        }
+
+        // ensure we don't go over the column limit
+        if cols.len() > Catalog::NUM_COLUMNS_PER_TABLE_LIMIT {
+            return Err(Error::TooManyColumns);
         }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
         // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
@@ -321,6 +462,8 @@ impl TableDefinition {
         let schema = schema_builder.build().unwrap();
 
         self.schema = schema;
+
+        Ok(())
     }
 
     pub(crate) fn index_columns(&self) -> Vec<&str> {
@@ -337,6 +480,7 @@ impl TableDefinition {
         &self.schema
     }
 
+    #[cfg(test)]
     pub(crate) fn num_columns(&self) -> usize {
         self.schema.len()
     }
@@ -360,6 +504,7 @@ impl TableDefinition {
         self.last_caches.remove(name);
     }
 
+    #[cfg(test)]
     pub(crate) fn last_caches(&self) -> impl Iterator<Item = (&String, &LastCacheDefinition)> {
         self.last_caches.iter()
     }
@@ -541,7 +686,7 @@ mod tests {
     fn catalog_serialization() {
         let catalog = Catalog::new();
         let mut database = DatabaseSchema {
-            name: "test_db".to_string(),
+            name: "test_db".into(),
             tables: BTreeMap::new(),
         };
         use InfluxColumnType::*;
@@ -549,7 +694,7 @@ mod tests {
         database.tables.insert(
             "test_table_1".into(),
             TableDefinition::new(
-                "test_table_1",
+                "test_table_1".into(),
                 [
                     ("tag_1", Tag),
                     ("tag_2", Tag),
@@ -562,12 +707,13 @@ mod tests {
                     ("f64_field", Field(Float)),
                 ],
                 SeriesKey::None,
-            ),
+            )
+            .unwrap(),
         );
         database.tables.insert(
             "test_table_2".into(),
             TableDefinition::new(
-                "test_table_2",
+                "test_table_2".into(),
                 [
                     ("tag_1", Tag),
                     ("tag_2", Tag),
@@ -580,12 +726,14 @@ mod tests {
                     ("f64_field", Field(Float)),
                 ],
                 SeriesKey::None,
-            ),
+            )
+            .unwrap(),
         );
-        let database = Arc::new(database);
         catalog
-            .replace_database(SequenceNumber::new(0), database)
-            .unwrap();
+            .inner
+            .write()
+            .databases
+            .insert(Arc::clone(&database.name), Arc::new(database));
 
         // Perform a snapshot test to check that the JSON serialized catalog does not change in an
         // undesired way when introducing features etc.
@@ -673,23 +821,26 @@ mod tests {
     #[test]
     fn add_columns_updates_schema() {
         let mut database = DatabaseSchema {
-            name: "test".to_string(),
+            name: "test".into(),
             tables: BTreeMap::new(),
         };
         database.tables.insert(
             "test".into(),
             TableDefinition::new(
-                "test",
+                "test".into(),
                 [(
                     "test".to_string(),
                     InfluxColumnType::Field(InfluxFieldType::String),
                 )],
                 SeriesKey::None,
-            ),
+            )
+            .unwrap(),
         );
 
         let table = database.tables.get_mut("test").unwrap();
-        table.add_columns(vec![("test2".to_string(), InfluxColumnType::Tag)]);
+        table
+            .add_columns(vec![("test2".to_string(), InfluxColumnType::Tag)])
+            .unwrap();
         let schema = table.schema();
         assert_eq!(
             schema.field(0).0,
@@ -702,7 +853,7 @@ mod tests {
     fn serialize_series_keys() {
         let catalog = Catalog::new();
         let mut database = DatabaseSchema {
-            name: "test_db".to_string(),
+            name: "test_db".into(),
             tables: BTreeMap::new(),
         };
         use InfluxColumnType::*;
@@ -710,7 +861,7 @@ mod tests {
         database.tables.insert(
             "test_table_1".into(),
             TableDefinition::new(
-                "test_table_1",
+                "test_table_1".into(),
                 [
                     ("tag_1", Tag),
                     ("tag_2", Tag),
@@ -723,12 +874,14 @@ mod tests {
                     "tag_2".to_string(),
                     "tag_3".to_string(),
                 ]),
-            ),
+            )
+            .unwrap(),
         );
-        let database = Arc::new(database);
         catalog
-            .replace_database(SequenceNumber::new(0), database)
-            .unwrap();
+            .inner
+            .write()
+            .databases
+            .insert(Arc::clone(&database.name), Arc::new(database));
 
         assert_json_snapshot!(catalog);
 
@@ -742,13 +895,13 @@ mod tests {
     fn serialize_last_cache() {
         let catalog = Catalog::new();
         let mut database = DatabaseSchema {
-            name: "test_db".to_string(),
+            name: "test_db".into(),
             tables: BTreeMap::new(),
         };
         use InfluxColumnType::*;
         use InfluxFieldType::*;
         let mut table_def = TableDefinition::new(
-            "test",
+            "test".into(),
             [
                 ("tag_1", Tag),
                 ("tag_2", Tag),
@@ -757,7 +910,8 @@ mod tests {
                 ("field", Field(String)),
             ],
             SeriesKey::None,
-        );
+        )
+        .unwrap();
         table_def.add_last_cache(
             LastCacheDefinition::new_with_explicit_value_columns(
                 "test",
@@ -770,10 +924,11 @@ mod tests {
             .unwrap(),
         );
         database.tables.insert("test_table_1".into(), table_def);
-        let database = Arc::new(database);
         catalog
-            .replace_database(SequenceNumber::new(0), database)
-            .unwrap();
+            .inner
+            .write()
+            .databases
+            .insert(Arc::clone(&database.name), Arc::new(database));
 
         assert_json_snapshot!(catalog);
 
