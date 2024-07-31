@@ -12,6 +12,7 @@ type AuthorizerMock struct {
 	AuthorizeQueryFn       func(database string, query *influxql.Query) error
 	AuthorizeSeriesReadFn  func(database string, measurement []byte, tags models.Tags) bool
 	AuthorizeSeriesWriteFn func(database string, measurement []byte, tags models.Tags) bool
+	OptimizeSeriesReadFn   func(database string, measurement []byte, expr influxql.Expr) (influxql.Expr, query.FineAuthorizer, error)
 }
 
 // AuthorizeDatabase determines if the provided privilege is sufficient to
@@ -32,6 +33,14 @@ func (a *AuthorizerMock) AuthorizeSeriesRead(database string, measurement []byte
 	return a.AuthorizeSeriesReadFn(database, measurement, tags)
 }
 
+// OptimizeSeriesRead optimizes series read queries based on the authorizer.
+func (a *AuthorizerMock) OptimizeSeriesRead(database string, measurement []byte, expr influxql.Expr) (influxql.Expr, query.FineAuthorizer, error) {
+	if a.OptimizeSeriesReadFn != nil {
+		return a.OptimizeSeriesReadFn(database, measurement, expr)
+	}
+	return expr, a, nil
+}
+
 // AuthorizeSeriesWrite determines if the series comprising measurement and tags
 // can be written to, on the provided database.
 func (a *AuthorizerMock) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
@@ -39,5 +48,9 @@ func (a *AuthorizerMock) AuthorizeSeriesWrite(database string, measurement []byt
 }
 
 func (a *AuthorizerMock) IsOpen() bool {
+	return false
+}
+
+func (a *AuthorizerMock) IsVoid() bool {
 	return false
 }

@@ -2908,6 +2908,7 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.FineAuthorizer, name []byte,
 	}
 
 	// Iterate all series to collect tag values.
+	authIsOpen := query.AuthorizerIsOpen(auth)
 	for {
 		e, err := itr.Next()
 		if err != nil {
@@ -2933,7 +2934,7 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.FineAuthorizer, name []byte,
 			continue
 		}
 
-		if auth != nil {
+		if !authIsOpen {
 			name, tags := ParseSeriesKey(buf)
 			if len(name) == 0 {
 				continue
@@ -2979,6 +2980,19 @@ func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.FineAuthorizer, name
 	// If the keys are not sorted, then sort them.
 	if !keysSorted {
 		sort.Strings(keys)
+	}
+
+	if auth != nil {
+		// If an error occurs in OptimizeSeriesRead, we shouldn't abort. We should simply continue
+		// on with the original auth and expr.
+		// TODO: Log error from optimizeSeriesRead
+		if newExpr, newAuth, err := auth.OptimizeSeriesRead(is.Database(), name, expr); err == nil {
+			auth = newAuth
+			expr = newExpr
+		}
+		if query.AuthorizerIsVoid(auth) {
+			return results, nil
+		}
 	}
 
 	release := is.SeriesFile.Retain()
