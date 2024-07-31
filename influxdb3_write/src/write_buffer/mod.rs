@@ -146,10 +146,7 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
         let wal = Arc::clone(&flush_wal) as Arc<dyn Wal>;
 
         // start the background wal flush
-        tokio::spawn(async move {
-            tokio::time::sleep(wal_config.flush_interval).await;
-            background_wal_flush(flush_wal, wal_config.flush_interval).await;
-        });
+        background_wal_flush(flush_wal, wal_config.flush_interval);
 
         Ok(Self {
             catalog,
@@ -200,7 +197,7 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
         // whatever the configured wal flush interval is set to) the buffer is flushed and all the
         // data is persisted into a single wal file in the configured object store. Then the
         // contents are sent to the configured notifier, which in this case is the queryable buffer.
-        // Thus, after this returns the data is both durable and queryable.
+        // Thus, after this returns, the data is both durable and queryable.
         self.wal.write_ops(ops).await?;
 
         Ok(BufferedWriteRequest {
@@ -238,7 +235,7 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
         // whatever the configured wal flush interval is set to) the buffer is flushed and all the
         // data is persisted into a single wal file in the configured object store. Then the
         // contents are sent to the configured notifier, which in this case is the queryable buffer.
-        // Thus, after this returns the data is both durable and queryable.
+        // Thus, after this returns, the data is both durable and queryable.
         self.wal.write_ops(ops).await?;
 
         Ok(BufferedWriteRequest {
@@ -387,21 +384,6 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
     pub async fn purge_cache(&self) -> Result<(), Error> {
         Ok(self.parquet_cache.purge_cache().await?)
     }
-
-    #[cfg(test)]
-    #[allow(dead_code)]
-    fn get_table_record_batches(
-        &self,
-        datbase_name: &str,
-        table_name: &str,
-    ) -> Vec<arrow::record_batch::RecordBatch> {
-        let db_schema = self.catalog.db_schema(datbase_name).unwrap();
-        let table = db_schema.tables.get(table_name).unwrap();
-        let schema = table.schema.clone();
-
-        self.buffer
-            .get_table_record_batches(datbase_name, table_name, schema.as_arrow())
-    }
 }
 
 pub(crate) fn parquet_chunk_from_file(
@@ -411,7 +393,7 @@ pub(crate) fn parquet_chunk_from_file(
     object_store: Arc<dyn ObjectStore>,
     chunk_order: i64,
 ) -> ParquetChunk {
-    let partition_key = data_types::PartitionKey::from(format!("{}", parquet_file.chunk_time));
+    let partition_key = data_types::PartitionKey::from(parquet_file.chunk_time.to_string());
     let partition_id = data_types::partition::TransitionPartitionId::new(
         data_types::TableId::new(0),
         &partition_key,

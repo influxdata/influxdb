@@ -20,7 +20,6 @@ use super::Error;
 /// Type state for the [`WriteValidator`] after it has been initialized
 /// with the catalog.
 pub(crate) struct WithCatalog {
-    db_name: NamespaceName<'static>,
     catalog: Arc<Catalog>,
     db_schema: Arc<DatabaseSchema>,
 }
@@ -49,11 +48,7 @@ impl WriteValidator<WithCatalog> {
     ) -> Result<WriteValidator<WithCatalog>> {
         let db_schema = catalog.db_or_create(db_name.as_str())?;
         Ok(WriteValidator {
-            state: WithCatalog {
-                db_name,
-                catalog,
-                db_schema,
-            },
+            state: WithCatalog { catalog, db_schema },
         })
     }
 
@@ -573,21 +568,8 @@ impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
             );
         }
 
-        let mut min_time_ns = i64::MAX;
-        let mut max_time_ns = i64::MIN;
-
-        for tc in table_chunks.values() {
-            let (min, max) = tc.min_max_time();
-            min_time_ns = min_time_ns.min(min);
-            max_time_ns = max_time_ns.max(max);
-        }
-
-        let write_batch = WriteBatch {
-            database_name: self.state.catalog.db_name.as_str().into(),
-            table_chunks,
-            min_time_ns,
-            max_time_ns,
-        };
+        let write_batch =
+            WriteBatch::new(Arc::clone(&self.state.catalog.db_schema.name), table_chunks);
 
         ValidatedLines {
             line_count,
@@ -683,21 +665,8 @@ impl<'lp> WriteValidator<LinesParsed<'lp, ParsedLine<'lp>>> {
             );
         }
 
-        let mut min_time_ns = i64::MAX;
-        let mut max_time_ns = i64::MIN;
-
-        for tc in table_chunks.values() {
-            let (min, max) = tc.min_max_time();
-            min_time_ns = min_time_ns.min(min);
-            max_time_ns = max_time_ns.max(max);
-        }
-
-        let write_batch = WriteBatch {
-            database_name: self.state.catalog.db_name.as_str().into(),
-            table_chunks,
-            min_time_ns,
-            max_time_ns,
-        };
+        let write_batch =
+            WriteBatch::new(Arc::clone(&self.state.catalog.db_schema.name), table_chunks);
 
         ValidatedLines {
             line_count,

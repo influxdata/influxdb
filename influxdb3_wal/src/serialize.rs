@@ -112,6 +112,8 @@ mod tests {
             }],
         };
         let chunks = TableChunks {
+            min_time: 0,
+            max_time: 10,
             chunk_time_to_chunk: [(1, chunk)].iter().cloned().collect(),
         };
         let table_name: Arc<str> = "table2".into();

@@ -227,6 +227,26 @@ pub struct WriteBatch {
 }
 
 impl WriteBatch {
+    pub fn new(database_name: Arc<str>, table_chunks: HashMap<Arc<str>, TableChunks>) -> Self {
+        // find the min and max times across the table chunks
+        let (min_time_ns, max_time_ns) = table_chunks.values().fold(
+            (i64::MAX, i64::MIN),
+            |(min_time_ns, max_time_ns), table_chunks| {
+                (
+                    min_time_ns.min(table_chunks.min_time),
+                    max_time_ns.max(table_chunks.max_time),
+                )
+            },
+        );
+
+        Self {
+            database_name,
+            table_chunks,
+            min_time_ns,
+            max_time_ns,
+        }
+    }
+
     pub fn add_write_batch(
         &mut self,
         new_table_chunks: HashMap<Arc<str>, TableChunks>,
@@ -240,35 +260,39 @@ impl WriteBatch {
             let chunks = self.table_chunks.entry(table_name).or_default();
             for (chunk_time, new_chunk) in new_chunks.chunk_time_to_chunk {
                 let chunk = chunks.chunk_time_to_chunk.entry(chunk_time).or_default();
+                for r in &new_chunk.rows {
+                    chunks.min_time = chunks.min_time.min(r.time);
+                    chunks.max_time = chunks.max_time.max(r.time);
+                }
                 chunk.rows.extend(new_chunk.rows);
             }
         }
     }
 }
 
-#[derive(Debug, Default, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct TableChunks {
+    pub min_time: i64,
+    pub max_time: i64,
     pub chunk_time_to_chunk: HashMap<i64, TableChunk>,
+}
+
+impl Default for TableChunks {
+    fn default() -> Self {
+        Self {
+            min_time: i64::MAX,
+            max_time: i64::MIN,
+            chunk_time_to_chunk: Default::default(),
+        }
+    }
 }
 
 impl TableChunks {
     pub fn push_row(&mut self, chunk_time: i64, row: Row) {
+        self.min_time = self.min_time.min(row.time);
+        self.max_time = self.max_time.max(row.time);
         let chunk = self.chunk_time_to_chunk.entry(chunk_time).or_default();
         chunk.rows.push(row);
-    }
-
-    pub fn min_max_time(&self) -> (i64, i64) {
-        let mut min = i64::MAX;
-        let mut max = i64::MIN;
-
-        for c in self.chunk_time_to_chunk.values() {
-            for r in &c.rows {
-                min = min.min(r.time);
-                max = max.max(r.time);
-            }
-        }
-
-        (min, max)
     }
 
     pub fn row_count(&self) -> usize {
@@ -358,6 +382,12 @@ pub struct WalContents {
     pub snapshot: Option<SnapshotDetails>,
 }
 
+impl WalContents {
+    pub fn is_empty(&self) -> bool {
+        self.ops.is_empty() && self.snapshot.is_none()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct WalFileSequenceNumber(u64);
 
@@ -390,7 +420,7 @@ pub struct SnapshotDetails {
     pub last_sequence_number: WalFileSequenceNumber,
 }
 
-pub async fn background_wal_flush<W: Wal>(
+pub fn background_wal_flush<W: Wal>(
     wal: Arc<W>,
     flush_interval: Duration,
 ) -> tokio::task::JoinHandle<()> {

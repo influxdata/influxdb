@@ -1,12 +1,10 @@
 //! The in memory buffer of a table that can be quickly added to and queried
 
-use crate::catalog::TIME_COLUMN_NAME;
 use arrow::array::{
-    Array, ArrayBuilder, ArrayRef, BooleanArray, BooleanBuilder, Float64Builder,
-    GenericByteDictionaryBuilder, Int64Builder, StringArray, StringBuilder,
-    StringDictionaryBuilder, TimestampNanosecondBuilder, UInt64Builder,
+    Array, ArrayBuilder, ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder,
+    Int64Builder, StringArray, StringBuilder, StringDictionaryBuilder, TimestampNanosecondBuilder,
+    UInt64Builder,
 };
-use arrow::compute::filter_record_batch;
 use arrow::datatypes::{GenericStringType, Int32Type, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use data_types::TimestampMinMax;
@@ -16,7 +14,7 @@ use influxdb3_wal::{FieldData, Row};
 use observability_deps::tracing::{debug, error};
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
-use std::collections::{BTreeMap, BinaryHeap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::mem::size_of;
 use std::sync::Arc;
 use thiserror::Error;
@@ -420,82 +418,6 @@ impl MutableTableChunk {
                 .expect("should always be able to build record batch"),
         )
     }
-
-    #[allow(dead_code)]
-    pub fn split(&self, schema: SchemaRef) -> Result<(RecordBatch, MutableTableChunk)> {
-        // find the timestamp that splits the data into 90% old and 10% new
-        let max_count = self.row_count / 10;
-
-        let time_column = self
-            .data
-            .get(TIME_COLUMN_NAME)
-            .ok_or_else(|| Error::FieldNotFound(TIME_COLUMN_NAME.to_string()))?;
-        let time_column = match time_column {
-            Builder::Time(b) => b,
-            _ => panic!("unexpected field type"),
-        };
-
-        let mut heap = BinaryHeap::with_capacity(max_count);
-
-        for t in time_column.values_slice() {
-            if heap.len() < max_count {
-                heap.push(*t);
-            } else if let Some(&top) = heap.peek() {
-                if *t > top {
-                    heap.pop();
-                    heap.push(*t);
-                }
-            }
-        }
-
-        let newest_time = heap.peek().copied().unwrap_or_default();
-
-        // create a vec that indicates if the row is old (true) or new (false)
-        let filter_vec: BooleanArray = time_column
-            .values_slice()
-            .iter()
-            .map(|t| *t < newest_time)
-            .collect::<Vec<bool>>()
-            .into();
-        let old_data = filter_record_batch(&self.record_batch(schema, &[])?, &filter_vec)?;
-
-        // create a vec with the indexes of the rows to put into a new mutable table chunk
-        let mut new_rows = Vec::with_capacity(max_count);
-        for (i, t) in filter_vec.values().iter().enumerate() {
-            if !t {
-                new_rows.push(i);
-            }
-        }
-
-        // construct new data from the new rows
-        let data: BTreeMap<Arc<str>, Builder> = self
-            .data
-            .iter()
-            .map(|(k, v)| (k.clone(), v.new_from_rows(&new_rows)))
-            .collect();
-        let (timestamp_min, timestamp_max) = data
-            .values()
-            .find_map(|v| match v {
-                Builder::Time(b) => {
-                    let min_time = b.values_slice().iter().min().unwrap();
-                    let max_time = b.values_slice().iter().max().unwrap();
-                    Some((*min_time, *max_time))
-                }
-                _ => None,
-            })
-            .unwrap_or_default();
-        let index = BufferIndex::new_from_data(&data, &self.index);
-
-        let new_data = MutableTableChunk {
-            timestamp_min,
-            timestamp_max,
-            data,
-            row_count: new_rows.len(),
-            index,
-        };
-
-        Ok((old_data, new_data))
-    }
 }
 
 // Debug implementation for TableBuffer
@@ -521,49 +443,6 @@ impl BufferIndex {
 
         for c in column_names {
             columns.insert(c.to_string().into(), HashMap::new());
-        }
-
-        Self { columns }
-    }
-
-    #[allow(dead_code)]
-    fn new_from_data(data: &BTreeMap<Arc<str>, Builder>, old_index: &BufferIndex) -> Self {
-        let column_indexes = data
-            .iter()
-            .filter_map(|(c, b)| {
-                if old_index.columns.contains_key(c) {
-                    let mut column: HashMap<String, Vec<usize>> = HashMap::new();
-                    match b {
-                        Builder::Tag(b) | Builder::Key(b) => {
-                            let b = b.finish_cloned();
-                            let bv = b.values();
-                            let bva: &StringArray =
-                                bv.as_any().downcast_ref::<StringArray>().unwrap();
-                            for (i, v) in b.keys().iter().enumerate() {
-                                if let Some(v) = v {
-                                    let tag_val = bva.value(v as usize);
-                                    column
-                                        .entry_ref(tag_val)
-                                        .and_modify(|vec| vec.push(i))
-                                        .or_insert(vec![i]);
-                                }
-                            }
-                            Some((Arc::clone(c), column))
-                        }
-                        _ => {
-                            error!("unsupported index colun type: {}", b.column_type());
-                            None
-                        }
-                    }
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let mut columns = HashMap::new();
-        for (c, column) in column_indexes {
-            columns.insert(c, column);
         }
 
         Self { columns }
@@ -668,94 +547,6 @@ impl Builder {
         }
     }
 
-    #[allow(dead_code)]
-    fn new_from_rows(&self, rows: &[usize]) -> Self {
-        match self {
-            Self::Bool(b) => {
-                let b = b.finish_cloned();
-                let mut builder = BooleanBuilder::with_capacity(rows.len());
-                for row in rows {
-                    builder.append_value(b.value(*row));
-                }
-                Self::Bool(builder)
-            }
-            Self::I64(b) => {
-                let b = b.finish_cloned();
-                let mut builder = Int64Builder::with_capacity(rows.len());
-                for row in rows {
-                    builder.append_value(b.value(*row));
-                }
-                Self::I64(builder)
-            }
-            Self::F64(b) => {
-                let b = b.finish_cloned();
-                let mut builder = Float64Builder::with_capacity(rows.len());
-                for row in rows {
-                    builder.append_value(b.value(*row));
-                }
-                Self::F64(builder)
-            }
-            Self::U64(b) => {
-                let b = b.finish_cloned();
-                let mut builder = UInt64Builder::with_capacity(rows.len());
-                for row in rows {
-                    builder.append_value(b.value(*row));
-                }
-                Self::U64(builder)
-            }
-            Self::String(b) => {
-                let b = b.finish_cloned();
-                let mut builder = StringBuilder::new();
-                for row in rows {
-                    builder.append_value(b.value(*row));
-                }
-                Self::String(builder)
-            }
-            Self::Tag(b) => {
-                let b = b.finish_cloned();
-                let bv = b.values();
-                let bva: &StringArray = bv.as_any().downcast_ref::<StringArray>().unwrap();
-
-                let mut builder: GenericByteDictionaryBuilder<Int32Type, GenericStringType<i32>> =
-                    StringDictionaryBuilder::new();
-                for row in rows {
-                    let val = b.key(*row).unwrap();
-                    let tag_val = bva.value(val);
-
-                    builder
-                        .append(tag_val)
-                        .expect("shouldn't be able to overflow 32 bit dictionary");
-                }
-                Self::Tag(builder)
-            }
-            Self::Key(b) => {
-                let b = b.finish_cloned();
-                let bv = b.values();
-                let bva: &StringArray = bv.as_any().downcast_ref::<StringArray>().unwrap();
-
-                let mut builder: GenericByteDictionaryBuilder<Int32Type, GenericStringType<i32>> =
-                    StringDictionaryBuilder::new();
-                for row in rows {
-                    let val = b.key(*row).unwrap();
-                    let tag_val = bva.value(val);
-
-                    builder
-                        .append(tag_val)
-                        .expect("shouldn't be able to overflow 32 bit dictionary");
-                }
-                Self::Key(builder)
-            }
-            Self::Time(b) => {
-                let b = b.finish_cloned();
-                let mut builder = TimestampNanosecondBuilder::with_capacity(rows.len());
-                for row in rows {
-                    builder.append_value(b.value(*row));
-                }
-                Self::Time(builder)
-            }
-        }
-    }
-
     fn get_rows(&self, rows: &[usize]) -> ArrayRef {
         match self {
             Self::Bool(b) => {
@@ -851,20 +642,6 @@ impl Builder {
             Self::Time(b) => size_of::<i64>() * b.capacity(),
         };
         size_of::<Self>() + data_size
-    }
-
-    #[allow(dead_code)]
-    fn column_type(&self) -> &str {
-        match self {
-            Self::Bool(_) => "bool",
-            Self::I64(_) => "i64",
-            Self::F64(_) => "f64",
-            Self::U64(_) => "u64",
-            Self::String(_) => "string",
-            Self::Tag(_) => "tag",
-            Self::Key(_) => "key",
-            Self::Time(_) => "time",
-        }
     }
 }
 

@@ -59,7 +59,10 @@ impl WalObjectStore {
             let file_bytes = self.object_store.get(&path).await?.bytes().await?;
             let wal_contents = verify_file_type_and_deserialize(file_bytes)?;
 
-            // add this to the snapshot tracker so we know what to clear out when
+            println!("wal_contents:\n{:#?}", wal_contents);
+
+            // add this to the snapshot tracker, so we know what to clear out later if the replay
+            // was a wal file that had a snapshot
             self.flush_buffer
                 .lock()
                 .await
@@ -113,7 +116,7 @@ impl WalObjectStore {
         // do the flush and wait for the snapshot if that's running
         if let Some((snapshot_done, snapshot_info, snapshot_permit)) = self.flush_buffer().await {
             let snapshot_details = snapshot_done.await.expect("snapshot should complete");
-            assert!(snapshot_info.snapshot_details == snapshot_details);
+            assert_eq!(snapshot_info.snapshot_details, snapshot_details);
             self.remove_snapshot_wal_files(snapshot_info, snapshot_permit)
                 .await;
         }
@@ -160,6 +163,11 @@ impl WalObjectStore {
             .await
             .flush_buffer_into_contents_and_responses()
             .await;
+
+        // don't persist a wal file if there's nothing there
+        if wal_contents.is_empty() {
+            return None;
+        }
 
         let wal_path = wal_path(wal_contents.wal_file_number);
         let data = crate::serialize::serialize_to_file_bytes(&wal_contents)
@@ -269,7 +277,7 @@ impl WalObjectStore {
                     Err(object_store::Error::Generic { store, source }) => {
                         error!(%store, %source, "error deleting wal file");
                         // hopefully just a temporary error, keep trying until we succeed
-                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        tokio::time::sleep(Duration::from_secs(1)).await;
                     }
                     Err(e) => {
                         // this must be configuration or file not there error or something else,
@@ -540,6 +548,8 @@ mod tests {
             table_chunks: HashMap::from([(
                 Arc::clone(&table_name),
                 TableChunks {
+                    min_time: 1,
+                    max_time: 3,
                     chunk_time_to_chunk: HashMap::from([(
                         0,
                         TableChunk {
@@ -585,6 +595,8 @@ mod tests {
             table_chunks: HashMap::from([(
                 Arc::clone(&table_name),
                 TableChunks {
+                    min_time: 12,
+                    max_time: 12,
                     chunk_time_to_chunk: HashMap::from([(
                         0,
                         TableChunk {
@@ -622,6 +634,8 @@ mod tests {
                 table_chunks: HashMap::from([(
                     "table1".into(),
                     TableChunks {
+                        min_time: 1,
+                        max_time: 12,
                         chunk_time_to_chunk: HashMap::from([(
                             0,
                             TableChunk {
@@ -689,6 +703,8 @@ mod tests {
                 table_chunks: HashMap::from([(
                     "table1".into(),
                     TableChunks {
+                        min_time: 12,
+                        max_time: 12,
                         chunk_time_to_chunk: HashMap::from([(
                             0,
                             TableChunk {
@@ -755,6 +771,8 @@ mod tests {
             table_chunks: HashMap::from([(
                 Arc::clone(&table_name),
                 TableChunks {
+                    min_time: 26,
+                    max_time: 26,
                     chunk_time_to_chunk: HashMap::from([(
                         0,
                         TableChunk {
@@ -811,6 +829,8 @@ mod tests {
                 table_chunks: HashMap::from([(
                     "table1".into(),
                     TableChunks {
+                        min_time: 26,
+                        max_time: 26,
                         chunk_time_to_chunk: HashMap::from([(
                             0,
                             TableChunk {

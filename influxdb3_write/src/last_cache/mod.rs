@@ -2121,6 +2121,24 @@ mod tests {
         // wait for the TTL to clear the cache
         tokio::time::sleep(Duration::from_millis(100)).await;
 
+        // the last cache eviction only happens when writes are flushed out to the buffer. If
+        // no writes are coming in, the last cache will still have data in it. So, we need to write
+        // some data to the buffer to trigger the last cache eviction.
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "\
+                {tbl_name},region=us,host=b usage=200\n\
+                "
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(2_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
         // Check what is in the last cache:
         let batches = wbuf
             .last_cache_provider()

@@ -148,25 +148,6 @@ impl QueryableBuffer {
         Ok(chunks)
     }
 
-    #[cfg(test)]
-    #[allow(dead_code)]
-    pub(crate) fn get_table_record_batches(
-        &self,
-        database: &str,
-        table: &str,
-        schema: SchemaRef,
-    ) -> Vec<RecordBatch> {
-        self.buffer
-            .read()
-            .db_to_table
-            .get(database)
-            .unwrap()
-            .get(table)
-            .unwrap()
-            .record_batches(schema, &[])
-            .unwrap()
-    }
-
     /// Called when the wal has persisted a new file. Buffer the contents in memory and update the last cache so the data is queryable.
     fn buffer_contents(&self, write: WalContents) {
         let mut buffer = self.buffer.write();
@@ -406,6 +387,7 @@ where
     P: Persister,
     persister::Error: From<<P as Persister>::Error>,
     write_buffer::Error: From<<P as Persister>::Error>,
+    <P as Persister>::Error: std::fmt::Debug,
 {
     // Dedupe and sort using the COMPACT query built into
     // iox_query
@@ -461,8 +443,11 @@ where
                 info!("Persisted parquet file: {}", persist_job.path.to_string());
                 return (size_bytes, meta);
             }
-            Err(_) => {
-                error!("Error persisting parquet file: (TODO: figure out why we can't output the error), sleeping and retrying...");
+            Err(e) => {
+                error!(
+                    "Error persisting parquet file {:?}, sleeping and retrying...",
+                    e
+                );
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
