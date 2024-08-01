@@ -27,6 +27,7 @@ trogging.workspace = true
 influxdb3_client = { path = "../influxdb3_client" }
 influxdb3_process = { path = "../influxdb3_process", default-features = false }
 influxdb3_server = { path = "../influxdb3_server" }
+influxdb3_wal = { path = "../influxdb3_wal" }
 influxdb3_write = { path = "../influxdb3_write" }
 
 # Crates.io dependencies
@@ -36,6 +37,7 @@ clap.workspace = true
 dotenvy.workspace = true
 hashbrown.workspace = true
 hex.workspace = true
+humantime.workspace = true
 libc.workspace = true
 num_cpus.workspace = true
 parking_lot.workspace = true

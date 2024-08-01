@@ -14,10 +14,10 @@ use influxdb3_server::{
     auth::AllOrNothingAuthorizer, builder::ServerBuilder, query_executor::QueryExecutorImpl, serve,
     CommonServerState,
 };
+use influxdb3_wal::WalConfig;
 use influxdb3_write::persister::PersisterImpl;
-use influxdb3_write::wal::WalImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
-use influxdb3_write::SegmentDuration;
+use influxdb3_write::Level0Duration;
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
 use object_store::DynObjectStore;
@@ -25,11 +25,7 @@ use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::collections::HashMap;
-use std::{
-    num::NonZeroUsize,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{num::NonZeroUsize, path::Path, sync::Arc};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
@@ -60,9 +56,6 @@ pub enum Error {
 
     #[error("Server error: {0}")]
     Server(#[from] influxdb3_server::Error),
-
-    #[error("Wal error: {0}")]
-    Wal(#[from] influxdb3_write::wal::Error),
 
     #[error("Write buffer error: {0}")]
     WriteBuffer(#[from] influxdb3_write::write_buffer::Error),
@@ -99,12 +92,6 @@ pub struct Config {
     action,
     )]
     pub max_http_request_size: usize,
-
-    /// The directory to store the write ahead log
-    ///
-    /// If not specified, defaults to INFLUXDB3_DB_DIR/wal
-    #[clap(long = "wal-directory", env = "INFLUXDB3_WAL_DIRECTORY", action)]
-    pub wal_directory: Option<PathBuf>,
 
     /// The address on which InfluxDB will serve HTTP API requests
     #[clap(
@@ -151,15 +138,45 @@ pub struct Config {
     #[clap(long = "bearer-token", env = "INFLUXDB3_BEARER_TOKEN", action)]
     pub bearer_token: Option<String>,
 
-    /// Duration of wal segments that are persisted to object storage. Valid values: 1m, 5m, 10m,
-    /// 15m, 30m, 1h, 2h, 4h.
+    /// Duration that the Parquet files get arranged into. The data timestamps will land each
+    /// row into a file of this duration. 1m, 5m, and 10m are supported.
     #[clap(
-        long = "segment-duration",
-        env = "INFLUXDB3_SEGMENT_DURATION",
-        default_value = "1h",
+        long = "level-0-duration",
+        env = "INFLUXDB3_LEVEL_0_DURATION",
+        default_value = "10m",
         action
     )]
-    pub segment_duration: SegmentDuration,
+    pub level_0_duration: Level0Duration,
+
+    /// Interval to flush buffered data to a wal file. Writes that wait for wal confirmation will
+    /// take as long as this interval to complete.
+    #[clap(
+        long = "wal-flush-interval",
+        env = "INFLUXDB3_WAL_FLUSH_INTERVAL",
+        default_value = "1s",
+        action
+    )]
+    pub wal_flush_interval: humantime::Duration,
+
+    /// The number of WAL files to attempt to remove in a snapshot. This times the interval will
+    /// determine how often snapshot is taken.
+    #[clap(
+        long = "wal-snapshot-size",
+        env = "INFLUXDB3_WAL_SNAPSHOT_SIZE",
+        default_value = "600",
+        action
+    )]
+    pub wal_snapshot_size: usize,
+
+    /// The maximum number of writes requests that can be buffered before a flush must be run
+    /// and succeed.
+    #[clap(
+        long = "wal-max-write-buffer-size",
+        env = "INFLUXDB3_WAL_MAX_WRITE_BUFFER_SIZE",
+        default_value = "100000",
+        action
+    )]
+    pub wal_max_write_buffer_size: usize,
 
     // TODO - tune this default:
     /// The size of the query log. Up to this many queries will remain in the log before
@@ -173,7 +190,7 @@ pub struct Config {
     pub query_log_size: usize,
 
     // TODO - make this default to 70% of available memory:
-    /// The size limit of the open segments in the write buffer.
+    /// The size limit of the buffered data. If this limit is passed a snapshot will be forced.
     #[clap(
         long = "buffer-mem-limit-mb",
         env = "INFLUXDB3_BUFFER_MEM_LIMIT_MB",
@@ -273,20 +290,21 @@ pub async fn command(config: Config) -> Result<()> {
     let common_state =
         CommonServerState::new(Arc::clone(&metrics), trace_exporter, trace_header_parser)?;
     let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
-    let wal: Option<Arc<WalImpl>> = config
-        .wal_directory
-        .map(|dir| WalImpl::new(dir).map(Arc::new))
-        .transpose()?;
+    let wal_config = WalConfig {
+        level_0_duration: config.level_0_duration.as_duration(),
+        max_write_buffer_size: config.wal_max_write_buffer_size,
+        flush_interval: config.wal_flush_interval.into(),
+        snapshot_size: config.wal_snapshot_size,
+    };
 
     let time_provider = Arc::new(SystemProvider::new());
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            wal,
             Arc::clone(&time_provider),
-            config.segment_duration,
+            config.level_0_duration,
             Arc::clone(&exec),
-            config.buffer_mem_limit_mb,
+            wal_config,
         )
         .await?,
     );

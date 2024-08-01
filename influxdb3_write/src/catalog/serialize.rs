@@ -1,8 +1,7 @@
-use std::collections::BTreeMap;
-
 use arrow::datatypes::DataType as ArrowDataType;
 use schema::{InfluxColumnType, SchemaBuilder};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 use super::{LastCacheDefinition, LastCacheValueColumnsDef, TableDefinition};
 
@@ -131,7 +130,6 @@ struct ColumnDefinition<'a> {
 
 impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
     fn from(def: &'a TableDefinition) -> Self {
-        let name = def.name.as_str();
         let cols = def
             .schema()
             .iter()
@@ -149,7 +147,7 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
         let keys = def.schema().series_key();
         let last_caches = def.last_caches.values().map(Into::into).collect();
         Self {
-            name,
+            name: def.name.as_ref(),
             cols,
             key: keys,
             last_caches,
@@ -208,9 +206,9 @@ impl<'a> From<&'a ArrowDataType> for DataType<'a> {
 
 impl<'a> From<TableSnapshot<'a>> for TableDefinition {
     fn from(snap: TableSnapshot<'a>) -> Self {
-        let name = snap.name.to_owned();
+        let name = snap.name.into();
         let mut b = SchemaBuilder::new();
-        b.measurement(&name);
+        b.measurement(snap.name.to_string());
         if let Some(keys) = snap.key {
             b.with_series_key(keys);
         }

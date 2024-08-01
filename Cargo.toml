@@ -6,6 +6,7 @@ members = [
     "influxdb3_load_generator",
     "influxdb3_process",
     "influxdb3_server",
+    "influxdb3_wal",
     "influxdb3_write",
     "iox_query_influxql_rewrite",
 ]

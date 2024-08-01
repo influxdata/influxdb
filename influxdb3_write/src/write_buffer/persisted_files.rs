@@ -1,33 +1,41 @@
 //! This tracks what files have been persisted by the write buffer, limited to the last 72 hours.
-//! When queries come in they will combine whatever chunks exist from `SegmentState` with
+//! When queries come in they will combine whatever chunks exist from `QueryableBuffer` with
 //! the persisted files to get the full set of data to query.
 
-use crate::{ParquetFile, PersistedSegment};
+use crate::{ParquetFile, PersistedSnapshot};
+use hashbrown::HashMap;
 use parking_lot::RwLock;
+use std::sync::Arc;
 
 #[derive(Debug, Default)]
 pub struct PersistedFiles {
     /// The map of databases to tables to files
-    files: RwLock<hashbrown::HashMap<String, hashbrown::HashMap<String, Vec<ParquetFile>>>>,
+    files: RwLock<DatabaseToTables>,
 }
 
+type DatabaseToTables = HashMap<Arc<str>, TableToFiles>;
+type TableToFiles = HashMap<Arc<str>, Vec<ParquetFile>>;
+
 impl PersistedFiles {
-    /// Create a new `PersistedFiles` from a list of persisted segments
-    pub fn new_from_persisted_segments(persisted_segments: Vec<PersistedSegment>) -> Self {
-        let files = persisted_segments.into_iter().fold(
+    /// Create a new `PersistedFiles` from a list of persisted snapshots
+    pub fn new_from_persisted_snapshots(persisted_snapshots: Vec<PersistedSnapshot>) -> Self {
+        let files = persisted_snapshots.into_iter().fold(
             hashbrown::HashMap::new(),
-            |mut files, persisted_segment| {
-                persisted_segment
+            |mut files, persisted_snapshot| {
+                persisted_snapshot
                     .databases
                     .into_iter()
                     .for_each(|(db_name, tables)| {
-                        let db_tables: &mut hashbrown::HashMap<String, Vec<ParquetFile>> =
+                        let db_tables: &mut HashMap<Arc<str>, Vec<ParquetFile>> =
                             files.entry(db_name).or_default();
 
-                        tables.tables.into_iter().for_each(|(table_name, table)| {
-                            let table_files = db_tables.entry(table_name).or_default();
-                            table_files.extend(table.parquet_files);
-                        });
+                        tables
+                            .tables
+                            .into_iter()
+                            .for_each(|(table_name, parquet_file)| {
+                                let table_files = db_tables.entry(table_name).or_default();
+                                table_files.push(parquet_file);
+                            });
                     });
 
                 files
@@ -47,19 +55,22 @@ impl PersistedFiles {
         table_files.push(file);
     }
 
-    /// Add all files from a persisted segment
-    pub fn add_persisted_segment_files(&self, persisted_segment: PersistedSegment) {
+    /// Add all files from a persisted snapshot
+    pub fn add_persisted_snapshot_files(&self, persisted_snapshot: PersistedSnapshot) {
         let mut files = self.files.write();
-        persisted_segment
+        persisted_snapshot
             .databases
             .into_iter()
             .for_each(|(db_name, tables)| {
                 let db_tables = files.entry(db_name).or_default();
 
-                tables.tables.into_iter().for_each(|(table_name, table)| {
-                    let table_files = db_tables.entry(table_name).or_default();
-                    table_files.extend(table.parquet_files);
-                });
+                tables
+                    .tables
+                    .into_iter()
+                    .for_each(|(table_name, parquet_file)| {
+                        let table_files = db_tables.entry(table_name).or_default();
+                        table_files.push(parquet_file);
+                    });
             });
     }
 

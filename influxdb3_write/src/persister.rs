@@ -5,11 +5,10 @@ use crate::catalog::Catalog;
 use crate::catalog::InnerCatalog;
 use crate::paths::CatalogFilePath;
 use crate::paths::ParquetFilePath;
-use crate::paths::SegmentInfoFilePath;
+use crate::paths::SnapshotInfoFilePath;
 use crate::PersistedCatalog;
-use crate::PersistedSegment;
+use crate::PersistedSnapshot;
 use crate::Persister;
-use crate::SegmentId;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -23,6 +22,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use futures_util::pin_mut;
 use futures_util::stream::StreamExt;
 use futures_util::stream::TryStreamExt;
+use influxdb3_wal::WalFileSequenceNumber;
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
 use parquet::arrow::ArrowWriter;
@@ -158,17 +158,16 @@ impl Persister for PersisterImpl {
                     .expect("catalog file paths are guaranteed to have a filename");
                 let parsed_number = file_name
                     .trim_end_matches(format!(".{}", crate::paths::CATALOG_FILE_EXTENSION).as_str())
-                    .parse::<u32>()?;
-                let segment_id = SegmentId::new(u32::MAX - parsed_number);
+                    .parse::<u64>()?;
                 Ok(Some(PersistedCatalog {
-                    segment_id,
+                    wal_file_sequence_number: WalFileSequenceNumber::new(u64::MAX - parsed_number),
                     catalog,
                 }))
             }
         }
     }
 
-    async fn load_segments(&self, mut most_recent_n: usize) -> Result<Vec<PersistedSegment>> {
+    async fn load_snapshots(&self, mut most_recent_n: usize) -> Result<Vec<PersistedSnapshot>> {
         let mut output = Vec::new();
         let mut offset: Option<ObjPath> = None;
         while most_recent_n > 0 {
@@ -181,11 +180,11 @@ impl Persister for PersisterImpl {
                 count
             };
 
-            let mut segment_list = if let Some(offset) = offset {
+            let mut snapshot_list = if let Some(offset) = offset {
                 self.object_store
-                    .list_with_offset(Some(&SegmentInfoFilePath::dir()), &offset)
+                    .list_with_offset(Some(&SnapshotInfoFilePath::dir()), &offset)
             } else {
-                self.object_store.list(Some(&SegmentInfoFilePath::dir()))
+                self.object_store.list(Some(&SnapshotInfoFilePath::dir()))
             };
 
             // Why not collect into a Result<Vec<ObjectMeta>, object_store::Error>>
@@ -194,10 +193,10 @@ impl Persister for PersisterImpl {
             // through to return any errors that might have occurred, then do an
             // unstable sort (which is faster and we know won't have any
             // duplicates) since these can arrive out of order, and then issue gets
-            // on the n most recent segments that we want and is returned in order
+            // on the n most recent snapshots that we want and is returned in order
             // of the moste recent to least.
             let mut list = Vec::new();
-            while let Some(item) = segment_list.next().await {
+            while let Some(item) = snapshot_list.next().await {
                 list.push(item?);
             }
 
@@ -228,8 +227,12 @@ impl Persister for PersisterImpl {
         Ok(self.object_store.get(&path).await?.bytes().await?)
     }
 
-    async fn persist_catalog(&self, segment_id: SegmentId, catalog: Catalog) -> Result<()> {
-        let catalog_path = CatalogFilePath::new(segment_id);
+    async fn persist_catalog(
+        &self,
+        wal_file_sequence_number: WalFileSequenceNumber,
+        catalog: Catalog,
+    ) -> Result<()> {
+        let catalog_path = CatalogFilePath::new(wal_file_sequence_number);
         let json = serde_json::to_vec_pretty(&catalog)?;
         self.object_store
             .put(catalog_path.as_ref(), json.into())
@@ -237,11 +240,12 @@ impl Persister for PersisterImpl {
         Ok(())
     }
 
-    async fn persist_segment(&self, persisted_segment: &PersistedSegment) -> Result<()> {
-        let segment_file_path = SegmentInfoFilePath::new(persisted_segment.segment_id);
-        let json = serde_json::to_vec_pretty(persisted_segment)?;
+    async fn persist_snapshot(&self, persisted_snapshot: &PersistedSnapshot) -> Result<()> {
+        let snapshot_file_path =
+            SnapshotInfoFilePath::new(persisted_snapshot.wal_file_sequence_number);
+        let json = serde_json::to_vec_pretty(persisted_snapshot)?;
         self.object_store
-            .put(segment_file_path.as_ref(), json.into())
+            .put(snapshot_file_path.as_ref(), json.into())
             .await?;
         Ok(())
     }
@@ -346,7 +350,7 @@ mod tests {
         let _ = catalog.db_or_create("my_db");
 
         persister
-            .persist_catalog(SegmentId::new(0), catalog)
+            .persist_catalog(WalFileSequenceNumber::new(0), catalog)
             .await
             .unwrap();
     }
@@ -360,7 +364,7 @@ mod tests {
         let _ = catalog.db_or_create("my_db");
 
         persister
-            .persist_catalog(SegmentId::new(0), catalog)
+            .persist_catalog(WalFileSequenceNumber::new(0), catalog)
             .await
             .unwrap();
 
@@ -368,7 +372,7 @@ mod tests {
         let _ = catalog.db_or_create("my_second_db");
 
         persister
-            .persist_catalog(SegmentId::new(1), catalog)
+            .persist_catalog(WalFileSequenceNumber::new(1), catalog)
             .await
             .unwrap();
 
@@ -378,125 +382,122 @@ mod tests {
             .expect("loading the catalog did not cause an error")
             .expect("there was a catalog to load");
 
-        assert_eq!(catalog.segment_id, SegmentId::new(1));
+        assert_eq!(
+            catalog.wal_file_sequence_number,
+            WalFileSequenceNumber::new(1)
+        );
         assert!(catalog.catalog.db_exists("my_second_db"));
         assert!(!catalog.catalog.db_exists("my_db"));
     }
 
     #[tokio::test]
-    async fn persist_segment_info_file() {
+    async fn persist_snapshot_info_file() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = PersisterImpl::new(Arc::new(local_disk));
-        let info_file = PersistedSegment {
-            segment_id: SegmentId::new(0),
-            segment_wal_size_bytes: 0,
+        let info_file = PersistedSnapshot {
+            wal_file_sequence_number: WalFileSequenceNumber::new(0),
             databases: HashMap::new(),
-            segment_min_time: 0,
-            segment_max_time: 1,
-            segment_row_count: 0,
-            segment_parquet_size_bytes: 0,
+            min_time: 0,
+            max_time: 1,
+            row_count: 0,
+            parquet_size_bytes: 0,
         };
 
-        persister.persist_segment(&info_file).await.unwrap();
+        persister.persist_snapshot(&info_file).await.unwrap();
     }
 
     #[tokio::test]
-    async fn persist_and_load_segment_info_files() {
+    async fn persist_and_load_snapshot_info_files() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = PersisterImpl::new(Arc::new(local_disk));
-        let info_file = PersistedSegment {
-            segment_id: SegmentId::new(0),
-            segment_wal_size_bytes: 0,
+        let info_file = PersistedSnapshot {
+            wal_file_sequence_number: WalFileSequenceNumber::new(0),
             databases: HashMap::new(),
-            segment_min_time: 0,
-            segment_max_time: 1,
-            segment_row_count: 0,
-            segment_parquet_size_bytes: 0,
+            min_time: 0,
+            max_time: 1,
+            row_count: 0,
+            parquet_size_bytes: 0,
         };
-        let info_file_2 = PersistedSegment {
-            segment_id: SegmentId::new(1),
-            segment_wal_size_bytes: 0,
+        let info_file_2 = PersistedSnapshot {
+            wal_file_sequence_number: WalFileSequenceNumber::new(1),
             databases: HashMap::new(),
-            segment_min_time: 0,
-            segment_max_time: 1,
-            segment_row_count: 0,
-            segment_parquet_size_bytes: 0,
+            max_time: 1,
+            min_time: 0,
+            row_count: 0,
+            parquet_size_bytes: 0,
         };
-        let info_file_3 = PersistedSegment {
-            segment_id: SegmentId::new(2),
-            segment_wal_size_bytes: 0,
+        let info_file_3 = PersistedSnapshot {
+            wal_file_sequence_number: WalFileSequenceNumber::new(2),
             databases: HashMap::new(),
-            segment_min_time: 0,
-            segment_max_time: 1,
-            segment_row_count: 0,
-            segment_parquet_size_bytes: 0,
+            min_time: 0,
+            max_time: 1,
+            row_count: 0,
+            parquet_size_bytes: 0,
         };
 
-        persister.persist_segment(&info_file).await.unwrap();
-        persister.persist_segment(&info_file_2).await.unwrap();
-        persister.persist_segment(&info_file_3).await.unwrap();
+        persister.persist_snapshot(&info_file).await.unwrap();
+        persister.persist_snapshot(&info_file_2).await.unwrap();
+        persister.persist_snapshot(&info_file_3).await.unwrap();
 
-        let segments = persister.load_segments(2).await.unwrap();
-        assert_eq!(segments.len(), 2);
+        let snapshots = persister.load_snapshots(2).await.unwrap();
+        assert_eq!(snapshots.len(), 2);
         // The most recent one is first
-        assert_eq!(segments[0].segment_id.0, 2);
-        assert_eq!(segments[1].segment_id.0, 1);
+        assert_eq!(snapshots[0].wal_file_sequence_number.get(), 2);
+        assert_eq!(snapshots[1].wal_file_sequence_number.get(), 1);
     }
 
     #[tokio::test]
-    async fn persist_and_load_segment_info_files_with_fewer_than_requested() {
+    async fn persist_and_load_snapshot_info_files_with_fewer_than_requested() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = PersisterImpl::new(Arc::new(local_disk));
-        let info_file = PersistedSegment {
-            segment_id: SegmentId::new(0),
-            segment_wal_size_bytes: 0,
+        let info_file = PersistedSnapshot {
+            wal_file_sequence_number: WalFileSequenceNumber::new(0),
             databases: HashMap::new(),
-            segment_min_time: 0,
-            segment_max_time: 1,
-            segment_row_count: 0,
-            segment_parquet_size_bytes: 0,
+            min_time: 0,
+            max_time: 1,
+            row_count: 0,
+            parquet_size_bytes: 0,
         };
-        persister.persist_segment(&info_file).await.unwrap();
-        let segments = persister.load_segments(2).await.unwrap();
+        persister.persist_snapshot(&info_file).await.unwrap();
+        let snapshots = persister.load_snapshots(2).await.unwrap();
         // We asked for the most recent 2 but there should only be 1
-        assert_eq!(segments.len(), 1);
-        assert_eq!(segments[0].segment_id.0, 0);
+        assert_eq!(snapshots.len(), 1);
+        assert_eq!(snapshots[0].wal_file_sequence_number.get(), 0);
     }
 
     #[tokio::test]
     /// This test makes sure that the logic for offset lists works
-    async fn persist_and_load_over_9000_segment_info_files() {
+    async fn persist_and_load_over_9000_snapshot_info_files() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = PersisterImpl::new(Arc::new(local_disk));
         for id in 0..9001 {
-            let info_file = PersistedSegment {
-                segment_id: SegmentId::new(id),
-                segment_wal_size_bytes: 0,
+            let info_file = PersistedSnapshot {
+                wal_file_sequence_number: WalFileSequenceNumber::new(id),
                 databases: HashMap::new(),
-                segment_min_time: 0,
-                segment_max_time: 1,
-                segment_row_count: 0,
-                segment_parquet_size_bytes: 0,
+                min_time: 0,
+                max_time: 1,
+                row_count: 0,
+                parquet_size_bytes: 0,
             };
-            persister.persist_segment(&info_file).await.unwrap();
+            persister.persist_snapshot(&info_file).await.unwrap();
         }
-        let segments = persister.load_segments(9500).await.unwrap();
+        let snapshots = persister.load_snapshots(9500).await.unwrap();
         // We asked for the most recent 9500 so there should be 9001 of them
-        assert_eq!(segments.len(), 9001);
-        assert_eq!(segments[0].segment_id.0, 9000);
+        assert_eq!(snapshots.len(), 9001);
+        assert_eq!(snapshots[0].wal_file_sequence_number.get(), 9000);
     }
 
     #[tokio::test]
-    async fn load_segments_works_with_no_segments() {
+    async fn load_snapshot_works_with_no_exising_snapshots() {
         let store = InMemory::new();
         let persister = PersisterImpl::new(Arc::new(store));
 
-        let segments = persister.load_segments(100).await.unwrap();
-        assert!(segments.is_empty());
+        let snapshots = persister.load_snapshots(100).await.unwrap();
+        assert!(snapshots.is_empty());
     }
 
     #[tokio::test]
@@ -544,7 +545,12 @@ mod tests {
         stream_builder.tx().send(Ok(batch1)).await.unwrap();
         stream_builder.tx().send(Ok(batch2)).await.unwrap();
 
-        let path = ParquetFilePath::new("db_one", "table_one", Utc::now(), SegmentId::new(1), 1);
+        let path = ParquetFilePath::new(
+            "db_one",
+            "table_one",
+            Utc::now(),
+            WalFileSequenceNumber::new(1),
+        );
         let (bytes_written, meta) = persister
             .persist_parquet_file(path.clone(), stream_builder.build())
             .await

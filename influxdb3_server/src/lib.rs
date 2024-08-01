@@ -232,11 +232,10 @@ mod tests {
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
+    use influxdb3_wal::WalConfig;
     use influxdb3_write::persister::PersisterImpl;
-    use influxdb3_write::wal::WalImpl;
     use influxdb3_write::write_buffer::WriteBufferImpl;
-    use influxdb3_write::LastCacheManager;
-    use influxdb3_write::SegmentDuration;
+    use influxdb3_write::{LastCacheManager, Level0Duration};
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
@@ -748,7 +747,7 @@ mod tests {
     ) -> (
         String,
         CancellationToken,
-        Arc<WriteBufferImpl<WalImpl, MockProvider>>,
+        Arc<WriteBufferImpl<MockProvider>>,
     ) {
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
@@ -775,11 +774,10 @@ mod tests {
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
-                None::<Arc<influxdb3_write::wal::WalImpl>>,
                 Arc::clone(&time_provider),
-                SegmentDuration::new_5m(),
+                Level0Duration::new_5m(),
                 Arc::clone(&exec),
-                10000,
+                WalConfig::test_config(),
             )
             .await
             .unwrap(),

@@ -2403,10 +2403,12 @@ dependencies = [
  "futures",
  "hashbrown 0.14.5",
  "hex",
+ "humantime",
  "hyper 0.14.30",
  "influxdb3_client",
  "influxdb3_process",
  "influxdb3_server",
+ "influxdb3_wal",
  "influxdb3_write",
  "influxdb_iox_client",
  "iox_query",
@@ -2522,6 +2524,7 @@ dependencies = [
  "hyper 0.14.30",
  "influxdb-line-protocol",
  "influxdb3_process",
+ "influxdb3_wal",
  "influxdb3_write",
  "iox_catalog",
  "iox_http",
@@ -2564,6 +2567,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb3_wal"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "byteorder",
+ "bytes",
+ "crc32fast",
+ "data_types",
+ "futures-util",
+ "hashbrown 0.14.5",
+ "influxdb-line-protocol",
+ "object_store",
+ "observability_deps",
+ "parking_lot",
+ "schema",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "influxdb3_write"
 version = "0.1.0"
 dependencies = [
@@ -2583,6 +2608,7 @@ dependencies = [
  "hex",
  "indexmap 2.2.6",
  "influxdb-line-protocol",
+ "influxdb3_wal",
  "insta",
  "iox_catalog",
  "iox_http",

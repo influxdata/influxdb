@@ -347,7 +347,7 @@ impl<B: WriteBuffer> Database<B> {
         query_log: Arc<QueryLog>,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
-            &db_schema.name,
+            db_schema.name.to_string(),
             write_buffer.catalog(),
             Arc::clone(&query_log),
             write_buffer.last_cache_provider(),
@@ -447,7 +447,7 @@ impl<B: WriteBuffer> QueryNamespace for Database<B> {
         ctx.inner().register_udtf(
             LAST_CACHE_UDTF_NAME,
             Arc::new(LastCacheFunction::new(
-                &self.db_schema.name,
+                self.db_schema.name.to_string(),
                 self.write_buffer.last_cache_provider(),
             )),
         );
@@ -484,7 +484,11 @@ impl<B: WriteBuffer> SchemaProvider for Database<B> {
     }
 
     fn table_names(&self) -> Vec<String> {
-        self.db_schema.table_names()
+        self.db_schema
+            .table_names()
+            .iter()
+            .map(|t| t.to_string())
+            .collect()
     }
 
     async fn table(&self, name: &str) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {
