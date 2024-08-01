@@ -74,8 +74,6 @@ impl WalObjectStore {
             let file_bytes = self.object_store.get(&path).await?.bytes().await?;
             let wal_contents = verify_file_type_and_deserialize(file_bytes)?;
 
-            println!("wal_contents:\n{:#?}", wal_contents);
-
             // add this to the snapshot tracker, so we know what to clear out later if the replay
             // was a wal file that had a snapshot
             self.flush_buffer
