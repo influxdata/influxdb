@@ -2971,7 +2971,7 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.FineAuthorizer, name []byte,
 }
 
 // MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
-func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.FineAuthorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.FineAuthorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool, log *zap.Logger) ([][]string, error) {
 	if len(keys) == 0 {
 		return nil, nil
 	}
@@ -2983,16 +2983,20 @@ func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.FineAuthorizer, name
 	}
 
 	if auth != nil {
-		// If an error occurs in OptimizeSeriesRead, we shouldn't abort. We should simply continue
-		// on with the original auth and expr.
-		// TODO: Log error from optimizeSeriesRead
+		// OptimizeSeriesRead is a new step. In the extremely unlikely case it returns
+		// an error, we don't want to abort the query. This would mean tha a query that worked on
+		// a previous version suddenly breaks on a newer version, all because we tried and failed
+		// to speed it up. The original expr and auth will still yield the correct answer in the
+		// same time as the previous versions.
 		if newExpr, newAuth, err := auth.OptimizeSeriesRead(is.Database(), name, expr); err == nil {
 			auth = newAuth
 			expr = newExpr
+		} else {
+			log.Error("MeasurementTagKeyValuesByExpr: error in OptimizeSeriesRead, using unoptimized expr and auth", zap.Error(err))
 		}
-		if query.AuthorizerIsVoid(auth) {
-			return results, nil
-		}
+	}
+	if query.AuthorizerIsVoid(auth) {
+		return results, nil
 	}
 
 	release := is.SeriesFile.Retain()
