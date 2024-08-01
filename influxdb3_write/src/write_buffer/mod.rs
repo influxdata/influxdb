@@ -25,7 +25,7 @@ use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use influxdb3_wal::object_store::WalObjectStore;
-use influxdb3_wal::{background_wal_flush, Wal, WalConfig, WalFileNotifier, WalOp};
+use influxdb3_wal::{Wal, WalConfig, WalFileNotifier, WalOp};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
@@ -136,17 +136,14 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
             Arc::clone(&persisted_files),
         ));
 
-        // replay the wal to load up the queryable buffer with the data
-        let flush_wal = Arc::new(WalObjectStore::new(
+        // create the wal instance, which will replay into the queryable buffer and start
+        // teh background flush task.
+        let wal = WalObjectStore::new(
             persister.object_store(),
             Arc::clone(&queryable_buffer) as Arc<dyn WalFileNotifier>,
             wal_config,
-        ));
-        flush_wal.replay().await?;
-        let wal = Arc::clone(&flush_wal) as Arc<dyn Wal>;
-
-        // start the background wal flush
-        background_wal_flush(flush_wal, wal_config.flush_interval);
+        )
+        .await?;
 
         Ok(Self {
             catalog,

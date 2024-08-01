@@ -1,8 +1,8 @@
 use crate::serialize::verify_file_type_and_deserialize;
 use crate::snapshot_tracker::{SnapshotInfo, SnapshotTracker, WalPeriod};
 use crate::{
-    CatalogBatch, SnapshotDetails, Wal, WalConfig, WalContents, WalFileNotifier,
-    WalFileSequenceNumber, WalOp, WriteBatch,
+    background_wal_flush, CatalogBatch, SnapshotDetails, Wal, WalConfig, WalContents,
+    WalFileNotifier, WalFileSequenceNumber, WalOp, WriteBatch,
 };
 use bytes::Bytes;
 use data_types::Timestamp;
@@ -25,9 +25,24 @@ pub struct WalObjectStore {
 }
 
 impl WalObjectStore {
-    /// Creates a new WAL. Note that you will have to call replay and then start the flusher
-    /// to fully initialize the WAL.
-    pub fn new(
+    /// Creates a new WAL. This will replay files into the notifier and trigger any snapshots that
+    /// exist in the WAL files that haven't been cleaned up yet.
+    pub async fn new(
+        object_store: Arc<dyn ObjectStore>,
+        file_notifier: Arc<dyn WalFileNotifier>,
+        config: WalConfig,
+    ) -> Result<Arc<Self>, crate::Error> {
+        let flush_interval = config.flush_interval;
+        let wal = Self::new_without_replay(object_store, file_notifier, config);
+
+        wal.replay().await?;
+        let wal = Arc::new(wal);
+        background_wal_flush(Arc::clone(&wal), flush_interval);
+
+        Ok(wal)
+    }
+
+    fn new_without_replay(
         object_store: Arc<dyn ObjectStore>,
         file_notifier: Arc<dyn WalFileNotifier>,
         config: WalConfig,
@@ -538,7 +553,11 @@ mod tests {
             snapshot_size: 2,
             level_0_duration: Duration::from_nanos(10),
         };
-        let wal = WalObjectStore::new(Arc::clone(&object_store), Arc::clone(&notifier), wal_config);
+        let wal = WalObjectStore::new_without_replay(
+            Arc::clone(&object_store),
+            Arc::clone(&notifier),
+            wal_config,
+        );
 
         let db_name: Arc<str> = "db1".into();
         let table_name: Arc<str> = "table1".into();
@@ -733,7 +752,7 @@ mod tests {
 
         // before we trigger a snapshot, test replay with a new wal and notifier
         let replay_notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotfiier::default());
-        let replay_wal = WalObjectStore::new(
+        let replay_wal = WalObjectStore::new_without_replay(
             Arc::clone(&object_store),
             Arc::clone(&replay_notifier),
             WalConfig {
@@ -875,8 +894,11 @@ mod tests {
 
         // test that replay now only has file 3
         let replay_notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotfiier::default());
-        let replay_wal =
-            WalObjectStore::new(object_store, Arc::clone(&replay_notifier), wal_config);
+        let replay_wal = WalObjectStore::new_without_replay(
+            object_store,
+            Arc::clone(&replay_notifier),
+            wal_config,
+        );
         assert_eq!(
             replay_wal.load_existing_wal_file_paths().await.unwrap(),
             vec![Path::from("wal/00000000003.wal")]
