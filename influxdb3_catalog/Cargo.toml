@@ -1,0 +1,31 @@
+[package]
+name = "influxdb3_catalog"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Core Crates
+influxdb-line-protocol.workspace = true
+observability_deps.workspace = true
+schema.workspace = true
+
+# Local deps
+influxdb3_wal = { path = "../influxdb3_wal" }
+
+# crates.io dependencies
+arrow.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_with.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+pretty_assertions.workspace = true
+test_helpers.workspace = true
+
+[lints]
+workspace = true

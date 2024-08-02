@@ -5,7 +5,6 @@
 //! metadata of the parquet files that were written in that snapshot.
 
 pub mod cache;
-pub mod catalog;
 mod chunk;
 pub mod last_cache;
 pub mod paths;
@@ -15,13 +14,14 @@ pub mod write_buffer;
 use crate::paths::ParquetFilePath;
 use async_trait::async_trait;
 use bytes::Bytes;
-use catalog::LastCacheDefinition;
 use data_types::{NamespaceName, Timestamp, TimestampMinMax};
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::Expr;
+use influxdb3_catalog::catalog;
+use influxdb3_catalog::catalog::LastCacheDefinition;
 use influxdb3_wal::WalFileSequenceNumber;
 use iox_query::QueryChunk;
 use iox_time::Time;

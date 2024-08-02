@@ -22,12 +22,11 @@ use datafusion::{
 };
 use hashbrown::{HashMap, HashSet};
 use indexmap::{IndexMap, IndexSet};
+use influxdb3_catalog::catalog::{LastCacheDefinition, LastCacheSize, LastCacheValueColumnsDef};
+use influxdb3_wal::{Field, FieldData, Row, WalContents, WalOp};
 use iox_time::Time;
 use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
-
-use crate::catalog::{LastCacheDefinition, LastCacheSize, LastCacheValueColumnsDef};
-use influxdb3_wal::{Field, FieldData, Row, WalContents, WalOp};
 
 mod table_function;
 pub use table_function::LastCacheFunction;
@@ -115,7 +114,9 @@ impl LastCacheProvider {
 
     /// Initialize a [`LastCacheProvider`] from a [`InnerCatalog`]
     #[cfg(test)]
-    pub(crate) fn new_from_catalog(catalog: &crate::catalog::InnerCatalog) -> Result<Self, Error> {
+    pub(crate) fn new_from_catalog(
+        catalog: &influxdb3_catalog::catalog::InnerCatalog,
+    ) -> Result<Self, Error> {
         let provider = LastCacheProvider::new();
         for db_schema in catalog.databases() {
             for tbl_def in db_schema.tables() {
@@ -180,9 +181,9 @@ impl LastCacheProvider {
             .map(|tbl| {
                 tbl.iter()
                     .flat_map(|(tbl_name, tbl_map)| {
-                        tbl_map.iter().map(|(lc_name, lc)| {
-                            LastCacheDefinition::from_cache(&**tbl_name, lc_name, lc)
-                        })
+                        tbl_map
+                            .iter()
+                            .map(|(lc_name, lc)| lc.to_definition(&**tbl_name, lc_name))
                     })
                     .collect()
             })
@@ -768,6 +769,34 @@ impl LastCache {
     /// Remove expired values from the internal cache state
     fn remove_expired(&mut self) {
         self.state.remove_expired();
+    }
+
+    /// Convert the `LastCache` into a `LastCacheDefinition`
+    fn to_definition(
+        &self,
+        table: impl Into<String>,
+        name: impl Into<String>,
+    ) -> LastCacheDefinition {
+        LastCacheDefinition {
+            table: table.into(),
+            name: name.into(),
+            key_columns: self.key_columns.iter().cloned().collect(),
+            value_columns: if self.accept_new_fields {
+                LastCacheValueColumnsDef::AllNonKeyColumns
+            } else {
+                LastCacheValueColumnsDef::Explicit {
+                    columns: self
+                        .schema
+                        .fields()
+                        .iter()
+                        .filter(|f| !self.key_columns.contains(f.name()))
+                        .map(|f| f.name().to_owned())
+                        .collect(),
+                }
+            },
+            count: self.count,
+            ttl: self.ttl.as_secs(),
+        }
     }
 }
 
@@ -1508,7 +1537,6 @@ mod tests {
     use std::{cmp::Ordering, collections::BTreeMap, sync::Arc, time::Duration};
 
     use crate::{
-        catalog::{Catalog, DatabaseSchema, LastCacheDefinition, TableDefinition},
         last_cache::{KeyValue, LastCacheProvider, Predicate, DEFAULT_CACHE_TTL},
         persister::PersisterImpl,
         write_buffer::WriteBufferImpl,
@@ -1517,6 +1545,9 @@ mod tests {
     use ::object_store::{memory::InMemory, ObjectStore};
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::NamespaceName;
+    use influxdb3_catalog::catalog::{
+        Catalog, DatabaseSchema, LastCacheDefinition, TableDefinition,
+    };
     use influxdb3_wal::WalConfig;
     use insta::assert_json_snapshot;
     use iox_time::{MockProvider, Time};

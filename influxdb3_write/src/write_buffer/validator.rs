@@ -1,12 +1,12 @@
 use std::{borrow::Cow, sync::Arc};
 
-use crate::{
-    catalog::{influx_column_type_from_field_value, Catalog, DatabaseSchema, TableDefinition},
-    write_buffer::Result,
-    Level0Duration, Precision, WriteLineError,
-};
+use crate::{write_buffer::Result, Level0Duration, Precision, WriteLineError};
 use data_types::{NamespaceName, Timestamp};
 use hashbrown::HashMap;
+use influxdb3_catalog::catalog::{
+    influx_column_type_from_field_value, Catalog, DatabaseSchema, TableDefinition,
+};
+
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDataType, FieldDefinition, Row,
     TableChunks, WriteBatch,

@@ -20,11 +20,9 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_write::last_cache::LastCacheFunction;
-use influxdb3_write::{
-    catalog::{Catalog, DatabaseSchema},
-    WriteBuffer,
-};
+use influxdb3_write::WriteBuffer;
 use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
 use iox_query::frontend::sql::SqlQueryPlanner;
 use iox_query::provider::ProviderBuilder;

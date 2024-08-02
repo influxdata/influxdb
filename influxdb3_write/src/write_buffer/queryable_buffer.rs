@@ -1,4 +1,3 @@
-use crate::catalog::{Catalog, DatabaseSchema};
 use crate::chunk::BufferChunk;
 use crate::last_cache::LastCacheProvider;
 use crate::paths::ParquetFilePath;
@@ -18,6 +17,7 @@ use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
 use hashbrown::HashMap;
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_wal::{SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::exec::Executor;
