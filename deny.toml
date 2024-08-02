@@ -6,6 +6,7 @@ vulnerability = "deny"
 yanked = "deny"
 unmaintained = "warn"
 notice = "warn"
+version = 2
 ignore = [
 ]
 git-fetch-with-cli = true
@@ -15,6 +16,7 @@ allow-osi-fsf-free = "either"
 copyleft = "deny"
 unlicensed = "deny"
 default = "deny"
+version = 2
 
 exceptions = [
     # We should probably NOT bundle CA certs but use the OS ones.
