@@ -399,11 +399,17 @@ func (*openAuthorizer) AuthorizeQuery(database string, query *influxql.Query) er
 func (*openAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
+func (o *openAuthorizer) OptimizeSeriesRead(database string, measurement []byte, expr influxql.Expr) (influxql.Expr, query.FineAuthorizer, error) {
+	return expr, o, nil
+}
 func (*openAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
 func (*openAuthorizer) IsOpen() bool {
 	return true
+}
+func (*openAuthorizer) IsVoid() bool {
+	return false
 }
 
 // Ensure that the subquery gets passed the query authorizer.

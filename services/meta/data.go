@@ -1669,6 +1669,11 @@ func (u *UserInfo) AuthorizeSeriesRead(database string, measurement []byte, tags
 	return true
 }
 
+// OptimizeSeriesRead optimizes series read based on the authorizer.
+func (u *UserInfo) OptimizeSeriesRead(database string, measurement []byte, expr influxql.Expr) (influxql.Expr, query.FineAuthorizer, error) {
+	return expr, u, nil
+}
+
 // AuthorizeSeriesWrite is used to limit access per-series (enterprise only)
 func (u *UserInfo) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return true
@@ -1677,6 +1682,11 @@ func (u *UserInfo) AuthorizeSeriesWrite(database string, measurement []byte, tag
 // IsOpen is a method on FineAuthorizer to indicate all fine auth is permitted and short circuit some checks.
 func (u *UserInfo) IsOpen() bool {
 	return true
+}
+
+// IsVoid is a method on FineAuthorizer to indicate all fine auth is permitted and short circuit some checks.
+func (u *UserInfo) IsVoid() bool {
+	return false
 }
 
 // AuthorizeUnrestricted identifies the admin user
