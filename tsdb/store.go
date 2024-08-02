@@ -1857,7 +1857,7 @@ func (s *Store) TagKeys(ctx context.Context, auth query.FineAuthorizer, shardIDs
 		sort.Strings(keys)
 
 		// Filter against tag values, skip if no values exist.
-		values, err := is.MeasurementTagKeyValuesByExpr(auth, name, keys, filterExpr, true)
+		values, err := is.MeasurementTagKeyValuesByExpr(auth, name, keys, filterExpr, true, s.Logger)
 		if err != nil {
 			return nil, err
 		}
@@ -2079,7 +2079,7 @@ func (s *Store) TagValues(ctx context.Context, auth query.FineAuthorizer, shardI
 		// get all the tag values for each key in the keyset.
 		// Each slice in the results contains the sorted values associated
 		// associated with each tag key for the measurement from the key set.
-		if result.values, err = is.MeasurementTagKeyValuesByExpr(auth, name, result.keys, filterExpr, true); err != nil {
+		if result.values, err = is.MeasurementTagKeyValuesByExpr(auth, name, result.keys, filterExpr, true, s.Logger); err != nil {
 			return nil, err
 		}
 

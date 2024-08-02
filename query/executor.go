@@ -90,11 +90,17 @@ type FineAuthorizer interface {
 	// AuthorizeSeriesRead determines if a series is authorized for reading
 	AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool
 
+	// OptimizeSeriesRead produces an optimized authorizer-aware WHERE expression and updated authorizer.
+	OptimizeSeriesRead(database string, measurement []byte, expr influxql.Expr) (influxql.Expr, FineAuthorizer, error)
+
 	// AuthorizeSeriesWrite determines if a series is authorized for writing
 	AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool
 
 	// IsOpen guarantees that the other methods of a FineAuthorizer always return true.
 	IsOpen() bool
+
+	// IsVoid guarantees that Authorize methods of a FineAuthorizer always return false.
+	IsVoid() bool
 }
 
 // OpenAuthorizer is the Authorizer used when authorization is disabled.
@@ -109,6 +115,11 @@ func (a openAuthorizer) AuthorizeSeriesRead(database string, measurement []byte,
 	return true
 }
 
+// OptimizeSeriesRead is a no-op for openAuthorizer.
+func (a openAuthorizer) OptimizeSeriesRead(database string, measurement []byte, expr influxql.Expr) (influxql.Expr, FineAuthorizer, error) {
+	return expr, a, nil
+}
+
 // AuthorizeSeriesWrite allows access to any series.
 func (a openAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return true
@@ -116,8 +127,36 @@ func (a openAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte
 
 func (a openAuthorizer) IsOpen() bool { return true }
 
+func (a openAuthorizer) IsVoid() bool { return false }
+
 // AuthorizeSeriesRead allows any query to execute.
 func (a openAuthorizer) AuthorizeQuery(_ string, _ *influxql.Query) error { return nil }
+
+// VoidAuthorizer is the Authorizer used when no access is possible.
+// It disallows all operations.
+type voidAuthorizer struct{}
+
+// VoidAuthorizer can be shared by all goroutines.
+var VoidAuthorizer = voidAuthorizer{}
+
+// AuthorizeSeriesRead allows access to no series.
+func (a voidAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
+	return false
+}
+
+// OptimizeSeriesRead is a no-op for voidAuthorizer.
+func (a voidAuthorizer) OptimizeSeriesRead(database string, measurement []byte, expr influxql.Expr) (influxql.Expr, FineAuthorizer, error) {
+	return expr, a, nil
+}
+
+// AuthorizeSeriesWrite allows access no series.
+func (a voidAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
+	return false
+}
+
+func (a voidAuthorizer) IsOpen() bool { return false }
+
+func (a voidAuthorizer) IsVoid() bool { return true }
 
 // AuthorizerIsOpen returns true if the provided Authorizer is guaranteed to
 // authorize anything. A nil Authorizer returns true for this function, and this
@@ -125,6 +164,13 @@ func (a openAuthorizer) AuthorizeQuery(_ string, _ *influxql.Query) error { retu
 // or not.
 func AuthorizerIsOpen(a FineAuthorizer) bool {
 	return a == nil || a.IsOpen()
+}
+
+// AuthorizerIsVoid returns true if the provided Authorizer is guaranteed to
+// not authorize anything. A nil Authorizer acts as an openAuthorizer, and thus
+// not a void authorizer.
+func AuthorizerIsVoid(a FineAuthorizer) bool {
+	return a != nil && a.IsVoid()
 }
 
 // ExecutionOptions contains the options for executing a query.
