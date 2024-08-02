@@ -133,7 +133,7 @@ func (a openAuthorizer) IsVoid() bool { return false }
 func (a openAuthorizer) AuthorizeQuery(_ string, _ *influxql.Query) error { return nil }
 
 // VoidAuthorizer is the Authorizer used when no access is possible.
-// It allows all operations.
+// It disallows all operations.
 type voidAuthorizer struct{}
 
 // VoidAuthorizer can be shared by all goroutines.
