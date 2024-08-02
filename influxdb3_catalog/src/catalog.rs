@@ -1,6 +1,5 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
-use crate::last_cache::LastCache;
 use influxdb3_wal::{CatalogBatch, CatalogOp};
 use influxdb_line_protocol::FieldValue;
 use observability_deps::tracing::info;
@@ -11,9 +10,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use thiserror::Error;
 
-mod serialize;
-
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone, Copy)]
 pub enum Error {
     #[error("catalog updated elsewhere")]
     CatalogUpdatedElsewhere,
@@ -110,7 +107,7 @@ impl Catalog {
         self.inner.write().apply_catalog_batch(catalog_batch)
     }
 
-    pub(crate) fn db_or_create(&self, db_name: &str) -> Result<Arc<DatabaseSchema>> {
+    pub fn db_or_create(&self, db_name: &str) -> Result<Arc<DatabaseSchema>> {
         let db = self.inner.read().databases.get(db_name).cloned();
 
         let db = match db {
@@ -124,7 +121,9 @@ impl Catalog {
 
                 info!("return new db {}", db_name);
                 let db = Arc::new(DatabaseSchema::new(db_name.into()));
-                inner.databases.insert(db.name.clone(), Arc::clone(&db));
+                inner
+                    .databases
+                    .insert(Arc::clone(&db.name), Arc::clone(&db));
                 inner.sequence = inner.sequence.next();
                 inner.updated = true;
                 db
@@ -190,12 +189,11 @@ impl Catalog {
         self.inner.read().db_exists(db_name)
     }
 
-    #[cfg(test)]
-    pub(crate) fn insert_database(&mut self, db: DatabaseSchema) {
-        self.inner
-            .write()
-            .databases
-            .insert(Arc::clone(&db.name), Arc::new(db));
+    pub fn insert_database(&mut self, db: DatabaseSchema) {
+        let mut inner = self.inner.write();
+        inner.databases.insert(Arc::clone(&db.name), Arc::new(db));
+        inner.sequence = inner.sequence.next();
+        inner.updated = true;
     }
 }
 
@@ -266,12 +264,10 @@ impl InnerCatalog {
         Ok(())
     }
 
-    #[cfg(test)]
-    pub(crate) fn databases(&self) -> impl Iterator<Item = &Arc<DatabaseSchema>> {
+    pub fn databases(&self) -> impl Iterator<Item = &Arc<DatabaseSchema>> {
         self.databases.values()
     }
 
-    #[cfg(test)]
     pub fn db_exists(&self, db_name: &str) -> bool {
         self.databases.contains_key(db_name)
     }
@@ -283,7 +279,7 @@ pub struct DatabaseSchema {
     pub name: Arc<str>,
     /// The database is a map of tables
     #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
-    pub(crate) tables: BTreeMap<Arc<str>, TableDefinition>,
+    pub tables: BTreeMap<Arc<str>, TableDefinition>,
 }
 
 impl DatabaseSchema {
@@ -334,7 +330,7 @@ impl DatabaseSchema {
                                 columns,
                                 <Option<Vec<String>>>::None,
                             )?;
-                            tables.insert(field_additions.table_name.clone(), table);
+                            tables.insert(Arc::clone(&field_additions.table_name), table);
                         }
                     }
                 }
@@ -366,8 +362,7 @@ impl DatabaseSchema {
         self.tables.contains_key(table_name)
     }
 
-    #[cfg(test)]
-    pub(crate) fn tables(&self) -> impl Iterator<Item = &TableDefinition> {
+    pub fn tables(&self) -> impl Iterator<Item = &TableDefinition> {
         self.tables.values()
     }
 }
@@ -383,7 +378,7 @@ impl TableDefinition {
     /// Create a new [`TableDefinition`]
     ///
     /// Ensures the provided columns will be ordered before constructing the schema.
-    pub(crate) fn new<CN: AsRef<str>>(
+    pub fn new<CN: AsRef<str>>(
         name: Arc<str>,
         columns: impl AsRef<[(CN, InfluxColumnType)]>,
         series_key: Option<impl IntoIterator<Item: AsRef<str>>>,
@@ -416,7 +411,7 @@ impl TableDefinition {
     }
 
     /// Create a new table definition from a catalog op
-    pub(crate) fn new_from_op(table_definition: &influxdb3_wal::TableDefinition) -> Self {
+    pub fn new_from_op(table_definition: &influxdb3_wal::TableDefinition) -> Self {
         let mut columns = Vec::new();
         for field_def in &table_definition.field_definitions {
             columns.push((field_def.name.as_ref(), field_def.data_type.into()));
@@ -430,14 +425,14 @@ impl TableDefinition {
     }
 
     /// Check if the column exists in the [`TableDefinition`]s schema
-    pub(crate) fn column_exists(&self, column: &str) -> bool {
+    pub fn column_exists(&self, column: &str) -> bool {
         self.schema.find_index_of(column).is_some()
     }
 
     /// Add the columns to this [`TableDefinition`]
     ///
     /// This ensures that the resulting schema has its columns ordered
-    pub(crate) fn add_columns(&mut self, columns: Vec<(String, InfluxColumnType)>) -> Result<()> {
+    pub fn add_columns(&mut self, columns: Vec<(String, InfluxColumnType)>) -> Result<()> {
         // Use BTree to insert existing and new columns, and use that to generate the
         // resulting schema, to ensure column order is consistent:
         let mut cols = BTreeMap::new();
@@ -466,7 +461,7 @@ impl TableDefinition {
         Ok(())
     }
 
-    pub(crate) fn index_columns(&self) -> Vec<&str> {
+    pub fn index_columns(&self) -> Vec<&str> {
         self.schema
             .iter()
             .filter_map(|(col_type, field)| match col_type {
@@ -476,36 +471,34 @@ impl TableDefinition {
             .collect()
     }
 
-    pub(crate) fn schema(&self) -> &Schema {
+    pub fn schema(&self) -> &Schema {
         &self.schema
     }
 
-    #[cfg(test)]
-    pub(crate) fn num_columns(&self) -> usize {
+    pub fn num_columns(&self) -> usize {
         self.schema.len()
     }
 
-    pub(crate) fn field_type_by_name(&self, name: &str) -> Option<InfluxColumnType> {
+    pub fn field_type_by_name(&self, name: &str) -> Option<InfluxColumnType> {
         self.schema.field_type_by_name(name)
     }
 
-    pub(crate) fn is_v3(&self) -> bool {
+    pub fn is_v3(&self) -> bool {
         self.schema.series_key().is_some()
     }
 
     /// Add a new last cache to this table definition
-    pub(crate) fn add_last_cache(&mut self, last_cache: LastCacheDefinition) {
+    pub fn add_last_cache(&mut self, last_cache: LastCacheDefinition) {
         self.last_caches
             .insert(last_cache.name.to_string(), last_cache);
     }
 
     /// Remove a last cache from the table definition
-    pub(crate) fn remove_last_cache(&mut self, name: &str) {
+    pub fn remove_last_cache(&mut self, name: &str) {
         self.last_caches.remove(name);
     }
 
-    #[cfg(test)]
-    pub(crate) fn last_caches(&self) -> impl Iterator<Item = (&String, &LastCacheDefinition)> {
+    pub fn last_caches(&self) -> impl Iterator<Item = (&String, &LastCacheDefinition)> {
         self.last_caches.iter()
     }
 }
@@ -529,8 +522,7 @@ pub struct LastCacheDefinition {
 
 impl LastCacheDefinition {
     /// Create a new [`LastCacheDefinition`] with explicit value columns
-    #[cfg(test)]
-    pub(crate) fn new_with_explicit_value_columns(
+    pub fn new_with_explicit_value_columns(
         table: impl Into<String>,
         name: impl Into<String>,
         key_columns: impl IntoIterator<Item: Into<String>>,
@@ -551,8 +543,7 @@ impl LastCacheDefinition {
     }
 
     /// Create a new [`LastCacheDefinition`] with explicit value columns
-    #[cfg(test)]
-    pub(crate) fn new_all_non_key_value_columns(
+    pub fn new_all_non_key_value_columns(
         table: impl Into<String>,
         name: impl Into<String>,
         key_columns: impl IntoIterator<Item: Into<String>>,
@@ -567,33 +558,6 @@ impl LastCacheDefinition {
             count: count.try_into()?,
             ttl,
         })
-    }
-
-    pub(crate) fn from_cache(
-        table: impl Into<String>,
-        name: impl Into<String>,
-        cache: &LastCache,
-    ) -> Self {
-        Self {
-            table: table.into(),
-            name: name.into(),
-            key_columns: cache.key_columns.iter().cloned().collect(),
-            value_columns: if cache.accept_new_fields {
-                LastCacheValueColumnsDef::AllNonKeyColumns
-            } else {
-                LastCacheValueColumnsDef::Explicit {
-                    columns: cache
-                        .schema
-                        .fields()
-                        .iter()
-                        .filter(|f| !cache.key_columns.contains(f.name()))
-                        .map(|f| f.name().to_owned())
-                        .collect(),
-                }
-            },
-            count: cache.count,
-            ttl: cache.ttl.as_secs(),
-        }
     }
 }
 

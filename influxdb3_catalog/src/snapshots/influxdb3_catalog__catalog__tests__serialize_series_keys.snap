@@ -1,5 +1,6 @@
 ---
-source: influxdb3_write/src/catalog.rs
+source: influxdb3_catalog/src/catalog.rs
+assertion_line: 856
 expression: catalog
 ---
 {
@@ -8,7 +9,12 @@ expression: catalog
       "name": "test_db",
       "tables": {
         "test_table_1": {
-          "name": "test",
+          "name": "test_table_1",
+          "key": [
+            "tag_1",
+            "tag_2",
+            "tag_3"
+          ],
           "cols": {
             "field": {
               "type": "str",
@@ -23,7 +29,7 @@ expression: catalog
                 ]
               },
               "influx_type": "tag",
-              "nullable": true
+              "nullable": false
             },
             "tag_2": {
               "type": {
@@ -33,7 +39,7 @@ expression: catalog
                 ]
               },
               "influx_type": "tag",
-              "nullable": true
+              "nullable": false
             },
             "tag_3": {
               "type": {
@@ -43,7 +49,7 @@ expression: catalog
                 ]
               },
               "influx_type": "tag",
-              "nullable": true
+              "nullable": false
             },
             "time": {
               "type": {
@@ -55,22 +61,7 @@ expression: catalog
               "influx_type": "time",
               "nullable": false
             }
-          },
-          "last_caches": [
-            {
-              "table": "test",
-              "name": "test_table_last_cache",
-              "keys": [
-                "tag_2",
-                "tag_3"
-              ],
-              "vals": [
-                "field"
-              ],
-              "n": 1,
-              "ttl": 600
-            }
-          ]
+          }
         }
       }
     }

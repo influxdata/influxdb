@@ -2,23 +2,27 @@
 #   https://embarkstudios.github.io/cargo-deny/index.html
 
 [advisories]
-vulnerability = "deny"
 yanked = "deny"
-unmaintained = "warn"
-notice = "warn"
 ignore = [
 ]
 git-fetch-with-cli = true
 
 [licenses]
-allow-osi-fsf-free = "either"
-copyleft = "deny"
-unlicensed = "deny"
-default = "deny"
+allow = [
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSD-4-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+]
 
 exceptions = [
     # We should probably NOT bundle CA certs but use the OS ones.
     { name = "webpki-roots", allow = ["MPL-2.0"] },
+    { allow = ["Unicode-DFS-2016"], crate = "unicode-ident" },
+    { allow = ["OpenSSL"], crate = "ring" },
 ]
 
 [[licenses.clarify]]

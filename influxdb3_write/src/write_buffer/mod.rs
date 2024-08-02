@@ -6,7 +6,6 @@ mod table_buffer;
 pub(crate) mod validator;
 
 use crate::cache::ParquetCache;
-use crate::catalog::{Catalog, LastCacheDefinition};
 use crate::chunk::ParquetChunk;
 use crate::last_cache::{self, CreateCacheArguments, LastCacheProvider};
 use crate::persister::PersisterImpl;
@@ -24,6 +23,7 @@ use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use influxdb3_catalog::catalog::{Catalog, LastCacheDefinition};
 use influxdb3_wal::object_store::WalObjectStore;
 use influxdb3_wal::{Wal, WalConfig, WalFileNotifier, WalOp};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
@@ -51,7 +51,7 @@ pub enum Error {
     },
 
     #[error("catalog update erorr {0}")]
-    CatalogUpdateError(#[from] crate::catalog::Error),
+    CatalogUpdateError(#[from] influxdb3_catalog::catalog::Error),
 
     #[error("error from persister: {0}")]
     PersisterError(#[from] crate::persister::Error),
@@ -78,7 +78,7 @@ pub enum Error {
         "updating catalog on delete of last cache failed, you will need to delete the cache \
         again on server restart"
     )]
-    DeleteLastCache(#[source] crate::catalog::Error),
+    DeleteLastCache(#[source] influxdb3_catalog::catalog::Error),
 
     #[error("error from wal: {0}")]
     WalError(#[from] influxdb3_wal::Error),

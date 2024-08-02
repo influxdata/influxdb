@@ -3,7 +3,7 @@ use schema::{InfluxColumnType, SchemaBuilder};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-use super::{LastCacheDefinition, LastCacheValueColumnsDef, TableDefinition};
+use crate::catalog::{LastCacheDefinition, LastCacheValueColumnsDef, TableDefinition};
 
 impl Serialize for TableDefinition {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -172,34 +172,34 @@ impl<'a> From<&'a ArrowDataType> for DataType<'a> {
             ArrowDataType::Float32 => Self::F32,
             ArrowDataType::Float64 => Self::F64,
             ArrowDataType::Timestamp(unit, tz) => Self::Time((*unit).into(), tz.as_deref()),
-            ArrowDataType::Date32 => todo!(),
-            ArrowDataType::Date64 => todo!(),
-            ArrowDataType::Time32(_) => todo!(),
-            ArrowDataType::Time64(_) => todo!(),
-            ArrowDataType::Duration(_) => todo!(),
-            ArrowDataType::Interval(_) => todo!(),
+            ArrowDataType::Date32 => unimplemented!(),
+            ArrowDataType::Date64 => unimplemented!(),
+            ArrowDataType::Time32(_) => unimplemented!(),
+            ArrowDataType::Time64(_) => unimplemented!(),
+            ArrowDataType::Duration(_) => unimplemented!(),
+            ArrowDataType::Interval(_) => unimplemented!(),
             ArrowDataType::Binary => Self::Bin,
-            ArrowDataType::FixedSizeBinary(_) => todo!(),
+            ArrowDataType::FixedSizeBinary(_) => unimplemented!(),
             ArrowDataType::LargeBinary => Self::BigBin,
             ArrowDataType::BinaryView => Self::BinView,
             ArrowDataType::Utf8 => Self::Str,
             ArrowDataType::LargeUtf8 => Self::BigStr,
             ArrowDataType::Utf8View => Self::StrView,
-            ArrowDataType::List(_) => todo!(),
-            ArrowDataType::ListView(_) => todo!(),
-            ArrowDataType::FixedSizeList(_, _) => todo!(),
-            ArrowDataType::LargeList(_) => todo!(),
-            ArrowDataType::LargeListView(_) => todo!(),
-            ArrowDataType::Struct(_) => todo!(),
-            ArrowDataType::Union(_, _) => todo!(),
+            ArrowDataType::List(_) => unimplemented!(),
+            ArrowDataType::ListView(_) => unimplemented!(),
+            ArrowDataType::FixedSizeList(_, _) => unimplemented!(),
+            ArrowDataType::LargeList(_) => unimplemented!(),
+            ArrowDataType::LargeListView(_) => unimplemented!(),
+            ArrowDataType::Struct(_) => unimplemented!(),
+            ArrowDataType::Union(_, _) => unimplemented!(),
             ArrowDataType::Dictionary(key_type, val_type) => Self::Dict(
                 Box::new(key_type.as_ref().into()),
                 Box::new(val_type.as_ref().into()),
             ),
-            ArrowDataType::Decimal128(_, _) => todo!(),
-            ArrowDataType::Decimal256(_, _) => todo!(),
-            ArrowDataType::Map(_, _) => todo!(),
-            ArrowDataType::RunEndEncoded(_, _) => todo!(),
+            ArrowDataType::Decimal128(_, _) => unimplemented!(),
+            ArrowDataType::Decimal256(_, _) => unimplemented!(),
+            ArrowDataType::Map(_, _) => unimplemented!(),
+            ArrowDataType::RunEndEncoded(_, _) => unimplemented!(),
         }
     }
 }
