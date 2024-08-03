@@ -10,7 +10,7 @@ use futures_util::stream::StreamExt;
 use hashbrown::HashMap;
 use object_store::path::Path;
 use object_store::{ObjectStore, PutPayload};
-use observability_deps::tracing::error;
+use observability_deps::tracing::{debug, error, info};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -170,17 +170,15 @@ impl WalObjectStore {
         SnapshotInfo,
         OwnedSemaphorePermit,
     )> {
-        let (wal_contents, responses, snapshot) = self
-            .flush_buffer
-            .lock()
-            .await
-            .flush_buffer_into_contents_and_responses()
-            .await;
-
-        // don't persist a wal file if there's nothing there
-        if wal_contents.is_empty() {
-            return None;
-        }
+        let (wal_contents, responses, snapshot) = {
+            let mut flush_buffer = self.flush_buffer.lock().await;
+            if flush_buffer.wal_buffer.is_empty() {
+                return None;
+            }
+            flush_buffer
+                .flush_buffer_into_contents_and_responses()
+                .await
+        };
 
         let wal_path = wal_path(wal_contents.wal_file_number);
         let data = crate::serialize::serialize_to_file_bytes(&wal_contents)
@@ -226,6 +224,7 @@ impl WalObjectStore {
         // now that we've persisted this latest notify and start the snapshot, if set
         let snapshot_response = match wal_contents.snapshot {
             Some(snapshot_details) => {
+                info!(?snapshot_details, "snapshotting wal");
                 let snapshot_done = self
                     .file_notifier
                     .notify_and_snapshot(wal_contents, snapshot_details)
@@ -235,6 +234,10 @@ impl WalObjectStore {
                 Some((snapshot_done, snapshot_info, snapshot_permit))
             }
             None => {
+                debug!(
+                    "notify sent to buffer for wal file {}",
+                    wal_contents.wal_file_number.get()
+                );
                 self.file_notifier.notify(wal_contents);
                 None
             }
@@ -435,6 +438,12 @@ struct WalBuffer {
     database_to_write_batch: HashMap<Arc<str>, WriteBatch>,
     catalog_batches: Vec<CatalogBatch>,
     write_op_responses: Vec<oneshot::Sender<WriteResult>>,
+}
+
+impl WalBuffer {
+    fn is_empty(&self) -> bool {
+        self.database_to_write_batch.is_empty()
+    }
 }
 
 // Writes should only fail if the underlying WAL throws an error. They are validated before they
@@ -910,6 +919,30 @@ mod tests {
         assert_eq!(*notified_writes, vec![file_3_contents.clone()]);
         let snapshot_details = replay_notifier.snapshot_details.lock();
         assert_eq!(*snapshot_details, file_3_contents.snapshot);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn flush_for_empty_buffer_skips_notify() {
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotfiier::default());
+        let wal_config = WalConfig {
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_secs(1),
+            snapshot_size: 2,
+            level_0_duration: Duration::from_nanos(10),
+        };
+        let wal = WalObjectStore::new_without_replay(
+            Arc::clone(&object_store),
+            Arc::clone(&notifier),
+            wal_config,
+        );
+
+        assert!(wal.flush_buffer().await.is_none());
+        let notifier = notifier.as_any().downcast_ref::<TestNotfiier>().unwrap();
+        assert!(notifier.notified_writes.lock().is_empty());
+
+        // make sure no wal file was written
+        assert!(object_store.list(None).next().await.is_none());
     }
 
     #[derive(Debug, Default)]
