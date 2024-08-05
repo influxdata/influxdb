@@ -22,14 +22,11 @@ use datafusion::{
 };
 use hashbrown::{HashMap, HashSet};
 use indexmap::{IndexMap, IndexSet};
+use influxdb3_catalog::catalog::{LastCacheDefinition, LastCacheSize, LastCacheValueColumnsDef};
+use influxdb3_wal::{Field, FieldData, Row, WalContents, WalOp};
 use iox_time::Time;
 use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
-
-use crate::{
-    catalog::{InnerCatalog, LastCacheDefinition, LastCacheSize, LastCacheValueColumnsDef},
-    write_buffer::{buffer_segment::WriteBatch, Field, FieldData, Row},
-};
 
 mod table_function;
 pub use table_function::LastCacheFunction;
@@ -116,16 +113,19 @@ impl LastCacheProvider {
     }
 
     /// Initialize a [`LastCacheProvider`] from a [`InnerCatalog`]
-    pub(crate) fn new_from_catalog(catalog: &InnerCatalog) -> Result<Self, Error> {
+    #[cfg(test)]
+    pub(crate) fn new_from_catalog(
+        catalog: &influxdb3_catalog::catalog::InnerCatalog,
+    ) -> Result<Self, Error> {
         let provider = LastCacheProvider::new();
-        for (db_name, db_schema) in catalog.databases() {
-            for (tbl_name, tbl_def) in db_schema.tables() {
+        for db_schema in catalog.databases() {
+            for tbl_def in db_schema.tables() {
                 for (cache_name, cache_def) in tbl_def.last_caches() {
                     assert!(
                         provider
                             .create_cache(CreateCacheArguments {
-                                db_name: db_name.to_owned(),
-                                tbl_name: tbl_name.to_owned(),
+                                db_name: db_schema.name.to_string(),
+                                tbl_name: tbl_def.name.to_string(),
                                 schema: tbl_def.schema.clone(),
                                 cache_name: Some(cache_name.to_owned()),
                                 count: Some(cache_def.count.into()),
@@ -181,9 +181,9 @@ impl LastCacheProvider {
             .map(|tbl| {
                 tbl.iter()
                     .flat_map(|(tbl_name, tbl_map)| {
-                        tbl_map.iter().map(|(lc_name, lc)| {
-                            LastCacheDefinition::from_cache(&**tbl_name, lc_name, lc)
-                        })
+                        tbl_map
+                            .iter()
+                            .map(|(lc_name, lc)| lc.to_definition(&**tbl_name, lc_name))
                     })
                     .collect()
             })
@@ -389,26 +389,33 @@ impl LastCacheProvider {
         Ok(())
     }
 
-    /// Write a batch from the buffer into the cache by iterating over its database and table batches
+    /// Write the contents from a wal file into the cache by iterating over its database and table batches
     /// to find entries that belong in the cache.
     ///
     /// Only if rows are newer than the latest entry in the cache will they be entered.
-    pub(crate) fn write_batch_to_cache(&self, write_batch: &WriteBatch) {
+    pub(crate) fn write_wal_contents_to_cache(&self, wal_contents: &WalContents) {
         let mut cache_map = self.cache_map.write();
-        for (db_name, db_batch) in &write_batch.database_batches {
-            if let Some(db_cache) = cache_map.get_mut(db_name.as_str()) {
-                if db_cache.is_empty() {
-                    continue;
-                }
-                for (tbl_name, tbl_batch) in &db_batch.table_batches {
-                    if let Some(tbl_cache) = db_cache.get_mut(tbl_name) {
-                        for (_, last_cache) in tbl_cache.iter_mut() {
-                            for row in &tbl_batch.rows {
-                                last_cache.push(row);
+        for op in &wal_contents.ops {
+            match op {
+                WalOp::Write(batch) => {
+                    if let Some(db_cache) = cache_map.get_mut(batch.database_name.as_ref()) {
+                        if db_cache.is_empty() {
+                            continue;
+                        }
+                        for (tbl_name, tbl_chunks) in &batch.table_chunks {
+                            if let Some(tbl_cache) = db_cache.get_mut(tbl_name.as_ref()) {
+                                for (_, last_cache) in tbl_cache.iter_mut() {
+                                    for chunk in tbl_chunks.chunk_time_to_chunk.values() {
+                                        for row in &chunk.rows {
+                                            last_cache.push(row);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
+                WalOp::Catalog(_) => (),
             }
         }
     }
@@ -569,7 +576,7 @@ impl LastCache {
             let Some(value) = row
                 .fields
                 .iter()
-                .find(|f| f.name == *key)
+                .find(|f| f.name.as_ref() == *key)
                 .map(|f| KeyValue::from(&f.value))
             else {
                 // ignore the row if it does not contain all key columns
@@ -762,6 +769,34 @@ impl LastCache {
     /// Remove expired values from the internal cache state
     fn remove_expired(&mut self) {
         self.state.remove_expired();
+    }
+
+    /// Convert the `LastCache` into a `LastCacheDefinition`
+    fn to_definition(
+        &self,
+        table: impl Into<String>,
+        name: impl Into<String>,
+    ) -> LastCacheDefinition {
+        LastCacheDefinition {
+            table: table.into(),
+            name: name.into(),
+            key_columns: self.key_columns.iter().cloned().collect(),
+            value_columns: if self.accept_new_fields {
+                LastCacheValueColumnsDef::AllNonKeyColumns
+            } else {
+                LastCacheValueColumnsDef::Explicit {
+                    columns: self
+                        .schema
+                        .fields()
+                        .iter()
+                        .filter(|f| !self.key_columns.contains(f.name()))
+                        .map(|f| f.name().to_owned())
+                        .collect(),
+                }
+            },
+            count: self.count,
+            ttl: self.ttl.as_secs(),
+        }
     }
 }
 
@@ -1135,11 +1170,11 @@ impl LastCacheStore {
             // of nulls are back-filled when new fields/columns are added:
             let starting_cache_size = self.len();
             for field in row.fields.iter() {
-                seen.insert(field.name.as_str());
-                if let Some(col) = self.cache.get_mut(&field.name) {
+                seen.insert(field.name.as_ref());
+                if let Some(col) = self.cache.get_mut(field.name.as_ref()) {
                     // In this case, the field already has an entry in the cache, so just push:
                     col.push(&field.value);
-                } else if !self.key_columns.contains(&field.name) {
+                } else if !self.key_columns.contains(field.name.as_ref()) {
                     // In this case, there is not an entry for the field in the cache, so if the
                     // value is not one of the key columns, then it is a new field being added.
                     let data_type = data_type_from_buffer_field(field);
@@ -1155,15 +1190,15 @@ impl LastCacheStore {
                     // Add the new field to the list of new columns returned:
                     result
                         .get_or_insert_with(Vec::new)
-                        .push((field.name.as_str(), data_type));
+                        .push((field.name.as_ref(), data_type));
                 }
                 // There is no else block, because the only alternative would be that this is a
                 // key column, which we ignore.
             }
         } else {
             for field in row.fields.iter() {
-                seen.insert(field.name.as_str());
-                if let Some(c) = self.cache.get_mut(&field.name) {
+                seen.insert(field.name.as_ref());
+                if let Some(c) = self.cache.get_mut(field.name.as_ref()) {
                     c.push(&field.value);
                 }
             }
@@ -1501,32 +1536,32 @@ fn data_type_from_buffer_field(field: &Field) -> DataType {
 mod tests {
     use std::{cmp::Ordering, collections::BTreeMap, sync::Arc, time::Duration};
 
+    use crate::{
+        last_cache::{KeyValue, LastCacheProvider, Predicate, DEFAULT_CACHE_TTL},
+        persister::PersisterImpl,
+        write_buffer::WriteBufferImpl,
+        Bufferer, LastCacheManager, Level0Duration, Precision,
+    };
     use ::object_store::{memory::InMemory, ObjectStore};
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::NamespaceName;
+    use influxdb3_catalog::catalog::{
+        Catalog, DatabaseSchema, LastCacheDefinition, TableDefinition,
+    };
+    use influxdb3_wal::WalConfig;
     use insta::assert_json_snapshot;
     use iox_time::{MockProvider, Time};
 
-    use crate::{
-        catalog::{Catalog, DatabaseSchema, LastCacheDefinition, TableDefinition},
-        last_cache::{KeyValue, LastCacheProvider, Predicate, DEFAULT_CACHE_TTL},
-        persister::PersisterImpl,
-        wal::WalImpl,
-        write_buffer::WriteBufferImpl,
-        Bufferer, LastCacheManager, Precision, SegmentDuration, SequenceNumber,
-    };
-
-    async fn setup_write_buffer() -> WriteBufferImpl<WalImpl, MockProvider> {
+    async fn setup_write_buffer() -> WriteBufferImpl<MockProvider> {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(PersisterImpl::new(obj_store));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         WriteBufferImpl::new(
             persister,
-            Option::<Arc<WalImpl>>::None,
             time_provider,
-            SegmentDuration::new_5m(),
+            Level0Duration::new_5m(),
             crate::test_help::make_exec(),
-            1000,
+            WalConfig::test_config(),
         )
         .await
         .unwrap()
@@ -2116,6 +2151,24 @@ mod tests {
 
         // wait for the TTL to clear the cache
         tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // the last cache eviction only happens when writes are flushed out to the buffer. If
+        // no writes are coming in, the last cache will still have data in it. So, we need to write
+        // some data to the buffer to trigger the last cache eviction.
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!(
+                "\
+                {tbl_name},region=us,host=b usage=200\n\
+                "
+            )
+            .as_str(),
+            Time::from_timestamp_nanos(2_000),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
 
         // Check what is in the last cache:
         let batches = wbuf
@@ -2976,14 +3029,14 @@ mod tests {
         // Set up a database in the catalog:
         let db_name = "test_db";
         let mut database = DatabaseSchema {
-            name: db_name.to_string(),
+            name: db_name.into(),
             tables: BTreeMap::new(),
         };
         use schema::InfluxColumnType::*;
         use schema::InfluxFieldType::*;
         // Add a table to it:
         let mut table_def = TableDefinition::new(
-            "test_table_1",
+            "test_table_1".into(),
             [
                 ("t1", Tag),
                 ("t2", Tag),
@@ -2993,7 +3046,8 @@ mod tests {
                 ("f2", Field(Float)),
             ],
             SeriesKey::None,
-        );
+        )
+        .unwrap();
         // Give that table a last cache:
         table_def.add_last_cache(
             LastCacheDefinition::new_all_non_key_value_columns(
@@ -3005,10 +3059,12 @@ mod tests {
             )
             .unwrap(),
         );
-        database.tables.insert("test_table".into(), table_def);
+        database
+            .tables
+            .insert(Arc::clone(&table_def.name), table_def);
         // Add another table to it:
         let mut table_def = TableDefinition::new(
-            "test_table_2",
+            "test_table_2".into(),
             [
                 ("t1", Tag),
                 ("time", Timestamp),
@@ -3016,7 +3072,8 @@ mod tests {
                 ("f2", Field(Float)),
             ],
             SeriesKey::None,
-        );
+        )
+        .unwrap();
         // Give that table a last cache:
         table_def.add_last_cache(
             LastCacheDefinition::new_with_explicit_value_columns(
@@ -3041,13 +3098,13 @@ mod tests {
             )
             .unwrap(),
         );
-        database.tables.insert("test_table_2".into(), table_def);
+        database
+            .tables
+            .insert(Arc::clone(&table_def.name), table_def);
         // Create the catalog and clone its InnerCatalog (which is what the LastCacheProvider is
         // initialized from):
-        let catalog = Catalog::new();
-        catalog
-            .replace_database(SequenceNumber::new(0), Arc::new(database))
-            .unwrap();
+        let mut catalog = Catalog::new();
+        catalog.insert_database(database);
         let inner = catalog.clone_inner();
         // This is the function we are testing, which initializes the LastCacheProvider from the catalog:
         let provider = LastCacheProvider::new_from_catalog(&inner)

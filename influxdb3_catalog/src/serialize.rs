@@ -1,10 +1,9 @@
-use std::collections::BTreeMap;
-
 use arrow::datatypes::DataType as ArrowDataType;
 use schema::{InfluxColumnType, SchemaBuilder};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
-use super::{LastCacheDefinition, LastCacheValueColumnsDef, TableDefinition};
+use crate::catalog::{LastCacheDefinition, LastCacheValueColumnsDef, TableDefinition};
 
 impl Serialize for TableDefinition {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -131,7 +130,6 @@ struct ColumnDefinition<'a> {
 
 impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
     fn from(def: &'a TableDefinition) -> Self {
-        let name = def.name.as_str();
         let cols = def
             .schema()
             .iter()
@@ -149,7 +147,7 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
         let keys = def.schema().series_key();
         let last_caches = def.last_caches.values().map(Into::into).collect();
         Self {
-            name,
+            name: def.name.as_ref(),
             cols,
             key: keys,
             last_caches,
@@ -174,43 +172,43 @@ impl<'a> From<&'a ArrowDataType> for DataType<'a> {
             ArrowDataType::Float32 => Self::F32,
             ArrowDataType::Float64 => Self::F64,
             ArrowDataType::Timestamp(unit, tz) => Self::Time((*unit).into(), tz.as_deref()),
-            ArrowDataType::Date32 => todo!(),
-            ArrowDataType::Date64 => todo!(),
-            ArrowDataType::Time32(_) => todo!(),
-            ArrowDataType::Time64(_) => todo!(),
-            ArrowDataType::Duration(_) => todo!(),
-            ArrowDataType::Interval(_) => todo!(),
+            ArrowDataType::Date32 => unimplemented!(),
+            ArrowDataType::Date64 => unimplemented!(),
+            ArrowDataType::Time32(_) => unimplemented!(),
+            ArrowDataType::Time64(_) => unimplemented!(),
+            ArrowDataType::Duration(_) => unimplemented!(),
+            ArrowDataType::Interval(_) => unimplemented!(),
             ArrowDataType::Binary => Self::Bin,
-            ArrowDataType::FixedSizeBinary(_) => todo!(),
+            ArrowDataType::FixedSizeBinary(_) => unimplemented!(),
             ArrowDataType::LargeBinary => Self::BigBin,
             ArrowDataType::BinaryView => Self::BinView,
             ArrowDataType::Utf8 => Self::Str,
             ArrowDataType::LargeUtf8 => Self::BigStr,
             ArrowDataType::Utf8View => Self::StrView,
-            ArrowDataType::List(_) => todo!(),
-            ArrowDataType::ListView(_) => todo!(),
-            ArrowDataType::FixedSizeList(_, _) => todo!(),
-            ArrowDataType::LargeList(_) => todo!(),
-            ArrowDataType::LargeListView(_) => todo!(),
-            ArrowDataType::Struct(_) => todo!(),
-            ArrowDataType::Union(_, _) => todo!(),
+            ArrowDataType::List(_) => unimplemented!(),
+            ArrowDataType::ListView(_) => unimplemented!(),
+            ArrowDataType::FixedSizeList(_, _) => unimplemented!(),
+            ArrowDataType::LargeList(_) => unimplemented!(),
+            ArrowDataType::LargeListView(_) => unimplemented!(),
+            ArrowDataType::Struct(_) => unimplemented!(),
+            ArrowDataType::Union(_, _) => unimplemented!(),
             ArrowDataType::Dictionary(key_type, val_type) => Self::Dict(
                 Box::new(key_type.as_ref().into()),
                 Box::new(val_type.as_ref().into()),
             ),
-            ArrowDataType::Decimal128(_, _) => todo!(),
-            ArrowDataType::Decimal256(_, _) => todo!(),
-            ArrowDataType::Map(_, _) => todo!(),
-            ArrowDataType::RunEndEncoded(_, _) => todo!(),
+            ArrowDataType::Decimal128(_, _) => unimplemented!(),
+            ArrowDataType::Decimal256(_, _) => unimplemented!(),
+            ArrowDataType::Map(_, _) => unimplemented!(),
+            ArrowDataType::RunEndEncoded(_, _) => unimplemented!(),
         }
     }
 }
 
 impl<'a> From<TableSnapshot<'a>> for TableDefinition {
     fn from(snap: TableSnapshot<'a>) -> Self {
-        let name = snap.name.to_owned();
+        let name = snap.name.into();
         let mut b = SchemaBuilder::new();
-        b.measurement(&name);
+        b.measurement(snap.name.to_string());
         if let Some(keys) = snap.key {
             b.with_series_key(keys);
         }

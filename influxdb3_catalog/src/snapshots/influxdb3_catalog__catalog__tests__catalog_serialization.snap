@@ -1,5 +1,6 @@
 ---
-source: influxdb3_write/src/catalog.rs
+source: influxdb3_catalog/src/catalog.rs
+assertion_line: 710
 expression: catalog
 ---
 {
@@ -150,5 +151,5 @@ expression: catalog
       }
     }
   },
-  "sequence": 1
+  "sequence": 0
 }

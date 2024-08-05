@@ -1,0 +1,30 @@
+[package]
+name = "influxdb3_wal"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Core crates
+data_types.workspace = true
+influxdb-line-protocol.workspace = true
+observability_deps.workspace = true
+schema.workspace =  true
+
+# crates.io dependencies
+async-trait.workspace = true
+bytes.workspace = true
+byteorder.workspace = true
+crc32fast.workspace  = true
+futures-util.workspace = true
+hashbrown.workspace = true
+object_store.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

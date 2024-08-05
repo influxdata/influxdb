@@ -92,6 +92,7 @@ impl TestServer {
             .arg("serve")
             .args(["--http-bind", &bind_addr.to_string()])
             .args(["--object-store", "memory"])
+            .args(["--wal-flush-interval", "10ms"])
             .args(config.as_args());
 
         // If TEST_LOG env var is not defined, discard stdout/stderr

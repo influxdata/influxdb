@@ -1,21 +1,20 @@
 use influxdb3_write::persister::PersisterImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
-use influxdb3_write::Wal;
 use iox_time::TimeProvider;
 use std::sync::Arc;
 use tokio::time::sleep;
 use tokio::time::Duration;
 
 #[derive(Debug)]
-pub struct Compactor<W, T> {
+pub struct Compactor<T> {
     #[allow(dead_code)]
-    write_buffer: Arc<WriteBufferImpl<W, T>>,
+    write_buffer: Arc<WriteBufferImpl<T>>,
     #[allow(dead_code)]
     persister: Arc<PersisterImpl>,
 }
 
-impl<W: Wal, T: TimeProvider> Compactor<W, T> {
-    pub fn new(write_buffer: Arc<WriteBufferImpl<W, T>>, persister: Arc<PersisterImpl>) -> Self {
+impl<T: TimeProvider> Compactor<T> {
+    pub fn new(write_buffer: Arc<WriteBufferImpl<T>>, persister: Arc<PersisterImpl>) -> Self {
         Self {
             write_buffer,
             persister,
