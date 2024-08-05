@@ -1,21 +1,27 @@
 # Configuration documentation:
-#   https://embarkstudios.github.io/cargo-deny/index.html
+#   https://embarkstudios.github.io/cargo-deny/index.html
 
 [advisories]
-vulnerability = "deny"
+version = 2
 yanked = "deny"
-unmaintained = "warn"
-notice = "warn"
-ignore = [
-]
+ignore = []
 git-fetch-with-cli = true
 
 [licenses]
-allow-osi-fsf-free = "either"
-copyleft = "deny"
-unlicensed = "deny"
-default = "deny"
-
+version = 2
+unused-allowed-license = "warn"
+allow = [
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSD-4-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "OpenSSL",
+    "Unicode-DFS-2016",
+]
 exceptions = [
     # We should probably NOT bundle CA certs but use the OS ones.
     { name = "webpki-roots", allow = ["MPL-2.0"] },
@@ -30,13 +36,13 @@ license-files = [
 ]
 
 [sources.allow-org]
-github = ["influxdata", "apache"]
+github = ["influxdata"]
 
 [bans]
-multiple-versions = "warn"
+multiple-versions = "allow"
 deny = [
-    # We are using rustls as the TLS implementation, so we shouldn't be linking
-    # in OpenSSL too.
+    # We are using rustls as the TLS implementation, so we shouldn't be linking
+    # in OpenSSL too.
     #
     # If you're hitting this, you might want to take a look at what new
     # dependencies you have introduced and check if there's a way to depend on
@@ -45,4 +51,6 @@ deny = [
     # We've decided to use the `humantime` crate to parse and generate friendly time formats; use
     # that rather than chrono-english.
     { name = "chrono-english" },
+    # Use stdlib ( https://doc.rust-lang.org/stable/std/io/trait.IsTerminal.html )
+    { name = "atty" },
 ]

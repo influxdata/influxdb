@@ -20,11 +20,9 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_write::last_cache::LastCacheFunction;
-use influxdb3_write::{
-    catalog::{Catalog, DatabaseSchema},
-    WriteBuffer,
-};
+use influxdb3_write::WriteBuffer;
 use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
 use iox_query::frontend::sql::SqlQueryPlanner;
 use iox_query::provider::ProviderBuilder;
@@ -347,7 +345,7 @@ impl<B: WriteBuffer> Database<B> {
         query_log: Arc<QueryLog>,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
-            &db_schema.name,
+            db_schema.name.to_string(),
             write_buffer.catalog(),
             Arc::clone(&query_log),
             write_buffer.last_cache_provider(),
@@ -447,7 +445,7 @@ impl<B: WriteBuffer> QueryNamespace for Database<B> {
         ctx.inner().register_udtf(
             LAST_CACHE_UDTF_NAME,
             Arc::new(LastCacheFunction::new(
-                &self.db_schema.name,
+                self.db_schema.name.to_string(),
                 self.write_buffer.last_cache_provider(),
             )),
         );
@@ -484,7 +482,11 @@ impl<B: WriteBuffer> SchemaProvider for Database<B> {
     }
 
     fn table_names(&self) -> Vec<String> {
-        self.db_schema.table_names()
+        self.db_schema
+            .table_names()
+            .iter()
+            .map(|t| t.to_string())
+            .collect()
     }
 
     async fn table(&self, name: &str) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {

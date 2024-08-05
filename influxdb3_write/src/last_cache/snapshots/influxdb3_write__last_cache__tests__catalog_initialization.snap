@@ -4,7 +4,7 @@ expression: caches
 ---
 [
   {
-    "table": "test_table",
+    "table": "test_table_1",
     "name": "test_cache_1",
     "key_columns": [
       "t1",

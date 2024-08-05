@@ -3,7 +3,8 @@ use std::{any::Any, collections::HashMap, sync::Arc};
 use datafusion::{
     catalog::schema::SchemaProvider, datasource::TableProvider, error::DataFusionError,
 };
-use influxdb3_write::{catalog::Catalog, last_cache::LastCacheProvider};
+use influxdb3_catalog::catalog::Catalog;
+use influxdb3_write::last_cache::LastCacheProvider;
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
 use tonic::async_trait;
