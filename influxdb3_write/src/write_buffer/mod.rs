@@ -793,6 +793,139 @@ mod tests {
         );
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn returns_chunks_across_parquet_and_buffered_data() {
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let level_0_duration = Level0Duration::new_5m();
+        let write_buffer = WriteBufferImpl::new(
+            Arc::clone(&persister),
+            Arc::clone(&time_provider),
+            level_0_duration,
+            crate::test_help::make_exec(),
+            WalConfig {
+                level_0_duration: Duration::from_secs(60),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 2,
+            },
+        )
+        .await
+        .unwrap();
+        let session_context = IOxSessionContext::with_testing();
+        let runtime_env = session_context.inner().runtime_env();
+        register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&object_store));
+
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=1",
+                Time::from_timestamp(10, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        let expected = [
+            "+-----+----------------------+",
+            "| bar | time                 |",
+            "+-----+----------------------+",
+            "| 1.0 | 1970-01-01T00:00:10Z |",
+            "+-----+----------------------+",
+        ];
+        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        assert_batches_eq!(&expected, &actual);
+
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=2",
+                Time::from_timestamp(65, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        let expected = [
+            "+-----+----------------------+",
+            "| bar | time                 |",
+            "+-----+----------------------+",
+            "| 1.0 | 1970-01-01T00:00:10Z |",
+            "| 2.0 | 1970-01-01T00:01:05Z |",
+            "+-----+----------------------+",
+        ];
+        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        assert_batches_eq!(&expected, &actual);
+
+        // trigger snapshot with a third write, creating parquet files
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=3",
+                Time::from_timestamp(147, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        // give the snapshot some time to persist in the background
+        let mut ticks = 0;
+        loop {
+            ticks += 1;
+            let persisted = persister.load_snapshots(1000).await.unwrap();
+            if !persisted.is_empty() {
+                assert_eq!(persisted.len(), 1);
+                assert_eq!(persisted[0].min_time, 10000000000);
+                assert_eq!(persisted[0].row_count, 3);
+                break;
+            } else if ticks > 10 {
+                panic!("not persisting");
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        let expected = [
+            "+-----+----------------------+",
+            "| bar | time                 |",
+            "+-----+----------------------+",
+            "| 1.0 | 1970-01-01T00:00:10Z |",
+            "| 2.0 | 1970-01-01T00:01:05Z |",
+            "| 3.0 | 1970-01-01T00:02:27Z |",
+            "+-----+----------------------+",
+        ];
+        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        assert_batches_eq!(&expected, &actual);
+
+        // now validate that buffered data and parquet data are all returned
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=4",
+                Time::from_timestamp(250, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        let expected = [
+            "+-----+----------------------+",
+            "| bar | time                 |",
+            "+-----+----------------------+",
+            "| 4.0 | 1970-01-01T00:04:10Z |",
+            "| 1.0 | 1970-01-01T00:00:10Z |",
+            "| 2.0 | 1970-01-01T00:01:05Z |",
+            "| 3.0 | 1970-01-01T00:02:27Z |",
+            "+-----+----------------------+",
+        ];
+        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        assert_batches_eq!(&expected, &actual);
+    }
+
     async fn fetch_catalog_as_json(object_store: Arc<dyn ObjectStore>) -> serde_json::Value {
         let mut list = object_store.list(Some(&CatalogFilePath::dir()));
         let Some(item) = list.next().await else {

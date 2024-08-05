@@ -2,11 +2,9 @@ use crate::chunk::BufferChunk;
 use crate::last_cache::LastCacheProvider;
 use crate::paths::ParquetFilePath;
 use crate::persister::PersisterImpl;
-use crate::write_buffer::parquet_chunk_from_file;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
 use crate::{persister, write_buffer, ParquetFile, PersistedSnapshot, Persister};
-use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::{
@@ -68,7 +66,7 @@ impl QueryableBuffer {
         db_schema: Arc<DatabaseSchema>,
         table_name: &str,
         filters: &[Expr],
-        projection: Option<&Vec<usize>>,
+        _projection: Option<&Vec<usize>>,
         _ctx: &SessionState,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         let table = db_schema
@@ -76,30 +74,10 @@ impl QueryableBuffer {
             .get(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
 
-        let arrow_schema: SchemaRef = match projection {
-            Some(projection) => Arc::new(table.schema.as_arrow().project(projection).unwrap()),
-            None => table.schema.as_arrow(),
-        };
-
-        let schema = schema::Schema::try_from(Arc::clone(&arrow_schema))
-            .map_err(|e| DataFusionError::Execution(format!("schema error {}", e)))?;
+        let schema = table.schema.clone();
+        let arrow_schema = schema.as_arrow();
 
         let mut chunks: Vec<Arc<dyn QueryChunk>> = vec![];
-
-        for parquet_file in self.persisted_files.get_files(&db_schema.name, table_name) {
-            let parquet_chunk = parquet_chunk_from_file(
-                &parquet_file,
-                &schema,
-                self.persister.object_store_url(),
-                self.persister.object_store(),
-                chunks
-                    .len()
-                    .try_into()
-                    .expect("should never have this many chunks"),
-            );
-
-            chunks.push(Arc::new(parquet_chunk));
-        }
 
         let buffer = self.buffer.read();
 
@@ -172,6 +150,10 @@ impl QueryableBuffer {
         write: WalContents,
         snapshot_details: SnapshotDetails,
     ) -> Receiver<SnapshotDetails> {
+        info!(
+            ?snapshot_details,
+            "Buffering contents and persisting snapshotted data"
+        );
         let persist_jobs = {
             let mut buffer = self.buffer.write();
 
@@ -241,6 +223,10 @@ impl QueryableBuffer {
                 }
             }
 
+            info!(
+                "catalog persisted, persisting {} chunks",
+                persist_jobs.len()
+            );
             // persist the individual files, building the snapshot as we go
             let mut persisted_snapshot = PersistedSnapshot::new(wal_file_number);
             for persist_job in persist_jobs {
@@ -392,6 +378,14 @@ where
     // Dedupe and sort using the COMPACT query built into
     // iox_query
     let row_count = persist_job.batch.num_rows();
+    info!(
+        "Persisting {} rows for db {} and table {} and chunk {} to file {}",
+        row_count,
+        persist_job.database_name,
+        persist_job.table_name,
+        persist_job.chunk_time,
+        persist_job.path.to_string()
+    );
 
     let chunk_stats = create_chunk_statistics(
         Some(row_count),
