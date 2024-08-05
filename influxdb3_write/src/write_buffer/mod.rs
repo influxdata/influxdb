@@ -717,19 +717,18 @@ mod tests {
         )
         .await
         .unwrap();
-        // Advance time to allow for persistence of segment data:
-        wbuf.time_provider
-            .set(Time::from_timestamp(800, 0).unwrap());
-        let mut count = 0;
-        loop {
-            count += 1;
-            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-            if !wbuf.persisted_files.get_files(db_name, tbl_name).is_empty() {
-                break;
-            } else if count > 9 {
-                panic!("not persisting");
-            }
-        }
+
+        // do another write, which will force a snapshot of the WAL and thus the persistence of
+        // the catalog
+        wbuf.write_lp(
+            NamespaceName::new(db_name).unwrap(),
+            format!("{tbl_name},t1=b f1=false").as_str(),
+            Time::from_timestamp(40, 0).unwrap(),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
         // Check the catalog again, to make sure it still has the last cache with the correct
         // configuration:
         let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
