@@ -684,7 +684,16 @@ mod tests {
 
     #[tokio::test]
     async fn persists_catalog_on_last_cache_create_and_delete() {
-        let (wbuf, _ctx) = setup(Time::from_timestamp_nanos(0)).await;
+        let (wbuf, _ctx) = setup(
+            Time::from_timestamp_nanos(0),
+            WalConfig {
+                level_0_duration: Duration::from_secs(300),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+        )
+        .await;
         let db_name = "db";
         let tbl_name = "table";
         let cache_name = "cache";
@@ -795,15 +804,8 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn returns_chunks_across_parquet_and_buffered_data() {
-        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let level_0_duration = Level0Duration::new_5m();
-        let write_buffer = WriteBufferImpl::new(
-            Arc::clone(&persister),
-            Arc::clone(&time_provider),
-            level_0_duration,
-            crate::test_help::make_exec(),
+        let (write_buffer, session_context) = setup(
+            Time::from_timestamp_nanos(0),
             WalConfig {
                 level_0_duration: Duration::from_secs(60),
                 max_write_buffer_size: 100,
@@ -811,11 +813,7 @@ mod tests {
                 snapshot_size: 2,
             },
         )
-        .await
-        .unwrap();
-        let session_context = IOxSessionContext::with_testing();
-        let runtime_env = session_context.inner().runtime_env();
-        register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&object_store));
+        .await;
 
         let _ = write_buffer
             .write_lp(
@@ -876,7 +874,7 @@ mod tests {
         let mut ticks = 0;
         loop {
             ticks += 1;
-            let persisted = persister.load_snapshots(1000).await.unwrap();
+            let persisted = write_buffer.persister.load_snapshots(1000).await.unwrap();
             if !persisted.is_empty() {
                 assert_eq!(persisted.len(), 1);
                 assert_eq!(persisted[0].min_time, 10000000000);
@@ -942,7 +940,10 @@ mod tests {
         .expect("parse bytes as JSON")
     }
 
-    async fn setup(start: Time) -> (WriteBufferImpl<MockProvider>, IOxSessionContext) {
+    async fn setup(
+        start: Time,
+        wal_config: WalConfig,
+    ) -> (WriteBufferImpl<MockProvider>, IOxSessionContext) {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
         let time_provider = Arc::new(MockProvider::new(start));
@@ -951,12 +952,7 @@ mod tests {
             Arc::clone(&time_provider),
             Level0Duration::new_5m(),
             crate::test_help::make_exec(),
-            WalConfig {
-                level_0_duration: Duration::from_secs(300),
-                max_write_buffer_size: 100,
-                flush_interval: Duration::from_millis(10),
-                snapshot_size: 1,
-            },
+            wal_config,
         )
         .await
         .unwrap();
