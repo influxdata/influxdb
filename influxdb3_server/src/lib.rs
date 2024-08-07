@@ -784,7 +784,7 @@ mod tests {
         );
         let query_executor = crate::query_executor::QueryExecutorImpl::new(
             write_buffer.catalog(),
-            Arc::clone(&write_buffer),
+            Arc::<WriteBufferImpl<MockProvider>>::clone(&write_buffer),
             Arc::clone(&exec),
             Arc::clone(&metrics),
             Arc::new(HashMap::new()),

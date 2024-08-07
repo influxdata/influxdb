@@ -462,8 +462,8 @@ impl<T: TimeProvider> Bufferer for WriteBufferImpl<T> {
         self.catalog()
     }
 
-    fn queryable_buffer(&self) -> Arc<QueryableBuffer> {
-        Arc::clone(&self.buffer)
+    fn parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
+        self.buffer.persisted_parquet_files(db_name, table_name)
     }
 }
 
@@ -796,7 +796,8 @@ mod tests {
         loop {
             count += 1;
             tokio::time::sleep(Duration::from_millis(10)).await;
-            if !wbuf.persisted_files.get_files(db_name, tbl_name).is_empty() {
+            let files = wbuf.persisted_files.get_files(db_name, tbl_name);
+            if !files.is_empty() {
                 break;
             } else if count > 9 {
                 panic!("not persisting");

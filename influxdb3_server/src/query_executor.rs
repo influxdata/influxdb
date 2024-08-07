@@ -49,19 +49,19 @@ use tracker::{
 };
 
 #[derive(Debug)]
-pub struct QueryExecutorImpl<W> {
+pub struct QueryExecutorImpl {
     catalog: Arc<Catalog>,
-    write_buffer: Arc<W>,
+    write_buffer: Arc<dyn WriteBuffer>,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
     query_log: Arc<QueryLog>,
 }
 
-impl<W: WriteBuffer> QueryExecutorImpl<W> {
+impl QueryExecutorImpl {
     pub fn new(
         catalog: Arc<Catalog>,
-        write_buffer: Arc<W>,
+        write_buffer: Arc<dyn WriteBuffer>,
         exec: Arc<Executor>,
         metrics: Arc<Registry>,
         datafusion_config: Arc<HashMap<String, String>>,
@@ -90,7 +90,7 @@ impl<W: WriteBuffer> QueryExecutorImpl<W> {
 }
 
 #[async_trait]
-impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
+impl QueryExecutor for QueryExecutorImpl {
     type Error = Error;
 
     async fn query(
@@ -289,7 +289,7 @@ pub enum Error {
 
 // This implementation is for the Flight service
 #[async_trait]
-impl<W: WriteBuffer> QueryDatabase for QueryExecutorImpl<W> {
+impl QueryDatabase for QueryExecutorImpl {
     async fn namespace(
         &self,
         name: &str,
@@ -307,7 +307,7 @@ impl<W: WriteBuffer> QueryDatabase for QueryExecutorImpl<W> {
 
         Ok(Some(Arc::new(Database::new(
             db_schema,
-            Arc::clone(&self.write_buffer) as _,
+            Arc::clone(&self.write_buffer),
             Arc::clone(&self.exec),
             Arc::clone(&self.datafusion_config),
             Arc::clone(&self.query_log),
@@ -327,19 +327,19 @@ impl<W: WriteBuffer> QueryDatabase for QueryExecutorImpl<W> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Database<B> {
+pub struct Database {
     db_schema: Arc<DatabaseSchema>,
-    write_buffer: Arc<B>,
+    write_buffer: Arc<dyn WriteBuffer>,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
     query_log: Arc<QueryLog>,
     system_schema_provider: Arc<SystemSchemaProvider>,
 }
 
-impl<B: WriteBuffer> Database<B> {
+impl Database {
     pub fn new(
         db_schema: Arc<DatabaseSchema>,
-        write_buffer: Arc<B>,
+        write_buffer: Arc<dyn WriteBuffer>,
         exec: Arc<Executor>,
         datafusion_config: Arc<HashMap<String, String>>,
         query_log: Arc<QueryLog>,
@@ -347,8 +347,7 @@ impl<B: WriteBuffer> Database<B> {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
             Arc::clone(&db_schema.name),
             Arc::clone(&query_log),
-            write_buffer.last_cache_provider(),
-            write_buffer.queryable_buffer(),
+            Arc::clone(&write_buffer),
         ));
         Self {
             db_schema,
@@ -371,7 +370,7 @@ impl<B: WriteBuffer> Database<B> {
         }
     }
 
-    async fn query_table(&self, table_name: &str) -> Option<Arc<QueryTable<B>>> {
+    async fn query_table(&self, table_name: &str) -> Option<Arc<QueryTable>> {
         self.db_schema.get_table_schema(table_name).map(|schema| {
             Arc::new(QueryTable {
                 db_schema: Arc::clone(&self.db_schema),
@@ -384,7 +383,7 @@ impl<B: WriteBuffer> Database<B> {
 }
 
 #[async_trait]
-impl<B: WriteBuffer> QueryNamespace for Database<B> {
+impl QueryNamespace for Database {
     async fn chunks(
         &self,
         table_name: &str,
@@ -455,7 +454,7 @@ impl<B: WriteBuffer> QueryNamespace for Database<B> {
 
 const LAST_CACHE_UDTF_NAME: &str = "last_cache";
 
-impl<B: WriteBuffer> CatalogProvider for Database<B> {
+impl CatalogProvider for Database {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -476,7 +475,7 @@ impl<B: WriteBuffer> CatalogProvider for Database<B> {
 }
 
 #[async_trait]
-impl<B: WriteBuffer> SchemaProvider for Database<B> {
+impl SchemaProvider for Database {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -499,14 +498,14 @@ impl<B: WriteBuffer> SchemaProvider for Database<B> {
 }
 
 #[derive(Debug)]
-pub struct QueryTable<B> {
+pub struct QueryTable {
     db_schema: Arc<DatabaseSchema>,
     name: Arc<str>,
     schema: Schema,
-    write_buffer: Arc<B>,
+    write_buffer: Arc<dyn WriteBuffer>,
 }
 
-impl<B: WriteBuffer> QueryTable<B> {
+impl QueryTable {
     fn chunks(
         &self,
         ctx: &SessionState,
@@ -525,7 +524,7 @@ impl<B: WriteBuffer> QueryTable<B> {
 }
 
 #[async_trait]
-impl<B: WriteBuffer> TableProvider for QueryTable<B> {
+impl TableProvider for QueryTable {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -620,11 +619,7 @@ mod tests {
 
     type TestWriteBuffer = WriteBufferImpl<MockProvider>;
 
-    async fn setup() -> (
-        Arc<TestWriteBuffer>,
-        QueryExecutorImpl<TestWriteBuffer>,
-        Arc<MockProvider>,
-    ) {
+    async fn setup() -> (Arc<TestWriteBuffer>, QueryExecutorImpl, Arc<MockProvider>) {
         // Set up QueryExecutor
         let object_store =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
@@ -639,7 +634,7 @@ mod tests {
                 level_0_duration,
                 Arc::clone(&executor),
                 WalConfig {
-                    level_0_duration: Duration::from_millis(100),
+                    level_0_duration: Duration::from_secs(60),
                     max_write_buffer_size: 100,
                     flush_interval: Duration::from_millis(10),
                     snapshot_size: 1,
@@ -652,7 +647,7 @@ mod tests {
         let df_config = Arc::new(Default::default());
         let query_executor = QueryExecutorImpl::new(
             write_buffer.catalog(),
-            Arc::clone(&write_buffer),
+            Arc::<WriteBufferImpl<MockProvider>>::clone(&write_buffer),
             executor,
             metrics,
             df_config,

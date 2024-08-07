@@ -310,7 +310,7 @@ pub async fn command(config: Config) -> Result<()> {
     );
     let query_executor = Arc::new(QueryExecutorImpl::new(
         write_buffer.catalog(),
-        Arc::clone(&write_buffer),
+        Arc::<WriteBufferImpl<SystemProvider>>::clone(&write_buffer),
         Arc::clone(&exec),
         Arc::clone(&metrics),
         Arc::new(config.datafusion_config),

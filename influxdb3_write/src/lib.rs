@@ -35,7 +35,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
-use write_buffer::queryable_buffer::QueryableBuffer;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -86,8 +85,8 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
     /// Returns the catalog
     fn catalog(&self) -> Arc<catalog::Catalog>;
 
-    /// Returns the queryable buffer
-    fn queryable_buffer(&self) -> Arc<QueryableBuffer>;
+    /// Returns the parquet files for a given database and table
+    fn parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile>;
 }
 
 /// ChunkContainer is used by the query engine to get chunks for a given table. Chunks will generally be in the
