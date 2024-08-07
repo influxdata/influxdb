@@ -125,6 +125,9 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
                 .unwrap_or_else(Catalog::new),
         );
         let persisted_snapshots = persister.load_snapshots(1000).await?;
+        let last_snapshot_wal_sequence = persisted_snapshots
+            .first()
+            .map(|s| s.wal_file_sequence_number);
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
             persisted_snapshots,
         ));
@@ -142,6 +145,7 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
             persister.object_store(),
             Arc::clone(&queryable_buffer) as Arc<dyn WalFileNotifier>,
             wal_config,
+            last_snapshot_wal_sequence,
         )
         .await?;
 
@@ -862,7 +866,7 @@ mod tests {
         let _ = write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
-                "cpu bar=3",
+                "cpu bar=3 147000000000",
                 Time::from_timestamp(147, 0).unwrap(),
                 false,
                 Precision::Nanosecond,
@@ -878,7 +882,7 @@ mod tests {
             if !persisted.is_empty() {
                 assert_eq!(persisted.len(), 1);
                 assert_eq!(persisted[0].min_time, 10000000000);
-                assert_eq!(persisted[0].row_count, 3);
+                assert_eq!(persisted[0].row_count, 2);
                 break;
             } else if ticks > 10 {
                 panic!("not persisting");
@@ -890,9 +894,9 @@ mod tests {
             "+-----+----------------------+",
             "| bar | time                 |",
             "+-----+----------------------+",
+            "| 3.0 | 1970-01-01T00:02:27Z |",
             "| 1.0 | 1970-01-01T00:00:10Z |",
             "| 2.0 | 1970-01-01T00:01:05Z |",
-            "| 3.0 | 1970-01-01T00:02:27Z |",
             "+-----+----------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
@@ -914,13 +918,82 @@ mod tests {
             "+-----+----------------------+",
             "| bar | time                 |",
             "+-----+----------------------+",
+            "| 3.0 | 1970-01-01T00:02:27Z |",
             "| 4.0 | 1970-01-01T00:04:10Z |",
             "| 1.0 | 1970-01-01T00:00:10Z |",
             "| 2.0 | 1970-01-01T00:01:05Z |",
-            "| 3.0 | 1970-01-01T00:02:27Z |",
             "+-----+----------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        assert_batches_eq!(&expected, &actual);
+
+        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        assert_batches_eq!(&expected, &actual);
+
+        // and now replay in a new write buffer and attempt to write
+        let write_buffer = WriteBufferImpl::new(
+            Arc::clone(&write_buffer.persister),
+            Arc::clone(&write_buffer.time_provider),
+            write_buffer.level_0_duration,
+            Arc::clone(&write_buffer.buffer.executor),
+            WalConfig {
+                level_0_duration: Duration::from_secs(60),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 2,
+            },
+        )
+        .await
+        .unwrap();
+        let ctx = IOxSessionContext::with_testing();
+        let runtime_env = ctx.inner().runtime_env();
+        register_iox_object_store(
+            runtime_env,
+            "influxdb3",
+            write_buffer.persister.object_store(),
+        );
+
+        // verify the data is still there
+        let actual = get_table_batches(&write_buffer, "foo", "cpu", &ctx).await;
+        assert_batches_eq!(&expected, &actual);
+
+        // now write some new data
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=5",
+                Time::from_timestamp(300, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        // and write more to force another snapshot
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=6",
+                Time::from_timestamp(330, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        let expected = [
+            "+-----+----------------------+",
+            "| bar | time                 |",
+            "+-----+----------------------+",
+            "| 5.0 | 1970-01-01T00:05:00Z |",
+            "| 6.0 | 1970-01-01T00:05:30Z |",
+            "| 1.0 | 1970-01-01T00:00:10Z |",
+            "| 2.0 | 1970-01-01T00:01:05Z |",
+            "| 3.0 | 1970-01-01T00:02:27Z |",
+            "| 4.0 | 1970-01-01T00:04:10Z |",
+            "+-----+----------------------+",
+        ];
+        let actual = get_table_batches(&write_buffer, "foo", "cpu", &ctx).await;
         assert_batches_eq!(&expected, &actual);
     }
 

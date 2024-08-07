@@ -34,7 +34,7 @@ use tokio::sync::oneshot::Receiver;
 
 #[derive(Debug)]
 pub(crate) struct QueryableBuffer {
-    executor: Arc<Executor>,
+    pub(crate) executor: Arc<Executor>,
     catalog: Arc<Catalog>,
     last_cache_provider: Arc<LastCacheProvider>,
     persister: Arc<PersisterImpl>,
@@ -157,16 +157,6 @@ impl QueryableBuffer {
         let persist_jobs = {
             let mut buffer = self.buffer.write();
 
-            for op in write.ops {
-                match op {
-                    WalOp::Write(write_batch) => buffer.add_write_batch(write_batch),
-                    WalOp::Catalog(catalog_batch) => buffer
-                        .catalog
-                        .apply_catalog_batch(&catalog_batch)
-                        .expect("catalog batch should apply"),
-                }
-            }
-
             let mut persisting_chunks = vec![];
             for (database_name, table_map) in buffer.db_to_table.iter_mut() {
                 for (table_name, table_buffer) in table_map.iter_mut() {
@@ -191,6 +181,18 @@ impl QueryableBuffer {
 
                         persisting_chunks.push(persist_job);
                     }
+                }
+            }
+
+            // we must buffer the ops after the snapshotting as this data should not be persisted
+            // with this set of wal files
+            for op in write.ops {
+                match op {
+                    WalOp::Write(write_batch) => buffer.add_write_batch(write_batch),
+                    WalOp::Catalog(catalog_batch) => buffer
+                        .catalog
+                        .apply_catalog_batch(&catalog_batch)
+                        .expect("catalog batch should apply"),
                 }
             }
 

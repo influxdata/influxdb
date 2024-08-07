@@ -31,9 +31,15 @@ impl WalObjectStore {
         object_store: Arc<dyn ObjectStore>,
         file_notifier: Arc<dyn WalFileNotifier>,
         config: WalConfig,
+        last_snapshot_wal_sequence: Option<WalFileSequenceNumber>,
     ) -> Result<Arc<Self>, crate::Error> {
         let flush_interval = config.flush_interval;
-        let wal = Self::new_without_replay(object_store, file_notifier, config);
+        let wal = Self::new_without_replay(
+            object_store,
+            file_notifier,
+            config,
+            last_snapshot_wal_sequence,
+        );
 
         wal.replay().await?;
         let wal = Arc::new(wal);
@@ -46,14 +52,16 @@ impl WalObjectStore {
         object_store: Arc<dyn ObjectStore>,
         file_notifier: Arc<dyn WalFileNotifier>,
         config: WalConfig,
+        last_snapshot_wal_sequence: Option<WalFileSequenceNumber>,
     ) -> Self {
+        let wal_file_sequence_number = last_snapshot_wal_sequence.unwrap_or_default().next();
         Self {
             object_store,
             file_notifier,
             flush_buffer: Mutex::new(FlushBuffer::new(
                 WalBuffer {
                     is_shutdown: false,
-                    wal_file_sequence_number: Default::default(),
+                    wal_file_sequence_number,
                     op_limit: config.max_write_buffer_size,
                     op_count: 0,
                     database_to_write_batch: Default::default(),
@@ -79,8 +87,7 @@ impl WalObjectStore {
             self.flush_buffer
                 .lock()
                 .await
-                .snapshot_tracker
-                .add_wal_period(WalPeriod::new(
+                .replay_wal_period(WalPeriod::new(
                     wal_contents.wal_file_number,
                     Timestamp::new(wal_contents.min_timestamp_ns),
                     Timestamp::new(wal_contents.max_timestamp_ns),
@@ -368,6 +375,11 @@ impl FlushBuffer {
         }
     }
 
+    fn replay_wal_period(&mut self, wal_period: WalPeriod) {
+        self.wal_buffer.wal_file_sequence_number = wal_period.wal_file_number.next();
+        self.snapshot_tracker.add_wal_period(wal_period);
+    }
+
     /// Converts the wal_buffer into contents and resets it. Returns the channels waiting for
     /// responses. If a snapshot should occur with this flush, a semaphore permit is also returned.
     async fn flush_buffer_into_contents_and_responses(
@@ -564,6 +576,7 @@ mod tests {
             Arc::clone(&object_store),
             Arc::clone(&notifier),
             wal_config,
+            None,
         );
 
         let db_name: Arc<str> = "db1".into();
@@ -768,6 +781,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
             },
+            None,
         );
         assert_eq!(
             replay_wal.load_existing_wal_file_paths().await.unwrap(),
@@ -905,6 +919,7 @@ mod tests {
             object_store,
             Arc::clone(&replay_notifier),
             wal_config,
+            None,
         );
         assert_eq!(
             replay_wal.load_existing_wal_file_paths().await.unwrap(),
@@ -935,6 +950,7 @@ mod tests {
             Arc::clone(&object_store),
             Arc::clone(&notifier),
             wal_config,
+            None,
         );
 
         assert!(wal.flush_buffer().await.is_none());
