@@ -199,7 +199,8 @@ pub struct Config {
     )]
     pub buffer_mem_limit_mb: usize,
 
-    /// The host idendifier used as a prefix in all object store file paths.
+    /// The host idendifier used as a prefix in all object store file paths. This should be unique
+    /// for any hosts that share the same object store configuration, i.e., the same bucket.
     #[clap(long = "host-id", env = "INFLUXDB3_HOST_IDENTIFIER_PREFIX", action)]
     pub host_identifier_prefix: String,
 }
