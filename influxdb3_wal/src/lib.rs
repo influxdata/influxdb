@@ -388,7 +388,9 @@ impl WalContents {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct WalFileSequenceNumber(u64);
 
 impl WalFileSequenceNumber {
@@ -402,12 +404,6 @@ impl WalFileSequenceNumber {
 
     pub fn get(&self) -> u64 {
         self.0
-    }
-}
-
-impl Default for WalFileSequenceNumber {
-    fn default() -> Self {
-        Self(1)
     }
 }
 
