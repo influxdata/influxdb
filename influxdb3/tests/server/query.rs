@@ -20,35 +20,39 @@ async fn api_v3_query_sql() {
         .await
         .unwrap();
 
-    let client = reqwest::Client::new();
+    let test_cases = [
+        TestCase {
+            database: Some("foo"),
+            query: "SELECT host, region, time, usage FROM cpu",
+            expected: "+------+---------+-------------------------------+-------+\n\
+            | host | region  | time                          | usage |\n\
+            +------+---------+-------------------------------+-------+\n\
+            | s1   | us-east | 1970-01-01T00:00:00.000000001 | 0.9   |\n\
+            | s1   | us-east | 1970-01-01T00:00:00.000000002 | 0.89  |\n\
+            | s1   | us-east | 1970-01-01T00:00:00.000000003 | 0.85  |\n\
+            +------+---------+-------------------------------+-------+",
+        },
+        TestCase {
+            database: Some("foo"),
+            query: "SELECT count(usage) FROM cpu",
+            expected: "+------------------+\n\
+            | count(cpu.usage) |\n\
+            +------------------+\n\
+            | 3                |\n\
+            +------------------+",
+        },
+    ];
 
-    let resp = client
-        .get(format!(
-            "{base}/api/v3/query_sql",
-            base = server.client_addr()
-        ))
-        .query(&[
-            ("db", "foo"),
-            ("q", "SELECT host, region, time, usage FROM cpu"),
-            ("format", "pretty"),
-        ])
-        .send()
-        .await
-        .unwrap()
-        .text()
-        .await
-        .unwrap();
-
-    assert_eq!(
-        "+------+---------+-------------------------------+-------+\n\
-        | host | region  | time                          | usage |\n\
-        +------+---------+-------------------------------+-------+\n\
-        | s1   | us-east | 1970-01-01T00:00:00.000000001 | 0.9   |\n\
-        | s1   | us-east | 1970-01-01T00:00:00.000000002 | 0.89  |\n\
-        | s1   | us-east | 1970-01-01T00:00:00.000000003 | 0.85  |\n\
-        +------+---------+-------------------------------+-------+",
-        resp,
-    );
+    for t in test_cases {
+        let mut params = vec![("q", t.query), ("format", "pretty")];
+        if let Some(db) = t.database {
+            params.push(("db", db))
+        }
+        let resp = server.api_v3_query_sql(&params).await.text().await.unwrap();
+        println!("\n{q}", q = t.query);
+        println!("{resp}");
+        assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
+    }
 }
 
 #[tokio::test]
@@ -202,12 +206,6 @@ async fn api_v3_query_influxql() {
         )
         .await
         .unwrap();
-
-    struct TestCase<'a> {
-        database: Option<&'a str>,
-        query: &'a str,
-        expected: &'a str,
-    }
 
     let test_cases = [
         TestCase {
@@ -388,6 +386,13 @@ async fn api_v3_query_influxql() {
         println!("{resp}");
         assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
     }
+}
+
+#[cfg(test)]
+struct TestCase<'a> {
+    database: Option<&'a str>,
+    query: &'a str,
+    expected: &'a str,
 }
 
 #[tokio::test]
