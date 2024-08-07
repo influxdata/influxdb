@@ -11,7 +11,7 @@ use data_types::TimestampMinMax;
 use datafusion::logical_expr::{BinaryExpr, Expr};
 use hashbrown::HashMap;
 use influxdb3_wal::{FieldData, Row};
-use observability_deps::tracing::{debug, error};
+use observability_deps::tracing::{debug, error, info};
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
 use std::collections::{BTreeMap, HashSet};
@@ -63,10 +63,6 @@ impl TableBuffer {
     }
 
     pub fn record_batches(&self, schema: SchemaRef, filter: &[Expr]) -> Result<Vec<RecordBatch>> {
-        println!(
-            "chunk time to chunks: {:?}",
-            self.chunk_time_to_chunks.keys().collect::<Vec<_>>()
-        );
         let mut batches =
             Vec::with_capacity(self.snapshotting_chunks.len() + self.chunk_time_to_chunks.len());
 
@@ -96,13 +92,16 @@ impl TableBuffer {
     }
 
     pub fn timestamp_min_max(&self) -> TimestampMinMax {
-        let (min, max) = self
-            .chunk_time_to_chunks
-            .values()
-            .map(|c| (c.timestamp_min, c.timestamp_max))
-            .fold((i64::MAX, i64::MIN), |(a_min, b_min), (a_max, b_max)| {
-                (a_min.min(b_min), a_max.max(b_max))
-            });
+        let (min, max) = if self.chunk_time_to_chunks.is_empty() {
+            (0, 0)
+        } else {
+            self.chunk_time_to_chunks
+                .values()
+                .map(|c| (c.timestamp_min, c.timestamp_max))
+                .fold((i64::MAX, i64::MIN), |(a_min, b_min), (a_max, b_max)| {
+                    (a_min.min(b_min), a_max.max(b_max))
+                })
+        };
         let mut timestamp_min_max = TimestampMinMax::new(min, max);
 
         for sc in &self.snapshotting_chunks {
@@ -129,6 +128,7 @@ impl TableBuffer {
     }
 
     pub fn snapshot(&mut self, older_than_chunk_time: i64) -> Vec<SnapshotChunk> {
+        info!(%older_than_chunk_time, "Snapshotting table buffer");
         let keys_to_remove = self
             .chunk_time_to_chunks
             .keys()
@@ -846,5 +846,13 @@ mod tests {
 
         let size = table_buffer.computed_size();
         assert_eq!(size, 18094);
+    }
+
+    #[test]
+    fn timestamp_min_max_works_when_empty() {
+        let table_buffer = TableBuffer::new(&["tag"], SortKey::empty());
+        let timestamp_min_max = table_buffer.timestamp_min_max();
+        assert_eq!(timestamp_min_max.min, 0);
+        assert_eq!(timestamp_min_max.max, 0);
     }
 }
