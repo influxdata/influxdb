@@ -19,6 +19,7 @@ use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
 #[derive(Debug)]
 pub struct WalObjectStore {
     object_store: Arc<dyn ObjectStore>,
+    host_identifier_prefix: String,
     file_notifier: Arc<dyn WalFileNotifier>,
     /// Buffered wal ops go in here along with the state to track when to snapshot
     flush_buffer: Mutex<FlushBuffer>,
@@ -29,11 +30,13 @@ impl WalObjectStore {
     /// exist in the WAL files that haven't been cleaned up yet.
     pub async fn new(
         object_store: Arc<dyn ObjectStore>,
+        host_identifier_prefix: impl Into<String> + Send,
         file_notifier: Arc<dyn WalFileNotifier>,
         config: WalConfig,
     ) -> Result<Arc<Self>, crate::Error> {
         let flush_interval = config.flush_interval;
-        let wal = Self::new_without_replay(object_store, file_notifier, config);
+        let wal =
+            Self::new_without_replay(object_store, host_identifier_prefix, file_notifier, config);
 
         wal.replay().await?;
         let wal = Arc::new(wal);
@@ -44,11 +47,13 @@ impl WalObjectStore {
 
     fn new_without_replay(
         object_store: Arc<dyn ObjectStore>,
+        host_identifier_prefix: impl Into<String>,
         file_notifier: Arc<dyn WalFileNotifier>,
         config: WalConfig,
     ) -> Self {
         Self {
             object_store,
+            host_identifier_prefix: host_identifier_prefix.into(),
             file_notifier,
             flush_buffer: Mutex::new(FlushBuffer::new(
                 WalBuffer {
@@ -180,7 +185,7 @@ impl WalObjectStore {
                 .await
         };
 
-        let wal_path = wal_path(wal_contents.wal_file_number);
+        let wal_path = wal_path(&self.host_identifier_prefix, wal_contents.wal_file_number);
         let data = crate::serialize::serialize_to_file_bytes(&wal_contents)
             .expect("unable to serialize wal contents into bytes for file");
         let data = Bytes::from(data);
@@ -254,7 +259,7 @@ impl WalObjectStore {
     async fn load_existing_wal_file_paths(&self) -> crate::Result<Vec<Path>> {
         let mut paths = Vec::new();
         let mut offset: Option<Path> = None;
-        let path = Path::from("wal");
+        let path = Path::from(format!("{host}/wal", host = self.host_identifier_prefix));
         loop {
             let mut listing = if let Some(offset) = offset {
                 self.object_store.list_with_offset(Some(&path), &offset)
@@ -285,7 +290,7 @@ impl WalObjectStore {
         snapshot_permit: OwnedSemaphorePermit,
     ) {
         for period in snapshot_info.wal_periods {
-            let path = wal_path(period.wal_file_number);
+            let path = wal_path(&self.host_identifier_prefix, period.wal_file_number);
 
             loop {
                 match self.object_store.delete(&path).await {
@@ -537,8 +542,11 @@ impl WalBuffer {
     }
 }
 
-fn wal_path(wal_file_number: WalFileSequenceNumber) -> Path {
-    Path::from(format!("wal/{:011}.wal", wal_file_number.0))
+fn wal_path(host_identifier_prefix: &str, wal_file_number: WalFileSequenceNumber) -> Path {
+    Path::from(format!(
+        "{host_identifier_prefix}/wal/{:011}.wal",
+        wal_file_number.0
+    ))
 }
 
 #[cfg(test)]
@@ -562,6 +570,7 @@ mod tests {
         };
         let wal = WalObjectStore::new_without_replay(
             Arc::clone(&object_store),
+            "my_host",
             Arc::clone(&notifier),
             wal_config,
         );
@@ -761,6 +770,7 @@ mod tests {
         let replay_notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotfiier::default());
         let replay_wal = WalObjectStore::new_without_replay(
             Arc::clone(&object_store),
+            "my_host",
             Arc::clone(&replay_notifier),
             WalConfig {
                 level_0_duration: Duration::from_secs(10),
@@ -772,8 +782,8 @@ mod tests {
         assert_eq!(
             replay_wal.load_existing_wal_file_paths().await.unwrap(),
             vec![
-                Path::from("wal/00000000001.wal"),
-                Path::from("wal/00000000002.wal")
+                Path::from("my_host/wal/00000000001.wal"),
+                Path::from("my_host/wal/00000000002.wal")
             ]
         );
         replay_wal.replay().await.unwrap();
@@ -903,12 +913,13 @@ mod tests {
         let replay_notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotfiier::default());
         let replay_wal = WalObjectStore::new_without_replay(
             object_store,
+            "my_host",
             Arc::clone(&replay_notifier),
             wal_config,
         );
         assert_eq!(
             replay_wal.load_existing_wal_file_paths().await.unwrap(),
-            vec![Path::from("wal/00000000003.wal")]
+            vec![Path::from("my_host/wal/00000000003.wal")]
         );
         replay_wal.replay().await.unwrap();
         let replay_notifier = replay_notifier
@@ -933,6 +944,7 @@ mod tests {
         };
         let wal = WalObjectStore::new_without_replay(
             Arc::clone(&object_store),
+            "my_host",
             Arc::clone(&notifier),
             wal_config,
         );

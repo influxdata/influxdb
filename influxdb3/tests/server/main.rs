@@ -93,6 +93,7 @@ impl TestServer {
             .args(["--http-bind", &bind_addr.to_string()])
             .args(["--object-store", "memory"])
             .args(["--wal-flush-interval", "10ms"])
+            .args(["--host-id", "test-server"])
             .args(config.as_args());
 
         // If TEST_LOG env var is not defined, discard stdout/stderr
@@ -145,6 +146,7 @@ impl TestServer {
     }
 
     async fn wait_until_ready(&self) {
+        let mut count = 0;
         while self
             .http_client
             .get(format!("{base}/health", base = self.client_addr()))
@@ -152,6 +154,11 @@ impl TestServer {
             .await
             .is_err()
         {
+            if count > 500 {
+                panic!("server failed to start");
+            } else {
+                count += 1;
+            }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     }

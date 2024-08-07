@@ -198,6 +198,10 @@ pub struct Config {
         action
     )]
     pub buffer_mem_limit_mb: usize,
+
+    /// The host idendifier used as a prefix in all object store file paths.
+    #[clap(long = "host-id", env = "INFLUXDB3_HOST_IDENTIFIER_PREFIX", action)]
+    pub host_identifier_prefix: String,
 }
 
 /// If `p` does not exist, try to create it as a directory.
@@ -289,7 +293,10 @@ pub async fn command(config: Config) -> Result<()> {
 
     let common_state =
         CommonServerState::new(Arc::clone(&metrics), trace_exporter, trace_header_parser)?;
-    let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+    let persister = Arc::new(PersisterImpl::new(
+        Arc::clone(&object_store),
+        config.host_identifier_prefix,
+    ));
     let wal_config = WalConfig {
         level_0_duration: config.level_0_duration.as_duration(),
         max_write_buffer_size: config.wal_max_write_buffer_size,
