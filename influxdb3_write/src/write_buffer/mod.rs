@@ -1,7 +1,7 @@
 //! Implementation of an in-memory buffer for writes that persists data into a wal if it is configured.
 
 pub mod persisted_files;
-mod queryable_buffer;
+pub mod queryable_buffer;
 mod table_buffer;
 pub(crate) mod validator;
 
@@ -456,6 +456,10 @@ impl<T: TimeProvider> Bufferer for WriteBufferImpl<T> {
 
     fn catalog(&self) -> Arc<Catalog> {
         self.catalog()
+    }
+
+    fn queryable_buffer(&self) -> Arc<QueryableBuffer> {
+        Arc::clone(&self.buffer)
     }
 }
 

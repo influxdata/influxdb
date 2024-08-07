@@ -5,7 +5,7 @@ use crate::persister::PersisterImpl;
 use crate::write_buffer::parquet_chunk_from_file;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
-use crate::{persister, write_buffer, ParquetFile, PersistedSnapshot, Persister};
+use crate::{ParquetFile, PersistedSnapshot, Persister};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -35,7 +35,7 @@ use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
 
 #[derive(Debug)]
-pub(crate) struct QueryableBuffer {
+pub struct QueryableBuffer {
     executor: Arc<Executor>,
     catalog: Arc<Catalog>,
     last_cache_provider: Arc<LastCacheProvider>,
@@ -294,6 +294,10 @@ impl QueryableBuffer {
 
         receiver
     }
+
+    pub fn persisted_parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
+        self.persisted_files.get_files(db_name, table_name)
+    }
 }
 
 #[async_trait]
@@ -385,9 +389,6 @@ async fn sort_dedupe_persist<P>(
 ) -> (u64, FileMetaData)
 where
     P: Persister,
-    persister::Error: From<<P as Persister>::Error>,
-    write_buffer::Error: From<<P as Persister>::Error>,
-    <P as Persister>::Error: std::fmt::Debug,
 {
     // Dedupe and sort using the COMPACT query built into
     // iox_query

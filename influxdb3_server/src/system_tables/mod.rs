@@ -3,22 +3,27 @@ use std::{any::Any, collections::HashMap, sync::Arc};
 use datafusion::{
     catalog::schema::SchemaProvider, datasource::TableProvider, error::DataFusionError,
 };
-use influxdb3_catalog::catalog::Catalog;
-use influxdb3_write::last_cache::LastCacheProvider;
+use influxdb3_write::{
+    last_cache::LastCacheProvider, write_buffer::queryable_buffer::QueryableBuffer,
+};
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
+use parquet_files::ParquetFilesTable;
 use tonic::async_trait;
 
 use self::{last_caches::LastCachesTable, queries::QueriesTable};
 
 mod last_caches;
+mod parquet_files;
+#[cfg(test)]
+pub(crate) use parquet_files::table_name_predicate_error;
 mod queries;
 
-pub const SYSTEM_SCHEMA: &str = "system";
+pub const SYSTEM_SCHEMA_NAME: &str = "system";
 
-const QUERIES_TABLE: &str = "queries";
-const LAST_CACHES_TABLE: &str = "last_caches";
-const _PARQUET_FILES_TABLE: &str = "parquet_files";
+const QUERIES_TABLE_NAME: &str = "queries";
+const LAST_CACHES_TABLE_NAME: &str = "last_caches";
+const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
 
 pub(crate) struct SystemSchemaProvider {
     tables: HashMap<&'static str, Arc<dyn TableProvider>>,
@@ -37,21 +42,26 @@ impl std::fmt::Debug for SystemSchemaProvider {
 
 impl SystemSchemaProvider {
     pub(crate) fn new(
-        db_name: impl Into<String>,
-        _catalog: Arc<Catalog>,
+        db_name: Arc<str>,
         query_log: Arc<QueryLog>,
         last_cache_provider: Arc<LastCacheProvider>,
+        queryable_buffer: Arc<QueryableBuffer>,
     ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
             query_log,
         ))));
-        tables.insert(QUERIES_TABLE, queries);
+        tables.insert(QUERIES_TABLE_NAME, queries);
         let last_caches = Arc::new(SystemTableProvider::new(Arc::new(LastCachesTable::new(
-            db_name,
+            Arc::clone(&db_name),
             last_cache_provider,
         ))));
-        tables.insert(LAST_CACHES_TABLE, last_caches);
+        tables.insert(LAST_CACHES_TABLE_NAME, last_caches);
+        let parquet_files = Arc::new(SystemTableProvider::new(Arc::new(ParquetFilesTable::new(
+            db_name,
+            queryable_buffer,
+        ))));
+        tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
         Self { tables }
     }
 }

@@ -179,6 +179,14 @@ impl WalObjectStore {
                 .flush_buffer_into_contents_and_responses()
                 .await
         };
+        info!(
+            n_ops = %wal_contents.ops.len(),
+            min_timestamp_ns = %wal_contents.min_timestamp_ns,
+            max_timestamp_ns = %wal_contents.max_timestamp_ns,
+            wal_file_number = %wal_contents.wal_file_number,
+            snapshot_details = ?wal_contents.snapshot,
+            "flushing WAL buffer to object store"
+        );
 
         let wal_path = wal_path(wal_contents.wal_file_number);
         let data = crate::serialize::serialize_to_file_bytes(&wal_contents)
