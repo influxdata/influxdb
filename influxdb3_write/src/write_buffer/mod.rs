@@ -143,6 +143,7 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
         // teh background flush task.
         let wal = WalObjectStore::new(
             persister.object_store(),
+            persister.host_identifier_prefix(),
             Arc::clone(&queryable_buffer) as Arc<dyn WalFileNotifier>,
             wal_config,
             last_snapshot_wal_sequence,
@@ -594,7 +595,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn writes_data_to_wal_and_is_queryable() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let level_0_duration = Level0Duration::new_5m();
         let write_buffer = WriteBufferImpl::new(
@@ -717,7 +718,11 @@ mod tests {
             .unwrap();
         // Check that the catalog was persisted, without advancing time:
         let object_store = wbuf.persister.object_store();
-        let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
+        let catalog_json = fetch_catalog_as_json(
+            Arc::clone(&object_store),
+            wbuf.persister.host_identifier_prefix(),
+        )
+        .await;
         insta::assert_json_snapshot!("catalog-immediately-after-last-cache-create", catalog_json);
         // Do another write that will update the state of the catalog, specifically, the table
         // that the last cache was created for, and add a new field to the table/cache `f2`:
@@ -744,7 +749,11 @@ mod tests {
         .unwrap();
         // Check the catalog again, to make sure it still has the last cache with the correct
         // configuration:
-        let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
+        let catalog_json = fetch_catalog_as_json(
+            Arc::clone(&object_store),
+            wbuf.persister.host_identifier_prefix(),
+        )
+        .await;
         // NOTE: the asserted snapshot is correct in-so-far as the catalog contains the last cache
         // configuration; however, it is not correct w.r.t. the fields. The second write adds a new
         // field `f2` to the last cache (which you can see in the query below), but the persisted
@@ -773,7 +782,11 @@ mod tests {
             .await
             .unwrap();
         // Catalog should be persisted, and no longer have the last cache, without advancing time:
-        let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
+        let catalog_json = fetch_catalog_as_json(
+            Arc::clone(&object_store),
+            wbuf.persister.host_identifier_prefix(),
+        )
+        .await;
         insta::assert_json_snapshot!("catalog-immediately-after-last-cache-delete", catalog_json);
         // Do another write so there is data to be persisted in the buffer:
         wbuf.write_lp(
@@ -799,7 +812,11 @@ mod tests {
             }
         }
         // Check the catalog again, to ensure the last cache is still gone:
-        let catalog_json = fetch_catalog_as_json(Arc::clone(&object_store)).await;
+        let catalog_json = fetch_catalog_as_json(
+            Arc::clone(&object_store),
+            wbuf.persister.host_identifier_prefix(),
+        )
+        .await;
         insta::assert_json_snapshot!(
             "catalog-after-allowing-time-to-persist-segments-after-delete",
             catalog_json
@@ -997,8 +1014,11 @@ mod tests {
         assert_batches_eq!(&expected, &actual);
     }
 
-    async fn fetch_catalog_as_json(object_store: Arc<dyn ObjectStore>) -> serde_json::Value {
-        let mut list = object_store.list(Some(&CatalogFilePath::dir()));
+    async fn fetch_catalog_as_json(
+        object_store: Arc<dyn ObjectStore>,
+        host_identifier_prefix: &str,
+    ) -> serde_json::Value {
+        let mut list = object_store.list(Some(&CatalogFilePath::dir(host_identifier_prefix)));
         let Some(item) = list.next().await else {
             panic!("there should have been a catalog file persisted");
         };
@@ -1018,7 +1038,7 @@ mod tests {
         wal_config: WalConfig,
     ) -> (WriteBufferImpl<MockProvider>, IOxSessionContext) {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(start));
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&persister),

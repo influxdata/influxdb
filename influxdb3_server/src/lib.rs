@@ -768,7 +768,7 @@ mod tests {
             },
             DedicatedExecutor::new_testing(),
         ));
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
 
         let write_buffer = Arc::new(

@@ -60,13 +60,18 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct PersisterImpl {
     object_store: Arc<dyn ObjectStore>,
+    host_identifier_prefix: String,
     pub(crate) mem_pool: Arc<dyn MemoryPool>,
 }
 
 impl PersisterImpl {
-    pub fn new(object_store: Arc<dyn ObjectStore>) -> Self {
+    pub fn new(
+        object_store: Arc<dyn ObjectStore>,
+        host_identifier_prefix: impl Into<String>,
+    ) -> Self {
         Self {
             object_store,
+            host_identifier_prefix: host_identifier_prefix.into(),
             mem_pool: Arc::new(UnboundedMemoryPool::default()),
         }
     }
@@ -76,6 +81,10 @@ impl PersisterImpl {
         batches: SendableRecordBatchStream,
     ) -> Result<ParquetBytes> {
         serialize_to_parquet(Arc::clone(&self.mem_pool), batches).await
+    }
+
+    pub fn host_identifier_prefix(&self) -> &str {
+        &self.host_identifier_prefix
     }
 }
 
@@ -115,7 +124,9 @@ impl Persister for PersisterImpl {
     type Error = Error;
 
     async fn load_catalog(&self) -> Result<Option<PersistedCatalog>> {
-        let mut list = self.object_store.list(Some(&CatalogFilePath::dir()));
+        let mut list = self
+            .object_store
+            .list(Some(&CatalogFilePath::dir(&self.host_identifier_prefix)));
         let mut catalog_path: Option<ObjPath> = None;
         while let Some(item) = list.next().await {
             let item = item?;
@@ -181,10 +192,14 @@ impl Persister for PersisterImpl {
             };
 
             let mut snapshot_list = if let Some(offset) = offset {
-                self.object_store
-                    .list_with_offset(Some(&SnapshotInfoFilePath::dir()), &offset)
+                self.object_store.list_with_offset(
+                    Some(&SnapshotInfoFilePath::dir(&self.host_identifier_prefix)),
+                    &offset,
+                )
             } else {
-                self.object_store.list(Some(&SnapshotInfoFilePath::dir()))
+                self.object_store.list(Some(&SnapshotInfoFilePath::dir(
+                    &self.host_identifier_prefix,
+                )))
             };
 
             // Why not collect into a Result<Vec<ObjectMeta>, object_store::Error>>
@@ -232,7 +247,10 @@ impl Persister for PersisterImpl {
         wal_file_sequence_number: WalFileSequenceNumber,
         catalog: Catalog,
     ) -> Result<()> {
-        let catalog_path = CatalogFilePath::new(wal_file_sequence_number);
+        let catalog_path = CatalogFilePath::new(
+            self.host_identifier_prefix.as_str(),
+            wal_file_sequence_number,
+        );
         let json = serde_json::to_vec_pretty(&catalog)?;
         self.object_store
             .put(catalog_path.as_ref(), json.into())
@@ -241,8 +259,10 @@ impl Persister for PersisterImpl {
     }
 
     async fn persist_snapshot(&self, persisted_snapshot: &PersistedSnapshot) -> Result<()> {
-        let snapshot_file_path =
-            SnapshotInfoFilePath::new(persisted_snapshot.wal_file_sequence_number);
+        let snapshot_file_path = SnapshotInfoFilePath::new(
+            self.host_identifier_prefix.as_str(),
+            persisted_snapshot.wal_file_sequence_number,
+        );
         let json = serde_json::to_vec_pretty(persisted_snapshot)?;
         self.object_store
             .put(snapshot_file_path.as_ref(), json.into())
@@ -345,7 +365,7 @@ mod tests {
     async fn persist_catalog() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk));
+        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let catalog = Catalog::new();
         let _ = catalog.db_or_create("my_db");
 
@@ -359,7 +379,7 @@ mod tests {
     async fn persist_and_load_newest_catalog() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk));
+        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let catalog = Catalog::new();
         let _ = catalog.db_or_create("my_db");
 
@@ -394,7 +414,7 @@ mod tests {
     async fn persist_snapshot_info_file() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk));
+        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             databases: HashMap::new(),
@@ -411,7 +431,7 @@ mod tests {
     async fn persist_and_load_snapshot_info_files() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk));
+        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             databases: HashMap::new(),
@@ -452,7 +472,7 @@ mod tests {
     async fn persist_and_load_snapshot_info_files_with_fewer_than_requested() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk));
+        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             databases: HashMap::new(),
@@ -473,7 +493,7 @@ mod tests {
     async fn persist_and_load_over_9000_snapshot_info_files() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk));
+        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         for id in 0..9001 {
             let info_file = PersistedSnapshot {
                 wal_file_sequence_number: WalFileSequenceNumber::new(id),
@@ -494,7 +514,7 @@ mod tests {
     #[tokio::test]
     async fn load_snapshot_works_with_no_exising_snapshots() {
         let store = InMemory::new();
-        let persister = PersisterImpl::new(Arc::new(store));
+        let persister = PersisterImpl::new(Arc::new(store), "test_host");
 
         let snapshots = persister.load_snapshots(100).await.unwrap();
         assert!(snapshots.is_empty());
@@ -504,7 +524,7 @@ mod tests {
     async fn get_parquet_bytes() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk));
+        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
@@ -531,7 +551,7 @@ mod tests {
     async fn persist_and_load_parquet_bytes() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk));
+        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
@@ -546,6 +566,7 @@ mod tests {
         stream_builder.tx().send(Ok(batch2)).await.unwrap();
 
         let path = ParquetFilePath::new(
+            "test_host",
             "db_one",
             "table_one",
             Utc::now(),

@@ -1554,7 +1554,7 @@ mod tests {
 
     async fn setup_write_buffer() -> WriteBufferImpl<MockProvider> {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let persister = Arc::new(PersisterImpl::new(obj_store));
+        let persister = Arc::new(PersisterImpl::new(obj_store, "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         WriteBufferImpl::new(
             persister,
