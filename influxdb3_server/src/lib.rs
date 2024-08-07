@@ -235,7 +235,7 @@ mod tests {
     use influxdb3_wal::WalConfig;
     use influxdb3_write::persister::PersisterImpl;
     use influxdb3_write::write_buffer::WriteBufferImpl;
-    use influxdb3_write::{LastCacheManager, Level0Duration};
+    use influxdb3_write::LastCacheManager;
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
@@ -775,7 +775,6 @@ mod tests {
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
                 Arc::clone(&time_provider),
-                Level0Duration::new_5m(),
                 Arc::clone(&exec),
                 WalConfig::test_config(),
             )

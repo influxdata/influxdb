@@ -14,10 +14,9 @@ use influxdb3_server::{
     auth::AllOrNothingAuthorizer, builder::ServerBuilder, query_executor::QueryExecutorImpl, serve,
     CommonServerState,
 };
-use influxdb3_wal::WalConfig;
+use influxdb3_wal::{Level0Duration, WalConfig};
 use influxdb3_write::persister::PersisterImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
-use influxdb3_write::Level0Duration;
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
 use object_store::DynObjectStore;
@@ -299,7 +298,7 @@ pub async fn command(config: Config) -> Result<()> {
         config.host_identifier_prefix,
     ));
     let wal_config = WalConfig {
-        level_0_duration: config.level_0_duration.as_duration(),
+        level_0_duration: config.level_0_duration,
         max_write_buffer_size: config.wal_max_write_buffer_size,
         flush_interval: config.wal_flush_interval.into(),
         snapshot_size: config.wal_snapshot_size,
@@ -310,7 +309,6 @@ pub async fn command(config: Config) -> Result<()> {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&time_provider),
-            config.level_0_duration,
             Arc::clone(&exec),
             wal_config,
         )

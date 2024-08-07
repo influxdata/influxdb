@@ -1540,7 +1540,7 @@ mod tests {
         last_cache::{KeyValue, LastCacheProvider, Predicate, DEFAULT_CACHE_TTL},
         persister::PersisterImpl,
         write_buffer::WriteBufferImpl,
-        Bufferer, LastCacheManager, Level0Duration, Precision,
+        Bufferer, LastCacheManager, Precision,
     };
     use ::object_store::{memory::InMemory, ObjectStore};
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
@@ -1559,7 +1559,6 @@ mod tests {
         WriteBufferImpl::new(
             persister,
             time_provider,
-            Level0Duration::new_5m(),
             crate::test_help::make_exec(),
             WalConfig::test_config(),
         )

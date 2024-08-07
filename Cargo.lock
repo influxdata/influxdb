@@ -2598,6 +2598,7 @@ dependencies = [
  "futures-util",
  "hashbrown 0.14.5",
  "influxdb-line-protocol",
+ "iox_time",
  "object_store",
  "observability_deps",
  "parking_lot",

@@ -1,6 +1,6 @@
 use std::{borrow::Cow, sync::Arc};
 
-use crate::{write_buffer::Result, Level0Duration, Precision, WriteLineError};
+use crate::{write_buffer::Result, Precision, WriteLineError};
 use data_types::{NamespaceName, Timestamp};
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::{
@@ -8,8 +8,8 @@ use influxdb3_catalog::catalog::{
 };
 
 use influxdb3_wal::{
-    CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDataType, FieldDefinition, Row,
-    TableChunks, WriteBatch,
+    CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDataType, FieldDefinition,
+    Level0Duration, Row, TableChunks, WriteBatch,
 };
 use influxdb_line_protocol::{parse_lines, v3, FieldValue, ParsedLine};
 use iox_time::Time;
@@ -764,10 +764,10 @@ fn apply_precision_to_timestamp(precision: Precision, ts: i64) -> i64 {
 mod tests {
     use std::sync::Arc;
 
+    use crate::{catalog::Catalog, write_buffer::Error, Precision};
     use data_types::NamespaceName;
+    use influxdb3_wal::Level0Duration;
     use iox_time::Time;
-
-    use crate::{catalog::Catalog, write_buffer::Error, Level0Duration, Precision};
 
     use super::WriteValidator;
 
