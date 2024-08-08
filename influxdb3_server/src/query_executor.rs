@@ -581,10 +581,8 @@ mod tests {
     use data_types::NamespaceName;
     use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
-    use influxdb3_wal::WalConfig;
-    use influxdb3_write::{
-        persister::PersisterImpl, write_buffer::WriteBufferImpl, Bufferer, Level0Duration,
-    };
+    use influxdb3_wal::{Level0Duration, WalConfig};
+    use influxdb3_write::{persister::PersisterImpl, write_buffer::WriteBufferImpl, Bufferer};
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use metric::Registry;
@@ -626,15 +624,13 @@ mod tests {
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let executor = make_exec(object_store);
-        let level_0_duration = Level0Duration::new_5m();
         let write_buffer = Arc::new(
             WriteBufferImpl::new(
                 Arc::clone(&persister),
                 Arc::clone(&time_provider),
-                level_0_duration,
                 Arc::clone(&executor),
                 WalConfig {
-                    level_0_duration: Duration::from_secs(60),
+                    level_0_duration: Level0Duration::new_1m(),
                     max_write_buffer_size: 100,
                     flush_interval: Duration::from_millis(10),
                     snapshot_size: 1,
