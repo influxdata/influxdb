@@ -29,13 +29,12 @@ impl PersistedFiles {
                         let db_tables: &mut HashMap<Arc<str>, Vec<ParquetFile>> =
                             files.entry(db_name).or_default();
 
-                        tables
-                            .tables
-                            .into_iter()
-                            .for_each(|(table_name, parquet_file)| {
+                        tables.tables.into_iter().for_each(
+                            |(table_name, mut new_parquet_files)| {
                                 let table_files = db_tables.entry(table_name).or_default();
-                                table_files.push(parquet_file);
-                            });
+                                table_files.append(&mut new_parquet_files);
+                            },
+                        );
                     });
 
                 files
@@ -67,20 +66,26 @@ impl PersistedFiles {
                 tables
                     .tables
                     .into_iter()
-                    .for_each(|(table_name, parquet_file)| {
+                    .for_each(|(table_name, mut new_parquet_files)| {
                         let table_files = db_tables.entry(table_name).or_default();
-                        table_files.push(parquet_file);
+                        table_files.append(&mut new_parquet_files);
                     });
             });
     }
 
-    /// Get the list of files for a given database and table
+    /// Get the list of files for a given database and table, always return in descending order of min_time
     pub fn get_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
-        let files = self.files.read();
+        let mut files = {
+            let files = self.files.read();
+            files
+                .get(db_name)
+                .and_then(|tables| tables.get(table_name))
+                .cloned()
+                .unwrap_or_default()
+        };
+
+        files.sort_by(|a, b| b.min_time.cmp(&a.min_time));
+
         files
-            .get(db_name)
-            .and_then(|tables| tables.get(table_name))
-            .cloned()
-            .unwrap_or_default()
     }
 }

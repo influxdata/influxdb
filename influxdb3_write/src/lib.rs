@@ -14,7 +14,7 @@ pub mod write_buffer;
 use crate::paths::ParquetFilePath;
 use async_trait::async_trait;
 use bytes::Bytes;
-use data_types::{NamespaceName, Timestamp, TimestampMinMax};
+use data_types::{NamespaceName, TimestampMinMax};
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
@@ -31,7 +31,6 @@ use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
@@ -49,9 +48,6 @@ pub enum Error {
 
     #[error("persister error: {0}")]
     Persister(#[from] persister::Error),
-
-    #[error("invalid level 0 duration {0}. Must be one of 1m, 5m, 10m")]
-    InvalidLevel0Duration(String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -133,49 +129,6 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
         tbl_name: &str,
         cache_name: &str,
     ) -> Result<(), write_buffer::Error>;
-}
-
-/// The duration of data timestamps, grouped into files persisted into object storage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Level0Duration(Duration);
-
-impl Level0Duration {
-    pub fn duration_seconds(&self) -> i64 {
-        self.0.as_secs() as i64
-    }
-
-    /// Returns the time of the chunk the given timestamp belongs to based on the duration
-    pub fn chunk_time_for_timestamp(&self, t: Timestamp) -> i64 {
-        t.get() - (t.get() % self.0.as_nanos() as i64)
-    }
-
-    /// Given a time, returns the start time of the level 0 chunk that contains the time.
-    pub fn start_time(&self, timestamp_seconds: i64) -> Time {
-        let duration_seconds = self.duration_seconds();
-        let rounded_seconds = (timestamp_seconds / duration_seconds) * duration_seconds;
-        Time::from_timestamp(rounded_seconds, 0).unwrap()
-    }
-
-    pub fn as_duration(&self) -> Duration {
-        self.0
-    }
-
-    pub fn new_5m() -> Self {
-        Self(Duration::from_secs(300))
-    }
-}
-
-impl FromStr for Level0Duration {
-    type Err = Error;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s {
-            "1m" => Ok(Self(Duration::from_secs(60))),
-            "5m" => Ok(Self(Duration::from_secs(300))),
-            "10m" => Ok(Self(Duration::from_secs(600))),
-            _ => Err(Error::InvalidLevel0Duration(s.to_string())),
-        }
-    }
 }
 
 pub const DEFAULT_OBJECT_STORE_URL: &str = "iox://influxdb3/";
@@ -304,13 +257,15 @@ impl PersistedSnapshot {
             .entry(database_name)
             .or_default()
             .tables
-            .insert(table_name, parquet_file);
+            .entry(table_name)
+            .or_default()
+            .push(parquet_file);
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
 pub struct DatabaseTables {
-    pub tables: hashbrown::HashMap<Arc<str>, ParquetFile>,
+    pub tables: hashbrown::HashMap<Arc<str>, Vec<ParquetFile>>,
 }
 
 /// The summary data for a persisted parquet file in a snapshot.
@@ -396,9 +351,9 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
 mod test_helpers {
     use crate::catalog::Catalog;
     use crate::write_buffer::validator::WriteValidator;
-    use crate::{Level0Duration, Precision};
+    use crate::Precision;
     use data_types::NamespaceName;
-    use influxdb3_wal::WriteBatch;
+    use influxdb3_wal::{Level0Duration, WriteBatch};
     use iox_time::Time;
     use std::sync::Arc;
 

@@ -13,8 +13,8 @@ use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
 use crate::{
-    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, Level0Duration, ParquetFile,
-    Persister, Precision, WriteBuffer, WriteLineError,
+    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile, Persister,
+    Precision, WriteBuffer, WriteLineError,
 };
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError};
@@ -100,7 +100,7 @@ pub struct WriteBufferImpl<T> {
     parquet_cache: Arc<ParquetCache>,
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<QueryableBuffer>,
-    level_0_duration: Level0Duration,
+    wal_config: WalConfig,
     wal: Arc<dyn Wal>,
     #[allow(dead_code)]
     time_provider: Arc<T>,
@@ -111,7 +111,6 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
     pub async fn new(
         persister: Arc<PersisterImpl>,
         time_provider: Arc<T>,
-        level_0_duration: Level0Duration,
         executor: Arc<iox_query::exec::Executor>,
         wal_config: WalConfig,
     ) -> Result<Self> {
@@ -154,9 +153,9 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
             catalog,
             parquet_cache: Arc::new(ParquetCache::new(&persister.mem_pool)),
             persister,
+            wal_config,
             wal,
             time_provider,
-            level_0_duration,
             last_cache,
             persisted_files,
             buffer: queryable_buffer,
@@ -185,7 +184,7 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
         // past this point will be infallible
         let result = WriteValidator::initialize(db_name.clone(), self.catalog())?
             .v1_parse_lines_and_update_schema(lp, accept_partial)?
-            .convert_lines_to_buffer(ingest_time, self.level_0_duration, precision);
+            .convert_lines_to_buffer(ingest_time, self.wal_config.level_0_duration, precision);
 
         // if there were catalog updates, ensure they get persisted to the wal, so they're
         // replayed on restart
@@ -223,7 +222,7 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
         // past this point will be infallible
         let result = WriteValidator::initialize(db_name.clone(), self.catalog())?
             .v3_parse_lines_and_update_schema(lp, accept_partial)?
-            .convert_lines_to_buffer(ingest_time, self.level_0_duration, precision);
+            .convert_lines_to_buffer(ingest_time, self.wal_config.level_0_duration, precision);
 
         // if there were catalog updates, ensure they get persisted to the wal, so they're
         // replayed on restart
@@ -567,8 +566,10 @@ mod tests {
     use crate::persister::PersisterImpl;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
+    use datafusion::assert_batches_sorted_eq;
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
+    use influxdb3_wal::Level0Duration;
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
@@ -601,11 +602,9 @@ mod tests {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let level_0_duration = Level0Duration::new_5m();
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&time_provider),
-            level_0_duration,
             crate::test_help::make_exec(),
             WalConfig::test_config(),
         )
@@ -675,10 +674,9 @@ mod tests {
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&time_provider),
-            level_0_duration,
             crate::test_help::make_exec(),
             WalConfig {
-                level_0_duration: Duration::from_secs(60),
+                level_0_duration: Level0Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(50),
                 snapshot_size: 100,
@@ -696,7 +694,7 @@ mod tests {
         let (wbuf, _ctx) = setup(
             Time::from_timestamp_nanos(0),
             WalConfig {
-                level_0_duration: Duration::from_secs(300),
+                level_0_duration: Level0Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
@@ -833,7 +831,7 @@ mod tests {
         let (write_buffer, session_context) = setup(
             Time::from_timestamp_nanos(0),
             WalConfig {
-                level_0_duration: Duration::from_secs(60),
+                level_0_duration: Level0Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
@@ -917,8 +915,8 @@ mod tests {
             "| bar | time                 |",
             "+-----+----------------------+",
             "| 3.0 | 1970-01-01T00:02:27Z |",
-            "| 1.0 | 1970-01-01T00:00:10Z |",
             "| 2.0 | 1970-01-01T00:01:05Z |",
+            "| 1.0 | 1970-01-01T00:00:10Z |",
             "+-----+----------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
@@ -942,8 +940,8 @@ mod tests {
             "+-----+----------------------+",
             "| 3.0 | 1970-01-01T00:02:27Z |",
             "| 4.0 | 1970-01-01T00:04:10Z |",
-            "| 1.0 | 1970-01-01T00:00:10Z |",
             "| 2.0 | 1970-01-01T00:01:05Z |",
+            "| 1.0 | 1970-01-01T00:00:10Z |",
             "+-----+----------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
@@ -956,10 +954,9 @@ mod tests {
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&write_buffer.persister),
             Arc::clone(&write_buffer.time_provider),
-            write_buffer.level_0_duration,
             Arc::clone(&write_buffer.buffer.executor),
             WalConfig {
-                level_0_duration: Duration::from_secs(60),
+                level_0_duration: Level0Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
@@ -1004,19 +1001,19 @@ mod tests {
             .unwrap();
 
         let expected = [
-            "+-----+----------------------+",
-            "| bar | time                 |",
-            "+-----+----------------------+",
-            "| 5.0 | 1970-01-01T00:05:00Z |",
-            "| 6.0 | 1970-01-01T00:05:30Z |",
-            "| 1.0 | 1970-01-01T00:00:10Z |",
-            "| 2.0 | 1970-01-01T00:01:05Z |",
-            "| 3.0 | 1970-01-01T00:02:27Z |",
-            "| 4.0 | 1970-01-01T00:04:10Z |",
-            "+-----+----------------------+",
+            "+-----+---------------------+",
+            "| bar | time                |",
+            "+-----+---------------------+",
+            "| 1.0 | 1970-01-01T00:00:10 |",
+            "| 2.0 | 1970-01-01T00:01:05 |",
+            "| 3.0 | 1970-01-01T00:02:27 |",
+            "| 4.0 | 1970-01-01T00:04:10 |",
+            "| 5.0 | 1970-01-01T00:05:00 |",
+            "| 6.0 | 1970-01-01T00:05:30 |",
+            "+-----+---------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &ctx).await;
-        assert_batches_eq!(&expected, &actual);
+        assert_batches_sorted_eq!(&expected, &actual);
     }
 
     async fn fetch_catalog_as_json(
@@ -1048,7 +1045,6 @@ mod tests {
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&time_provider),
-            Level0Duration::new_5m(),
             crate::test_help::make_exec(),
             wal_config,
         )
