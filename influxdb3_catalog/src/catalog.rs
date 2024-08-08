@@ -1,6 +1,6 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
-use influxdb3_wal::{CatalogBatch, CatalogOp};
+use influxdb3_wal::{CatalogBatch, CatalogOp, LastCacheDefinition};
 use influxdb_line_protocol::FieldValue;
 use observability_deps::tracing::info;
 use parking_lot::RwLock;
@@ -32,9 +32,6 @@ pub enum Error {
         Catalog::NUM_DBS_LIMIT
     )]
     TooManyDbs,
-
-    #[error("last cache size must be from 1 to 10")]
-    InvalidLastCacheSize,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -337,6 +334,25 @@ impl DatabaseSchema {
                 CatalogOp::CreateDatabase(_) => {
                     // Do nothing
                 }
+                CatalogOp::CreateLastCache(definition) => {
+                    let table_namme: Arc<str> = definition.table.as_str().into();
+                    let table = tables.get_mut(table_namme.as_ref());
+                    match table {
+                        Some(table) => {
+                            table
+                                .last_caches
+                                .insert(definition.name.clone(), definition.clone());
+                        }
+                        None => panic!("table must exist before last cache creation"),
+                    }
+                }
+                CatalogOp::DeleteLastCache(definition) => {
+                    let table_namme: Arc<str> = definition.table.as_str().into();
+                    let table = tables.get_mut(table_namme.as_ref());
+                    if let Some(table) = table {
+                        table.last_caches.remove(&definition.name);
+                    }
+                }
             }
         }
 
@@ -500,129 +516,6 @@ impl TableDefinition {
 
     pub fn last_caches(&self) -> impl Iterator<Item = (&String, &LastCacheDefinition)> {
         self.last_caches.iter()
-    }
-}
-
-/// Defines a last cache in a given table and database
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct LastCacheDefinition {
-    /// The table name the cache is associated with
-    pub table: String,
-    /// Given name of the cache
-    pub name: String,
-    /// Columns intended to be used as predicates in the cache
-    pub key_columns: Vec<String>,
-    /// Columns that store values in the cache
-    pub value_columns: LastCacheValueColumnsDef,
-    /// The number of last values to hold in the cache
-    pub count: LastCacheSize,
-    /// The time-to-live (TTL) in seconds for entries in the cache
-    pub ttl: u64,
-}
-
-impl LastCacheDefinition {
-    /// Create a new [`LastCacheDefinition`] with explicit value columns
-    pub fn new_with_explicit_value_columns(
-        table: impl Into<String>,
-        name: impl Into<String>,
-        key_columns: impl IntoIterator<Item: Into<String>>,
-        value_columns: impl IntoIterator<Item: Into<String>>,
-        count: usize,
-        ttl: u64,
-    ) -> Result<Self, Error> {
-        Ok(Self {
-            table: table.into(),
-            name: name.into(),
-            key_columns: key_columns.into_iter().map(Into::into).collect(),
-            value_columns: LastCacheValueColumnsDef::Explicit {
-                columns: value_columns.into_iter().map(Into::into).collect(),
-            },
-            count: count.try_into()?,
-            ttl,
-        })
-    }
-
-    /// Create a new [`LastCacheDefinition`] with explicit value columns
-    pub fn new_all_non_key_value_columns(
-        table: impl Into<String>,
-        name: impl Into<String>,
-        key_columns: impl IntoIterator<Item: Into<String>>,
-        count: usize,
-        ttl: u64,
-    ) -> Result<Self, Error> {
-        Ok(Self {
-            table: table.into(),
-            name: name.into(),
-            key_columns: key_columns.into_iter().map(Into::into).collect(),
-            value_columns: LastCacheValueColumnsDef::AllNonKeyColumns,
-            count: count.try_into()?,
-            ttl,
-        })
-    }
-}
-
-/// A last cache will either store values for an explicit set of columns, or will accept all
-/// non-key columns
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum LastCacheValueColumnsDef {
-    /// Explicit list of column names
-    Explicit { columns: Vec<String> },
-    /// Stores all non-key columns
-    AllNonKeyColumns,
-}
-
-/// The maximum allowed size for a last cache
-pub const LAST_CACHE_MAX_SIZE: usize = 10;
-
-/// The size of the last cache
-///
-/// Must be between 1 and [`LAST_CACHE_MAX_SIZE`]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
-pub struct LastCacheSize(usize);
-
-impl LastCacheSize {
-    pub fn new(size: usize) -> Result<Self, Error> {
-        if size == 0 || size > LAST_CACHE_MAX_SIZE {
-            Err(Error::InvalidLastCacheSize)
-        } else {
-            Ok(Self(size))
-        }
-    }
-}
-
-impl TryFrom<usize> for LastCacheSize {
-    type Error = Error;
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl From<LastCacheSize> for usize {
-    fn from(value: LastCacheSize) -> Self {
-        value.0
-    }
-}
-
-impl From<LastCacheSize> for u64 {
-    fn from(value: LastCacheSize) -> Self {
-        value
-            .0
-            .try_into()
-            .expect("usize fits into a 64 bit unsigned integer")
-    }
-}
-
-impl PartialEq<usize> for LastCacheSize {
-    fn eq(&self, other: &usize) -> bool {
-        self.0.eq(other)
-    }
-}
-
-impl PartialEq<LastCacheSize> for usize {
-    fn eq(&self, other: &LastCacheSize) -> bool {
-        self.eq(&other.0)
     }
 }
 

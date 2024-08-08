@@ -21,8 +21,7 @@ use datafusion::execution::context::SessionState;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::Expr;
 use influxdb3_catalog::catalog;
-use influxdb3_catalog::catalog::LastCacheDefinition;
-use influxdb3_wal::WalFileSequenceNumber;
+use influxdb3_wal::{LastCacheDefinition, WalFileSequenceNumber};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use last_cache::LastCacheProvider;
@@ -364,7 +363,7 @@ mod test_helpers {
         lp: &str,
     ) -> WriteBatch {
         let db_name = NamespaceName::new(db_name).unwrap();
-        let result = WriteValidator::initialize(db_name.clone(), catalog)
+        let result = WriteValidator::initialize(db_name.clone(), catalog, 0)
             .unwrap()
             .v1_parse_lines_and_update_schema(lp, false)
             .unwrap()

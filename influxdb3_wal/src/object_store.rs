@@ -467,7 +467,7 @@ struct WalBuffer {
 
 impl WalBuffer {
     fn is_empty(&self) -> bool {
-        self.database_to_write_batch.is_empty()
+        self.database_to_write_batch.is_empty() && self.catalog_batches.is_empty()
     }
 }
 
@@ -535,6 +535,11 @@ impl WalBuffer {
         for write_batch in self.database_to_write_batch.values() {
             min_timestamp_ns = min_timestamp_ns.min(write_batch.min_time_ns);
             max_timestamp_ns = max_timestamp_ns.max(write_batch.max_time_ns);
+        }
+
+        for catalog_batch in &self.catalog_batches {
+            min_timestamp_ns = min_timestamp_ns.min(catalog_batch.time_ns);
+            max_timestamp_ns = max_timestamp_ns.max(catalog_batch.time_ns);
         }
 
         // have the catalog ops come before any writes in ordering

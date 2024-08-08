@@ -16,7 +16,7 @@ use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
-use influxdb3_wal::{SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
+use influxdb3_wal::{CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::exec::Executor;
 use iox_query::frontend::reorg::ReorgPlanner;
@@ -131,16 +131,7 @@ impl QueryableBuffer {
         let mut buffer = self.buffer.write();
         self.last_cache_provider.evict_expired_cache_entries();
         self.last_cache_provider.write_wal_contents_to_cache(&write);
-
-        for op in write.ops {
-            match op {
-                WalOp::Write(write_batch) => buffer.add_write_batch(write_batch),
-                WalOp::Catalog(catalog_batch) => buffer
-                    .catalog
-                    .apply_catalog_batch(&catalog_batch)
-                    .expect("catalog batch should apply"),
-            }
-        }
+        buffer.buffer_ops(write.ops, &self.last_cache_provider);
     }
 
     /// Called when the wal has written a new file and is attempting to snapshot. Kicks off persistence of
@@ -186,15 +177,7 @@ impl QueryableBuffer {
 
             // we must buffer the ops after the snapshotting as this data should not be persisted
             // with this set of wal files
-            for op in write.ops {
-                match op {
-                    WalOp::Write(write_batch) => buffer.add_write_batch(write_batch),
-                    WalOp::Catalog(catalog_batch) => buffer
-                        .catalog
-                        .apply_catalog_batch(&catalog_batch)
-                        .expect("catalog batch should apply"),
-                }
-            }
+            buffer.buffer_ops(write.ops, &self.last_cache_provider);
 
             persisting_chunks
         };
@@ -325,6 +308,50 @@ impl BufferState {
         Self {
             db_to_table: HashMap::new(),
             catalog,
+        }
+    }
+
+    fn buffer_ops(&mut self, ops: Vec<WalOp>, last_cache_provider: &LastCacheProvider) {
+        for op in ops {
+            match op {
+                WalOp::Write(write_batch) => self.add_write_batch(write_batch),
+                WalOp::Catalog(catalog_batch) => {
+                    self.catalog
+                        .apply_catalog_batch(&catalog_batch)
+                        .expect("catalog batch should apply");
+
+                    let db_schema = self
+                        .catalog
+                        .db_schema(&catalog_batch.database_name)
+                        .expect("database should exist");
+
+                    for op in catalog_batch.ops {
+                        match op {
+                            CatalogOp::CreateLastCache(definition) => {
+                                let table_schema = db_schema
+                                    .get_table_schema(&definition.table)
+                                    .expect("table should exist");
+                                last_cache_provider.create_cache_from_definition(
+                                    db_schema.name.as_ref(),
+                                    table_schema,
+                                    &definition,
+                                );
+                            }
+                            CatalogOp::DeleteLastCache(cache) => {
+                                // we can ignore it if this doesn't exist for any reason
+                                let _ = last_cache_provider.delete_cache(
+                                    db_schema.name.as_ref(),
+                                    &cache.table,
+                                    &cache.name,
+                                );
+                            }
+                            CatalogOp::AddFields(_) => (),
+                            CatalogOp::CreateTable(_) => (),
+                            CatalogOp::CreateDatabase(_) => (),
+                        }
+                    }
+                }
+            }
         }
     }
 
