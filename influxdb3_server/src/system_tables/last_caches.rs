@@ -9,15 +9,15 @@ use influxdb3_write::last_cache::LastCacheProvider;
 use iox_system_tables::IoxSystemTable;
 
 pub(super) struct LastCachesTable {
-    db_name: String,
+    db_name: Arc<str>,
     schema: SchemaRef,
     provider: Arc<LastCacheProvider>,
 }
 
 impl LastCachesTable {
-    pub(super) fn new(db: impl Into<String>, provider: Arc<LastCacheProvider>) -> Self {
+    pub(super) fn new(db_name: Arc<str>, provider: Arc<LastCacheProvider>) -> Self {
         Self {
-            db_name: db.into(),
+            db_name,
             schema: last_caches_schema(),
             provider,
         }

@@ -108,18 +108,19 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
 
         assert_batches_sorted_eq!(
             [
-                "+--------------+--------------------+-------------+------------+",
-                "| catalog_name | db_schema_name     | table_name  | table_type |",
-                "+--------------+--------------------+-------------+------------+",
-                "| public       | information_schema | columns     | VIEW       |",
-                "| public       | information_schema | df_settings | VIEW       |",
-                "| public       | information_schema | schemata    | VIEW       |",
-                "| public       | information_schema | tables      | VIEW       |",
-                "| public       | information_schema | views       | VIEW       |",
-                "| public       | iox                | cpu         | BASE TABLE |",
-                "| public       | system             | last_caches | BASE TABLE |",
-                "| public       | system             | queries     | BASE TABLE |",
-                "+--------------+--------------------+-------------+------------+",
+                "+--------------+--------------------+---------------+------------+",
+                "| catalog_name | db_schema_name     | table_name    | table_type |",
+                "+--------------+--------------------+---------------+------------+",
+                "| public       | information_schema | columns       | VIEW       |",
+                "| public       | information_schema | df_settings   | VIEW       |",
+                "| public       | information_schema | schemata      | VIEW       |",
+                "| public       | information_schema | tables        | VIEW       |",
+                "| public       | information_schema | views         | VIEW       |",
+                "| public       | iox                | cpu           | BASE TABLE |",
+                "| public       | system             | last_caches   | BASE TABLE |",
+                "| public       | system             | parquet_files | BASE TABLE |",
+                "| public       | system             | queries       | BASE TABLE |",
+                "+--------------+--------------------+---------------+------------+",
             ],
             &batches
         );

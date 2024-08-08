@@ -1,7 +1,7 @@
 //! Implementation of an in-memory buffer for writes that persists data into a wal if it is configured.
 
 pub mod persisted_files;
-mod queryable_buffer;
+pub mod queryable_buffer;
 mod table_buffer;
 pub(crate) mod validator;
 
@@ -462,6 +462,10 @@ impl<T: TimeProvider> Bufferer for WriteBufferImpl<T> {
     fn catalog(&self) -> Arc<Catalog> {
         self.catalog()
     }
+
+    fn parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
+        self.buffer.persisted_parquet_files(db_name, table_name)
+    }
 }
 
 impl<T: TimeProvider> ChunkContainer for WriteBufferImpl<T> {
@@ -805,7 +809,8 @@ mod tests {
         loop {
             count += 1;
             tokio::time::sleep(Duration::from_millis(10)).await;
-            if !wbuf.persisted_files.get_files(db_name, tbl_name).is_empty() {
+            let files = wbuf.persisted_files.get_files(db_name, tbl_name);
+            if !files.is_empty() {
                 break;
             } else if count > 9 {
                 panic!("not persisting");

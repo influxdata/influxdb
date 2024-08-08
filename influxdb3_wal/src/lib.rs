@@ -407,6 +407,12 @@ impl WalFileSequenceNumber {
     }
 }
 
+impl std::fmt::Display for WalFileSequenceNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Details about a snapshot of the WAL
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SnapshotDetails {

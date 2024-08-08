@@ -55,6 +55,17 @@ pub enum Error {
     ParseInt(#[from] std::num::ParseIntError),
 }
 
+impl From<Error> for DataFusionError {
+    fn from(error: Error) -> Self {
+        match error {
+            Error::DataFusion(e) => e,
+            Error::ObjectStore(e) => DataFusionError::ObjectStore(e),
+            Error::ParquetError(e) => DataFusionError::ParquetError(e),
+            _ => DataFusionError::External(Box::new(error)),
+        }
+    }
+}
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
@@ -121,8 +132,6 @@ pub async fn serialize_to_parquet(
 
 #[async_trait]
 impl Persister for PersisterImpl {
-    type Error = Error;
-
     async fn load_catalog(&self) -> Result<Option<PersistedCatalog>> {
         let mut list = self
             .object_store
