@@ -621,9 +621,9 @@ mod tests {
 
     async fn setup() -> (Arc<TestWriteBuffer>, QueryExecutorImpl, Arc<MockProvider>) {
         // Set up QueryExecutor
-        let object_store =
+        let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store) as _));
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let executor = make_exec(object_store);
         let level_0_duration = Level0Duration::new_5m();

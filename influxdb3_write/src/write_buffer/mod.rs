@@ -1,7 +1,7 @@
 //! Implementation of an in-memory buffer for writes that persists data into a wal if it is configured.
 
 pub mod persisted_files;
-pub mod queryable_buffer;
+mod queryable_buffer;
 mod table_buffer;
 pub(crate) mod validator;
 
