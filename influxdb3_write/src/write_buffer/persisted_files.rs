@@ -73,13 +73,19 @@ impl PersistedFiles {
             });
     }
 
-    /// Get the list of files for a given database and table
+    /// Get the list of files for a given database and table, always return in descending order of min_time
     pub fn get_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
-        let files = self.files.read();
+        let mut files = {
+            let files = self.files.read();
+            files
+                .get(db_name)
+                .and_then(|tables| tables.get(table_name))
+                .cloned()
+                .unwrap_or_default()
+        };
+
+        files.sort_by(|a, b| b.min_time.cmp(&a.min_time));
+
         files
-            .get(db_name)
-            .and_then(|tables| tables.get(table_name))
-            .cloned()
-            .unwrap_or_default()
     }
 }
