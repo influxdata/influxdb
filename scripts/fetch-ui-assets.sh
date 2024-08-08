@@ -18,7 +18,7 @@ declare -r SCRIPT_DIR=$(cd $(dirname ${0}) >/dev/null 2>&1 && pwd)
 declare -r ROOT_DIR=$(dirname ${SCRIPT_DIR})
 declare -r STATIC_DIR="$ROOT_DIR/static"
 
-UI_RELEASE="OSS-2.7.8"
+UI_RELEASE="OSS-2.7.9"
 
 # Download the SHA256 checksum attached to the release. To verify the integrity
 # of the download, this checksum will be used to check the download tar file
