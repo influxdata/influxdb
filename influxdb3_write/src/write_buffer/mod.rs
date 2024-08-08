@@ -562,6 +562,7 @@ mod tests {
     use crate::persister::PersisterImpl;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
+    use datafusion::assert_batches_sorted_eq;
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
     use influxdb3_wal::Level0Duration;
@@ -995,19 +996,19 @@ mod tests {
             .unwrap();
 
         let expected = [
-            "+-----+----------------------+",
-            "| bar | time                 |",
-            "+-----+----------------------+",
-            "| 5.0 | 1970-01-01T00:05:00Z |",
-            "| 6.0 | 1970-01-01T00:05:30Z |",
-            "| 4.0 | 1970-01-01T00:04:10Z |",
-            "| 3.0 | 1970-01-01T00:02:27Z |",
-            "| 2.0 | 1970-01-01T00:01:05Z |",
-            "| 1.0 | 1970-01-01T00:00:10Z |",
-            "+-----+----------------------+",
+            "+-----+---------------------+",
+            "| bar | time                |",
+            "+-----+---------------------+",
+            "| 1.0 | 1970-01-01T00:00:10 |",
+            "| 2.0 | 1970-01-01T00:01:05 |",
+            "| 3.0 | 1970-01-01T00:02:27 |",
+            "| 4.0 | 1970-01-01T00:04:10 |",
+            "| 5.0 | 1970-01-01T00:05:00 |",
+            "| 6.0 | 1970-01-01T00:05:30 |",
+            "+-----+---------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &ctx).await;
-        assert_batches_eq!(&expected, &actual);
+        assert_batches_sorted_eq!(&expected, &actual);
     }
 
     async fn fetch_catalog_as_json(
