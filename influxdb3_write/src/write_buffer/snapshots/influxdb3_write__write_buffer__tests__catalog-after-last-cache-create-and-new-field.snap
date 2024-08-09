@@ -1,5 +1,6 @@
 ---
 source: influxdb3_write/src/write_buffer/mod.rs
+assertion_line: 774
 expression: catalog_json
 ---
 {
@@ -57,5 +58,5 @@ expression: catalog_json
       }
     }
   },
-  "sequence": 6
+  "sequence": 7
 }
