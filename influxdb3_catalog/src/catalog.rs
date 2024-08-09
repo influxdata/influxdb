@@ -335,8 +335,8 @@ impl DatabaseSchema {
                     // Do nothing
                 }
                 CatalogOp::CreateLastCache(definition) => {
-                    let table_namme: Arc<str> = definition.table.as_str().into();
-                    let table = tables.get_mut(table_namme.as_ref());
+                    let table_name: Arc<str> = definition.table.as_str().into();
+                    let table = tables.get_mut(table_name.as_ref());
                     match table {
                         Some(table) => {
                             table
@@ -347,8 +347,8 @@ impl DatabaseSchema {
                     }
                 }
                 CatalogOp::DeleteLastCache(definition) => {
-                    let table_namme: Arc<str> = definition.table.as_str().into();
-                    let table = tables.get_mut(table_namme.as_ref());
+                    let table_name: Arc<str> = definition.table.as_str().into();
+                    let table = tables.get_mut(table_name.as_ref());
                     if let Some(table) = table {
                         table.last_caches.remove(&definition.name);
                     }
