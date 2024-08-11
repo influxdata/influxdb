@@ -581,11 +581,13 @@ impl<T: TimeProvider> WriteBuffer for WriteBufferImpl<T> {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::paths::CatalogFilePath;
     use crate::persister::PersisterImpl;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
     use datafusion::assert_batches_sorted_eq;
     use datafusion_util::config::register_iox_object_store;
+    use futures_util::StreamExt;
     use influxdb3_wal::Level0Duration;
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
@@ -1023,6 +1025,173 @@ mod tests {
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &ctx).await;
         assert_batches_sorted_eq!(&expected, &actual);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn catalog_snapshots_only_if_updated() {
+        let (write_buffer, _ctx) = setup(
+            Time::from_timestamp_nanos(0),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(5),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+
+        // do three writes to force a snapshot
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=1",
+                Time::from_timestamp(10, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=2",
+                Time::from_timestamp(20, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=3",
+                Time::from_timestamp(30, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        verify_catalog_count(1, write_buffer.persister.object_store()).await;
+        verify_snapshot_count(1, &write_buffer.persister).await;
+
+        // and another three for another snapshot
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=4",
+                Time::from_timestamp(40, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=5",
+                Time::from_timestamp(50, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=6",
+                Time::from_timestamp(60, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        // verify the catalog didn't get persisted, but a snapshot did
+        verify_catalog_count(1, write_buffer.persister.object_store()).await;
+        verify_snapshot_count(2, &write_buffer.persister).await;
+
+        // and finally three more, with a catalog update, forcing persistence
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=7",
+                Time::from_timestamp(70, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=8,asdf=true",
+                Time::from_timestamp(80, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu bar=9,asdf=true",
+                Time::from_timestamp(90, 0).unwrap(),
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        verify_catalog_count(2, write_buffer.persister.object_store()).await;
+        verify_snapshot_count(3, &write_buffer.persister).await;
+    }
+
+    async fn verify_catalog_count(n: usize, object_store: Arc<dyn ObjectStore>) {
+        let mut checks = 0;
+        loop {
+            let mut list = object_store.list(Some(&CatalogFilePath::dir("test_host")));
+            let mut catalogs = vec![];
+            while let Some(c) = list.next().await {
+                catalogs.push(c.unwrap());
+            }
+
+            if catalogs.len() > n {
+                panic!("checking for {} catalogs but found {}", n, catalogs.len());
+            } else if catalogs.len() == n && checks > 5 {
+                // let enough checks happen to ensure extra catalog persists aren't running ion the background
+                break;
+            } else {
+                checks += 1;
+                if checks > 10 {
+                    panic!("not persisting catalogs");
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        }
+    }
+
+    async fn verify_snapshot_count(n: usize, persister: &Arc<PersisterImpl>) {
+        let mut checks = 0;
+        loop {
+            let persisted_snapshots = persister.load_snapshots(1000).await.unwrap();
+            if persisted_snapshots.len() > n {
+                panic!(
+                    "checking for {} snapshots but found {}",
+                    n,
+                    persisted_snapshots.len()
+                );
+            } else if persisted_snapshots.len() == n && checks > 5 {
+                // let enough checks happen to ensure extra snapshots aren't running ion the background
+                break;
+            } else {
+                checks += 1;
+                if checks > 10 {
+                    panic!("not persisting snapshots");
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        }
     }
 
     fn catalog_to_json(catalog: &Catalog) -> serde_json::Value {

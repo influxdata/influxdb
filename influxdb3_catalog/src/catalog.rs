@@ -226,6 +226,20 @@ impl Catalog {
         inner.sequence = inner.sequence.next();
         inner.updated = true;
     }
+
+    pub fn is_updated(&self) -> bool {
+        self.inner.read().updated
+    }
+
+    /// After the catalog has been persisted, mark it as not updated, if the sequence number
+    /// matches. If it doesn't then the catalog was updated while persistence was running and
+    /// will need to be persisted on the next snapshot.
+    pub fn set_updated_false_if_sequence_matches(&self, sequence_number: SequenceNumber) {
+        let mut inner = self.inner.write();
+        if inner.sequence == sequence_number {
+            inner.updated = false;
+        }
+    }
 }
 
 #[serde_with::serde_as]
