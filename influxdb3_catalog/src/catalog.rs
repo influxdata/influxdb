@@ -1,6 +1,9 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
-use influxdb3_wal::{CatalogBatch, CatalogOp, LastCacheDefinition};
+use crate::catalog::Error::TableNotFound;
+use influxdb3_wal::{
+    CatalogBatch, CatalogOp, FieldAdditions, LastCacheDefinition, LastCacheDelete,
+};
 use influxdb_line_protocol::FieldValue;
 use observability_deps::tracing::info;
 use parking_lot::RwLock;
@@ -10,7 +13,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use thiserror::Error;
 
-#[derive(Debug, Error, Clone, Copy)]
+#[derive(Debug, Error, Clone)]
 pub enum Error {
     #[error("catalog updated elsewhere")]
     CatalogUpdatedElsewhere,
@@ -32,6 +35,35 @@ pub enum Error {
         Catalog::NUM_DBS_LIMIT
     )]
     TooManyDbs,
+
+    #[error("Table {} not in DB schema for {}", table_name, db_name)]
+    TableNotFound { db_name: String, table_name: String },
+
+    #[error(
+        "Field type mismatch on table {} column {}. Existing column is {} but attempted to add {}",
+        table_name,
+        column_name,
+        existing,
+        attempted
+    )]
+    FieldTypeMismatch {
+        table_name: String,
+        column_name: String,
+        existing: InfluxColumnType,
+        attempted: InfluxColumnType,
+    },
+
+    #[error(
+        "Series key mismatch on table {}. Existing table has {} but attempted to add {}",
+        table_name,
+        existing,
+        attempted
+    )]
+    SeriesKeyMismatch {
+        table_name: String,
+        existing: String,
+        attempted: String,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -43,6 +75,8 @@ pub const TIME_COLUMN_NAME: &str = "time";
     Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
 pub struct SequenceNumber(u32);
+
+type SeriesKey = Option<Vec<String>>;
 
 impl SequenceNumber {
     pub fn new(id: u32) -> Self {
@@ -192,6 +226,20 @@ impl Catalog {
         inner.sequence = inner.sequence.next();
         inner.updated = true;
     }
+
+    pub fn is_updated(&self) -> bool {
+        self.inner.read().updated
+    }
+
+    /// After the catalog has been persisted, mark it as not updated, if the sequence number
+    /// matches. If it doesn't then the catalog was updated while persistence was running and
+    /// will need to be persisted on the next snapshot.
+    pub fn set_updated_false_if_sequence_matches(&self, sequence_number: SequenceNumber) {
+        let mut inner = self.inner.write();
+        if inner.sequence == sequence_number {
+            inner.updated = false;
+        }
+    }
 }
 
 #[serde_with::serde_as]
@@ -223,40 +271,40 @@ impl InnerCatalog {
         self.databases.values().map(|db| db.tables.len()).sum()
     }
 
+    /// Applies the `CatalogBatch` while validating that all updates are compatible. If updates
+    /// have already been applied, the sequence number and updated tracker are not updated.
     pub fn apply_catalog_batch(&mut self, catalog_batch: &CatalogBatch) -> Result<()> {
         let table_count = self.table_count();
 
-        let db = self.databases.get(catalog_batch.database_name.as_ref());
+        if let Some(db) = self.databases.get(catalog_batch.database_name.as_ref()) {
+            let existing_table_count = db.tables.len();
 
-        let db = match db {
-            Some(db) => {
-                let previous_table_count = db.tables.len();
-                let db = DatabaseSchema::new_from_existing_and_batch(db, catalog_batch)?;
-
-                let new_table_count = db.tables.len() - previous_table_count;
+            if let Some(new_db) = db.new_if_updated_from_batch(catalog_batch)? {
+                let new_table_count = new_db.tables.len() - existing_table_count;
                 if table_count + new_table_count > Catalog::NUM_TABLES_LIMIT {
                     return Err(Error::TooManyTables);
                 }
 
-                db
+                self.databases
+                    .insert(Arc::clone(&new_db.name), Arc::new(new_db));
+                self.sequence = self.sequence.next();
+                self.updated = true;
             }
-            None => {
-                if self.databases.len() >= Catalog::NUM_DBS_LIMIT {
-                    return Err(Error::TooManyDbs);
-                }
-                let db = DatabaseSchema::new_from_batch(catalog_batch)?;
-                if table_count + db.tables.len() > Catalog::NUM_TABLES_LIMIT {
-                    return Err(Error::TooManyTables);
-                }
-
-                db
+        } else {
+            if self.databases.len() >= Catalog::NUM_DBS_LIMIT {
+                return Err(Error::TooManyDbs);
             }
-        };
 
-        self.databases
-            .insert(Arc::clone(&catalog_batch.database_name), Arc::new(db));
-        self.sequence = self.sequence.next();
-        self.updated = true;
+            let new_db = DatabaseSchema::new_from_batch(catalog_batch)?;
+            if table_count + new_db.tables.len() > Catalog::NUM_TABLES_LIMIT {
+                return Err(Error::TooManyTables);
+            }
+
+            self.databases
+                .insert(Arc::clone(&new_db.name), Arc::new(new_db));
+            self.sequence = self.sequence.next();
+            self.updated = true;
+        }
 
         Ok(())
     }
@@ -287,79 +335,111 @@ impl DatabaseSchema {
         }
     }
 
-    pub fn new_from_existing_and_batch(
-        db: &Arc<DatabaseSchema>,
-        catalog_batch: &CatalogBatch,
-    ) -> Result<Self> {
-        let tables = db.tables.clone();
-        Self::new_from_tables_and_batch(tables, catalog_batch)
-    }
+    /// Validates the updates in the `CatalogBatch` are compatible with this schema. If
+    /// everything is compatible and there are no updates to the existing schema, None will be
+    /// returned, otherwise a new `DatabaseSchema` will be returned with the updates applied.
+    pub fn new_if_updated_from_batch(&self, catalog_batch: &CatalogBatch) -> Result<Option<Self>> {
+        let mut updated_or_new_tables = BTreeMap::new();
 
-    pub fn new_from_batch(catalog_batch: &CatalogBatch) -> Result<Self> {
-        let tables = BTreeMap::new();
-        Self::new_from_tables_and_batch(tables, catalog_batch)
-    }
-
-    pub fn new_from_tables_and_batch(
-        mut tables: BTreeMap<Arc<str>, TableDefinition>,
-        catalog_batch: &CatalogBatch,
-    ) -> Result<Self> {
         for catalog_op in &catalog_batch.ops {
             match catalog_op {
-                CatalogOp::CreateTable(table_def) => {
-                    let table = TableDefinition::new_from_op(table_def);
-                    tables.insert(Arc::clone(&table.name), table);
+                CatalogOp::CreateDatabase(_) => (),
+                CatalogOp::CreateTable(table_definition) => {
+                    let new_or_existing_table = updated_or_new_tables
+                        .get(table_definition.table_name.as_ref())
+                        .or_else(|| self.tables.get(table_definition.table_name.as_ref()));
+                    if let Some(existing_table) = new_or_existing_table {
+                        if let Some(new_table) =
+                            existing_table.new_if_definition_adds_new_fields(table_definition)?
+                        {
+                            updated_or_new_tables.insert(Arc::clone(&new_table.name), new_table);
+                        }
+                    } else {
+                        let new_table = TableDefinition::new_from_op(table_definition);
+                        updated_or_new_tables.insert(Arc::clone(&new_table.name), new_table);
+                    }
                 }
                 CatalogOp::AddFields(field_additions) => {
-                    let columns: Vec<(String, InfluxColumnType)> = field_additions
-                        .field_definitions
-                        .iter()
-                        .map(|field_def| (field_def.name.to_string(), field_def.data_type.into()))
-                        .collect();
-                    let table = tables.get_mut(field_additions.table_name.as_ref());
-                    match table {
-                        Some(table) => {
-                            table.add_columns(columns)?;
+                    let new_or_existing_table = updated_or_new_tables
+                        .get(field_additions.table_name.as_ref())
+                        .or_else(|| self.tables.get(field_additions.table_name.as_ref()));
+                    if let Some(existing_table) = new_or_existing_table {
+                        if let Some(new_table) =
+                            existing_table.new_if_field_additions_add_fields(field_additions)?
+                        {
+                            updated_or_new_tables.insert(Arc::clone(&new_table.name), new_table);
                         }
-                        None => {
-                            let table = TableDefinition::new(
-                                Arc::clone(&field_additions.table_name),
-                                columns,
-                                <Option<Vec<String>>>::None,
-                            )?;
-                            tables.insert(Arc::clone(&field_additions.table_name), table);
-                        }
+                    } else {
+                        let fields = field_additions
+                            .field_definitions
+                            .iter()
+                            .map(|f| (f.name.to_string(), f.data_type.into()))
+                            .collect::<Vec<_>>();
+                        let new_table = TableDefinition::new(
+                            Arc::clone(&field_additions.table_name),
+                            fields,
+                            SeriesKey::None,
+                        )?;
+                        updated_or_new_tables.insert(Arc::clone(&new_table.name), new_table);
                     }
                 }
-                CatalogOp::CreateDatabase(_) => {
-                    // Do nothing
-                }
-                CatalogOp::CreateLastCache(definition) => {
-                    let table_name: Arc<str> = definition.table.as_str().into();
-                    let table = tables.get_mut(table_name.as_ref());
-                    match table {
-                        Some(table) => {
-                            table
-                                .last_caches
-                                .insert(definition.name.clone(), definition.clone());
-                        }
-                        None => panic!("table must exist before last cache creation"),
+                CatalogOp::CreateLastCache(last_cache_definition) => {
+                    let new_or_existing_table = updated_or_new_tables
+                        .get(last_cache_definition.table.as_str())
+                        .or_else(|| self.tables.get(last_cache_definition.table.as_str()));
+
+                    let table = new_or_existing_table.ok_or(TableNotFound {
+                        db_name: self.name.to_string(),
+                        table_name: last_cache_definition.table.clone(),
+                    })?;
+
+                    if let Some(new_table) =
+                        table.new_if_last_cache_definition_is_new(last_cache_definition)
+                    {
+                        updated_or_new_tables.insert(Arc::clone(&new_table.name), new_table);
                     }
                 }
-                CatalogOp::DeleteLastCache(definition) => {
-                    let table_name: Arc<str> = definition.table.as_str().into();
-                    let table = tables.get_mut(table_name.as_ref());
-                    if let Some(table) = table {
-                        table.last_caches.remove(&definition.name);
+                CatalogOp::DeleteLastCache(last_cache_deletion) => {
+                    let new_or_existing_table = updated_or_new_tables
+                        .get(last_cache_deletion.table.as_str())
+                        .or_else(|| self.tables.get(last_cache_deletion.table.as_str()));
+
+                    let table = new_or_existing_table.ok_or(TableNotFound {
+                        db_name: self.name.to_string(),
+                        table_name: last_cache_deletion.table.clone(),
+                    })?;
+
+                    if let Some(new_table) =
+                        table.new_if_last_cache_deletes_existing(last_cache_deletion)
+                    {
+                        updated_or_new_tables.insert(Arc::clone(&new_table.name), new_table);
                     }
                 }
             }
         }
 
-        Ok(Self {
-            name: Arc::clone(&catalog_batch.database_name),
-            tables,
-        })
+        if updated_or_new_tables.is_empty() {
+            Ok(None)
+        } else {
+            for (n, t) in &self.tables {
+                if !updated_or_new_tables.contains_key(n) {
+                    updated_or_new_tables.insert(Arc::clone(n), t.clone());
+                }
+            }
+
+            Ok(Some(Self {
+                name: Arc::clone(&self.name),
+                tables: updated_or_new_tables,
+            }))
+        }
+    }
+
+    pub fn new_from_batch(catalog_batch: &CatalogBatch) -> Result<Self> {
+        let db_schema = Self::new(Arc::clone(&catalog_batch.database_name));
+        let new_db = db_schema
+            .new_if_updated_from_batch(catalog_batch)?
+            .expect("database must be new");
+        Ok(new_db)
     }
 
     pub fn get_table_schema(&self, table_name: &str) -> Option<&Schema> {
@@ -438,6 +518,113 @@ impl TableDefinition {
             table_definition.key.clone(),
         )
         .expect("tables defined from ops should not exceed column limits")
+    }
+
+    /// Validates that the `influxdb3_wal::TableDefinition` is compatible with existing and returns a new
+    /// `TableDefinition` if new definition adds new fields.
+    pub(crate) fn new_if_definition_adds_new_fields(
+        &self,
+        table_definition: &influxdb3_wal::TableDefinition,
+    ) -> Result<Option<Self>> {
+        // validate the series key is the same
+        let existing_key = self
+            .schema
+            .series_key()
+            .map(|k| k.iter().map(|v| v.to_string()).collect());
+
+        if table_definition.key != existing_key {
+            return Err(Error::SeriesKeyMismatch {
+                table_name: self.name.to_string(),
+                existing: existing_key.unwrap_or_default().join("/"),
+                attempted: table_definition.key.clone().unwrap_or_default().join("/"),
+            });
+        }
+        let mut new_fields: Vec<(String, InfluxColumnType)> =
+            Vec::with_capacity(table_definition.field_definitions.len());
+
+        for field_def in &table_definition.field_definitions {
+            if let Some(existing_type) = self.schema.field_type_by_name(field_def.name.as_ref()) {
+                if existing_type != field_def.data_type.into() {
+                    return Err(Error::FieldTypeMismatch {
+                        table_name: self.name.to_string(),
+                        column_name: field_def.name.to_string(),
+                        existing: existing_type,
+                        attempted: field_def.data_type.into(),
+                    });
+                }
+            } else {
+                new_fields.push((field_def.name.to_string(), field_def.data_type.into()));
+            }
+        }
+
+        if new_fields.is_empty() {
+            Ok(None)
+        } else {
+            let mut new_table = self.clone();
+            new_table.add_columns(new_fields)?;
+            Ok(Some(new_table))
+        }
+    }
+
+    /// Validates that the `TableDefinition` is compatible with existing and returns a new
+    /// `TableDefinition` if new definition adds new fields.
+    pub(crate) fn new_if_field_additions_add_fields(
+        &self,
+        field_additions: &FieldAdditions,
+    ) -> Result<Option<Self>> {
+        let mut new_fields = Vec::with_capacity(field_additions.field_definitions.len());
+        for c in &field_additions.field_definitions {
+            let field_type = c.data_type.into();
+            match self.field_type_by_name(&c.name) {
+                None => {
+                    new_fields.push((c.name.to_string(), field_type));
+                }
+                Some(existing_field_type) => {
+                    if existing_field_type != field_type {
+                        return Err(Error::FieldTypeMismatch {
+                            table_name: self.name.to_string(),
+                            column_name: c.name.to_string(),
+                            existing: existing_field_type,
+                            attempted: field_type,
+                        });
+                    }
+                }
+            }
+        }
+
+        if new_fields.is_empty() {
+            Ok(None)
+        } else {
+            let mut new_table = self.clone();
+            new_table.add_columns(new_fields)?;
+            Ok(Some(new_table))
+        }
+    }
+
+    pub(crate) fn new_if_last_cache_definition_is_new(
+        &self,
+        last_cache_definition: &LastCacheDefinition,
+    ) -> Option<Self> {
+        if self.last_caches.contains_key(&last_cache_definition.name) {
+            None
+        } else {
+            let mut new_table = self.clone();
+            new_table.add_last_cache(last_cache_definition.clone());
+            Some(new_table)
+        }
+    }
+
+    pub(crate) fn new_if_last_cache_deletes_existing(
+        &self,
+        last_cache_delete: &LastCacheDelete,
+    ) -> Option<Self> {
+        if self.last_caches.contains_key(&last_cache_delete.name) {
+            let mut new_table = self.clone();
+            new_table.remove_last_cache(&last_cache_delete.name);
+            Some(new_table)
+        } else {
+            None
+        }
     }
 
     /// Check if the column exists in the [`TableDefinition`]s schema

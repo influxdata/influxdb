@@ -192,15 +192,23 @@ impl QueryableBuffer {
         let catalog = Arc::clone(&self.catalog);
 
         tokio::spawn(async move {
-            // persist the catalog
+            // persist the catalog if it has been updated
             loop {
-                let catalog = catalog.clone_inner();
+                if !catalog.is_updated() {
+                    break;
+                }
+                info!("persisting catalog for wal file {}", wal_file_number.get());
+                let inner_catalog = catalog.clone_inner();
+                let sequence_number = inner_catalog.sequence_number();
 
                 match persister
-                    .persist_catalog(wal_file_number, Catalog::from_inner(catalog))
+                    .persist_catalog(wal_file_number, Catalog::from_inner(inner_catalog))
                     .await
                 {
-                    Ok(_) => break,
+                    Ok(_) => {
+                        catalog.set_updated_false_if_sequence_matches(sequence_number);
+                        break;
+                    }
                     Err(e) => {
                         error!(%e, "Error persisting catalog, sleeping and retrying...");
                         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -209,8 +217,9 @@ impl QueryableBuffer {
             }
 
             info!(
-                "catalog persisted, persisting {} chunks",
-                persist_jobs.len()
+                "persisting {} chunks for wal number {}",
+                persist_jobs.len(),
+                wal_file_number.get(),
             );
             // persist the individual files, building the snapshot as we go
             let mut persisted_snapshot = PersistedSnapshot::new(wal_file_number);
