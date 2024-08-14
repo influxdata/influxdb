@@ -102,13 +102,16 @@ func TestPartition_PrependLogFile_Write_Fail(t *testing.T) {
 		sfile := MustOpenSeriesFile(t)
 		t.Cleanup(func() { sfile.Close() })
 
-		p := MustOpenPartition(t, sfile.SeriesFile)
+		p := NewPartition(t, sfile.SeriesFile)
+		p.Partition.MaxLogFileSize = -1
+		if err := p.Partition.Open(); err != nil {
+			t.Fatalf("error opening partition: %v", err)
+		}
 		t.Cleanup(func() {
 			if err := p.Close(); err != nil {
 				t.Fatalf("error closing partition: %v", err)
 			}
 		})
-		p.Partition.MaxLogFileSize = -1
 		fileN := p.FileN()
 		p.CheckLogFile()
 		if fileN >= p.FileN() {
