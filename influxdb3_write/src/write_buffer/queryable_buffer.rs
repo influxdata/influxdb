@@ -2,11 +2,9 @@ use crate::chunk::BufferChunk;
 use crate::last_cache::LastCacheProvider;
 use crate::paths::ParquetFilePath;
 use crate::persister::PersisterImpl;
-use crate::write_buffer::parquet_chunk_from_file;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
-use crate::{persister, write_buffer, ParquetFile, PersistedSnapshot, Persister};
-use arrow::datatypes::SchemaRef;
+use crate::{ParquetFile, PersistedSnapshot, Persister};
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::{
@@ -18,7 +16,7 @@ use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
-use influxdb3_wal::{SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
+use influxdb3_wal::{CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::exec::Executor;
 use iox_query::frontend::reorg::ReorgPlanner;
@@ -36,7 +34,7 @@ use tokio::sync::oneshot::Receiver;
 
 #[derive(Debug)]
 pub(crate) struct QueryableBuffer {
-    executor: Arc<Executor>,
+    pub(crate) executor: Arc<Executor>,
     catalog: Arc<Catalog>,
     last_cache_provider: Arc<LastCacheProvider>,
     persister: Arc<PersisterImpl>,
@@ -68,7 +66,7 @@ impl QueryableBuffer {
         db_schema: Arc<DatabaseSchema>,
         table_name: &str,
         filters: &[Expr],
-        projection: Option<&Vec<usize>>,
+        _projection: Option<&Vec<usize>>,
         _ctx: &SessionState,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         let table = db_schema
@@ -76,30 +74,10 @@ impl QueryableBuffer {
             .get(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
 
-        let arrow_schema: SchemaRef = match projection {
-            Some(projection) => Arc::new(table.schema.as_arrow().project(projection).unwrap()),
-            None => table.schema.as_arrow(),
-        };
-
-        let schema = schema::Schema::try_from(Arc::clone(&arrow_schema))
-            .map_err(|e| DataFusionError::Execution(format!("schema error {}", e)))?;
+        let schema = table.schema.clone();
+        let arrow_schema = schema.as_arrow();
 
         let mut chunks: Vec<Arc<dyn QueryChunk>> = vec![];
-
-        for parquet_file in self.persisted_files.get_files(&db_schema.name, table_name) {
-            let parquet_chunk = parquet_chunk_from_file(
-                &parquet_file,
-                &schema,
-                self.persister.object_store_url(),
-                self.persister.object_store(),
-                chunks
-                    .len()
-                    .try_into()
-                    .expect("should never have this many chunks"),
-            );
-
-            chunks.push(Arc::new(parquet_chunk));
-        }
 
         let buffer = self.buffer.read();
 
@@ -153,16 +131,7 @@ impl QueryableBuffer {
         let mut buffer = self.buffer.write();
         self.last_cache_provider.evict_expired_cache_entries();
         self.last_cache_provider.write_wal_contents_to_cache(&write);
-
-        for op in write.ops {
-            match op {
-                WalOp::Write(write_batch) => buffer.add_write_batch(write_batch),
-                WalOp::Catalog(catalog_batch) => buffer
-                    .catalog
-                    .apply_catalog_batch(&catalog_batch)
-                    .expect("catalog batch should apply"),
-            }
-        }
+        buffer.buffer_ops(write.ops, &self.last_cache_provider);
     }
 
     /// Called when the wal has written a new file and is attempting to snapshot. Kicks off persistence of
@@ -172,18 +141,12 @@ impl QueryableBuffer {
         write: WalContents,
         snapshot_details: SnapshotDetails,
     ) -> Receiver<SnapshotDetails> {
+        info!(
+            ?snapshot_details,
+            "Buffering contents and persisting snapshotted data"
+        );
         let persist_jobs = {
             let mut buffer = self.buffer.write();
-
-            for op in write.ops {
-                match op {
-                    WalOp::Write(write_batch) => buffer.add_write_batch(write_batch),
-                    WalOp::Catalog(catalog_batch) => buffer
-                        .catalog
-                        .apply_catalog_batch(&catalog_batch)
-                        .expect("catalog batch should apply"),
-                }
-            }
 
             let mut persisting_chunks = vec![];
             for (database_name, table_map) in buffer.db_to_table.iter_mut() {
@@ -212,6 +175,10 @@ impl QueryableBuffer {
                 }
             }
 
+            // we must buffer the ops after the snapshotting as this data should not be persisted
+            // with this set of wal files
+            buffer.buffer_ops(write.ops, &self.last_cache_provider);
+
             persisting_chunks
         };
 
@@ -225,15 +192,23 @@ impl QueryableBuffer {
         let catalog = Arc::clone(&self.catalog);
 
         tokio::spawn(async move {
-            // persist the catalog
+            // persist the catalog if it has been updated
             loop {
-                let catalog = catalog.clone_inner();
+                if !catalog.is_updated() {
+                    break;
+                }
+                info!("persisting catalog for wal file {}", wal_file_number.get());
+                let inner_catalog = catalog.clone_inner();
+                let sequence_number = inner_catalog.sequence_number();
 
                 match persister
-                    .persist_catalog(wal_file_number, Catalog::from_inner(catalog))
+                    .persist_catalog(wal_file_number, Catalog::from_inner(inner_catalog))
                     .await
                 {
-                    Ok(_) => break,
+                    Ok(_) => {
+                        catalog.set_updated_false_if_sequence_matches(sequence_number);
+                        break;
+                    }
                     Err(e) => {
                         error!(%e, "Error persisting catalog, sleeping and retrying...");
                         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -241,6 +216,11 @@ impl QueryableBuffer {
                 }
             }
 
+            info!(
+                "persisting {} chunks for wal number {}",
+                persist_jobs.len(),
+                wal_file_number.get(),
+            );
             // persist the individual files, building the snapshot as we go
             let mut persisted_snapshot = PersistedSnapshot::new(wal_file_number);
             for persist_job in persist_jobs {
@@ -294,6 +274,14 @@ impl QueryableBuffer {
 
         receiver
     }
+
+    pub(crate) fn persisted_parquet_files(
+        &self,
+        db_name: &str,
+        table_name: &str,
+    ) -> Vec<ParquetFile> {
+        self.persisted_files.get_files(db_name, table_name)
+    }
 }
 
 #[async_trait]
@@ -329,6 +317,50 @@ impl BufferState {
         Self {
             db_to_table: HashMap::new(),
             catalog,
+        }
+    }
+
+    fn buffer_ops(&mut self, ops: Vec<WalOp>, last_cache_provider: &LastCacheProvider) {
+        for op in ops {
+            match op {
+                WalOp::Write(write_batch) => self.add_write_batch(write_batch),
+                WalOp::Catalog(catalog_batch) => {
+                    self.catalog
+                        .apply_catalog_batch(&catalog_batch)
+                        .expect("catalog batch should apply");
+
+                    let db_schema = self
+                        .catalog
+                        .db_schema(&catalog_batch.database_name)
+                        .expect("database should exist");
+
+                    for op in catalog_batch.ops {
+                        match op {
+                            CatalogOp::CreateLastCache(definition) => {
+                                let table_schema = db_schema
+                                    .get_table_schema(&definition.table)
+                                    .expect("table should exist");
+                                last_cache_provider.create_cache_from_definition(
+                                    db_schema.name.as_ref(),
+                                    table_schema,
+                                    &definition,
+                                );
+                            }
+                            CatalogOp::DeleteLastCache(cache) => {
+                                // we can ignore it if this doesn't exist for any reason
+                                let _ = last_cache_provider.delete_cache(
+                                    db_schema.name.as_ref(),
+                                    &cache.table,
+                                    &cache.name,
+                                );
+                            }
+                            CatalogOp::AddFields(_) => (),
+                            CatalogOp::CreateTable(_) => (),
+                            CatalogOp::CreateDatabase(_) => (),
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -385,13 +417,18 @@ async fn sort_dedupe_persist<P>(
 ) -> (u64, FileMetaData)
 where
     P: Persister,
-    persister::Error: From<<P as Persister>::Error>,
-    write_buffer::Error: From<<P as Persister>::Error>,
-    <P as Persister>::Error: std::fmt::Debug,
 {
     // Dedupe and sort using the COMPACT query built into
     // iox_query
     let row_count = persist_job.batch.num_rows();
+    info!(
+        "Persisting {} rows for db {} and table {} and chunk {} to file {}",
+        row_count,
+        persist_job.database_name,
+        persist_job.table_name,
+        persist_job.chunk_time,
+        persist_job.path.to_string()
+    );
 
     let chunk_stats = create_chunk_statistics(
         Some(row_count),

@@ -11,13 +11,13 @@ use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct BufferChunk {
-    pub(crate) batches: Vec<RecordBatch>,
-    pub(crate) schema: Schema,
-    pub(crate) stats: Arc<ChunkStatistics>,
-    pub(crate) partition_id: data_types::partition::TransitionPartitionId,
-    pub(crate) sort_key: Option<SortKey>,
-    pub(crate) id: data_types::ChunkId,
-    pub(crate) chunk_order: data_types::ChunkOrder,
+    pub batches: Vec<RecordBatch>,
+    pub schema: Schema,
+    pub stats: Arc<ChunkStatistics>,
+    pub partition_id: data_types::partition::TransitionPartitionId,
+    pub sort_key: Option<SortKey>,
+    pub id: data_types::ChunkId,
+    pub chunk_order: data_types::ChunkOrder,
 }
 
 impl QueryChunk for BufferChunk {
@@ -64,13 +64,13 @@ impl QueryChunk for BufferChunk {
 
 #[derive(Debug)]
 pub struct ParquetChunk {
-    pub(crate) schema: Schema,
-    pub(crate) stats: Arc<ChunkStatistics>,
-    pub(crate) partition_id: TransitionPartitionId,
-    pub(crate) sort_key: Option<SortKey>,
-    pub(crate) id: ChunkId,
-    pub(crate) chunk_order: ChunkOrder,
-    pub(crate) parquet_exec: ParquetExecInput,
+    pub schema: Schema,
+    pub stats: Arc<ChunkStatistics>,
+    pub partition_id: TransitionPartitionId,
+    pub sort_key: Option<SortKey>,
+    pub id: ChunkId,
+    pub chunk_order: ChunkOrder,
+    pub parquet_exec: ParquetExecInput,
 }
 
 impl QueryChunk for ParquetChunk {

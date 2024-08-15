@@ -4,6 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use arrow::datatypes::SchemaRef;
 use arrow::{
     array::{
         new_null_array, ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder,
@@ -22,8 +23,11 @@ use datafusion::{
 };
 use hashbrown::{HashMap, HashSet};
 use indexmap::{IndexMap, IndexSet};
-use influxdb3_catalog::catalog::{LastCacheDefinition, LastCacheSize, LastCacheValueColumnsDef};
-use influxdb3_wal::{Field, FieldData, Row, WalContents, WalOp};
+use influxdb3_catalog::catalog::InnerCatalog;
+use influxdb3_wal::{
+    Field, FieldData, LastCacheDefinition, LastCacheSize, LastCacheValueColumnsDef, Row,
+    WalContents, WalOp,
+};
 use iox_time::Time;
 use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
@@ -113,10 +117,7 @@ impl LastCacheProvider {
     }
 
     /// Initialize a [`LastCacheProvider`] from a [`InnerCatalog`]
-    #[cfg(test)]
-    pub(crate) fn new_from_catalog(
-        catalog: &influxdb3_catalog::catalog::InnerCatalog,
-    ) -> Result<Self, Error> {
+    pub(crate) fn new_from_catalog(catalog: &InnerCatalog) -> Result<Self, Error> {
         let provider = LastCacheProvider::new();
         for db_schema in catalog.databases() {
             for tbl_def in db_schema.tables() {
@@ -244,59 +245,15 @@ impl LastCacheProvider {
             format!("{tbl_name}_{keys}_last_cache", keys = key_columns.join("_"))
         });
 
-        let (value_columns, accept_new_fields) = if let Some(mut vals) = value_columns {
-            // if value columns are specified, check that they are present in the table schema
-            for name in vals.iter() {
-                if schema.field_by_name(name).is_none() {
-                    return Err(Error::ValueColumnDoesNotExist {
-                        column_name: name.into(),
-                    });
-                }
-            }
-            // double-check that time column is included
-            let time_col = TIME_COLUMN_NAME.to_string();
-            if !vals.contains(&time_col) {
-                vals.push(time_col);
-            }
-            (vals, false)
-        } else {
-            // default to all non-key columns
-            (
-                schema
-                    .iter()
-                    .filter_map(|(_, f)| {
-                        if key_columns.contains(f.name()) {
-                            None
-                        } else {
-                            Some(f.name().to_string())
-                        }
-                    })
-                    .collect::<Vec<String>>(),
-                true,
-            )
+        let accept_new_fields = value_columns.is_none();
+        let last_cache_value_columns_def = match &value_columns {
+            None => LastCacheValueColumnsDef::AllNonKeyColumns,
+            Some(cols) => LastCacheValueColumnsDef::Explicit {
+                columns: cols.clone(),
+            },
         };
 
-        let mut schema_builder = ArrowSchemaBuilder::new();
-        // Add key columns first:
-        for (t, field) in schema
-            .iter()
-            .filter(|&(_, f)| key_columns.contains(f.name()))
-        {
-            if let InfluxColumnType::Tag = t {
-                // override tags with string type in the schema, because the KeyValue type stores
-                // them as strings, and produces them as StringArray when creating RecordBatches:
-                schema_builder.push(ArrowField::new(field.name(), DataType::Utf8, false))
-            } else {
-                schema_builder.push(field.clone());
-            };
-        }
-        // Add value columns second:
-        for (_, field) in schema
-            .iter()
-            .filter(|&(_, f)| value_columns.contains(f.name()))
-        {
-            schema_builder.push(field.clone());
-        }
+        let cache_schema = self.last_cache_schema_from_schema(&schema, &key_columns, value_columns);
 
         let series_key = schema
             .series_key()
@@ -312,7 +269,7 @@ impl LastCacheProvider {
             count,
             ttl,
             key_columns.clone(),
-            Arc::new(schema_builder.finish()),
+            cache_schema,
             series_key,
             accept_new_fields,
         );
@@ -341,16 +298,89 @@ impl LastCacheProvider {
             table: tbl_name,
             name: cache_name,
             key_columns,
-            value_columns: if accept_new_fields {
-                LastCacheValueColumnsDef::AllNonKeyColumns
-            } else {
-                LastCacheValueColumnsDef::Explicit {
-                    columns: value_columns,
-                }
-            },
+            value_columns: last_cache_value_columns_def,
             count,
             ttl: ttl.as_secs(),
         }))
+    }
+
+    fn last_cache_schema_from_schema(
+        &self,
+        schema: &Schema,
+        key_columns: &[String],
+        value_columns: Option<Vec<String>>,
+    ) -> SchemaRef {
+        let mut schema_builder = ArrowSchemaBuilder::new();
+        // Add key columns first:
+        for (t, field) in schema
+            .iter()
+            .filter(|&(_, f)| key_columns.contains(f.name()))
+        {
+            if let InfluxColumnType::Tag = t {
+                // override tags with string type in the schema, because the KeyValue type stores
+                // them as strings, and produces them as StringArray when creating RecordBatches:
+                schema_builder.push(ArrowField::new(field.name(), DataType::Utf8, false))
+            } else {
+                schema_builder.push(field.clone());
+            };
+        }
+        // Add value columns second:
+        match value_columns {
+            Some(cols) => {
+                for (_, field) in schema
+                    .iter()
+                    .filter(|&(_, f)| cols.contains(f.name()) || f.name() == TIME_COLUMN_NAME)
+                {
+                    schema_builder.push(field.clone());
+                }
+            }
+            None => {
+                for (_, field) in schema
+                    .iter()
+                    .filter(|&(_, f)| !key_columns.contains(f.name()))
+                {
+                    schema_builder.push(field.clone());
+                }
+            }
+        }
+
+        Arc::new(schema_builder.finish())
+    }
+
+    pub fn create_cache_from_definition(
+        &self,
+        db_name: &str,
+        schema: &Schema,
+        definition: &LastCacheDefinition,
+    ) {
+        let value_columns = match &definition.value_columns {
+            LastCacheValueColumnsDef::AllNonKeyColumns => None,
+            LastCacheValueColumnsDef::Explicit { columns } => Some(columns.clone()),
+        };
+        let accept_new_fields = value_columns.is_none();
+        let series_key = schema
+            .series_key()
+            .map(|keys| keys.into_iter().map(|s| s.to_string()).collect());
+
+        let schema =
+            self.last_cache_schema_from_schema(schema, &definition.key_columns, value_columns);
+
+        let last_cache = LastCache::new(
+            definition.count,
+            Duration::from_secs(definition.ttl),
+            definition.key_columns.clone(),
+            schema,
+            series_key,
+            accept_new_fields,
+        );
+
+        let mut lock = self.cache_map.write();
+
+        lock.entry(db_name.to_string())
+            .or_default()
+            .entry_ref(&definition.table)
+            .or_default()
+            .insert(definition.name.clone(), last_cache);
     }
 
     /// Delete a cache from the provider
@@ -1540,26 +1570,23 @@ mod tests {
         last_cache::{KeyValue, LastCacheProvider, Predicate, DEFAULT_CACHE_TTL},
         persister::PersisterImpl,
         write_buffer::WriteBufferImpl,
-        Bufferer, LastCacheManager, Level0Duration, Precision,
+        Bufferer, LastCacheManager, Precision,
     };
     use ::object_store::{memory::InMemory, ObjectStore};
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::NamespaceName;
-    use influxdb3_catalog::catalog::{
-        Catalog, DatabaseSchema, LastCacheDefinition, TableDefinition,
-    };
-    use influxdb3_wal::WalConfig;
+    use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
+    use influxdb3_wal::{LastCacheDefinition, WalConfig};
     use insta::assert_json_snapshot;
     use iox_time::{MockProvider, Time};
 
     async fn setup_write_buffer() -> WriteBufferImpl<MockProvider> {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let persister = Arc::new(PersisterImpl::new(obj_store));
+        let persister = Arc::new(PersisterImpl::new(obj_store, "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         WriteBufferImpl::new(
             persister,
             time_provider,
-            Level0Duration::new_5m(),
             crate::test_help::make_exec(),
             WalConfig::test_config(),
         )

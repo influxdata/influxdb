@@ -20,8 +20,9 @@ use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
 use hyper::HeaderMap;
 use hyper::{Body, Method, Request, Response, StatusCode};
-use influxdb3_catalog::catalog::{Error as CatalogError, LastCacheDefinition};
+use influxdb3_catalog::catalog::Error as CatalogError;
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
+use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::last_cache;
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
@@ -1110,6 +1111,7 @@ where
 
             http_server.write_lp_inner(params, req, false, false).await
         }
+        (Method::POST, "/api/v3/pro/echo") => http_server.pro_echo(req).await,
         (Method::POST, "/api/v3/write") => http_server.write_v3(req).await,
         (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,
         (Method::GET | Method::POST, "/api/v3/query_sql") => http_server.query_sql(req).await,
@@ -1120,7 +1122,6 @@ where
         (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
         (Method::GET | Method::POST, "/ping") => http_server.ping(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
-        (Method::POST, "/api/v3/pro/echo") => http_server.pro_echo(req).await,
         (Method::POST, "/api/v3/configure/last_cache") => {
             http_server.configure_last_cache_create(req).await
         }

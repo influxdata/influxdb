@@ -1,9 +1,9 @@
+use crate::catalog::TableDefinition;
 use arrow::datatypes::DataType as ArrowDataType;
+use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
 use schema::{InfluxColumnType, SchemaBuilder};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-
-use crate::catalog::{LastCacheDefinition, LastCacheValueColumnsDef, TableDefinition};
 
 impl Serialize for TableDefinition {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

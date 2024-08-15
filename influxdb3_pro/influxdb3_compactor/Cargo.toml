@@ -7,13 +7,36 @@ license.workspace = true
 
 [dependencies]
 # Core Crates
+arrow_util.workspace = true
+data_types.workspace = true
+executor.workspace = true
 iox_time.workspace = true
+iox_query.workspace = true
+parquet_file.workspace = true
+schema.workspace = true
 
 # Local Crates
+influxdb3_catalog = { path = "../../influxdb3_catalog" }
 influxdb3_write = { path = "../../influxdb3_write" }
 
 # Crates.io dependencies
+arrow.workspace = true
+arrow-schema.workspace = true
+bytes.workspace = true
+datafusion.workspace = true
+futures-util.workspace = true
+object_store.workspace = true
+parquet.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+metric.workspace = true
+test_helpers.workspace = true
+pretty_assertions.workspace = true
+influxdb3_wal = { path = "../../influxdb3_wal" }
 
 [lints]
 workspace = true

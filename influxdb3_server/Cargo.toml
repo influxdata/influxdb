@@ -79,5 +79,6 @@ test_helpers.workspace = true
 # crates.io crates
 http.workspace = true
 hyper.workspace = true
+test-log.workspace = true
 urlencoding.workspace = true
 pretty_assertions.workspace = true

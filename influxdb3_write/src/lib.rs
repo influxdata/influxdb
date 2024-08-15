@@ -5,7 +5,7 @@
 //! metadata of the parquet files that were written in that snapshot.
 
 pub mod cache;
-mod chunk;
+pub mod chunk;
 pub mod last_cache;
 pub mod paths;
 pub mod persister;
@@ -14,15 +14,14 @@ pub mod write_buffer;
 use crate::paths::ParquetFilePath;
 use async_trait::async_trait;
 use bytes::Bytes;
-use data_types::{NamespaceName, Timestamp, TimestampMinMax};
+use data_types::{NamespaceName, TimestampMinMax};
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::Expr;
 use influxdb3_catalog::catalog;
-use influxdb3_catalog::catalog::LastCacheDefinition;
-use influxdb3_wal::WalFileSequenceNumber;
+use influxdb3_wal::{LastCacheDefinition, WalFileSequenceNumber};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use last_cache::LastCacheProvider;
@@ -31,7 +30,6 @@ use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
@@ -49,9 +47,6 @@ pub enum Error {
 
     #[error("persister error: {0}")]
     Persister(#[from] persister::Error),
-
-    #[error("invalid level 0 duration {0}. Must be one of 1m, 5m, 10m")]
-    InvalidLevel0Duration(String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -84,6 +79,9 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
 
     /// Returns the catalog
     fn catalog(&self) -> Arc<catalog::Catalog>;
+
+    /// Returns the parquet files for a given database and table
+    fn parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile>;
 }
 
 /// ChunkContainer is used by the query engine to get chunks for a given table. Chunks will generally be in the
@@ -132,66 +130,21 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
     ) -> Result<(), write_buffer::Error>;
 }
 
-/// The duration of data timestamps, grouped into files persisted into object storage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Level0Duration(Duration);
-
-impl Level0Duration {
-    pub fn duration_seconds(&self) -> i64 {
-        self.0.as_secs() as i64
-    }
-
-    /// Returns the time of the chunk the given timestamp belongs to based on the duration
-    pub fn chunk_time_for_timestamp(&self, t: Timestamp) -> i64 {
-        t.get() - (t.get() % self.0.as_nanos() as i64)
-    }
-
-    /// Given a time, returns the start time of the level 0 chunk that contains the time.
-    pub fn start_time(&self, timestamp_seconds: i64) -> Time {
-        let duration_seconds = self.duration_seconds();
-        let rounded_seconds = (timestamp_seconds / duration_seconds) * duration_seconds;
-        Time::from_timestamp(rounded_seconds, 0).unwrap()
-    }
-
-    pub fn as_duration(&self) -> Duration {
-        self.0
-    }
-
-    pub fn new_5m() -> Self {
-        Self(Duration::from_secs(300))
-    }
-}
-
-impl FromStr for Level0Duration {
-    type Err = Error;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s {
-            "1m" => Ok(Self(Duration::from_secs(60))),
-            "5m" => Ok(Self(Duration::from_secs(300))),
-            "10m" => Ok(Self(Duration::from_secs(600))),
-            _ => Err(Error::InvalidLevel0Duration(s.to_string())),
-        }
-    }
-}
-
 pub const DEFAULT_OBJECT_STORE_URL: &str = "iox://influxdb3/";
 
 #[async_trait]
 pub trait Persister: Debug + Send + Sync + 'static {
-    type Error;
-
     /// Loads the most recently persisted catalog from object storage.
-    async fn load_catalog(&self) -> Result<Option<PersistedCatalog>, Self::Error>;
+    async fn load_catalog(&self) -> persister::Result<Option<PersistedCatalog>>;
 
     /// Loads the most recently persisted N snapshot parquet file lists from object storage.
     async fn load_snapshots(
         &self,
         most_recent_n: usize,
-    ) -> Result<Vec<PersistedSnapshot>, Self::Error>;
+    ) -> persister::Result<Vec<PersistedSnapshot>>;
 
     // Loads a Parquet file from ObjectStore
-    async fn load_parquet_file(&self, path: ParquetFilePath) -> Result<Bytes, Self::Error>;
+    async fn load_parquet_file(&self, path: ParquetFilePath) -> persister::Result<Bytes>;
 
     /// Persists the catalog with the given `WalFileSequenceNumber`. If this is the highest ID, it will
     /// be the catalog that is returned the next time `load_catalog` is called.
@@ -199,13 +152,13 @@ pub trait Persister: Debug + Send + Sync + 'static {
         &self,
         wal_file_sequence_number: WalFileSequenceNumber,
         catalog: catalog::Catalog,
-    ) -> Result<(), Self::Error>;
+    ) -> persister::Result<()>;
 
     /// Persists the snapshot file
     async fn persist_snapshot(
         &self,
         persisted_snapshot: &PersistedSnapshot,
-    ) -> crate::persister::Result<()>;
+    ) -> persister::Result<()>;
 
     // Writes a SendableRecorgBatchStream to the Parquet format and persists it
     // to Object Store at the given path. Returns the number of bytes written and the file metadata.
@@ -213,7 +166,7 @@ pub trait Persister: Debug + Send + Sync + 'static {
         &self,
         path: ParquetFilePath,
         record_batch: SendableRecordBatchStream,
-    ) -> Result<(u64, FileMetaData), Self::Error>;
+    ) -> persister::Result<(u64, FileMetaData)>;
 
     /// Returns the configured `ObjectStore` that data is loaded from and persisted to.
     fn object_store(&self) -> Arc<dyn object_store::ObjectStore>;
@@ -303,13 +256,15 @@ impl PersistedSnapshot {
             .entry(database_name)
             .or_default()
             .tables
-            .insert(table_name, parquet_file);
+            .entry(table_name)
+            .or_default()
+            .push(parquet_file);
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
 pub struct DatabaseTables {
-    pub tables: hashbrown::HashMap<Arc<str>, ParquetFile>,
+    pub tables: hashbrown::HashMap<Arc<str>, Vec<ParquetFile>>,
 }
 
 /// The summary data for a persisted parquet file in a snapshot.
@@ -395,9 +350,9 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
 mod test_helpers {
     use crate::catalog::Catalog;
     use crate::write_buffer::validator::WriteValidator;
-    use crate::{Level0Duration, Precision};
+    use crate::Precision;
     use data_types::NamespaceName;
-    use influxdb3_wal::WriteBatch;
+    use influxdb3_wal::{Level0Duration, WriteBatch};
     use iox_time::Time;
     use std::sync::Arc;
 
@@ -408,7 +363,7 @@ mod test_helpers {
         lp: &str,
     ) -> WriteBatch {
         let db_name = NamespaceName::new(db_name).unwrap();
-        let result = WriteValidator::initialize(db_name.clone(), catalog)
+        let result = WriteValidator::initialize(db_name.clone(), catalog, 0)
             .unwrap()
             .v1_parse_lines_and_update_schema(lp, false)
             .unwrap()

@@ -92,6 +92,7 @@ sha2 = "0.10.8"
 snap = "1.0.0"
 sqlparser = "0.48.0"
 sysinfo = "0.30.8"
+test-log = { version = "0.2.16", features = ["trace"] }
 thiserror = "1.0"
 tokio = { version = "1.35", features = ["full"] }
 tokio-util = "0.7.9"
@@ -114,6 +115,7 @@ authz = { git = "https://github.com/influxdata/influxdb3_core", rev = "d81f63ddc
 clap_blocks = { git = "https://github.com/influxdata/influxdb3_core", rev = "d81f63ddc10e3cf1c28b05e6c1cef03b71da7f8a" }
 data_types = { git = "https://github.com/influxdata/influxdb3_core", rev = "d81f63ddc10e3cf1c28b05e6c1cef03b71da7f8a" }
 datafusion_util = { git = "https://github.com/influxdata/influxdb3_core", rev = "d81f63ddc10e3cf1c28b05e6c1cef03b71da7f8a" }
+executor = { git = "https://github.com/influxdata/influxdb3_core", rev = "d81f63ddc10e3cf1c28b05e6c1cef03b71da7f8a" }
 influxdb-line-protocol = { git = "https://github.com/influxdata/influxdb3_core", rev = "d81f63ddc10e3cf1c28b05e6c1cef03b71da7f8a" }
 influxdb_influxql_parser = { git = "https://github.com/influxdata/influxdb3_core", rev = "d81f63ddc10e3cf1c28b05e6c1cef03b71da7f8a" }
 influxdb_iox_client = { git = "https://github.com/influxdata/influxdb3_core", rev = "d81f63ddc10e3cf1c28b05e6c1cef03b71da7f8a" }

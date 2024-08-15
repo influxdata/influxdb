@@ -15,10 +15,9 @@ use influxdb3_server::{
     auth::AllOrNothingAuthorizer, builder::ServerBuilder, query_executor::QueryExecutorImpl, serve,
     CommonServerState,
 };
-use influxdb3_wal::WalConfig;
+use influxdb3_wal::{Level0Duration, WalConfig};
 use influxdb3_write::persister::PersisterImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;
-use influxdb3_write::Level0Duration;
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
 use object_store::DynObjectStore;
@@ -200,6 +199,11 @@ pub struct Config {
         action
     )]
     pub buffer_mem_limit_mb: usize,
+
+    /// The host idendifier used as a prefix in all object store file paths. This should be unique
+    /// for any hosts that share the same object store configuration, i.e., the same bucket.
+    #[clap(long = "host-id", env = "INFLUXDB3_HOST_IDENTIFIER_PREFIX", action)]
+    pub host_identifier_prefix: String,
 }
 
 /// If `p` does not exist, try to create it as a directory.
@@ -291,9 +295,12 @@ pub async fn command(config: Config) -> Result<()> {
 
     let common_state =
         CommonServerState::new(Arc::clone(&metrics), trace_exporter, trace_header_parser)?;
-    let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+    let persister = Arc::new(PersisterImpl::new(
+        Arc::clone(&object_store),
+        config.host_identifier_prefix,
+    ));
     let wal_config = WalConfig {
-        level_0_duration: config.level_0_duration.as_duration(),
+        level_0_duration: config.level_0_duration,
         max_write_buffer_size: config.wal_max_write_buffer_size,
         flush_interval: config.wal_flush_interval.into(),
         snapshot_size: config.wal_snapshot_size,
@@ -304,7 +311,6 @@ pub async fn command(config: Config) -> Result<()> {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&time_provider),
-            config.level_0_duration,
             Arc::clone(&exec),
             wal_config,
         )
@@ -312,14 +318,18 @@ pub async fn command(config: Config) -> Result<()> {
     );
     let query_executor = Arc::new(QueryExecutorImpl::new(
         write_buffer.catalog(),
-        Arc::clone(&write_buffer),
+        Arc::<WriteBufferImpl<SystemProvider>>::clone(&write_buffer),
         Arc::clone(&exec),
         Arc::clone(&metrics),
         Arc::new(config.datafusion_config),
         10,
         config.query_log_size,
     ));
-    let compactor = Compactor::new(Arc::clone(&write_buffer), Arc::clone(&persister));
+    let compactor = Compactor::new(
+        Arc::clone(&write_buffer),
+        Arc::clone(&persister),
+        Arc::clone(&exec),
+    );
 
     let listener = TcpListener::bind(*config.http_bind_address)
         .await

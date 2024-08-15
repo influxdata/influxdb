@@ -1,5 +1,5 @@
 //! module for query executor
-use crate::system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
+use crate::system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA_NAME};
 use crate::{QueryExecutor, QueryKind};
 use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
 use arrow::datatypes::SchemaRef;
@@ -49,19 +49,19 @@ use tracker::{
 };
 
 #[derive(Debug)]
-pub struct QueryExecutorImpl<W> {
+pub struct QueryExecutorImpl {
     catalog: Arc<Catalog>,
-    write_buffer: Arc<W>,
+    write_buffer: Arc<dyn WriteBuffer>,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
     query_log: Arc<QueryLog>,
 }
 
-impl<W: WriteBuffer> QueryExecutorImpl<W> {
+impl QueryExecutorImpl {
     pub fn new(
         catalog: Arc<Catalog>,
-        write_buffer: Arc<W>,
+        write_buffer: Arc<dyn WriteBuffer>,
         exec: Arc<Executor>,
         metrics: Arc<Registry>,
         datafusion_config: Arc<HashMap<String, String>>,
@@ -90,7 +90,7 @@ impl<W: WriteBuffer> QueryExecutorImpl<W> {
 }
 
 #[async_trait]
-impl<W: WriteBuffer> QueryExecutor for QueryExecutorImpl<W> {
+impl QueryExecutor for QueryExecutorImpl {
     type Error = Error;
 
     async fn query(
@@ -289,7 +289,7 @@ pub enum Error {
 
 // This implementation is for the Flight service
 #[async_trait]
-impl<W: WriteBuffer> QueryDatabase for QueryExecutorImpl<W> {
+impl QueryDatabase for QueryExecutorImpl {
     async fn namespace(
         &self,
         name: &str,
@@ -307,7 +307,7 @@ impl<W: WriteBuffer> QueryDatabase for QueryExecutorImpl<W> {
 
         Ok(Some(Arc::new(Database::new(
             db_schema,
-            Arc::clone(&self.write_buffer) as _,
+            Arc::clone(&self.write_buffer),
             Arc::clone(&self.exec),
             Arc::clone(&self.datafusion_config),
             Arc::clone(&self.query_log),
@@ -327,28 +327,27 @@ impl<W: WriteBuffer> QueryDatabase for QueryExecutorImpl<W> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Database<B> {
+pub struct Database {
     db_schema: Arc<DatabaseSchema>,
-    write_buffer: Arc<B>,
+    write_buffer: Arc<dyn WriteBuffer>,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
     query_log: Arc<QueryLog>,
     system_schema_provider: Arc<SystemSchemaProvider>,
 }
 
-impl<B: WriteBuffer> Database<B> {
+impl Database {
     pub fn new(
         db_schema: Arc<DatabaseSchema>,
-        write_buffer: Arc<B>,
+        write_buffer: Arc<dyn WriteBuffer>,
         exec: Arc<Executor>,
         datafusion_config: Arc<HashMap<String, String>>,
         query_log: Arc<QueryLog>,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
-            db_schema.name.to_string(),
-            write_buffer.catalog(),
+            Arc::clone(&db_schema.name),
             Arc::clone(&query_log),
-            write_buffer.last_cache_provider(),
+            Arc::clone(&write_buffer),
         ));
         Self {
             db_schema,
@@ -371,7 +370,7 @@ impl<B: WriteBuffer> Database<B> {
         }
     }
 
-    async fn query_table(&self, table_name: &str) -> Option<Arc<QueryTable<B>>> {
+    async fn query_table(&self, table_name: &str) -> Option<Arc<QueryTable>> {
         self.db_schema.get_table_schema(table_name).map(|schema| {
             Arc::new(QueryTable {
                 db_schema: Arc::clone(&self.db_schema),
@@ -384,7 +383,7 @@ impl<B: WriteBuffer> Database<B> {
 }
 
 #[async_trait]
-impl<B: WriteBuffer> QueryNamespace for Database<B> {
+impl QueryNamespace for Database {
     async fn chunks(
         &self,
         table_name: &str,
@@ -455,28 +454,28 @@ impl<B: WriteBuffer> QueryNamespace for Database<B> {
 
 const LAST_CACHE_UDTF_NAME: &str = "last_cache";
 
-impl<B: WriteBuffer> CatalogProvider for Database<B> {
+impl CatalogProvider for Database {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
 
     fn schema_names(&self) -> Vec<String> {
         debug!("Database as CatalogProvider::schema_names");
-        vec![DEFAULT_SCHEMA.to_string(), SYSTEM_SCHEMA.to_string()]
+        vec![DEFAULT_SCHEMA.to_string(), SYSTEM_SCHEMA_NAME.to_string()]
     }
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         debug!(schema_name = %name, "Database as CatalogProvider::schema");
         match name {
             DEFAULT_SCHEMA => Some(Arc::new(Self::from_namespace(self))),
-            SYSTEM_SCHEMA => Some(Arc::clone(&self.system_schema_provider) as _),
+            SYSTEM_SCHEMA_NAME => Some(Arc::clone(&self.system_schema_provider) as _),
             _ => None,
         }
     }
 }
 
 #[async_trait]
-impl<B: WriteBuffer> SchemaProvider for Database<B> {
+impl SchemaProvider for Database {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -499,14 +498,14 @@ impl<B: WriteBuffer> SchemaProvider for Database<B> {
 }
 
 #[derive(Debug)]
-pub struct QueryTable<B> {
+pub struct QueryTable {
     db_schema: Arc<DatabaseSchema>,
     name: Arc<str>,
     schema: Schema,
-    write_buffer: Arc<B>,
+    write_buffer: Arc<dyn WriteBuffer>,
 }
 
-impl<B: WriteBuffer> QueryTable<B> {
+impl QueryTable {
     fn chunks(
         &self,
         ctx: &SessionState,
@@ -525,7 +524,7 @@ impl<B: WriteBuffer> QueryTable<B> {
 }
 
 #[async_trait]
-impl<B: WriteBuffer> TableProvider for QueryTable<B> {
+impl TableProvider for QueryTable {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -572,5 +571,187 @@ impl<B: WriteBuffer> TableProvider for QueryTable<B> {
         };
 
         provider.scan(ctx, projection, &filters, limit).await
+    }
+}
+#[cfg(test)]
+mod tests {
+    use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+
+    use arrow::array::RecordBatch;
+    use data_types::NamespaceName;
+    use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
+    use futures::TryStreamExt;
+    use influxdb3_wal::{Level0Duration, WalConfig};
+    use influxdb3_write::{persister::PersisterImpl, write_buffer::WriteBufferImpl, Bufferer};
+    use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
+    use iox_time::{MockProvider, Time};
+    use metric::Registry;
+    use object_store::{local::LocalFileSystem, ObjectStore};
+    use parquet_file::storage::{ParquetStorage, StorageId};
+
+    use crate::{
+        query_executor::QueryExecutorImpl, system_tables::table_name_predicate_error, QueryExecutor,
+    };
+
+    fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
+        let metrics = Arc::new(metric::Registry::default());
+
+        let parquet_store = ParquetStorage::new(
+            Arc::clone(&object_store),
+            StorageId::from("test_exec_storage"),
+        );
+        Arc::new(Executor::new_with_config_and_executor(
+            ExecutorConfig {
+                target_query_partitions: NonZeroUsize::new(1).unwrap(),
+                object_stores: [&parquet_store]
+                    .into_iter()
+                    .map(|store| (store.id(), Arc::clone(store.object_store())))
+                    .collect(),
+                metric_registry: Arc::clone(&metrics),
+                // Default to 1gb
+                mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
+            },
+            DedicatedExecutor::new_testing(),
+        ))
+    }
+
+    type TestWriteBuffer = WriteBufferImpl<MockProvider>;
+
+    async fn setup() -> (Arc<TestWriteBuffer>, QueryExecutorImpl, Arc<MockProvider>) {
+        // Set up QueryExecutor
+        let object_store: Arc<dyn ObjectStore> =
+            Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store), "test_host"));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let executor = make_exec(object_store);
+        let write_buffer = Arc::new(
+            WriteBufferImpl::new(
+                Arc::clone(&persister),
+                Arc::clone(&time_provider),
+                Arc::clone(&executor),
+                WalConfig {
+                    level_0_duration: Level0Duration::new_1m(),
+                    max_write_buffer_size: 100,
+                    flush_interval: Duration::from_millis(10),
+                    snapshot_size: 1,
+                },
+            )
+            .await
+            .unwrap(),
+        );
+        let metrics = Arc::new(Registry::new());
+        let df_config = Arc::new(Default::default());
+        let query_executor = QueryExecutorImpl::new(
+            write_buffer.catalog(),
+            Arc::<WriteBufferImpl<MockProvider>>::clone(&write_buffer),
+            executor,
+            metrics,
+            df_config,
+            10,
+            10,
+        );
+
+        (write_buffer, query_executor, time_provider)
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn system_parquet_files_success() {
+        let (write_buffer, query_executor, time_provider) = setup().await;
+        // Perform some writes to multiple tables
+        let db_name = "test_db";
+        // perform writes over time to generate WAL files and some snapshots
+        // the time provider is bumped to trick the system into persisting files:
+        for i in 0..10 {
+            let time = i * 10;
+            let _ = write_buffer
+                .write_lp(
+                    NamespaceName::new(db_name).unwrap(),
+                    "\
+                cpu,host=a,region=us-east usage=250\n\
+                mem,host=a,region=us-east usage=150000\n\
+                ",
+                    Time::from_timestamp_nanos(time),
+                    false,
+                    influxdb3_write::Precision::Nanosecond,
+                )
+                .await
+                .unwrap();
+
+            time_provider.set(Time::from_timestamp(time + 1, 0).unwrap());
+        }
+
+        // bump time again and sleep briefly to ensure time to persist things
+        time_provider.set(Time::from_timestamp(20, 0).unwrap());
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        struct TestCase<'a> {
+            query: &'a str,
+            expected: &'a [&'a str],
+        }
+
+        let test_cases = [
+            TestCase {
+                query: "SELECT * FROM system.parquet_files WHERE table_name = 'cpu'",
+                expected: &[
+                    "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
+                    "| table_name | path                                                | size_bytes | row_count | min_time | max_time |",
+                    "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
+                    "| cpu        | dbs/test_db/cpu/1970-01-01/00-00/0000000003.parquet | 2142       | 2         | 0        | 10       |",
+                    "| cpu        | dbs/test_db/cpu/1970-01-01/00-00/0000000006.parquet | 2147       | 3         | 20       | 40       |",
+                    "| cpu        | dbs/test_db/cpu/1970-01-01/00-00/0000000009.parquet | 2147       | 3         | 50       | 70       |",
+                    "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
+                ],
+            },
+            TestCase {
+                query: "SELECT * FROM system.parquet_files WHERE table_name = 'mem'",
+                expected: &[
+                    "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
+                    "| table_name | path                                                | size_bytes | row_count | min_time | max_time |",
+                    "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
+                    "| mem        | dbs/test_db/mem/1970-01-01/00-00/0000000003.parquet | 2142       | 2         | 0        | 10       |",
+                    "| mem        | dbs/test_db/mem/1970-01-01/00-00/0000000006.parquet | 2147       | 3         | 20       | 40       |",
+                    "| mem        | dbs/test_db/mem/1970-01-01/00-00/0000000009.parquet | 2147       | 3         | 50       | 70       |",
+                    "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let batch_stream = query_executor
+                .query(db_name, t.query, None, crate::QueryKind::Sql, None, None)
+                .await
+                .unwrap();
+            let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();
+            assert_batches_sorted_eq!(t.expected, &batches);
+        }
+    }
+
+    #[tokio::test]
+    async fn system_parquet_files_predicate_error() {
+        let (write_buffer, query_executor, time_provider) = setup().await;
+        // make some writes, so that we have a database that we can query against:
+        let db_name = "test_db";
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new(db_name).unwrap(),
+                "cpu,host=a,region=us-east usage=0.1 1",
+                Time::from_timestamp_nanos(0),
+                false,
+                influxdb3_write::Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        // Bump time to trick the persister into persisting to parquet:
+        time_provider.set(Time::from_timestamp(60 * 10, 0).unwrap());
+
+        // query without the `WHERE table_name =` clause to trigger the error:
+        let query = "SELECT * FROM system.parquet_files";
+        let stream = query_executor
+            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
+            .await
+            .unwrap();
+        let error: DataFusionError = stream.try_collect::<Vec<RecordBatch>>().await.unwrap_err();
+        assert_eq!(error.message(), table_name_predicate_error().message());
     }
 }

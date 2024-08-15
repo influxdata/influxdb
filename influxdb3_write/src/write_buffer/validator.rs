@@ -1,6 +1,6 @@
 use std::{borrow::Cow, sync::Arc};
 
-use crate::{write_buffer::Result, Level0Duration, Precision, WriteLineError};
+use crate::{write_buffer::Result, Precision, WriteLineError};
 use data_types::{NamespaceName, Timestamp};
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::{
@@ -8,8 +8,8 @@ use influxdb3_catalog::catalog::{
 };
 
 use influxdb3_wal::{
-    CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDataType, FieldDefinition, Row,
-    TableChunks, WriteBatch,
+    CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDataType, FieldDefinition,
+    Level0Duration, Row, TableChunks, WriteBatch,
 };
 use influxdb_line_protocol::{parse_lines, v3, FieldValue, ParsedLine};
 use iox_time::Time;
@@ -22,6 +22,7 @@ use super::Error;
 pub(crate) struct WithCatalog {
     catalog: Arc<Catalog>,
     db_schema: Arc<DatabaseSchema>,
+    time_now_ns: i64,
 }
 
 /// Type state for the [`WriteValidator`] after it has parsed v1 or v3
@@ -45,10 +46,15 @@ impl WriteValidator<WithCatalog> {
     pub(crate) fn initialize(
         db_name: NamespaceName<'static>,
         catalog: Arc<Catalog>,
+        time_now_ns: i64,
     ) -> Result<WriteValidator<WithCatalog>> {
         let db_schema = catalog.db_or_create(db_name.as_str())?;
         Ok(WriteValidator {
-            state: WithCatalog { catalog, db_schema },
+            state: WithCatalog {
+                catalog,
+                db_schema,
+                time_now_ns,
+            },
         })
     }
 
@@ -105,6 +111,7 @@ impl WriteValidator<WithCatalog> {
         } else {
             let catalog_batch = CatalogBatch {
                 database_name: Arc::clone(&self.state.db_schema.name),
+                time_ns: self.state.time_now_ns,
                 ops: catalog_updates,
             };
             self.state.catalog.apply_catalog_batch(&catalog_batch)?;
@@ -178,6 +185,7 @@ impl WriteValidator<WithCatalog> {
             None
         } else {
             let catalog_batch = CatalogBatch {
+                time_ns: self.state.time_now_ns,
                 database_name: Arc::clone(&self.state.db_schema.name),
                 ops: catalog_updates,
             };
@@ -764,10 +772,10 @@ fn apply_precision_to_timestamp(precision: Precision, ts: i64) -> i64 {
 mod tests {
     use std::sync::Arc;
 
+    use crate::{catalog::Catalog, write_buffer::Error, Precision};
     use data_types::NamespaceName;
+    use influxdb3_wal::Level0Duration;
     use iox_time::Time;
-
-    use crate::{catalog::Catalog, write_buffer::Error, Level0Duration, Precision};
 
     use super::WriteValidator;
 
@@ -775,7 +783,7 @@ mod tests {
     fn write_validator_v1() -> Result<(), Error> {
         let namespace = NamespaceName::new("test").unwrap();
         let catalog = Arc::new(Catalog::new());
-        let result = WriteValidator::initialize(namespace.clone(), catalog)?
+        let result = WriteValidator::initialize(namespace.clone(), catalog, 0)?
             .v1_parse_lines_and_update_schema("cpu,tag1=foo val1=\"bar\" 1234", false)?
             .convert_lines_to_buffer(
                 Time::from_timestamp_nanos(0),

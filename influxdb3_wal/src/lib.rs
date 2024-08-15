@@ -9,14 +9,17 @@ mod snapshot_tracker;
 
 use crate::snapshot_tracker::SnapshotInfo;
 use async_trait::async_trait;
+use data_types::Timestamp;
 use hashbrown::HashMap;
 use influxdb_line_protocol::v3::SeriesValue;
 use influxdb_line_protocol::FieldValue;
+use iox_time::Time;
 use observability_deps::tracing::error;
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt::Debug;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
@@ -38,6 +41,12 @@ pub enum Error {
 
     #[error("wal is shutdown and not accepting writes")]
     Shutdown,
+
+    #[error("invalid level 0 duration {0}. Must be one of 1m, 5m, 10m")]
+    InvalidLevel0Duration(String),
+
+    #[error("last cache size must be from 1 to 10")]
+    InvalidLastCacheSize,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -100,7 +109,7 @@ pub trait WalFileNotifier: Debug + Send + Sync + 'static {
 #[derive(Debug, Clone, Copy)]
 pub struct WalConfig {
     /// The duration of time of chunks to be persisted as Parquet files
-    pub level_0_duration: Duration,
+    pub level_0_duration: Level0Duration,
     /// The maximum number of writes that can be buffered before we must flush to a wal file
     pub max_write_buffer_size: usize,
     /// The interval at which to flush the buffer to a wal file
@@ -112,7 +121,7 @@ pub struct WalConfig {
 impl WalConfig {
     pub fn test_config() -> Self {
         Self {
-            level_0_duration: Duration::from_secs(600),
+            level_0_duration: Level0Duration::new_5m(),
             max_write_buffer_size: 1000,
             flush_interval: Duration::from_millis(10),
             snapshot_size: 100,
@@ -123,11 +132,68 @@ impl WalConfig {
 impl Default for WalConfig {
     fn default() -> Self {
         Self {
-            level_0_duration: Duration::from_secs(600),
+            level_0_duration: Default::default(),
             max_write_buffer_size: 100_000,
             flush_interval: Duration::from_secs(1),
             snapshot_size: 600,
         }
+    }
+}
+
+/// The duration of data timestamps, grouped into files persisted into object storage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Level0Duration(Duration);
+
+impl Level0Duration {
+    pub fn duration_seconds(&self) -> i64 {
+        self.0.as_secs() as i64
+    }
+
+    /// Returns the time of the chunk the given timestamp belongs to based on the duration
+    pub fn chunk_time_for_timestamp(&self, t: Timestamp) -> i64 {
+        t.get() - (t.get() % self.0.as_nanos() as i64)
+    }
+
+    /// Given a time, returns the start time of the level 0 chunk that contains the time.
+    pub fn start_time(&self, timestamp_seconds: i64) -> Time {
+        let duration_seconds = self.duration_seconds();
+        let rounded_seconds = (timestamp_seconds / duration_seconds) * duration_seconds;
+        Time::from_timestamp(rounded_seconds, 0).unwrap()
+    }
+
+    pub fn as_duration(&self) -> Duration {
+        self.0
+    }
+
+    pub fn as_nanos(&self) -> i64 {
+        self.0.as_nanos() as i64
+    }
+
+    pub fn new_1m() -> Self {
+        Self(Duration::from_secs(60))
+    }
+
+    pub fn new_5m() -> Self {
+        Self(Duration::from_secs(300))
+    }
+}
+
+impl FromStr for Level0Duration {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "1m" => Ok(Self(Duration::from_secs(60))),
+            "5m" => Ok(Self(Duration::from_secs(300))),
+            "10m" => Ok(Self(Duration::from_secs(600))),
+            _ => Err(Error::InvalidLevel0Duration(s.to_string())),
+        }
+    }
+}
+
+impl Default for Level0Duration {
+    fn default() -> Self {
+        Self(Duration::from_secs(600))
     }
 }
 
@@ -140,6 +206,7 @@ pub enum WalOp {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CatalogBatch {
     pub database_name: Arc<str>,
+    pub time_ns: i64,
     pub ops: Vec<CatalogOp>,
 }
 
@@ -148,6 +215,8 @@ pub enum CatalogOp {
     CreateDatabase(DatabaseDefinition),
     CreateTable(TableDefinition),
     AddFields(FieldAdditions),
+    CreateLastCache(LastCacheDefinition),
+    DeleteLastCache(LastCacheDelete),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -216,6 +285,135 @@ impl From<FieldDataType> for InfluxColumnType {
             FieldDataType::Key => panic!("Key is not a valid InfluxDB column type"),
         }
     }
+}
+
+/// Defines a last cache in a given table and database
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct LastCacheDefinition {
+    /// The table name the cache is associated with
+    pub table: String,
+    /// Given name of the cache
+    pub name: String,
+    /// Columns intended to be used as predicates in the cache
+    pub key_columns: Vec<String>,
+    /// Columns that store values in the cache
+    pub value_columns: LastCacheValueColumnsDef,
+    /// The number of last values to hold in the cache
+    pub count: LastCacheSize,
+    /// The time-to-live (TTL) in seconds for entries in the cache
+    pub ttl: u64,
+}
+
+impl LastCacheDefinition {
+    /// Create a new [`LastCacheDefinition`] with explicit value columns
+    pub fn new_with_explicit_value_columns(
+        table: impl Into<String>,
+        name: impl Into<String>,
+        key_columns: impl IntoIterator<Item: Into<String>>,
+        value_columns: impl IntoIterator<Item: Into<String>>,
+        count: usize,
+        ttl: u64,
+    ) -> Result<Self, Error> {
+        Ok(Self {
+            table: table.into(),
+            name: name.into(),
+            key_columns: key_columns.into_iter().map(Into::into).collect(),
+            value_columns: LastCacheValueColumnsDef::Explicit {
+                columns: value_columns.into_iter().map(Into::into).collect(),
+            },
+            count: count.try_into()?,
+            ttl,
+        })
+    }
+
+    /// Create a new [`LastCacheDefinition`] with explicit value columns
+    pub fn new_all_non_key_value_columns(
+        table: impl Into<String>,
+        name: impl Into<String>,
+        key_columns: impl IntoIterator<Item: Into<String>>,
+        count: usize,
+        ttl: u64,
+    ) -> Result<Self, Error> {
+        Ok(Self {
+            table: table.into(),
+            name: name.into(),
+            key_columns: key_columns.into_iter().map(Into::into).collect(),
+            value_columns: LastCacheValueColumnsDef::AllNonKeyColumns,
+            count: count.try_into()?,
+            ttl,
+        })
+    }
+}
+
+/// A last cache will either store values for an explicit set of columns, or will accept all
+/// non-key columns
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum LastCacheValueColumnsDef {
+    /// Explicit list of column names
+    Explicit { columns: Vec<String> },
+    /// Stores all non-key columns
+    AllNonKeyColumns,
+}
+
+/// The maximum allowed size for a last cache
+pub const LAST_CACHE_MAX_SIZE: usize = 10;
+
+/// The size of the last cache
+///
+/// Must be between 1 and [`LAST_CACHE_MAX_SIZE`]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
+pub struct LastCacheSize(usize);
+
+impl LastCacheSize {
+    pub fn new(size: usize) -> Result<Self, Error> {
+        if size == 0 || size > LAST_CACHE_MAX_SIZE {
+            Err(Error::InvalidLastCacheSize)
+        } else {
+            Ok(Self(size))
+        }
+    }
+}
+
+impl TryFrom<usize> for LastCacheSize {
+    type Error = Error;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<LastCacheSize> for usize {
+    fn from(value: LastCacheSize) -> Self {
+        value.0
+    }
+}
+
+impl From<LastCacheSize> for u64 {
+    fn from(value: LastCacheSize) -> Self {
+        value
+            .0
+            .try_into()
+            .expect("usize fits into a 64 bit unsigned integer")
+    }
+}
+
+impl PartialEq<usize> for LastCacheSize {
+    fn eq(&self, other: &usize) -> bool {
+        self.0.eq(other)
+    }
+}
+
+impl PartialEq<LastCacheSize> for usize {
+    fn eq(&self, other: &LastCacheSize) -> bool {
+        self.eq(&other.0)
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct LastCacheDelete {
+    pub table: String,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -388,7 +586,9 @@ impl WalContents {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct WalFileSequenceNumber(u64);
 
 impl WalFileSequenceNumber {
@@ -405,9 +605,9 @@ impl WalFileSequenceNumber {
     }
 }
 
-impl Default for WalFileSequenceNumber {
-    fn default() -> Self {
-        Self(1)
+impl std::fmt::Display for WalFileSequenceNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

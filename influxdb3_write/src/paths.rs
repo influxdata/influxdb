@@ -20,17 +20,17 @@ fn object_store_file_stem(n: u64) -> u64 {
 pub struct CatalogFilePath(ObjPath);
 
 impl CatalogFilePath {
-    pub fn new(wal_file_sequence_number: WalFileSequenceNumber) -> Self {
+    pub fn new(host_prefix: &str, wal_file_sequence_number: WalFileSequenceNumber) -> Self {
         let path = ObjPath::from(format!(
-            "catalogs/{:020}.{}",
+            "{host_prefix}/catalogs/{:020}.{}",
             object_store_file_stem(wal_file_sequence_number.get()),
             CATALOG_FILE_EXTENSION
         ));
         Self(path)
     }
 
-    pub fn dir() -> Self {
-        Self(ObjPath::from("catalogs"))
+    pub fn dir(host_prefix: &str) -> Self {
+        Self(ObjPath::from(format!("{host_prefix}/catalogs")))
     }
 }
 
@@ -53,13 +53,14 @@ pub struct ParquetFilePath(ObjPath);
 
 impl ParquetFilePath {
     pub fn new(
+        host_prefix: &str,
         db_name: &str,
         table_name: &str,
         date: DateTime<Utc>,
         wal_file_sequence_number: WalFileSequenceNumber,
     ) -> Self {
         let path = ObjPath::from(format!(
-            "dbs/{db_name}/{table_name}/{}/{}.{}",
+            "{host_prefix}/dbs/{db_name}/{table_name}/{}/{}.{}",
             date.format("%Y-%m-%d/%H-%M"),
             wal_file_sequence_number.get(),
             PARQUET_FILE_EXTENSION
@@ -103,17 +104,17 @@ impl AsRef<ObjPath> for ParquetFilePath {
 pub struct SnapshotInfoFilePath(ObjPath);
 
 impl SnapshotInfoFilePath {
-    pub fn new(wal_file_sequence_number: WalFileSequenceNumber) -> Self {
+    pub fn new(host_prefix: &str, wal_file_sequence_number: WalFileSequenceNumber) -> Self {
         let path = ObjPath::from(format!(
-            "snapshots/{:020}.{}",
+            "{host_prefix}/snapshots/{:020}.{}",
             object_store_file_stem(wal_file_sequence_number.get()),
             SNAPSHOT_INFO_FILE_EXTENSION
         ));
         Self(path)
     }
 
-    pub fn dir() -> Self {
-        Self(ObjPath::from("snapshots"))
+    pub fn dir(host_prefix: &str) -> Self {
+        Self(ObjPath::from(format!("{host_prefix}/snapshots")))
     }
 }
 
@@ -134,8 +135,8 @@ impl AsRef<ObjPath> for SnapshotInfoFilePath {
 #[test]
 fn catalog_file_path_new() {
     assert_eq!(
-        *CatalogFilePath::new(WalFileSequenceNumber::new(0)),
-        ObjPath::from("catalogs/18446744073709551615.json")
+        *CatalogFilePath::new("my_host", WalFileSequenceNumber::new(0)),
+        ObjPath::from("my_host/catalogs/18446744073709551615.json")
     );
 }
 
@@ -143,12 +144,13 @@ fn catalog_file_path_new() {
 fn parquet_file_path_new() {
     assert_eq!(
         *ParquetFilePath::new(
+            "my_host",
             "my_db",
             "my_table",
             Utc.with_ymd_and_hms(2038, 1, 19, 3, 14, 7).unwrap(),
             WalFileSequenceNumber::new(0),
         ),
-        ObjPath::from("dbs/my_db/my_table/2038-01-19/03-14/0.parquet")
+        ObjPath::from("my_host/dbs/my_db/my_table/2038-01-19/03-14/0.parquet")
     );
 }
 
@@ -156,6 +158,7 @@ fn parquet_file_path_new() {
 fn parquet_file_percent_encoded() {
     assert_eq!(
         ParquetFilePath::new(
+            "my_host",
             "..",
             "..",
             Utc.with_ymd_and_hms(2038, 1, 19, 3, 14, 7).unwrap(),
@@ -163,14 +166,14 @@ fn parquet_file_percent_encoded() {
         )
         .as_ref()
         .as_ref(),
-        "dbs/%2E%2E/%2E%2E/2038-01-19/03-14/0.parquet"
+        "my_host/dbs/%2E%2E/%2E%2E/2038-01-19/03-14/0.parquet"
     );
 }
 
 #[test]
 fn snapshot_info_file_path_new() {
     assert_eq!(
-        *SnapshotInfoFilePath::new(WalFileSequenceNumber::new(0)),
-        ObjPath::from("snapshots/18446744073709551615.info.json")
+        *SnapshotInfoFilePath::new("my_host", WalFileSequenceNumber::new(0)),
+        ObjPath::from("my_host/snapshots/18446744073709551615.info.json")
     );
 }

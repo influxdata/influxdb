@@ -4,9 +4,8 @@
 //! configured as it can be used to ensure that data in the write buffer is persisted in blocks
 //! that are not too large and unlikely to overlap.
 
-use crate::{SnapshotDetails, WalFileSequenceNumber};
+use crate::{Level0Duration, SnapshotDetails, WalFileSequenceNumber};
 use data_types::Timestamp;
-use std::time::Duration;
 
 /// A struct that tracks the WAL periods (files if using object store) and decides when to snapshot the WAL.
 #[derive(Debug)]
@@ -14,14 +13,14 @@ pub(crate) struct SnapshotTracker {
     last_sequence_number: WalFileSequenceNumber,
     wal_periods: Vec<WalPeriod>,
     snapshot_size: usize,
-    level_0_duration: Duration,
+    level_0_duration: Level0Duration,
 }
 
 impl SnapshotTracker {
     /// Create a new `SnapshotTracker` with the given snapshot size and level 0 duration. The
     /// level 0 duration is the size of chunks in the write buffer that will be persisted as
     /// parquet files.
-    pub(crate) fn new(snapshot_size: usize, level_0_duration: Duration) -> Self {
+    pub(crate) fn new(snapshot_size: usize, level_0_duration: Level0Duration) -> Self {
         Self {
             last_sequence_number: WalFileSequenceNumber::default(),
             wal_periods: Vec::new(),
@@ -67,8 +66,8 @@ impl SnapshotTracker {
                 .map(|period| period.max_time)
                 .max()
                 .unwrap();
-            let t = max_time - (max_time.get() % self.level_0_duration.as_nanos() as i64)
-                + self.level_0_duration.as_nanos() as i64;
+            let t = max_time - (max_time.get() % self.level_0_duration.as_nanos())
+                + self.level_0_duration.as_nanos();
 
             // remove the wal periods and return the snapshot details
             let wal_periods = std::mem::take(&mut self.wal_periods);
@@ -85,7 +84,7 @@ impl SnapshotTracker {
 
         let t = self.wal_periods.last().unwrap().max_time;
         // round the last timestamp down to the level_0_duration
-        let t = t - (t.get() % self.level_0_duration.as_nanos() as i64);
+        let t = t - (t.get() % self.level_0_duration.as_nanos());
 
         // any wal period that has data before this time can be snapshot
         let periods_to_snapshot = self
@@ -159,36 +158,36 @@ mod tests {
 
     #[test]
     fn snapshot() {
-        let mut tracker = SnapshotTracker::new(2, Duration::from_secs(2));
+        let mut tracker = SnapshotTracker::new(2, Level0Duration::new_1m());
         let p1 = WalPeriod::new(
             WalFileSequenceNumber::new(1),
             Timestamp::new(0),
-            Timestamp::new(1_000000000),
+            Timestamp::new(60_000000000),
         );
         let p2 = WalPeriod::new(
             WalFileSequenceNumber::new(2),
             Timestamp::new(800000001),
-            Timestamp::new(1_900000000),
+            Timestamp::new(119_900000000),
         );
         let p3 = WalPeriod::new(
             WalFileSequenceNumber::new(3),
-            Timestamp::new(1_600000000),
-            Timestamp::new(2_900000000),
+            Timestamp::new(60_600000000),
+            Timestamp::new(120_900000000),
         );
         let p4 = WalPeriod::new(
             WalFileSequenceNumber::new(4),
-            Timestamp::new(2_800000001),
-            Timestamp::new(4_000000000),
+            Timestamp::new(120_800000001),
+            Timestamp::new(240_000000000),
         );
         let p5 = WalPeriod::new(
             WalFileSequenceNumber::new(5),
-            Timestamp::new(3_800000001),
-            Timestamp::new(5_000000000),
+            Timestamp::new(180_800000001),
+            Timestamp::new(299_000000000),
         );
         let p6 = WalPeriod::new(
             WalFileSequenceNumber::new(6),
-            Timestamp::new(4_800000001),
-            Timestamp::new(6_100000000),
+            Timestamp::new(240_800000001),
+            Timestamp::new(360_100000000),
         );
 
         assert!(tracker.snapshot().is_none());
@@ -201,7 +200,7 @@ mod tests {
             tracker.snapshot(),
             Some(SnapshotInfo {
                 snapshot_details: SnapshotDetails {
-                    end_time_marker: 2_000000000,
+                    end_time_marker: 120_000000000,
                     last_sequence_number: WalFileSequenceNumber::new(2)
                 },
                 wal_periods: vec![p1, p2],
@@ -214,7 +213,7 @@ mod tests {
             tracker.snapshot(),
             Some(SnapshotInfo {
                 snapshot_details: SnapshotDetails {
-                    end_time_marker: 4_000000000,
+                    end_time_marker: 240_000000000,
                     last_sequence_number: WalFileSequenceNumber::new(3)
                 },
                 wal_periods: vec![p3]
@@ -228,7 +227,7 @@ mod tests {
             tracker.snapshot(),
             Some(SnapshotInfo {
                 snapshot_details: SnapshotDetails {
-                    end_time_marker: 6_000000000,
+                    end_time_marker: 360_000000000,
                     last_sequence_number: WalFileSequenceNumber::new(5)
                 },
                 wal_periods: vec![p4, p5]
@@ -240,36 +239,36 @@ mod tests {
 
     #[test]
     fn snapshot_future_data_forces_snapshot() {
-        let mut tracker = SnapshotTracker::new(2, Duration::from_secs(2));
+        let mut tracker = SnapshotTracker::new(2, Level0Duration::new_1m());
         let p1 = WalPeriod::new(
             WalFileSequenceNumber::new(1),
             Timestamp::new(0),
-            Timestamp::new(10_100000000),
+            Timestamp::new(300_100000000),
         );
         let p2 = WalPeriod::new(
             WalFileSequenceNumber::new(2),
-            Timestamp::new(1_000000000),
-            Timestamp::new(1_900000000),
+            Timestamp::new(30_000000000),
+            Timestamp::new(59_900000000),
         );
         let p3 = WalPeriod::new(
             WalFileSequenceNumber::new(3),
-            Timestamp::new(2_000000000),
-            Timestamp::new(2_900000000),
+            Timestamp::new(60_000000000),
+            Timestamp::new(60_900000000),
         );
         let p4 = WalPeriod::new(
             WalFileSequenceNumber::new(4),
-            Timestamp::new(3_000000000),
-            Timestamp::new(4_000000000),
+            Timestamp::new(90_000000000),
+            Timestamp::new(120_000000000),
         );
         let p5 = WalPeriod::new(
             WalFileSequenceNumber::new(5),
-            Timestamp::new(4_000000000),
-            Timestamp::new(5_000000000),
+            Timestamp::new(120_000000000),
+            Timestamp::new(150_000000000),
         );
         let p6 = WalPeriod::new(
             WalFileSequenceNumber::new(6),
-            Timestamp::new(5_000000000),
-            Timestamp::new(6_100000000),
+            Timestamp::new(150_000000000),
+            Timestamp::new(180_100000000),
         );
 
         tracker.add_wal_period(p1.clone());
@@ -286,7 +285,7 @@ mod tests {
             tracker.snapshot(),
             Some(SnapshotInfo {
                 snapshot_details: SnapshotDetails {
-                    end_time_marker: 12_000000000,
+                    end_time_marker: 360000000000,
                     last_sequence_number: WalFileSequenceNumber::new(6)
                 },
                 wal_periods: vec![p1, p2, p3, p4, p5, p6]

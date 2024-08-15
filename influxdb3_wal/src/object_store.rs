@@ -10,7 +10,7 @@ use futures_util::stream::StreamExt;
 use hashbrown::HashMap;
 use object_store::path::Path;
 use object_store::{ObjectStore, PutPayload};
-use observability_deps::tracing::error;
+use observability_deps::tracing::{debug, error, info};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -19,6 +19,7 @@ use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
 #[derive(Debug)]
 pub struct WalObjectStore {
     object_store: Arc<dyn ObjectStore>,
+    host_identifier_prefix: String,
     file_notifier: Arc<dyn WalFileNotifier>,
     /// Buffered wal ops go in here along with the state to track when to snapshot
     flush_buffer: Mutex<FlushBuffer>,
@@ -29,11 +30,19 @@ impl WalObjectStore {
     /// exist in the WAL files that haven't been cleaned up yet.
     pub async fn new(
         object_store: Arc<dyn ObjectStore>,
+        host_identifier_prefix: impl Into<String> + Send,
         file_notifier: Arc<dyn WalFileNotifier>,
         config: WalConfig,
+        last_snapshot_wal_sequence: Option<WalFileSequenceNumber>,
     ) -> Result<Arc<Self>, crate::Error> {
         let flush_interval = config.flush_interval;
-        let wal = Self::new_without_replay(object_store, file_notifier, config);
+        let wal = Self::new_without_replay(
+            object_store,
+            host_identifier_prefix,
+            file_notifier,
+            config,
+            last_snapshot_wal_sequence,
+        );
 
         wal.replay().await?;
         let wal = Arc::new(wal);
@@ -44,16 +53,20 @@ impl WalObjectStore {
 
     fn new_without_replay(
         object_store: Arc<dyn ObjectStore>,
+        host_identifier_prefix: impl Into<String>,
         file_notifier: Arc<dyn WalFileNotifier>,
         config: WalConfig,
+        last_snapshot_wal_sequence: Option<WalFileSequenceNumber>,
     ) -> Self {
+        let wal_file_sequence_number = last_snapshot_wal_sequence.unwrap_or_default().next();
         Self {
             object_store,
+            host_identifier_prefix: host_identifier_prefix.into(),
             file_notifier,
             flush_buffer: Mutex::new(FlushBuffer::new(
                 WalBuffer {
                     is_shutdown: false,
-                    wal_file_sequence_number: Default::default(),
+                    wal_file_sequence_number,
                     op_limit: config.max_write_buffer_size,
                     op_count: 0,
                     database_to_write_batch: Default::default(),
@@ -79,8 +92,7 @@ impl WalObjectStore {
             self.flush_buffer
                 .lock()
                 .await
-                .snapshot_tracker
-                .add_wal_period(WalPeriod::new(
+                .replay_wal_period(WalPeriod::new(
                     wal_contents.wal_file_number,
                     Timestamp::new(wal_contents.min_timestamp_ns),
                     Timestamp::new(wal_contents.max_timestamp_ns),
@@ -170,19 +182,25 @@ impl WalObjectStore {
         SnapshotInfo,
         OwnedSemaphorePermit,
     )> {
-        let (wal_contents, responses, snapshot) = self
-            .flush_buffer
-            .lock()
-            .await
-            .flush_buffer_into_contents_and_responses()
-            .await;
+        let (wal_contents, responses, snapshot) = {
+            let mut flush_buffer = self.flush_buffer.lock().await;
+            if flush_buffer.wal_buffer.is_empty() {
+                return None;
+            }
+            flush_buffer
+                .flush_buffer_into_contents_and_responses()
+                .await
+        };
+        info!(
+            n_ops = %wal_contents.ops.len(),
+            min_timestamp_ns = %wal_contents.min_timestamp_ns,
+            max_timestamp_ns = %wal_contents.max_timestamp_ns,
+            wal_file_number = %wal_contents.wal_file_number,
+            snapshot_details = ?wal_contents.snapshot,
+            "flushing WAL buffer to object store"
+        );
 
-        // don't persist a wal file if there's nothing there
-        if wal_contents.is_empty() {
-            return None;
-        }
-
-        let wal_path = wal_path(wal_contents.wal_file_number);
+        let wal_path = wal_path(&self.host_identifier_prefix, wal_contents.wal_file_number);
         let data = crate::serialize::serialize_to_file_bytes(&wal_contents)
             .expect("unable to serialize wal contents into bytes for file");
         let data = Bytes::from(data);
@@ -226,6 +244,7 @@ impl WalObjectStore {
         // now that we've persisted this latest notify and start the snapshot, if set
         let snapshot_response = match wal_contents.snapshot {
             Some(snapshot_details) => {
+                info!(?snapshot_details, "snapshotting wal");
                 let snapshot_done = self
                     .file_notifier
                     .notify_and_snapshot(wal_contents, snapshot_details)
@@ -235,6 +254,10 @@ impl WalObjectStore {
                 Some((snapshot_done, snapshot_info, snapshot_permit))
             }
             None => {
+                debug!(
+                    "notify sent to buffer for wal file {}",
+                    wal_contents.wal_file_number.get()
+                );
                 self.file_notifier.notify(wal_contents);
                 None
             }
@@ -251,7 +274,7 @@ impl WalObjectStore {
     async fn load_existing_wal_file_paths(&self) -> crate::Result<Vec<Path>> {
         let mut paths = Vec::new();
         let mut offset: Option<Path> = None;
-        let path = Path::from("wal");
+        let path = Path::from(format!("{host}/wal", host = self.host_identifier_prefix));
         loop {
             let mut listing = if let Some(offset) = offset {
                 self.object_store.list_with_offset(Some(&path), &offset)
@@ -282,7 +305,7 @@ impl WalObjectStore {
         snapshot_permit: OwnedSemaphorePermit,
     ) {
         for period in snapshot_info.wal_periods {
-            let path = wal_path(period.wal_file_number);
+            let path = wal_path(&self.host_identifier_prefix, period.wal_file_number);
 
             loop {
                 match self.object_store.delete(&path).await {
@@ -365,6 +388,11 @@ impl FlushBuffer {
         }
     }
 
+    fn replay_wal_period(&mut self, wal_period: WalPeriod) {
+        self.wal_buffer.wal_file_sequence_number = wal_period.wal_file_number.next();
+        self.snapshot_tracker.add_wal_period(wal_period);
+    }
+
     /// Converts the wal_buffer into contents and resets it. Returns the channels waiting for
     /// responses. If a snapshot should occur with this flush, a semaphore permit is also returned.
     async fn flush_buffer_into_contents_and_responses(
@@ -437,6 +465,12 @@ struct WalBuffer {
     write_op_responses: Vec<oneshot::Sender<WriteResult>>,
 }
 
+impl WalBuffer {
+    fn is_empty(&self) -> bool {
+        self.database_to_write_batch.is_empty() && self.catalog_batches.is_empty()
+    }
+}
+
 // Writes should only fail if the underlying WAL throws an error. They are validated before they
 // are buffered. The WAL should continuously retry the write until it succeeds. But if a timeout
 // passes, we can use this to pass the object store error back to the client.
@@ -503,6 +537,11 @@ impl WalBuffer {
             max_timestamp_ns = max_timestamp_ns.max(write_batch.max_time_ns);
         }
 
+        for catalog_batch in &self.catalog_batches {
+            min_timestamp_ns = min_timestamp_ns.min(catalog_batch.time_ns);
+            max_timestamp_ns = max_timestamp_ns.max(catalog_batch.time_ns);
+        }
+
         // have the catalog ops come before any writes in ordering
         let mut ops =
             Vec::with_capacity(self.database_to_write_batch.len() + self.catalog_batches.len());
@@ -528,14 +567,17 @@ impl WalBuffer {
     }
 }
 
-fn wal_path(wal_file_number: WalFileSequenceNumber) -> Path {
-    Path::from(format!("wal/{:011}.wal", wal_file_number.0))
+fn wal_path(host_identifier_prefix: &str, wal_file_number: WalFileSequenceNumber) -> Path {
+    Path::from(format!(
+        "{host_identifier_prefix}/wal/{:011}.wal",
+        wal_file_number.0
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Field, FieldData, Row, TableChunk, TableChunks};
+    use crate::{Field, FieldData, Level0Duration, Row, TableChunk, TableChunks};
     use async_trait::async_trait;
     use object_store::memory::InMemory;
     use std::any::Any;
@@ -549,12 +591,14 @@ mod tests {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_secs(1),
             snapshot_size: 2,
-            level_0_duration: Duration::from_nanos(10),
+            level_0_duration: Level0Duration::new_1m(),
         };
         let wal = WalObjectStore::new_without_replay(
             Arc::clone(&object_store),
+            "my_host",
             Arc::clone(&notifier),
             wal_config,
+            None,
         );
 
         let db_name: Arc<str> = "db1".into();
@@ -626,7 +670,7 @@ mod tests {
                                     },
                                     Field {
                                         name: "time".into(),
-                                        value: FieldData::Timestamp(12),
+                                        value: FieldData::Timestamp(62_000000000),
                                     },
                                 ],
                             }],
@@ -634,8 +678,8 @@ mod tests {
                     )]),
                 },
             )]),
-            min_time_ns: 12,
-            max_time_ns: 12,
+            min_time_ns: 62_000000000,
+            max_time_ns: 62_000000000,
         });
         wal.buffer_op_unconfirmed(op2.clone()).await.unwrap();
 
@@ -644,7 +688,7 @@ mod tests {
         assert!(ret.is_none());
         let file_1_contents = WalContents {
             min_timestamp_ns: 1,
-            max_timestamp_ns: 12,
+            max_timestamp_ns: 62_000000000,
             wal_file_number: WalFileSequenceNumber(1),
             ops: vec![WalOp::Write(WriteBatch {
                 database_name: "db1".into(),
@@ -692,7 +736,7 @@ mod tests {
                                             },
                                             Field {
                                                 name: "time".into(),
-                                                value: FieldData::Timestamp(12),
+                                                value: FieldData::Timestamp(62_000000000),
                                             },
                                         ],
                                     },
@@ -702,7 +746,7 @@ mod tests {
                     },
                 )]),
                 min_time_ns: 1,
-                max_time_ns: 12,
+                max_time_ns: 62_000000000,
             })],
             snapshot: None,
         };
@@ -712,8 +756,8 @@ mod tests {
         assert!(wal.flush_buffer().await.is_none());
 
         let file_2_contents = WalContents {
-            min_timestamp_ns: 12,
-            max_timestamp_ns: 12,
+            min_timestamp_ns: 62000000000,
+            max_timestamp_ns: 62000000000,
             wal_file_number: WalFileSequenceNumber(2),
             ops: vec![WalOp::Write(WriteBatch {
                 database_name: "db1".into(),
@@ -734,7 +778,7 @@ mod tests {
                                         },
                                         Field {
                                             name: "time".into(),
-                                            value: FieldData::Timestamp(12),
+                                            value: FieldData::Timestamp(62_000000000),
                                         },
                                     ],
                                 }],
@@ -742,8 +786,8 @@ mod tests {
                         )]),
                     },
                 )]),
-                min_time_ns: 12,
-                max_time_ns: 12,
+                min_time_ns: 62_000000000,
+                max_time_ns: 62_000000000,
             })],
             snapshot: None,
         };
@@ -752,19 +796,21 @@ mod tests {
         let replay_notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotfiier::default());
         let replay_wal = WalObjectStore::new_without_replay(
             Arc::clone(&object_store),
+            "my_host",
             Arc::clone(&replay_notifier),
             WalConfig {
-                level_0_duration: Duration::from_secs(10),
+                level_0_duration: Level0Duration::new_1m(),
                 max_write_buffer_size: 10,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
             },
+            None,
         );
         assert_eq!(
             replay_wal.load_existing_wal_file_paths().await.unwrap(),
             vec![
-                Path::from("wal/00000000001.wal"),
-                Path::from("wal/00000000002.wal")
+                Path::from("my_host/wal/00000000001.wal"),
+                Path::from("my_host/wal/00000000002.wal")
             ]
         );
         replay_wal.replay().await.unwrap();
@@ -802,7 +848,7 @@ mod tests {
                                     },
                                     Field {
                                         name: "time".into(),
-                                        value: FieldData::Timestamp(26),
+                                        value: FieldData::Timestamp(128_000000000),
                                     },
                                 ],
                             }],
@@ -810,27 +856,27 @@ mod tests {
                     )]),
                 },
             )]),
-            min_time_ns: 26,
-            max_time_ns: 26,
+            min_time_ns: 128_000000000,
+            max_time_ns: 128_000000000,
         });
         wal.buffer_op_unconfirmed(op3.clone()).await.unwrap();
 
         let (snapshot_done, snapshot_info, snapshot_permit) = wal.flush_buffer().await.unwrap();
         let expected_info = SnapshotInfo {
             snapshot_details: SnapshotDetails {
-                end_time_marker: 20,
+                end_time_marker: 120000000000,
                 last_sequence_number: WalFileSequenceNumber(2),
             },
             wal_periods: vec![
                 WalPeriod {
                     wal_file_number: WalFileSequenceNumber(1),
                     min_time: Timestamp::new(1),
-                    max_time: Timestamp::new(12),
+                    max_time: Timestamp::new(62000000000),
                 },
                 WalPeriod {
                     wal_file_number: WalFileSequenceNumber(2),
-                    min_time: Timestamp::new(12),
-                    max_time: Timestamp::new(12),
+                    min_time: Timestamp::new(62000000000),
+                    max_time: Timestamp::new(62000000000),
                 },
             ],
         };
@@ -838,8 +884,8 @@ mod tests {
         snapshot_done.await.unwrap();
 
         let file_3_contents = WalContents {
-            min_timestamp_ns: 26,
-            max_timestamp_ns: 26,
+            min_timestamp_ns: 128_000000000,
+            max_timestamp_ns: 128_000000000,
             wal_file_number: WalFileSequenceNumber(3),
             ops: vec![WalOp::Write(WriteBatch {
                 database_name: "db1".into(),
@@ -860,7 +906,7 @@ mod tests {
                                         },
                                         Field {
                                             name: "time".into(),
-                                            value: FieldData::Timestamp(26),
+                                            value: FieldData::Timestamp(128_000000000),
                                         },
                                     ],
                                 }],
@@ -868,11 +914,11 @@ mod tests {
                         )]),
                     },
                 )]),
-                min_time_ns: 26,
-                max_time_ns: 26,
+                min_time_ns: 128_000000000,
+                max_time_ns: 128_000000000,
             })],
             snapshot: Some(SnapshotDetails {
-                end_time_marker: 20,
+                end_time_marker: 120_000000000,
                 last_sequence_number: WalFileSequenceNumber(2),
             }),
         };
@@ -894,12 +940,14 @@ mod tests {
         let replay_notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotfiier::default());
         let replay_wal = WalObjectStore::new_without_replay(
             object_store,
+            "my_host",
             Arc::clone(&replay_notifier),
             wal_config,
+            None,
         );
         assert_eq!(
             replay_wal.load_existing_wal_file_paths().await.unwrap(),
-            vec![Path::from("wal/00000000003.wal")]
+            vec![Path::from("my_host/wal/00000000003.wal")]
         );
         replay_wal.replay().await.unwrap();
         let replay_notifier = replay_notifier
@@ -910,6 +958,32 @@ mod tests {
         assert_eq!(*notified_writes, vec![file_3_contents.clone()]);
         let snapshot_details = replay_notifier.snapshot_details.lock();
         assert_eq!(*snapshot_details, file_3_contents.snapshot);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn flush_for_empty_buffer_skips_notify() {
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotfiier::default());
+        let wal_config = WalConfig {
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_secs(1),
+            snapshot_size: 2,
+            level_0_duration: Level0Duration::new_1m(),
+        };
+        let wal = WalObjectStore::new_without_replay(
+            Arc::clone(&object_store),
+            "my_host",
+            Arc::clone(&notifier),
+            wal_config,
+            None,
+        );
+
+        assert!(wal.flush_buffer().await.is_none());
+        let notifier = notifier.as_any().downcast_ref::<TestNotfiier>().unwrap();
+        assert!(notifier.notified_writes.lock().is_empty());
+
+        // make sure no wal file was written
+        assert!(object_store.list(None).next().await.is_none());
     }
 
     #[derive(Debug, Default)]

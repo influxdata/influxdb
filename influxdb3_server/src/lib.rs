@@ -235,7 +235,7 @@ mod tests {
     use influxdb3_wal::WalConfig;
     use influxdb3_write::persister::PersisterImpl;
     use influxdb3_write::write_buffer::WriteBufferImpl;
-    use influxdb3_write::{LastCacheManager, Level0Duration};
+    use influxdb3_write::LastCacheManager;
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
@@ -768,14 +768,13 @@ mod tests {
             },
             DedicatedExecutor::new_testing(),
         ));
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store)));
+        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
 
         let write_buffer = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
                 Arc::clone(&time_provider),
-                Level0Duration::new_5m(),
                 Arc::clone(&exec),
                 WalConfig::test_config(),
             )
@@ -784,7 +783,7 @@ mod tests {
         );
         let query_executor = crate::query_executor::QueryExecutorImpl::new(
             write_buffer.catalog(),
-            Arc::clone(&write_buffer),
+            Arc::<WriteBufferImpl<MockProvider>>::clone(&write_buffer),
             Arc::clone(&exec),
             Arc::clone(&metrics),
             Arc::new(HashMap::new()),
