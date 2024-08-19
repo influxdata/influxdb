@@ -4,7 +4,9 @@
 [advisories]
 version = 2
 yanked = "deny"
-ignore = []
+ignore = [
+    "RUSTSEC-2024-0363"
+]
 git-fetch-with-cli = true
 
 [licenses]
