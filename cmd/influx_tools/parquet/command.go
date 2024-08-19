@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/format/binary"
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/format/line"
+	export2 "github.com/influxdata/influxdb/cmd/influx_tools/parquet/exporter"
 	"github.com/influxdata/influxdb/cmd/influx_tools/server"
 	"go.uber.org/zap"
 )
@@ -78,10 +79,11 @@ func (cmd *Command) Run(args []string) (err error) {
 		return nil
 	}
 
-	if err := e.Scan(); err != nil {
+	if err := e.GatherInfo(); err != nil {
 		return err
 	}
-	fmt.Println(e.schema)
+
+	e.exporter = export2.New(100000000)
 
 	return e.WriteTo()
 }

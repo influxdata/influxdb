@@ -1,6 +1,7 @@
 package parquet
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -9,6 +10,8 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/storage"
+	export2 "github.com/influxdata/influxdb/cmd/influx_tools/parquet/exporter"
+	models2 "github.com/influxdata/influxdb/cmd/influx_tools/parquet/exporter/parquet/models"
 	"github.com/influxdata/influxdb/cmd/influx_tools/server"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
@@ -35,7 +38,8 @@ type exporter struct {
 	sourceGroups []meta.ShardGroupInfo
 	targetGroups []meta.ShardGroupInfo
 
-	schema schema
+	measurements measurements
+	exporter     *export2.Exporter
 
 	// source data time range
 	startDate time.Time
@@ -170,17 +174,15 @@ func (e *exporter) shardsGroupsByTimeRange(min, max time.Time) []meta.ShardGroup
 	return groups
 }
 
-func (e *exporter) Scan() error {
-	e.schema = newSchema()
+func (e *exporter) GatherInfo() error {
+	e.measurements = newMeasurements()
 	for _, g := range e.targetGroups {
 		min, max := g.StartTime, g.EndTime
 		rs, err := e.read(min, max.Add(-1))
 		if err != nil || rs == nil {
 			return err
 		}
-		if err := e.gatherSchema(min, max, e.m, rs); err != nil {
-			return err
-		}
+		e.gatherSchema(min, max, e.m, rs)
 		rs.Close()
 	}
 	return nil
@@ -193,12 +195,13 @@ func (e *exporter) WriteTo() error {
 		if err != nil || rs == nil {
 			return err
 		}
-		/*
-			format.WriteBucket(w, min.UnixNano(), max.UnixNano(), rs)
-		*/
-		// TODO parquet
+		if err := e.writeBucket(min, max, e.m, rs); err != nil {
+			return err
+		}
 		rs.Close()
+		fmt.Println("..")
 	}
+	fmt.Println(".")
 	return nil
 }
 
@@ -257,22 +260,124 @@ func (e *exporter) openStoreWithShardsIDs(ids []uint64) ([]*tsdb.Shard, error) {
 	return e.tsdbStore.Shards(ids), nil
 }
 
-func (e *exporter) gatherSchema(start, end time.Time, measurement string, rs *storage.ResultSet) error {
-	fmt.Printf("start: %s, end: %s\n", start.Format(time.RFC3339), end.Format(time.RFC3339))
+func (e *exporter) gatherSchema(start, end time.Time, measurement string, rs *storage.ResultSet) {
+	fmt.Printf("gather schema start: %s, end: %s\n", start.Format(time.RFC3339), end.Format(time.RFC3339))
 	for rs.Next() {
 		if measurement != "" && measurement != string(rs.Name()) {
 			continue
 		}
-		mn := string(rs.Name())
-		fn := string(rs.Field())
-		fmt.Printf("%s\n", mn)
-		fmt.Printf("%v\n", rs.Tags())
-		fmt.Printf("%s %s\n", fn, rs.FieldType())
-		fmt.Println("-----")
-		table := e.schema.getTable(mn)
-		table.addField(fn, rs.FieldType())
-		table.addTags(fn, rs.Tags())
+		measurementName := string(rs.Name())
+		fieldName := models2.MakeEscaped(rs.Field()).S()
+		table := e.measurements.getTable(measurementName)
+		table.addField(fieldName, rs.FieldType())
+		table.addTags(fieldName, rs.Tags())
+	}
+}
+
+func (e *exporter) writeBucket(start, end time.Time, measurement string, rs *storage.ResultSet) error {
+	fmt.Printf("write bucket start: %s, end: %s\n", start.Format(time.RFC3339), end.Format(time.RFC3339))
+	shardData := make(map[string]map[models2.EscapedString]map[models2.EscapedString]export2.ShardValues)
+
+	for rs.Next() {
+		mName := string(rs.Name())
+		if measurement != "" && measurement != mName {
+			continue
+		}
+
+		measurementData, ok := shardData[mName]
+		if !ok {
+			measurementData = make(map[models2.EscapedString]map[models2.EscapedString]export2.ShardValues)
+			shardData[mName] = measurementData
+		}
+
+		seriesKey := e.partialSeriesKeyV2(rs.Name() /*rs.Field(),*/, rs.Tags())
+
+		key := models2.MakeEscaped(seriesKey).S()
+		seriesData, ok := measurementData[key]
+		if !ok {
+			seriesData = make(map[models2.EscapedString]export2.ShardValues)
+			measurementData[key] = seriesData
+		}
+
+		fieldName := models2.MakeEscaped(rs.Field()).S()
+		vals, ok := seriesData[fieldName]
+		if !ok {
+			vals = &values{}
+			seriesData[fieldName] = vals
+		}
+
+		ci := rs.CursorIterator()
+		for ci.Next() {
+			cur := ci.Cursor()
+			vals.(*values).append(cur)
+			cur.Close()
+		}
 	}
 
+	for measurement, seriesData := range shardData {
+		schema, err := e.measurements.exporterSchema(measurement)
+		if err != nil {
+			return err
+		}
+		if true { // debug
+			fmt.Printf("--- measurement: %s\n", measurement)
+			fmt.Printf("  --- tag set:   %v\n", schema.TagSet)
+			fmt.Printf("  --- field set: %v\n", schema.FieldSet)
+			fmt.Println("--- shard data")
+			for seriesKey, field := range seriesData {
+				fmt.Printf("  series: %s\n", seriesKey)
+				for name, values := range field {
+					fmt.Printf("    field: %s values: %s\n", name, values.String())
+				}
+			}
+		}
+		ers := export2.NewResultSet(seriesData)
+		if err := e.exporter.WriteTo("/tmp/parquet/", ers, schema); err != nil {
+			return err
+		}
+	}
+
+	fmt.Println("...")
+
 	return nil
+}
+
+func (e *exporter) partialSeriesKeyV2(measurement /*, field*/ []byte, tags models.Tags) []byte {
+	var b bytes.Buffer
+	b.WriteString("NULL,")
+	b.WriteString(models.MeasurementTagKey)
+	b.WriteByte('=')
+	b.Write(measurement)
+	/* // this is done later, in resultset.go
+	b.WriteByte(',')
+	b.WriteString(models.FieldKeyTagKey)
+	b.WriteByte('=')
+	b.Write(field)
+	*/
+	for _, tag := range tags {
+		b.WriteByte(',')
+		b.Write(tag.Key)
+		b.WriteByte('=')
+		b.Write(tag.Value)
+	}
+	return b.Bytes()
+}
+
+func (e *exporter) fullSeriesKeyV2(measurement, field []byte, tags models.Tags) []byte {
+	var b bytes.Buffer
+	b.WriteString("NULL,")
+	b.WriteString(models.MeasurementTagKey)
+	b.WriteByte('=')
+	b.Write(measurement)
+	b.WriteByte(',')
+	b.WriteString(models.FieldKeyTagKey)
+	b.WriteByte('=')
+	b.Write(field)
+	for _, tag := range tags {
+		b.WriteByte(',')
+		b.Write(tag.Key)
+		b.WriteByte('=')
+		b.Write(tag.Value)
+	}
+	return b.Bytes()
 }
