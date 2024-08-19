@@ -6,7 +6,7 @@ use arrow::record_batch::RecordBatch;
 use arrow::util::pretty::pretty_format_batches;
 use arrow_schema::SchemaRef;
 use data_types::NamespaceName;
-use influxdb3_compactor::Compactor;
+use influxdb3_pro_compactor::Compactor;
 use influxdb3_wal::WalConfig;
 use influxdb3_write::persister::PersisterImpl;
 use influxdb3_write::write_buffer::WriteBufferImpl;

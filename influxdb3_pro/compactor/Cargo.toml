@@ -1,5 +1,5 @@
 [package]
-name = "influxdb3_compactor"
+name = "influxdb3_pro_compactor"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

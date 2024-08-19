@@ -1,5 +1,5 @@
 [package]
-name = "influxdb3_index"
+name = "influxdb3_pro_index"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

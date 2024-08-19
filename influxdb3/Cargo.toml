@@ -25,7 +25,7 @@ trogging.workspace = true
 
 # Local Crates
 influxdb3_client = { path = "../influxdb3_client" }
-influxdb3_compactor = { path = "../influxdb3_pro/influxdb3_compactor" }
+influxdb3_pro_compactor = { path = "../influxdb3_pro/compactor" }
 influxdb3_process = { path = "../influxdb3_process", default-features = false }
 influxdb3_server = { path = "../influxdb3_server" }
 influxdb3_wal = { path = "../influxdb3_wal" }
