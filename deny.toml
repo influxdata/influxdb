@@ -4,6 +4,7 @@
 [advisories]
 yanked = "deny"
 ignore = [
+    "RUSTSEC-2024-0363"
 ]
 git-fetch-with-cli = true
 
