@@ -23,7 +23,7 @@ impl CatalogFilePath {
     pub fn new(host_prefix: &str, wal_file_sequence_number: WalFileSequenceNumber) -> Self {
         let path = ObjPath::from(format!(
             "{host_prefix}/catalogs/{:020}.{}",
-            object_store_file_stem(wal_file_sequence_number.get()),
+            object_store_file_stem(wal_file_sequence_number.as_u64()),
             CATALOG_FILE_EXTENSION
         ));
         Self(path)
@@ -62,7 +62,7 @@ impl ParquetFilePath {
         let path = ObjPath::from(format!(
             "{host_prefix}/dbs/{db_name}/{table_name}/{}/{}.{}",
             date.format("%Y-%m-%d/%H-%M"),
-            wal_file_sequence_number.get(),
+            wal_file_sequence_number.as_u64(),
             PARQUET_FILE_EXTENSION
         ));
         Self(path)
@@ -79,7 +79,7 @@ impl ParquetFilePath {
         let path = ObjPath::from(format!(
             "dbs/{db_name}/{table_name}/{}/{:010}.{}",
             date_time.format("%Y-%m-%d/%H-%M"),
-            wal_file_sequence_number.get(),
+            wal_file_sequence_number.as_u64(),
             PARQUET_FILE_EXTENSION
         ));
         Self(path)
@@ -107,7 +107,7 @@ impl SnapshotInfoFilePath {
     pub fn new(host_prefix: &str, wal_file_sequence_number: WalFileSequenceNumber) -> Self {
         let path = ObjPath::from(format!(
             "{host_prefix}/snapshots/{:020}.{}",
-            object_store_file_stem(wal_file_sequence_number.get()),
+            object_store_file_stem(wal_file_sequence_number.as_u64()),
             SNAPSHOT_INFO_FILE_EXTENSION
         ));
         Self(path)

@@ -600,7 +600,7 @@ impl WalFileSequenceNumber {
         Self(self.0 + 1)
     }
 
-    pub fn get(&self) -> u64 {
+    pub fn as_u64(&self) -> u64 {
         self.0
     }
 }

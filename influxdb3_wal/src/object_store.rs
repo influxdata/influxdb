@@ -256,7 +256,7 @@ impl WalObjectStore {
             None => {
                 debug!(
                     "notify sent to buffer for wal file {}",
-                    wal_contents.wal_file_number.get()
+                    wal_contents.wal_file_number.as_u64()
                 );
                 self.file_notifier.notify(wal_contents);
                 None

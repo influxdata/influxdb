@@ -473,8 +473,8 @@ mod tests {
         let snapshots = persister.load_snapshots(2).await.unwrap();
         assert_eq!(snapshots.len(), 2);
         // The most recent one is first
-        assert_eq!(snapshots[0].wal_file_sequence_number.get(), 2);
-        assert_eq!(snapshots[1].wal_file_sequence_number.get(), 1);
+        assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 2);
+        assert_eq!(snapshots[1].wal_file_sequence_number.as_u64(), 1);
     }
 
     #[tokio::test]
@@ -494,7 +494,7 @@ mod tests {
         let snapshots = persister.load_snapshots(2).await.unwrap();
         // We asked for the most recent 2 but there should only be 1
         assert_eq!(snapshots.len(), 1);
-        assert_eq!(snapshots[0].wal_file_sequence_number.get(), 0);
+        assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 0);
     }
 
     #[tokio::test]
@@ -517,7 +517,7 @@ mod tests {
         let snapshots = persister.load_snapshots(9500).await.unwrap();
         // We asked for the most recent 9500 so there should be 9001 of them
         assert_eq!(snapshots.len(), 9001);
-        assert_eq!(snapshots[0].wal_file_sequence_number.get(), 9000);
+        assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 9000);
     }
 
     #[tokio::test]
