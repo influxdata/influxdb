@@ -1,8 +1,8 @@
 use crate::serialize::verify_file_type_and_deserialize;
 use crate::snapshot_tracker::{SnapshotInfo, SnapshotTracker, WalPeriod};
 use crate::{
-    background_wal_flush, CatalogBatch, SnapshotDetails, Wal, WalConfig, WalContents,
-    WalFileNotifier, WalFileSequenceNumber, WalOp, WriteBatch,
+    background_wal_flush, CatalogBatch, SnapshotDetails, SnapshotSequenceNumber, Wal, WalConfig,
+    WalContents, WalFileNotifier, WalFileSequenceNumber, WalOp, WriteBatch,
 };
 use bytes::Bytes;
 use data_types::Timestamp;
@@ -33,7 +33,8 @@ impl WalObjectStore {
         host_identifier_prefix: impl Into<String> + Send,
         file_notifier: Arc<dyn WalFileNotifier>,
         config: WalConfig,
-        last_snapshot_wal_sequence: Option<WalFileSequenceNumber>,
+        last_wal_sequence_number: Option<WalFileSequenceNumber>,
+        last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
     ) -> Result<Arc<Self>, crate::Error> {
         let flush_interval = config.flush_interval;
         let wal = Self::new_without_replay(
@@ -41,7 +42,8 @@ impl WalObjectStore {
             host_identifier_prefix,
             file_notifier,
             config,
-            last_snapshot_wal_sequence,
+            last_wal_sequence_number,
+            last_snapshot_sequence_number,
         );
 
         wal.replay().await?;
@@ -56,9 +58,10 @@ impl WalObjectStore {
         host_identifier_prefix: impl Into<String>,
         file_notifier: Arc<dyn WalFileNotifier>,
         config: WalConfig,
-        last_snapshot_wal_sequence: Option<WalFileSequenceNumber>,
+        last_wal_sequence_number: Option<WalFileSequenceNumber>,
+        last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
     ) -> Self {
-        let wal_file_sequence_number = last_snapshot_wal_sequence.unwrap_or_default().next();
+        let wal_file_sequence_number = last_wal_sequence_number.unwrap_or_default().next();
         Self {
             object_store,
             host_identifier_prefix: host_identifier_prefix.into(),
@@ -73,7 +76,11 @@ impl WalObjectStore {
                     catalog_batches: vec![],
                     write_op_responses: vec![],
                 },
-                SnapshotTracker::new(config.snapshot_size, config.level_0_duration),
+                SnapshotTracker::new(
+                    config.snapshot_size,
+                    config.level_0_duration,
+                    last_snapshot_sequence_number,
+                ),
             )),
         }
     }
@@ -359,12 +366,20 @@ impl Wal for WalObjectStore {
             .await
     }
 
-    async fn last_sequence_number(&self) -> WalFileSequenceNumber {
+    async fn last_wal_sequence_number(&self) -> WalFileSequenceNumber {
         self.flush_buffer
             .lock()
             .await
             .snapshot_tracker
-            .last_sequence_number()
+            .last_wal_sequence_number()
+    }
+
+    async fn last_snapshot_sequence_number(&self) -> SnapshotSequenceNumber {
+        self.flush_buffer
+            .lock()
+            .await
+            .snapshot_tracker
+            .last_snapshot_sequence_number()
     }
 
     async fn shutdown(&self) {
@@ -577,7 +592,9 @@ fn wal_path(host_identifier_prefix: &str, wal_file_number: WalFileSequenceNumber
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Field, FieldData, Level0Duration, Row, TableChunk, TableChunks};
+    use crate::{
+        Field, FieldData, Level0Duration, Row, SnapshotSequenceNumber, TableChunk, TableChunks,
+    };
     use async_trait::async_trait;
     use object_store::memory::InMemory;
     use std::any::Any;
@@ -598,6 +615,7 @@ mod tests {
             "my_host",
             Arc::clone(&notifier),
             wal_config,
+            None,
             None,
         );
 
@@ -805,6 +823,7 @@ mod tests {
                 snapshot_size: 2,
             },
             None,
+            None,
         );
         assert_eq!(
             replay_wal.load_existing_wal_file_paths().await.unwrap(),
@@ -864,8 +883,9 @@ mod tests {
         let (snapshot_done, snapshot_info, snapshot_permit) = wal.flush_buffer().await.unwrap();
         let expected_info = SnapshotInfo {
             snapshot_details: SnapshotDetails {
+                snapshot_sequence_number: SnapshotSequenceNumber::new(1),
                 end_time_marker: 120000000000,
-                last_sequence_number: WalFileSequenceNumber(2),
+                last_wal_sequence_number: WalFileSequenceNumber(2),
             },
             wal_periods: vec![
                 WalPeriod {
@@ -918,8 +938,9 @@ mod tests {
                 max_time_ns: 128_000000000,
             })],
             snapshot: Some(SnapshotDetails {
+                snapshot_sequence_number: SnapshotSequenceNumber::new(1),
                 end_time_marker: 120_000000000,
-                last_sequence_number: WalFileSequenceNumber(2),
+                last_wal_sequence_number: WalFileSequenceNumber(2),
             }),
         };
 
@@ -943,6 +964,7 @@ mod tests {
             "my_host",
             Arc::clone(&replay_notifier),
             wal_config,
+            None,
             None,
         );
         assert_eq!(
@@ -975,6 +997,7 @@ mod tests {
             "my_host",
             Arc::clone(&notifier),
             wal_config,
+            None,
             None,
         );
 

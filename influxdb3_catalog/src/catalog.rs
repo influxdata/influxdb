@@ -86,6 +86,10 @@ impl SequenceNumber {
     pub fn next(&self) -> Self {
         Self(self.0 + 1)
     }
+
+    pub fn as_u32(&self) -> u32 {
+        self.0
+    }
 }
 
 #[derive(Debug)]

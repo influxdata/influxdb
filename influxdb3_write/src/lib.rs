@@ -20,8 +20,8 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::Expr;
-use influxdb3_catalog::catalog;
-use influxdb3_wal::{LastCacheDefinition, WalFileSequenceNumber};
+use influxdb3_catalog::catalog::{self, SequenceNumber};
+use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use last_cache::LastCacheProvider;
@@ -214,8 +214,12 @@ pub struct PersistedCatalog {
 /// The collection of Parquet files that were persisted in a snapshot
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PersistedSnapshot {
+    /// The snapshot sequence number associated with this snapshot
+    pub snapshot_sequence_number: SnapshotSequenceNumber,
     /// The wal file sequence number that triggered this snapshot
     pub wal_file_sequence_number: WalFileSequenceNumber,
+    /// The catalog sequence number associated with this snapshot
+    pub catalog_sequence_number: SequenceNumber,
     /// The size of the snapshot parquet files in bytes.
     pub parquet_size_bytes: u64,
     /// The number of rows across all parquet files in the snapshot.
@@ -230,9 +234,15 @@ pub struct PersistedSnapshot {
 }
 
 impl PersistedSnapshot {
-    pub fn new(wal_file_sequence_number: WalFileSequenceNumber) -> Self {
+    pub fn new(
+        snapshot_sequence_number: SnapshotSequenceNumber,
+        wal_file_sequence_number: WalFileSequenceNumber,
+        catalog_sequence_number: SequenceNumber,
+    ) -> Self {
         Self {
+            snapshot_sequence_number,
             wal_file_sequence_number,
+            catalog_sequence_number,
             parquet_size_bytes: 0,
             row_count: 0,
             min_time: i64::MAX,

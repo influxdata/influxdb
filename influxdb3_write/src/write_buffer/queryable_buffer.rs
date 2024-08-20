@@ -225,7 +225,11 @@ impl QueryableBuffer {
                 wal_file_number.as_u64(),
             );
             // persist the individual files, building the snapshot as we go
-            let mut persisted_snapshot = PersistedSnapshot::new(wal_file_number);
+            let mut persisted_snapshot = PersistedSnapshot::new(
+                snapshot_details.snapshot_sequence_number,
+                wal_file_number,
+                catalog.sequence_number(),
+            );
             for persist_job in persist_jobs {
                 let path = persist_job.path.to_string();
                 let database_name = Arc::clone(&persist_job.database_name);

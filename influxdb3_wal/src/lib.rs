@@ -81,7 +81,10 @@ pub trait Wal: Debug + Send + Sync + 'static {
     );
 
     /// Returns the last persisted wal file sequence number
-    async fn last_sequence_number(&self) -> WalFileSequenceNumber;
+    async fn last_wal_sequence_number(&self) -> WalFileSequenceNumber;
+
+    /// Returns the last persisted wal file sequence number
+    async fn last_snapshot_sequence_number(&self) -> SnapshotSequenceNumber;
 
     /// Stop all writes to the WAL and flush the buffer to a WAL file.
     async fn shutdown(&self);
@@ -611,13 +614,40 @@ impl std::fmt::Display for WalFileSequenceNumber {
     }
 }
 
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub struct SnapshotSequenceNumber(u64);
+
+impl SnapshotSequenceNumber {
+    pub fn new(number: u64) -> Self {
+        Self(number)
+    }
+
+    pub fn next(&self) -> Self {
+        Self(self.0 + 1)
+    }
+
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
+}
+
+impl std::fmt::Display for SnapshotSequenceNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Details about a snapshot of the WAL
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SnapshotDetails {
+    /// The sequence number for this snapshot
+    pub snapshot_sequence_number: SnapshotSequenceNumber,
     /// All chunks with data before this time can be snapshot and persisted
     pub end_time_marker: i64,
     /// All wal files with a sequence number <= to this can be deleted once snapshotting is complete
-    pub last_sequence_number: WalFileSequenceNumber,
+    pub last_wal_sequence_number: WalFileSequenceNumber,
 }
 
 pub fn background_wal_flush<W: Wal>(
