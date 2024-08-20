@@ -1,5 +1,5 @@
 use chrono::prelude::*;
-use influxdb3_wal::WalFileSequenceNumber;
+use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
 use object_store::path::Path as ObjPath;
 use std::ops::Deref;
 
@@ -23,7 +23,7 @@ impl CatalogFilePath {
     pub fn new(host_prefix: &str, wal_file_sequence_number: WalFileSequenceNumber) -> Self {
         let path = ObjPath::from(format!(
             "{host_prefix}/catalogs/{:020}.{}",
-            object_store_file_stem(wal_file_sequence_number.get()),
+            object_store_file_stem(wal_file_sequence_number.as_u64()),
             CATALOG_FILE_EXTENSION
         ));
         Self(path)
@@ -62,7 +62,7 @@ impl ParquetFilePath {
         let path = ObjPath::from(format!(
             "{host_prefix}/dbs/{db_name}/{table_name}/{}/{}.{}",
             date.format("%Y-%m-%d/%H-%M"),
-            wal_file_sequence_number.get(),
+            wal_file_sequence_number.as_u64(),
             PARQUET_FILE_EXTENSION
         ));
         Self(path)
@@ -79,7 +79,7 @@ impl ParquetFilePath {
         let path = ObjPath::from(format!(
             "dbs/{db_name}/{table_name}/{}/{:010}.{}",
             date_time.format("%Y-%m-%d/%H-%M"),
-            wal_file_sequence_number.get(),
+            wal_file_sequence_number.as_u64(),
             PARQUET_FILE_EXTENSION
         ));
         Self(path)
@@ -104,10 +104,10 @@ impl AsRef<ObjPath> for ParquetFilePath {
 pub struct SnapshotInfoFilePath(ObjPath);
 
 impl SnapshotInfoFilePath {
-    pub fn new(host_prefix: &str, wal_file_sequence_number: WalFileSequenceNumber) -> Self {
+    pub fn new(host_prefix: &str, snapshot_sequence_number: SnapshotSequenceNumber) -> Self {
         let path = ObjPath::from(format!(
             "{host_prefix}/snapshots/{:020}.{}",
-            object_store_file_stem(wal_file_sequence_number.get()),
+            object_store_file_stem(snapshot_sequence_number.as_u64()),
             SNAPSHOT_INFO_FILE_EXTENSION
         ));
         Self(path)
@@ -173,7 +173,7 @@ fn parquet_file_percent_encoded() {
 #[test]
 fn snapshot_info_file_path_new() {
     assert_eq!(
-        *SnapshotInfoFilePath::new("my_host", WalFileSequenceNumber::new(0)),
+        *SnapshotInfoFilePath::new("my_host", SnapshotSequenceNumber::new(0)),
         ObjPath::from("my_host/snapshots/18446744073709551615.info.json")
     );
 }
