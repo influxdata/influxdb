@@ -11,7 +11,6 @@ import (
 
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/storage"
 	export2 "github.com/influxdata/influxdb/cmd/influx_tools/parquet/exporter"
-	models2 "github.com/influxdata/influxdb/cmd/influx_tools/parquet/exporter/parquet/models"
 	"github.com/influxdata/influxdb/cmd/influx_tools/server"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
@@ -262,44 +261,46 @@ func (e *exporter) openStoreWithShardsIDs(ids []uint64) ([]*tsdb.Shard, error) {
 
 func (e *exporter) gatherSchema(start, end time.Time, measurement string, rs *storage.ResultSet) {
 	fmt.Printf("gather schema start: %s, end: %s\n", start.Format(time.RFC3339), end.Format(time.RFC3339))
+
 	for rs.Next() {
-		if measurement != "" && measurement != string(rs.Name()) {
+		measurementName := string(models.ParseName(rs.Name()))
+		if measurement != "" && measurement != measurementName {
 			continue
 		}
-		measurementName := string(rs.Name())
-		fieldName := models2.MakeEscaped(rs.Field()).S()
-		table := e.measurements.getTable(measurementName)
-		table.addField(fieldName, rs.FieldType())
-		table.addTags(fieldName, rs.Tags())
+
+		t := e.measurements.getTable(measurementName)
+		t.addTags(rs.Tags())
+		t.addField(rs.Field(), rs.FieldType())
 	}
 }
 
 func (e *exporter) writeBucket(start, end time.Time, measurement string, rs *storage.ResultSet) error {
 	fmt.Printf("write bucket start: %s, end: %s\n", start.Format(time.RFC3339), end.Format(time.RFC3339))
-	shardData := make(map[string]map[models2.EscapedString]map[models2.EscapedString]export2.ShardValues)
+
+	shardData := make(map[string]map[string]map[string]export2.ShardValues) // measurement:groupKey:field
 
 	for rs.Next() {
-		mName := string(rs.Name())
-		if measurement != "" && measurement != mName {
+		measurementName := string(models.ParseName(rs.Name()))
+		if measurement != "" && measurement != measurementName {
 			continue
 		}
 
-		measurementData, ok := shardData[mName]
+		measurementData, ok := shardData[measurementName]
 		if !ok {
-			measurementData = make(map[models2.EscapedString]map[models2.EscapedString]export2.ShardValues)
-			shardData[mName] = measurementData
+			measurementData = make(map[string]map[string]export2.ShardValues)
+			shardData[measurementName] = measurementData
 		}
 
-		seriesKey := e.partialSeriesKeyV2(rs.Name() /*rs.Field(),*/, rs.Tags())
+		groupKey := e.makeV1GroupKey(rs.Tags()) // TODO rs.Tags() may be a subset of tags collected in schema?
+		key := string(groupKey)
 
-		key := models2.MakeEscaped(seriesKey).S()
 		seriesData, ok := measurementData[key]
 		if !ok {
-			seriesData = make(map[models2.EscapedString]export2.ShardValues)
+			seriesData = make(map[string]export2.ShardValues)
 			measurementData[key] = seriesData
 		}
 
-		fieldName := models2.MakeEscaped(rs.Field()).S()
+		fieldName := string(models.ParseName(rs.Field()))
 		vals, ok := seriesData[fieldName]
 		if !ok {
 			vals = &values{}
@@ -309,16 +310,17 @@ func (e *exporter) writeBucket(start, end time.Time, measurement string, rs *sto
 		ci := rs.CursorIterator()
 		for ci.Next() {
 			cur := ci.Cursor()
-			vals.(*values).append(cur)
+			vals.(*values).append(cur) // TODO keep chunked?
 			cur.Close()
 		}
 	}
 
 	for measurement, seriesData := range shardData {
-		schema, err := e.measurements.exporterSchema(measurement)
+		schema, err := e.measurements[measurement].exporterSchema()
 		if err != nil {
 			return err
 		}
+
 		if true { // debug
 			fmt.Printf("--- measurement: %s\n", measurement)
 			fmt.Printf("  --- tag set:   %v\n", schema.TagSet)
@@ -331,7 +333,8 @@ func (e *exporter) writeBucket(start, end time.Time, measurement string, rs *sto
 				}
 			}
 		}
-		ers := export2.NewResultSet(seriesData)
+
+		ers := export2.NewResultSet(measurement, seriesData)
 		if err := e.exporter.WriteTo("/tmp/parquet/", ers, schema); err != nil {
 			return err
 		}
@@ -342,39 +345,12 @@ func (e *exporter) writeBucket(start, end time.Time, measurement string, rs *sto
 	return nil
 }
 
-func (e *exporter) partialSeriesKeyV2(measurement /*, field*/ []byte, tags models.Tags) []byte {
+func (e *exporter) makeV1GroupKey(tags models.Tags) []byte {
 	var b bytes.Buffer
-	b.WriteString("NULL,")
-	b.WriteString(models.MeasurementTagKey)
-	b.WriteByte('=')
-	b.Write(measurement)
-	/* // this is done later, in resultset.go
-	b.WriteByte(',')
-	b.WriteString(models.FieldKeyTagKey)
-	b.WriteByte('=')
-	b.Write(field)
-	*/
-	for _, tag := range tags {
-		b.WriteByte(',')
-		b.Write(tag.Key)
-		b.WriteByte('=')
-		b.Write(tag.Value)
-	}
-	return b.Bytes()
-}
-
-func (e *exporter) fullSeriesKeyV2(measurement, field []byte, tags models.Tags) []byte {
-	var b bytes.Buffer
-	b.WriteString("NULL,")
-	b.WriteString(models.MeasurementTagKey)
-	b.WriteByte('=')
-	b.Write(measurement)
-	b.WriteByte(',')
-	b.WriteString(models.FieldKeyTagKey)
-	b.WriteByte('=')
-	b.Write(field)
-	for _, tag := range tags {
-		b.WriteByte(',')
+	for i, tag := range tags {
+		if i > 0 {
+			b.WriteByte(',')
+		}
 		b.Write(tag.Key)
 		b.WriteByte('=')
 		b.Write(tag.Value)
