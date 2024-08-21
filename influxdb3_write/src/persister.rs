@@ -600,7 +600,7 @@ mod tests {
     async fn persist_add_parquet_file_and_load_snapshot() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let mut info_file = PersistedSnapshot::new(
             SnapshotSequenceNumber::new(0),
             WalFileSequenceNumber::new(0),
