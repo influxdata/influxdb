@@ -14,7 +14,7 @@ use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
 use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile, Persister,
-    Precision, WriteBuffer, WriteLineError,
+    Precision, WriteBuffer, WriteLineError, NEXT_FILE_ID,
 };
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError};
@@ -38,6 +38,7 @@ use object_store::{ObjectMeta, ObjectStore};
 use observability_deps::tracing::{debug, error};
 use parquet_file::storage::ParquetExecInput;
 use schema::Schema;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
@@ -139,6 +140,14 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
         let last_snapshot_sequence_number = persisted_snapshots
             .first()
             .map(|s| s.snapshot_sequence_number);
+        // Set the next file id to use when persisting ParquetFiles
+        NEXT_FILE_ID.store(
+            persisted_snapshots
+                .first()
+                .map(|s| s.next_file_id.as_u64())
+                .unwrap_or(0),
+            Ordering::SeqCst,
+        );
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
             persisted_snapshots,
         ));
@@ -1171,6 +1180,8 @@ mod tests {
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
 
         // create a snapshot file that will be loaded on initialization of the write buffer:
+        // Set NEXT_FILE_ID to a non zero number for the snapshot
+        NEXT_FILE_ID.store(500, Ordering::SeqCst);
         let prev_snapshot_seq = SnapshotSequenceNumber::new(42);
         let prev_snapshot = PersistedSnapshot::new(
             prev_snapshot_seq,
@@ -1178,6 +1189,9 @@ mod tests {
             SequenceNumber::new(0),
         );
         let snapshot_json = serde_json::to_vec(&prev_snapshot).unwrap();
+        // set NEXT_FILE_ID to be 0 so that we can make sure when it's loaded from the
+        // snapshot that it becomes the expected number
+        NEXT_FILE_ID.store(0, Ordering::SeqCst);
 
         // put the snapshot file in object store:
         object_store
@@ -1200,6 +1214,9 @@ mod tests {
             },
         )
         .await;
+
+        // Assert that loading the snapshots sets NEXT_FILE_ID to the correct id number
+        assert_eq!(NEXT_FILE_ID.load(Ordering::SeqCst), 500);
 
         // there should be one snapshot already, i.e., the one we created above:
         verify_snapshot_count(1, &wbuf.persister).await;
