@@ -30,6 +30,8 @@ use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
@@ -214,6 +216,8 @@ pub struct PersistedCatalog {
 /// The collection of Parquet files that were persisted in a snapshot
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PersistedSnapshot {
+    /// The last file id used to store `ParquetFile`s with
+    pub last_file_id: u64,
     /// The snapshot sequence number associated with this snapshot
     pub snapshot_sequence_number: SnapshotSequenceNumber,
     /// The wal file sequence number that triggered this snapshot
@@ -240,6 +244,7 @@ impl PersistedSnapshot {
         catalog_sequence_number: SequenceNumber,
     ) -> Self {
         Self {
+            last_file_id: NEXT_FILE_ID.load(Ordering::SeqCst),
             snapshot_sequence_number,
             wal_file_sequence_number,
             catalog_sequence_number,
@@ -277,9 +282,13 @@ pub struct DatabaseTables {
     pub tables: hashbrown::HashMap<Arc<str>, Vec<ParquetFile>>,
 }
 
+/// The next file id to be used when persisting `ParquetFile`s
+pub static NEXT_FILE_ID: AtomicU64 = AtomicU64::new(0);
+
 /// The summary data for a persisted parquet file in a snapshot.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct ParquetFile {
+    pub id: u64,
     pub path: String,
     pub size_bytes: u64,
     pub row_count: u64,

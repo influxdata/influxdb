@@ -427,6 +427,7 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
+            last_file_id: 0,
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: SequenceNumber::new(0),
@@ -446,6 +447,7 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
+            last_file_id: 0,
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: SequenceNumber::default(),
@@ -456,6 +458,7 @@ mod tests {
             parquet_size_bytes: 0,
         };
         let info_file_2 = PersistedSnapshot {
+            last_file_id: 1,
             snapshot_sequence_number: SnapshotSequenceNumber::new(1),
             wal_file_sequence_number: WalFileSequenceNumber::new(1),
             catalog_sequence_number: SequenceNumber::default(),
@@ -466,6 +469,7 @@ mod tests {
             parquet_size_bytes: 0,
         };
         let info_file_3 = PersistedSnapshot {
+            last_file_id: 2,
             snapshot_sequence_number: SnapshotSequenceNumber::new(2),
             wal_file_sequence_number: WalFileSequenceNumber::new(2),
             catalog_sequence_number: SequenceNumber::default(),
@@ -483,8 +487,10 @@ mod tests {
         let snapshots = persister.load_snapshots(2).await.unwrap();
         assert_eq!(snapshots.len(), 2);
         // The most recent files are first
+        assert_eq!(snapshots[0].last_file_id, 2);
         assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 2);
         assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 2);
+        assert_eq!(snapshots[1].last_file_id, 1);
         assert_eq!(snapshots[1].wal_file_sequence_number.as_u64(), 1);
         assert_eq!(snapshots[1].snapshot_sequence_number.as_u64(), 1);
     }
@@ -495,6 +501,7 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
+            last_file_id: 0,
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: SequenceNumber::default(),
@@ -519,6 +526,7 @@ mod tests {
         let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         for id in 0..9001 {
             let info_file = PersistedSnapshot {
+                last_file_id: id,
                 snapshot_sequence_number: SnapshotSequenceNumber::new(id),
                 wal_file_sequence_number: WalFileSequenceNumber::new(id),
                 catalog_sequence_number: SequenceNumber::new(id as u32),
@@ -533,6 +541,7 @@ mod tests {
         let snapshots = persister.load_snapshots(9500).await.unwrap();
         // We asked for the most recent 9500 so there should be 9001 of them
         assert_eq!(snapshots.len(), 9001);
+        assert_eq!(snapshots[0].last_file_id, 9000);
         assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 9000);
         assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 9000);
         assert_eq!(snapshots[0].catalog_sequence_number.as_u32(), 9000);
