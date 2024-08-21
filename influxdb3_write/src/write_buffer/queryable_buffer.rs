@@ -4,7 +4,7 @@ use crate::paths::ParquetFilePath;
 use crate::persister::PersisterImpl;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
-use crate::{ParquetFile, PersistedSnapshot, Persister, NEXT_FILE_ID};
+use crate::{ParquetFile, ParquetFileId, PersistedSnapshot, Persister};
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::{
@@ -27,7 +27,6 @@ use parquet::format::FileMetaData;
 use schema::sort::SortKey;
 use schema::Schema;
 use std::any::Any;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::oneshot;
@@ -246,7 +245,7 @@ impl QueryableBuffer {
                     database_name,
                     table_name,
                     ParquetFile {
-                        id: NEXT_FILE_ID.fetch_add(1, Ordering::SeqCst),
+                        id: ParquetFileId::new(),
                         path,
                         size_bytes,
                         row_count: meta.num_rows as u64,

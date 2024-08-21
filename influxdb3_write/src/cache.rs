@@ -1,7 +1,7 @@
 use crate::persister::serialize_to_parquet;
 use crate::persister::Error;
 use crate::ParquetFile;
-use crate::NEXT_FILE_ID;
+use crate::ParquetFileId;
 
 use bytes::Bytes;
 use datafusion::execution::memory_pool::MemoryPool;
@@ -11,7 +11,6 @@ use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
 use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::task;
@@ -87,7 +86,7 @@ impl ParquetCache {
                         files.insert(
                             path.clone(),
                             ParquetFile {
-                                id: NEXT_FILE_ID.fetch_add(1, Ordering::SeqCst),
+                                id: ParquetFileId::new(),
                                 chunk_time: min_time,
                                 path: path.clone(),
                                 size_bytes,
@@ -101,7 +100,7 @@ impl ParquetCache {
                         HashMap::from([(
                             path.clone(),
                             ParquetFile {
-                                id: NEXT_FILE_ID.fetch_add(1, Ordering::SeqCst),
+                                id: ParquetFileId::new(),
                                 chunk_time: min_time,
                                 path: path.clone(),
                                 size_bytes,
@@ -118,7 +117,7 @@ impl ParquetCache {
                     HashMap::from([(
                         path.clone(),
                         ParquetFile {
-                            id: NEXT_FILE_ID.fetch_add(1, Ordering::SeqCst),
+                            id: ParquetFileId::new(),
                             chunk_time: min_time,
                             path: path.clone(),
                             size_bytes,

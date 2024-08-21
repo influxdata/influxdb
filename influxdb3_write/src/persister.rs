@@ -362,6 +362,7 @@ impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ParquetFileId;
     use influxdb3_catalog::catalog::SequenceNumber;
     use influxdb3_wal::SnapshotSequenceNumber;
     use object_store::memory::InMemory;
@@ -427,7 +428,7 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
-            last_file_id: 0,
+            next_file_id: ParquetFileId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: SequenceNumber::new(0),
@@ -447,7 +448,7 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
-            last_file_id: 0,
+            next_file_id: ParquetFileId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: SequenceNumber::default(),
@@ -458,7 +459,7 @@ mod tests {
             parquet_size_bytes: 0,
         };
         let info_file_2 = PersistedSnapshot {
-            last_file_id: 1,
+            next_file_id: ParquetFileId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(1),
             wal_file_sequence_number: WalFileSequenceNumber::new(1),
             catalog_sequence_number: SequenceNumber::default(),
@@ -469,7 +470,7 @@ mod tests {
             parquet_size_bytes: 0,
         };
         let info_file_3 = PersistedSnapshot {
-            last_file_id: 2,
+            next_file_id: ParquetFileId::from(2),
             snapshot_sequence_number: SnapshotSequenceNumber::new(2),
             wal_file_sequence_number: WalFileSequenceNumber::new(2),
             catalog_sequence_number: SequenceNumber::default(),
@@ -487,10 +488,10 @@ mod tests {
         let snapshots = persister.load_snapshots(2).await.unwrap();
         assert_eq!(snapshots.len(), 2);
         // The most recent files are first
-        assert_eq!(snapshots[0].last_file_id, 2);
+        assert_eq!(snapshots[0].next_file_id.as_u64(), 2);
         assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 2);
         assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 2);
-        assert_eq!(snapshots[1].last_file_id, 1);
+        assert_eq!(snapshots[1].next_file_id.as_u64(), 1);
         assert_eq!(snapshots[1].wal_file_sequence_number.as_u64(), 1);
         assert_eq!(snapshots[1].snapshot_sequence_number.as_u64(), 1);
     }
@@ -501,7 +502,7 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
-            last_file_id: 0,
+            next_file_id: ParquetFileId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: SequenceNumber::default(),
@@ -526,7 +527,7 @@ mod tests {
         let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         for id in 0..9001 {
             let info_file = PersistedSnapshot {
-                last_file_id: id,
+                next_file_id: ParquetFileId::from(id),
                 snapshot_sequence_number: SnapshotSequenceNumber::new(id),
                 wal_file_sequence_number: WalFileSequenceNumber::new(id),
                 catalog_sequence_number: SequenceNumber::new(id as u32),
@@ -541,10 +542,48 @@ mod tests {
         let snapshots = persister.load_snapshots(9500).await.unwrap();
         // We asked for the most recent 9500 so there should be 9001 of them
         assert_eq!(snapshots.len(), 9001);
-        assert_eq!(snapshots[0].last_file_id, 9000);
+        assert_eq!(snapshots[0].next_file_id.as_u64(), 9000);
         assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 9000);
         assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 9000);
         assert_eq!(snapshots[0].catalog_sequence_number.as_u32(), 9000);
+    }
+
+    #[tokio::test]
+    // This test makes sure that the proper next_file_id is used if a parquet file
+    // is added
+    async fn persist_add_parquet_file_and_load_snapshot() {
+        let local_disk =
+            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
+        let mut info_file = PersistedSnapshot::new(
+            SnapshotSequenceNumber::new(0),
+            WalFileSequenceNumber::new(0),
+            SequenceNumber::new(0),
+        );
+
+        info_file.add_parquet_file(
+            "foo".into(),
+            "bar".into(),
+            crate::ParquetFile {
+                // Use a number that will be bigger than what's created in the
+                // PersistedSnapshot automatically
+                id: ParquetFileId::from(9876),
+                path: "test".into(),
+                size_bytes: 5,
+                row_count: 5,
+                chunk_time: 5,
+                min_time: 0,
+                max_time: 1,
+            },
+        );
+        persister.persist_snapshot(&info_file).await.unwrap();
+        let snapshots = persister.load_snapshots(10).await.unwrap();
+        assert_eq!(snapshots.len(), 1);
+        // Should be the next available id after the largest number
+        assert_eq!(snapshots[0].next_file_id.as_u64(), 9877);
+        assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 0);
+        assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 0);
+        assert_eq!(snapshots[0].catalog_sequence_number.as_u32(), 0);
     }
 
     #[tokio::test]

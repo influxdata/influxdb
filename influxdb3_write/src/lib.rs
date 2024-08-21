@@ -216,8 +216,8 @@ pub struct PersistedCatalog {
 /// The collection of Parquet files that were persisted in a snapshot
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PersistedSnapshot {
-    /// The last file id used to store `ParquetFile`s with
-    pub last_file_id: u64,
+    /// The next file id to be used with `ParquetFile`s when the snapshot is loaded
+    pub next_file_id: ParquetFileId,
     /// The snapshot sequence number associated with this snapshot
     pub snapshot_sequence_number: SnapshotSequenceNumber,
     /// The wal file sequence number that triggered this snapshot
@@ -244,7 +244,7 @@ impl PersistedSnapshot {
         catalog_sequence_number: SequenceNumber,
     ) -> Self {
         Self {
-            last_file_id: NEXT_FILE_ID.load(Ordering::SeqCst),
+            next_file_id: ParquetFileId::current(),
             snapshot_sequence_number,
             wal_file_sequence_number,
             catalog_sequence_number,
@@ -262,6 +262,9 @@ impl PersistedSnapshot {
         table_name: Arc<str>,
         parquet_file: ParquetFile,
     ) {
+        if self.next_file_id < parquet_file.id {
+            self.next_file_id = ParquetFileId::from(parquet_file.id.as_u64() + 1);
+        }
         self.parquet_size_bytes += parquet_file.size_bytes;
         self.row_count += parquet_file.row_count;
         self.min_time = self.min_time.min(parquet_file.min_time);
@@ -285,10 +288,40 @@ pub struct DatabaseTables {
 /// The next file id to be used when persisting `ParquetFile`s
 pub static NEXT_FILE_ID: AtomicU64 = AtomicU64::new(0);
 
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
+/// A newtype wrapper for ids used with `ParquetFile`
+pub struct ParquetFileId(u64);
+
+impl ParquetFileId {
+    pub fn new() -> Self {
+        Self(NEXT_FILE_ID.fetch_add(1, Ordering::SeqCst))
+    }
+
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
+
+    pub fn current() -> Self {
+        ParquetFileId(NEXT_FILE_ID.load(Ordering::SeqCst))
+    }
+}
+
+impl From<u64> for ParquetFileId {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+impl Default for ParquetFileId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// The summary data for a persisted parquet file in a snapshot.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct ParquetFile {
-    pub id: u64,
+    pub id: ParquetFileId,
     pub path: String,
     pub size_bytes: u64,
     pub row_count: u64,

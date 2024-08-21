@@ -144,7 +144,7 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
         NEXT_FILE_ID.store(
             persisted_snapshots
                 .first()
-                .map(|s| s.last_file_id)
+                .map(|s| s.next_file_id.as_u64())
                 .unwrap_or(0),
             Ordering::SeqCst,
         );
