@@ -197,7 +197,10 @@ impl QueryableBuffer {
                 if !catalog.is_updated() {
                     break;
                 }
-                info!("persisting catalog for wal file {}", wal_file_number.get());
+                info!(
+                    "persisting catalog for wal file {}",
+                    wal_file_number.as_u64()
+                );
                 let inner_catalog = catalog.clone_inner();
                 let sequence_number = inner_catalog.sequence_number();
 
@@ -219,10 +222,14 @@ impl QueryableBuffer {
             info!(
                 "persisting {} chunks for wal number {}",
                 persist_jobs.len(),
-                wal_file_number.get(),
+                wal_file_number.as_u64(),
             );
             // persist the individual files, building the snapshot as we go
-            let mut persisted_snapshot = PersistedSnapshot::new(wal_file_number);
+            let mut persisted_snapshot = PersistedSnapshot::new(
+                snapshot_details.snapshot_sequence_number,
+                wal_file_number,
+                catalog.sequence_number(),
+            );
             for persist_job in persist_jobs {
                 let path = persist_job.path.to_string();
                 let database_name = Arc::clone(&persist_job.database_name);
