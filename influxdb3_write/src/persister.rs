@@ -270,7 +270,7 @@ impl Persister for PersisterImpl {
     async fn persist_snapshot(&self, persisted_snapshot: &PersistedSnapshot) -> Result<()> {
         let snapshot_file_path = SnapshotInfoFilePath::new(
             self.host_identifier_prefix.as_str(),
-            persisted_snapshot.wal_file_sequence_number,
+            persisted_snapshot.snapshot_sequence_number,
         );
         let json = serde_json::to_vec_pretty(persisted_snapshot)?;
         self.object_store
@@ -362,6 +362,8 @@ impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use influxdb3_catalog::catalog::SequenceNumber;
+    use influxdb3_wal::SnapshotSequenceNumber;
     use object_store::memory::InMemory;
     use {
         arrow::array::Int32Array, arrow::datatypes::DataType, arrow::datatypes::Field,
@@ -425,7 +427,9 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
+            snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
+            catalog_sequence_number: SequenceNumber::new(0),
             databases: HashMap::new(),
             min_time: 0,
             max_time: 1,
@@ -442,7 +446,9 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
+            snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
+            catalog_sequence_number: SequenceNumber::default(),
             databases: HashMap::new(),
             min_time: 0,
             max_time: 1,
@@ -450,7 +456,9 @@ mod tests {
             parquet_size_bytes: 0,
         };
         let info_file_2 = PersistedSnapshot {
+            snapshot_sequence_number: SnapshotSequenceNumber::new(1),
             wal_file_sequence_number: WalFileSequenceNumber::new(1),
+            catalog_sequence_number: SequenceNumber::default(),
             databases: HashMap::new(),
             max_time: 1,
             min_time: 0,
@@ -458,7 +466,9 @@ mod tests {
             parquet_size_bytes: 0,
         };
         let info_file_3 = PersistedSnapshot {
+            snapshot_sequence_number: SnapshotSequenceNumber::new(2),
             wal_file_sequence_number: WalFileSequenceNumber::new(2),
+            catalog_sequence_number: SequenceNumber::default(),
             databases: HashMap::new(),
             min_time: 0,
             max_time: 1,
@@ -472,9 +482,11 @@ mod tests {
 
         let snapshots = persister.load_snapshots(2).await.unwrap();
         assert_eq!(snapshots.len(), 2);
-        // The most recent one is first
-        assert_eq!(snapshots[0].wal_file_sequence_number.get(), 2);
-        assert_eq!(snapshots[1].wal_file_sequence_number.get(), 1);
+        // The most recent files are first
+        assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 2);
+        assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 2);
+        assert_eq!(snapshots[1].wal_file_sequence_number.as_u64(), 1);
+        assert_eq!(snapshots[1].snapshot_sequence_number.as_u64(), 1);
     }
 
     #[tokio::test]
@@ -483,7 +495,9 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
+            snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
+            catalog_sequence_number: SequenceNumber::default(),
             databases: HashMap::new(),
             min_time: 0,
             max_time: 1,
@@ -494,7 +508,7 @@ mod tests {
         let snapshots = persister.load_snapshots(2).await.unwrap();
         // We asked for the most recent 2 but there should only be 1
         assert_eq!(snapshots.len(), 1);
-        assert_eq!(snapshots[0].wal_file_sequence_number.get(), 0);
+        assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 0);
     }
 
     #[tokio::test]
@@ -505,7 +519,9 @@ mod tests {
         let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
         for id in 0..9001 {
             let info_file = PersistedSnapshot {
+                snapshot_sequence_number: SnapshotSequenceNumber::new(id),
                 wal_file_sequence_number: WalFileSequenceNumber::new(id),
+                catalog_sequence_number: SequenceNumber::new(id as u32),
                 databases: HashMap::new(),
                 min_time: 0,
                 max_time: 1,
@@ -517,7 +533,9 @@ mod tests {
         let snapshots = persister.load_snapshots(9500).await.unwrap();
         // We asked for the most recent 9500 so there should be 9001 of them
         assert_eq!(snapshots.len(), 9001);
-        assert_eq!(snapshots[0].wal_file_sequence_number.get(), 9000);
+        assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 9000);
+        assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 9000);
+        assert_eq!(snapshots[0].catalog_sequence_number.as_u32(), 9000);
     }
 
     #[tokio::test]

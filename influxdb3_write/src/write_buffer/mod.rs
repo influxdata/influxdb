@@ -111,6 +111,8 @@ pub struct WriteBufferImpl<T> {
     last_cache: Arc<LastCacheProvider>,
 }
 
+const N_SNAPSHOTS_TO_LOAD_ON_START: usize = 1_000;
+
 impl<T: TimeProvider> WriteBufferImpl<T> {
     pub async fn new(
         persister: Arc<PersisterImpl>,
@@ -128,10 +130,15 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
 
         let last_cache = Arc::new(LastCacheProvider::new_from_catalog(&catalog.clone_inner())?);
 
-        let persisted_snapshots = persister.load_snapshots(1000).await?;
-        let last_snapshot_wal_sequence = persisted_snapshots
+        let persisted_snapshots = persister
+            .load_snapshots(N_SNAPSHOTS_TO_LOAD_ON_START)
+            .await?;
+        let last_wal_sequence_number = persisted_snapshots
             .first()
             .map(|s| s.wal_file_sequence_number);
+        let last_snapshot_sequence_number = persisted_snapshots
+            .first()
+            .map(|s| s.snapshot_sequence_number);
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
             persisted_snapshots,
         ));
@@ -150,7 +157,8 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
             persister.host_identifier_prefix(),
             Arc::clone(&queryable_buffer) as Arc<dyn WalFileNotifier>,
             wal_config,
-            last_snapshot_wal_sequence,
+            last_wal_sequence_number,
+            last_snapshot_sequence_number,
         )
         .await?;
 
@@ -581,18 +589,22 @@ impl<T: TimeProvider> WriteBuffer for WriteBufferImpl<T> {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::paths::CatalogFilePath;
+    use crate::paths::{CatalogFilePath, SnapshotInfoFilePath};
     use crate::persister::PersisterImpl;
+    use crate::PersistedSnapshot;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
+    use bytes::Bytes;
     use datafusion::assert_batches_sorted_eq;
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
-    use influxdb3_wal::Level0Duration;
+    use influxdb3_catalog::catalog::SequenceNumber;
+    use influxdb3_wal::{Level0Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
+    use object_store::local::LocalFileSystem;
     use object_store::memory::InMemory;
-    use object_store::ObjectStore;
+    use object_store::{ObjectStore, PutPayload};
 
     #[test]
     fn parse_lp_into_buffer() {
@@ -712,6 +724,7 @@ mod tests {
     async fn last_cache_create_and_delete_is_durable() {
         let (wbuf, _ctx) = setup(
             Time::from_timestamp_nanos(0),
+            Arc::new(InMemory::new()),
             WalConfig {
                 level_0_duration: Level0Duration::new_1m(),
                 max_write_buffer_size: 100,
@@ -841,6 +854,7 @@ mod tests {
     async fn returns_chunks_across_parquet_and_buffered_data() {
         let (write_buffer, session_context) = setup(
             Time::from_timestamp_nanos(0),
+            Arc::new(InMemory::new()),
             WalConfig {
                 level_0_duration: Level0Duration::new_1m(),
                 max_write_buffer_size: 100,
@@ -1031,6 +1045,7 @@ mod tests {
     async fn catalog_snapshots_only_if_updated() {
         let (write_buffer, _ctx) = setup(
             Time::from_timestamp_nanos(0),
+            Arc::new(InMemory::new()),
             WalConfig {
                 level_0_duration: Level0Duration::new_1m(),
                 max_write_buffer_size: 100,
@@ -1147,6 +1162,112 @@ mod tests {
         verify_snapshot_count(3, &write_buffer.persister).await;
     }
 
+    /// Check that when a WriteBuffer is initialized with existing snapshot files, that newly
+    /// generated snapshot files use the next sequence number.
+    #[tokio::test]
+    async fn new_snapshots_use_correct_sequence() {
+        // set up a local file system object store:
+        let object_store: Arc<dyn ObjectStore> =
+            Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
+
+        // create a snapshot file that will be loaded on initialization of the write buffer:
+        let prev_snapshot_seq = SnapshotSequenceNumber::new(42);
+        let prev_snapshot = PersistedSnapshot::new(
+            prev_snapshot_seq,
+            WalFileSequenceNumber::new(0),
+            SequenceNumber::new(0),
+        );
+        let snapshot_json = serde_json::to_vec(&prev_snapshot).unwrap();
+
+        // put the snapshot file in object store:
+        object_store
+            .put(
+                &SnapshotInfoFilePath::new("test_host", prev_snapshot_seq),
+                PutPayload::from_bytes(Bytes::from(snapshot_json)),
+            )
+            .await
+            .unwrap();
+
+        // setup the write buffer:
+        let (wbuf, _ctx) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&object_store),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(5),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+
+        // there should be one snapshot already, i.e., the one we created above:
+        verify_snapshot_count(1, &wbuf.persister).await;
+        // there aren't any catalogs yet:
+        verify_catalog_count(0, object_store.clone()).await;
+
+        // do three writes to force a new snapshot
+        wbuf.write_lp(
+            NamespaceName::new("foo").unwrap(),
+            "cpu bar=1",
+            Time::from_timestamp(10, 0).unwrap(),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+        wbuf.write_lp(
+            NamespaceName::new("foo").unwrap(),
+            "cpu bar=2",
+            Time::from_timestamp(20, 0).unwrap(),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+        wbuf.write_lp(
+            NamespaceName::new("foo").unwrap(),
+            "cpu bar=3",
+            Time::from_timestamp(30, 0).unwrap(),
+            false,
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+        // Check that there are now 2 snapshots:
+        verify_snapshot_count(2, &wbuf.persister).await;
+        // Check that the next sequence number is used for the new snapshot:
+        assert_eq!(
+            prev_snapshot_seq.next(),
+            wbuf.wal.last_snapshot_sequence_number().await
+        );
+        // There should be a catalog now, since the above writes updated the catalog
+        verify_catalog_count(1, object_store.clone()).await;
+        // Check the catalog sequence number in the latest snapshot is correct:
+        let persisted_snapshot_bytes = object_store
+            .get(&SnapshotInfoFilePath::new(
+                "test_host",
+                prev_snapshot_seq.next(),
+            ))
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap();
+        let persisted_snapshot =
+            serde_json::from_slice::<PersistedSnapshot>(&persisted_snapshot_bytes).unwrap();
+        // NOTE: it appears that writes which create a new db increment the catalog sequence twice.
+        // This is likely due to the catalog sequence being incremented first for the db creation and
+        // then again for the updates to the table written to. Hence the sequence number is 2 here.
+        // If we manage to make it so that scenario only increments the catalog sequence once, then
+        // this assertion may fail:
+        assert_eq!(
+            SequenceNumber::new(2),
+            persisted_snapshot.catalog_sequence_number
+        );
+    }
+
     async fn verify_catalog_count(n: usize, object_store: Arc<dyn ObjectStore>) {
         let mut checks = 0;
         loop {
@@ -1159,7 +1280,7 @@ mod tests {
             if catalogs.len() > n {
                 panic!("checking for {} catalogs but found {}", n, catalogs.len());
             } else if catalogs.len() == n && checks > 5 {
-                // let enough checks happen to ensure extra catalog persists aren't running ion the background
+                // let enough checks happen to ensure extra catalog persists aren't running in the background
                 break;
             } else {
                 checks += 1;
@@ -1201,9 +1322,9 @@ mod tests {
 
     async fn setup(
         start: Time,
+        object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
     ) -> (WriteBufferImpl<MockProvider>, IOxSessionContext) {
-        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(start));
         let wbuf = WriteBufferImpl::new(
