@@ -1,6 +1,8 @@
 use crate::persister::serialize_to_parquet;
 use crate::persister::Error;
 use crate::ParquetFile;
+use crate::ParquetFileId;
+
 use bytes::Bytes;
 use datafusion::execution::memory_pool::MemoryPool;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -84,6 +86,7 @@ impl ParquetCache {
                         files.insert(
                             path.clone(),
                             ParquetFile {
+                                id: ParquetFileId::new(),
                                 chunk_time: min_time,
                                 path: path.clone(),
                                 size_bytes,
@@ -97,6 +100,7 @@ impl ParquetCache {
                         HashMap::from([(
                             path.clone(),
                             ParquetFile {
+                                id: ParquetFileId::new(),
                                 chunk_time: min_time,
                                 path: path.clone(),
                                 size_bytes,
@@ -113,6 +117,7 @@ impl ParquetCache {
                     HashMap::from([(
                         path.clone(),
                         ParquetFile {
+                            id: ParquetFileId::new(),
                             chunk_time: min_time,
                             path: path.clone(),
                             size_bytes,

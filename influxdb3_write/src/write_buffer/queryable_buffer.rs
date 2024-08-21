@@ -4,7 +4,7 @@ use crate::paths::ParquetFilePath;
 use crate::persister::PersisterImpl;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
-use crate::{ParquetFile, PersistedSnapshot, Persister};
+use crate::{ParquetFile, ParquetFileId, PersistedSnapshot, Persister};
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::{
@@ -245,6 +245,7 @@ impl QueryableBuffer {
                     database_name,
                     table_name,
                     ParquetFile {
+                        id: ParquetFileId::new(),
                         path,
                         size_bytes,
                         row_count: meta.num_rows as u64,
