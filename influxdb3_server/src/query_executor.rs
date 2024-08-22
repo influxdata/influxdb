@@ -582,7 +582,7 @@ mod tests {
     use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
     use influxdb3_wal::{Level0Duration, WalConfig};
-    use influxdb3_write::{persister::PersisterImpl, write_buffer::WriteBufferImpl, Bufferer};
+    use influxdb3_write::{persister::Persister, write_buffer::WriteBufferImpl, Bufferer};
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use metric::Registry;
@@ -621,7 +621,7 @@ mod tests {
         // Set up QueryExecutor
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store), "test_host"));
+        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let executor = make_exec(object_store);
         let write_buffer = Arc::new(

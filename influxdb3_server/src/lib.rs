@@ -28,7 +28,8 @@ use datafusion::execution::SendableRecordBatchStream;
 use hyper::server::conn::AddrIncoming;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
-use influxdb3_write::{Persister, WriteBuffer};
+use influxdb3_write::persister::Persister;
+use influxdb3_write::WriteBuffer;
 use iox_query::QueryDatabase;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
@@ -115,10 +116,10 @@ impl CommonServerState {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct Server<W, Q, P, T> {
+pub struct Server<W, Q, T> {
     common_state: CommonServerState,
     http: Arc<HttpApi<W, Q, T>>,
-    persister: Arc<P>,
+    persister: Arc<Persister>,
     authorizer: Arc<dyn Authorizer>,
     listener: TcpListener,
 }
@@ -151,21 +152,17 @@ pub enum QueryKind {
     Sql,
     InfluxQl,
 }
-impl<W, Q, P, T> Server<W, Q, P, T> {
+impl<W, Q, T> Server<W, Q, T> {
     pub fn authorizer(&self) -> Arc<dyn Authorizer> {
         Arc::clone(&self.authorizer)
     }
 }
 
-pub async fn serve<W, Q, P, T>(
-    server: Server<W, Q, P, T>,
-    shutdown: CancellationToken,
-) -> Result<()>
+pub async fn serve<W, Q, T>(server: Server<W, Q, T>, shutdown: CancellationToken) -> Result<()>
 where
     W: WriteBuffer,
     Q: QueryExecutor,
     http::Error: From<<Q as QueryExecutor>::Error>,
-    P: Persister,
     T: TimeProvider,
 {
     let req_metrics = RequestMetrics::new(
@@ -233,7 +230,7 @@ mod tests {
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_wal::WalConfig;
-    use influxdb3_write::persister::PersisterImpl;
+    use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::WriteBufferImpl;
     use influxdb3_write::LastCacheManager;
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
@@ -768,7 +765,7 @@ mod tests {
             },
             DedicatedExecutor::new_testing(),
         ));
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store), "test_host"));
+        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
 
         let write_buffer = Arc::new(

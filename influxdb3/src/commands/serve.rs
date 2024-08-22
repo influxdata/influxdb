@@ -15,7 +15,7 @@ use influxdb3_server::{
     CommonServerState,
 };
 use influxdb3_wal::{Level0Duration, WalConfig};
-use influxdb3_write::persister::PersisterImpl;
+use influxdb3_write::persister::Persister;
 use influxdb3_write::write_buffer::WriteBufferImpl;
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
@@ -293,7 +293,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let common_state =
         CommonServerState::new(Arc::clone(&metrics), trace_exporter, trace_header_parser)?;
-    let persister = Arc::new(PersisterImpl::new(
+    let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
         config.host_identifier_prefix,
     ));
