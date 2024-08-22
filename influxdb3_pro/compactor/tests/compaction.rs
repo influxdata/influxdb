@@ -8,7 +8,7 @@ use arrow_schema::SchemaRef;
 use data_types::NamespaceName;
 use influxdb3_pro_compactor::Compactor;
 use influxdb3_wal::WalConfig;
-use influxdb3_write::persister::PersisterImpl;
+use influxdb3_write::persister::Persister;
 use influxdb3_write::write_buffer::WriteBufferImpl;
 use influxdb3_write::Bufferer;
 use iox_query::exec::DedicatedExecutor;
@@ -31,7 +31,7 @@ async fn five_files_multiple_series_same_schema() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
 
-    let persister = Arc::new(PersisterImpl::new(
+    let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         "test-host",
     ));
@@ -220,7 +220,7 @@ async fn two_files_two_series_and_same_schema() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
 
-    let persister = Arc::new(PersisterImpl::new(
+    let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         "test-host",
     ));
@@ -342,7 +342,7 @@ async fn two_files_same_series_and_schema() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
 
-    let persister = Arc::new(PersisterImpl::new(
+    let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         "test-host",
     ));
@@ -450,7 +450,7 @@ async fn two_files_same_series_and_schema() {
 async fn two_files_similar_series_and_compatible_schema() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
-    let persister = Arc::new(PersisterImpl::new(
+    let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         "test-host",
     ));
@@ -595,7 +595,7 @@ async fn two_files_similar_series_and_compatible_schema() {
 async fn deduplication_of_data() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
-    let persister = Arc::new(PersisterImpl::new(
+    let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         "test-host",
     ));

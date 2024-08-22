@@ -11,23 +11,17 @@ pub mod paths;
 pub mod persister;
 pub mod write_buffer;
 
-use crate::paths::ParquetFilePath;
 use async_trait::async_trait;
-use bytes::Bytes;
 use data_types::{NamespaceName, TimestampMinMax};
-use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
-use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::Expr;
 use influxdb3_catalog::catalog::{self, SequenceNumber};
 use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use last_cache::LastCacheProvider;
-use parquet::format::FileMetaData;
 use serde::{Deserialize, Serialize};
-use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::atomic::AtomicU64;
@@ -130,58 +124,6 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
         tbl_name: &str,
         cache_name: &str,
     ) -> Result<(), write_buffer::Error>;
-}
-
-pub const DEFAULT_OBJECT_STORE_URL: &str = "iox://influxdb3/";
-
-#[async_trait]
-pub trait Persister: Debug + Send + Sync + 'static {
-    /// Loads the most recently persisted catalog from object storage.
-    async fn load_catalog(&self) -> persister::Result<Option<PersistedCatalog>>;
-
-    /// Loads the most recently persisted N snapshot parquet file lists from object storage.
-    async fn load_snapshots(
-        &self,
-        most_recent_n: usize,
-    ) -> persister::Result<Vec<PersistedSnapshot>>;
-
-    // Loads a Parquet file from ObjectStore
-    async fn load_parquet_file(&self, path: ParquetFilePath) -> persister::Result<Bytes>;
-
-    /// Persists the catalog with the given `WalFileSequenceNumber`. If this is the highest ID, it will
-    /// be the catalog that is returned the next time `load_catalog` is called.
-    async fn persist_catalog(
-        &self,
-        wal_file_sequence_number: WalFileSequenceNumber,
-        catalog: catalog::Catalog,
-    ) -> persister::Result<()>;
-
-    /// Persists the snapshot file
-    async fn persist_snapshot(
-        &self,
-        persisted_snapshot: &PersistedSnapshot,
-    ) -> persister::Result<()>;
-
-    // Writes a SendableRecorgBatchStream to the Parquet format and persists it
-    // to Object Store at the given path. Returns the number of bytes written and the file metadata.
-    async fn persist_parquet_file(
-        &self,
-        path: ParquetFilePath,
-        record_batch: SendableRecordBatchStream,
-    ) -> persister::Result<(u64, FileMetaData)>;
-
-    /// Returns the configured `ObjectStore` that data is loaded from and persisted to.
-    fn object_store(&self) -> Arc<dyn object_store::ObjectStore>;
-
-    // This is used by the query engine to know where to read parquet files from. This assumes
-    // that there is a `ParquetStorage` with an id of `influxdb3` and that this url has been
-    // registered with the query execution context. Kind of ugly here, but not sure where else
-    // to keep this.
-    fn object_store_url(&self) -> ObjectStoreUrl {
-        ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap()
-    }
-
-    fn as_any(&self) -> &dyn Any;
 }
 
 /// A single write request can have many lines in it. A writer can request to accept all lines that are valid, while

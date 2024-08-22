@@ -15,9 +15,8 @@ use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
 use influxdb3_catalog::catalog::TIME_COLUMN_NAME;
 use influxdb3_write::chunk::ParquetChunk;
-use influxdb3_write::persister::PersisterImpl;
+use influxdb3_write::persister::Persister;
 use influxdb3_write::write_buffer::WriteBufferImpl;
-use influxdb3_write::Persister;
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::chunk_statistics::NoColumnRanges;
 use iox_query::exec::Executor;
@@ -84,14 +83,14 @@ pub enum CompactorError {
 #[derive(Debug)]
 pub struct Compactor<T> {
     write_buffer: Arc<WriteBufferImpl<T>>,
-    persister: Arc<PersisterImpl>,
+    persister: Arc<Persister>,
     executor: Arc<Executor>,
 }
 
 impl<T: TimeProvider> Compactor<T> {
     pub fn new(
         write_buffer: Arc<WriteBufferImpl<T>>,
-        persister: Arc<PersisterImpl>,
+        persister: Arc<Persister>,
         executor: Arc<Executor>,
     ) -> Self {
         Self {
@@ -189,7 +188,7 @@ impl<T: TimeProvider> Compactor<T> {
                 .map_err(CompactorError::FailedGet)?
                 .meta;
             let parquet_exec = ParquetExecInput {
-                object_store_url: self.persister.object_store_url(),
+                object_store_url: self.persister.object_store_url().clone(),
                 object_meta: ObjectMeta {
                     location: location.clone(),
                     last_modified: meta.last_modified,
