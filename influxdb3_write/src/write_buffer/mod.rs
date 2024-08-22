@@ -8,13 +8,13 @@ pub(crate) mod validator;
 use crate::cache::ParquetCache;
 use crate::chunk::ParquetChunk;
 use crate::last_cache::{self, CreateCacheArguments, LastCacheProvider};
-use crate::persister::PersisterImpl;
+use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
 use crate::{
-    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile, Persister,
-    Precision, WriteBuffer, WriteLineError, NEXT_FILE_ID,
+    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile, Precision,
+    WriteBuffer, WriteLineError, NEXT_FILE_ID,
 };
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError};
@@ -101,7 +101,7 @@ pub struct WriteRequest<'a> {
 #[derive(Debug)]
 pub struct WriteBufferImpl<T> {
     catalog: Arc<Catalog>,
-    persister: Arc<PersisterImpl>,
+    persister: Arc<Persister>,
     parquet_cache: Arc<ParquetCache>,
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<QueryableBuffer>,
@@ -116,7 +116,7 @@ const N_SNAPSHOTS_TO_LOAD_ON_START: usize = 1_000;
 
 impl<T: TimeProvider> WriteBufferImpl<T> {
     pub async fn new(
-        persister: Arc<PersisterImpl>,
+        persister: Arc<Persister>,
         time_provider: Arc<T>,
         executor: Arc<iox_query::exec::Executor>,
         wal_config: WalConfig,
@@ -317,7 +317,7 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
             let parquet_chunk = parquet_chunk_from_file(
                 &parquet_file,
                 &table_schema,
-                self.persister.object_store_url(),
+                self.persister.object_store_url().clone(),
                 self.persister.object_store(),
                 chunk_order,
             );
@@ -350,7 +350,7 @@ impl<T: TimeProvider> WriteBufferImpl<T> {
             let location = ObjPath::from(parquet_file.path.clone());
 
             let parquet_exec = ParquetExecInput {
-                object_store_url: self.persister.object_store_url(),
+                object_store_url: self.persister.object_store_url().clone(),
                 object_meta: ObjectMeta {
                     location,
                     last_modified: Default::default(),
@@ -599,7 +599,7 @@ impl<T: TimeProvider> WriteBuffer for WriteBufferImpl<T> {}
 mod tests {
     use super::*;
     use crate::paths::{CatalogFilePath, SnapshotInfoFilePath};
-    use crate::persister::PersisterImpl;
+    use crate::persister::Persister;
     use crate::PersistedSnapshot;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
@@ -640,7 +640,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn writes_data_to_wal_and_is_queryable() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store), "test_host"));
+        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
@@ -1309,7 +1309,7 @@ mod tests {
         }
     }
 
-    async fn verify_snapshot_count(n: usize, persister: &Arc<PersisterImpl>) {
+    async fn verify_snapshot_count(n: usize, persister: &Arc<Persister>) {
         let mut checks = 0;
         loop {
             let persisted_snapshots = persister.load_snapshots(1000).await.unwrap();
@@ -1342,7 +1342,7 @@ mod tests {
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
     ) -> (WriteBufferImpl<MockProvider>, IOxSessionContext) {
-        let persister = Arc::new(PersisterImpl::new(Arc::clone(&object_store), "test_host"));
+        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(start));
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&persister),

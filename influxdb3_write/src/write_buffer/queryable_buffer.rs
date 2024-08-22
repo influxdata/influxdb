@@ -1,10 +1,10 @@
 use crate::chunk::BufferChunk;
 use crate::last_cache::LastCacheProvider;
 use crate::paths::ParquetFilePath;
-use crate::persister::PersisterImpl;
+use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
-use crate::{ParquetFile, ParquetFileId, PersistedSnapshot, Persister};
+use crate::{ParquetFile, ParquetFileId, PersistedSnapshot};
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::{
@@ -37,7 +37,7 @@ pub(crate) struct QueryableBuffer {
     pub(crate) executor: Arc<Executor>,
     catalog: Arc<Catalog>,
     last_cache_provider: Arc<LastCacheProvider>,
-    persister: Arc<PersisterImpl>,
+    persister: Arc<Persister>,
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<RwLock<BufferState>>,
 }
@@ -46,7 +46,7 @@ impl QueryableBuffer {
     pub(crate) fn new(
         executor: Arc<Executor>,
         catalog: Arc<Catalog>,
-        persister: Arc<PersisterImpl>,
+        persister: Arc<Persister>,
         last_cache_provider: Arc<LastCacheProvider>,
         persisted_files: Arc<PersistedFiles>,
     ) -> Self {
@@ -418,14 +418,11 @@ struct PersistJob {
     sort_key: SortKey,
 }
 
-async fn sort_dedupe_persist<P>(
+async fn sort_dedupe_persist(
     persist_job: PersistJob,
-    persister: Arc<P>,
+    persister: Arc<Persister>,
     executor: Arc<Executor>,
-) -> (u64, FileMetaData)
-where
-    P: Persister,
-{
+) -> (u64, FileMetaData) {
     // Dedupe and sort using the COMPACT query built into
     // iox_query
     let row_count = persist_job.batch.num_rows();

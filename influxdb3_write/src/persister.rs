@@ -6,16 +6,15 @@ use crate::paths::ParquetFilePath;
 use crate::paths::SnapshotInfoFilePath;
 use crate::PersistedCatalog;
 use crate::PersistedSnapshot;
-use crate::Persister;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
-use async_trait::async_trait;
 use bytes::Bytes;
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::MemoryConsumer;
 use datafusion::execution::memory_pool::MemoryPool;
 use datafusion::execution::memory_pool::MemoryReservation;
 use datafusion::execution::memory_pool::UnboundedMemoryPool;
+use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures_util::pin_mut;
 use futures_util::stream::StreamExt;
@@ -68,23 +67,38 @@ impl From<Error> for DataFusionError {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+const DEFAULT_OBJECT_STORE_URL: &str = "iox://influxdb3/";
+
+/// The persister is the primary interface with object storage where InfluxDB stores all Parquet
+/// data, catalog information, as well as WAL and snapshot data.
 #[derive(Debug)]
-pub struct PersisterImpl {
+pub struct Persister {
+    /// This is used by the query engine to know where to read parquet files from. This assumes
+    /// that there is a `ParquetStorage` with an id of `influxdb3` and that this url has been
+    /// registered with the query execution context.
+    object_store_url: ObjectStoreUrl,
+    /// The interface to the object store being used
     object_store: Arc<dyn ObjectStore>,
+    /// Prefix used for all paths in the object store for this persister
     host_identifier_prefix: String,
     pub(crate) mem_pool: Arc<dyn MemoryPool>,
 }
 
-impl PersisterImpl {
+impl Persister {
     pub fn new(
         object_store: Arc<dyn ObjectStore>,
         host_identifier_prefix: impl Into<String>,
     ) -> Self {
         Self {
+            object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             object_store,
             host_identifier_prefix: host_identifier_prefix.into(),
             mem_pool: Arc::new(UnboundedMemoryPool::default()),
         }
+    }
+
+    pub fn object_store_url(&self) -> &ObjectStoreUrl {
+        &self.object_store_url
     }
 
     async fn serialize_to_parquet(
@@ -97,42 +111,9 @@ impl PersisterImpl {
     pub fn host_identifier_prefix(&self) -> &str {
         &self.host_identifier_prefix
     }
-}
 
-pub async fn serialize_to_parquet(
-    mem_pool: Arc<dyn MemoryPool>,
-    batches: SendableRecordBatchStream,
-) -> Result<ParquetBytes> {
-    // The ArrowWriter::write() call will return an error if any subsequent
-    // batch does not match this schema, enforcing schema uniformity.
-    let schema = batches.schema();
-
-    let stream = batches;
-    let mut bytes = Vec::new();
-    pin_mut!(stream);
-
-    // Construct the arrow serializer with the metadata as part of the parquet
-    // file properties.
-    let mut writer = TrackedMemoryArrowWriter::try_new(&mut bytes, Arc::clone(&schema), mem_pool)?;
-
-    while let Some(batch) = stream.try_next().await? {
-        writer.write(batch)?;
-    }
-
-    let writer_meta = writer.close()?;
-    if writer_meta.num_rows == 0 {
-        return Err(Error::NoRows);
-    }
-
-    Ok(ParquetBytes {
-        meta_data: writer_meta,
-        bytes: Bytes::from(bytes),
-    })
-}
-
-#[async_trait]
-impl Persister for PersisterImpl {
-    async fn load_catalog(&self) -> Result<Option<PersistedCatalog>> {
+    /// Loads the most recently persisted catalog from object storage.
+    pub async fn load_catalog(&self) -> Result<Option<PersistedCatalog>> {
         let mut list = self
             .object_store
             .list(Some(&CatalogFilePath::dir(&self.host_identifier_prefix)));
@@ -187,7 +168,8 @@ impl Persister for PersisterImpl {
         }
     }
 
-    async fn load_snapshots(&self, mut most_recent_n: usize) -> Result<Vec<PersistedSnapshot>> {
+    /// Loads the most recently persisted N snapshot parquet file lists from object storage.
+    pub async fn load_snapshots(&self, mut most_recent_n: usize) -> Result<Vec<PersistedSnapshot>> {
         let mut output = Vec::new();
         let mut offset: Option<ObjPath> = None;
         while most_recent_n > 0 {
@@ -247,11 +229,14 @@ impl Persister for PersisterImpl {
         Ok(output)
     }
 
-    async fn load_parquet_file(&self, path: ParquetFilePath) -> Result<Bytes> {
+    /// Loads a Parquet file from ObjectStore
+    pub async fn load_parquet_file(&self, path: ParquetFilePath) -> Result<Bytes> {
         Ok(self.object_store.get(&path).await?.bytes().await?)
     }
 
-    async fn persist_catalog(
+    /// Persists the catalog with the given `WalFileSequenceNumber`. If this is the highest ID, it will
+    /// be the catalog that is returned the next time `load_catalog` is called.
+    pub async fn persist_catalog(
         &self,
         wal_file_sequence_number: WalFileSequenceNumber,
         catalog: Catalog,
@@ -267,7 +252,8 @@ impl Persister for PersisterImpl {
         Ok(())
     }
 
-    async fn persist_snapshot(&self, persisted_snapshot: &PersistedSnapshot) -> Result<()> {
+    /// Persists the snapshot file
+    pub async fn persist_snapshot(&self, persisted_snapshot: &PersistedSnapshot) -> Result<()> {
         let snapshot_file_path = SnapshotInfoFilePath::new(
             self.host_identifier_prefix.as_str(),
             persisted_snapshot.snapshot_sequence_number,
@@ -279,7 +265,9 @@ impl Persister for PersisterImpl {
         Ok(())
     }
 
-    async fn persist_parquet_file(
+    /// Writes a [`SendableRecordBatchStream`] to the Parquet format and persists it to Object Store
+    /// at the given path. Returns the number of bytes written and the file metadata.
+    pub async fn persist_parquet_file(
         &self,
         path: ParquetFilePath,
         record_batch: SendableRecordBatchStream,
@@ -293,13 +281,45 @@ impl Persister for PersisterImpl {
         Ok((bytes_written, parquet.meta_data))
     }
 
-    fn object_store(&self) -> Arc<dyn ObjectStore> {
+    /// Returns the configured `ObjectStore` that data is loaded from and persisted to.
+    pub fn object_store(&self) -> Arc<dyn ObjectStore> {
         self.object_store.clone()
     }
 
-    fn as_any(&self) -> &dyn Any {
+    pub fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
+}
+
+pub async fn serialize_to_parquet(
+    mem_pool: Arc<dyn MemoryPool>,
+    batches: SendableRecordBatchStream,
+) -> Result<ParquetBytes> {
+    // The ArrowWriter::write() call will return an error if any subsequent
+    // batch does not match this schema, enforcing schema uniformity.
+    let schema = batches.schema();
+
+    let stream = batches;
+    let mut bytes = Vec::new();
+    pin_mut!(stream);
+
+    // Construct the arrow serializer with the metadata as part of the parquet
+    // file properties.
+    let mut writer = TrackedMemoryArrowWriter::try_new(&mut bytes, Arc::clone(&schema), mem_pool)?;
+
+    while let Some(batch) = stream.try_next().await? {
+        writer.write(batch)?;
+    }
+
+    let writer_meta = writer.close()?;
+    if writer_meta.num_rows == 0 {
+        return Err(Error::NoRows);
+    }
+
+    Ok(ParquetBytes {
+        meta_data: writer_meta,
+        bytes: Bytes::from(bytes),
+    })
 }
 
 pub struct ParquetBytes {
@@ -377,7 +397,7 @@ mod tests {
     async fn persist_catalog() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
+        let persister = Persister::new(Arc::new(local_disk), "test_host");
         let catalog = Catalog::new();
         let _ = catalog.db_or_create("my_db");
 
@@ -391,7 +411,7 @@ mod tests {
     async fn persist_and_load_newest_catalog() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
+        let persister = Persister::new(Arc::new(local_disk), "test_host");
         let catalog = Catalog::new();
         let _ = catalog.db_or_create("my_db");
 
@@ -426,7 +446,7 @@ mod tests {
     async fn persist_snapshot_info_file() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
+        let persister = Persister::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
             next_file_id: ParquetFileId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
@@ -446,7 +466,7 @@ mod tests {
     async fn persist_and_load_snapshot_info_files() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
+        let persister = Persister::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
             next_file_id: ParquetFileId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
@@ -500,7 +520,7 @@ mod tests {
     async fn persist_and_load_snapshot_info_files_with_fewer_than_requested() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
+        let persister = Persister::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
             next_file_id: ParquetFileId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
@@ -524,7 +544,7 @@ mod tests {
     async fn persist_and_load_over_9000_snapshot_info_files() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
+        let persister = Persister::new(Arc::new(local_disk), "test_host");
         for id in 0..9001 {
             let info_file = PersistedSnapshot {
                 next_file_id: ParquetFileId::from(id),
@@ -554,7 +574,7 @@ mod tests {
     async fn persist_add_parquet_file_and_load_snapshot() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
+        let persister = Persister::new(Arc::new(local_disk), "test_host");
         let mut info_file = PersistedSnapshot::new(
             SnapshotSequenceNumber::new(0),
             WalFileSequenceNumber::new(0),
@@ -589,7 +609,7 @@ mod tests {
     #[tokio::test]
     async fn load_snapshot_works_with_no_exising_snapshots() {
         let store = InMemory::new();
-        let persister = PersisterImpl::new(Arc::new(store), "test_host");
+        let persister = Persister::new(Arc::new(store), "test_host");
 
         let snapshots = persister.load_snapshots(100).await.unwrap();
         assert!(snapshots.is_empty());
@@ -599,7 +619,7 @@ mod tests {
     async fn get_parquet_bytes() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
+        let persister = Persister::new(Arc::new(local_disk), "test_host");
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
@@ -626,7 +646,7 @@ mod tests {
     async fn persist_and_load_parquet_bytes() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = PersisterImpl::new(Arc::new(local_disk), "test_host");
+        let persister = Persister::new(Arc::new(local_disk), "test_host");
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
