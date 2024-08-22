@@ -1,11 +1,10 @@
+use influxdb3_write::ParquetFileId;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-pub type FileId = u64;
-
 #[derive(Debug)]
 pub struct FileIndex {
-    index: HashMap<Arc<str>, HashMap<Arc<str>, Vec<FileId>>>,
+    index: HashMap<Arc<str>, HashMap<Arc<str>, Vec<ParquetFileId>>>,
 }
 
 impl FileIndex {
@@ -24,7 +23,7 @@ impl FileIndex {
     }
 
     /// Inserts an id for a given value and column or creates the entry if it does not yet exist
-    pub fn insert(&mut self, column: Arc<str>, value: Arc<str>, id: FileId) {
+    pub fn insert(&mut self, column: Arc<str>, value: Arc<str>, id: ParquetFileId) {
         self.index
             .entry(column)
             .and_modify(|map| {
@@ -40,7 +39,7 @@ impl FileIndex {
     }
 
     /// Get all `FileId`s for a given column and value if they exist
-    pub fn lookup(&self, column: Arc<str>, value: Arc<str>) -> &[FileId] {
+    pub fn lookup(&self, column: Arc<str>, value: Arc<str>) -> &[ParquetFileId] {
         self.index
             .get(&column)
             .and_then(|map| map.get(&value).map(|vec| vec.as_slice()))
@@ -62,15 +61,15 @@ fn file_index() {
     let value: Arc<str> = Arc::from("1");
 
     // Test that insertion works as expected
-    index.insert(Arc::clone(&id), Arc::clone(&value), 9000);
-    index.insert(Arc::clone(&id), Arc::clone(&value), 9001);
+    index.insert(Arc::clone(&id), Arc::clone(&value), 9000.into());
+    index.insert(Arc::clone(&id), Arc::clone(&value), 9001.into());
     // We want to make sure extra insertions of the same one aren't included
-    index.insert(Arc::clone(&id), Arc::clone(&value), 9000);
+    index.insert(Arc::clone(&id), Arc::clone(&value), 9000.into());
 
     // Test that lookup works as expected
     assert_eq!(
         index.lookup(Arc::clone(&id), Arc::clone(&value)),
-        &[9000, 9001]
+        &[9000.into(), 9001.into()]
     );
 
     // Test that removal works as expected

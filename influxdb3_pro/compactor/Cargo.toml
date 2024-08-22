@@ -23,13 +23,13 @@ influxdb3_write = { path = "../../influxdb3_write" }
 arrow.workspace = true
 arrow-schema.workspace = true
 bytes.workspace = true
+chrono.workspace = true
 datafusion.workspace = true
 futures-util.workspace = true
 object_store.workspace = true
 parquet.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-uuid.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

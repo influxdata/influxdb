@@ -2513,6 +2513,7 @@ dependencies = [
  "arrow-schema",
  "arrow_util",
  "bytes",
+ "chrono",
  "data_types",
  "datafusion",
  "executor",
@@ -2532,12 +2533,14 @@ dependencies = [
  "test_helpers",
  "thiserror",
  "tokio",
- "uuid",
 ]
 
 [[package]]
 name = "influxdb3_pro_index"
 version = "0.1.0"
+dependencies = [
+ "influxdb3_write",
+]
 
 [[package]]
 name = "influxdb3_process"

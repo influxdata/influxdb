@@ -103,7 +103,7 @@ async fn five_files_multiple_series_same_schema() {
     let path5 = test_writer.write("test/batch/5", batch5).await;
 
     // Create our new Compactor and compact the above files
-    let compactor = Compactor::new(
+    let mut compactor = Compactor::new(
         write_buffer,
         persister,
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
@@ -115,6 +115,9 @@ async fn five_files_multiple_series_same_schema() {
             vec!["id".into()],
             vec![path1, path2, path3, path4, path5],
             2,
+            "compactor_1".into(),
+            "us-east-1".into(),
+            0,
         )
         .await
         .unwrap();
@@ -280,7 +283,7 @@ async fn two_files_two_series_and_same_schema() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     // Create our new Compactor and compact the above files
-    let compactor = Compactor::new(
+    let mut compactor = Compactor::new(
         write_buffer,
         persister,
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
@@ -294,6 +297,9 @@ async fn two_files_two_series_and_same_schema() {
             // Make sure this works out of order
             vec![path2, path1],
             2,
+            "compactor_1".into(),
+            "us-east-1".into(),
+            0,
         )
         .await
         .unwrap();
@@ -402,7 +408,7 @@ async fn two_files_same_series_and_schema() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     // Create our new Compactor and compact the above files
-    let compactor = Compactor::new(
+    let mut compactor = Compactor::new(
         write_buffer,
         persister,
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
@@ -417,6 +423,9 @@ async fn two_files_same_series_and_schema() {
             // Check that order matters for determining which data to use for field
             vec![path1, path2],
             2,
+            "compactor_1".into(),
+            "us-east-1".into(),
+            0,
         )
         .await
         .unwrap();
@@ -531,7 +540,7 @@ async fn two_files_similar_series_and_compatible_schema() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     // Create our new Compactor and compact the above files
-    let compactor = Compactor::new(
+    let mut compactor = Compactor::new(
         write_buffer,
         persister,
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
@@ -545,6 +554,9 @@ async fn two_files_similar_series_and_compatible_schema() {
             vec!["id".into(), "host".into(), "extra_tag".into()],
             vec![path1, path2],
             2,
+            "compactor_1".into(),
+            "us-east-1".into(),
+            0,
         )
         .await
         .unwrap();
@@ -655,7 +667,7 @@ async fn deduplication_of_data() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     // Create our new Compactor and compact the above files
-    let compactor = Compactor::new(
+    let mut compactor = Compactor::new(
         write_buffer,
         persister,
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
@@ -670,6 +682,9 @@ async fn deduplication_of_data() {
             // Make sure this works out of order
             vec![path2, path1],
             2,
+            "compactor_1".into(),
+            "us-east-1".into(),
+            0,
         )
         .await
         .unwrap();

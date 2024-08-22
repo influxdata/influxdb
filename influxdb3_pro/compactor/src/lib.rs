@@ -4,6 +4,10 @@ use arrow::compute::Partitions;
 use arrow_schema::ArrowError;
 use arrow_util::util::ensure_schema;
 use bytes::Bytes;
+use chrono::DateTime;
+use chrono::Datelike;
+use chrono::Timelike;
+use chrono::Utc;
 use data_types::ChunkId;
 use data_types::ChunkOrder;
 use data_types::PartitionHashId;
@@ -17,6 +21,7 @@ use influxdb3_catalog::catalog::TIME_COLUMN_NAME;
 use influxdb3_write::chunk::ParquetChunk;
 use influxdb3_write::persister::Persister;
 use influxdb3_write::write_buffer::WriteBufferImpl;
+use influxdb3_write::ParquetFileId;
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::chunk_statistics::NoColumnRanges;
 use iox_query::exec::Executor;
@@ -42,9 +47,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
+use std::time::SystemTime;
 use tokio::time::sleep;
 use tokio::time::Duration;
-use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CompactorError {
@@ -85,6 +90,7 @@ pub struct Compactor<T> {
     write_buffer: Arc<WriteBufferImpl<T>>,
     persister: Arc<Persister>,
     executor: Arc<Executor>,
+    compaction_seq: u64,
 }
 
 impl<T: TimeProvider> Compactor<T> {
@@ -97,6 +103,9 @@ impl<T: TimeProvider> Compactor<T> {
             write_buffer,
             persister,
             executor,
+            // TODO: Eventually this needs to be pulled from object store to
+            // see what the next value actually is to use here
+            compaction_seq: 0,
         }
     }
 
@@ -110,13 +119,17 @@ impl<T: TimeProvider> Compactor<T> {
     ///
     /// The limit is the maximum number of rows that can be in a single file.
     /// This number can be exceed if a single series is larger than the limit
+    #[allow(clippy::too_many_arguments)]
     pub async fn compact_files(
-        &self,
+        &mut self,
         database_name: &str,
         table_name: &str,
         mut sort_keys: Vec<String>,
         paths: Vec<ObjPath>,
         limit: usize,
+        compactor_id: Arc<str>,
+        host: Arc<str>,
+        generation: u64,
     ) -> Result<Vec<ObjPath>, CompactorError> {
         executor::register_current_runtime_for_io();
 
@@ -140,6 +153,12 @@ impl<T: TimeProvider> Compactor<T> {
             limit,
             sort_keys.clone(),
             records,
+            compactor_id,
+            host,
+            generation,
+            &mut self.compaction_seq,
+            database_name,
+            table_name,
         );
 
         loop {
@@ -233,7 +252,7 @@ impl<T: TimeProvider> Compactor<T> {
 
 /// Handles writing RecordBatches to a file in the object store
 /// ensuring each series is written to the same file
-struct SeriesWriter {
+struct SeriesWriter<'compactor> {
     object_store: Arc<dyn ObjectStore>,
     /// the target size of each output file
     limit: usize,
@@ -247,17 +266,34 @@ struct SeriesWriter {
     sort_keys: Vec<String>,
     /// files we have created
     output_paths: Vec<ObjPath>,
+    /// The ID of the compactor
+    compactor_id: Arc<str>,
+    /// Host this compaction is being done for
+    host: Arc<str>,
+    /// What generation the data is being compacted into
+    generation: u64,
+    compaction_seq: &'compactor mut u64,
+    db_name: &'compactor str,
+    table_name: &'compactor str,
+    compaction_time: DateTime<Utc>,
 }
 
-impl SeriesWriter {
+impl<'compactor> SeriesWriter<'compactor> {
     /// Create a new `SeriesWriter` which maintains all of the state for writing out series for
     /// compactions
+    #[allow(clippy::too_many_arguments)]
     fn new(
         table_schema: Arc<Schema>,
         object_store: Arc<dyn ObjectStore>,
         limit: usize,
         sort_keys: Vec<String>,
         stream: SendableRecordBatchStream,
+        compactor_id: Arc<str>,
+        host: Arc<str>,
+        generation: u64,
+        compaction_seq: &'compactor mut u64,
+        db_name: &'compactor str,
+        table_name: &'compactor str,
     ) -> Self {
         Self {
             record_batches: RecordBatchHolder::new(stream, Arc::clone(&table_schema)),
@@ -267,6 +303,13 @@ impl SeriesWriter {
             writer: None,
             sort_keys,
             output_paths: Vec::new(),
+            compactor_id,
+            host,
+            generation,
+            compaction_seq,
+            db_name,
+            table_name,
+            compaction_time: SystemTime::now().into(),
         }
     }
 
@@ -402,7 +445,21 @@ impl SeriesWriter {
         match self.writer.take() {
             Some(writer) => Ok(writer),
             None => {
-                let path = ObjPath::from(Uuid::new_v4().to_string());
+                let path = ObjPath::from(format!(
+                    "{}/c/{}/{}/{}/{}-{}-{}/{}-{}/f/{}.{}.{}.parquet",
+                    self.compactor_id,
+                    self.db_name,
+                    self.table_name,
+                    self.generation,
+                    self.compaction_time.year(),
+                    self.compaction_time.month(),
+                    self.compaction_time.day(),
+                    self.compaction_time.hour(),
+                    self.compaction_time.minute(),
+                    self.compaction_seq,
+                    ParquetFileId::new().as_u64(),
+                    self.host
+                ));
                 let obj_store_multipart = self
                     .object_store
                     .put_multipart(&path)
