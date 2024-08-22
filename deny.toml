@@ -22,8 +22,8 @@ allow = [
 exceptions = [
     # We should probably NOT bundle CA certs but use the OS ones.
     { name = "webpki-roots", allow = ["MPL-2.0"] },
-    { allow = ["Unicode-DFS-2016"], crate = "unicode-ident" },
-    { allow = ["OpenSSL"], crate = "ring" },
+    { allow = ["Unicode-DFS-2016"], name = "unicode-ident" },
+    { allow = ["OpenSSL"], name = "ring" },
 ]
 
 [[licenses.clarify]]
