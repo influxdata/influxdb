@@ -117,7 +117,7 @@ impl LastCacheProvider {
     }
 
     /// Initialize a [`LastCacheProvider`] from a [`InnerCatalog`]
-    pub(crate) fn new_from_catalog(catalog: &InnerCatalog) -> Result<Self, Error> {
+    pub fn new_from_catalog(catalog: &InnerCatalog) -> Result<Self, Error> {
         let provider = LastCacheProvider::new();
         for db_schema in catalog.databases() {
             for tbl_def in db_schema.tables() {
@@ -1580,7 +1580,7 @@ mod tests {
     use insta::assert_json_snapshot;
     use iox_time::{MockProvider, Time};
 
-    async fn setup_write_buffer() -> WriteBufferImpl<MockProvider> {
+    async fn setup_write_buffer() -> WriteBufferImpl {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(Persister::new(obj_store, "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));

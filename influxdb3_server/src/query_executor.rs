@@ -582,7 +582,7 @@ mod tests {
     use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
     use influxdb3_wal::{Level0Duration, WalConfig};
-    use influxdb3_write::{persister::Persister, write_buffer::WriteBufferImpl, Bufferer};
+    use influxdb3_write::{persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer};
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use metric::Registry;
@@ -615,9 +615,7 @@ mod tests {
         ))
     }
 
-    type TestWriteBuffer = WriteBufferImpl<MockProvider>;
-
-    async fn setup() -> (Arc<TestWriteBuffer>, QueryExecutorImpl, Arc<MockProvider>) {
+    async fn setup() -> (Arc<dyn WriteBuffer>, QueryExecutorImpl, Arc<MockProvider>) {
         // Set up QueryExecutor
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
@@ -627,7 +625,7 @@ mod tests {
         let write_buffer = Arc::new(
             WriteBufferImpl::new(
                 Arc::clone(&persister),
-                Arc::clone(&time_provider),
+                Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&executor),
                 WalConfig {
                     level_0_duration: Level0Duration::new_1m(),
@@ -643,7 +641,7 @@ mod tests {
         let df_config = Arc::new(Default::default());
         let query_executor = QueryExecutorImpl::new(
             write_buffer.catalog(),
-            Arc::<WriteBufferImpl<MockProvider>>::clone(&write_buffer),
+            Arc::<WriteBufferImpl>::clone(&write_buffer),
             executor,
             metrics,
             df_config,

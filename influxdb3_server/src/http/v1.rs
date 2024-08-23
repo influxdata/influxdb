@@ -23,7 +23,6 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{ready, stream::Fuse, Stream, StreamExt};
 use hyper::http::HeaderValue;
 use hyper::{header::ACCEPT, header::CONTENT_TYPE, Body, Request, Response, StatusCode};
-use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
 use observability_deps::tracing::info;
 use schema::{INFLUXQL_MEASUREMENT_COLUMN_NAME, TIME_COLUMN_NAME};
@@ -36,9 +35,8 @@ use super::{Error, HttpApi, Result};
 
 const DEFAULT_CHUNK_SIZE: usize = 10_000;
 
-impl<W, Q, T> HttpApi<W, Q, T>
+impl<Q, T> HttpApi<Q, T>
 where
-    W: WriteBuffer,
     Q: QueryExecutor,
     T: TimeProvider,
     Error: From<<Q as QueryExecutor>::Error>,

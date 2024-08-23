@@ -4,12 +4,10 @@ use super::QueryExecutor;
 use hyper::Body;
 use hyper::Request;
 use hyper::Response;
-use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
 
-impl<W, Q, T> HttpApi<W, Q, T>
+impl<Q, T> HttpApi<Q, T>
 where
-    W: WriteBuffer,
     Q: QueryExecutor,
     T: TimeProvider,
     Error: From<<Q as QueryExecutor>::Error>,

@@ -20,15 +20,14 @@ use futures_util::StreamExt;
 use influxdb3_catalog::catalog::TIME_COLUMN_NAME;
 use influxdb3_write::chunk::ParquetChunk;
 use influxdb3_write::persister::Persister;
-use influxdb3_write::write_buffer::WriteBufferImpl;
 use influxdb3_write::ParquetFileId;
+use influxdb3_write::WriteBuffer;
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::chunk_statistics::NoColumnRanges;
 use iox_query::exec::Executor;
 use iox_query::frontend::reorg;
 use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
-use iox_time::TimeProvider;
 use object_store::path::Path as ObjPath;
 use object_store::MultipartUpload;
 use object_store::ObjectMeta;
@@ -86,16 +85,16 @@ pub enum CompactorError {
 }
 
 #[derive(Debug)]
-pub struct Compactor<T> {
-    write_buffer: Arc<WriteBufferImpl<T>>,
+pub struct Compactor {
+    write_buffer: Arc<dyn WriteBuffer>,
     persister: Arc<Persister>,
     executor: Arc<Executor>,
     compaction_seq: u64,
 }
 
-impl<T: TimeProvider> Compactor<T> {
+impl Compactor {
     pub fn new(
-        write_buffer: Arc<WriteBufferImpl<T>>,
+        write_buffer: Arc<dyn WriteBuffer>,
         persister: Arc<Persister>,
         executor: Arc<Executor>,
     ) -> Self {

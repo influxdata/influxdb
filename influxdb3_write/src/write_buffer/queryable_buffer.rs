@@ -33,7 +33,7 @@ use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
 
 #[derive(Debug)]
-pub(crate) struct QueryableBuffer {
+pub struct QueryableBuffer {
     pub(crate) executor: Arc<Executor>,
     catalog: Arc<Catalog>,
     last_cache_provider: Arc<LastCacheProvider>,
@@ -43,7 +43,7 @@ pub(crate) struct QueryableBuffer {
 }
 
 impl QueryableBuffer {
-    pub(crate) fn new(
+    pub fn new(
         executor: Arc<Executor>,
         catalog: Arc<Catalog>,
         persister: Arc<Persister>,
@@ -61,7 +61,7 @@ impl QueryableBuffer {
         }
     }
 
-    pub(crate) fn get_table_chunks(
+    pub fn get_table_chunks(
         &self,
         db_schema: Arc<DatabaseSchema>,
         table_name: &str,
@@ -283,11 +283,7 @@ impl QueryableBuffer {
         receiver
     }
 
-    pub(crate) fn persisted_parquet_files(
-        &self,
-        db_name: &str,
-        table_name: &str,
-    ) -> Vec<ParquetFile> {
+    pub fn persisted_parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
         self.persisted_files.get_files(db_name, table_name)
     }
 }

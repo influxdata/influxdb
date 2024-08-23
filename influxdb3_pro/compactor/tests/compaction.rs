@@ -36,7 +36,7 @@ async fn five_files_multiple_series_same_schema() {
         "test-host",
     ));
     let write_buffer = Arc::new(
-        WriteBufferImpl::<MockProvider>::new(
+        WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
@@ -228,7 +228,7 @@ async fn two_files_two_series_and_same_schema() {
         "test-host",
     ));
     let write_buffer = Arc::new(
-        WriteBufferImpl::<MockProvider>::new(
+        WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
@@ -353,7 +353,7 @@ async fn two_files_same_series_and_schema() {
         "test-host",
     ));
     let write_buffer = Arc::new(
-        WriteBufferImpl::<MockProvider>::new(
+        WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
@@ -464,7 +464,7 @@ async fn two_files_similar_series_and_compatible_schema() {
         "test-host",
     ));
     let write_buffer = Arc::new(
-        WriteBufferImpl::<MockProvider>::new(
+        WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
@@ -612,7 +612,7 @@ async fn deduplication_of_data() {
         "test-host",
     ));
     let write_buffer = Arc::new(
-        WriteBufferImpl::<MockProvider>::new(
+        WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
