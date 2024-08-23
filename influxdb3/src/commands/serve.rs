@@ -15,8 +15,8 @@ use influxdb3_server::{
     CommonServerState,
 };
 use influxdb3_wal::{Level0Duration, WalConfig};
-use influxdb3_write::persister::Persister;
 use influxdb3_write::write_buffer::WriteBufferImpl;
+use influxdb3_write::{persister::Persister, WriteBuffer};
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
 use object_store::DynObjectStore;
@@ -305,10 +305,10 @@ pub async fn command(config: Config) -> Result<()> {
     };
 
     let time_provider = Arc::new(SystemProvider::new());
-    let write_buffer = Arc::new(
+    let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::clone(&time_provider),
+            Arc::<SystemProvider>::clone(&time_provider),
             Arc::clone(&exec),
             wal_config,
         )
@@ -316,7 +316,7 @@ pub async fn command(config: Config) -> Result<()> {
     );
     let query_executor = Arc::new(QueryExecutorImpl::new(
         write_buffer.catalog(),
-        Arc::<WriteBufferImpl<SystemProvider>>::clone(&write_buffer),
+        Arc::clone(&write_buffer),
         Arc::clone(&exec),
         Arc::clone(&metrics),
         Arc::new(config.datafusion_config),

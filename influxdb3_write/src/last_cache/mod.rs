@@ -1580,7 +1580,7 @@ mod tests {
     use insta::assert_json_snapshot;
     use iox_time::{MockProvider, Time};
 
-    async fn setup_write_buffer() -> WriteBufferImpl<MockProvider> {
+    async fn setup_write_buffer() -> WriteBufferImpl {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(Persister::new(obj_store, "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use authz::Authorizer;
-use influxdb3_write::persister::Persister;
+use influxdb3_write::{persister::Persister, WriteBuffer};
 use tokio::net::TcpListener;
 
 use crate::{auth::DefaultAuthorizer, http::HttpApi, CommonServerState, Server};
@@ -48,7 +48,7 @@ impl<W, Q, P, T, L> ServerBuilder<W, Q, P, T, L> {
 #[derive(Debug)]
 pub struct NoWriteBuf;
 #[derive(Debug)]
-pub struct WithWriteBuf<W>(Arc<W>);
+pub struct WithWriteBuf(Arc<dyn WriteBuffer>);
 #[derive(Debug)]
 pub struct NoQueryExec;
 #[derive(Debug)]
@@ -67,7 +67,7 @@ pub struct NoListener;
 pub struct WithListener(TcpListener);
 
 impl<Q, P, T, L> ServerBuilder<NoWriteBuf, Q, P, T, L> {
-    pub fn write_buffer<W>(self, wb: Arc<W>) -> ServerBuilder<WithWriteBuf<W>, Q, P, T, L> {
+    pub fn write_buffer(self, wb: Arc<dyn WriteBuffer>) -> ServerBuilder<WithWriteBuf, Q, P, T, L> {
         ServerBuilder {
             common_state: self.common_state,
             time_provider: self.time_provider,
@@ -141,16 +141,10 @@ impl<W, Q, P, T> ServerBuilder<W, Q, P, T, NoListener> {
     }
 }
 
-impl<W, Q, T>
-    ServerBuilder<
-        WithWriteBuf<W>,
-        WithQueryExec<Q>,
-        WithPersister,
-        WithTimeProvider<T>,
-        WithListener,
-    >
+impl<Q, T>
+    ServerBuilder<WithWriteBuf, WithQueryExec<Q>, WithPersister, WithTimeProvider<T>, WithListener>
 {
-    pub fn build(self) -> Server<W, Q, T> {
+    pub fn build(self) -> Server<Q, T> {
         let persister = Arc::clone(&self.persister.0);
         let authorizer = Arc::clone(&self.authorizer);
         let http = Arc::new(HttpApi::new(
