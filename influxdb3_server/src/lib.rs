@@ -29,7 +29,6 @@ use hyper::server::conn::AddrIncoming;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use influxdb3_write::persister::Persister;
-use influxdb3_write::WriteBuffer;
 use iox_query::QueryDatabase;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
@@ -116,9 +115,9 @@ impl CommonServerState {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct Server<W, Q, T> {
+pub struct Server<Q, T> {
     common_state: CommonServerState,
-    http: Arc<HttpApi<W, Q, T>>,
+    http: Arc<HttpApi<Q, T>>,
     persister: Arc<Persister>,
     authorizer: Arc<dyn Authorizer>,
     listener: TcpListener,
@@ -152,15 +151,14 @@ pub enum QueryKind {
     Sql,
     InfluxQl,
 }
-impl<W, Q, T> Server<W, Q, T> {
+impl<Q, T> Server<Q, T> {
     pub fn authorizer(&self) -> Arc<dyn Authorizer> {
         Arc::clone(&self.authorizer)
     }
 }
 
-pub async fn serve<W, Q, T>(server: Server<W, Q, T>, shutdown: CancellationToken) -> Result<()>
+pub async fn serve<Q, T>(server: Server<Q, T>, shutdown: CancellationToken) -> Result<()>
 where
-    W: WriteBuffer,
     Q: QueryExecutor,
     http::Error: From<<Q as QueryExecutor>::Error>,
     T: TimeProvider,
@@ -231,8 +229,7 @@ mod tests {
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_wal::WalConfig;
     use influxdb3_write::persister::Persister;
-    use influxdb3_write::write_buffer::WriteBufferImpl;
-    use influxdb3_write::LastCacheManager;
+    use influxdb3_write::WriteBuffer;
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
@@ -739,13 +736,7 @@ mod tests {
         shutdown.cancel();
     }
 
-    async fn setup_server(
-        start_time: i64,
-    ) -> (
-        String,
-        CancellationToken,
-        Arc<WriteBufferImpl<MockProvider>>,
-    ) {
+    async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn WriteBuffer>) {
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
         let common_state =
@@ -768,10 +759,10 @@ mod tests {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
 
-        let write_buffer = Arc::new(
+        let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
-                Arc::clone(&time_provider),
+                Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&exec),
                 WalConfig::test_config(),
             )
@@ -780,7 +771,7 @@ mod tests {
         );
         let query_executor = crate::query_executor::QueryExecutorImpl::new(
             write_buffer.catalog(),
-            Arc::<WriteBufferImpl<MockProvider>>::clone(&write_buffer),
+            Arc::clone(&write_buffer),
             Arc::clone(&exec),
             Arc::clone(&metrics),
             Arc::new(HashMap::new()),

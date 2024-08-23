@@ -99,7 +99,7 @@ pub struct WriteRequest<'a> {
 }
 
 #[derive(Debug)]
-pub struct WriteBufferImpl<T> {
+pub struct WriteBufferImpl {
     catalog: Arc<Catalog>,
     persister: Arc<Persister>,
     parquet_cache: Arc<ParquetCache>,
@@ -108,16 +108,16 @@ pub struct WriteBufferImpl<T> {
     wal_config: WalConfig,
     wal: Arc<dyn Wal>,
     #[allow(dead_code)]
-    time_provider: Arc<T>,
+    time_provider: Arc<dyn TimeProvider>,
     last_cache: Arc<LastCacheProvider>,
 }
 
 const N_SNAPSHOTS_TO_LOAD_ON_START: usize = 1_000;
 
-impl<T: TimeProvider> WriteBufferImpl<T> {
+impl WriteBufferImpl {
     pub async fn new(
         persister: Arc<Persister>,
-        time_provider: Arc<T>,
+        time_provider: Arc<dyn TimeProvider>,
         executor: Arc<iox_query::exec::Executor>,
         wal_config: WalConfig,
     ) -> Result<Self> {
@@ -463,7 +463,7 @@ pub(crate) fn parquet_chunk_from_file(
 }
 
 #[async_trait]
-impl<T: TimeProvider> Bufferer for WriteBufferImpl<T> {
+impl Bufferer for WriteBufferImpl {
     async fn write_lp(
         &self,
         database: NamespaceName<'static>,
@@ -497,7 +497,7 @@ impl<T: TimeProvider> Bufferer for WriteBufferImpl<T> {
     }
 }
 
-impl<T: TimeProvider> ChunkContainer for WriteBufferImpl<T> {
+impl ChunkContainer for WriteBufferImpl {
     fn get_table_chunks(
         &self,
         database_name: &str,
@@ -511,7 +511,7 @@ impl<T: TimeProvider> ChunkContainer for WriteBufferImpl<T> {
 }
 
 #[async_trait::async_trait]
-impl<T: TimeProvider> LastCacheManager for WriteBufferImpl<T> {
+impl LastCacheManager for WriteBufferImpl {
     fn last_cache_provider(&self) -> Arc<LastCacheProvider> {
         Arc::clone(&self.last_cache)
     }
@@ -593,7 +593,7 @@ impl<T: TimeProvider> LastCacheManager for WriteBufferImpl<T> {
     }
 }
 
-impl<T: TimeProvider> WriteBuffer for WriteBufferImpl<T> {}
+impl WriteBuffer for WriteBufferImpl {}
 
 #[cfg(test)]
 mod tests {
@@ -644,7 +644,7 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::clone(&time_provider),
+            Arc::<MockProvider>::clone(&time_provider),
             crate::test_help::make_exec(),
             WalConfig::test_config(),
         )
@@ -713,7 +713,7 @@ mod tests {
         // now load a new buffer from object storage
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::clone(&time_provider),
+            Arc::<MockProvider>::clone(&time_provider),
             crate::test_help::make_exec(),
             WalConfig {
                 level_0_duration: Level0Duration::new_1m(),
@@ -1341,12 +1341,12 @@ mod tests {
         start: Time,
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
-    ) -> (WriteBufferImpl<MockProvider>, IOxSessionContext) {
+    ) -> (WriteBufferImpl, IOxSessionContext) {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(start));
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::clone(&time_provider),
+            Arc::<MockProvider>::clone(&time_provider),
             crate::test_help::make_exec(),
             wal_config,
         )
@@ -1359,7 +1359,7 @@ mod tests {
     }
 
     async fn get_table_batches(
-        write_buffer: &WriteBufferImpl<MockProvider>,
+        write_buffer: &WriteBufferImpl,
         database_name: &str,
         table_name: &str,
         ctx: &IOxSessionContext,

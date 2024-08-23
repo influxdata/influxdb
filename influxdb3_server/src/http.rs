@@ -330,9 +330,9 @@ impl Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
-pub(crate) struct HttpApi<W, Q, T> {
+pub(crate) struct HttpApi<Q, T> {
     common_state: CommonServerState,
-    write_buffer: Arc<W>,
+    write_buffer: Arc<dyn WriteBuffer>,
     time_provider: Arc<T>,
     pub(crate) query_executor: Arc<Q>,
     max_request_bytes: usize,
@@ -340,11 +340,11 @@ pub(crate) struct HttpApi<W, Q, T> {
     legacy_write_param_unifier: SingleTenantRequestUnifier,
 }
 
-impl<W, Q, T> HttpApi<W, Q, T> {
+impl<Q, T> HttpApi<Q, T> {
     pub(crate) fn new(
         common_state: CommonServerState,
         time_provider: Arc<T>,
-        write_buffer: Arc<W>,
+        write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<Q>,
         max_request_bytes: usize,
         authorizer: Arc<dyn Authorizer>,
@@ -362,9 +362,8 @@ impl<W, Q, T> HttpApi<W, Q, T> {
     }
 }
 
-impl<W, Q, T> HttpApi<W, Q, T>
+impl<Q, T> HttpApi<Q, T>
 where
-    W: WriteBuffer,
     Q: QueryExecutor,
     T: TimeProvider,
     Error: From<<Q as QueryExecutor>::Error>,
@@ -1048,8 +1047,8 @@ struct LastCacheDeleteRequest {
     name: String,
 }
 
-pub(crate) async fn route_request<W: WriteBuffer, Q: QueryExecutor, T: TimeProvider>(
-    http_server: Arc<HttpApi<W, Q, T>>,
+pub(crate) async fn route_request<Q: QueryExecutor, T: TimeProvider>(
+    http_server: Arc<HttpApi<Q, T>>,
     mut req: Request<Body>,
 ) -> Result<Response<Body>, Infallible>
 where
