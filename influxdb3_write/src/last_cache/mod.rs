@@ -117,7 +117,7 @@ impl LastCacheProvider {
     }
 
     /// Initialize a [`LastCacheProvider`] from a [`InnerCatalog`]
-    pub(crate) fn new_from_catalog(catalog: &InnerCatalog) -> Result<Self, Error> {
+    pub fn new_from_catalog(catalog: &InnerCatalog) -> Result<Self, Error> {
         let provider = LastCacheProvider::new();
         for db_schema in catalog.databases() {
             for tbl_def in db_schema.tables() {
