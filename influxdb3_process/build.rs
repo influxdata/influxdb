@@ -15,20 +15,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn get_git_hash() -> String {
-    let out = match std::env::var("VERSION_HASH") {
-        Ok(v) => v,
-        Err(_) => {
-            let output = Command::new("git")
-                .args(["describe", "--always", "--dirty", "--abbrev=64"])
-                .output()
-                .expect("failed to execute git rev-parse to read the current git hash");
+    let git_hash = {
+        let output = Command::new("git")
+            .args(["describe", "--always", "--dirty", "--abbrev=64"])
+            .output()
+            .expect("failed to execute git rev-parse to read the current git hash");
 
-            String::from_utf8(output.stdout).expect("non-utf8 found in git hash")
-        }
+        String::from_utf8(output.stdout).expect("non-utf8 found in git hash")
     };
 
-    assert!(!out.is_empty(), "attempting to embed empty git hash");
-    out
+    assert!(!git_hash.is_empty(), "attempting to embed empty git hash");
+    git_hash
 }
 
 fn get_git_hash_short() -> String {
