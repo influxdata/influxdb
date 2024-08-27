@@ -581,8 +581,12 @@ mod tests {
     use data_types::NamespaceName;
     use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
+    use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::{Level0Duration, WalConfig};
-    use influxdb3_write::{persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer};
+    use influxdb3_write::{
+        last_cache::LastCacheProvider, persister::Persister, write_buffer::WriteBufferImpl,
+        WriteBuffer,
+    };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use metric::Registry;
@@ -622,9 +626,11 @@ mod tests {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let executor = make_exec(object_store);
-        let write_buffer = Arc::new(
+        let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
             WriteBufferImpl::new(
                 Arc::clone(&persister),
+                Arc::new(Catalog::new()),
+                Arc::new(LastCacheProvider::new()),
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&executor),
                 WalConfig {
@@ -641,7 +647,7 @@ mod tests {
         let df_config = Arc::new(Default::default());
         let query_executor = QueryExecutorImpl::new(
             write_buffer.catalog(),
-            Arc::<WriteBufferImpl>::clone(&write_buffer),
+            Arc::clone(&write_buffer),
             executor,
             metrics,
             df_config,

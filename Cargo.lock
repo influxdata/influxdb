@@ -2388,6 +2388,7 @@ dependencies = [
 name = "influxdb3"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arrow",
  "arrow-array",
  "arrow-flight",
@@ -2406,6 +2407,7 @@ dependencies = [
  "hex",
  "humantime",
  "hyper 0.14.30",
+ "influxdb3_catalog",
  "influxdb3_client",
  "influxdb3_process",
  "influxdb3_server",

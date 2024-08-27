@@ -1,6 +1,8 @@
 //! This is the implementation of the `Persister` used to write data from the buffer to object
 //! storage.
 
+use crate::last_cache;
+use crate::last_cache::LastCacheProvider;
 use crate::paths::CatalogFilePath;
 use crate::paths::ParquetFilePath;
 use crate::paths::SnapshotInfoFilePath;
@@ -52,6 +54,9 @@ pub enum Error {
 
     #[error("parse int error: {0}")]
     ParseInt(#[from] std::num::ParseIntError),
+
+    #[error("failed to initialize last cache: {0}")]
+    InitializingLastCache(#[from] last_cache::Error),
 }
 
 impl From<Error> for DataFusionError {
@@ -97,6 +102,7 @@ impl Persister {
         }
     }
 
+    /// Get the Object Store URL
     pub fn object_store_url(&self) -> &ObjectStoreUrl {
         &self.object_store_url
     }
@@ -108,11 +114,28 @@ impl Persister {
         serialize_to_parquet(Arc::clone(&self.mem_pool), batches).await
     }
 
+    /// Get the host identifier prefix
     pub fn host_identifier_prefix(&self) -> &str {
         &self.host_identifier_prefix
     }
 
+    /// Loads the most recently persisted catalog from object storage, and uses it to initialize
+    /// a [`LastCacheProvider`].
+    ///
+    /// This is intended to be used on server start.
+    pub async fn load_last_cache_and_catalog(&self) -> Result<(LastCacheProvider, Catalog)> {
+        match self.load_catalog().await? {
+            Some(c) => Ok((
+                LastCacheProvider::new_from_catalog(&c.catalog)?,
+                Catalog::from_inner(c.catalog),
+            )),
+            None => Ok((LastCacheProvider::new(), Catalog::new())),
+        }
+    }
+
     /// Loads the most recently persisted catalog from object storage.
+    ///
+    /// This is used on server start.
     pub async fn load_catalog(&self) -> Result<Option<PersistedCatalog>> {
         let mut list = self
             .object_store
@@ -169,6 +192,8 @@ impl Persister {
     }
 
     /// Loads the most recently persisted N snapshot parquet file lists from object storage.
+    ///
+    /// This is intended to be used on server start.
     pub async fn load_snapshots(&self, mut most_recent_n: usize) -> Result<Vec<PersistedSnapshot>> {
         let mut output = Vec::new();
         let mut offset: Option<ObjPath> = None;
@@ -230,6 +255,7 @@ impl Persister {
     }
 
     /// Loads a Parquet file from ObjectStore
+    #[cfg(test)]
     pub async fn load_parquet_file(&self, path: ParquetFilePath) -> Result<Bytes> {
         Ok(self.object_store.get(&path).await?.bytes().await?)
     }
