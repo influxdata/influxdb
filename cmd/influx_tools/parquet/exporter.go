@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"golang.org/x/exp/maps"
 	"io"
 	"sort"
 	"text/tabwriter"
@@ -11,10 +12,14 @@ import (
 
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/storage"
 	export2 "github.com/influxdata/influxdb/cmd/influx_tools/parquet/exporter"
+	"github.com/influxdata/influxdb/cmd/influx_tools/parquet/exporter/parquet/index"
+	"github.com/influxdata/influxdb/cmd/influx_tools/parquet/exporter/parquet/tsm1"
 	"github.com/influxdata/influxdb/cmd/influx_tools/server"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxql"
 )
 
 type exporterConfig struct {
@@ -32,13 +37,12 @@ type exporter struct {
 
 	min, max     uint64
 	db, rp       string
-	m            string
+	m            string // measurement name
 	d            time.Duration
 	sourceGroups []meta.ShardGroupInfo
 	targetGroups []meta.ShardGroupInfo
 
-	measurements measurements
-	exporter     *export2.Exporter
+	exporter *export2.Exporter
 
 	// source data time range
 	startDate time.Time
@@ -173,31 +177,78 @@ func (e *exporter) shardsGroupsByTimeRange(min, max time.Time) []meta.ShardGroup
 	return groups
 }
 
-func (e *exporter) GatherInfo() error {
-	e.measurements = newMeasurements()
-	for _, g := range e.targetGroups {
-		min, max := g.StartTime, g.EndTime
-		rs, err := e.read(min, max.Add(-1))
-		if err != nil || rs == nil {
-			return err
-		}
-		e.gatherSchema(min, max, e.m, rs)
-		rs.Close()
+func (e *exporter) shardSchema(shard *tsdb.Shard) (*index.MeasurementSchema, error) {
+	cond := influxql.MustParseExpr(fmt.Sprintf("_name = '%s'", e.m)) // measurement filter
+	tagKeys, err := e.tsdbStore.TagKeys(context.Background(), query.OpenAuthorizer, []uint64{shard.ID()}, cond)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	if len(tagKeys) == 0 {
+		return nil, nil
+	}
+	if len(tagKeys) != 1 {
+		return nil, fmt.Errorf("unexpected length of tagkeys: %d", len(tagKeys))
+	}
+	fields := shard.MeasurementFields([]byte(e.m)) // fields for given measurement
+	if fields == nil {
+		return nil, nil
+	}
+
+	tagSet := make(map[string]struct{}, len(tagKeys))
+	for _, key := range tagKeys[0].Keys {
+		tagSet[key] = struct{}{}
+	}
+	fieldSet := make(map[index.MeasurementField]struct{}, fields.FieldN())
+	for name, field := range fields.FieldSet() {
+		blockType, err := tsm1.BlockTypeForType(field.Zero())
+		if err != nil {
+			return nil, err
+		}
+		measurementField := index.MeasurementField{
+			Name: name,
+			Type: blockType,
+		}
+		fieldSet[measurementField] = struct{}{}
+	}
+
+	return &index.MeasurementSchema{
+		TagSet:   tagSet,
+		FieldSet: fieldSet,
+	}, nil
 }
 
 func (e *exporter) WriteTo() error {
 	for _, g := range e.targetGroups {
 		min, max := g.StartTime, g.EndTime
-		rs, err := e.read(min, max.Add(-1))
-		if err != nil || rs == nil {
+		shards, err := e.getShards(min, max)
+		if err != nil {
 			return err
 		}
-		if err := e.writeBucket(min, max, e.m, rs); err != nil {
-			return err
+		for _, shard := range shards {
+			schema, err := e.shardSchema(shard)
+			if err != nil {
+				return err
+			}
+			if schema == nil {
+				continue
+			}
+			req := storage.ReadRequest{
+				Database: e.db,
+				RP:       e.rp,
+				Shards:   []*tsdb.Shard{shard},
+				Start:    min.UnixNano(),
+				End:      max.UnixNano(),
+			}
+			rs, err := e.store.Read(context.Background(), &req)
+			if err != nil || rs == nil {
+				return err
+			}
+			if err := e.writeShard(min, max, schema, rs); err != nil {
+				return err
+			}
+			rs.Close()
+			fmt.Println("...")
 		}
-		rs.Close()
 		fmt.Println("..")
 	}
 	fmt.Println(".")
@@ -259,45 +310,25 @@ func (e *exporter) openStoreWithShardsIDs(ids []uint64) ([]*tsdb.Shard, error) {
 	return e.tsdbStore.Shards(ids), nil
 }
 
-func (e *exporter) gatherSchema(start, end time.Time, measurement string, rs *storage.ResultSet) {
-	fmt.Printf("gather schema start: %s, end: %s\n", start.Format(time.RFC3339), end.Format(time.RFC3339))
+func (e *exporter) writeShard(start, end time.Time, schema *index.MeasurementSchema, rs *storage.ResultSet) error {
+	fmt.Printf("write shard start: %s, end: %s\n", start.Format(time.RFC3339), end.Format(time.RFC3339))
 
+	data := make(map[string]map[string]export2.ShardValues) // groupKey:field
+
+	// collect data
 	for rs.Next() {
 		measurementName := string(models.ParseName(rs.Name()))
-		if measurement != "" && measurement != measurementName {
+		if e.m != measurementName {
 			continue
 		}
 
-		t := e.measurements.getTable(measurementName)
-		t.addTags(rs.Tags())
-		t.addField(rs.Field(), rs.FieldType())
-	}
-}
-
-func (e *exporter) writeBucket(start, end time.Time, measurement string, rs *storage.ResultSet) error {
-	fmt.Printf("write bucket start: %s, end: %s\n", start.Format(time.RFC3339), end.Format(time.RFC3339))
-
-	shardData := make(map[string]map[string]map[string]export2.ShardValues) // measurement:groupKey:field
-
-	for rs.Next() {
-		measurementName := string(models.ParseName(rs.Name()))
-		if measurement != "" && measurement != measurementName {
-			continue
-		}
-
-		measurementData, ok := shardData[measurementName]
-		if !ok {
-			measurementData = make(map[string]map[string]export2.ShardValues)
-			shardData[measurementName] = measurementData
-		}
-
-		groupKey := e.makeV1GroupKey(rs.Tags()) // TODO rs.Tags() may be a subset of tags collected in schema?
+		groupKey := e.makeV1GroupKey(rs.Tags())
 		key := string(groupKey)
 
-		seriesData, ok := measurementData[key]
+		seriesData, ok := data[key]
 		if !ok {
 			seriesData = make(map[string]export2.ShardValues)
-			measurementData[key] = seriesData
+			data[key] = seriesData
 		}
 
 		fieldName := string(models.ParseName(rs.Field()))
@@ -315,32 +346,28 @@ func (e *exporter) writeBucket(start, end time.Time, measurement string, rs *sto
 		}
 	}
 
-	for measurement, seriesData := range shardData {
-		schema, err := e.measurements[measurement].exporterSchema()
-		if err != nil {
-			return err
-		}
-
-		if true { // debug
-			fmt.Printf("--- measurement: %s\n", measurement)
-			fmt.Printf("  --- tag set:   %v\n", schema.TagSet)
-			fmt.Printf("  --- field set: %v\n", schema.FieldSet)
-			fmt.Println("--- shard data")
-			for seriesKey, field := range seriesData {
-				fmt.Printf("  series: %s\n", seriesKey)
-				for name, values := range field {
-					fmt.Printf("    field: %s values: %s\n", name, values.String())
-				}
-			}
-		}
-
-		ers := export2.NewResultSet(measurement, seriesData)
-		if err := e.exporter.WriteTo("/tmp/parquet/", ers, schema); err != nil {
-			return err
+	if true {
+		fmt.Printf("  measurement: %s\n", e.m)
+		fmt.Printf("    schema:\n")
+		fmt.Printf("      tags: %v\n", maps.Keys(schema.TagSet))
+		fmt.Printf("      fields: %v\n", maps.Keys(schema.FieldSet))
+		fmt.Printf("    series:\n")
+		for groupKey, _ := range data {
+			fmt.Printf("      - %s\n", groupKey)
 		}
 	}
 
-	fmt.Println("...")
+	// create result set for the v2 exporter
+	ers := export2.NewResultSet(e.m, data)
+
+	// write shard to parquet
+	if err := e.exporter.WriteTo("/tmp/parquet/", ers, schema); err != nil {
+		return err
+	}
+
+	if true {
+		fmt.Println("....")
+	}
 
 	return nil
 }

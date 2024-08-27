@@ -11,6 +11,8 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+// TODO no longer used, to be removed
+
 type table struct {
 	tagKeys reads.KeyMerger
 	fields  reads.KeyMerger

@@ -79,10 +79,6 @@ func (cmd *Command) Run(args []string) (err error) {
 		return nil
 	}
 
-	if err := e.GatherInfo(); err != nil {
-		return err
-	}
-
 	e.exporter = export2.New(100000000)
 
 	return e.WriteTo()
