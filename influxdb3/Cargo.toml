@@ -24,6 +24,7 @@ trace_exporters.workspace = true
 trogging.workspace = true
 
 # Local Crates
+influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_client = { path = "../influxdb3_client" }
 influxdb3_pro_compactor = { path = "../influxdb3_pro/compactor" }
 influxdb3_process = { path = "../influxdb3_process", default-features = false }
@@ -32,6 +33,7 @@ influxdb3_wal = { path = "../influxdb3_wal" }
 influxdb3_write = { path = "../influxdb3_write" }
 
 # Crates.io dependencies
+anyhow.workspace = true
 backtrace.workspace = true
 base64.workspace = true
 clap.workspace = true

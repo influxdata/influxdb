@@ -63,6 +63,7 @@ impl Error {
 type CacheMap = RwLock<HashMap<String, HashMap<String, HashMap<String, LastCache>>>>;
 
 /// Provides all last-N-value caches for the entire database
+#[derive(Default)]
 pub struct LastCacheProvider {
     cache_map: CacheMap,
 }
@@ -110,10 +111,8 @@ pub struct CreateCacheArguments {
 
 impl LastCacheProvider {
     /// Create a new [`LastCacheProvider`]
-    pub(crate) fn new() -> Self {
-        Self {
-            cache_map: Default::default(),
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Initialize a [`LastCacheProvider`] from a [`InnerCatalog`]
@@ -1586,6 +1585,8 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         WriteBufferImpl::new(
             persister,
+            Arc::new(Catalog::new()),
+            Arc::new(LastCacheProvider::new()),
             time_provider,
             crate::test_help::make_exec(),
             WalConfig::test_config(),

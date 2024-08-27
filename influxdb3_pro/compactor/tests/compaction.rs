@@ -6,8 +6,10 @@ use arrow::record_batch::RecordBatch;
 use arrow::util::pretty::pretty_format_batches;
 use arrow_schema::SchemaRef;
 use data_types::NamespaceName;
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_pro_compactor::Compactor;
 use influxdb3_wal::WalConfig;
+use influxdb3_write::last_cache::LastCacheProvider;
 use influxdb3_write::persister::Persister;
 use influxdb3_write::write_buffer::WriteBufferImpl;
 use influxdb3_write::Bufferer;
@@ -38,6 +40,8 @@ async fn five_files_multiple_series_same_schema() {
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
+            Arc::new(Catalog::new()),
+            Arc::new(LastCacheProvider::new()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -230,6 +234,8 @@ async fn two_files_two_series_and_same_schema() {
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
+            Arc::new(Catalog::new()),
+            Arc::new(LastCacheProvider::new()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -355,6 +361,8 @@ async fn two_files_same_series_and_schema() {
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
+            Arc::new(Catalog::new()),
+            Arc::new(LastCacheProvider::new()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -466,6 +474,8 @@ async fn two_files_similar_series_and_compatible_schema() {
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
+            Arc::new(Catalog::new()),
+            Arc::new(LastCacheProvider::new()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -614,6 +624,8 @@ async fn deduplication_of_data() {
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
+            Arc::new(Catalog::new()),
+            Arc::new(LastCacheProvider::new()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
