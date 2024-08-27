@@ -15,8 +15,7 @@ use influxdb3_server::{
     CommonServerState,
 };
 use influxdb3_wal::{Level0Duration, WalConfig};
-use influxdb3_write::write_buffer::WriteBufferImpl;
-use influxdb3_write::{persister::Persister, WriteBuffer};
+use influxdb3_write::{persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer};
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
 use object_store::DynObjectStore;
@@ -61,6 +60,12 @@ pub enum Error {
 
     #[error("invalid token: {0}")]
     InvalidToken(#[from] hex::FromHexError),
+
+    #[error("failed to initialized write buffer: {0}")]
+    WriteBufferInit(#[source] anyhow::Error),
+
+    #[error("failed to initialize from persisted catalog: {0}")]
+    InitializePersistedCatalog(#[source] influxdb3_write::persister::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -305,14 +310,21 @@ pub async fn command(config: Config) -> Result<()> {
     };
 
     let time_provider = Arc::new(SystemProvider::new());
+    let (last_cache, catalog) = persister
+        .load_last_cache_and_catalog()
+        .await
+        .map_err(Error::InitializePersistedCatalog)?;
     let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
+            Arc::new(catalog),
+            Arc::new(last_cache),
             Arc::<SystemProvider>::clone(&time_provider),
             Arc::clone(&exec),
             wal_config,
         )
-        .await?,
+        .await
+        .map_err(|e| Error::WriteBufferInit(e.into()))?,
     );
     let query_executor = Arc::new(QueryExecutorImpl::new(
         write_buffer.catalog(),

@@ -1,7 +1,7 @@
 //! Implementation of an in-memory buffer for writes that persists data into a wal if it is configured.
 
 pub mod persisted_files;
-mod queryable_buffer;
+pub mod queryable_buffer;
 mod table_buffer;
 pub(crate) mod validator;
 
@@ -87,6 +87,9 @@ pub enum Error {
 
     #[error("error from wal: {0}")]
     WalError(#[from] influxdb3_wal::Error),
+
+    #[error("cannot write to a read-only server")]
+    NoWriteInReadOnly,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -107,7 +110,6 @@ pub struct WriteBufferImpl {
     buffer: Arc<QueryableBuffer>,
     wal_config: WalConfig,
     wal: Arc<dyn Wal>,
-    #[allow(dead_code)]
     time_provider: Arc<dyn TimeProvider>,
     last_cache: Arc<LastCacheProvider>,
 }
@@ -117,20 +119,13 @@ const N_SNAPSHOTS_TO_LOAD_ON_START: usize = 1_000;
 impl WriteBufferImpl {
     pub async fn new(
         persister: Arc<Persister>,
+        catalog: Arc<Catalog>,
+        last_cache: Arc<LastCacheProvider>,
         time_provider: Arc<dyn TimeProvider>,
         executor: Arc<iox_query::exec::Executor>,
         wal_config: WalConfig,
     ) -> Result<Self> {
-        // load up the catalog, the snapshots, and replay the wal into the in memory buffer
-        let catalog = persister.load_catalog().await?;
-        let catalog = Arc::new(
-            catalog
-                .map(|c| Catalog::from_inner(c.catalog))
-                .unwrap_or_else(Catalog::new),
-        );
-
-        let last_cache = Arc::new(LastCacheProvider::new_from_catalog(&catalog.clone_inner())?);
-
+        // load snapshots and replay the wal into the in memory buffer
         let persisted_snapshots = persister
             .load_snapshots(N_SNAPSHOTS_TO_LOAD_ON_START)
             .await?;
@@ -160,7 +155,7 @@ impl WriteBufferImpl {
         ));
 
         // create the wal instance, which will replay into the queryable buffer and start
-        // teh background flush task.
+        // the background flush task.
         let wal = WalObjectStore::new(
             persister.object_store(),
             persister.host_identifier_prefix(),
@@ -641,10 +636,14 @@ mod tests {
     async fn writes_data_to_wal_and_is_queryable() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let (last_cache, catalog) = persister.load_last_cache_and_catalog().await.unwrap();
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::<MockProvider>::clone(&time_provider),
+            Arc::new(catalog),
+            Arc::new(last_cache),
+            Arc::clone(&time_provider),
             crate::test_help::make_exec(),
             WalConfig::test_config(),
         )
@@ -711,9 +710,12 @@ mod tests {
         assert_batches_eq!(&expected, &actual);
 
         // now load a new buffer from object storage
+        let (last_cache, catalog) = persister.load_last_cache_and_catalog().await.unwrap();
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::<MockProvider>::clone(&time_provider),
+            Arc::new(catalog),
+            Arc::new(last_cache),
+            Arc::clone(&time_provider),
             crate::test_help::make_exec(),
             WalConfig {
                 level_0_duration: Level0Duration::new_1m(),
@@ -761,8 +763,11 @@ mod tests {
             .unwrap();
 
         // load a new write buffer to ensure its durable
+        let (last_cache, catalog) = wbuf.persister.load_last_cache_and_catalog().await.unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
+            Arc::new(catalog),
+            Arc::new(last_cache),
             Arc::clone(&wbuf.time_provider),
             Arc::clone(&wbuf.buffer.executor),
             WalConfig {
@@ -791,8 +796,11 @@ mod tests {
         .unwrap();
 
         // and do another replay and verification
+        let (last_cache, catalog) = wbuf.persister.load_last_cache_and_catalog().await.unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
+            Arc::new(catalog),
+            Arc::new(last_cache),
             Arc::clone(&wbuf.time_provider),
             Arc::clone(&wbuf.buffer.executor),
             WalConfig {
@@ -842,8 +850,11 @@ mod tests {
             .unwrap();
 
         // do another reload and verify it's gone
+        let (last_cache, catalog) = wbuf.persister.load_last_cache_and_catalog().await.unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
+            Arc::new(catalog),
+            Arc::new(last_cache),
             Arc::clone(&wbuf.time_provider),
             Arc::clone(&wbuf.buffer.executor),
             WalConfig {
@@ -985,8 +996,15 @@ mod tests {
         assert_batches_eq!(&expected, &actual);
 
         // and now replay in a new write buffer and attempt to write
+        let (last_cache, catalog) = write_buffer
+            .persister
+            .load_last_cache_and_catalog()
+            .await
+            .unwrap();
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&write_buffer.persister),
+            Arc::new(catalog),
+            Arc::new(last_cache),
             Arc::clone(&write_buffer.time_provider),
             Arc::clone(&write_buffer.buffer.executor),
             WalConfig {
@@ -1343,10 +1361,13 @@ mod tests {
         wal_config: WalConfig,
     ) -> (WriteBufferImpl, IOxSessionContext) {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let time_provider = Arc::new(MockProvider::new(start));
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
+        let (last_cache, catalog) = persister.load_last_cache_and_catalog().await.unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::<MockProvider>::clone(&time_provider),
+            Arc::new(catalog),
+            Arc::new(last_cache),
+            Arc::clone(&time_provider),
             crate::test_help::make_exec(),
             wal_config,
         )

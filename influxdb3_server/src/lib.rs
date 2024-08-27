@@ -227,7 +227,9 @@ mod tests {
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
+    use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::WalConfig;
+    use influxdb3_write::last_cache::LastCacheProvider;
     use influxdb3_write::persister::Persister;
     use influxdb3_write::WriteBuffer;
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
@@ -762,6 +764,8 @@ mod tests {
         let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
+                Arc::new(Catalog::new()),
+                Arc::new(LastCacheProvider::new()),
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&exec),
                 WalConfig::test_config(),
