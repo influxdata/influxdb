@@ -31,7 +31,7 @@ type TSDBStoreMock struct {
 	ImportShardFn               func(id uint64, r io.Reader) error
 	MeasurementSeriesCountsFn   func(database string) (measuments int, series int)
 	MeasurementsCardinalityFn   func(database string) (int64, error)
-	MeasurementNamesFn          func(auth query.FineAuthorizer, database string, cond influxql.Expr) ([][]byte, error)
+	MeasurementNamesFn          func(auth query.FineAuthorizer, database string, retentionPolicy string, cond influxql.Expr) ([][]byte, error)
 	OpenFn                      func() error
 	PathFn                      func() string
 	RestoreShardFn              func(id uint64, r io.Reader) error
@@ -96,7 +96,7 @@ func (s *TSDBStoreMock) ImportShard(id uint64, r io.Reader) error {
 	return s.ImportShardFn(id, r)
 }
 func (s *TSDBStoreMock) MeasurementNames(ctx context.Context, auth query.FineAuthorizer, database string, retentionPolicy string, cond influxql.Expr) ([][]byte, error) {
-	return s.MeasurementNamesFn(auth, database, cond)
+	return s.MeasurementNamesFn(auth, database, retentionPolicy, cond)
 }
 func (s *TSDBStoreMock) MeasurementSeriesCounts(database string) (measuments int, series int) {
 	return s.MeasurementSeriesCountsFn(database)
