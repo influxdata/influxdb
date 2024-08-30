@@ -1083,108 +1083,69 @@ mod tests {
         )
         .await;
 
+        let db_name = "foo";
         // do three writes to force a snapshot
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=1",
-                Time::from_timestamp(10, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=2",
-                Time::from_timestamp(20, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=3",
-                Time::from_timestamp(30, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
+        do_writes(
+            db_name,
+            &write_buffer,
+            &[
+                TestWrite {
+                    lp: "cpu bar=1",
+                    time_seconds: 10,
+                },
+                TestWrite {
+                    lp: "cpu bar=2",
+                    time_seconds: 20,
+                },
+                TestWrite {
+                    lp: "cpu bar=3",
+                    time_seconds: 30,
+                },
+            ],
+        )
+        .await;
 
         verify_catalog_count(1, write_buffer.persister.object_store()).await;
         verify_snapshot_count(1, &write_buffer.persister).await;
 
-        // and another three for another snapshot
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=4",
-                Time::from_timestamp(40, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=5",
-                Time::from_timestamp(50, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=6",
-                Time::from_timestamp(60, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
+        // only another two writes are needed to trigger a snapshot, because there is still one
+        // WAL period left from before:
+        do_writes(
+            db_name,
+            &write_buffer,
+            &[
+                TestWrite {
+                    lp: "cpu bar=4",
+                    time_seconds: 40,
+                },
+                TestWrite {
+                    lp: "cpu bar=5",
+                    time_seconds: 50,
+                },
+            ],
+        )
+        .await;
 
         // verify the catalog didn't get persisted, but a snapshot did
         verify_catalog_count(1, write_buffer.persister.object_store()).await;
         verify_snapshot_count(2, &write_buffer.persister).await;
 
-        // and finally three more, with a catalog update, forcing persistence
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=7",
-                Time::from_timestamp(70, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=8,asdf=true",
-                Time::from_timestamp(80, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=9,asdf=true",
-                Time::from_timestamp(90, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
+        // and finally, do two more, with a catalog update, forcing persistence
+        do_writes(
+            db_name,
+            &write_buffer,
+            &[
+                TestWrite {
+                    lp: "cpu bar=6,asdf=true",
+                    time_seconds: 60,
+                },
+                TestWrite {
+                    lp: "cpu bar=7,asdf=true",
+                    time_seconds: 70,
+                },
+            ],
+        )
+        .await;
 
         verify_catalog_count(2, write_buffer.persister.object_store()).await;
         verify_snapshot_count(3, &write_buffer.persister).await;
