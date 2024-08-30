@@ -1304,6 +1304,9 @@ mod tests {
         );
     }
 
+    /// This is the reproducer for [#25277][see]
+    ///
+    /// [see]: https://github.com/influxdata/influxdb/issues/25277
     #[tokio::test]
     async fn writes_not_dropped_on_snapshot() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
