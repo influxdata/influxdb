@@ -48,10 +48,10 @@ impl SnapshotTracker {
         self.wal_periods.push(wal_period);
     }
 
-    /// Returns the max_time and the last_wal_file_sequence_number that can be snapshot along with the wal periods. The
-    /// `SnapshotDetails`
-    /// get handed over to the file notifier, which will persist any chunks with data < max_time. Tthe WAL will
-    /// keep track of the returned periods so that when the snapshot is done, it can delete the associated files.
+    /// Returns the max_time and the last_wal_file_sequence_number that can be snapshot along with
+    /// the wal periods. The `SnapshotDetails` get handed over to the file notifier, which will
+    /// persist any chunks with data < max_time. The WAL will keep track of the returned periods so
+    /// that when the snapshot is done, it can delete the associated files.
     ///
     /// In the case of data coming in for future times, we will be unable to snapshot older data.
     /// Over time this will back up the WAL. To guard against this, if the number of WAL periods
@@ -63,20 +63,21 @@ impl SnapshotTracker {
             return None;
         }
 
-        // if the number of wal periods is > 3x the snapshot size, snapshot everything up to the last period
+        // if the number of wal periods is >= 3x the snapshot size, snapshot everything up to, but
+        // not including, the last period:
         if self.wal_periods.len() >= 3 * self.snapshot_size {
-            let last_wal_sequence_number = self.wal_periods.last().unwrap().wal_file_number;
-            let max_time = self
-                .wal_periods
+            let n_periods_to_take = self.wal_periods.len() - 1;
+            let wal_periods: Vec<WalPeriod> =
+                self.wal_periods.drain(0..n_periods_to_take).collect();
+            let max_time = wal_periods
                 .iter()
                 .map(|period| period.max_time)
                 .max()
                 .unwrap();
             let t = max_time - (max_time.get() % self.level_0_duration.as_nanos())
                 + self.level_0_duration.as_nanos();
+            let last_wal_sequence_number = wal_periods.last().unwrap().wal_file_number;
 
-            // remove the wal periods and return the snapshot details
-            let wal_periods = std::mem::take(&mut self.wal_periods);
             let snapshot_details = SnapshotDetails {
                 snapshot_sequence_number: self.increment_snapshot_sequence_number(),
                 end_time_marker: t.get(),
