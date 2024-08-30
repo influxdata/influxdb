@@ -600,6 +600,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use bytes::Bytes;
     use datafusion::assert_batches_sorted_eq;
+    use datafusion::execution::context::SessionContext;
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
     use influxdb3_catalog::catalog::SequenceNumber;
@@ -1301,6 +1302,122 @@ mod tests {
             SequenceNumber::new(2),
             persisted_snapshot.catalog_sequence_number
         );
+    }
+
+    #[tokio::test]
+    async fn writes_not_dropped_on_snapshot() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let (wbuf, _) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+
+        let db_name = "coffee_shop";
+        let tbl_name = "menu";
+        // do some writes to get a snapshot:
+        do_writes(
+            db_name,
+            &wbuf,
+            &[
+                TestWrite {
+                    lp: format!("{tbl_name},name=espresso price=2.50"),
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=americano price=3.00"),
+                    time_seconds: 2,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=latte price=4.50"),
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        // wait for snapshot to be created:
+        verify_snapshot_count(1, &wbuf.persister).await;
+
+        // Now drop the write buffer, and create a new one that replays:
+        drop(wbuf);
+        let (wbuf, ctx) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+
+        // Get the schema for the table that was created:
+        let schema = {
+            let db_schema = wbuf.catalog().db_schema(db_name).unwrap();
+            db_schema.get_table_schema(tbl_name).unwrap().clone()
+        };
+
+        // Get chunks out of the newly created write buffer:
+        let chunks = wbuf
+            .get_table_chunks(db_name, tbl_name, &[], None, &ctx.inner().state())
+            .unwrap();
+        let batches = chunks_to_record_batches(chunks, &schema, ctx.inner()).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-----------+-------+---------------------+",
+                "| name      | price | time                |",
+                "+-----------+-------+---------------------+",
+                "| americano | 3.0   | 1970-01-01T00:00:02 |",
+                "| espresso  | 2.5   | 1970-01-01T00:00:01 |",
+                "| latte     | 4.5   | 1970-01-01T00:00:03 |",
+                "+-----------+-------+---------------------+",
+            ],
+            &batches
+        );
+    }
+
+    struct TestWrite<LP> {
+        lp: LP,
+        time_seconds: i64,
+    }
+
+    async fn do_writes<W: WriteBuffer, LP: AsRef<str>>(
+        db: &'static str,
+        buffer: &W,
+        writes: &[TestWrite<LP>],
+    ) {
+        for w in writes {
+            buffer
+                .write_lp(
+                    NamespaceName::new(db).unwrap(),
+                    w.lp.as_ref(),
+                    Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
+                    false,
+                    Precision::Nanosecond,
+                )
+                .await
+                .unwrap();
+        }
+    }
+
+    async fn chunks_to_record_batches(
+        chunks: Vec<Arc<dyn QueryChunk>>,
+        schema: &Schema,
+        ctx: &SessionContext,
+    ) -> Vec<RecordBatch> {
+        let mut batches = vec![];
+        for chunk in chunks {
+            batches.append(&mut chunk.data().read_to_batches(schema, ctx).await);
+        }
+        batches
     }
 
     async fn verify_catalog_count(n: usize, object_store: Arc<dyn ObjectStore>) {
