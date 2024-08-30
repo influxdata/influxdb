@@ -309,9 +309,9 @@ mod tests {
                 snapshot_details: SnapshotDetails {
                     snapshot_sequence_number: SnapshotSequenceNumber::new(1),
                     end_time_marker: 360000000000,
-                    last_wal_sequence_number: WalFileSequenceNumber::new(6)
+                    last_wal_sequence_number: WalFileSequenceNumber::new(5)
                 },
-                wal_periods: vec![p1, p2, p3, p4, p5, p6]
+                wal_periods: vec![p1, p2, p3, p4, p5]
             })
         );
     }
