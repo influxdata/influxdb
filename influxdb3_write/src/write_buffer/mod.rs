@@ -1285,6 +1285,7 @@ mod tests {
 
         let db_name = "coffee_shop";
         let tbl_name = "menu";
+
         // do some writes to get a snapshot:
         do_writes(
             db_name,
@@ -1323,17 +1324,8 @@ mod tests {
         )
         .await;
 
-        // Get the schema for the table that was created:
-        let schema = {
-            let db_schema = wbuf.catalog().db_schema(db_name).unwrap();
-            db_schema.get_table_schema(tbl_name).unwrap().clone()
-        };
-
-        // Get chunks out of the newly created write buffer:
-        let chunks = wbuf
-            .get_table_chunks(db_name, tbl_name, &[], None, &ctx.inner().state())
-            .unwrap();
-        let batches = chunks_to_record_batches(chunks, &schema, ctx.inner()).await;
+        // Get the record batches from replayed buffer:
+        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
         assert_batches_sorted_eq!(
             [
                 "+-----------+-------+---------------------+",
@@ -1370,18 +1362,6 @@ mod tests {
                 .await
                 .unwrap();
         }
-    }
-
-    async fn chunks_to_record_batches(
-        chunks: Vec<Arc<dyn QueryChunk>>,
-        schema: &Schema,
-        ctx: &SessionContext,
-    ) -> Vec<RecordBatch> {
-        let mut batches = vec![];
-        for chunk in chunks {
-            batches.append(&mut chunk.data().read_to_batches(schema, ctx).await);
-        }
-        batches
     }
 
     async fn verify_catalog_count(n: usize, object_store: Arc<dyn ObjectStore>) {
