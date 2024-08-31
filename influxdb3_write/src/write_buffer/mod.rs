@@ -597,10 +597,8 @@ mod tests {
     use crate::persister::Persister;
     use crate::PersistedSnapshot;
     use arrow::record_batch::RecordBatch;
-    use arrow_util::assert_batches_eq;
+    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
-    use datafusion::assert_batches_sorted_eq;
-    use datafusion::execution::context::SessionContext;
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
     use influxdb3_catalog::catalog::SequenceNumber;
@@ -1335,6 +1333,92 @@ mod tests {
                 "| espresso  | 2.5   | 1970-01-01T00:00:01 |",
                 "| latte     | 4.5   | 1970-01-01T00:00:03 |",
                 "+-----------+-------+---------------------+",
+            ],
+            &batches
+        );
+    }
+
+    #[tokio::test]
+    async fn writes_not_dropped_on_larger_snapshot_size() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let (wbuf, _) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 2,
+            },
+        )
+        .await;
+
+        let db_name = "coffee_shop";
+        let tbl_name = "menu";
+
+        // Do six writes to trigger a snapshot
+        do_writes(
+            db_name,
+            &wbuf,
+            &[
+                TestWrite {
+                    lp: format!("{tbl_name},name=espresso,type=drink price=2.50"),
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=americano,type=drink price=3.00"),
+                    time_seconds: 2,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=latte,type=drink price=4.50"),
+                    time_seconds: 3,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=croissant,type=food price=5.50"),
+                    time_seconds: 4,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=muffin,type=food price=4.50"),
+                    time_seconds: 5,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=biscotto,type=food price=3.00"),
+                    time_seconds: 6,
+                },
+            ],
+        )
+        .await;
+
+        verify_snapshot_count(1, &wbuf.persister).await;
+
+        // Drop the write buffer, and create a new one that replays:
+        drop(wbuf);
+        let (wbuf, ctx) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 2,
+            },
+        )
+        .await;
+
+        // Get the record batches from replyed buffer:
+        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-----------+-------+----------------------+-------+",
+                "| name      | price | time                 | type  |",
+                "+-----------+-------+----------------------+-------+",
+                "| americano | 3.0   | 1970-01-01T00:00:02Z | drink |",
+                "| biscotto  | 3.0   | 1970-01-01T00:00:06Z | food  |",
+                "| croissant | 5.5   | 1970-01-01T00:00:04Z | food  |",
+                "| espresso  | 2.5   | 1970-01-01T00:00:01Z | drink |",
+                "| latte     | 4.5   | 1970-01-01T00:00:03Z | drink |",
+                "| muffin    | 4.5   | 1970-01-01T00:00:05Z | food  |",
+                "+-----------+-------+----------------------+-------+",
             ],
             &batches
         );
