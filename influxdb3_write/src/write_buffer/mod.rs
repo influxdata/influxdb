@@ -1052,16 +1052,16 @@ mod tests {
             .unwrap();
 
         let expected = [
-            "+-----+---------------------+",
-            "| bar | time                |",
-            "+-----+---------------------+",
-            "| 1.0 | 1970-01-01T00:00:10 |",
-            "| 2.0 | 1970-01-01T00:01:05 |",
-            "| 3.0 | 1970-01-01T00:02:27 |",
-            "| 4.0 | 1970-01-01T00:04:10 |",
-            "| 5.0 | 1970-01-01T00:05:00 |",
-            "| 6.0 | 1970-01-01T00:05:30 |",
-            "+-----+---------------------+",
+            "+-----+----------------------+",
+            "| bar | time                 |",
+            "+-----+----------------------+",
+            "| 1.0 | 1970-01-01T00:00:10Z |",
+            "| 2.0 | 1970-01-01T00:01:05Z |",
+            "| 3.0 | 1970-01-01T00:02:27Z |",
+            "| 4.0 | 1970-01-01T00:04:10Z |",
+            "| 5.0 | 1970-01-01T00:05:00Z |",
+            "| 6.0 | 1970-01-01T00:05:30Z |",
+            "+-----+----------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &ctx).await;
         assert_batches_sorted_eq!(&expected, &actual);
@@ -1326,13 +1326,13 @@ mod tests {
         let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
         assert_batches_sorted_eq!(
             [
-                "+-----------+-------+---------------------+",
-                "| name      | price | time                |",
-                "+-----------+-------+---------------------+",
-                "| americano | 3.0   | 1970-01-01T00:00:02 |",
-                "| espresso  | 2.5   | 1970-01-01T00:00:01 |",
-                "| latte     | 4.5   | 1970-01-01T00:00:03 |",
-                "+-----------+-------+---------------------+",
+                "+-----------+-------+----------------------+",
+                "| name      | price | time                 |",
+                "+-----------+-------+----------------------+",
+                "| americano | 3.0   | 1970-01-01T00:00:02Z |",
+                "| espresso  | 2.5   | 1970-01-01T00:00:01Z |",
+                "| latte     | 4.5   | 1970-01-01T00:00:03Z |",
+                "+-----------+-------+----------------------+",
             ],
             &batches
         );
@@ -1419,6 +1419,81 @@ mod tests {
                 "| latte     | 4.5   | 1970-01-01T00:00:03Z | drink |",
                 "| muffin    | 4.5   | 1970-01-01T00:00:05Z | food  |",
                 "+-----------+-------+----------------------+-------+",
+            ],
+            &batches
+        );
+    }
+
+    #[tokio::test]
+    async fn writes_not_dropped_with_future_writes() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let (wbuf, _) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+
+        let db_name = "coffee_shop";
+        let tbl_name = "menu";
+
+        // do some writes to get a snapshot:
+        do_writes(
+            db_name,
+            &wbuf,
+            &[
+                TestWrite {
+                    lp: format!("{tbl_name},name=espresso price=2.50"),
+                    time_seconds: 1,
+                },
+                // This write is way out in the future, so as to be outside the normal
+                // range for a snapshot:
+                TestWrite {
+                    lp: format!("{tbl_name},name=americano price=3.00"),
+                    time_seconds: 20_000,
+                },
+                // This write will trigger the snapshot:
+                TestWrite {
+                    lp: format!("{tbl_name},name=latte price=4.50"),
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        // Wait for snapshot to be created:
+        verify_snapshot_count(1, &wbuf.persister).await;
+
+        // Now drop the write buffer, and create a new one that replays:
+        drop(wbuf);
+        let (wbuf, ctx) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+
+        // Get the record batches from replayed buffer:
+        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-----------+-------+----------------------+",
+                "| name      | price | time                 |",
+                "+-----------+-------+----------------------+",
+                "| americano | 3.0   | 1970-01-01T05:33:20Z |",
+                "| espresso  | 2.5   | 1970-01-01T00:00:01Z |",
+                "| latte     | 4.5   | 1970-01-01T00:00:03Z |",
+                "+-----------+-------+----------------------+",
             ],
             &batches
         );
