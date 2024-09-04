@@ -307,22 +307,22 @@ impl WalFileNotifier for QueryableBuffer {
 }
 
 #[derive(Debug)]
-struct BufferState {
-    db_to_table: HashMap<Arc<str>, TableNameToBufferMap>,
+pub struct BufferState {
+    pub db_to_table: HashMap<Arc<str>, TableNameToBufferMap>,
     catalog: Arc<Catalog>,
 }
 
 type TableNameToBufferMap = HashMap<Arc<str>, TableBuffer>;
 
 impl BufferState {
-    fn new(catalog: Arc<Catalog>) -> Self {
+    pub fn new(catalog: Arc<Catalog>) -> Self {
         Self {
             db_to_table: HashMap::new(),
             catalog,
         }
     }
 
-    fn buffer_ops(&mut self, ops: Vec<WalOp>, last_cache_provider: &LastCacheProvider) {
+    pub fn buffer_ops(&mut self, ops: Vec<WalOp>, last_cache_provider: &LastCacheProvider) {
         for op in ops {
             match op {
                 WalOp::Write(write_batch) => self.add_write_batch(write_batch),

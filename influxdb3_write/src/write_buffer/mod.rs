@@ -114,7 +114,8 @@ pub struct WriteBufferImpl {
     last_cache: Arc<LastCacheProvider>,
 }
 
-const N_SNAPSHOTS_TO_LOAD_ON_START: usize = 1_000;
+/// The maximum number of snapshots to load on start
+pub const N_SNAPSHOTS_TO_LOAD_ON_START: usize = 1_000;
 
 impl WriteBufferImpl {
     pub async fn new(
@@ -412,7 +413,7 @@ impl WriteBufferImpl {
     }
 }
 
-pub(crate) fn parquet_chunk_from_file(
+pub fn parquet_chunk_from_file(
     parquet_file: &ParquetFile,
     table_schema: &Schema,
     object_store_url: ObjectStoreUrl,

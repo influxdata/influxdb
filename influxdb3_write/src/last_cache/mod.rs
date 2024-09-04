@@ -422,7 +422,7 @@ impl LastCacheProvider {
     /// to find entries that belong in the cache.
     ///
     /// Only if rows are newer than the latest entry in the cache will they be entered.
-    pub(crate) fn write_wal_contents_to_cache(&self, wal_contents: &WalContents) {
+    pub fn write_wal_contents_to_cache(&self, wal_contents: &WalContents) {
         let mut cache_map = self.cache_map.write();
         for op in &wal_contents.ops {
             match op {
@@ -451,7 +451,7 @@ impl LastCacheProvider {
 
     /// Recurse down the cache structure to evict expired cache entries, based on their respective
     /// time-to-live (TTL).
-    pub(crate) fn evict_expired_cache_entries(&self) {
+    pub fn evict_expired_cache_entries(&self) {
         let mut cache_map = self.cache_map.write();
         cache_map.iter_mut().for_each(|(_, db)| {
             db.iter_mut()
