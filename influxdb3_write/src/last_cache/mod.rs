@@ -2385,7 +2385,7 @@ mod tests {
         // Do one write to update the catalog with a db and table:
         wbuf.write_lp_v3(
             NamespaceName::new(db_name).unwrap(),
-            format!("{tbl_name} state/ca/county/napa/farm/10-01 speed=60").as_str(),
+            format!("{tbl_name},state/ca/county/napa/farm/10-01 speed=60").as_str(),
             Time::from_timestamp_nanos(500),
             false,
             Precision::Nanosecond,
@@ -2403,12 +2403,12 @@ mod tests {
             NamespaceName::new(db_name).unwrap(),
             format!(
                 "\
-                {tbl_name} state/ca/county/napa/farm/10-01 speed=50\n\
-                {tbl_name} state/ca/county/napa/farm/10-02 speed=49\n\
-                {tbl_name} state/ca/county/orange/farm/20-01 speed=40\n\
-                {tbl_name} state/ca/county/orange/farm/20-02 speed=33\n\
-                {tbl_name} state/ca/county/yolo/farm/30-01 speed=62\n\
-                {tbl_name} state/ca/county/nevada/farm/40-01 speed=66\n\
+                {tbl_name},state/ca/county/napa/farm/10-01 speed=50\n\
+                {tbl_name},state/ca/county/napa/farm/10-02 speed=49\n\
+                {tbl_name},state/ca/county/orange/farm/20-01 speed=40\n\
+                {tbl_name},state/ca/county/orange/farm/20-02 speed=33\n\
+                {tbl_name},state/ca/county/yolo/farm/30-01 speed=62\n\
+                {tbl_name},state/ca/county/nevada/farm/40-01 speed=66\n\
                 "
             )
             .as_str(),

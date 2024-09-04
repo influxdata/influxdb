@@ -18,9 +18,9 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError};
+use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
-use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use influxdb3_catalog::catalog::Catalog;
@@ -279,7 +279,7 @@ impl WriteBufferImpl {
         table_name: &str,
         filters: &[Expr],
         projection: Option<&Vec<usize>>,
-        ctx: &SessionState,
+        ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         let db_schema = self
             .catalog
@@ -499,7 +499,7 @@ impl ChunkContainer for WriteBufferImpl {
         table_name: &str,
         filters: &[Expr],
         projection: Option<&Vec<usize>>,
-        ctx: &SessionState,
+        ctx: &dyn Session,
     ) -> crate::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         self.get_table_chunks(database_name, table_name, filters, projection, ctx)
     }
