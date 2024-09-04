@@ -72,7 +72,7 @@ impl From<Error> for DataFusionError {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-const DEFAULT_OBJECT_STORE_URL: &str = "iox://influxdb3/";
+pub const DEFAULT_OBJECT_STORE_URL: &str = "iox://influxdb3/";
 
 /// The persister is the primary interface with object storage where InfluxDB stores all Parquet
 /// data, catalog information, as well as WAL and snapshot data.

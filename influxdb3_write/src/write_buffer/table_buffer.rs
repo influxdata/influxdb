@@ -160,7 +160,7 @@ impl TableBuffer {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct SnapshotChunk {
+pub struct SnapshotChunk {
     pub(crate) chunk_time: i64,
     pub(crate) timestamp_min_max: TimestampMinMax,
     pub(crate) record_batch: RecordBatch,
