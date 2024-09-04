@@ -597,9 +597,8 @@ mod tests {
     use crate::persister::Persister;
     use crate::PersistedSnapshot;
     use arrow::record_batch::RecordBatch;
-    use arrow_util::assert_batches_eq;
+    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
-    use datafusion::assert_batches_sorted_eq;
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
     use influxdb3_catalog::catalog::SequenceNumber;
@@ -1053,16 +1052,16 @@ mod tests {
             .unwrap();
 
         let expected = [
-            "+-----+---------------------+",
-            "| bar | time                |",
-            "+-----+---------------------+",
-            "| 1.0 | 1970-01-01T00:00:10 |",
-            "| 2.0 | 1970-01-01T00:01:05 |",
-            "| 3.0 | 1970-01-01T00:02:27 |",
-            "| 4.0 | 1970-01-01T00:04:10 |",
-            "| 5.0 | 1970-01-01T00:05:00 |",
-            "| 6.0 | 1970-01-01T00:05:30 |",
-            "+-----+---------------------+",
+            "+-----+----------------------+",
+            "| bar | time                 |",
+            "+-----+----------------------+",
+            "| 1.0 | 1970-01-01T00:00:10Z |",
+            "| 2.0 | 1970-01-01T00:01:05Z |",
+            "| 3.0 | 1970-01-01T00:02:27Z |",
+            "| 4.0 | 1970-01-01T00:04:10Z |",
+            "| 5.0 | 1970-01-01T00:05:00Z |",
+            "| 6.0 | 1970-01-01T00:05:30Z |",
+            "+-----+----------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &ctx).await;
         assert_batches_sorted_eq!(&expected, &actual);
@@ -1082,108 +1081,69 @@ mod tests {
         )
         .await;
 
+        let db_name = "foo";
         // do three writes to force a snapshot
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=1",
-                Time::from_timestamp(10, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=2",
-                Time::from_timestamp(20, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=3",
-                Time::from_timestamp(30, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
+        do_writes(
+            db_name,
+            &write_buffer,
+            &[
+                TestWrite {
+                    lp: "cpu bar=1",
+                    time_seconds: 10,
+                },
+                TestWrite {
+                    lp: "cpu bar=2",
+                    time_seconds: 20,
+                },
+                TestWrite {
+                    lp: "cpu bar=3",
+                    time_seconds: 30,
+                },
+            ],
+        )
+        .await;
 
         verify_catalog_count(1, write_buffer.persister.object_store()).await;
         verify_snapshot_count(1, &write_buffer.persister).await;
 
-        // and another three for another snapshot
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=4",
-                Time::from_timestamp(40, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=5",
-                Time::from_timestamp(50, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=6",
-                Time::from_timestamp(60, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
+        // only another two writes are needed to trigger a snapshot, because there is still one
+        // WAL period left from before:
+        do_writes(
+            db_name,
+            &write_buffer,
+            &[
+                TestWrite {
+                    lp: "cpu bar=4",
+                    time_seconds: 40,
+                },
+                TestWrite {
+                    lp: "cpu bar=5",
+                    time_seconds: 50,
+                },
+            ],
+        )
+        .await;
 
         // verify the catalog didn't get persisted, but a snapshot did
         verify_catalog_count(1, write_buffer.persister.object_store()).await;
         verify_snapshot_count(2, &write_buffer.persister).await;
 
-        // and finally three more, with a catalog update, forcing persistence
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=7",
-                Time::from_timestamp(70, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=8,asdf=true",
-                Time::from_timestamp(80, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu bar=9,asdf=true",
-                Time::from_timestamp(90, 0).unwrap(),
-                false,
-                Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
+        // and finally, do two more, with a catalog update, forcing persistence
+        do_writes(
+            db_name,
+            &write_buffer,
+            &[
+                TestWrite {
+                    lp: "cpu bar=6,asdf=true",
+                    time_seconds: 60,
+                },
+                TestWrite {
+                    lp: "cpu bar=7,asdf=true",
+                    time_seconds: 70,
+                },
+            ],
+        )
+        .await;
 
         verify_catalog_count(2, write_buffer.persister.object_store()).await;
         verify_snapshot_count(3, &write_buffer.persister).await;
@@ -1301,6 +1261,266 @@ mod tests {
             SequenceNumber::new(2),
             persisted_snapshot.catalog_sequence_number
         );
+    }
+
+    /// This is the reproducer for [#25277][see]
+    ///
+    /// [see]: https://github.com/influxdata/influxdb/issues/25277
+    #[tokio::test]
+    async fn writes_not_dropped_on_snapshot() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let (wbuf, _) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+
+        let db_name = "coffee_shop";
+        let tbl_name = "menu";
+
+        // do some writes to get a snapshot:
+        do_writes(
+            db_name,
+            &wbuf,
+            &[
+                TestWrite {
+                    lp: format!("{tbl_name},name=espresso price=2.50"),
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=americano price=3.00"),
+                    time_seconds: 2,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=latte price=4.50"),
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        // wait for snapshot to be created:
+        verify_snapshot_count(1, &wbuf.persister).await;
+
+        // Now drop the write buffer, and create a new one that replays:
+        drop(wbuf);
+        let (wbuf, ctx) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+
+        // Get the record batches from replayed buffer:
+        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-----------+-------+----------------------+",
+                "| name      | price | time                 |",
+                "+-----------+-------+----------------------+",
+                "| americano | 3.0   | 1970-01-01T00:00:02Z |",
+                "| espresso  | 2.5   | 1970-01-01T00:00:01Z |",
+                "| latte     | 4.5   | 1970-01-01T00:00:03Z |",
+                "+-----------+-------+----------------------+",
+            ],
+            &batches
+        );
+    }
+
+    #[tokio::test]
+    async fn writes_not_dropped_on_larger_snapshot_size() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let (wbuf, _) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 2,
+            },
+        )
+        .await;
+
+        let db_name = "coffee_shop";
+        let tbl_name = "menu";
+
+        // Do six writes to trigger a snapshot
+        do_writes(
+            db_name,
+            &wbuf,
+            &[
+                TestWrite {
+                    lp: format!("{tbl_name},name=espresso,type=drink price=2.50"),
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=americano,type=drink price=3.00"),
+                    time_seconds: 2,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=latte,type=drink price=4.50"),
+                    time_seconds: 3,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=croissant,type=food price=5.50"),
+                    time_seconds: 4,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=muffin,type=food price=4.50"),
+                    time_seconds: 5,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=biscotto,type=food price=3.00"),
+                    time_seconds: 6,
+                },
+            ],
+        )
+        .await;
+
+        verify_snapshot_count(1, &wbuf.persister).await;
+
+        // Drop the write buffer, and create a new one that replays:
+        drop(wbuf);
+        let (wbuf, ctx) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 2,
+            },
+        )
+        .await;
+
+        // Get the record batches from replyed buffer:
+        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-----------+-------+----------------------+-------+",
+                "| name      | price | time                 | type  |",
+                "+-----------+-------+----------------------+-------+",
+                "| americano | 3.0   | 1970-01-01T00:00:02Z | drink |",
+                "| biscotto  | 3.0   | 1970-01-01T00:00:06Z | food  |",
+                "| croissant | 5.5   | 1970-01-01T00:00:04Z | food  |",
+                "| espresso  | 2.5   | 1970-01-01T00:00:01Z | drink |",
+                "| latte     | 4.5   | 1970-01-01T00:00:03Z | drink |",
+                "| muffin    | 4.5   | 1970-01-01T00:00:05Z | food  |",
+                "+-----------+-------+----------------------+-------+",
+            ],
+            &batches
+        );
+    }
+
+    #[tokio::test]
+    async fn writes_not_dropped_with_future_writes() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let (wbuf, _) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+
+        let db_name = "coffee_shop";
+        let tbl_name = "menu";
+
+        // do some writes to get a snapshot:
+        do_writes(
+            db_name,
+            &wbuf,
+            &[
+                TestWrite {
+                    lp: format!("{tbl_name},name=espresso price=2.50"),
+                    time_seconds: 1,
+                },
+                // This write is way out in the future, so as to be outside the normal
+                // range for a snapshot:
+                TestWrite {
+                    lp: format!("{tbl_name},name=americano price=3.00"),
+                    time_seconds: 20_000,
+                },
+                // This write will trigger the snapshot:
+                TestWrite {
+                    lp: format!("{tbl_name},name=latte price=4.50"),
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        // Wait for snapshot to be created:
+        verify_snapshot_count(1, &wbuf.persister).await;
+
+        // Now drop the write buffer, and create a new one that replays:
+        drop(wbuf);
+        let (wbuf, ctx) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                level_0_duration: Level0Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+
+        // Get the record batches from replayed buffer:
+        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-----------+-------+----------------------+",
+                "| name      | price | time                 |",
+                "+-----------+-------+----------------------+",
+                "| americano | 3.0   | 1970-01-01T05:33:20Z |",
+                "| espresso  | 2.5   | 1970-01-01T00:00:01Z |",
+                "| latte     | 4.5   | 1970-01-01T00:00:03Z |",
+                "+-----------+-------+----------------------+",
+            ],
+            &batches
+        );
+    }
+
+    struct TestWrite<LP> {
+        lp: LP,
+        time_seconds: i64,
+    }
+
+    async fn do_writes<W: WriteBuffer, LP: AsRef<str>>(
+        db: &'static str,
+        buffer: &W,
+        writes: &[TestWrite<LP>],
+    ) {
+        for w in writes {
+            buffer
+                .write_lp(
+                    NamespaceName::new(db).unwrap(),
+                    w.lp.as_ref(),
+                    Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
+                    false,
+                    Precision::Nanosecond,
+                )
+                .await
+                .unwrap();
+        }
     }
 
     async fn verify_catalog_count(n: usize, object_store: Arc<dyn ObjectStore>) {
