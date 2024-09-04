@@ -81,14 +81,12 @@ impl QueryableBuffer {
 
         let buffer = self.buffer.read();
 
-        let table_buffer = buffer
-            .db_to_table
-            .get(db_schema.name.as_ref())
-            .ok_or_else(|| {
-                DataFusionError::Execution(format!("database {} not found", db_schema.name))
-            })?
-            .get(table_name)
-            .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
+        let Some(db_buffer) = buffer.db_to_table.get(db_schema.name.as_ref()) else {
+            return Ok(chunks);
+        };
+        let Some(table_buffer) = db_buffer.get(table_name) else {
+            return Ok(chunks);
+        };
 
         let batches = table_buffer
             .record_batches(Arc::clone(&arrow_schema), filters)
