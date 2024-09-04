@@ -4,7 +4,7 @@
 //! index files in object storage.
 
 pub mod object_store;
-mod serialize;
+pub mod serialize;
 mod snapshot_tracker;
 
 use crate::snapshot_tracker::SnapshotInfo;
@@ -17,11 +17,11 @@ use iox_time::Time;
 use observability_deps::tracing::error;
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
-use std::any::Any;
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{any::Any, num::ParseIntError};
 use thiserror::Error;
 use tokio::sync::{oneshot, OwnedSemaphorePermit};
 
@@ -47,6 +47,9 @@ pub enum Error {
 
     #[error("last cache size must be from 1 to 10")]
     InvalidLastCacheSize,
+
+    #[error("invalid WAL file path")]
+    InvalidWalFilePath,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -611,6 +614,14 @@ impl WalFileSequenceNumber {
 impl std::fmt::Display for WalFileSequenceNumber {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl FromStr for WalFileSequenceNumber {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> std::prelude::v1::Result<Self, Self::Err> {
+        s.parse::<u64>().map(Self)
     }
 }
 

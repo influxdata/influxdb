@@ -32,7 +32,7 @@ pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 /// The first bytes written into a wal file to identify it and its version.
 const FILE_TYPE_IDENTIFIER: &[u8] = b"idb3.001";
 
-pub(crate) fn verify_file_type_and_deserialize(b: Bytes) -> Result<WalContents> {
+pub fn verify_file_type_and_deserialize(b: Bytes) -> Result<WalContents> {
     let contents = b.to_vec();
 
     let pos = FILE_TYPE_IDENTIFIER.len();

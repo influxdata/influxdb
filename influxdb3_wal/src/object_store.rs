@@ -8,7 +8,7 @@ use bytes::Bytes;
 use data_types::Timestamp;
 use futures_util::stream::StreamExt;
 use hashbrown::HashMap;
-use object_store::path::Path;
+use object_store::path::{Path, PathPart};
 use object_store::{ObjectStore, PutPayload};
 use observability_deps::tracing::{debug, error, info};
 use std::sync::Arc;
@@ -582,11 +582,27 @@ impl WalBuffer {
     }
 }
 
-fn wal_path(host_identifier_prefix: &str, wal_file_number: WalFileSequenceNumber) -> Path {
+pub fn wal_path(host_identifier_prefix: &str, wal_file_number: WalFileSequenceNumber) -> Path {
     Path::from(format!(
         "{host_identifier_prefix}/wal/{:011}.wal",
         wal_file_number.0
     ))
+}
+
+impl<'a> TryFrom<&'a Path> for WalFileSequenceNumber {
+    type Error = crate::Error;
+
+    fn try_from(path: &'a Path) -> Result<Self, Self::Error> {
+        let parts: Vec<PathPart<'_>> = path.parts().collect();
+        if parts.len() != 3 {
+            return Err(crate::Error::InvalidWalFilePath);
+        }
+        parts[2]
+            .as_ref()
+            .trim_end_matches(".wal")
+            .parse()
+            .map_err(|_| crate::Error::InvalidWalFilePath)
+    }
 }
 
 #[cfg(test)]

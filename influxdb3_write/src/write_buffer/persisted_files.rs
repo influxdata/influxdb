@@ -66,9 +66,14 @@ impl PersistedFiles {
                 tables
                     .tables
                     .into_iter()
-                    .for_each(|(table_name, mut new_parquet_files)| {
+                    .for_each(|(table_name, new_parquet_files)| {
                         let table_files = db_tables.entry(table_name).or_default();
-                        table_files.append(&mut new_parquet_files);
+                        table_files.append(
+                            &mut new_parquet_files
+                                .into_iter()
+                                .filter(|file| !table_files.contains(file))
+                                .collect(),
+                        );
                     });
             });
     }
