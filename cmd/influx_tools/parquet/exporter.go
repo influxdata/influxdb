@@ -3,6 +3,7 @@ package parquet
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"golang.org/x/exp/maps"
 	"io"
@@ -184,7 +185,7 @@ func (e *exporter) shardSchema(shard *tsdb.Shard) (*index.MeasurementSchema, err
 		return nil, err
 	}
 	if len(tagKeys) == 0 {
-		return nil, nil
+		return nil, errors.New("nil tagkeys")
 	}
 	if len(tagKeys) != 1 {
 		return nil, fmt.Errorf("unexpected length of tagkeys: %d", len(tagKeys))
