@@ -195,11 +195,11 @@ func (e *exporter) shardSchema(shard *tsdb.Shard) (*index.MeasurementSchema, err
 		return nil, nil
 	}
 
-	tagSet := make(map[string]struct{}, len(tagKeys))
+	tagSet := make(map[string]struct{})
 	for _, key := range tagKeys[0].Keys {
 		tagSet[key] = struct{}{}
 	}
-	fieldSet := make(map[index.MeasurementField]struct{}, fields.FieldN())
+	fieldSet := make(map[index.MeasurementField]struct{})
 	for name, field := range fields.FieldSet() {
 		blockType, err := tsm1.BlockTypeForType(field.Zero())
 		if err != nil {
