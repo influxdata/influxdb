@@ -7,6 +7,7 @@ use clap_blocks::{
     tokio::TokioDatafusionConfig,
 };
 use datafusion_util::config::register_iox_object_store;
+use influxdb3_pro_buffer::WriteBufferPro;
 use influxdb3_pro_compactor::Compactor;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
@@ -16,7 +17,7 @@ use influxdb3_server::{
     CommonServerState,
 };
 use influxdb3_wal::{Level0Duration, WalConfig};
-use influxdb3_write::{persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer};
+use influxdb3_write::{persister::Persister, WriteBuffer};
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
 use object_store::DynObjectStore;
@@ -317,16 +318,17 @@ pub async fn command(config: Config) -> Result<()> {
         .await
         .map_err(Error::InitializePersistedCatalog)?;
     let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
-        WriteBufferImpl::new(
+        WriteBufferPro::read_write(
             Arc::clone(&persister),
             Arc::new(catalog),
             Arc::new(last_cache),
             Arc::<SystemProvider>::clone(&time_provider),
             Arc::clone(&exec),
             wal_config,
+            None,
         )
         .await
-        .map_err(|e| Error::WriteBufferInit(e.into()))?,
+        .map_err(Error::WriteBufferInit)?,
     );
     let query_executor = Arc::new(QueryExecutorImpl::new(
         write_buffer.catalog(),
