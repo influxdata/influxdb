@@ -19,10 +19,10 @@ async fn api_v3_write() {
         .query(params)
         .body(
             "\
-            cpu region/us-east/host/a1 usage=42.0,temp=10 1234\n\
-            cpu region/us-east/host/b1 usage=10.5,temp=18 1234\n\
-            cpu region/us-west/host/a2 usage=88.0,temp=15 1234\n\
-            cpu region/us-west/host/b2 usage=92.2,temp=14 1234\n\
+            cpu,region/us-east/host/a1 usage=42.0,temp=10 1234\n\
+            cpu,region/us-east/host/b1 usage=10.5,temp=18 1234\n\
+            cpu,region/us-west/host/a2 usage=88.0,temp=15 1234\n\
+            cpu,region/us-west/host/b2 usage=92.2,temp=14 1234\n\
         ",
         )
         .send()
@@ -71,25 +71,25 @@ async fn api_v3_write() {
         },
         // Series key out-of-order:
         TestCase {
-            body: "cpu host/c1/region/ca-cent usage=22.0,temp=6 1236",
+            body: "cpu,host/c1/region/ca-cent usage=22.0,temp=6 1236",
             response_contains: "write to table cpu had the incorrect series key, \
                 expected: [region, host], received: [host, region]",
         },
         // Series key with invalid member at end:
         TestCase {
-            body: "cpu region/ca-cent/host/c1/container/foo usage=22.0,temp=6 1236",
+            body: "cpu,region/ca-cent/host/c1/container/foo usage=22.0,temp=6 1236",
             response_contains: "write to table cpu had the incorrect series key, \
                 expected: [region, host], received: [region, host, container]",
         },
         // Series key with invalid member in middle:
         TestCase {
-            body: "cpu region/ca-cent/sub-region/toronto/host/c1 usage=22.0,temp=6 1236",
+            body: "cpu,region/ca-cent/sub-region/toronto/host/c1 usage=22.0,temp=6 1236",
             response_contains: "write to table cpu had the incorrect series key, \
                 expected: [region, host], received: [region, sub-region, host]",
         },
         // Series key with invalid member at start:
         TestCase {
-            body: "cpu planet/earth/region/ca-cent/host/c1 usage=22.0,temp=6 1236",
+            body: "cpu,planet/earth/region/ca-cent/host/c1 usage=22.0,temp=6 1236",
             response_contains: "write to table cpu had the incorrect series key, \
                 expected: [region, host], received: [planet, region, host]",
         },

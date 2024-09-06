@@ -7,13 +7,11 @@ use arrow::record_batch::RecordBatch;
 use arrow_schema::ArrowError;
 use async_trait::async_trait;
 use data_types::NamespaceId;
-use datafusion::catalog::schema::SchemaProvider;
-use datafusion::catalog::CatalogProvider;
+use datafusion::catalog::{CatalogProvider, SchemaProvider, Session};
 use datafusion::common::arrow::array::StringArray;
 use datafusion::common::arrow::datatypes::{DataType, Field, Schema as DatafusionSchema};
 use datafusion::datasource::{TableProvider, TableType};
 use datafusion::error::DataFusionError;
-use datafusion::execution::context::SessionState;
 use datafusion::execution::SendableRecordBatchStream;
 use datafusion::logical_expr::TableProviderFilterPushDown;
 use datafusion::physical_plan::ExecutionPlan;
@@ -30,7 +28,7 @@ use iox_query::query_log::QueryLog;
 use iox_query::query_log::QueryText;
 use iox_query::query_log::StateReceived;
 use iox_query::query_log::{QueryCompletedToken, QueryLogEntries};
-use iox_query::QueryDatabase;
+use iox_query::{Extension, QueryDatabase};
 use iox_query::{QueryChunk, QueryNamespace};
 use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
 use iox_query_params::StatementParams;
@@ -124,10 +122,10 @@ impl QueryExecutor for QueryExecutorImpl {
                 let planner = SqlQueryPlanner::new();
                 (planner.query(query, params.clone(), &ctx).await, "sql")
             }
-            QueryKind::InfluxQl => {
-                let planner = InfluxQLQueryPlanner::new();
-                (planner.query(query, params.clone(), &ctx).await, "influxql")
-            }
+            QueryKind::InfluxQl => (
+                InfluxQLQueryPlanner::query(query, params.clone(), &ctx).await,
+                "influxql",
+            ),
         };
         let token = db.record_query(
             external_span_ctx.as_ref().map(RequestLogContext::ctx),
@@ -450,6 +448,15 @@ impl QueryNamespace for Database {
         );
         ctx
     }
+
+    fn new_extended_query_context(
+        &self,
+        _extension: Arc<dyn Extension>,
+        _span_ctx: Option<SpanContext>,
+        _query_config: Option<&QueryConfig>,
+    ) -> IOxSessionContext {
+        unimplemented!();
+    }
 }
 
 const LAST_CACHE_UDTF_NAME: &str = "last_cache";
@@ -508,7 +515,7 @@ pub struct QueryTable {
 impl QueryTable {
     fn chunks(
         &self,
-        ctx: &SessionState,
+        ctx: &dyn Session,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
         _limit: Option<usize>,
@@ -546,7 +553,7 @@ impl TableProvider for QueryTable {
 
     async fn scan(
         &self,
-        ctx: &SessionState,
+        ctx: &dyn Session,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
         limit: Option<usize>,

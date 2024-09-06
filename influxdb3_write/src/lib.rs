@@ -13,8 +13,8 @@ pub mod write_buffer;
 
 use async_trait::async_trait;
 use data_types::{NamespaceName, TimestampMinMax};
+use datafusion::catalog::Session;
 use datafusion::error::DataFusionError;
-use datafusion::execution::context::SessionState;
 use datafusion::prelude::Expr;
 use influxdb3_catalog::catalog::{self, SequenceNumber};
 use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
@@ -89,7 +89,7 @@ pub trait ChunkContainer: Debug + Send + Sync + 'static {
         table_name: &str,
         filters: &[Expr],
         projection: Option<&Vec<usize>>,
-        ctx: &SessionState,
+        ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
 }
 

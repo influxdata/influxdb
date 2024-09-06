@@ -139,13 +139,16 @@ fn from_query_log_entries(
     ));
 
     columns.push(Arc::new(
-        entries.iter().map(|e| e.partitions).collect::<Int64Array>(),
+        entries
+            .iter()
+            .map(|e| e.partitions.map(|p| p as i64))
+            .collect::<Int64Array>(),
     ));
 
     columns.push(Arc::new(
         entries
             .iter()
-            .map(|e| e.parquet_files)
+            .map(|e| e.parquet_files.map(|p| p as i64))
             .collect::<Int64Array>(),
     ));
 

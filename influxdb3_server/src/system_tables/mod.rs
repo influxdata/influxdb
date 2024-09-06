@@ -1,8 +1,6 @@
 use std::{any::Any, collections::HashMap, sync::Arc};
 
-use datafusion::{
-    catalog::schema::SchemaProvider, datasource::TableProvider, error::DataFusionError,
-};
+use datafusion::{catalog::SchemaProvider, datasource::TableProvider, error::DataFusionError};
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
