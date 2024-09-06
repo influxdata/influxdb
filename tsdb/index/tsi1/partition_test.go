@@ -17,7 +17,7 @@ func TestPartition_Open(t *testing.T) {
 	defer sfile.Close()
 
 	// Opening a fresh index should set the MANIFEST version to current version.
-	p := NewPartition(t, sfile.SeriesFile)
+	p := NewPartition(sfile.SeriesFile)
 	t.Run("open new index", func(t *testing.T) {
 		if err := p.Open(); err != nil {
 			t.Fatal(err)
@@ -43,7 +43,7 @@ func TestPartition_Open(t *testing.T) {
 	incompatibleVersions := []int{-1, 0, 2}
 	for _, v := range incompatibleVersions {
 		t.Run(fmt.Sprintf("incompatible index version: %d", v), func(t *testing.T) {
-			p = NewPartition(t, sfile.SeriesFile)
+			p = NewPartition(sfile.SeriesFile)
 			// Manually create a MANIFEST file for an incompatible index version.
 			mpath := filepath.Join(p.Path(), tsi1.ManifestFileName)
 			m := tsi1.NewManifest(mpath)
@@ -128,7 +128,7 @@ func TestPartition_Compact_Write_Fail(t *testing.T) {
 		sfile := MustOpenSeriesFile(t)
 		t.Cleanup(func() { sfile.Close() })
 
-		p := MustOpenPartition(t, sfile.SeriesFile)
+		p := MustOpenPartition(sfile.SeriesFile)
 		t.Cleanup(func() {
 			if err := p.Close(); err != nil {
 				t.Fatalf("error closing partition: %v", err)
