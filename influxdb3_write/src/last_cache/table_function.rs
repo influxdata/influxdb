@@ -3,9 +3,9 @@ use std::{any::Any, sync::Arc};
 use arrow::datatypes::SchemaRef;
 use async_trait::async_trait;
 use datafusion::{
+    catalog::Session,
     common::{plan_err, Result},
     datasource::{function::TableFunctionImpl, TableProvider, TableType},
-    execution::context::SessionState,
     logical_expr::{Expr, TableProviderFilterPushDown},
     physical_plan::{memory::MemoryExec, ExecutionPlan},
     scalar::ScalarValue,
@@ -44,7 +44,7 @@ impl TableProvider for LastCacheFunctionProvider {
 
     async fn scan(
         &self,
-        ctx: &SessionState,
+        ctx: &dyn Session,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
         _limit: Option<usize>,

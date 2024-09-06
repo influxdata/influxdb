@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use data_types::NamespaceName;
-use datafusion::{error::DataFusionError, execution::context::SessionState, logical_expr::Expr};
+use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_wal::{LastCacheDefinition, WalConfig};
 use influxdb3_write::{
@@ -113,7 +113,7 @@ impl<Mode: ChunkContainer> ChunkContainer for WriteBufferPro<Mode> {
         table_name: &str,
         filters: &[Expr],
         projection: Option<&Vec<usize>>,
-        ctx: &SessionState,
+        ctx: &dyn Session,
     ) -> influxdb3_write::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         self.mode
             .get_table_chunks(database_name, table_name, filters, projection, ctx)

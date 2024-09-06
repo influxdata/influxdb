@@ -235,7 +235,13 @@ impl Compactor {
         // Create the plan and execute it over all of the ParquetChunks
         let reorg = ReorgPlanner::new();
         let plan = reorg
-            .compact_plan(table_name.into(), table_schema, chunks, sort_key)
+            .compact_plan(
+                TableId::new(0),
+                table_name.into(),
+                table_schema,
+                chunks,
+                sort_key,
+            )
             .map_err(CompactorError::ReorgError)?;
         self.executor
             .new_context()

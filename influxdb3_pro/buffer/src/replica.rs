@@ -2,10 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Context;
 use data_types::{ChunkId, ChunkOrder, PartitionKey, TableId, TransitionPartitionId};
-use datafusion::{
-    execution::{context::SessionState, object_store::ObjectStoreUrl},
-    logical_expr::Expr,
-};
+use datafusion::{catalog::Session, execution::object_store::ObjectStoreUrl, logical_expr::Expr};
 use futures_util::StreamExt;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_wal::{
@@ -116,7 +113,7 @@ impl Replicas {
         table_name: &str,
         filters: &[Expr],
         projection: Option<&Vec<usize>>,
-        ctx: &SessionState,
+        ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         let mut chunks = vec![];
         for replica in &self.replicas {
@@ -193,7 +190,7 @@ impl ReplicatedBuffer {
         table_name: &str,
         filters: &[Expr],
         _projection: Option<&Vec<usize>>,
-        _ctx: &SessionState,
+        _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         let mut chunks: Vec<Arc<dyn QueryChunk>> = vec![];
 
