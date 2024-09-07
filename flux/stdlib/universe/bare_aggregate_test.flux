@@ -7,7 +7,7 @@ import "csv"
 
 option now = () => (2030-01-01T00:00:00Z)
 
-    input = "
+input = "
 #group,false,false,true,true,false,false,true,true,true
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string
 #default,_result,,,,,,,,
@@ -176,8 +176,8 @@ testcase bare_last {
     )
     result = csv.from(csv: input)
         |> testing.load()
-        |> last()
         |> range(start: -100y)
+        |> last()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
 
     testing.diff(want: want, got: result)
