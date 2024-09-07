@@ -36,6 +36,7 @@ input = "
 ,,0,2017-02-16T20:30:31.713576368Z,2021-02-16T20:30:31.713576368Z,2020-12-23T08:00:00Z,233,bank,pge_bill,35632393IN
 ,,0,2017-02-16T20:30:31.713576368Z,2021-02-16T20:30:31.713576368Z,2021-01-26T08:00:00Z,-1099,bank,pge_bill,35632393IN
 "
+
 testcase bare_count {
     expect.planner(rules: ["PushDownBareAggregateRule": 1])
 
