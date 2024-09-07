@@ -125,7 +125,7 @@ func TestPartition_PrependLogFile_Write_Fail(t *testing.T) {
 
 func TestPartition_Compact_Write_Fail(t *testing.T) {
 	t.Run("write MANIFEST", func(t *testing.T) {
-		sfile := MustOpenSeriesFile(t)
+		sfile := MustOpenSeriesFile()
 		t.Cleanup(func() { sfile.Close() })
 
 		p := MustOpenPartition(sfile.SeriesFile)
