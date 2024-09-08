@@ -59,7 +59,7 @@ func ErrDatabaseNotFound(name string) error { return fmt.Errorf("database not fo
 
 // ErrMaxSelectPointsLimitExceeded is an error when a query hits the maximum number of points.
 func ErrMaxSelectPointsLimitExceeded(n, limit int) error {
-	return fmt.Errorf("max-select-point limit exceeed: (%d/%d)", n, limit)
+	return fmt.Errorf("max-select-point limit exceeded: (%d/%d)", n, limit)
 }
 
 // ErrMaxConcurrentQueriesLimitExceeded is an error when a query cannot be run

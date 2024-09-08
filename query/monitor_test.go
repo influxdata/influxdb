@@ -55,7 +55,7 @@ func TestPointLimitMonitor(t *testing.T) {
 
 	if err := query.DrainCursor(cur); err == nil {
 		t.Fatalf("expected an error")
-	} else if got, want := err.Error(), "max-select-point limit exceeed: (10/1)"; got != want {
+	} else if got, want := err.Error(), "max-select-point limit exceeded: (10/1)"; got != want {
 		t.Fatalf("unexpected error: got=%v want=%v", got, want)
 	}
 }
