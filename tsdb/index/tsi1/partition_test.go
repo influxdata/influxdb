@@ -125,10 +125,10 @@ func TestPartition_PrependLogFile_Write_Fail(t *testing.T) {
 
 func TestPartition_Compact_Write_Fail(t *testing.T) {
 	t.Run("write MANIFEST", func(t *testing.T) {
-		sfile := MustOpenSeriesFile(t)
+		sfile := MustOpenSeriesFile()
 		t.Cleanup(func() { sfile.Close() })
 
-		p := MustOpenPartition(t, sfile.SeriesFile)
+		p := MustOpenPartition(sfile.SeriesFile)
 		t.Cleanup(func() {
 			if err := p.Close(); err != nil {
 				t.Fatalf("error closing partition: %v", err)
