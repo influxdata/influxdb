@@ -25,7 +25,7 @@ use iox_query::{
     QueryChunk,
 };
 use object_store::{path::Path, ObjectStore};
-use observability_deps::tracing::error;
+use observability_deps::tracing::{error, info};
 use parking_lot::RwLock;
 use schema::Schema;
 use tokio::sync::Mutex;
@@ -45,6 +45,12 @@ pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct ReplicationConfig {
     pub(crate) interval: Duration,
     pub(crate) hosts: Vec<String>,
+}
+
+impl ReplicationConfig {
+    pub fn new(interval: Duration, hosts: Vec<String>) -> Self {
+        Self { interval, hosts }
+    }
 }
 
 #[derive(Debug)]
@@ -68,6 +74,7 @@ impl Replicas {
             let catalog = Arc::clone(&catalog);
             let last_cache = Arc::clone(&last_cache);
             let handle = tokio::spawn(async move {
+                info!(%host, "replicating host");
                 ReplicatedBuffer::new(
                     object_store,
                     host,
@@ -278,6 +285,7 @@ impl ReplicatedBuffer {
 
     async fn replay(&self) -> Result<()> {
         let paths = self.load_existing_wal_paths().await?;
+        info!(host = %self.host_identifier_prefix, num_wal_files = paths.len(), "replaying WAL files for replica");
 
         for path in &paths {
             self.replay_wal_file(path).await?;
@@ -417,6 +425,11 @@ fn background_replication_interval(
                     let wal_path = wal_path(&replicated_buffer.host_identifier_prefix, wal_number);
                     match replicated_buffer.replay_wal_file(&wal_path).await {
                         Ok(_) => {
+                            info!(
+                                host = %replicated_buffer.host_identifier_prefix,
+                                path = %wal_path,
+                                "replayed WAL file"
+                            );
                             last_wal_number.replace(wal_number);
                             // Don't break the inner loop here, since we want to try for more
                             // WAL files if they exist...

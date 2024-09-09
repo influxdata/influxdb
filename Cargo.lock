@@ -2585,6 +2585,7 @@ dependencies = [
  "influxdb3_catalog",
  "influxdb3_client",
  "influxdb3_pro_buffer",
+ "influxdb3_pro_clap_blocks",
  "influxdb3_pro_compactor",
  "influxdb3_process",
  "influxdb3_server",
@@ -2708,6 +2709,15 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
+]
+
+[[package]]
+name = "influxdb3_pro_clap_blocks"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "humantime",
 ]
 
 [[package]]

@@ -1,5 +1,6 @@
 //! Entrypoint for InfluxDB 3.0 Edge Server
 
+use anyhow::Context;
 use clap_blocks::{
     memory_size::MemorySize,
     object_store::{make_object_store, ObjectStoreConfig},
@@ -7,7 +8,8 @@ use clap_blocks::{
     tokio::TokioDatafusionConfig,
 };
 use datafusion_util::config::register_iox_object_store;
-use influxdb3_pro_buffer::WriteBufferPro;
+use influxdb3_pro_buffer::{replica::ReplicationConfig, WriteBufferPro};
+use influxdb3_pro_clap_blocks::serve::BufferMode;
 use influxdb3_pro_compactor::Compactor;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
@@ -210,6 +212,9 @@ pub struct Config {
     /// for any hosts that share the same object store configuration, i.e., the same bucket.
     #[clap(long = "host-id", env = "INFLUXDB3_HOST_IDENTIFIER_PREFIX", action)]
     pub host_identifier_prefix: String,
+
+    #[clap(flatten)]
+    pub pro_config: influxdb3_pro_clap_blocks::serve::ProServeConfig,
 }
 
 /// If `p` does not exist, try to create it as a directory.
@@ -317,19 +322,42 @@ pub async fn command(config: Config) -> Result<()> {
         .load_last_cache_and_catalog()
         .await
         .map_err(Error::InitializePersistedCatalog)?;
-    let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
-        WriteBufferPro::read_write(
-            Arc::clone(&persister),
-            Arc::new(catalog),
-            Arc::new(last_cache),
-            Arc::<SystemProvider>::clone(&time_provider),
-            Arc::clone(&exec),
-            wal_config,
-            None,
+    let replica_config = config.pro_config.replicas.map(|replicas| {
+        ReplicationConfig::new(
+            config.pro_config.replication_interval.into(),
+            replicas.into(),
         )
-        .await
-        .map_err(Error::WriteBufferInit)?,
-    );
+    });
+    let write_buffer: Arc<dyn WriteBuffer> = match config.pro_config.mode {
+        BufferMode::Read => {
+            let replica_config = replica_config
+                .context("must supply a replicas list when starting in read-only mode")
+                .map_err(Error::WriteBufferInit)?;
+            Arc::new(
+                WriteBufferPro::read(
+                    Arc::new(catalog),
+                    Arc::new(last_cache),
+                    Arc::clone(&object_store),
+                    replica_config,
+                )
+                .await
+                .map_err(Error::WriteBufferInit)?,
+            )
+        }
+        BufferMode::ReadWrite => Arc::new(
+            WriteBufferPro::read_write(
+                Arc::clone(&persister),
+                Arc::new(catalog),
+                Arc::new(last_cache),
+                Arc::<SystemProvider>::clone(&time_provider),
+                Arc::clone(&exec),
+                wal_config,
+                replica_config,
+            )
+            .await
+            .map_err(Error::WriteBufferInit)?,
+        ),
+    };
     let query_executor = Arc::new(QueryExecutorImpl::new(
         write_buffer.catalog(),
         Arc::clone(&write_buffer),

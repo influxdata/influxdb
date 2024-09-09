@@ -17,7 +17,7 @@ use object_store::ObjectStore;
 use replica::ReplicationConfig;
 
 mod modes;
-mod replica;
+pub mod replica;
 
 #[derive(Debug)]
 pub struct WriteBufferPro<Mode> {
