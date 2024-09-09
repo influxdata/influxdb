@@ -1575,6 +1575,7 @@ mod tests {
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::NamespaceName;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
+    use influxdb3_id::DbId;
     use influxdb3_wal::{LastCacheDefinition, WalConfig};
     use insta::assert_json_snapshot;
     use iox_time::{MockProvider, Time};
@@ -3059,6 +3060,7 @@ mod tests {
         // Set up a database in the catalog:
         let db_name = "test_db";
         let mut database = DatabaseSchema {
+            id: DbId::from(0),
             name: db_name.into(),
             tables: BTreeMap::new(),
         };

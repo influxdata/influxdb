@@ -5,6 +5,7 @@ expression: catalog
 {
   "databases": {
     "test_db": {
+      "id": 0,
       "name": "test_db",
       "tables": {
         "test_table_1": {
