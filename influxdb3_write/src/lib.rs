@@ -254,6 +254,13 @@ impl From<u64> for ParquetFileId {
     }
 }
 
+impl From<data_types::ParquetFileId> for ParquetFileId {
+    fn from(value: data_types::ParquetFileId) -> Self {
+        // i64 to u64 cast. IOx uses i64 for file ids
+        Self(value.get() as u64)
+    }
+}
+
 impl Default for ParquetFileId {
     fn default() -> Self {
         Self::new()

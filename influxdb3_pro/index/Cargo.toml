@@ -6,6 +6,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+object_store.workspace = true
+
 influxdb3_write = { path = "../../influxdb3_write" }
 
 [lints]

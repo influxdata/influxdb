@@ -1,5 +1,8 @@
+use arrow::array::BooleanArray;
 use arrow::array::DictionaryArray;
+use arrow::array::Float64Array;
 use arrow::array::Int64Array;
+use arrow::array::StringArray;
 use arrow::array::TimestampNanosecondArray;
 use arrow::datatypes::Int32Type;
 use arrow::record_batch::RecordBatch;
@@ -8,6 +11,7 @@ use arrow_schema::SchemaRef;
 use data_types::NamespaceName;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_pro_compactor::Compactor;
+use influxdb3_pro_compactor::CompactorOutput;
 use influxdb3_wal::WalConfig;
 use influxdb3_write::last_cache::LastCacheProvider;
 use influxdb3_write::persister::Persister;
@@ -112,7 +116,11 @@ async fn five_files_multiple_series_same_schema() {
         persister,
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     );
-    let output_paths = compactor
+    let CompactorOutput {
+        output_paths,
+        file_index,
+        ..
+    } = compactor
         .compact_files(
             "test_db",
             "test_table",
@@ -122,6 +130,7 @@ async fn five_files_multiple_series_same_schema() {
             "compactor_1".into(),
             "us-east-1".into(),
             0,
+            vec!["id".into(), "field".into()],
         )
         .await
         .unwrap();
@@ -220,6 +229,23 @@ async fn five_files_multiple_series_same_schema() {
     | 0     | l  | 1970-01-01T00:00:00 |
     +-------+----+---------------------+
     "###);
+
+    // Index assertions
+    assert_eq!(file_index.lookup("field".into(), "0".into()).len(), 7);
+    assert_eq!(file_index.lookup("field".into(), "3".into()).len(), 0);
+    assert_eq!(file_index.lookup("id".into(), "a".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "b".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "c".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "d".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "e".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "f".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "g".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "h".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "i".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "j".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "k".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "l".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "m".into()).len(), 0);
 }
 
 #[tokio::test]
@@ -294,7 +320,11 @@ async fn two_files_two_series_and_same_schema() {
         persister,
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     );
-    let output_paths = compactor
+    let CompactorOutput {
+        output_paths,
+        file_index,
+        ..
+    } = compactor
         .compact_files(
             "test_db",
             "test_table",
@@ -306,6 +336,7 @@ async fn two_files_two_series_and_same_schema() {
             "compactor_1".into(),
             "us-east-1".into(),
             0,
+            vec!["id".into(), "host".into(), "field".into()],
         )
         .await
         .unwrap();
@@ -347,6 +378,23 @@ async fn two_files_two_series_and_same_schema() {
     | 13    | b    | 1  | 1970-01-01T00:00:00.000000006 |
     +-------+------+----+-------------------------------+
     "###);
+    // Index assertions
+    assert_eq!(file_index.lookup("field".into(), "1".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "2".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "3".into()).len(), 0);
+    assert_eq!(file_index.lookup("field".into(), "4".into()).len(), 0);
+    assert_eq!(file_index.lookup("field".into(), "5".into()).len(), 0);
+    assert_eq!(file_index.lookup("field".into(), "6".into()).len(), 0);
+    assert_eq!(file_index.lookup("field".into(), "7".into()).len(), 0);
+    assert_eq!(file_index.lookup("field".into(), "8".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "9".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "10".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "11".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "12".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "13".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "14".into()).len(), 0);
+    assert_eq!(file_index.lookup("id".into(), "1".into()).len(), 2);
+    assert_eq!(file_index.lookup("id".into(), "2".into()).len(), 0);
 }
 
 #[tokio::test]
@@ -422,7 +470,11 @@ async fn two_files_same_series_and_schema() {
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     );
 
-    let output_paths = compactor
+    let CompactorOutput {
+        output_paths,
+        file_index,
+        ..
+    } = compactor
         .compact_files(
             "test_db",
             "test_table",
@@ -434,6 +486,7 @@ async fn two_files_same_series_and_schema() {
             "compactor_1".into(),
             "us-east-1".into(),
             0,
+            vec!["id".into(), "host".into(), "field".into()],
         )
         .await
         .unwrap();
@@ -462,6 +515,19 @@ async fn two_files_same_series_and_schema() {
     +-------+------+----+-------------------------------+
     "###
     );
+    // Index assertions
+    assert_eq!(file_index.lookup("field".into(), "1".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "2".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "3".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "4".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "5".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "6".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "7".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "8".into()).len(), 0);
+    assert_eq!(file_index.lookup("id".into(), "1".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "2".into()).len(), 0);
+    assert_eq!(file_index.lookup("host".into(), "a".into()).len(), 1);
+    assert_eq!(file_index.lookup("host".into(), "b".into()).len(), 0);
 }
 #[tokio::test]
 async fn two_files_similar_series_and_compatible_schema() {
@@ -556,7 +622,11 @@ async fn two_files_similar_series_and_compatible_schema() {
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     );
 
-    let output_paths = compactor
+    let CompactorOutput {
+        output_paths,
+        file_index,
+        ..
+    } = compactor
         .compact_files(
             "test_db",
             "test_table",
@@ -567,6 +637,12 @@ async fn two_files_similar_series_and_compatible_schema() {
             "compactor_1".into(),
             "us-east-1".into(),
             0,
+            vec![
+                "id".into(),
+                "host".into(),
+                "field".into(),
+                "extra_tag".into(),
+            ],
         )
         .await
         .unwrap();
@@ -610,6 +686,25 @@ async fn two_files_similar_series_and_compatible_schema() {
     +-----------+-------+------+----+-------------------------------+
     "###
     );
+    // Index assertions
+    assert_eq!(
+        file_index.lookup("extra_tag".into(), "null".into()).len(),
+        1
+    );
+    assert_eq!(file_index.lookup("extra_tag".into(), "5".into()).len(), 1);
+    assert_eq!(file_index.lookup("extra_tag".into(), "6".into()).len(), 0);
+    assert_eq!(file_index.lookup("field".into(), "1".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "2".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "3".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "4".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "5".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "6".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "7".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "8".into()).len(), 0);
+    assert_eq!(file_index.lookup("id".into(), "1".into()).len(), 2);
+    assert_eq!(file_index.lookup("id".into(), "2".into()).len(), 0);
+    assert_eq!(file_index.lookup("host".into(), "a".into()).len(), 2);
+    assert_eq!(file_index.lookup("host".into(), "b".into()).len(), 0);
 }
 
 /// Makes sure that sort and dedupe works as expected
@@ -685,7 +780,11 @@ async fn deduplication_of_data() {
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     );
 
-    let output_paths = compactor
+    let CompactorOutput {
+        output_paths,
+        file_index,
+        ..
+    } = compactor
         .compact_files(
             "test_db",
             "test_table",
@@ -697,6 +796,7 @@ async fn deduplication_of_data() {
             "compactor_1".into(),
             "us-east-1".into(),
             0,
+            vec!["id".into(), "host".into(), "field".into()],
         )
         .await
         .unwrap();
@@ -722,6 +822,147 @@ async fn deduplication_of_data() {
     | 3     | a    | 1  | 1970-01-01T00:00:00.000000007 |
     +-------+------+----+-------------------------------+
     "###
+    );
+    // Index Assertions
+    assert_eq!(file_index.lookup("field".into(), "2".into()).len(), 1);
+    assert_eq!(file_index.lookup("field".into(), "3".into()).len(), 1);
+    assert_eq!(file_index.lookup("host".into(), "a".into()).len(), 1);
+    assert_eq!(file_index.lookup("host".into(), "b".into()).len(), 0);
+    assert_eq!(file_index.lookup("id".into(), "1".into()).len(), 1);
+    assert_eq!(file_index.lookup("id".into(), "2".into()).len(), 0);
+}
+
+/// Test to determine if we can cast everything in our current data model in our file index
+#[tokio::test]
+async fn compactor_casting() {
+    // Create and write multiple different files to the Object Store
+    let obj_store = Arc::new(InMemory::new());
+    let persister = Arc::new(Persister::new(
+        Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
+        "test-host",
+    ));
+    let write_buffer = Arc::new(
+        WriteBufferImpl::new(
+            Arc::clone(&persister),
+            Arc::new(Catalog::new()),
+            Arc::new(LastCacheProvider::new()),
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+            Arc::new(Executor::new_testing()),
+            WalConfig::test_config(),
+        )
+        .await
+        .unwrap(),
+    );
+
+    // write into the buffer to recreate the schema and to create the tables and DB
+    // for the compactor test
+    write_buffer
+        .write_lp(
+            NamespaceName::new("test_db").unwrap(),
+            // Schema for:
+            // - Tags (Dictionary<i32, Utf8>)
+            // - Utf8
+            // - Float64
+            // - UInt64
+            // - Int64
+            // - Boolean
+            // - Timestamp<Nanos>
+            "test_table,a=0i,b=\"foo\",c=1.0,d=2,e=true f=3i,g=4.0,h=false,i=\"bar\" 100\n",
+            Time::from_timestamp_nanos(0),
+            false,
+            influxdb3_write::Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+    let schema = Arc::new(
+        write_buffer
+            .catalog()
+            .db_schema("test_db")
+            .unwrap()
+            .get_table_schema("test_table")
+            .unwrap()
+            .as_arrow(),
+    );
+    let a: DictionaryArray<Int32Type> = ["0"].into_iter().collect();
+    let b: DictionaryArray<Int32Type> = ["foo"].into_iter().collect();
+    let c: DictionaryArray<Int32Type> = ["1.0"].into_iter().collect();
+    let d: DictionaryArray<Int32Type> = ["2"].into_iter().collect();
+    let e: DictionaryArray<Int32Type> = ["true"].into_iter().collect();
+    let f: Int64Array = [3i64].into_iter().collect();
+    let g: Float64Array = [4.0].into_iter().collect();
+    let h: BooleanArray = [Some(false)].into_iter().collect();
+    let i = StringArray::from(vec!["bar"]);
+    let j = TimestampNanosecondArray::from(vec![100]);
+
+    let batch1 = RecordBatch::try_new(
+        Arc::clone(&schema),
+        vec![
+            // NB different order than arguments to function
+            Arc::new(a),
+            Arc::new(b),
+            Arc::new(c),
+            Arc::new(d),
+            Arc::new(e),
+            Arc::new(f),
+            Arc::new(g),
+            Arc::new(h),
+            Arc::new(i),
+            Arc::new(j.clone()),
+        ],
+    )
+    .unwrap();
+
+    let test_writer = TestFileWriter::new(Arc::clone(&obj_store));
+
+    let path1 = test_writer.write("test/batch/1", batch1).await;
+
+    // Create our new Compactor and compact the above files
+    let mut compactor = Compactor::new(
+        write_buffer,
+        persister,
+        make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+    );
+
+    let CompactorOutput { file_index, .. } = compactor
+        .compact_files(
+            "test_db",
+            "test_table",
+            // These are our tags and field will just be an array we don't sort on
+            ["a", "b", "c", "d", "e", "f", "g", "h", "i"]
+                .into_iter()
+                .map(ToString::to_string)
+                .collect(),
+            // Make sure this works out of order
+            vec![path1],
+            1000,
+            "compactor_1".into(),
+            "us-east-1".into(),
+            0,
+            ["a", "b", "c", "d", "e", "f", "g", "h", "i", "time"]
+                .into_iter()
+                .map(ToString::to_string)
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    // Index Assertions
+    // b=\"foo\",c=1.0,d=2,e=true f=3i,g=4.0,h=false,i=\"bar\" 100\n",
+    assert_eq!(file_index.lookup("a".into(), "0".into()).len(), 1);
+    assert_eq!(file_index.lookup("b".into(), "foo".into()).len(), 1);
+    assert_eq!(file_index.lookup("c".into(), "1.0".into()).len(), 1);
+    assert_eq!(file_index.lookup("d".into(), "2".into()).len(), 1);
+    assert_eq!(file_index.lookup("e".into(), "true".into()).len(), 1);
+    assert_eq!(file_index.lookup("f".into(), "3".into()).len(), 1);
+    assert_eq!(file_index.lookup("g".into(), "4.0".into()).len(), 1);
+    assert_eq!(file_index.lookup("h".into(), "false".into()).len(), 1);
+    assert_eq!(file_index.lookup("i".into(), "bar".into()).len(), 1);
+    assert_eq!(
+        file_index
+            .lookup("time".into(), "1970-01-01T00:00:00.000000100".into())
+            .len(),
+        1
     );
 }
 

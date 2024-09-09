@@ -2724,6 +2724,7 @@ dependencies = [
  "executor",
  "futures-util",
  "influxdb3_catalog",
+ "influxdb3_pro_index",
  "influxdb3_wal",
  "influxdb3_write",
  "insta",
@@ -2745,6 +2746,7 @@ name = "influxdb3_pro_index"
 version = "0.1.0"
 dependencies = [
  "influxdb3_write",
+ "object_store",
 ]
 
 [[package]]

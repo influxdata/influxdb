@@ -1,7 +1,14 @@
+use arrow::array::as_largestring_array;
+use arrow::array::AsArray;
 use arrow::array::RecordBatch;
+use arrow::compute::cast_with_options;
 use arrow::compute::partition;
+use arrow::compute::CastOptions;
 use arrow::compute::Partitions;
+use arrow::datatypes::TimestampNanosecondType;
+use arrow::util::display::FormatOptions;
 use arrow_schema::ArrowError;
+use arrow_schema::DataType;
 use arrow_util::util::ensure_schema;
 use bytes::Bytes;
 use chrono::DateTime;
@@ -18,8 +25,10 @@ use datafusion::execution::SendableRecordBatchStream;
 use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
 use influxdb3_catalog::catalog::TIME_COLUMN_NAME;
+use influxdb3_pro_index::FileIndex;
 use influxdb3_write::chunk::ParquetChunk;
 use influxdb3_write::persister::Persister;
+use influxdb3_write::ParquetFile;
 use influxdb3_write::ParquetFileId;
 use influxdb3_write::WriteBuffer;
 use iox_query::chunk_statistics::create_chunk_statistics;
@@ -68,6 +77,8 @@ pub enum CompactorError {
     WriteArrowWriter(ParquetError),
     #[error("Failed to close an AsyncArrowWriter: {0}")]
     CloseArrowWriter(ParquetError),
+    #[error("Failed to flush an AsyncArrowWriter: {0}")]
+    FlushArrowWriter(ParquetError),
     #[error("Failed to ensure schema: {0}")]
     EnsureSchema(ArrowError),
     #[error("Failed to produce a RecordBatch stream: {0}")]
@@ -82,6 +93,15 @@ pub enum CompactorError {
     ReorgError(reorg::Error),
     #[error("Failed to execute a LogicalPlan: {0}")]
     FailedLogicalPlan(DataFusionError),
+    #[error("Failed to cast an array while indexing data: {0}")]
+    CastError(ArrowError),
+}
+
+#[derive(Debug)]
+pub struct CompactorOutput {
+    pub output_paths: Vec<ObjPath>,
+    pub file_index: FileIndex,
+    pub file_metadata: Vec<ParquetFile>,
 }
 
 #[derive(Debug)]
@@ -129,7 +149,8 @@ impl Compactor {
         compactor_id: Arc<str>,
         host: Arc<str>,
         generation: u64,
-    ) -> Result<Vec<ObjPath>, CompactorError> {
+        index_columns: Vec<String>,
+    ) -> Result<CompactorOutput, CompactorError> {
         executor::register_current_runtime_for_io();
 
         let db_schema = self
@@ -158,6 +179,7 @@ impl Compactor {
             &mut self.compaction_seq,
             database_name,
             table_name,
+            index_columns,
         );
 
         loop {
@@ -269,18 +291,34 @@ struct SeriesWriter<'compactor> {
     record_batches: RecordBatchHolder,
     /// Tags to sort all of the record batches by
     sort_keys: Vec<String>,
-    /// files we have created
+    /// Files we have created
     output_paths: Vec<ObjPath>,
+    /// Metadata for the files we have created
+    file_metadata: Vec<ParquetFile>,
     /// The ID of the compactor
     compactor_id: Arc<str>,
     /// Host this compaction is being done for
     host: Arc<str>,
     /// What generation the data is being compacted into
     generation: u64,
+    /// Which compaction sequence we are currently on
     compaction_seq: &'compactor mut u64,
+    /// The name of the database we are doing a compaction cycle for
     db_name: &'compactor str,
+    /// The name of the table we are doing a compaction cycle for
     table_name: &'compactor str,
+    /// The current file id to use for this file we are compacting into
+    current_file_id: ParquetFileId,
+    /// What time we started the compaction cycle at
     compaction_time: DateTime<Utc>,
+    /// What columns we are indexing on for the `FileIndex`
+    index_columns: Vec<Arc<str>>,
+    /// The `FileIndex` for this table that we are compacting
+    file_index: FileIndex,
+    /// Min time for the current file
+    min_time: i64,
+    /// Max time for the current file
+    max_time: i64,
 }
 
 impl<'compactor> SeriesWriter<'compactor> {
@@ -299,6 +337,7 @@ impl<'compactor> SeriesWriter<'compactor> {
         compaction_seq: &'compactor mut u64,
         db_name: &'compactor str,
         table_name: &'compactor str,
+        index_columns: Vec<String>,
     ) -> Self {
         Self {
             record_batches: RecordBatchHolder::new(stream, Arc::clone(&table_schema)),
@@ -308,37 +347,57 @@ impl<'compactor> SeriesWriter<'compactor> {
             writer: None,
             sort_keys,
             output_paths: Vec::new(),
+            file_metadata: Vec::new(),
             compactor_id,
             host,
             generation,
             compaction_seq,
             db_name,
             table_name,
+            current_file_id: ParquetFileId::new(),
             compaction_time: SystemTime::now().into(),
+            index_columns: index_columns.into_iter().map(Into::into).collect(),
+            file_index: FileIndex::new(),
+            min_time: i64::MAX,
+            max_time: i64::MIN,
         }
     }
 
     /// Close out any leftover writers and return the paths
-    async fn finish(mut self) -> Result<Vec<ObjPath>, CompactorError> {
+    async fn finish(mut self) -> Result<CompactorOutput, CompactorError> {
         // close the remaining writer, if any
         if let Some(writer) = self.writer.take() {
-            writer
-                .close()
-                .await
-                .map_err(CompactorError::CloseArrowWriter)?;
+            self.close(writer).await?;
         }
 
         // This should never happen, but if it is we should throw an error
         if self.output_paths.is_empty() {
             Err(CompactorError::NoCompactedFiles)
         } else {
-            Ok(self.output_paths)
+            Ok(CompactorOutput {
+                output_paths: self.output_paths,
+                file_index: self.file_index,
+                file_metadata: self.file_metadata,
+            })
         }
     }
 
     /// Push a new batch of data into the writer
     async fn push_batch(&mut self, batch: RecordBatch) -> Result<(), CompactorError> {
         let mut writer = self.get_writer().await?;
+        let time = batch
+            .column_by_name(TIME_COLUMN_NAME)
+            .expect("RecordBatch has a time column");
+        let min =
+            arrow::compute::min(time.as_primitive::<TimestampNanosecondType>()).unwrap_or(i64::MAX);
+        let max =
+            arrow::compute::max(time.as_primitive::<TimestampNanosecondType>()).unwrap_or(i64::MIN);
+        if self.min_time > min {
+            self.min_time = min;
+        }
+        if self.max_time < max {
+            self.max_time = max
+        }
 
         // if there is space remaining within the limit for this writer, write the whole batch.
         if writer.in_progress_rows() + batch.num_rows() <= self.limit {
@@ -346,6 +405,7 @@ impl<'compactor> SeriesWriter<'compactor> {
                 .write(&batch)
                 .await
                 .map_err(CompactorError::WriteArrowWriter)?;
+            self.index_record_batch(&batch)?;
             self.last_batch = Some(batch);
             self.writer = Some(writer);
             return Ok(());
@@ -387,6 +447,7 @@ impl<'compactor> SeriesWriter<'compactor> {
                     .write(&batch)
                     .await
                     .map_err(CompactorError::WriteArrowWriter)?;
+                self.index_record_batch(&batch)?;
                 self.last_batch = Some(batch);
                 self.writer = Some(writer);
                 return Ok(());
@@ -397,10 +458,7 @@ impl<'compactor> SeriesWriter<'compactor> {
             1 if !same_series => {
                 self.set_leftover_batch(batch);
                 if writer.in_progress_rows() >= self.limit {
-                    writer
-                        .close()
-                        .await
-                        .map_err(CompactorError::CloseArrowWriter)?;
+                    self.close(writer).await?;
                     return Ok(());
                 }
                 self.last_batch = None;
@@ -417,6 +475,7 @@ impl<'compactor> SeriesWriter<'compactor> {
                     .await
                     .map_err(CompactorError::WriteArrowWriter)?;
 
+                self.index_record_batch(&slice)?;
                 self.last_batch = Some(slice);
 
                 let batch_slice = batch.slice(len, batch.num_rows() - len);
@@ -425,10 +484,7 @@ impl<'compactor> SeriesWriter<'compactor> {
                 }
 
                 if writer.in_progress_rows() + next_len > self.limit {
-                    writer
-                        .close()
-                        .await
-                        .map_err(CompactorError::CloseArrowWriter)?;
+                    self.close(writer).await?;
                     return Ok(());
                 }
 
@@ -450,6 +506,7 @@ impl<'compactor> SeriesWriter<'compactor> {
         match self.writer.take() {
             Some(writer) => Ok(writer),
             None => {
+                self.current_file_id = ParquetFileId::new();
                 let path = ObjPath::from(format!(
                     "{}/c/{}/{}/{}/{}-{}-{}/{}-{}/f/{}.{}.{}.parquet",
                     self.compactor_id,
@@ -462,7 +519,7 @@ impl<'compactor> SeriesWriter<'compactor> {
                     self.compaction_time.hour(),
                     self.compaction_time.minute(),
                     self.compaction_seq,
-                    ParquetFileId::new().as_u64(),
+                    self.current_file_id.as_u64(),
                     self.host
                 ));
                 let obj_store_multipart = self
@@ -477,6 +534,8 @@ impl<'compactor> SeriesWriter<'compactor> {
                 )
                 .map_err(CompactorError::NewArrowWriter)?;
                 self.output_paths.push(path.clone());
+                self.min_time = i64::MAX;
+                self.max_time = i64::MIN;
                 Ok(writer)
             }
         }
@@ -504,6 +563,59 @@ impl<'compactor> SeriesWriter<'compactor> {
     /// Sets the leftover record batch in the `RecordBatchHolder`
     fn set_leftover_batch(&mut self, batch: RecordBatch) {
         self.record_batches.leftover_batch = Some(batch)
+    }
+
+    /// Index a record batch for the current output file
+    fn index_record_batch(&mut self, batch: &RecordBatch) -> Result<(), CompactorError> {
+        for column_name in self.index_columns.iter() {
+            let array = batch.column_by_name(column_name).unwrap();
+            // If the cast fails use null for the value. We might lose out on the indexing,
+            // but this way we can handle most things
+            let casted = cast_with_options(
+                &array,
+                &DataType::LargeUtf8,
+                &CastOptions {
+                    safe: true,
+                    format_options: FormatOptions::new().with_null("null"),
+                },
+            )
+            .map_err(CompactorError::CastError)?;
+            let downcasted = as_largestring_array(&casted);
+            for string in downcasted.iter().map(|s| s.unwrap_or("null")) {
+                let value: Arc<str> = string.into();
+                self.file_index
+                    .insert(Arc::clone(column_name), value, &self.current_file_id);
+            }
+        }
+        Ok(())
+    }
+
+    async fn close(
+        &mut self,
+        mut writer: AsyncArrowWriter<AsyncMultiPart>,
+    ) -> Result<(), CompactorError> {
+        writer
+            .flush()
+            .await
+            .map_err(CompactorError::FlushArrowWriter)?;
+
+        let size_bytes = writer.bytes_written() as u64;
+        let metadata = writer
+            .close()
+            .await
+            .map_err(CompactorError::CloseArrowWriter)?;
+        self.file_metadata.push(ParquetFile {
+            id: self.current_file_id,
+            path: self.output_paths.last().unwrap().to_string(),
+            size_bytes,
+            // i64 to u64 cast
+            row_count: metadata.num_rows as u64,
+            chunk_time: self.min_time,
+            min_time: self.min_time,
+            max_time: self.max_time,
+        });
+
+        Ok(())
     }
 }
 
