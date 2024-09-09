@@ -1281,7 +1281,7 @@ func TestServer_Query_MaxSelectSeriesN(t *testing.T) {
 
 	test.addQueries([]*Query{
 		&Query{
-			name:    "exceeed max series",
+			name:    "exceeded max series",
 			command: `SELECT COUNT(value) FROM db0.rp0.cpu`,
 			exp:     `{"results":[{"statement_id":0,"error":"max-select-series limit exceeded: (4/3)"}]}`,
 		},
