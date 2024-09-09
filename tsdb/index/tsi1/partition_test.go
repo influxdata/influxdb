@@ -74,9 +74,11 @@ func TestPartition_Open(t *testing.T) {
 func TestPartition_Manifest(t *testing.T) {
 	t.Run("current MANIFEST", func(t *testing.T) {
 		sfile := MustOpenSeriesFile()
-		defer sfile.Close()
+		t.Cleanup(func() { sfile.Close() })
 
 		p := MustOpenPartition(sfile.SeriesFile)
+		t.Cleanup(func() { p.Close() })
+
 		if got, exp := p.Manifest().Version, tsi1.Version; got != exp {
 			t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
 		}
@@ -98,14 +100,14 @@ func TestPartition_Manifest_Write_Fail(t *testing.T) {
 func TestPartition_PrependLogFile_Write_Fail(t *testing.T) {
 	t.Run("write MANIFEST", func(t *testing.T) {
 		sfile := MustOpenSeriesFile()
-		defer sfile.Close()
+		t.Cleanup(func() { sfile.Close() })
 
 		p := MustOpenPartition(sfile.SeriesFile)
-		defer func() {
+		t.Cleanup(func() {
 			if err := p.Close(); err != nil {
 				t.Fatalf("error closing partition: %v", err)
 			}
-		}()
+		})
 		p.Partition.MaxLogFileSize = -1
 		fileN := p.FileN()
 		p.CheckLogFile()
@@ -123,16 +125,18 @@ func TestPartition_PrependLogFile_Write_Fail(t *testing.T) {
 
 func TestPartition_Compact_Write_Fail(t *testing.T) {
 	t.Run("write MANIFEST", func(t *testing.T) {
-		sfile := MustOpenSeriesFile()
-		defer sfile.Close()
+		sfile := MustOpenSeriesFile(t)
+		t.Cleanup(func() { sfile.Close() })
 
-		p := MustOpenPartition(sfile.SeriesFile)
-		defer func() {
+		p := MustOpenPartition(t, sfile.SeriesFile)
+		t.Cleanup(func() {
 			if err := p.Close(); err != nil {
 				t.Fatalf("error closing partition: %v", err)
 			}
-		}()
+		})
+		p.Partition.Mu.Lock()
 		p.Partition.MaxLogFileSize = -1
+		p.Partition.Mu.Unlock()
 		fileN := p.FileN()
 		p.Compact()
 		if (1 + fileN) != p.FileN() {
