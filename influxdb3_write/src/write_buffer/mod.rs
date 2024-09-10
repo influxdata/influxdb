@@ -909,7 +909,7 @@ mod tests {
             "+-----+----------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
-        assert_batches_eq!(&expected, &actual);
+        assert_batches_sorted_eq!(&expected, &actual);
 
         let _ = write_buffer
             .write_lp(
@@ -931,7 +931,7 @@ mod tests {
             "+-----+----------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
-        assert_batches_eq!(&expected, &actual);
+        assert_batches_sorted_eq!(&expected, &actual);
 
         // trigger snapshot with a third write, creating parquet files
         let _ = write_buffer
@@ -971,7 +971,7 @@ mod tests {
             "+-----+----------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
-        assert_batches_eq!(&expected, &actual);
+        assert_batches_sorted_eq!(&expected, &actual);
 
         // now validate that buffered data and parquet data are all returned
         let _ = write_buffer
@@ -996,10 +996,10 @@ mod tests {
             "+-----+----------------------+",
         ];
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
-        assert_batches_eq!(&expected, &actual);
+        assert_batches_sorted_eq!(&expected, &actual);
 
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
-        assert_batches_eq!(&expected, &actual);
+        assert_batches_sorted_eq!(&expected, &actual);
 
         // and now replay in a new write buffer and attempt to write
         let (last_cache, catalog) = write_buffer
@@ -1032,7 +1032,7 @@ mod tests {
 
         // verify the data is still there
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &ctx).await;
-        assert_batches_eq!(&expected, &actual);
+        assert_batches_sorted_eq!(&expected, &actual);
 
         // now write some new data
         let _ = write_buffer

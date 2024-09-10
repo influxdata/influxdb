@@ -62,6 +62,46 @@ impl TableBuffer {
         buffer_chunk.add_rows(rows);
     }
 
+    /// Produce a partitioned set of record batches along with their min/max timestamp
+    ///
+    /// The partitions are stored and returned in a `HashMap`, keyed on the generation time.
+    pub fn partitioned_record_batches(
+        &self,
+        schema: SchemaRef,
+        filter: &[Expr],
+    ) -> Result<HashMap<i64, (TimestampMinMax, Vec<RecordBatch>)>> {
+        let mut batches = HashMap::new();
+        for sc in &self.snapshotting_chunks {
+            let cols: std::result::Result<Vec<_>, _> = schema
+                .fields()
+                .iter()
+                .map(|f| {
+                    let col = sc
+                        .record_batch
+                        .column_by_name(f.name())
+                        .ok_or(Error::FieldNotFound(f.name().to_string()));
+                    col.cloned()
+                })
+                .collect();
+            let cols = cols?;
+            let rb = RecordBatch::try_new(schema.clone(), cols)?;
+            let (ts, v) = batches
+                .entry(sc.chunk_time)
+                .or_insert_with(|| (sc.timestamp_min_max, Vec::new()));
+            *ts = ts.union(&sc.timestamp_min_max);
+            v.push(rb);
+        }
+        for (t, c) in &self.chunk_time_to_chunks {
+            let ts_min_max = TimestampMinMax::new(c.timestamp_min, c.timestamp_max);
+            let (ts, v) = batches
+                .entry(*t)
+                .or_insert_with(|| (ts_min_max, Vec::new()));
+            *ts = ts.union(&ts_min_max);
+            v.push(c.record_batch(schema.clone(), filter)?);
+        }
+        Ok(batches)
+    }
+
     pub fn record_batches(&self, schema: SchemaRef, filter: &[Expr]) -> Result<Vec<RecordBatch>> {
         let mut batches =
             Vec::with_capacity(self.snapshotting_chunks.len() + self.chunk_time_to_chunks.len());
@@ -648,10 +688,96 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_util::assert_batches_eq;
+    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use datafusion::common::Column;
     use influxdb3_wal::Field;
     use schema::{InfluxFieldType, SchemaBuilder};
+
+    #[test]
+    fn partitioned_table_buffer_batches() {
+        let mut table_buffer = TableBuffer::new(&["tag"], SortKey::empty());
+        let schema = SchemaBuilder::with_capacity(3)
+            .tag("tag")
+            .influx_field("val", InfluxFieldType::String)
+            .timestamp()
+            .build()
+            .unwrap();
+
+        for t in 0..10 {
+            let offset = t * 10;
+            let rows = vec![
+                Row {
+                    time: offset + 1,
+                    fields: vec![
+                        Field {
+                            name: "tag".into(),
+                            value: FieldData::Tag("a".to_string()),
+                        },
+                        Field {
+                            name: "val".into(),
+                            value: FieldData::String(format!("thing {t}-1")),
+                        },
+                        Field {
+                            name: "time".into(),
+                            value: FieldData::Timestamp(offset + 1),
+                        },
+                    ],
+                },
+                Row {
+                    time: offset + 2,
+                    fields: vec![
+                        Field {
+                            name: "tag".into(),
+                            value: FieldData::Tag("b".to_string()),
+                        },
+                        Field {
+                            name: "val".into(),
+                            value: FieldData::String(format!("thing {t}-2")),
+                        },
+                        Field {
+                            name: "time".into(),
+                            value: FieldData::Timestamp(offset + 2),
+                        },
+                    ],
+                },
+            ];
+
+            table_buffer.buffer_chunk(offset, rows);
+        }
+
+        let partitioned_batches = table_buffer
+            .partitioned_record_batches(schema.as_arrow(), &[])
+            .unwrap();
+
+        println!("{partitioned_batches:#?}");
+
+        assert_eq!(10, partitioned_batches.len());
+
+        for t in 0..10 {
+            let offset = t * 10;
+            let (ts_min_max, batches) = partitioned_batches.get(&offset).unwrap();
+            assert_eq!(TimestampMinMax::new(offset + 1, offset + 2), *ts_min_max);
+            assert_batches_sorted_eq!(
+                [
+                    "+-----+-----------+--------------------------------+",
+                    "| tag | val       | time                           |",
+                    "+-----+-----------+--------------------------------+",
+                    format!(
+                        "| a   | thing {t}-1 | 1970-01-01T00:00:00.{:0>9}Z |",
+                        offset + 1
+                    )
+                    .as_str(),
+                    format!(
+                        "| b   | thing {t}-2 | 1970-01-01T00:00:00.{:0>9}Z |",
+                        offset + 2
+                    )
+                    .as_str(),
+                    "+-----+-----------+--------------------------------+",
+                ],
+                batches
+            );
+        }
+    }
 
     #[test]
     fn tag_row_index() {
