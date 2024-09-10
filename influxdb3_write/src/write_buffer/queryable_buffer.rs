@@ -77,51 +77,41 @@ impl QueryableBuffer {
         let schema = table.schema.clone();
         let arrow_schema = schema.as_arrow();
 
-        let mut chunks: Vec<Arc<dyn QueryChunk>> = vec![];
-
         let buffer = self.buffer.read();
 
         let Some(db_buffer) = buffer.db_to_table.get(db_schema.name.as_ref()) else {
-            return Ok(chunks);
+            return Ok(vec![]);
         };
         let Some(table_buffer) = db_buffer.get(table_name) else {
-            return Ok(chunks);
+            return Ok(vec![]);
         };
 
-        let batches = table_buffer
-            .record_batches(Arc::clone(&arrow_schema), filters)
-            .map_err(|e| DataFusionError::Execution(format!("error getting batches {}", e)))?;
-
-        let timestamp_min_max = table_buffer.timestamp_min_max();
-
-        let row_count = batches.iter().map(|batch| batch.num_rows()).sum::<usize>();
-
-        let chunk_stats = create_chunk_statistics(
-            Some(row_count),
-            &schema,
-            Some(timestamp_min_max),
-            &NoColumnRanges,
-        );
-
-        chunks.push(Arc::new(BufferChunk {
-            batches,
-            schema: schema.clone(),
-            stats: Arc::new(chunk_stats),
-            partition_id: TransitionPartitionId::new(
-                TableId::new(0),
-                &PartitionKey::from("buffer_partition"),
-            ),
-            sort_key: None,
-            id: ChunkId::new(),
-            chunk_order: ChunkOrder::new(
-                chunks
-                    .len()
-                    .try_into()
-                    .expect("should never have this many chunks"),
-            ),
-        }));
-
-        Ok(chunks)
+        Ok(table_buffer
+            .partitioned_record_batches(Arc::clone(&arrow_schema), filters)
+            .map_err(|e| DataFusionError::Execution(format!("error getting batches {}", e)))?
+            .into_iter()
+            .map(|(gen_time, (ts_min_max, batches))| {
+                let row_count = batches.iter().map(|b| b.num_rows()).sum::<usize>();
+                let chunk_stats = create_chunk_statistics(
+                    Some(row_count),
+                    &schema,
+                    Some(ts_min_max),
+                    &NoColumnRanges,
+                );
+                Arc::new(BufferChunk {
+                    batches,
+                    schema: schema.clone(),
+                    stats: Arc::new(chunk_stats),
+                    partition_id: TransitionPartitionId::new(
+                        TableId::new(0),
+                        &PartitionKey::from(gen_time.to_string()),
+                    ),
+                    sort_key: None,
+                    id: ChunkId::new(),
+                    chunk_order: ChunkOrder::new(i64::MAX),
+                }) as Arc<dyn QueryChunk>
+            })
+            .collect())
     }
 
     /// Called when the wal has persisted a new file. Buffer the contents in memory and update the last cache so the data is queryable.
