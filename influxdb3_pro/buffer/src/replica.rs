@@ -69,13 +69,14 @@ impl Replicas {
         hosts: Vec<String>,
     ) -> Result<Self> {
         let mut handles = vec![];
-        for host in hosts {
+        for (i, host) in hosts.into_iter().enumerate() {
             let object_store = Arc::clone(&object_store);
             let catalog = Arc::clone(&catalog);
             let last_cache = Arc::clone(&last_cache);
             let handle = tokio::spawn(async move {
                 info!(%host, "replicating host");
                 ReplicatedBuffer::new(
+                    i as i64,
                     object_store,
                     host,
                     catalog,
@@ -124,8 +125,6 @@ impl Replicas {
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         let mut chunks = vec![];
         for replica in &self.replicas {
-            // TODO: can we set the priority here based on the host order, i.e, by setting the
-            // ChunkOrder on produced chunks from each replica...
             chunks.append(&mut replica.get_table_chunks(
                 database_name,
                 table_name,
@@ -140,6 +139,7 @@ impl Replicas {
 
 #[derive(Debug)]
 pub(crate) struct ReplicatedBuffer {
+    replica_order: i64,
     object_store_url: ObjectStoreUrl,
     object_store: Arc<dyn ObjectStore>,
     host_identifier_prefix: String,
@@ -152,6 +152,7 @@ pub(crate) struct ReplicatedBuffer {
 
 impl ReplicatedBuffer {
     pub(crate) async fn new(
+        replica_order: i64,
         object_store: Arc<dyn ObjectStore>,
         host_identifier_prefix: String,
         catalog: Arc<Catalog>,
@@ -171,6 +172,7 @@ impl ReplicatedBuffer {
             ))
         };
         let replicated_buffer = Self {
+            replica_order,
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             object_store,
             host_identifier_prefix,
@@ -199,8 +201,6 @@ impl ReplicatedBuffer {
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
-        let mut chunks: Vec<Arc<dyn QueryChunk>> = vec![];
-
         // Get DB/table schema from the catalog:
         let db_schema = self
             .catalog
@@ -213,11 +213,8 @@ impl ReplicatedBuffer {
         let schema = table_schema.schema().clone();
 
         // Get chunks from the in-memory buffer:
-        if let Some(chunk) =
-            self.get_buffer_table_chunks(database_name, table_name, filters, schema.clone())?
-        {
-            chunks.push(chunk);
-        }
+        let mut chunks =
+            self.get_buffer_table_chunks(database_name, table_name, filters, schema.clone())?;
 
         // Get parquet chunks:
         let parquet_files = self.persisted_files.get_files(database_name, table_name);
@@ -248,39 +245,50 @@ impl ReplicatedBuffer {
         table_name: &str,
         filters: &[Expr],
         schema: Schema,
-    ) -> Result<Option<Arc<dyn QueryChunk>>> {
+    ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         let buffer = self.buffer.read();
         let Some(db_buffer) = buffer.db_to_table.get(database_name) else {
-            return Ok(None);
+            return Ok(vec![]);
         };
         let Some(table_buffer) = db_buffer.get(table_name) else {
-            return Ok(None);
+            return Ok(vec![]);
         };
-        let batches = table_buffer
-            .record_batches(schema.as_arrow(), filters)
-            .context("error getting record batches from replicated buffer")?;
-        let timestamp_min_max = table_buffer.timestamp_min_max();
-        let row_count = batches.iter().map(|batch| batch.num_rows()).sum::<usize>();
-        let chunk_stats = create_chunk_statistics(
-            Some(row_count),
-            &schema,
-            Some(timestamp_min_max),
-            &NoColumnRanges,
-        );
-        Ok(Some(Arc::new(BufferChunk {
-            batches,
-            schema,
-            stats: Arc::new(chunk_stats),
-            // TODO: I have no idea if this is right at the moment:
-            partition_id: TransitionPartitionId::new(
-                TableId::new(0),
-                &PartitionKey::from("buffer_partition"),
-            ),
-            sort_key: None,
-            id: ChunkId::new(),
-            // TODO: this should probably come from the replica host order:
-            chunk_order: ChunkOrder::new(i64::MAX),
-        })))
+        Ok(table_buffer
+            .partitioned_record_batches(schema.as_arrow(), filters)
+            .context("error getting partitioned batches from table buffer")?
+            .into_iter()
+            .map(|(gen_time, (ts_min_max, batches))| {
+                let row_count = batches.iter().map(|b| b.num_rows()).sum::<usize>();
+                let chunk_stats = create_chunk_statistics(
+                    Some(row_count),
+                    &schema,
+                    Some(ts_min_max),
+                    &NoColumnRanges,
+                );
+                Arc::new(BufferChunk {
+                    batches,
+                    schema: schema.clone(),
+                    stats: Arc::new(chunk_stats),
+                    partition_id: TransitionPartitionId::new(
+                        TableId::new(0),
+                        &PartitionKey::from(gen_time.to_string()),
+                    ),
+                    sort_key: None,
+                    id: ChunkId::new(),
+                    chunk_order: self.chunk_order(),
+                }) as Arc<dyn QueryChunk>
+            })
+            .collect())
+    }
+
+    /// Get the `ChunkOrder` for this replica
+    ///
+    /// Uses the replica's `replica_order` to determine which replica wins in the event of a dedup.
+    /// Replicas with lower order win, therefore, those listed first will take precedence.
+    fn chunk_order(&self) -> ChunkOrder {
+        // subtract an additional 1, as primary buffer chunks will use i64::MAX, so this should
+        // be at most i64::MAX - 1
+        ChunkOrder::new(i64::MAX - self.replica_order - 1)
     }
 
     async fn replay(&self) -> Result<()> {
@@ -448,8 +456,14 @@ fn background_replication_interval(
                         }
                     }
                 }
-            } else if let Err(error) = replicated_buffer.replay().await {
-                error!(%error, "failed to replay replicated buffer on replication interval");
+            } else {
+                // If we don't have a last WAL file, we don't know what WAL number to fetch yet, so
+                // need to rely on replay to get that. In this case, we need to drop the lock to
+                // prevent a deadlock:
+                drop(last_wal_number);
+                if let Err(error) = replicated_buffer.replay().await {
+                    error!(%error, "failed to replay replicated buffer on replication interval");
+                }
             }
         }
     })
@@ -457,17 +471,18 @@ fn background_replication_interval(
 
 #[cfg(test)]
 mod tests {
-    use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+    use std::{collections::HashMap, num::NonZeroUsize, sync::Arc, time::Duration};
 
     use data_types::NamespaceName;
     use datafusion::{
         arrow::array::RecordBatch, assert_batches_sorted_eq, execution::context::SessionContext,
     };
     use datafusion_util::config::register_iox_object_store;
+    use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::{Level0Duration, WalConfig};
     use influxdb3_write::{
-        persister::Persister, write_buffer::WriteBufferImpl, ChunkContainer, LastCacheManager,
-        Precision, WriteBuffer,
+        last_cache::LastCacheProvider, persister::Persister, write_buffer::WriteBufferImpl,
+        ChunkContainer, LastCacheManager, Precision, WriteBuffer,
     };
     use iox_query::{
         exec::{DedicatedExecutor, Executor, ExecutorConfig, IOxSessionContext},
@@ -476,9 +491,8 @@ mod tests {
     use iox_time::{MockProvider, Time, TimeProvider};
     use object_store::{memory::InMemory, ObjectStore};
     use parquet_file::storage::{ParquetStorage, StorageId};
-    use schema::Schema;
 
-    use crate::replica::ReplicatedBuffer;
+    use crate::replica::{Replicas, ReplicatedBuffer};
 
     #[tokio::test]
     async fn replay_and_replicate_other_wal() {
@@ -533,6 +547,7 @@ mod tests {
 
         // Spin up a replicated buffer:
         let replica = ReplicatedBuffer::new(
+            0,
             Arc::clone(&obj_store),
             primary_id.to_string(),
             primary.catalog(),
@@ -547,11 +562,7 @@ mod tests {
             let chunks = replica
                 .get_table_chunks(db_name, tbl_name, &[], None, &ctx.inner().state())
                 .unwrap();
-            let schema = {
-                let db_schema = replica.catalog.db_schema(db_name).unwrap();
-                db_schema.get_table_schema(tbl_name).unwrap().clone()
-            };
-            let batches = chunks_to_record_batches(chunks, &schema, ctx.inner()).await;
+            let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
             assert_batches_sorted_eq!(
                 [
                     "+-----------+-------+---------------------+-------+",
@@ -595,11 +606,7 @@ mod tests {
             let chunks = primary
                 .get_table_chunks(db_name, tbl_name, &[], None, &ctx.inner().state())
                 .unwrap();
-            let schema = {
-                let db_schema = replica.catalog.db_schema(db_name).unwrap();
-                db_schema.get_table_schema(tbl_name).unwrap().clone()
-            };
-            let batches = chunks_to_record_batches(chunks, &schema, ctx.inner()).await;
+            let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
             assert_batches_sorted_eq!(
                 [
                     "+-----------+-------+---------------------+-------+",
@@ -622,11 +629,7 @@ mod tests {
             let chunks = replica
                 .get_table_chunks(db_name, tbl_name, &[], None, &ctx.inner().state())
                 .unwrap();
-            let schema = {
-                let db_schema = replica.catalog.db_schema(db_name).unwrap();
-                db_schema.get_table_schema(tbl_name).unwrap().clone()
-            };
-            let batches = chunks_to_record_batches(chunks, &schema, ctx.inner()).await;
+            let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
             assert_batches_sorted_eq!(
                 [
                     "+-----------+-------+---------------------+-------+",
@@ -645,29 +648,141 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn multi_replicated_buffers_with_overlap() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        // Create a session context:
+        // Since we are using the same object store accross primary and replica in this test, we
+        // only need one context
+        let ctx = IOxSessionContext::with_testing();
+        let runtime_env = ctx.inner().runtime_env();
+        register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&obj_store));
+        // Spin up two primary write buffers to do some writes and generate files in an object store:
+        let primary_ids = ["spock", "tuvok"];
+        let mut primaries = HashMap::new();
+        for p in primary_ids {
+            let primary = setup_primary(
+                p,
+                Arc::clone(&obj_store),
+                WalConfig {
+                    level_0_duration: Level0Duration::new_1m(),
+                    max_write_buffer_size: 100,
+                    flush_interval: Duration::from_millis(10),
+                    snapshot_size: 1_000,
+                },
+                Time::from_timestamp_nanos(0),
+            )
+            .await;
+            primaries.insert(p, primary);
+        }
+        // Spin up a set of replicated buffers:
+        let replicas = Replicas::new(
+            Arc::new(Catalog::new()),
+            Arc::new(LastCacheProvider::new()),
+            Arc::clone(&obj_store),
+            Duration::from_millis(10),
+            primary_ids.iter().map(|s| s.to_string()).collect(),
+        )
+        .await
+        .unwrap();
+        // write to spock:
+        do_writes(
+            "foo",
+            &primaries["spock"],
+            &[
+                TestWrite {
+                    time_seconds: 1,
+                    lp: "bar,tag=a val=false",
+                },
+                TestWrite {
+                    time_seconds: 2,
+                    lp: "bar,tag=a val=false",
+                },
+                TestWrite {
+                    time_seconds: 3,
+                    lp: "bar,tag=a val=false",
+                },
+            ],
+        )
+        .await;
+        // write to tuvok, with values flipped to true:
+        do_writes(
+            "foo",
+            &primaries["tuvok"],
+            &[
+                TestWrite {
+                    time_seconds: 1,
+                    lp: "bar,tag=a val=true",
+                },
+                TestWrite {
+                    time_seconds: 2,
+                    lp: "bar,tag=a val=true",
+                },
+                TestWrite {
+                    time_seconds: 3,
+                    lp: "bar,tag=a val=true",
+                },
+            ],
+        )
+        .await;
+
+        // sleep for replicas to replicate:
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let chunks = replicas
+            .get_table_chunks("foo", "bar", &[], None, &ctx.inner().state())
+            .unwrap();
+        // there are only two chunks because all data falls in a single gen time block for each
+        // respective buffer:
+        assert_eq!(2, chunks.len());
+        // the first chunk will be from spock, so should have a higher chunk order than tuvok:
+        assert!(chunks[0].order() > chunks[1].order());
+        // convert the chunks from both replicas as batches; the duplicates appear here, i.e.,
+        // the deduplication happens elsewhere:
+        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-----+---------------------+-------+",
+                "| tag | time                | val   |",
+                "+-----+---------------------+-------+",
+                "| a   | 1970-01-01T00:00:01 | false |",
+                "| a   | 1970-01-01T00:00:01 | true  |",
+                "| a   | 1970-01-01T00:00:02 | false |",
+                "| a   | 1970-01-01T00:00:02 | true  |",
+                "| a   | 1970-01-01T00:00:03 | false |",
+                "| a   | 1970-01-01T00:00:03 | true  |",
+                "+-----+---------------------+-------+",
+            ],
+            &batches
+        );
+    }
+
     async fn chunks_to_record_batches(
         chunks: Vec<Arc<dyn QueryChunk>>,
-        schema: &Schema,
         ctx: &SessionContext,
     ) -> Vec<RecordBatch> {
         let mut batches = vec![];
         for chunk in chunks {
-            batches.append(&mut chunk.data().read_to_batches(schema, ctx).await);
+            batches.append(&mut chunk.data().read_to_batches(chunk.schema(), ctx).await);
         }
         batches
     }
 
-    struct TestWrite {
-        lp: String,
+    struct TestWrite<LP> {
+        lp: LP,
         time_seconds: i64,
     }
 
-    async fn do_writes(db: &'static str, buffer: &impl WriteBuffer, writes: &[TestWrite]) {
+    async fn do_writes<LP: AsRef<str> + Send + Sync>(
+        db: &'static str,
+        buffer: &impl WriteBuffer,
+        writes: &[TestWrite<LP>],
+    ) {
         for w in writes {
             buffer
                 .write_lp(
                     NamespaceName::new(db).unwrap(),
-                    w.lp.as_str(),
+                    w.lp.as_ref(),
                     Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
                     false,
                     Precision::Nanosecond,
