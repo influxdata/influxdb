@@ -59,6 +59,8 @@ use std::time::SystemTime;
 use tokio::time::sleep;
 use tokio::time::Duration;
 
+pub mod planner;
+
 #[derive(Debug, thiserror::Error)]
 pub enum CompactorError {
     #[error("The db to be compacted does not exist")]

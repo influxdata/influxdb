@@ -2727,13 +2727,16 @@ dependencies = [
  "arrow",
  "arrow-schema",
  "arrow_util",
+ "async-trait",
  "bytes",
  "chrono",
  "data_types",
  "datafusion",
  "executor",
  "futures-util",
+ "hashbrown 0.14.5",
  "influxdb3_catalog",
+ "influxdb3_pro_data_layout",
  "influxdb3_pro_index",
  "influxdb3_wal",
  "influxdb3_write",
@@ -2742,6 +2745,8 @@ dependencies = [
  "iox_time",
  "metric",
  "object_store",
+ "observability_deps",
+ "parking_lot",
  "parquet",
  "parquet_file",
  "pretty_assertions",
@@ -2749,6 +2754,21 @@ dependencies = [
  "test_helpers",
  "thiserror",
  "tokio",
+]
+
+[[package]]
+name = "influxdb3_pro_data_layout"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "hashbrown 0.14.5",
+ "influxdb3_wal",
+ "influxdb3_write",
+ "object_store",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

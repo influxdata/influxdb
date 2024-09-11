@@ -1,0 +1,23 @@
+[package]
+name = "influxdb3_pro_data_layout"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# local deps
+influxdb3_wal = { path = "../../influxdb3_wal" }
+influxdb3_write = { path = "../../influxdb3_write" }
+
+# crates.io dependencies
+async-trait.workspace = true
+chrono.workspace = true
+hashbrown.workspace = true
+object_store.workspace = true
+serde.workspace =  true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
