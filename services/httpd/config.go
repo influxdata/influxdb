@@ -108,6 +108,7 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 		"max-row-limit":        c.MaxRowLimit,
 		"max-connection-limit": c.MaxConnectionLimit,
 		"access-log-path":      c.AccessLogPath,
+		"flux-enabled":         c.FluxEnabled,
 	}), nil
 }
 
