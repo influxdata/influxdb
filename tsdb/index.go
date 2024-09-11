@@ -3253,7 +3253,7 @@ func NewIndex(id uint64, database, path string, seriesIDSet *SeriesIDSet, sfile 
 	if os.IsNotExist(err) {
 		// nop, use default
 	} else if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("NewIndex: %w", err)
 	} else if err == nil {
 		format = TSI1IndexName
 	}
@@ -3261,7 +3261,7 @@ func NewIndex(id uint64, database, path string, seriesIDSet *SeriesIDSet, sfile 
 	// Lookup index by format.
 	fn := newIndexFuncs[format]
 	if fn == nil {
-		return nil, fmt.Errorf("invalid index format: %q", format)
+		return nil, fmt.Errorf("NewIndex: invalid index format for %q: %q", path, format)
 	}
 	return fn(id, database, path, seriesIDSet, sfile, options), nil
 }

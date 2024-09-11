@@ -134,6 +134,8 @@ func NewEngine(id uint64, i Index, path string, walPath string, sfile *SeriesFil
 			options.OnNewEngine(engine)
 		}
 		return engine, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("NewEngine: error getting file stats: %w", err)
 	}
 
 	// If it's a dir then it's a tsm1 engine
@@ -141,7 +143,7 @@ func NewEngine(id uint64, i Index, path string, walPath string, sfile *SeriesFil
 	if fi, err := os.Stat(path); err != nil {
 		return nil, err
 	} else if !fi.Mode().IsDir() {
-		return nil, ErrUnknownEngineFormat
+		return nil, fmt.Errorf("NewEngine: error opening %q: %w", path, ErrUnknownEngineFormat)
 	} else {
 		format = "tsm1"
 	}
@@ -149,7 +151,7 @@ func NewEngine(id uint64, i Index, path string, walPath string, sfile *SeriesFil
 	// Lookup engine by format.
 	fn := newEngineFuncs[format]
 	if fn == nil {
-		return nil, fmt.Errorf("invalid engine format: %q", format)
+		return nil, fmt.Errorf("NewEngine: invalid engine format for %q: %q", path, format)
 	}
 
 	engine := fn(id, i, path, walPath, sfile, options)

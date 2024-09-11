@@ -750,9 +750,10 @@ func (e *Engine) Open() error {
 		return err
 	}
 
-	fields, err := tsdb.NewMeasurementFieldSet(filepath.Join(e.path, "fields.idx"), e.logger)
+	fieldPath := filepath.Join(e.path, "fields.idx")
+	fields, err := tsdb.NewMeasurementFieldSet(fieldPath, e.logger)
 	if err != nil {
-		e.logger.Warn(fmt.Sprintf("error opening fields.idx: %v.  Rebuilding.", err))
+		e.logger.Warn("error opening fields.idx: Rebuilding.", zap.String("path", fieldPath), zap.Error(err))
 	}
 
 	e.mu.Lock()
@@ -2402,7 +2403,7 @@ func (e *Engine) reloadCache() error {
 	now := time.Now()
 	files, err := segmentFileNames(e.WAL.Path())
 	if err != nil {
-		return err
+		return fmt.Errorf("Engine.reloadCache: %w", err)
 	}
 
 	limit := e.Cache.MaxSize()
@@ -2431,7 +2432,7 @@ func (e *Engine) cleanup() error {
 	if os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
-		return err
+		return fmt.Errorf("Engine.cleanup: %w", err)
 	}
 
 	ext := fmt.Sprintf(".%s", TmpTSMFileExtension)
@@ -2439,7 +2440,7 @@ func (e *Engine) cleanup() error {
 		// Check to see if there are any `.tmp` directories that were left over from failed shard snapshots
 		if f.IsDir() && strings.HasSuffix(f.Name(), ext) {
 			if err := os.RemoveAll(filepath.Join(e.path, f.Name())); err != nil {
-				return fmt.Errorf("error removing tmp snapshot directory %q: %s", f.Name(), err)
+				return fmt.Errorf("Engine.cleanup: error removing tmp snapshot directory: %w", err)
 			}
 		}
 	}
@@ -2448,14 +2449,15 @@ func (e *Engine) cleanup() error {
 }
 
 func (e *Engine) cleanupTempTSMFiles() error {
-	files, err := filepath.Glob(filepath.Join(e.path, fmt.Sprintf("*.%s", CompactionTempExtension)))
+	pattern := filepath.Join(e.path, fmt.Sprintf("*.%s", CompactionTempExtension))
+	files, err := filepath.Glob(pattern)
 	if err != nil {
-		return fmt.Errorf("error getting compaction temp files: %s", err.Error())
+		return fmt.Errorf("Engine.cleanupTempTSMFiles: error getting compaction temp files for %q: %w", pattern, err)
 	}
 
 	for _, f := range files {
 		if err := os.Remove(f); err != nil {
-			return fmt.Errorf("error removing temp compaction files: %v", err)
+			return fmt.Errorf("Engine.cleanupTempTSMFiles: error removing temp compaction file: %w", err)
 		}
 	}
 	return nil
