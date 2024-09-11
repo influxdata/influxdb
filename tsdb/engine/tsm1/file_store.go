@@ -510,7 +510,7 @@ func (f *FileStore) Open() error {
 	// find the current max ID for temp directories
 	tmpfiles, err := os.ReadDir(f.dir)
 	if err != nil {
-		return fmt.Errorf("FileStore.Open: %w", err)
+		return fmt.Errorf("error calling ReadDir on %q in FileStore.Open: %w", f.dir, err)
 	}
 
 	// ascertain the current temp directory number by examining the existing
@@ -539,7 +539,7 @@ func (f *FileStore) Open() error {
 	pattern := filepath.Join(f.dir, "*."+TSMFileExtension)
 	files, err := filepath.Glob(pattern)
 	if err != nil {
-		return fmt.Errorf("FileStore.Open: error in Glob for %q: %w", pattern, err)
+		return fmt.Errorf("error in Glob for %q in FileStore.Open: %w", pattern, err)
 	}
 
 	// struct to hold the result of opening each reader in a goroutine
@@ -553,7 +553,7 @@ func (f *FileStore) Open() error {
 		// Keep track of the latest ID
 		generation, _, err := f.parseFileName(fn)
 		if err != nil {
-			return fmt.Errorf("FileStore.Open: error parsing %q: %w", fn, err)
+			return fmt.Errorf("error parsing %q in FileStore.Open: %w", fn, err)
 		}
 
 		if generation >= f.currentGeneration {
@@ -562,7 +562,7 @@ func (f *FileStore) Open() error {
 
 		file, err := os.OpenFile(fn, os.O_RDONLY, 0666)
 		if err != nil {
-			return fmt.Errorf("FileStore.Open: %w", err)
+			return fmt.Errorf("error calling OpenFile on %q in FileStore.Open: %w", fn, err)
 		}
 
 		go func(idx int, file *os.File) {
@@ -574,7 +574,6 @@ func (f *FileStore) Open() error {
 
 			start := time.Now()
 			df, err := NewTSMReader(file, f.readerOptions...)
-
 			f.logger.Info("Opened file",
 				zap.String("path", file.Name()),
 				zap.Int("id", idx),
@@ -639,7 +638,7 @@ func (f *FileStore) Open() error {
 			f.lastModified = fi.ModTime().UTC()
 		} else {
 			close(readerC)
-			return fmt.Errorf("FileStore.Open: %w", err)
+			return fmt.Errorf("error calling Stat on %q in FileStore.Open: %w", f.dir, err)
 		}
 	} else {
 		f.lastModified = time.Unix(0, lm).UTC()
