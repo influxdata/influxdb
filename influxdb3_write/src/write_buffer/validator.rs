@@ -9,7 +9,7 @@ use influxdb3_catalog::catalog::{
 
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDataType, FieldDefinition,
-    Level0Duration, Row, TableChunks, WriteBatch,
+    Gen1Duration, Row, TableChunks, WriteBatch,
 };
 use influxdb_line_protocol::{parse_lines, v3, FieldValue, ParsedLine};
 use iox_time::Time;
@@ -545,12 +545,12 @@ impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
     /// be buffered and written to the WAL, if configured.
     ///
     /// This involves splitting out the writes into different batches for each chunk, which will
-    /// map to the `Level0Duration`. This function should be infallible, because
+    /// map to the `Gen1Duration`. This function should be infallible, because
     /// the schema for incoming writes has been fully validated.
     pub(crate) fn convert_lines_to_buffer(
         self,
         ingest_time: Time,
-        level_0_duration: Level0Duration,
+        gen1_duration: Gen1Duration,
         precision: Precision,
     ) -> ValidatedLines {
         let mut table_chunks = HashMap::new();
@@ -571,7 +571,7 @@ impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
                 line,
                 &mut table_chunks,
                 ingest_time,
-                level_0_duration,
+                gen1_duration,
                 precision,
             );
         }
@@ -594,7 +594,7 @@ fn convert_v3_parsed_line(
     line: v3::ParsedLine<'_>,
     table_chunk_map: &mut HashMap<Arc<str>, TableChunks>,
     ingest_time: Time,
-    level_0_duration: Level0Duration,
+    gen1_duration: Gen1Duration,
     precision: Precision,
 ) {
     // Set up row values:
@@ -630,7 +630,7 @@ fn convert_v3_parsed_line(
     });
 
     // Add the row into the correct chunk in the table
-    let chunk_time = level_0_duration.chunk_time_for_timestamp(Timestamp::new(time_value_nanos));
+    let chunk_time = gen1_duration.chunk_time_for_timestamp(Timestamp::new(time_value_nanos));
     let table_name: Arc<str> = line.series.measurement.to_string().into();
     let table_chunks = table_chunk_map.entry(Arc::clone(&table_name)).or_default();
     table_chunks.push_row(
@@ -647,12 +647,12 @@ impl<'lp> WriteValidator<LinesParsed<'lp, ParsedLine<'lp>>> {
     /// be buffered and written to the WAL, if configured.
     ///
     /// This involves splitting out the writes into different batches for each chunk, which will
-    /// map to the `Level0Duration`. This function should be infallible, because
+    /// map to the `Gen1Duration`. This function should be infallible, because
     /// the schema for incoming writes has been fully validated.
     pub(crate) fn convert_lines_to_buffer(
         self,
         ingest_time: Time,
-        level_0_duration: Level0Duration,
+        gen1_duration: Gen1Duration,
         precision: Precision,
     ) -> ValidatedLines {
         let mut table_chunks = HashMap::new();
@@ -668,7 +668,7 @@ impl<'lp> WriteValidator<LinesParsed<'lp, ParsedLine<'lp>>> {
                 line,
                 &mut table_chunks,
                 ingest_time,
-                level_0_duration,
+                gen1_duration,
                 precision,
             );
         }
@@ -691,7 +691,7 @@ fn convert_v1_parsed_line(
     line: ParsedLine<'_>,
     table_chunk_map: &mut HashMap<Arc<str>, TableChunks>,
     ingest_time: Time,
-    level_0_duration: Level0Duration,
+    gen1_duration: Gen1Duration,
     precision: Precision,
 ) {
     // now that we've ensured all columns exist in the schema, construct the actual row and values
@@ -731,7 +731,7 @@ fn convert_v1_parsed_line(
         .map(|ts| apply_precision_to_timestamp(precision, ts))
         .unwrap_or(ingest_time.timestamp_nanos());
 
-    let chunk_time = level_0_duration.chunk_time_for_timestamp(Timestamp::new(time_value_nanos));
+    let chunk_time = gen1_duration.chunk_time_for_timestamp(Timestamp::new(time_value_nanos));
 
     values.push(Field {
         name: TIME_COLUMN_NAME.to_string().into(),
@@ -774,7 +774,7 @@ mod tests {
 
     use crate::{catalog::Catalog, write_buffer::Error, Precision};
     use data_types::NamespaceName;
-    use influxdb3_wal::Level0Duration;
+    use influxdb3_wal::Gen1Duration;
     use iox_time::Time;
 
     use super::WriteValidator;
@@ -787,7 +787,7 @@ mod tests {
             .v1_parse_lines_and_update_schema("cpu,tag1=foo val1=\"bar\" 1234", false)?
             .convert_lines_to_buffer(
                 Time::from_timestamp_nanos(0),
-                Level0Duration::new_5m(),
+                Gen1Duration::new_5m(),
                 Precision::Auto,
             );
 

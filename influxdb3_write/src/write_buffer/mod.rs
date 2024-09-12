@@ -206,7 +206,7 @@ impl WriteBufferImpl {
             ingest_time.timestamp_nanos(),
         )?
         .v1_parse_lines_and_update_schema(lp, accept_partial)?
-        .convert_lines_to_buffer(ingest_time, self.wal_config.level_0_duration, precision);
+        .convert_lines_to_buffer(ingest_time, self.wal_config.gen1_duration, precision);
 
         // if there were catalog updates, ensure they get persisted to the wal, so they're
         // replayed on restart
@@ -248,7 +248,7 @@ impl WriteBufferImpl {
             ingest_time.timestamp_nanos(),
         )?
         .v3_parse_lines_and_update_schema(lp, accept_partial)?
-        .convert_lines_to_buffer(ingest_time, self.wal_config.level_0_duration, precision);
+        .convert_lines_to_buffer(ingest_time, self.wal_config.gen1_duration, precision);
 
         // if there were catalog updates, ensure they get persisted to the wal, so they're
         // replayed on restart
@@ -604,7 +604,7 @@ mod tests {
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
     use influxdb3_catalog::catalog::SequenceNumber;
-    use influxdb3_wal::{Level0Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
+    use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
     use object_store::local::LocalFileSystem;
@@ -623,7 +623,7 @@ mod tests {
             .unwrap()
             .convert_lines_to_buffer(
                 Time::from_timestamp_nanos(0),
-                Level0Duration::new_5m(),
+                Gen1Duration::new_5m(),
                 Precision::Nanosecond,
             );
 
@@ -720,7 +720,7 @@ mod tests {
             Arc::clone(&time_provider),
             crate::test_help::make_exec(),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(50),
                 snapshot_size: 100,
@@ -740,7 +740,7 @@ mod tests {
             Time::from_timestamp_nanos(0),
             Arc::new(InMemory::new()),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
@@ -775,7 +775,7 @@ mod tests {
             Arc::clone(&wbuf.time_provider),
             Arc::clone(&wbuf.buffer.executor),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
@@ -808,7 +808,7 @@ mod tests {
             Arc::clone(&wbuf.time_provider),
             Arc::clone(&wbuf.buffer.executor),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
@@ -862,7 +862,7 @@ mod tests {
             Arc::clone(&wbuf.time_provider),
             Arc::clone(&wbuf.buffer.executor),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
@@ -881,7 +881,7 @@ mod tests {
             Time::from_timestamp_nanos(0),
             Arc::new(InMemory::new()),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
@@ -1014,7 +1014,7 @@ mod tests {
             Arc::clone(&write_buffer.time_provider),
             Arc::clone(&write_buffer.buffer.executor),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
@@ -1081,7 +1081,7 @@ mod tests {
             Time::from_timestamp_nanos(0),
             Arc::new(InMemory::new()),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(5),
                 snapshot_size: 1,
@@ -1195,7 +1195,7 @@ mod tests {
             Time::from_timestamp_nanos(0),
             Arc::clone(&object_store),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(5),
                 snapshot_size: 1,
@@ -1284,7 +1284,7 @@ mod tests {
             Time::from_timestamp_nanos(0),
             Arc::clone(&obj_store),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
@@ -1325,7 +1325,7 @@ mod tests {
             Time::from_timestamp_nanos(0),
             Arc::clone(&obj_store),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
@@ -1356,7 +1356,7 @@ mod tests {
             Time::from_timestamp_nanos(0),
             Arc::clone(&obj_store),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
@@ -1408,7 +1408,7 @@ mod tests {
             Time::from_timestamp_nanos(0),
             Arc::clone(&obj_store),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
@@ -1442,7 +1442,7 @@ mod tests {
             Time::from_timestamp_nanos(0),
             Arc::clone(&obj_store),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
@@ -1486,7 +1486,7 @@ mod tests {
             Time::from_timestamp_nanos(0),
             Arc::clone(&obj_store),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,

@@ -506,7 +506,7 @@ mod tests {
     };
     use datafusion_util::config::register_iox_object_store;
     use influxdb3_catalog::catalog::Catalog;
-    use influxdb3_wal::{Level0Duration, WalConfig};
+    use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
         last_cache::LastCacheProvider, persister::Persister, write_buffer::WriteBufferImpl,
         ChunkContainer, LastCacheManager, Precision, WriteBuffer,
@@ -537,7 +537,7 @@ mod tests {
             primary_id,
             Arc::clone(&obj_store),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
@@ -694,7 +694,7 @@ mod tests {
                 p,
                 Arc::clone(&obj_store),
                 WalConfig {
-                    level_0_duration: Level0Duration::new_1m(),
+                    gen1_duration: Gen1Duration::new_1m(),
                     max_write_buffer_size: 100,
                     flush_interval: Duration::from_millis(10),
                     snapshot_size: 1_000,
@@ -804,7 +804,7 @@ mod tests {
                 p,
                 Arc::clone(&obj_store),
                 WalConfig {
-                    level_0_duration: Level0Duration::new_1m(),
+                    gen1_duration: Gen1Duration::new_1m(),
                     max_write_buffer_size: 100,
                     flush_interval: Duration::from_millis(10),
                     snapshot_size: 1_000,
