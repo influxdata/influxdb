@@ -750,9 +750,10 @@ func (e *Engine) Open() error {
 		return err
 	}
 
-	fields, err := tsdb.NewMeasurementFieldSet(filepath.Join(e.path, "fields.idx"), e.logger)
+	fieldPath := filepath.Join(e.path, "fields.idx")
+	fields, err := tsdb.NewMeasurementFieldSet(fieldPath, e.logger)
 	if err != nil {
-		e.logger.Warn(fmt.Sprintf("error opening fields.idx: %v.  Rebuilding.", err))
+		e.logger.Warn("error opening fields.idx: Rebuilding.", zap.String("path", fieldPath), zap.Error(err))
 	}
 
 	e.mu.Lock()
@@ -763,7 +764,7 @@ func (e *Engine) Open() error {
 
 	if e.WALEnabled {
 		if err := e.WAL.Open(); err != nil {
-			return err
+			return fmt.Errorf("error opening WAL for %q: %w", fieldPath, err)
 		}
 	}
 
@@ -2402,7 +2403,7 @@ func (e *Engine) reloadCache() error {
 	now := time.Now()
 	files, err := segmentFileNames(e.WAL.Path())
 	if err != nil {
-		return err
+		return fmt.Errorf("error getting segment file names for %q in Engine.reloadCache: %w", e.WAL.Path(), err)
 	}
 
 	limit := e.Cache.MaxSize()
@@ -2431,15 +2432,16 @@ func (e *Engine) cleanup() error {
 	if os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
-		return err
+		return fmt.Errorf("error calling ReadDir for %q in Engine.cleanup: %w", e.path, err)
 	}
 
 	ext := fmt.Sprintf(".%s", TmpTSMFileExtension)
 	for _, f := range allfiles {
 		// Check to see if there are any `.tmp` directories that were left over from failed shard snapshots
 		if f.IsDir() && strings.HasSuffix(f.Name(), ext) {
-			if err := os.RemoveAll(filepath.Join(e.path, f.Name())); err != nil {
-				return fmt.Errorf("error removing tmp snapshot directory %q: %s", f.Name(), err)
+			path := filepath.Join(e.path, f.Name())
+			if err := os.RemoveAll(path); err != nil {
+				return fmt.Errorf("error removing tmp snapshot directory %q in Engine.cleanup: %w", path, err)
 			}
 		}
 	}
@@ -2448,14 +2450,15 @@ func (e *Engine) cleanup() error {
 }
 
 func (e *Engine) cleanupTempTSMFiles() error {
-	files, err := filepath.Glob(filepath.Join(e.path, fmt.Sprintf("*.%s", CompactionTempExtension)))
+	pattern := filepath.Join(e.path, fmt.Sprintf("*.%s", CompactionTempExtension))
+	files, err := filepath.Glob(pattern)
 	if err != nil {
-		return fmt.Errorf("error getting compaction temp files: %s", err.Error())
+		return fmt.Errorf("error getting compaction temp files for %q in Engine.cleanupTempTSMFiles: %w", pattern, err)
 	}
 
 	for _, f := range files {
 		if err := os.Remove(f); err != nil {
-			return fmt.Errorf("error removing temp compaction files: %v", err)
+			return fmt.Errorf("error removing temp compaction file %q in Engine.cleanupTempTSMFiles: %w", f, err)
 		}
 	}
 	return nil

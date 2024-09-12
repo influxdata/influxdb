@@ -153,15 +153,17 @@ func TestStore_BadShard(t *testing.T) {
 			defer require.NoErrorf(t, s.Close(), "closing store with index type: %s", idx)
 
 			sh := tsdb.NewTempShard(idx)
+			shId := sh.ID()
 			err := s.OpenShard(sh.Shard, false)
 			require.NoError(t, err, "opening temp shard")
 			defer require.NoError(t, sh.Close(), "closing temporary shard")
 
-			s.SetShardOpenErrorForTest(sh.ID(), errors.New(errStr))
+			expErr := errors.New(errStr)
+			s.SetShardOpenErrorForTest(sh.ID(), expErr)
 			err2 := s.OpenShard(sh.Shard, false)
 			require.Error(t, err2, "no error opening bad shard")
 			require.True(t, errors.Is(err2, tsdb.ErrPreviousShardFail{}), "exp: ErrPreviousShardFail, got: %v", err2)
-			require.EqualError(t, err2, "opening shard previously failed with: "+errStr)
+			require.EqualError(t, err2, fmt.Errorf("not attempting to open shard %d; opening shard previously failed with: %w", shId, expErr).Error())
 
 			// This should succeed with the force (and because opening an open shard automatically succeeds)
 			require.NoError(t, s.OpenShard(sh.Shard, true), "forced re-opening previously failing shard")
