@@ -42,8 +42,8 @@ pub enum Error {
     #[error("wal is shutdown and not accepting writes")]
     Shutdown,
 
-    #[error("invalid level 0 duration {0}. Must be one of 1m, 5m, 10m")]
-    InvalidLevel0Duration(String),
+    #[error("invalid gen1 duration {0}. Must be one of 1m, 5m, 10m")]
+    InvalidGen1Duration(String),
 
     #[error("last cache size must be from 1 to 10")]
     InvalidLastCacheSize,
@@ -115,7 +115,7 @@ pub trait WalFileNotifier: Debug + Send + Sync + 'static {
 #[derive(Debug, Clone, Copy)]
 pub struct WalConfig {
     /// The duration of time of chunks to be persisted as Parquet files
-    pub level_0_duration: Level0Duration,
+    pub gen1_duration: Gen1Duration,
     /// The maximum number of writes that can be buffered before we must flush to a wal file
     pub max_write_buffer_size: usize,
     /// The interval at which to flush the buffer to a wal file
@@ -127,7 +127,7 @@ pub struct WalConfig {
 impl WalConfig {
     pub fn test_config() -> Self {
         Self {
-            level_0_duration: Level0Duration::new_5m(),
+            gen1_duration: Gen1Duration::new_5m(),
             max_write_buffer_size: 1000,
             flush_interval: Duration::from_millis(10),
             snapshot_size: 100,
@@ -138,7 +138,7 @@ impl WalConfig {
 impl Default for WalConfig {
     fn default() -> Self {
         Self {
-            level_0_duration: Default::default(),
+            gen1_duration: Default::default(),
             max_write_buffer_size: 100_000,
             flush_interval: Duration::from_secs(1),
             snapshot_size: 600,
@@ -148,9 +148,9 @@ impl Default for WalConfig {
 
 /// The duration of data timestamps, grouped into files persisted into object storage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Level0Duration(Duration);
+pub struct Gen1Duration(Duration);
 
-impl Level0Duration {
+impl Gen1Duration {
     pub fn duration_seconds(&self) -> i64 {
         self.0.as_secs() as i64
     }
@@ -160,7 +160,7 @@ impl Level0Duration {
         t.get() - (t.get() % self.0.as_nanos() as i64)
     }
 
-    /// Given a time, returns the start time of the level 0 chunk that contains the time.
+    /// Given a time, returns the start time of the gen1 chunk that contains the time.
     pub fn start_time(&self, timestamp_seconds: i64) -> Time {
         let duration_seconds = self.duration_seconds();
         let rounded_seconds = (timestamp_seconds / duration_seconds) * duration_seconds;
@@ -184,7 +184,7 @@ impl Level0Duration {
     }
 }
 
-impl FromStr for Level0Duration {
+impl FromStr for Gen1Duration {
     type Err = Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
@@ -192,12 +192,12 @@ impl FromStr for Level0Duration {
             "1m" => Ok(Self(Duration::from_secs(60))),
             "5m" => Ok(Self(Duration::from_secs(300))),
             "10m" => Ok(Self(Duration::from_secs(600))),
-            _ => Err(Error::InvalidLevel0Duration(s.to_string())),
+            _ => Err(Error::InvalidGen1Duration(s.to_string())),
         }
     }
 }
 
-impl Default for Level0Duration {
+impl Default for Gen1Duration {
     fn default() -> Self {
         Self(Duration::from_secs(600))
     }

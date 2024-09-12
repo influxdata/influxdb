@@ -589,7 +589,7 @@ mod tests {
     use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
     use influxdb3_catalog::catalog::Catalog;
-    use influxdb3_wal::{Level0Duration, WalConfig};
+    use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
         last_cache::LastCacheProvider, persister::Persister, write_buffer::WriteBufferImpl,
         WriteBuffer,
@@ -641,7 +641,7 @@ mod tests {
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&executor),
                 WalConfig {
-                    level_0_duration: Level0Duration::new_1m(),
+                    gen1_duration: Gen1Duration::new_1m(),
                     max_write_buffer_size: 100,
                     flush_interval: Duration::from_millis(10),
                     snapshot_size: 1,

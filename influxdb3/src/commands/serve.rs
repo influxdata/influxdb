@@ -14,7 +14,7 @@ use influxdb3_server::{
     auth::AllOrNothingAuthorizer, builder::ServerBuilder, query_executor::QueryExecutorImpl, serve,
     CommonServerState,
 };
-use influxdb3_wal::{Level0Duration, WalConfig};
+use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer};
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
@@ -143,14 +143,16 @@ pub struct Config {
     pub bearer_token: Option<String>,
 
     /// Duration that the Parquet files get arranged into. The data timestamps will land each
-    /// row into a file of this duration. 1m, 5m, and 10m are supported.
+    /// row into a file of this duration. 1m, 5m, and 10m are supported. These are known as
+    /// "generation 1" files. The compactor in Pro can compact these into larger and longer
+    /// generations.
     #[clap(
-        long = "level-0-duration",
-        env = "INFLUXDB3_LEVEL_0_DURATION",
+        long = "gen1-duration",
+        env = "INFLUXDB3_GEN1_DURATION",
         default_value = "10m",
         action
     )]
-    pub level_0_duration: Level0Duration,
+    pub gen1_duration: Gen1Duration,
 
     /// Interval to flush buffered data to a wal file. Writes that wait for wal confirmation will
     /// take as long as this interval to complete.
@@ -303,7 +305,7 @@ pub async fn command(config: Config) -> Result<()> {
         config.host_identifier_prefix,
     ));
     let wal_config = WalConfig {
-        level_0_duration: config.level_0_duration,
+        gen1_duration: config.gen1_duration,
         max_write_buffer_size: config.wal_max_write_buffer_size,
         flush_interval: config.wal_flush_interval.into(),
         snapshot_size: config.wal_snapshot_size,
