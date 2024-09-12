@@ -353,7 +353,7 @@ mod test_helpers {
     use crate::write_buffer::validator::WriteValidator;
     use crate::Precision;
     use data_types::NamespaceName;
-    use influxdb3_wal::{Level0Duration, WriteBatch};
+    use influxdb3_wal::{Gen1Duration, WriteBatch};
     use iox_time::Time;
     use std::sync::Arc;
 
@@ -370,7 +370,7 @@ mod test_helpers {
             .unwrap()
             .convert_lines_to_buffer(
                 Time::from_timestamp_nanos(0),
-                Level0Duration::new_5m(),
+                Gen1Duration::new_5m(),
                 Precision::Nanosecond,
             );
 
