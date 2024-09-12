@@ -78,7 +78,7 @@ impl WalObjectStore {
                 },
                 SnapshotTracker::new(
                     config.snapshot_size,
-                    config.level_0_duration,
+                    config.gen1_duration,
                     last_snapshot_sequence_number,
                 ),
             )),
@@ -609,7 +609,7 @@ impl<'a> TryFrom<&'a Path> for WalFileSequenceNumber {
 mod tests {
     use super::*;
     use crate::{
-        Field, FieldData, Level0Duration, Row, SnapshotSequenceNumber, TableChunk, TableChunks,
+        Field, FieldData, Gen1Duration, Row, SnapshotSequenceNumber, TableChunk, TableChunks,
     };
     use async_trait::async_trait;
     use object_store::memory::InMemory;
@@ -624,7 +624,7 @@ mod tests {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_secs(1),
             snapshot_size: 2,
-            level_0_duration: Level0Duration::new_1m(),
+            gen1_duration: Gen1Duration::new_1m(),
         };
         let wal = WalObjectStore::new_without_replay(
             Arc::clone(&object_store),
@@ -833,7 +833,7 @@ mod tests {
             "my_host",
             Arc::clone(&replay_notifier),
             WalConfig {
-                level_0_duration: Level0Duration::new_1m(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 10,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
@@ -1006,7 +1006,7 @@ mod tests {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_secs(1),
             snapshot_size: 2,
-            level_0_duration: Level0Duration::new_1m(),
+            gen1_duration: Gen1Duration::new_1m(),
         };
         let wal = WalObjectStore::new_without_replay(
             Arc::clone(&object_store),

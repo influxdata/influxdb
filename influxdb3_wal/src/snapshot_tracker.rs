@@ -4,7 +4,7 @@
 //! configured as it can be used to ensure that data in the write buffer is persisted in blocks
 //! that are not too large and unlikely to overlap.
 
-use crate::{Level0Duration, SnapshotDetails, SnapshotSequenceNumber, WalFileSequenceNumber};
+use crate::{Gen1Duration, SnapshotDetails, SnapshotSequenceNumber, WalFileSequenceNumber};
 use data_types::Timestamp;
 
 /// A struct that tracks the WAL periods (files if using object store) and decides when to snapshot the WAL.
@@ -14,16 +14,16 @@ pub(crate) struct SnapshotTracker {
     last_wal_sequence_number: WalFileSequenceNumber,
     wal_periods: Vec<WalPeriod>,
     snapshot_size: usize,
-    level_0_duration: Level0Duration,
+    gen1_duration: Gen1Duration,
 }
 
 impl SnapshotTracker {
-    /// Create a new `SnapshotTracker` with the given snapshot size and level 0 duration. The
-    /// level 0 duration is the size of chunks in the write buffer that will be persisted as
+    /// Create a new `SnapshotTracker` with the given snapshot size and gen1 duration. The
+    /// gen1 duration is the size of chunks in the write buffer that will be persisted as
     /// parquet files.
     pub(crate) fn new(
         snapshot_size: usize,
-        level_0_duration: Level0Duration,
+        gen1_duration: Gen1Duration,
         last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
     ) -> Self {
         Self {
@@ -31,7 +31,7 @@ impl SnapshotTracker {
             last_wal_sequence_number: WalFileSequenceNumber::default(),
             wal_periods: Vec::new(),
             snapshot_size,
-            level_0_duration,
+            gen1_duration,
         }
     }
 
@@ -74,8 +74,8 @@ impl SnapshotTracker {
                 .map(|period| period.max_time)
                 .max()
                 .unwrap();
-            let t = max_time - (max_time.get() % self.level_0_duration.as_nanos())
-                + self.level_0_duration.as_nanos();
+            let t = max_time - (max_time.get() % self.gen1_duration.as_nanos())
+                + self.gen1_duration.as_nanos();
             let last_wal_sequence_number = wal_periods.last().unwrap().wal_file_number;
 
             let snapshot_details = SnapshotDetails {
@@ -91,8 +91,8 @@ impl SnapshotTracker {
         }
 
         let t = self.wal_periods.last().unwrap().max_time;
-        // round the last timestamp down to the level_0_duration
-        let t = t - (t.get() % self.level_0_duration.as_nanos());
+        // round the last timestamp down to the gen1_duration
+        let t = t - (t.get() % self.gen1_duration.as_nanos());
 
         // any wal period that has data before this time can be snapshot
         let periods_to_snapshot = self
@@ -119,7 +119,7 @@ impl SnapshotTracker {
     }
 
     /// The number of wal periods we need to see before we attempt a snapshot. This is to ensure that we
-    /// don't snapshot before we've buffered up enough data to fill a level 0 chunk.
+    /// don't snapshot before we've buffered up enough data to fill a gen1 chunk.
     fn number_of_periods_to_snapshot_after(&self) -> usize {
         self.snapshot_size + self.snapshot_size / 2
     }
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn snapshot() {
-        let mut tracker = SnapshotTracker::new(2, Level0Duration::new_1m(), None);
+        let mut tracker = SnapshotTracker::new(2, Gen1Duration::new_1m(), None);
         let p1 = WalPeriod::new(
             WalFileSequenceNumber::new(1),
             Timestamp::new(0),
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn snapshot_future_data_forces_snapshot() {
-        let mut tracker = SnapshotTracker::new(2, Level0Duration::new_1m(), None);
+        let mut tracker = SnapshotTracker::new(2, Gen1Duration::new_1m(), None);
         let p1 = WalPeriod::new(
             WalFileSequenceNumber::new(1),
             Timestamp::new(0),
