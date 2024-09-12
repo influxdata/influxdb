@@ -510,7 +510,7 @@ func (f *FileStore) Open() error {
 	// find the current max ID for temp directories
 	tmpfiles, err := os.ReadDir(f.dir)
 	if err != nil {
-		return err
+		return fmt.Errorf("error calling ReadDir on %q in FileStore.Open: %w", f.dir, err)
 	}
 
 	// ascertain the current temp directory number by examining the existing
@@ -536,9 +536,10 @@ func (f *FileStore) Open() error {
 		f.currentTempDirID = i
 	}
 
-	files, err := filepath.Glob(filepath.Join(f.dir, "*."+TSMFileExtension))
+	pattern := filepath.Join(f.dir, "*."+TSMFileExtension)
+	files, err := filepath.Glob(pattern)
 	if err != nil {
-		return err
+		return fmt.Errorf("error in Glob for %q in FileStore.Open: %w", pattern, err)
 	}
 
 	// struct to hold the result of opening each reader in a goroutine
@@ -552,7 +553,7 @@ func (f *FileStore) Open() error {
 		// Keep track of the latest ID
 		generation, _, err := f.parseFileName(fn)
 		if err != nil {
-			return err
+			return fmt.Errorf("error parsing %q in FileStore.Open: %w", fn, err)
 		}
 
 		if generation >= f.currentGeneration {
@@ -561,7 +562,7 @@ func (f *FileStore) Open() error {
 
 		file, err := os.OpenFile(fn, os.O_RDONLY, 0666)
 		if err != nil {
-			return fmt.Errorf("error opening file %s: %v", fn, err)
+			return fmt.Errorf("error calling OpenFile on %q in FileStore.Open: %w", fn, err)
 		}
 
 		go func(idx int, file *os.File) {
@@ -580,14 +581,16 @@ func (f *FileStore) Open() error {
 
 			// If we are unable to read a TSM file then log the error.
 			if err != nil {
-				file.Close()
+				if cerr := file.Close(); cerr != nil {
+					f.logger.Error("Error closing TSM file after error", zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(cerr))
+				}
 				if errors.Is(err, MmapError{}) {
 					// An MmapError may indicate we have insufficient
 					// handles for the mmap call, in which case the file should
 					// be left untouched, and the vm.max_map_count be raised.
 					f.logger.Error("Cannot read TSM file, system limit for vm.max_map_count may be too low",
 						zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(err))
-					readerC <- &res{r: df, err: fmt.Errorf("cannot read file %s, system limit for vm.max_map_count may be too low: %v", file.Name(), err)}
+					readerC <- &res{r: df, err: fmt.Errorf("cannot read file %s, system limit for vm.max_map_count may be too low: %w", file.Name(), err)}
 					return
 				} else {
 					// If the file is corrupt, rename it and
@@ -595,10 +598,10 @@ func (f *FileStore) Open() error {
 					f.logger.Error("Cannot read corrupt tsm file, renaming", zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(err))
 					if e := os.Rename(file.Name(), file.Name()+"."+BadTSMFileExtension); e != nil {
 						f.logger.Error("Cannot rename corrupt tsm file", zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(e))
-						readerC <- &res{r: df, err: fmt.Errorf("cannot rename corrupt file %s: %v", file.Name(), e)}
+						readerC <- &res{r: df, err: fmt.Errorf("cannot rename corrupt file %s: %w", file.Name(), e)}
 						return
 					}
-					readerC <- &res{r: df, err: fmt.Errorf("cannot read corrupt file %s: %v", file.Name(), err)}
+					readerC <- &res{r: df, err: fmt.Errorf("cannot read corrupt file %s: %w", file.Name(), err)}
 					return
 				}
 			}
@@ -635,7 +638,7 @@ func (f *FileStore) Open() error {
 			f.lastModified = fi.ModTime().UTC()
 		} else {
 			close(readerC)
-			return err
+			return fmt.Errorf("error calling Stat on %q in FileStore.Open: %w", f.dir, err)
 		}
 	} else {
 		f.lastModified = time.Unix(0, lm).UTC()
