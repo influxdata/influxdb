@@ -14,6 +14,7 @@ use influxdb3_write::{
 };
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
+use metric::Registry;
 
 use crate::replica::{Replicas, ReplicationConfig};
 
@@ -23,15 +24,30 @@ pub struct ReadWriteMode {
     replicas: Option<Replicas>,
 }
 
+#[derive(Debug)]
+pub struct ReadWriteArgs {
+    pub persister: Arc<Persister>,
+    pub catalog: Arc<Catalog>,
+    pub last_cache: Arc<LastCacheProvider>,
+    pub time_provider: Arc<dyn TimeProvider>,
+    pub executor: Arc<iox_query::exec::Executor>,
+    pub wal_config: WalConfig,
+    pub metric_registry: Arc<Registry>,
+    pub replication_config: Option<ReplicationConfig>,
+}
+
 impl ReadWriteMode {
     pub(crate) async fn new(
-        persister: Arc<Persister>,
-        catalog: Arc<Catalog>,
-        last_cache: Arc<LastCacheProvider>,
-        time_provider: Arc<dyn TimeProvider>,
-        executor: Arc<iox_query::exec::Executor>,
-        wal_config: WalConfig,
-        replication_config: Option<ReplicationConfig>,
+        ReadWriteArgs {
+            persister,
+            catalog,
+            last_cache,
+            time_provider,
+            executor,
+            wal_config,
+            metric_registry,
+            replication_config,
+        }: ReadWriteArgs,
     ) -> Result<Self, anyhow::Error> {
         let object_store = persister.object_store();
         let primary = WriteBufferImpl::new(
@@ -49,6 +65,7 @@ impl ReadWriteMode {
                     catalog,
                     last_cache,
                     object_store,
+                    metric_registry,
                     config.interval,
                     config.hosts,
                 )

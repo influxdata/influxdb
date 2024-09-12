@@ -8,7 +8,9 @@ use clap_blocks::{
     tokio::TokioDatafusionConfig,
 };
 use datafusion_util::config::register_iox_object_store;
-use influxdb3_pro_buffer::{replica::ReplicationConfig, WriteBufferPro};
+use influxdb3_pro_buffer::{
+    modes::read_write::ReadWriteArgs, replica::ReplicationConfig, WriteBufferPro,
+};
 use influxdb3_pro_clap_blocks::serve::BufferMode;
 use influxdb3_pro_compactor::Compactor;
 use influxdb3_process::{
@@ -338,6 +340,7 @@ pub async fn command(config: Config) -> Result<()> {
                     Arc::new(catalog),
                     Arc::new(last_cache),
                     Arc::clone(&object_store),
+                    Arc::clone(&metrics),
                     replica_config,
                 )
                 .await
@@ -345,15 +348,16 @@ pub async fn command(config: Config) -> Result<()> {
             )
         }
         BufferMode::ReadWrite => Arc::new(
-            WriteBufferPro::read_write(
-                Arc::clone(&persister),
-                Arc::new(catalog),
-                Arc::new(last_cache),
-                Arc::<SystemProvider>::clone(&time_provider),
-                Arc::clone(&exec),
+            WriteBufferPro::read_write(ReadWriteArgs {
+                persister: Arc::clone(&persister),
+                catalog: Arc::new(catalog),
+                last_cache: Arc::new(last_cache),
+                time_provider: Arc::<SystemProvider>::clone(&time_provider),
+                executor: Arc::clone(&exec),
                 wal_config,
-                replica_config,
-            )
+                metric_registry: Arc::clone(&metrics),
+                replication_config: replica_config,
+            })
             .await
             .map_err(Error::WriteBufferInit)?,
         ),

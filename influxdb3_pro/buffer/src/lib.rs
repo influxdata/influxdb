@@ -4,19 +4,22 @@ use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_wal::{LastCacheDefinition, WalConfig};
+use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::{
-    last_cache::LastCacheProvider, persister::Persister, write_buffer::Result as WriteBufferResult,
-    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile, Precision,
-    WriteBuffer,
+    last_cache::LastCacheProvider, write_buffer::Result as WriteBufferResult, BufferedWriteRequest,
+    Bufferer, ChunkContainer, LastCacheManager, ParquetFile, Precision, WriteBuffer,
 };
 use iox_query::QueryChunk;
-use iox_time::{Time, TimeProvider};
-use modes::{read::ReadMode, read_write::ReadWriteMode};
+use iox_time::Time;
+use metric::Registry;
+use modes::{
+    read::ReadMode,
+    read_write::{ReadWriteArgs, ReadWriteMode},
+};
 use object_store::ObjectStore;
 use replica::ReplicationConfig;
 
-mod modes;
+pub mod modes;
 pub mod replica;
 
 #[derive(Debug)]
@@ -33,12 +36,14 @@ impl WriteBufferPro<NoMode> {
         catalog: Arc<Catalog>,
         last_cache: Arc<LastCacheProvider>,
         object_store: Arc<dyn ObjectStore>,
+        metric_registry: Arc<Registry>,
         replication_config: ReplicationConfig,
     ) -> Result<WriteBufferPro<ReadMode>, anyhow::Error> {
         let mode = ReadMode::new(
             catalog,
             last_cache,
             object_store,
+            metric_registry,
             replication_config.interval,
             replication_config.hosts,
         )
@@ -47,24 +52,9 @@ impl WriteBufferPro<NoMode> {
     }
 
     pub async fn read_write(
-        persister: Arc<Persister>,
-        catalog: Arc<Catalog>,
-        last_cache: Arc<LastCacheProvider>,
-        time_provider: Arc<dyn TimeProvider>,
-        executor: Arc<iox_query::exec::Executor>,
-        wal_config: WalConfig,
-        replication_config: Option<ReplicationConfig>,
+        args: ReadWriteArgs,
     ) -> Result<WriteBufferPro<ReadWriteMode>, anyhow::Error> {
-        let mode = ReadWriteMode::new(
-            persister,
-            catalog,
-            last_cache,
-            time_provider,
-            executor,
-            wal_config,
-            replication_config,
-        )
-        .await?;
+        let mode = ReadWriteMode::new(args).await?;
         Ok(WriteBufferPro { mode })
     }
 }

@@ -14,6 +14,7 @@ use influxdb3_write::{
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
+use metric::Registry;
 use object_store::ObjectStore;
 
 use crate::replica::Replicas;
@@ -28,6 +29,7 @@ impl ReadMode {
         catalog: Arc<Catalog>,
         last_cache: Arc<LastCacheProvider>,
         object_store: Arc<dyn ObjectStore>,
+        metric_registry: Arc<Registry>,
         replication_interval: Duration,
         hosts: Vec<String>,
     ) -> Result<Self, anyhow::Error> {
@@ -36,6 +38,7 @@ impl ReadMode {
                 catalog,
                 last_cache,
                 object_store,
+                metric_registry,
                 replication_interval,
                 hosts,
             )

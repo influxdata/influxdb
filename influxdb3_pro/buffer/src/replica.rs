@@ -1,6 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::{borrow::Cow, sync::Arc, time::Duration};
 
 use anyhow::Context;
+use chrono::Utc;
 use data_types::{ChunkId, ChunkOrder, PartitionKey, TableId, TransitionPartitionId};
 use datafusion::{catalog::Session, execution::object_store::ObjectStoreUrl, logical_expr::Expr};
 use futures_util::StreamExt;
@@ -24,6 +25,7 @@ use iox_query::{
     chunk_statistics::{create_chunk_statistics, NoColumnRanges},
     QueryChunk,
 };
+use metric::{Attributes, Registry, U64Gauge};
 use object_store::{path::Path, ObjectStore};
 use observability_deps::tracing::{error, info};
 use parking_lot::RwLock;
@@ -65,6 +67,7 @@ impl Replicas {
         catalog: Arc<Catalog>,
         last_cache: Arc<LastCacheProvider>,
         object_store: Arc<dyn ObjectStore>,
+        metric_registry: Arc<Registry>,
         replication_interval: Duration,
         hosts: Vec<String>,
     ) -> Result<Self> {
@@ -73,8 +76,9 @@ impl Replicas {
             let object_store = Arc::clone(&object_store);
             let catalog = Arc::clone(&catalog);
             let last_cache = Arc::clone(&last_cache);
+            let metric_registry = Arc::clone(&metric_registry);
             let handle = tokio::spawn(async move {
-                info!(%host, "replicating host");
+                info!(%host, "creating replicated buffer for host");
                 ReplicatedBuffer::new(
                     i as i64,
                     object_store,
@@ -82,6 +86,7 @@ impl Replicas {
                     catalog,
                     last_cache,
                     replication_interval,
+                    metric_registry,
                 )
                 .await
             });
@@ -148,6 +153,14 @@ pub(crate) struct ReplicatedBuffer {
     persisted_files: Arc<PersistedFiles>,
     last_cache: Arc<LastCacheProvider>,
     catalog: Arc<Catalog>,
+    metrics: ReplicatedBufferMetrics,
+}
+
+pub const REPLICA_TTBR_METRIC: &str = "influxdb3_replica_ttbr";
+
+#[derive(Debug)]
+struct ReplicatedBufferMetrics {
+    replica_ttbr: U64Gauge,
 }
 
 impl ReplicatedBuffer {
@@ -158,6 +171,7 @@ impl ReplicatedBuffer {
         catalog: Arc<Catalog>,
         last_cache: Arc<LastCacheProvider>,
         replication_interval: Duration,
+        metric_registry: Arc<Registry>,
     ) -> Result<Arc<Self>> {
         let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
         let persisted_files = {
@@ -171,6 +185,14 @@ impl ReplicatedBuffer {
                 persisted_snapshots,
             ))
         };
+        let host: Cow<'static, str> = Cow::from(host_identifier_prefix.clone());
+        let attributes = Attributes::from([("host", host)]);
+        let replica_ttbr = metric_registry
+            .register_metric::<U64Gauge>(
+                REPLICA_TTBR_METRIC,
+                "time to be readable for the data in each replicated host buffer",
+            )
+            .recorder(attributes);
         let replicated_buffer = Self {
             replica_order,
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
@@ -181,6 +203,7 @@ impl ReplicatedBuffer {
             persisted_files,
             last_cache,
             catalog,
+            metrics: ReplicatedBufferMetrics { replica_ttbr },
         };
         replicated_buffer.replay().await?;
         let replicated_buffer = Arc::new(replicated_buffer);
@@ -339,10 +362,9 @@ impl ReplicatedBuffer {
     }
 
     async fn replay_wal_file(&self, path: &Path) -> Result<()> {
-        let file_bytes = self
-            .object_store
-            .get(path)
-            .await?
+        let obj = self.object_store.get(path).await?;
+        let file_written_time = obj.meta.last_modified;
+        let file_bytes = obj
             .bytes()
             .await
             .context("failed to collect data for known file into bytes")?;
@@ -355,6 +377,11 @@ impl ReplicatedBuffer {
                 self.buffer_wal_contents_and_handle_snapshots(wal_contents, snapshot_details)
                     .await?
             }
+        }
+
+        match Utc::now().signed_duration_since(file_written_time).to_std() {
+            Ok(ttbr) => self.metrics.replica_ttbr.set(ttbr.as_millis() as u64),
+            Err(message) => error!(%message, "unable to get duration since WAL file was created"),
         }
 
         Ok(())
@@ -489,10 +516,11 @@ mod tests {
         QueryChunk,
     };
     use iox_time::{MockProvider, Time, TimeProvider};
+    use metric::{Attributes, Metric, Registry, U64Gauge};
     use object_store::{memory::InMemory, ObjectStore};
     use parquet_file::storage::{ParquetStorage, StorageId};
 
-    use crate::replica::{Replicas, ReplicatedBuffer};
+    use crate::replica::{Replicas, ReplicatedBuffer, REPLICA_TTBR_METRIC};
 
     #[tokio::test]
     async fn replay_and_replicate_other_wal() {
@@ -553,6 +581,7 @@ mod tests {
             primary.catalog(),
             primary.last_cache_provider(),
             Duration::from_millis(10),
+            Arc::new(Registry::new()),
         )
         .await
         .unwrap();
@@ -680,6 +709,7 @@ mod tests {
             Arc::new(Catalog::new()),
             Arc::new(LastCacheProvider::new()),
             Arc::clone(&obj_store),
+            Arc::new(Registry::new()),
             Duration::from_millis(10),
             primary_ids.iter().map(|s| s.to_string()).collect(),
         )
@@ -755,6 +785,102 @@ mod tests {
             ],
             &batches
         );
+    }
+
+    #[tokio::test]
+    async fn replica_buffer_ttbr_metrics() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        // Create a session context:
+        // Since we are using the same object store accross primary and replica in this test, we
+        // only need one context
+        let ctx = IOxSessionContext::with_testing();
+        let runtime_env = ctx.inner().runtime_env();
+        register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&obj_store));
+        // Spin up two primary write buffers to do some writes and generate files in an object store:
+        let primary_ids = ["newton", "faraday"];
+        let mut primaries = HashMap::new();
+        for p in primary_ids {
+            let primary = setup_primary(
+                p,
+                Arc::clone(&obj_store),
+                WalConfig {
+                    level_0_duration: Level0Duration::new_1m(),
+                    max_write_buffer_size: 100,
+                    flush_interval: Duration::from_millis(10),
+                    snapshot_size: 1_000,
+                },
+                Time::from_timestamp_nanos(0),
+            )
+            .await;
+            primaries.insert(p, primary);
+        }
+        // Spin up a set of replicated buffers:
+        let metric_registry = Arc::new(Registry::new());
+        let replication_interval_ms = 50;
+        Replicas::new(
+            Arc::new(Catalog::new()),
+            Arc::new(LastCacheProvider::new()),
+            Arc::clone(&obj_store),
+            Arc::clone(&metric_registry),
+            Duration::from_millis(replication_interval_ms),
+            primary_ids.iter().map(|s| s.to_string()).collect(),
+        )
+        .await
+        .unwrap();
+        // write to newton:
+        do_writes(
+            "foo",
+            &primaries["newton"],
+            &[
+                TestWrite {
+                    time_seconds: 1,
+                    lp: "bar,tag=a val=false",
+                },
+                TestWrite {
+                    time_seconds: 2,
+                    lp: "bar,tag=a val=false",
+                },
+                TestWrite {
+                    time_seconds: 3,
+                    lp: "bar,tag=a val=false",
+                },
+            ],
+        )
+        .await;
+        // write to faraday:
+        do_writes(
+            "foo",
+            &primaries["faraday"],
+            &[
+                TestWrite {
+                    time_seconds: 1,
+                    lp: "bar,tag=b val=true",
+                },
+                TestWrite {
+                    time_seconds: 2,
+                    lp: "bar,tag=b val=true",
+                },
+                TestWrite {
+                    time_seconds: 3,
+                    lp: "bar,tag=b val=true",
+                },
+            ],
+        )
+        .await;
+        // sleep for replicas to replicate:
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // Check the metric registry:
+        let metric = metric_registry
+            .get_instrument::<Metric<U64Gauge>>(REPLICA_TTBR_METRIC)
+            .expect("get the metric");
+        for host in primary_ids {
+            let ttbr_ms = metric
+                .get_observer(&Attributes::from(&[("host", host)]))
+                .expect("failed to get observer")
+                .fetch();
+            assert!(ttbr_ms > 0 && ttbr_ms < replication_interval_ms);
+        }
     }
 
     async fn chunks_to_record_batches(
