@@ -478,7 +478,7 @@ func (s *Store) loadShards() error {
 					err = s.OpenShard(shard, false)
 					if err != nil {
 						log.Error("Failed to open shard", logger.Shard(shardID), zap.Error(err))
-						resC <- &res{err: fmt.Errorf("Failed to open shard: %d: %s", shardID, err)}
+						resC <- &res{err: fmt.Errorf("failed to open shard: %d: %w", shardID, err)}
 						return
 					}
 
@@ -661,7 +661,7 @@ func (s *Store) OpenShard(sh *Shard, force bool) error {
 		s.badShards.setShardOpenError(sh.ID(), err)
 		return err
 	} else {
-		return oldErr
+		return fmt.Errorf("not attempting to open shard %d; %w", sh.ID(), oldErr)
 	}
 }
 
