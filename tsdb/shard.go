@@ -2499,7 +2499,15 @@ func (fscm *measurementFieldSetChangeMgr) loadAllFieldChanges(log *zap.Logger) (
 			return nil
 		}
 	})()
+	changesetCount := 0
+	totalChanges := 0
 	for fcs, err = fscm.loadFieldChangeSet(fd); err == nil; fcs, err = fscm.loadFieldChangeSet(fd) {
+		totalChanges += len(fcs)
+		changesetCount++
+		log.Debug("loading field change set",
+			zap.Int("set", changesetCount),
+			zap.Int("changes", len(fcs)),
+			zap.Int("total_changes", totalChanges))
 		changes = append(changes, fcs)
 	}
 	if errors.Is(err, io.EOF) {
@@ -2543,7 +2551,7 @@ func (fscm *measurementFieldSetChangeMgr) loadFieldChangeSet(r io.Reader) (Field
 }
 
 func (fs *MeasurementFieldSet) ApplyChanges() error {
-	log, end := logger.NewOperation(context.TODO(), fs.changeMgr.logger, "loading changes", "field indices")
+	log, end := logger.NewOperation(context.TODO(), fs.changeMgr.logger, "loading changes", "field indices", zap.String("path", fs.changeMgr.changeFilePath))
 	defer end()
 	changes, err := fs.changeMgr.loadAllFieldChanges(log)
 	if err != nil {
