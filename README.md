@@ -11,5 +11,4 @@ git merge OSS/main
 git push --set-upstream origin pd/oss-sync
 ```
 
-Then create a PR to merge `pd/oss-sync` into `main`. When you do the merge, be sure to the rebase version so all 
-the commits from the OSS repo are brought into main.
+Then create a PR to merge `pd/oss-sync` into `main`. Use a merge PR that pulls over the commits.
