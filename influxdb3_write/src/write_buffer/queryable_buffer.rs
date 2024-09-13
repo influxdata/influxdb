@@ -40,6 +40,9 @@ pub struct QueryableBuffer {
     persister: Arc<Persister>,
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<RwLock<BufferState>>,
+    /// Sends a notification to this watch channel whenever a snapshot info is persisted
+    persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshot>>,
+    persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
 }
 
 impl QueryableBuffer {
@@ -51,6 +54,8 @@ impl QueryableBuffer {
         persisted_files: Arc<PersistedFiles>,
     ) -> Self {
         let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
+        let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
+            tokio::sync::watch::channel(None);
         Self {
             executor,
             catalog,
@@ -58,6 +63,8 @@ impl QueryableBuffer {
             persister,
             persisted_files,
             buffer,
+            persisted_snapshot_notify_rx,
+            persisted_snapshot_notify_tx,
         }
     }
 
@@ -178,6 +185,7 @@ impl QueryableBuffer {
         let wal_file_number = write.wal_file_number;
         let buffer = Arc::clone(&self.buffer);
         let catalog = Arc::clone(&self.catalog);
+        let notify_snapshot_tx = self.persisted_snapshot_notify_tx.clone();
 
         tokio::spawn(async move {
             // persist the catalog if it has been updated
@@ -247,7 +255,13 @@ impl QueryableBuffer {
             // persist the snapshot file
             loop {
                 match persister.persist_snapshot(&persisted_snapshot).await {
-                    Ok(_) => break,
+                    Ok(_) => {
+                        let persisted_snapshot = Some(persisted_snapshot.clone());
+                        notify_snapshot_tx
+                            .send(persisted_snapshot)
+                            .expect("persisted snapshot notify tx should not be closed");
+                        break;
+                    }
                     Err(e) => {
                         error!(%e, "Error persisting snapshot, sleeping and retrying...");
                         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -273,6 +287,12 @@ impl QueryableBuffer {
 
     pub fn persisted_parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
         self.persisted_files.get_files(db_name, table_name)
+    }
+
+    pub fn persisted_snapshot_notify_rx(
+        &self,
+    ) -> tokio::sync::watch::Receiver<Option<PersistedSnapshot>> {
+        self.persisted_snapshot_notify_rx.clone()
     }
 }
 

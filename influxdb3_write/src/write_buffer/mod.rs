@@ -13,8 +13,8 @@ use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
 use crate::{
-    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile, Precision,
-    WriteBuffer, WriteLineError, NEXT_FILE_ID,
+    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
+    PersistedSnapshot, Precision, WriteBuffer, WriteLineError, NEXT_FILE_ID,
 };
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError};
@@ -42,6 +42,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
+use tokio::sync::watch::Receiver;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -490,6 +491,10 @@ impl Bufferer for WriteBufferImpl {
 
     fn parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
         self.buffer.persisted_parquet_files(db_name, table_name)
+    }
+
+    fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
+        self.buffer.persisted_snapshot_notify_rx()
     }
 }
 
@@ -1508,6 +1513,55 @@ mod tests {
             ],
             &batches
         );
+    }
+
+    #[tokio::test]
+    async fn notifies_watchers_of_snapshot() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let (wbuf, _) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+
+        let mut watcher = wbuf.watch_persisted_snapshots();
+        watcher.mark_changed();
+
+        let db_name = "coffee_shop";
+        let tbl_name = "menu";
+
+        // do some writes to get a snapshot:
+        do_writes(
+            db_name,
+            &wbuf,
+            &[
+                TestWrite {
+                    lp: format!("{tbl_name},name=espresso price=2.50"),
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=americano price=3.00"),
+                    time_seconds: 2,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},name=latte price=4.50"),
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        // wait for snapshot to be created:
+        verify_snapshot_count(1, &wbuf.persister).await;
+        watcher.changed().await.unwrap();
+        let snapshot = watcher.borrow();
+        assert!(snapshot.is_some(), "watcher should be notified of snapshot");
     }
 
     struct TestWrite<LP> {
