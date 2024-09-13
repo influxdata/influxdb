@@ -20,17 +20,17 @@ use data_types::ChunkOrder;
 use data_types::PartitionHashId;
 use data_types::PartitionKey;
 use data_types::TableId;
+use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::error::DataFusionError;
 use datafusion::execution::SendableRecordBatchStream;
 use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
-use influxdb3_catalog::catalog::TIME_COLUMN_NAME;
+use influxdb3_catalog::catalog::{Catalog, TIME_COLUMN_NAME};
 use influxdb3_pro_index::FileIndex;
 use influxdb3_write::chunk::ParquetChunk;
-use influxdb3_write::persister::Persister;
+use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
 use influxdb3_write::ParquetFile;
 use influxdb3_write::ParquetFileId;
-use influxdb3_write::WriteBuffer;
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::chunk_statistics::NoColumnRanges;
 use iox_query::exec::Executor;
@@ -108,21 +108,26 @@ pub struct CompactorOutput {
 
 #[derive(Debug)]
 pub struct Compactor {
-    write_buffer: Arc<dyn WriteBuffer>,
-    persister: Arc<Persister>,
+    compactor_id: Arc<str>,
+    catalog: Arc<Catalog>,
+    object_store: Arc<dyn ObjectStore>,
+    object_store_url: ObjectStoreUrl,
     executor: Arc<Executor>,
     compaction_seq: u64,
 }
 
 impl Compactor {
     pub fn new(
-        write_buffer: Arc<dyn WriteBuffer>,
-        persister: Arc<Persister>,
+        compactor_id: Arc<str>,
+        catalog: Arc<Catalog>,
+        object_store: Arc<dyn ObjectStore>,
         executor: Arc<Executor>,
     ) -> Self {
         Self {
-            write_buffer,
-            persister,
+            compactor_id,
+            catalog,
+            object_store,
+            object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             executor,
             // TODO: Eventually this needs to be pulled from object store to
             // see what the next value actually is to use here
@@ -148,7 +153,6 @@ impl Compactor {
         mut sort_keys: Vec<String>,
         paths: Vec<ObjPath>,
         limit: usize,
-        compactor_id: Arc<str>,
         host: Arc<str>,
         generation: u64,
         index_columns: Vec<String>,
@@ -156,8 +160,7 @@ impl Compactor {
         executor::register_current_runtime_for_io();
 
         let db_schema = self
-            .write_buffer
-            .catalog()
+            .catalog
             .db_schema(database_name)
             .ok_or_else(|| CompactorError::MissingDB)?;
 
@@ -171,11 +174,11 @@ impl Compactor {
 
         let mut series_writer = SeriesWriter::new(
             Arc::new(table_schema.clone()),
-            self.persister.object_store(),
+            Arc::clone(&self.object_store),
             limit,
             sort_keys.clone(),
             records,
-            compactor_id,
+            Arc::clone(&self.compactor_id),
             host,
             generation,
             &mut self.compaction_seq,
@@ -223,14 +226,13 @@ impl Compactor {
         let mut chunks = Vec::new();
         for (id, location) in paths.iter().enumerate() {
             let meta = self
-                .persister
-                .object_store()
+                .object_store
                 .get(location)
                 .await
                 .map_err(CompactorError::FailedGet)?
                 .meta;
             let parquet_exec = ParquetExecInput {
-                object_store_url: self.persister.object_store_url().clone(),
+                object_store_url: self.object_store_url.clone(),
                 object_meta: ObjectMeta {
                     location: location.clone(),
                     last_modified: meta.last_modified,
@@ -238,7 +240,7 @@ impl Compactor {
                     e_tag: meta.e_tag,
                     version: meta.version,
                 },
-                object_store: self.persister.object_store(),
+                object_store: Arc::clone(&self.object_store),
             };
 
             let chunk_stats = create_chunk_statistics(None, table_schema, None, &NoColumnRanges);

@@ -373,11 +373,14 @@ pub async fn command(config: Config) -> Result<()> {
         10,
         config.query_log_size,
     ));
-    let compactor = Compactor::new(
-        Arc::clone(&write_buffer),
-        Arc::clone(&persister),
-        Arc::clone(&exec),
-    );
+    let compactor = config.pro_config.compactor_id.map(|compactor_id| {
+        Compactor::new(
+            compactor_id.into(),
+            Arc::clone(&write_buffer.catalog()),
+            Arc::clone(&persister.object_store()),
+            Arc::clone(&exec),
+        )
+    });
 
     let listener = TcpListener::bind(*config.http_bind_address)
         .await
@@ -398,7 +401,9 @@ pub async fn command(config: Config) -> Result<()> {
     } else {
         builder.build()
     };
-    task::spawn(compactor.compact());
+    if let Some(compactor) = compactor {
+        task::spawn(compactor.compact());
+    }
     serve(server, frontend_shutdown).await?;
 
     Ok(())

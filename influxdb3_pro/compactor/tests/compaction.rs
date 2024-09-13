@@ -112,8 +112,9 @@ async fn five_files_multiple_series_same_schema() {
 
     // Create our new Compactor and compact the above files
     let mut compactor = Compactor::new(
-        write_buffer,
-        persister,
+        "compactor_1".into(),
+        Arc::clone(&write_buffer.catalog()),
+        Arc::clone(&persister.object_store()),
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     );
     let CompactorOutput {
@@ -127,7 +128,6 @@ async fn five_files_multiple_series_same_schema() {
             vec!["id".into()],
             vec![path1, path2, path3, path4, path5],
             2,
-            "compactor_1".into(),
             "us-east-1".into(),
             0,
             vec!["id".into(), "field".into()],
@@ -316,8 +316,9 @@ async fn two_files_two_series_and_same_schema() {
 
     // Create our new Compactor and compact the above files
     let mut compactor = Compactor::new(
-        write_buffer,
-        persister,
+        "compactor_1".into(),
+        Arc::clone(&write_buffer.catalog()),
+        Arc::clone(&persister.object_store()),
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     );
     let CompactorOutput {
@@ -333,7 +334,6 @@ async fn two_files_two_series_and_same_schema() {
             // Make sure this works out of order
             vec![path2, path1],
             2,
-            "compactor_1".into(),
             "us-east-1".into(),
             0,
             vec!["id".into(), "host".into(), "field".into()],
@@ -465,8 +465,9 @@ async fn two_files_same_series_and_schema() {
 
     // Create our new Compactor and compact the above files
     let mut compactor = Compactor::new(
-        write_buffer,
-        persister,
+        "compactor_1".into(),
+        Arc::clone(&write_buffer.catalog()),
+        Arc::clone(&persister.object_store()),
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     );
 
@@ -483,7 +484,6 @@ async fn two_files_same_series_and_schema() {
             // Check that order matters for determining which data to use for field
             vec![path1, path2],
             2,
-            "compactor_1".into(),
             "us-east-1".into(),
             0,
             vec!["id".into(), "host".into(), "field".into()],
@@ -617,8 +617,9 @@ async fn two_files_similar_series_and_compatible_schema() {
 
     // Create our new Compactor and compact the above files
     let mut compactor = Compactor::new(
-        write_buffer,
-        persister,
+        "compactor_1".into(),
+        Arc::clone(&write_buffer.catalog()),
+        Arc::clone(&persister.object_store()),
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     );
 
@@ -634,7 +635,6 @@ async fn two_files_similar_series_and_compatible_schema() {
             vec!["id".into(), "host".into(), "extra_tag".into()],
             vec![path1, path2],
             2,
-            "compactor_1".into(),
             "us-east-1".into(),
             0,
             vec![
@@ -775,8 +775,9 @@ async fn deduplication_of_data() {
 
     // Create our new Compactor and compact the above files
     let mut compactor = Compactor::new(
-        write_buffer,
-        persister,
+        "compactor_1".into(),
+        Arc::clone(&write_buffer.catalog()),
+        Arc::clone(&persister.object_store()),
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     );
 
@@ -793,7 +794,6 @@ async fn deduplication_of_data() {
             // Make sure this works out of order
             vec![path2, path1],
             2,
-            "compactor_1".into(),
             "us-east-1".into(),
             0,
             vec!["id".into(), "host".into(), "field".into()],
@@ -919,8 +919,9 @@ async fn compactor_casting() {
 
     // Create our new Compactor and compact the above files
     let mut compactor = Compactor::new(
-        write_buffer,
-        persister,
+        "compactor_1".into(),
+        Arc::clone(&write_buffer.catalog()),
+        Arc::clone(&persister.object_store()),
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     );
 
@@ -936,7 +937,6 @@ async fn compactor_casting() {
             // Make sure this works out of order
             vec![path1],
             1000,
-            "compactor_1".into(),
             "us-east-1".into(),
             0,
             ["a", "b", "c", "d", "e", "f", "g", "h", "i", "time"]
