@@ -19,6 +19,7 @@ mod configure;
 mod flight;
 mod limits;
 mod ping;
+mod pro;
 mod query;
 mod system_tables;
 mod write;

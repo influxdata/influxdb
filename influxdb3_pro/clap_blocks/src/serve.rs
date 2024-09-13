@@ -39,6 +39,15 @@ pub enum BufferMode {
     ReadWrite,
 }
 
+impl std::fmt::Display for BufferMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BufferMode::Read => write!(f, "read"),
+            BufferMode::ReadWrite => write!(f, "read_write"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ReplicaList(Vec<String>);
 
