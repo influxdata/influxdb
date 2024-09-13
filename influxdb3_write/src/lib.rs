@@ -78,6 +78,9 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
 
     /// Returns the parquet files for a given database and table
     fn parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile>;
+
+    /// A channel to watch for when new persisted snapshots are created
+    fn watch_persisted_snapshots(&self) -> tokio::sync::watch::Receiver<Option<PersistedSnapshot>>;
 }
 
 /// ChunkContainer is used by the query engine to get chunks for a given table. Chunks will generally be in the
