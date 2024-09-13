@@ -3,7 +3,7 @@ use arrow_util::assert_batches_sorted_eq;
 use influxdb3_client::Precision;
 use reqwest::StatusCode;
 
-use crate::{collect_stream, TestServer};
+use crate::{collect_stream, ConfigProvider, TestServer};
 
 #[tokio::test]
 async fn auth() {
@@ -11,7 +11,7 @@ async fn auth() {
     const TOKEN: &str = "apiv3_mp75KQAhbqv0GeQXk8MPuZ3ztaLEaR5JzS8iifk1FwuroSVyXXyrJK1c4gEr1kHkmbgzDV-j3MvQpaIMVJBAiA";
 
     let server = TestServer::configure()
-        .auth_token(HASHED_TOKEN, TOKEN)
+        .with_auth_token(HASHED_TOKEN, TOKEN)
         .spawn()
         .await;
 
@@ -120,7 +120,7 @@ async fn auth_grpc() {
     const TOKEN: &str = "apiv3_mp75KQAhbqv0GeQXk8MPuZ3ztaLEaR5JzS8iifk1FwuroSVyXXyrJK1c4gEr1kHkmbgzDV-j3MvQpaIMVJBAiA";
 
     let server = TestServer::configure()
-        .auth_token(HASHED_TOKEN, TOKEN)
+        .with_auth_token(HASHED_TOKEN, TOKEN)
         .spawn()
         .await;
 
@@ -216,7 +216,7 @@ async fn v1_password_parameter() {
     const TOKEN: &str = "apiv3_mp75KQAhbqv0GeQXk8MPuZ3ztaLEaR5JzS8iifk1FwuroSVyXXyrJK1c4gEr1kHkmbgzDV-j3MvQpaIMVJBAiA";
 
     let server = TestServer::configure()
-        .auth_token(HASHED_TOKEN, TOKEN)
+        .with_auth_token(HASHED_TOKEN, TOKEN)
         .spawn()
         .await;
 
