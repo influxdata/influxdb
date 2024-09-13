@@ -12,6 +12,7 @@ clap_blocks.workspace = true
 datafusion_util.workspace = true
 iox_query.workspace = true
 iox_time.workspace = true
+licensing.workspace = true
 metric.workspace = true
 object_store.workspace = true
 observability_deps.workspace = true
@@ -75,6 +76,9 @@ tokio_console = ["console-subscriber", "tokio/tracing", "observability_deps/rele
 
 # Use jemalloc as the default allocator.
 jemalloc_replacing_malloc = ["influxdb3_process/jemalloc_replacing_malloc"]
+
+# licensing
+licensing = ["influxdb3_server/licensing"]
 
 [dev-dependencies]
 # Core Crates

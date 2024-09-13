@@ -99,6 +99,9 @@ jobs:
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
       - checkout
       - rust_components
       - run:
@@ -116,6 +119,9 @@ jobs:
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
       - checkout
       - rust_components
       - run:
@@ -136,6 +142,9 @@ jobs:
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
       - checkout
       - rust_components
       - run:
@@ -159,6 +168,9 @@ jobs:
       # Turn warnings into errors
       RUSTDOCFLAGS: "-D warnings -A rustdoc::private-intra-doc-links"
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
       - checkout
       - rust_components
       - run:
@@ -185,6 +197,9 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       RUST_BACKTRACE: "1"
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
       - checkout
       - rust_components
       - run:
@@ -219,7 +234,15 @@ jobs:
       target:
         type: string
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
       - checkout
+      - run:
+          name: Add ssh client
+          command: |
+            apt-get -y update
+            apt-get -y install openssh-client
       - run:
           name: Install Target
           command: rustup target add << parameters.target >>
@@ -269,6 +292,9 @@ jobs:
       target:
         type: string
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
       - checkout
       - run:
           name: Install Target
@@ -296,6 +322,9 @@ jobs:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
       - checkout
       - attach_workspace:
           at: /tmp/workspace
@@ -345,6 +374,7 @@ jobs:
       - add_ssh_keys:
           fingerprints:
             - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
       - checkout
       - run: |
           AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID \
@@ -424,6 +454,9 @@ jobs:
       image: default
     resource_class: 2xlarge+ # CPU bound, so make it fast
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
       - checkout
       - run:
           name: Build the docker image
@@ -446,6 +479,9 @@ jobs:
       - image: cimg/gcp:2023.02
     resource_class: medium
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
       - checkout
       - setup_remote_docker
       - gcloud-docker-login
