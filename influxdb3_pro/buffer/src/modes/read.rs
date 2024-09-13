@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use crate::replica::Replicas;
 use anyhow::Context;
 use async_trait::async_trait;
 use data_types::NamespaceName;
@@ -9,15 +10,14 @@ use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::{
     last_cache::LastCacheProvider,
     write_buffer::{Error as WriteBufferError, Result as WriteBufferResult},
-    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile, Precision,
-    WriteBuffer,
+    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
+    PersistedSnapshot, Precision, WriteBuffer,
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
 use metric::Registry;
 use object_store::ObjectStore;
-
-use crate::replica::Replicas;
+use tokio::sync::watch::Receiver;
 
 #[derive(Debug)]
 pub struct ReadMode {
@@ -80,6 +80,10 @@ impl Bufferer for ReadMode {
         let mut files = self.replicas.parquet_files(db_name, table_name);
         files.sort_unstable_by(|a, b| a.chunk_time.cmp(&b.chunk_time));
         files
+    }
+
+    fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
+        unimplemented!("watch_persisted_snapshots not implemented for ReadMode")
     }
 }
 
