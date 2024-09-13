@@ -7,7 +7,8 @@ use influxdb3_catalog::catalog::Catalog;
 use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::{
     last_cache::LastCacheProvider, write_buffer::Result as WriteBufferResult, BufferedWriteRequest,
-    Bufferer, ChunkContainer, LastCacheManager, ParquetFile, Precision, WriteBuffer,
+    Bufferer, ChunkContainer, LastCacheManager, ParquetFile, PersistedSnapshot, Precision,
+    WriteBuffer,
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -18,6 +19,7 @@ use modes::{
 };
 use object_store::ObjectStore;
 use replica::ReplicationConfig;
+use tokio::sync::watch::Receiver;
 
 pub mod modes;
 pub mod replica;
@@ -93,6 +95,10 @@ impl<Mode: Bufferer> Bufferer for WriteBufferPro<Mode> {
 
     fn parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
         self.mode.parquet_files(db_name, table_name)
+    }
+
+    fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
+        unimplemented!("watch_persisted_snapshots not implemented for WriteBufferPro")
     }
 }
 
