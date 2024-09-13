@@ -94,6 +94,11 @@ func (e ShardError) Error() string {
 	return fmt.Sprintf("[shard %d] %s", e.id, e.Err)
 }
 
+// Unwrap returns the underlying error.
+func (e ShardError) Unwrap() error {
+	return e.Err
+}
+
 // PartialWriteError indicates a write request could only write a portion of the
 // requested values.
 type PartialWriteError struct {
