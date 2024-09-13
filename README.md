@@ -32,6 +32,13 @@ If you are interested in building from source, see the [building from source](ht
 To begin using InfluxDB, visit our [Getting Started with InfluxDB](https://docs.influxdata.com/influxdb/v1/introduction/get-started/) documentation.
 
 
+## Self-Hosting InfluxDB
+
+### Elestio
+
+[![Deploy on Elestio](https://elest.io/images/logos/deploy-to-elestio-btn.png)](https://elest.io/open-source/influxdb)
+
+
 ## License
 The open source software we build is licensed under the permissive MIT and Apache 2 licenses. We’ve long held the view that our open source code should be truly open and our commercial code should be separate and closed. 
 
