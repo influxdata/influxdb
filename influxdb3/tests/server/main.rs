@@ -23,15 +23,35 @@ mod query;
 mod system_tables;
 mod write;
 
+trait ConfigProvider {
+    /// Convert this to a set of command line arguments for `influxdb3 serve`
+    fn as_args(&self) -> Vec<String>;
+
+    /// Get the auth token from this config if it was set
+    fn auth_token(&self) -> Option<&str>;
+
+    /// Spawn a new [`TestServer`] with this configuration
+    ///
+    /// This will run the `influxdb3 serve` command and bind its HTTP address to a random port
+    /// on localhost.
+    async fn spawn(&self) -> TestServer
+    where
+        Self: Sized,
+    {
+        TestServer::spawn_inner(self).await
+    }
+}
+
 /// Configuration for a [`TestServer`]
 #[derive(Debug, Default)]
 pub struct TestConfig {
     auth_token: Option<(String, String)>,
+    host_id: Option<String>,
 }
 
 impl TestConfig {
     /// Set the auth token for this [`TestServer`]
-    pub fn auth_token<S: Into<String>, R: Into<String>>(
+    pub fn with_auth_token<S: Into<String>, R: Into<String>>(
         mut self,
         hashed_token: S,
         raw_token: R,
@@ -40,20 +60,34 @@ impl TestConfig {
         self
     }
 
-    /// Spawn a new [`TestServer`] with this configuration
-    ///
-    /// This will run the `influxdb3 serve` command, and bind its HTTP
-    /// address to a random port on localhost.
-    pub async fn spawn(self) -> TestServer {
-        TestServer::spawn_inner(self).await
+    /// Set a host identifier prefix on the spawned [`TestServer`]
+    pub fn with_host_id<S: Into<String>>(mut self, host_id: S) -> Self {
+        self.host_id = Some(host_id.into());
+        self
     }
+}
 
-    fn as_args(&self) -> Vec<&str> {
+impl ConfigProvider for TestConfig {
+    fn as_args(&self) -> Vec<String> {
         let mut args = vec![];
         if let Some((token, _)) = &self.auth_token {
-            args.append(&mut vec!["--bearer-token", token]);
+            args.append(&mut vec!["--bearer-token".to_string(), token.to_owned()]);
         }
+        args.push("--host-id".to_string());
+        if let Some(host) = &self.host_id {
+            args.push(host.to_owned());
+        } else {
+            args.push("test-server".to_string());
+        }
+        args.append(&mut vec![
+            "--object-store".to_string(),
+            "memory".to_string(),
+        ]);
         args
+    }
+
+    fn auth_token(&self) -> Option<&str> {
+        self.auth_token.as_ref().map(|(_, t)| t.as_str())
     }
 }
 
@@ -65,7 +99,7 @@ impl TestConfig {
 /// TEST_LOG= cargo test
 /// ```
 pub struct TestServer {
-    config: TestConfig,
+    auth_token: Option<String>,
     bind_addr: SocketAddr,
     server_process: Child,
     http_client: reqwest::Client,
@@ -77,7 +111,7 @@ impl TestServer {
     /// This will run the `influxdb3 serve` command, and bind its HTTP
     /// address to a random port on localhost.
     pub async fn spawn() -> Self {
-        Self::spawn_inner(Default::default()).await
+        Self::spawn_inner(&TestConfig::default()).await
     }
 
     /// Configure a [`TestServer`] before spawning
@@ -85,15 +119,13 @@ impl TestServer {
         TestConfig::default()
     }
 
-    async fn spawn_inner(config: TestConfig) -> Self {
+    async fn spawn_inner(config: &impl ConfigProvider) -> Self {
         let bind_addr = get_local_bind_addr();
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
         let mut command = command
             .arg("serve")
             .args(["--http-bind", &bind_addr.to_string()])
-            .args(["--object-store", "memory"])
             .args(["--wal-flush-interval", "10ms"])
-            .args(["--host-id", "test-server"])
             .args(config.as_args());
 
         // If TEST_LOG env var is not defined, discard stdout/stderr
@@ -104,7 +136,7 @@ impl TestServer {
         let server_process = command.spawn().expect("spawn the influxdb3 server process");
 
         let server = Self {
-            config,
+            auth_token: config.auth_token().map(|s| s.to_owned()),
             bind_addr,
             server_process,
             http_client: reqwest::Client::new(),
@@ -179,7 +211,7 @@ impl TestServer {
         precision: Precision,
     ) -> Result<(), influxdb3_client::Error> {
         let mut client = influxdb3_client::Client::new(self.client_addr()).unwrap();
-        if let Some((_, token)) = &self.config.auth_token {
+        if let Some(token) = &self.auth_token {
             client = client.with_auth_token(token);
         }
         client
