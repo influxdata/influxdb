@@ -1742,7 +1742,7 @@ func TestHandler_Delete_V2(t *testing.T) {
 		},
 		&test{
 			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
-			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T22:56:06Z", Predicate: "_measurement='baz' AND t1=tagOne"},
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T22:56:06Z", Predicate: "_measurement=\"baz\" AND t1=tagOne"},
 			status: http.StatusOK,
 			errMsg: ``,
 		},
