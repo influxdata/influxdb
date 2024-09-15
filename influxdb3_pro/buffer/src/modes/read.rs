@@ -22,6 +22,8 @@ use tokio::sync::watch::Receiver;
 #[derive(Debug)]
 pub struct ReadMode {
     replicas: Replicas,
+    /// Unified snapshot channel for all replicas
+    persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
 }
 
 impl ReadMode {
@@ -33,7 +35,11 @@ impl ReadMode {
         replication_interval: Duration,
         hosts: Vec<String>,
     ) -> Result<Self, anyhow::Error> {
+        let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
+            tokio::sync::watch::channel(None);
+
         Ok(Self {
+            persisted_snapshot_notify_rx,
             replicas: Replicas::new(
                 catalog,
                 last_cache,
@@ -41,6 +47,7 @@ impl ReadMode {
                 metric_registry,
                 replication_interval,
                 hosts,
+                persisted_snapshot_notify_tx,
             )
             .await
             .context("failed to initialize replicas")?,
@@ -83,7 +90,7 @@ impl Bufferer for ReadMode {
     }
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
-        unimplemented!("watch_persisted_snapshots not implemented for ReadMode")
+        self.persisted_snapshot_notify_rx.clone()
     }
 }
 

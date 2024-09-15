@@ -22,6 +22,8 @@ use tokio::sync::watch::Receiver;
 pub struct ReadWriteMode {
     primary: WriteBufferImpl,
     replicas: Option<Replicas>,
+    /// Unified snapshot channels for primary and all replicas
+    persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
 }
 
 #[derive(Debug)]
@@ -59,6 +61,25 @@ impl ReadWriteMode {
             wal_config,
         )
         .await?;
+
+        let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
+            tokio::sync::watch::channel(None);
+
+        // spawn tokio task to watch for persisted snapshots on primary and send to unified watch
+        let mut primary_persisted_snapshot_notify_rx = primary.watch_persisted_snapshots();
+        let persisted_snapshot_combined_notify_tx = persisted_snapshot_notify_tx.clone();
+        tokio::spawn(async move {
+            while primary_persisted_snapshot_notify_rx.changed().await.is_ok() {
+                persisted_snapshot_combined_notify_tx
+                    .send(
+                        primary_persisted_snapshot_notify_rx
+                            .borrow_and_update()
+                            .clone(),
+                    )
+                    .expect("watch failed");
+            }
+        });
+
         let replicas = if let Some(config) = replication_config {
             Some(
                 Replicas::new(
@@ -68,13 +89,18 @@ impl ReadWriteMode {
                     metric_registry,
                     config.interval,
                     config.hosts,
+                    persisted_snapshot_notify_tx,
                 )
                 .await?,
             )
         } else {
             None
         };
-        Ok(Self { primary, replicas })
+        Ok(Self {
+            primary,
+            replicas,
+            persisted_snapshot_notify_rx,
+        })
     }
 }
 
@@ -126,7 +152,7 @@ impl Bufferer for ReadWriteMode {
     }
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
-        unimplemented!("watch_persisted_snapshots not implemented for ReadWriteMode")
+        self.persisted_snapshot_notify_rx.clone()
     }
 }
 
