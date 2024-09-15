@@ -222,6 +222,7 @@ impl QueryableBuffer {
             );
             // persist the individual files, building the snapshot as we go
             let mut persisted_snapshot = PersistedSnapshot::new(
+                persister.host_identifier_prefix().to_string(),
                 snapshot_details.snapshot_sequence_number,
                 wal_file_number,
                 catalog.sequence_number(),

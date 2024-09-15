@@ -1177,6 +1177,7 @@ mod tests {
         NEXT_FILE_ID.store(500, Ordering::SeqCst);
         let prev_snapshot_seq = SnapshotSequenceNumber::new(42);
         let prev_snapshot = PersistedSnapshot::new(
+            "test_host".to_string(),
             prev_snapshot_seq,
             WalFileSequenceNumber::new(0),
             SequenceNumber::new(0),
