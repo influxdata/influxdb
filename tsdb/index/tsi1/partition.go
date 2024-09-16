@@ -385,15 +385,14 @@ func (p *Partition) Close() error {
 	}
 
 	// Close log files.
-	var err error
+	var err []error
 	for _, f := range p.fileSet.files {
-		if localErr := f.Close(); localErr != nil {
-			err = errors.Join(err, localErr)
-		}
+		localErr := f.Close()
+		err = append(err, localErr)
 	}
 	p.fileSet.files = nil
 
-	return err
+	return errors.Join(err...)
 }
 
 // closing returns true if the partition is currently closing. It does not require
