@@ -115,8 +115,7 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 // Only for tests!
 func (p *Partition) SetMaxLogFileSize(new int64) (old int64) {
 	p.mu.Lock()
-	old = p.maxLogFileSize
-	p.maxLogFileSize = new
+	old, p.maxLogFileSize = p.maxLogFileSize, new
 	p.mu.Unlock()
 	return old
 }
@@ -389,7 +388,7 @@ func (p *Partition) Close() error {
 	var err error
 	for _, f := range p.fileSet.files {
 		if localErr := f.Close(); localErr != nil {
-			err = localErr
+			err = errors.Join(err, localErr)
 		}
 	}
 	p.fileSet.files = nil
