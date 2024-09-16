@@ -382,7 +382,6 @@ impl ReplicatedBuffer {
             None => self.buffer_wal_contents(wal_contents),
             Some(snapshot_details) => {
                 self.buffer_wal_contents_and_handle_snapshots(wal_contents, snapshot_details)
-                    .await?
             }
         }
 
@@ -400,11 +399,11 @@ impl ReplicatedBuffer {
         buffer.buffer_ops(wal_contents.ops, &self.last_cache);
     }
 
-    async fn buffer_wal_contents_and_handle_snapshots(
+    fn buffer_wal_contents_and_handle_snapshots(
         &self,
         wal_contents: WalContents,
         snapshot_details: SnapshotDetails,
-    ) -> Result<()> {
+    ) {
         // Update the Buffer by invoking the snapshot, to separate data in the buffer that will
         // get cleared by the snapshot, before fetching the snapshot from object store:
         {
@@ -419,35 +418,48 @@ impl ReplicatedBuffer {
             }
             buffer.buffer_ops(wal_contents.ops, &self.last_cache);
         }
-        // Update the persisted files:
+
         let snapshot_path = SnapshotInfoFilePath::new(
             &self.host_identifier_prefix,
             snapshot_details.snapshot_sequence_number,
         );
-        let snapshot_bytes = self
-            .object_store
-            .get(&snapshot_path)
-            .await
-            .context("failed to retrieve snapshot file")?
-            .bytes()
-            .await
-            .context("failed to get bytes for object store get request")?;
-        let snapshot = serde_json::from_slice::<PersistedSnapshot>(&snapshot_bytes)
-            .context("failed to parse snapshot info file as JSON")?;
-        // Now that the snapshot has been loaded, clear the buffer of the data that was separated
-        // out previously and update the persisted files:
-        let mut buffer = self.buffer.write();
-        for (_, tbl_map) in buffer.db_to_table.iter_mut() {
-            for (_, tbl_buf) in tbl_map.iter_mut() {
-                tbl_buf.clear_snapshots();
+        let object_store = Arc::clone(&self.object_store);
+        let buffer = Arc::clone(&self.buffer);
+        let persisted_files = Arc::clone(&self.persisted_files);
+        let persisted_snapshot_notify_tx = self.persisted_snapshot_notify_tx.clone();
+
+        tokio::spawn(async move {
+            // Update the persisted files:
+            loop {
+                match object_store.get(&snapshot_path).await {
+                    Ok(get_result) => {
+                        let snapshot_bytes = get_result
+                            .bytes()
+                            .await
+                            .expect("unable to collect get result from object storage into bytes");
+                        let snapshot = serde_json::from_slice::<PersistedSnapshot>(&snapshot_bytes)
+                            .expect("unable to deserialize snapshot bytes");
+                        // Now that the snapshot has been loaded, clear the buffer of the data that was separated
+                        // out previously and update the persisted files:
+                        let mut buffer = buffer.write();
+                        for (_, tbl_map) in buffer.db_to_table.iter_mut() {
+                            for (_, tbl_buf) in tbl_map.iter_mut() {
+                                tbl_buf.clear_snapshots();
+                            }
+                        }
+                        persisted_files.add_persisted_snapshot_files(snapshot.clone());
+                        persisted_snapshot_notify_tx
+                            .send(Some(snapshot))
+                            .expect("watch failed");
+                        break;
+                    }
+                    Err(error) => {
+                        error!(%error, path = ?snapshot_path, "error getting persisted snapshot from replica's object storage");
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
+                }
             }
-        }
-        self.persisted_files
-            .add_persisted_snapshot_files(snapshot.clone());
-        self.persisted_snapshot_notify_tx
-            .send(Some(snapshot))
-            .expect("watch failed");
-        Ok(())
+        });
     }
 }
 
