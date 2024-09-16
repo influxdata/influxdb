@@ -161,6 +161,8 @@ pub struct PersistedCatalog {
 /// The collection of Parquet files that were persisted in a snapshot
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PersistedSnapshot {
+    /// The host identifier that persisted this snapshot
+    pub host_id: String,
     /// The next file id to be used with `ParquetFile`s when the snapshot is loaded
     pub next_file_id: ParquetFileId,
     /// The snapshot sequence number associated with this snapshot
@@ -184,11 +186,13 @@ pub struct PersistedSnapshot {
 
 impl PersistedSnapshot {
     pub fn new(
+        host_id: String,
         snapshot_sequence_number: SnapshotSequenceNumber,
         wal_file_sequence_number: WalFileSequenceNumber,
         catalog_sequence_number: SequenceNumber,
     ) -> Self {
         Self {
+            host_id,
             next_file_id: ParquetFileId::current(),
             snapshot_sequence_number,
             wal_file_sequence_number,
