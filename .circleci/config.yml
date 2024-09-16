@@ -188,8 +188,8 @@ jobs:
       - checkout
       - rust_components
       - run:
-          name: cargo test --workspace
-          command: cargo test --workspace
+          name: cargo nextest run --workspace
+          command: cargo nextest run --workspace
 
   # Build a dev binary.
   #
