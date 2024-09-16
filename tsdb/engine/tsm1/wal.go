@@ -625,9 +625,10 @@ func (l *WAL) Close() error {
 
 // segmentFileNames will return all files that are WAL segment files in sorted order by ascending ID.
 func segmentFileNames(dir string) ([]string, error) {
-	names, err := filepath.Glob(filepath.Join(dir, fmt.Sprintf("%s*.%s", WALFilePrefix, WALFileExtension)))
+	pattern := filepath.Join(dir, fmt.Sprintf("%s*.%s", WALFilePrefix, WALFileExtension))
+	names, err := filepath.Glob(pattern)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("segmentFileNames: error in Glob for %q: %w", pattern, err)
 	}
 	sort.Strings(names)
 	return names, nil
