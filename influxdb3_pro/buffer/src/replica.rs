@@ -53,6 +53,10 @@ impl ReplicationConfig {
     pub fn new(interval: Duration, hosts: Vec<String>) -> Self {
         Self { interval, hosts }
     }
+
+    pub fn hosts(&self) -> &[String] {
+        &self.hosts
+    }
 }
 
 #[derive(Debug)]

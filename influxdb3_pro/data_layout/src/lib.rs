@@ -46,7 +46,7 @@ pub struct CompactionSummary {
 /// The last snapshot sequence number for each host that is getting compacted.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HostSnapshotMarker {
-    pub host_id: Arc<str>,
+    pub host_id: String,
     pub snapshot_sequence_number: SnapshotSequenceNumber,
 }
 
@@ -124,7 +124,7 @@ impl CompactionDetail {
 /// Trait for generation to hide the implementation of young, old, and leftover gen1. Used by the
 /// planner to determine which generations to compact together to form a new generation.
 #[async_trait]
-pub trait Generation {
+pub trait Generation: Send + Sync {
     fn id(&self) -> GenerationId;
 
     /// The start time as a second epoch for the generation
@@ -399,11 +399,17 @@ impl Generation for OldGenWrapper {
 #[derive(Debug)]
 pub struct CompactedData {
     pub compactor_id: Arc<str>,
-    pub host_id: Arc<str>,
     pub databases: HashMap<Arc<str>, CompactedDatabase>,
 }
 
 impl CompactedData {
+    pub fn new(compactor_id: Arc<str>) -> Self {
+        Self {
+            compactor_id,
+            databases: HashMap::new(),
+        }
+    }
+
     pub fn get_generations(
         &self,
         db_name: &str,

@@ -1,3 +1,4 @@
+use crate::planner::SnapshotTracker;
 use arrow::array::as_largestring_array;
 use arrow::array::AsArray;
 use arrow::array::RecordBatch;
@@ -26,11 +27,12 @@ use datafusion::execution::SendableRecordBatchStream;
 use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
 use influxdb3_catalog::catalog::{Catalog, TIME_COLUMN_NAME};
+use influxdb3_pro_data_layout::{CompactedData, CompactionConfig};
 use influxdb3_pro_index::FileIndex;
 use influxdb3_write::chunk::ParquetChunk;
 use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
-use influxdb3_write::ParquetFile;
 use influxdb3_write::ParquetFileId;
+use influxdb3_write::{ParquetFile, PersistedSnapshot};
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::chunk_statistics::NoColumnRanges;
 use iox_query::exec::Executor;
@@ -43,6 +45,8 @@ use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use object_store::PutPayload;
 use object_store::PutResult;
+use observability_deps::tracing::{error, info};
+use parking_lot::Mutex;
 use parquet::arrow::async_writer::AsyncFileWriter;
 use parquet::arrow::AsyncArrowWriter;
 use parquet::errors::ParquetError;
@@ -56,8 +60,7 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 use std::time::SystemTime;
-use tokio::time::sleep;
-use tokio::time::Duration;
+use tokio::sync::watch::Receiver;
 
 pub mod planner;
 
@@ -109,22 +112,63 @@ pub struct CompactorOutput {
 #[derive(Debug)]
 pub struct Compactor {
     compactor_id: Arc<str>,
+    compaction_config: CompactionConfig,
+    compacted_data: Arc<Mutex<CompactedData>>,
     catalog: Arc<Catalog>,
     object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     executor: Arc<Executor>,
     compaction_seq: u64,
+    /// New snapshots for gen1 files will come through this channel
+    persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
+    snapshot_tracker: SnapshotTracker,
+}
+
+#[derive(Debug)]
+pub struct CompactorConfig {
+    pub compactor_id: Arc<str>,
+    pub compaction_hosts: Vec<String>,
+    compaction_config: CompactionConfig,
+}
+
+impl CompactorConfig {
+    pub fn new(compactor_id: Arc<str>, compaction_hosts: Vec<String>) -> Self {
+        Self {
+            compactor_id,
+            compaction_hosts,
+            // TODO: make this configurable
+            compaction_config: CompactionConfig::default(),
+        }
+    }
+
+    pub fn test() -> Self {
+        Self {
+            compactor_id: Arc::from("compactor_1"),
+            compaction_hosts: vec![],
+            compaction_config: CompactionConfig::default(),
+        }
+    }
 }
 
 impl Compactor {
     pub fn new(
-        compactor_id: Arc<str>,
+        compactor_config: CompactorConfig,
         catalog: Arc<Catalog>,
         object_store: Arc<dyn ObjectStore>,
         executor: Arc<Executor>,
+        persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
     ) -> Self {
+        let snapshot_tracker = SnapshotTracker::new(compactor_config.compaction_hosts);
+
+        // TODO: load this from object store
+        let compacted_data = Arc::new(Mutex::new(CompactedData::new(Arc::clone(
+            &compactor_config.compactor_id,
+        ))));
+
         Self {
-            compactor_id,
+            compactor_id: compactor_config.compactor_id,
+            compaction_config: compactor_config.compaction_config,
+            compacted_data,
             catalog,
             object_store,
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
@@ -132,12 +176,44 @@ impl Compactor {
             // TODO: Eventually this needs to be pulled from object store to
             // see what the next value actually is to use here
             compaction_seq: 0,
+            persisted_snapshot_notify_rx,
+            snapshot_tracker,
         }
     }
 
     pub async fn compact(self) {
+        let mut persisted_snapshot_notify_rx = self.persisted_snapshot_notify_rx.clone();
+
         loop {
-            sleep(Duration::from_secs(60)).await;
+            if persisted_snapshot_notify_rx.changed().await.is_err() {
+                break;
+            }
+
+            let snapshot = match persisted_snapshot_notify_rx.borrow_and_update().clone() {
+                Some(snapshot) => snapshot,
+                None => continue,
+            };
+
+            info!(
+                "Received new snapshot for compaction {} from {}",
+                snapshot.snapshot_sequence_number.as_u64(),
+                snapshot.host_id
+            );
+            if let Err(e) = self.snapshot_tracker.add_snapshot(&snapshot) {
+                error!("Failed to add snapshot to tracker: {}", e);
+                continue;
+            }
+
+            if self.snapshot_tracker.should_compact() {
+                let compacted_data = self.compacted_data.lock();
+
+                // TODO: turn this plan into many compactions running in parallel
+                let _snapshot_plan = self.snapshot_tracker.to_plan_and_reset(
+                    &self.compaction_config,
+                    &compacted_data,
+                    Arc::clone(&self.object_store),
+                );
+            }
         }
     }
 
@@ -147,7 +223,7 @@ impl Compactor {
     /// This number can be exceed if a single series is larger than the limit
     #[allow(clippy::too_many_arguments)]
     pub async fn compact_files(
-        &mut self,
+        &self,
         database_name: &str,
         table_name: &str,
         mut sort_keys: Vec<String>,
@@ -181,7 +257,7 @@ impl Compactor {
             Arc::clone(&self.compactor_id),
             host,
             generation,
-            &mut self.compaction_seq,
+            self.compaction_seq,
             database_name,
             table_name,
             index_columns,
@@ -306,7 +382,7 @@ struct SeriesWriter<'compactor> {
     /// What generation the data is being compacted into
     generation: u64,
     /// Which compaction sequence we are currently on
-    compaction_seq: &'compactor mut u64,
+    compaction_seq: u64,
     /// The name of the database we are doing a compaction cycle for
     db_name: &'compactor str,
     /// The name of the table we are doing a compaction cycle for
@@ -338,7 +414,7 @@ impl<'compactor> SeriesWriter<'compactor> {
         compactor_id: Arc<str>,
         host: Arc<str>,
         generation: u64,
-        compaction_seq: &'compactor mut u64,
+        compaction_seq: u64,
         db_name: &'compactor str,
         table_name: &'compactor str,
         index_columns: Vec<String>,

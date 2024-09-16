@@ -12,7 +12,7 @@ use influxdb3_pro_buffer::{
     modes::read_write::ReadWriteArgs, replica::ReplicationConfig, WriteBufferPro,
 };
 use influxdb3_pro_clap_blocks::serve::BufferMode;
-use influxdb3_pro_compactor::Compactor;
+use influxdb3_pro_compactor::{Compactor, CompactorConfig};
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
@@ -312,7 +312,7 @@ pub async fn command(config: Config) -> Result<()> {
         CommonServerState::new(Arc::clone(&metrics), trace_exporter, trace_header_parser)?;
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
-        config.host_identifier_prefix,
+        config.host_identifier_prefix.clone(),
     ));
     let wal_config = WalConfig {
         gen1_duration: config.gen1_duration,
@@ -320,6 +320,22 @@ pub async fn command(config: Config) -> Result<()> {
         flush_interval: config.wal_flush_interval.into(),
         snapshot_size: config.wal_snapshot_size,
     };
+
+    let compactor_config = config.pro_config.compactor_id.map(|compactor_id| {
+        let mut compaction_hosts = config
+            .pro_config
+            .replicas
+            .as_ref()
+            .map(|replicas| replicas.to_vec())
+            .unwrap_or_default();
+
+        // if we're in ReadWrite mode, add this host to the list
+        if let BufferMode::ReadWrite = config.pro_config.mode {
+            compaction_hosts.push(config.host_identifier_prefix.clone());
+        }
+
+        CompactorConfig::new(compactor_id.into(), compaction_hosts)
+    });
 
     let time_provider = Arc::new(SystemProvider::new());
     let (last_cache, catalog) = persister
@@ -373,12 +389,13 @@ pub async fn command(config: Config) -> Result<()> {
         10,
         config.query_log_size,
     ));
-    let compactor = config.pro_config.compactor_id.map(|compactor_id| {
+    let compactor = compactor_config.map(|config| {
         Compactor::new(
-            compactor_id.into(),
+            config,
             Arc::clone(&write_buffer.catalog()),
             Arc::clone(&persister.object_store()),
             Arc::clone(&exec),
+            write_buffer.watch_persisted_snapshots(),
         )
     });
 

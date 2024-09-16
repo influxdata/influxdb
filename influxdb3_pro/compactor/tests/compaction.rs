@@ -10,8 +10,8 @@ use arrow::util::pretty::pretty_format_batches;
 use arrow_schema::SchemaRef;
 use data_types::NamespaceName;
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_pro_compactor::Compactor;
 use influxdb3_pro_compactor::CompactorOutput;
+use influxdb3_pro_compactor::{Compactor, CompactorConfig};
 use influxdb3_wal::WalConfig;
 use influxdb3_write::last_cache::LastCacheProvider;
 use influxdb3_write::persister::Persister;
@@ -111,11 +111,14 @@ async fn five_files_multiple_series_same_schema() {
     let path5 = test_writer.write("test/batch/5", batch5).await;
 
     // Create our new Compactor and compact the above files
-    let mut compactor = Compactor::new(
-        "compactor_1".into(),
+    let (_persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
+        tokio::sync::watch::channel(None);
+    let compactor = Compactor::new(
+        CompactorConfig::test(),
         Arc::clone(&write_buffer.catalog()),
         Arc::clone(&persister.object_store()),
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+        persisted_snapshot_notify_rx,
     );
     let CompactorOutput {
         output_paths,
@@ -315,11 +318,14 @@ async fn two_files_two_series_and_same_schema() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     // Create our new Compactor and compact the above files
-    let mut compactor = Compactor::new(
-        "compactor_1".into(),
+    let (_persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
+        tokio::sync::watch::channel(None);
+    let compactor = Compactor::new(
+        CompactorConfig::test(),
         Arc::clone(&write_buffer.catalog()),
         Arc::clone(&persister.object_store()),
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+        persisted_snapshot_notify_rx,
     );
     let CompactorOutput {
         output_paths,
@@ -464,11 +470,14 @@ async fn two_files_same_series_and_schema() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     // Create our new Compactor and compact the above files
-    let mut compactor = Compactor::new(
-        "compactor_1".into(),
+    let (_persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
+        tokio::sync::watch::channel(None);
+    let compactor = Compactor::new(
+        CompactorConfig::test(),
         Arc::clone(&write_buffer.catalog()),
         Arc::clone(&persister.object_store()),
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+        persisted_snapshot_notify_rx,
     );
 
     let CompactorOutput {
@@ -616,11 +625,14 @@ async fn two_files_similar_series_and_compatible_schema() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     // Create our new Compactor and compact the above files
-    let mut compactor = Compactor::new(
-        "compactor_1".into(),
+    let (_persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
+        tokio::sync::watch::channel(None);
+    let compactor = Compactor::new(
+        CompactorConfig::test(),
         Arc::clone(&write_buffer.catalog()),
         Arc::clone(&persister.object_store()),
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+        persisted_snapshot_notify_rx,
     );
 
     let CompactorOutput {
@@ -774,11 +786,14 @@ async fn deduplication_of_data() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     // Create our new Compactor and compact the above files
-    let mut compactor = Compactor::new(
-        "compactor_1".into(),
+    let (_persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
+        tokio::sync::watch::channel(None);
+    let compactor = Compactor::new(
+        CompactorConfig::test(),
         Arc::clone(&write_buffer.catalog()),
         Arc::clone(&persister.object_store()),
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+        persisted_snapshot_notify_rx,
     );
 
     let CompactorOutput {
@@ -918,11 +933,14 @@ async fn compactor_casting() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
 
     // Create our new Compactor and compact the above files
-    let mut compactor = Compactor::new(
-        "compactor_1".into(),
+    let (_persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
+        tokio::sync::watch::channel(None);
+    let compactor = Compactor::new(
+        CompactorConfig::test(),
         Arc::clone(&write_buffer.catalog()),
         Arc::clone(&persister.object_store()),
         make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+        persisted_snapshot_notify_rx,
     );
 
     let CompactorOutput { file_index, .. } = compactor
