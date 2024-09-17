@@ -119,7 +119,7 @@ func TestPartition_PrependLogFile_Write_Fail(t *testing.T) {
 				t.Fatalf("error closing partition: %v", err)
 			}
 		})
-		p.Partition.MaxLogFileSize = -1
+		p.Partition.SetMaxLogFileSize(-1)
 		fileN := p.FileN()
 		p.CheckLogFile()
 		if fileN >= p.FileN() {
@@ -149,9 +149,7 @@ func TestPartition_Compact_Write_Fail(t *testing.T) {
 				t.Fatalf("error closing partition: %v", err)
 			}
 		})
-		p.Partition.Mu.Lock()
-		p.Partition.MaxLogFileSize = -1
-		p.Partition.Mu.Unlock()
+		p.Partition.SetMaxLogFileSize(-1)
 		fileN := p.FileN()
 		p.Compact()
 		if (1 + fileN) != p.FileN() {
