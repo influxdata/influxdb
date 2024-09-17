@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
@@ -2410,6 +2411,42 @@ func TestFileStore_Open(t *testing.T) {
 	if got, exp := fs.CurrentGeneration(), 4; got != exp {
 		t.Fatalf("current ID mismatch: got %v, exp %v", got, exp)
 	}
+}
+
+func TestFileStore_OpenFail(t *testing.T) {
+	var err error
+	dir := t.TempDir()
+
+	// Create a TSM file...
+	data := keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}}
+
+	files, err := newFileDir(t, dir, data)
+	if err != nil {
+		fatal(t, "creating test files", err)
+	}
+	assert.Equal(t, 1, len(files))
+	f := files[0]
+
+	const mmapErrMsg = "mmap failure in test"
+	const fullMmapErrMsg = "system limit for vm.max_map_count may be too low: " + mmapErrMsg
+	// With an mmap failure, the files should all be left where they are, because they are not corrupt
+	openFail(t, dir, fullMmapErrMsg, tsm1.NewMmapError(fmt.Errorf(mmapErrMsg)))
+	assert.FileExistsf(t, f, "file not found, but should not have been moved for mmap failure")
+
+	// With a non-mmap failure, the file failing to open should be moved aside
+	const otherErrMsg = "some Random Init Failure"
+	openFail(t, dir, otherErrMsg, fmt.Errorf(otherErrMsg))
+	assert.NoFileExistsf(t, f, "file found, but should have been moved for open failure")
+	assert.FileExistsf(t, f+"."+tsm1.BadTSMFileExtension, "file not found, but should have been moved here for open failure")
+}
+
+func openFail(t *testing.T, dir string, fullErrMsg string, initErr error) {
+	fs := tsm1.NewFileStore(dir, tsdb.EngineTags{}, tsm1.TestMmapInitFailOption(initErr))
+	err := fs.Open(context.Background())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), fullErrMsg)
+	defer func() { assert.NoError(t, fs.Close(), "unexpected error on FileStore.Close") }()
+	assert.Equal(t, 0, fs.Count(), "file count mismatch")
 }
 
 func TestFileStore_Remove(t *testing.T) {

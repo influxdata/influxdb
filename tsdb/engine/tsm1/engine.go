@@ -172,12 +172,11 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		wal.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
 	}
 
-	fs := NewFileStore(path, etags)
+	fs := NewFileStore(path, etags, WithMadviseWillNeed(opt.Config.TSMWillNeed))
 	fs.openLimiter = opt.OpenLimiter
 	if opt.FileStoreObserver != nil {
 		fs.WithObserver(opt.FileStoreObserver)
 	}
-	fs.tsmMMAPWillNeed = opt.Config.TSMWillNeed
 
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), etags)
 
