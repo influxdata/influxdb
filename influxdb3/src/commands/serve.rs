@@ -22,8 +22,8 @@ use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
-use std::collections::HashMap;
-use std::{num::NonZeroUsize, path::Path, sync::Arc};
+use std::{collections::HashMap, path::Path};
+use std::{num::NonZeroUsize, sync::Arc};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
@@ -258,6 +258,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let parquet_store =
         ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
+    let host_id = Arc::from(config.host_identifier_prefix.as_str());
 
     let mut tokio_datafusion_config = config.tokio_datafusion_config;
     tokio_datafusion_config.num_threads = tokio_datafusion_config
@@ -313,7 +314,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let time_provider = Arc::new(SystemProvider::new());
     let (last_cache, catalog) = persister
-        .load_last_cache_and_catalog()
+        .load_last_cache_and_catalog(host_id)
         .await
         .map_err(Error::InitializePersistedCatalog)?;
     let write_buffer: Arc<dyn WriteBuffer> = Arc::new(

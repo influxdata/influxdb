@@ -1583,9 +1583,11 @@ mod tests {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(Persister::new(obj_store, "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("dummy-instance-id");
         WriteBufferImpl::new(
             persister,
-            Arc::new(Catalog::new()),
+            Arc::new(Catalog::new(host_id, instance_id)),
             Arc::new(LastCacheProvider::new()),
             time_provider,
             crate::test_help::make_exec(),
@@ -3131,7 +3133,9 @@ mod tests {
             .insert(Arc::clone(&table_def.name), table_def);
         // Create the catalog and clone its InnerCatalog (which is what the LastCacheProvider is
         // initialized from):
-        let mut catalog = Catalog::new();
+        let host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("dummy-instance-id");
+        let mut catalog = Catalog::new(host_id, instance_id);
         catalog.insert_database(database);
         let inner = catalog.clone_inner();
         // This is the function we are testing, which initializes the LastCacheProvider from the catalog:

@@ -34,6 +34,7 @@ use std::any::Any;
 use std::io::Write;
 use std::sync::Arc;
 use thiserror::Error;
+use uuid::Uuid;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -123,13 +124,20 @@ impl Persister {
     /// a [`LastCacheProvider`].
     ///
     /// This is intended to be used on server start.
-    pub async fn load_last_cache_and_catalog(&self) -> Result<(LastCacheProvider, Catalog)> {
+    pub async fn load_last_cache_and_catalog(
+        &self,
+        host_id: Arc<str>,
+    ) -> Result<(LastCacheProvider, Catalog)> {
         match self.load_catalog().await? {
             Some(c) => Ok((
                 LastCacheProvider::new_from_catalog(&c.catalog)?,
                 Catalog::from_inner(c.catalog),
             )),
-            None => Ok((LastCacheProvider::new(), Catalog::new())),
+            None => {
+                let uuid = Uuid::new_v4().to_string();
+                let instance_id = Arc::from(uuid.as_str());
+                Ok((LastCacheProvider::new(), Catalog::new(host_id, instance_id)))
+            }
         }
     }
 
@@ -421,10 +429,12 @@ mod tests {
 
     #[tokio::test]
     async fn persist_catalog() {
+        let host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("dummy-instance-id");
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host");
-        let catalog = Catalog::new();
+        let catalog = Catalog::new(host_id, instance_id);
         let _ = catalog.db_or_create("my_db");
 
         persister
@@ -435,10 +445,12 @@ mod tests {
 
     #[tokio::test]
     async fn persist_and_load_newest_catalog() {
+        let host_id: Arc<str> = Arc::from("dummy-host-id");
+        let instance_id: Arc<str> = Arc::from("dummy-instance-id");
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host");
-        let catalog = Catalog::new();
+        let catalog = Catalog::new(host_id.clone(), instance_id.clone());
         let _ = catalog.db_or_create("my_db");
 
         persister
@@ -446,7 +458,7 @@ mod tests {
             .await
             .unwrap();
 
-        let catalog = Catalog::new();
+        let catalog = Catalog::new(host_id.clone(), instance_id.clone());
         let _ = catalog.db_or_create("my_second_db");
 
         persister

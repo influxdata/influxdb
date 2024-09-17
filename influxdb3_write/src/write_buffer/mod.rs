@@ -619,7 +619,9 @@ mod tests {
 
     #[test]
     fn parse_lp_into_buffer() {
-        let catalog = Arc::new(Catalog::new());
+        let host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("dummy-instance-id");
+        let catalog = Arc::new(Catalog::new(host_id, instance_id));
         let db_name = NamespaceName::new("foo").unwrap();
         let lp = "cpu,region=west user=23.2 100\nfoo f1=1i";
         WriteValidator::initialize(db_name, Arc::clone(&catalog), 0)
@@ -643,7 +645,11 @@ mod tests {
     async fn writes_data_to_wal_and_is_queryable() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let (last_cache, catalog) = persister.load_last_cache_and_catalog().await.unwrap();
+        let host_id = Arc::from("dummy-host-id");
+        let (last_cache, catalog) = persister
+            .load_last_cache_and_catalog(host_id)
+            .await
+            .unwrap();
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let write_buffer = WriteBufferImpl::new(
@@ -716,8 +722,12 @@ mod tests {
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
         assert_batches_eq!(&expected, &actual);
 
+        let host_id = Arc::from("dummy-host-id");
         // now load a new buffer from object storage
-        let (last_cache, catalog) = persister.load_last_cache_and_catalog().await.unwrap();
+        let (last_cache, catalog) = persister
+            .load_last_cache_and_catalog(host_id)
+            .await
+            .unwrap();
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::new(catalog),
@@ -771,8 +781,13 @@ mod tests {
             .await
             .unwrap();
 
+        let host_id = Arc::from("dummy-host-id");
         // load a new write buffer to ensure its durable
-        let (last_cache, catalog) = wbuf.persister.load_last_cache_and_catalog().await.unwrap();
+        let (last_cache, catalog) = wbuf
+            .persister
+            .load_last_cache_and_catalog(host_id)
+            .await
+            .unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
             Arc::new(catalog),
@@ -790,7 +805,10 @@ mod tests {
         .unwrap();
 
         let catalog_json = catalog_to_json(&wbuf.catalog);
-        insta::assert_json_snapshot!("catalog-immediately-after-last-cache-create", catalog_json);
+        insta::assert_json_snapshot!("catalog-immediately-after-last-cache-create",
+            catalog_json,
+            { ".instance_id" => "[uuid]" }
+        );
 
         // Do another write that will update the state of the catalog, specifically, the table
         // that the last cache was created for, and add a new field to the table/cache `f2`:
@@ -804,8 +822,13 @@ mod tests {
         .await
         .unwrap();
 
+        let host_id = Arc::from("dummy-host-id");
         // and do another replay and verification
-        let (last_cache, catalog) = wbuf.persister.load_last_cache_and_catalog().await.unwrap();
+        let (last_cache, catalog) = wbuf
+            .persister
+            .load_last_cache_and_catalog(host_id)
+            .await
+            .unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
             Arc::new(catalog),
@@ -825,7 +848,8 @@ mod tests {
         let catalog_json = catalog_to_json(&wbuf.catalog);
         insta::assert_json_snapshot!(
             "catalog-after-last-cache-create-and-new-field",
-            catalog_json
+            catalog_json,
+            { ".instance_id" => "[uuid]" }
         );
 
         // write a new data point to fill the cache
@@ -858,8 +882,13 @@ mod tests {
             .await
             .unwrap();
 
+        let host_id = Arc::from("dummy-host-id");
         // do another reload and verify it's gone
-        let (last_cache, catalog) = wbuf.persister.load_last_cache_and_catalog().await.unwrap();
+        let (last_cache, catalog) = wbuf
+            .persister
+            .load_last_cache_and_catalog(host_id)
+            .await
+            .unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
             Arc::new(catalog),
@@ -876,7 +905,10 @@ mod tests {
         .await
         .unwrap();
         let catalog_json = catalog_to_json(&wbuf.catalog);
-        insta::assert_json_snapshot!("catalog-immediately-after-last-cache-delete", catalog_json);
+        insta::assert_json_snapshot!("catalog-immediately-after-last-cache-delete",
+            catalog_json,
+            { ".instance_id" => "[uuid]" }
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1006,10 +1038,11 @@ mod tests {
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
         assert_batches_sorted_eq!(&expected, &actual);
 
+        let host_id = Arc::from("dummy-host-id");
         // and now replay in a new write buffer and attempt to write
         let (last_cache, catalog) = write_buffer
             .persister
-            .load_last_cache_and_catalog()
+            .load_last_cache_and_catalog(host_id)
             .await
             .unwrap();
         let write_buffer = WriteBufferImpl::new(
@@ -1648,7 +1681,11 @@ mod tests {
     ) -> (WriteBufferImpl, IOxSessionContext) {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
-        let (last_cache, catalog) = persister.load_last_cache_and_catalog().await.unwrap();
+        let host_id = Arc::from("dummy-host-id");
+        let (last_cache, catalog) = persister
+            .load_last_cache_and_catalog(host_id)
+            .await
+            .unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::new(catalog),

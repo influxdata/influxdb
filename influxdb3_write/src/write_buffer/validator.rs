@@ -781,8 +781,10 @@ mod tests {
 
     #[test]
     fn write_validator_v1() -> Result<(), Error> {
+        let host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("dummy-instance-id");
         let namespace = NamespaceName::new("test").unwrap();
-        let catalog = Arc::new(Catalog::new());
+        let catalog = Arc::new(Catalog::new(host_id, instance_id));
         let result = WriteValidator::initialize(namespace.clone(), catalog, 0)?
             .v1_parse_lines_and_update_schema("cpu,tag1=foo val1=\"bar\" 1234", false)?
             .convert_lines_to_buffer(

@@ -52,5 +52,7 @@ expression: catalog_json
       }
     }
   },
+  "host_id": "dummy-host-id",
+  "instance_id": "[uuid]",
   "sequence": 2
 }
