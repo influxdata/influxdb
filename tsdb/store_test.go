@@ -426,6 +426,36 @@ func TestStore_DeleteSeries_NonExistentDB(t *testing.T) {
 	}
 }
 
+// Ensure the delete series method does not return an error when multiple sources are passed.
+func TestStore_DeleteSeries_MultipleSources(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) {
+		s := MustOpenStore(index)
+		defer s.Close()
+
+		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
+			t.Fatal(err)
+		} else if sh := s.Shard(1); sh == nil {
+			t.Fatal("expected shard")
+		}
+
+		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
+			t.Fatal(err)
+		} else if sh := s.Shard(2); sh == nil {
+			t.Fatal("expected shard")
+		}
+
+		if err := s.DeleteSeries("db0", []influxql.Source{&influxql.Measurement{Name: string("foo")}, &influxql.Measurement{Name: string("bar")}}, nil); err != nil {
+			t.Fatal("DeleteSeries should not fail with multiple sources")
+		}
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(index) })
+	}
+}
+
 // Ensure the store can delete an existing shard.
 func TestStore_DeleteShard(t *testing.T) {
 	t.Parallel()
