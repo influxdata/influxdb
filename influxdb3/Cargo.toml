@@ -36,6 +36,7 @@ anyhow.workspace = true
 backtrace.workspace = true
 base64.workspace = true
 clap.workspace = true
+datafusion.workspace = true
 dotenvy.workspace = true
 hashbrown.workspace = true
 hex.workspace = true

@@ -586,13 +586,17 @@ mod tests {
 
     use arrow::array::RecordBatch;
     use data_types::NamespaceName;
-    use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
+    use datafusion::{
+        assert_batches_sorted_eq,
+        error::DataFusionError,
+        execution::memory_pool::{MemoryPool, UnboundedMemoryPool},
+    };
     use futures::TryStreamExt;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        last_cache::LastCacheProvider, persister::Persister, write_buffer::WriteBufferImpl,
-        WriteBuffer,
+        cache::ParquetCache, last_cache::LastCacheProvider, persister::Persister,
+        write_buffer::WriteBufferImpl, WriteBuffer,
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
@@ -630,7 +634,14 @@ mod tests {
         // Set up QueryExecutor
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "test_host",
+            mem_pool,
+            parquet_cache,
+        ));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let executor = make_exec(object_store);
         let host_id = Arc::from("dummy-host-id");

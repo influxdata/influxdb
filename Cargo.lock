@@ -2575,6 +2575,7 @@ dependencies = [
  "clap",
  "clap_blocks",
  "console-subscriber",
+ "datafusion",
  "datafusion_util",
  "dotenvy",
  "futures",

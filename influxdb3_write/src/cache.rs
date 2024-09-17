@@ -78,54 +78,31 @@ impl ParquetCache {
                 .map_err(Into::into)
         })?;
 
+        let create_parquet_file = || -> ParquetFile {
+            ParquetFile {
+                id: ParquetFileId::new(),
+                chunk_time: min_time,
+                path: path.clone(),
+                size_bytes,
+                row_count: meta_data.num_rows as u64,
+                min_time,
+                max_time,
+            }
+        };
+
         meta_data_lock
             .entry(db_name.into())
             .and_modify(|db| {
                 db.entry(table_name.into())
                     .and_modify(|files| {
-                        files.insert(
-                            path.clone(),
-                            ParquetFile {
-                                id: ParquetFileId::new(),
-                                chunk_time: min_time,
-                                path: path.clone(),
-                                size_bytes,
-                                row_count: meta_data.num_rows as u64,
-                                min_time,
-                                max_time,
-                            },
-                        );
+                        files.insert(path.clone(), create_parquet_file());
                     })
-                    .or_insert_with(|| {
-                        HashMap::from([(
-                            path.clone(),
-                            ParquetFile {
-                                id: ParquetFileId::new(),
-                                chunk_time: min_time,
-                                path: path.clone(),
-                                size_bytes,
-                                row_count: meta_data.num_rows as u64,
-                                min_time,
-                                max_time,
-                            },
-                        )])
-                    });
+                    .or_insert_with(|| HashMap::from([(path.clone(), create_parquet_file())]));
             })
             .or_insert_with(|| {
                 HashMap::from([(
                     table_name.into(),
-                    HashMap::from([(
-                        path.clone(),
-                        ParquetFile {
-                            id: ParquetFileId::new(),
-                            chunk_time: min_time,
-                            path: path.clone(),
-                            size_bytes,
-                            row_count: meta_data.num_rows as u64,
-                            min_time,
-                            max_time,
-                        },
-                    )]),
+                    HashMap::from([(path.clone(), create_parquet_file())]),
                 )])
             });
 

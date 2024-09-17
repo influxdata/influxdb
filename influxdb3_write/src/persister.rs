@@ -1,6 +1,7 @@
 //! This is the implementation of the `Persister` used to write data from the buffer to object
 //! storage.
 
+use crate::cache::ParquetCache;
 use crate::last_cache;
 use crate::last_cache::LastCacheProvider;
 use crate::paths::CatalogFilePath;
@@ -15,7 +16,6 @@ use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::MemoryConsumer;
 use datafusion::execution::memory_pool::MemoryPool;
 use datafusion::execution::memory_pool::MemoryReservation;
-use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures_util::pin_mut;
@@ -88,18 +88,23 @@ pub struct Persister {
     /// Prefix used for all paths in the object store for this persister
     host_identifier_prefix: String,
     pub(crate) mem_pool: Arc<dyn MemoryPool>,
+    /// Interface for caching Parquet files at persist time
+    parquet_cache: Arc<ParquetCache>,
 }
 
 impl Persister {
     pub fn new(
         object_store: Arc<dyn ObjectStore>,
         host_identifier_prefix: impl Into<String>,
+        mem_pool: Arc<dyn MemoryPool>,
+        parquet_cache: Arc<ParquetCache>,
     ) -> Self {
         Self {
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             object_store,
             host_identifier_prefix: host_identifier_prefix.into(),
-            mem_pool: Arc::new(UnboundedMemoryPool::default()),
+            mem_pool,
+            parquet_cache,
         }
     }
 
@@ -417,6 +422,7 @@ impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
 mod tests {
     use super::*;
     use crate::ParquetFileId;
+    use datafusion::execution::memory_pool::UnboundedMemoryPool;
     use influxdb3_catalog::catalog::SequenceNumber;
     use influxdb3_wal::SnapshotSequenceNumber;
     use object_store::memory::InMemory;
@@ -433,7 +439,9 @@ mod tests {
         let instance_id = Arc::from("dummy-instance-id");
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", mem_pool, parquet_cache);
         let catalog = Catalog::new(host_id, instance_id);
         let _ = catalog.db_or_create("my_db");
 
@@ -449,7 +457,9 @@ mod tests {
         let instance_id: Arc<str> = Arc::from("dummy-instance-id");
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", mem_pool, parquet_cache);
         let catalog = Catalog::new(host_id.clone(), instance_id.clone());
         let _ = catalog.db_or_create("my_db");
 
@@ -484,7 +494,9 @@ mod tests {
     async fn persist_snapshot_info_file() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", mem_pool, parquet_cache);
         let info_file = PersistedSnapshot {
             host_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
@@ -505,7 +517,9 @@ mod tests {
     async fn persist_and_load_snapshot_info_files() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", mem_pool, parquet_cache);
         let info_file = PersistedSnapshot {
             host_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
@@ -562,7 +576,9 @@ mod tests {
     async fn persist_and_load_snapshot_info_files_with_fewer_than_requested() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", mem_pool, parquet_cache);
         let info_file = PersistedSnapshot {
             host_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
@@ -587,7 +603,9 @@ mod tests {
     async fn persist_and_load_over_9000_snapshot_info_files() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", mem_pool, parquet_cache);
         for id in 0..9001 {
             let info_file = PersistedSnapshot {
                 host_id: "test_host".to_string(),
@@ -618,7 +636,9 @@ mod tests {
     async fn persist_add_parquet_file_and_load_snapshot() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", mem_pool, parquet_cache);
         let mut info_file = PersistedSnapshot::new(
             "test_host".to_string(),
             SnapshotSequenceNumber::new(0),
@@ -654,7 +674,9 @@ mod tests {
     #[tokio::test]
     async fn load_snapshot_works_with_no_exising_snapshots() {
         let store = InMemory::new();
-        let persister = Persister::new(Arc::new(store), "test_host");
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Persister::new(Arc::new(store), "test_host", mem_pool, parquet_cache);
 
         let snapshots = persister.load_snapshots(100).await.unwrap();
         assert!(snapshots.is_empty());
@@ -664,7 +686,9 @@ mod tests {
     async fn get_parquet_bytes() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", mem_pool, parquet_cache);
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
@@ -691,7 +715,9 @@ mod tests {
     async fn persist_and_load_parquet_bytes() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", mem_pool, parquet_cache);
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);

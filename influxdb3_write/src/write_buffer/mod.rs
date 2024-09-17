@@ -606,6 +606,7 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
+    use datafusion::execution::memory_pool::{MemoryPool, UnboundedMemoryPool};
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
     use influxdb3_catalog::catalog::SequenceNumber;
@@ -644,7 +645,14 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn writes_data_to_wal_and_is_queryable() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "test_host",
+            mem_pool,
+            parquet_cache,
+        ));
         let host_id = Arc::from("dummy-host-id");
         let (last_cache, catalog) = persister
             .load_last_cache_and_catalog(host_id)
@@ -1679,7 +1687,14 @@ mod tests {
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
     ) -> (WriteBufferImpl, IOxSessionContext) {
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "test_host",
+            mem_pool,
+            parquet_cache,
+        ));
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
         let host_id = Arc::from("dummy-host-id");
         let (last_cache, catalog) = persister

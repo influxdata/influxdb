@@ -1566,6 +1566,7 @@ mod tests {
     use std::{cmp::Ordering, collections::BTreeMap, sync::Arc, time::Duration};
 
     use crate::{
+        cache::ParquetCache,
         last_cache::{KeyValue, LastCacheProvider, Predicate, DEFAULT_CACHE_TTL},
         persister::Persister,
         write_buffer::WriteBufferImpl,
@@ -1574,6 +1575,7 @@ mod tests {
     use ::object_store::{memory::InMemory, ObjectStore};
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::NamespaceName;
+    use datafusion::execution::memory_pool::{MemoryPool, UnboundedMemoryPool};
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
     use influxdb3_wal::{LastCacheDefinition, WalConfig};
     use insta::assert_json_snapshot;
@@ -1581,7 +1583,14 @@ mod tests {
 
     async fn setup_write_buffer() -> WriteBufferImpl {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let persister = Arc::new(Persister::new(obj_store, "test_host"));
+        let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
+        let persister = Arc::new(Persister::new(
+            obj_store,
+            "test_host",
+            mem_pool,
+            parquet_cache,
+        ));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let host_id = Arc::from("dummy-host-id");
         let instance_id = Arc::from("dummy-instance-id");

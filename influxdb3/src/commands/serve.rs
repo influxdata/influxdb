@@ -6,6 +6,7 @@ use clap_blocks::{
     socket_addr::SocketAddr,
     tokio::TokioDatafusionConfig,
 };
+use datafusion::execution::memory_pool::{MemoryPool, UnboundedMemoryPool};
 use datafusion_util::config::register_iox_object_store;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
@@ -15,7 +16,9 @@ use influxdb3_server::{
     CommonServerState,
 };
 use influxdb3_wal::{Gen1Duration, WalConfig};
-use influxdb3_write::{persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer};
+use influxdb3_write::{
+    cache::ParquetCache, persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer,
+};
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
 use object_store::DynObjectStore;
@@ -301,9 +304,13 @@ pub async fn command(config: Config) -> Result<()> {
 
     let common_state =
         CommonServerState::new(Arc::clone(&metrics), trace_exporter, trace_header_parser)?;
+    let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
+    let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
         config.host_identifier_prefix,
+        mem_pool,
+        parquet_cache,
     ));
     let wal_config = WalConfig {
         gen1_duration: config.gen1_duration,
