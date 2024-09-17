@@ -8,6 +8,7 @@ use influxdb3_pro_data_layout::{
 use influxdb3_write::PersistedSnapshot;
 use object_store::ObjectStore;
 use observability_deps::tracing::warn;
+use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -24,43 +25,69 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// there are enough snapshots to warrant a compaction run, all parquet files must be
 /// organized into compactions. Once all those compactions are complete, the
 /// `CompactionSummary` can be updated with markers of what snapshot sequence each host is up to.
-#[allow(dead_code)]
-struct SnapshotTracker {
+#[derive(Debug)]
+pub(crate) struct SnapshotTracker {
+    state: Arc<Mutex<TrackerState>>,
+}
+
+#[derive(Debug)]
+struct TrackerState {
     /// Map of host to snapshot marker and snapshot count
-    host_snapshot_markers: HashMap<Arc<str>, HostSnapshotCounter>,
+    host_snapshot_markers: HashMap<String, HostSnapshotCounter>,
     /// Map of database name to table name to gen1 files
     gen1_files: DatabaseToTables,
+}
+
+impl TrackerState {
+    fn reset(&mut self) -> (HashMap<String, HostSnapshotCounter>, DatabaseToTables) {
+        let reset_markers = self
+            .host_snapshot_markers
+            .keys()
+            .cloned()
+            .map(|host| (host, HostSnapshotCounter::default()))
+            .collect();
+
+        let host_snapshot_markers =
+            std::mem::replace(&mut self.host_snapshot_markers, reset_markers);
+
+        let mut gen1_files = HashMap::new();
+        std::mem::swap(&mut self.gen1_files, &mut gen1_files);
+
+        (host_snapshot_markers, gen1_files)
+    }
 }
 
 type DatabaseToTables = HashMap<Arc<str>, HashMap<Arc<str>, Vec<Arc<dyn Generation>>>>;
 
 #[derive(Debug, Default)]
-#[allow(dead_code)]
-struct HostSnapshotCounter {
+pub(crate) struct HostSnapshotCounter {
     pub marker: Option<HostSnapshotMarker>,
     pub snapshot_count: usize,
 }
 
-#[allow(dead_code)]
 impl SnapshotTracker {
     /// Create a new tracker with all of the hosts that will be getting compacted together
-    fn new(hosts: Vec<Arc<str>>) -> Self {
+    pub(crate) fn new(hosts: Vec<String>) -> Self {
         let host_snapshot_markers = hosts
             .into_iter()
             .map(|host| (host, HostSnapshotCounter::default()))
             .collect();
         Self {
-            host_snapshot_markers,
-            gen1_files: HashMap::new(),
+            state: Arc::new(Mutex::new(TrackerState {
+                host_snapshot_markers,
+                gen1_files: HashMap::new(),
+            })),
         }
     }
 
-    fn add_snapshot(&mut self, host: Arc<str>, snapshot: &PersistedSnapshot) -> Result<()> {
+    pub(crate) fn add_snapshot(&self, snapshot: &PersistedSnapshot) -> Result<()> {
+        let mut state = self.state.lock();
+
         // set the snapshot marker for the host
-        let counter = self
+        let counter = state
             .host_snapshot_markers
-            .get_mut(host.as_ref())
-            .ok_or_else(|| Error::NotTrackingHost(host.to_string()))?;
+            .get_mut(&snapshot.host_id)
+            .ok_or_else(|| Error::NotTrackingHost(snapshot.host_id.clone()))?;
         counter.snapshot_count += 1;
         if let Some(marker) = counter.marker.as_mut() {
             marker.snapshot_sequence_number = marker
@@ -68,7 +95,7 @@ impl SnapshotTracker {
                 .max(snapshot.snapshot_sequence_number);
         } else {
             counter.marker = Some(HostSnapshotMarker {
-                host_id: host,
+                host_id: snapshot.host_id.clone(),
                 snapshot_sequence_number: snapshot.snapshot_sequence_number,
             });
         }
@@ -76,7 +103,7 @@ impl SnapshotTracker {
         // add the parquet files to the gen1_files map
         for (db, tables) in &snapshot.databases {
             for (table, gen1_files) in &tables.tables {
-                let files = self
+                let files = state
                     .gen1_files
                     .entry(Arc::clone(db))
                     .or_default()
@@ -95,9 +122,11 @@ impl SnapshotTracker {
 
     /// We only want to run compactions when we have at least 2 snapshots for every host. However,
     /// if we have 3 snapshots from any host, we should run a compaction to advance things.
-    fn should_compact(&self) -> bool {
+    pub(crate) fn should_compact(&self) -> bool {
+        let state = self.state.lock();
+
         // if we have any host with 3 snapshots, we should compact
-        let must_compact = self
+        let must_compact = state
             .host_snapshot_markers
             .values()
             .any(|marker| marker.snapshot_count >= 3);
@@ -107,7 +136,8 @@ impl SnapshotTracker {
         }
 
         // otherwise, we should compact if we have at least 2 snapshots for every host
-        self.host_snapshot_markers
+        state
+            .host_snapshot_markers
             .values()
             .all(|marker| marker.snapshot_count >= 2)
     }
@@ -115,16 +145,20 @@ impl SnapshotTracker {
     /// Generate compaction plans based on the tracker and the existing compacted state. Once
     /// all of these plans have been run and the resulting compaction detail files have been written,
     /// we can write a compaction summary that contains all the details.
-    fn into_plan(
-        self,
+    pub(crate) fn to_plan_and_reset(
+        &self,
         compaction_config: &CompactionConfig,
         compacted_data: &CompactedData,
         object_store: Arc<dyn ObjectStore>,
     ) -> SnapshotAdvancePlan {
+        let mut state = self.state.lock();
+
+        let (host_snapshot_markers, gen1_files) = state.reset();
+
         let mut compaction_plans = Vec::new();
         let mut generation_map = HashMap::new();
 
-        for (db, tables) in self.gen1_files {
+        for (db, tables) in gen1_files {
             for (table, mut gen1_files) in tables {
                 // if this table has been compacted before, get its generations
                 let generations = compacted_data.get_generations(
@@ -150,17 +184,18 @@ impl SnapshotTracker {
         }
 
         SnapshotAdvancePlan {
-            host_snapshot_markers: self.host_snapshot_markers,
+            host_snapshot_markers,
             compaction_plans,
             generations: generation_map,
         }
     }
 }
 
+#[derive(Debug)]
 #[allow(dead_code)]
-struct SnapshotAdvancePlan {
+pub(crate) struct SnapshotAdvancePlan {
     /// Map of host to snapshot marker and snapshot count
-    host_snapshot_markers: HashMap<Arc<str>, HostSnapshotCounter>,
+    host_snapshot_markers: HashMap<String, HostSnapshotCounter>,
     /// The compaction plans that must be run to advance the snapshot summary beyond these snapshots
     compaction_plans: Vec<CompactionPlan>,
     /// Map of `GenerationId` to the `Generation`

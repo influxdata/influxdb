@@ -26,6 +26,15 @@ pub struct ProServeConfig {
         action
     )]
     pub replication_interval: humantime::Duration,
+
+    /// The prefix in object store where all compacted data will be written to. Only provide this
+    /// option if this server should be running compaction for its own write buffer and any
+    /// replicas it is managing.
+    ///
+    /// Only a single server should be running at any time that has this option set with this value.
+    /// It should have exclusive write access to this prefix in object storage.
+    #[clap(long = "compactor-id", env = "INFLUXDB3_PRO_COMPACTOR_ID", action)]
+    pub compactor_id: Option<String>,
 }
 
 /// Mode of operation for the InfluxDB Pro write buffer

@@ -13,6 +13,7 @@ pub struct TestConfigPro {
     replication_interval: Option<String>,
     mode: Option<BufferMode>,
     object_store_path: Option<String>,
+    compactor_id: Option<String>,
 }
 
 impl ConfigProvider for TestConfigPro {
@@ -32,6 +33,12 @@ impl ConfigProvider for TestConfigPro {
         }
         if !self.replicas.is_empty() {
             args.append(&mut vec!["--replicas".to_string(), self.replicas.join(",")])
+        }
+        if let Some(compactor_id) = &self.compactor_id {
+            args.append(&mut vec![
+                "--compactor-id".to_string(),
+                compactor_id.to_owned(),
+            ])
         }
         if let Some(path) = &self.object_store_path {
             args.append(&mut vec![
@@ -63,6 +70,12 @@ impl TestConfigPro {
     /// Set a host identifier prefix on the spawned [`TestServer`]
     pub fn with_host_id<S: Into<String>>(mut self, host_id: S) -> Self {
         self.host_id = Some(host_id.into());
+        self
+    }
+
+    /// Set the compactor id for the spawned server
+    pub fn with_compactor_id<S: Into<String>>(mut self, compactor_id: S) -> Self {
+        self.compactor_id = Some(compactor_id.into());
         self
     }
 
