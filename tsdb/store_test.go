@@ -426,7 +426,7 @@ func TestStore_DeleteSeries_NonExistentDB(t *testing.T) {
 	}
 }
 
-// Ensure the delete series method returns an error when multiple sources are passed.
+// Ensure the delete series method does not return an error when multiple sources are passed.
 func TestStore_DeleteSeries_MultipleSources(t *testing.T) {
 	t.Parallel()
 
