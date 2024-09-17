@@ -168,7 +168,7 @@ jobs:
     machine:
       enabled: true
       docker_layer_caching: true
-      image: ubuntu-2204:default
+      image: ubuntu-2204:edge
     steps:
       - attach_workspace:
           at: /tmp/workspace
