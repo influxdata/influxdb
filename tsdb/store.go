@@ -1050,9 +1050,7 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 		// unknown database, nothing to do
 		return nil
 	}
-	shards := s.filterShards(func(sh *Shard) bool {
-		return sh.database == database && sh.retentionPolicy == name
-	})
+	shards := s.filterShards(ComposeShardFilter(byDatabase(database), byRetentionPolicy(name)))
 	s.mu.RUnlock()
 
 	// Close and delete all shards under the retention policy on the
@@ -1144,11 +1142,39 @@ func (s *Store) filterShards(fn func(sh *Shard) bool) []*Shard {
 	return shards
 }
 
+type ShardPredicate = func(sh *Shard) bool
+
+func ComposeShardFilter(fns ...ShardPredicate) ShardPredicate {
+	return func(sh *Shard) bool {
+		for _, fn := range fns {
+			if !fn(sh) {
+				return false
+			}
+		}
+
+		return true
+	}
+}
+
 // byDatabase provides a predicate for filterShards that matches on the name of
 // the database passed in.
-func byDatabase(name string) func(sh *Shard) bool {
+func byDatabase(name string) ShardPredicate {
 	return func(sh *Shard) bool {
 		return sh.database == name
+	}
+}
+
+// byRetentionPolicy provides a predicate for filterShards that matches on the name of
+// the retention policy passed in.
+func byRetentionPolicy(name string) ShardPredicate {
+	return func(sh *Shard) bool {
+		return sh.retentionPolicy == name
+	}
+}
+
+func byIndexType(name string) ShardPredicate {
+	return func(sh *Shard) bool {
+		return sh.IndexType() == name
 	}
 }
 
@@ -1496,7 +1522,28 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		// No series file means nothing has been written to this DB and thus nothing to delete.
 		return nil
 	}
-	shards := s.filterShards(byDatabase(database))
+
+	shardFilterFn := byDatabase(database)
+	if len(sources) != 0 {
+		var rp string
+		for idx, source := range sources {
+			if measurement, ok := source.(*influxql.Measurement); ok {
+				if idx == 0 {
+					rp = measurement.RetentionPolicy
+				} else if rp != measurement.RetentionPolicy {
+					return fmt.Errorf("mixed retention policies not supported, wanted %q got %q", rp, measurement.RetentionPolicy)
+				}
+			} else {
+				return fmt.Errorf("unsupported source type in delete %v", source)
+			}
+		}
+
+		if rp != "" {
+			shardFilterFn = ComposeShardFilter(shardFilterFn, byRetentionPolicy(rp))
+		}
+	}
+	shards := s.filterShards(shardFilterFn)
+
 	epochs := s.epochsForShards(shards)
 	s.mu.RUnlock()
 
@@ -1684,9 +1731,7 @@ func (s *Store) MeasurementNames(ctx context.Context, auth query.FineAuthorizer,
 		if s.EngineOptions.IndexVersion != TSI1IndexName {
 			return nil, fmt.Errorf("retention policy filter for measurements not supported for index %s", s.EngineOptions.IndexVersion)
 		}
-		filterFunc = func(sh *Shard) bool {
-			return sh.Database() == database && sh.RetentionPolicy() == retentionPolicy
-		}
+		filterFunc = ComposeShardFilter(byDatabase(database), byRetentionPolicy(retentionPolicy))
 	}
 
 	s.mu.RLock()
@@ -2166,9 +2211,7 @@ func (s *Store) monitorShards() {
 			}
 
 			s.mu.RLock()
-			shards := s.filterShards(func(sh *Shard) bool {
-				return sh.IndexType() == InmemIndexName
-			})
+			shards := s.filterShards(byIndexType(InmemIndexName))
 			s.mu.RUnlock()
 
 			// No inmem shards...
