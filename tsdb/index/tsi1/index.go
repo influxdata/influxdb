@@ -269,8 +269,8 @@ func (i *Index) Open() (rErr error) {
 	i.partitions = make([]*Partition, i.PartitionN)
 	for j := 0; j < len(i.partitions); j++ {
 		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
-		p.MaxLogFileSize = i.maxLogFileSize
-		p.MaxLogFileAge = i.maxLogFileAge
+		p.maxLogFileSize = i.maxLogFileSize
+		p.maxLogFileAge = i.maxLogFileAge
 		p.nosync = i.disableFsync
 		p.logbufferSize = i.logfileBufferSize
 		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
