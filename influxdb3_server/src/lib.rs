@@ -760,11 +760,13 @@ mod tests {
         ));
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
+        let dummy_host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("dummy-instance-id");
 
         let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
-                Arc::new(Catalog::new()),
+                Arc::new(Catalog::new(dummy_host_id, instance_id)),
                 Arc::new(LastCacheProvider::new()),
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&exec),

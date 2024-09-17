@@ -63,7 +63,7 @@ hex = "0.4.3"
 http = "0.2.9"
 humantime = "2.1.0"
 hyper = "0.14"
-insta = { version = "1.39", features = ["json"] }
+insta = { version = "1.39", features = ["json", "redactions"] }
 indexmap = { version = "2.2.6" }
 libc = { version = "0.2" }
 mime = "0.3.17"

@@ -1,6 +1,5 @@
 ---
 source: influxdb3_catalog/src/catalog.rs
-assertion_line: 710
 expression: catalog
 ---
 {
@@ -151,5 +150,7 @@ expression: catalog
       }
     }
   },
-  "sequence": 0
+  "sequence": 0,
+  "host_id": "dummy-host-id",
+  "instance_id": "instance-id"
 }
