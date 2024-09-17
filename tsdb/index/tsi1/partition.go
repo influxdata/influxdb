@@ -116,8 +116,7 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 // Only for tests!
 func (p *Partition) SetMaxLogFileSize(new int64) (old int64) {
 	p.mu.Lock()
-	old = p.maxLogFileSize
-	p.maxLogFileSize = new
+	old, p.maxLogFileSize = p.maxLogFileSize, new
 	p.mu.Unlock()
 	return old
 }
@@ -357,7 +356,7 @@ func (p *Partition) CurrentCompactionN() int {
 }
 
 // Wait will block until all compactions are finished.
-// must only be called while they are disabled.
+// Must only be called while they are disabled.
 func (p *Partition) Wait() {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
@@ -387,15 +386,14 @@ func (p *Partition) Close() error {
 	}
 
 	// Close log files.
-	var err error
+	var err []error
 	for _, f := range p.fileSet.files {
-		if localErr := f.Close(); localErr != nil {
-			err = localErr
-		}
+		localErr := f.Close()
+		err = append(err, localErr)
 	}
 	p.fileSet.files = nil
 
-	return err
+	return errors.Join(err...)
 }
 
 // closing returns true if the partition is currently closing. It does not require
