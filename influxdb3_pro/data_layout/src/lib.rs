@@ -360,6 +360,16 @@ impl From<u64> for GenerationId {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompactionSequenceNumber(u64);
 
+impl CompactionSequenceNumber {
+    pub fn new(value: u64) -> Self {
+        Self(value)
+    }
+
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
+}
+
 /// Wrapper for an old generation that includes the getter for the files.
 struct OldGenWrapper {
     _object_store: Arc<dyn ObjectStore>,

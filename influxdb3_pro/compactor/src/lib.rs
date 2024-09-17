@@ -26,8 +26,10 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::SendableRecordBatchStream;
 use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
-use influxdb3_catalog::catalog::{Catalog, TIME_COLUMN_NAME};
-use influxdb3_pro_data_layout::{CompactedData, CompactionConfig};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TIME_COLUMN_NAME};
+use influxdb3_pro_data_layout::{
+    CompactedData, CompactionConfig, CompactionSequenceNumber, GenerationLevel,
+};
 use influxdb3_pro_index::FileIndex;
 use influxdb3_write::chunk::ParquetChunk;
 use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
@@ -46,7 +48,6 @@ use object_store::ObjectStore;
 use object_store::PutPayload;
 use object_store::PutResult;
 use observability_deps::tracing::{error, info};
-use parking_lot::Mutex;
 use parquet::arrow::async_writer::AsyncFileWriter;
 use parquet::arrow::AsyncArrowWriter;
 use parquet::errors::ParquetError;
@@ -61,8 +62,10 @@ use std::task::Context;
 use std::task::Poll;
 use std::time::SystemTime;
 use tokio::sync::watch::Receiver;
+use tokio::sync::Mutex;
 
 pub mod planner;
+mod runner;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CompactorError {
@@ -118,7 +121,6 @@ pub struct Compactor {
     object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     executor: Arc<Executor>,
-    compaction_seq: u64,
     /// New snapshots for gen1 files will come through this channel
     persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
     snapshot_tracker: SnapshotTracker,
@@ -173,9 +175,6 @@ impl Compactor {
             object_store,
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             executor,
-            // TODO: Eventually this needs to be pulled from object store to
-            // see what the next value actually is to use here
-            compaction_seq: 0,
             persisted_snapshot_notify_rx,
             snapshot_tracker,
         }
@@ -205,161 +204,185 @@ impl Compactor {
             }
 
             if self.snapshot_tracker.should_compact() {
-                let compacted_data = self.compacted_data.lock();
+                let compacted_data = self.compacted_data.lock().await;
 
-                // TODO: turn this plan into many compactions running in parallel
-                let _snapshot_plan = self.snapshot_tracker.to_plan_and_reset(
+                let snapshot_plan = self.snapshot_tracker.to_plan_and_reset(
                     &self.compaction_config,
                     &compacted_data,
                     Arc::clone(&self.object_store),
                 );
+
+                let _compaction_summary = runner::run_snapshot_plan(
+                    snapshot_plan,
+                    Arc::clone(&self.compactor_id),
+                    Arc::clone(&self.catalog),
+                    Arc::clone(&self.object_store),
+                    self.object_store_url.clone(),
+                    Arc::clone(&self.executor),
+                )
+                .await;
             }
         }
     }
+}
 
-    /// Compact `paths` together into one or more parquet files
-    ///
-    /// The limit is the maximum number of rows that can be in a single file.
-    /// This number can be exceed if a single series is larger than the limit
-    #[allow(clippy::too_many_arguments)]
-    pub async fn compact_files(
-        &self,
-        database_name: &str,
-        table_name: &str,
-        mut sort_keys: Vec<String>,
-        paths: Vec<ObjPath>,
-        limit: usize,
-        host: Arc<str>,
-        generation: u64,
-        index_columns: Vec<String>,
-    ) -> Result<CompactorOutput, CompactorError> {
-        executor::register_current_runtime_for_io();
+#[derive(Debug)]
+pub struct CompactFilesArgs {
+    pub compactor_id: Arc<str>,
+    pub compaction_sequence_number: CompactionSequenceNumber,
+    pub db_schema: Arc<DatabaseSchema>,
+    pub table_name: Arc<str>,
+    pub sort_keys: Vec<String>,
+    pub paths: Vec<ObjPath>,
+    pub limit: usize,
+    pub generation: GenerationLevel,
+    pub index_columns: Vec<String>,
+}
 
-        let db_schema = self
-            .catalog
-            .db_schema(database_name)
-            .ok_or_else(|| CompactorError::MissingDB)?;
+/// Compact `paths` together into one or more parquet files
+///
+/// The limit is the maximum number of rows that can be in a single file.
+/// This number can be exceeded if a single series is larger than the limit
+pub async fn compact_files(
+    args: CompactFilesArgs,
+    object_store: Arc<dyn ObjectStore>,
+    object_store_url: ObjectStoreUrl,
+    exec: Arc<Executor>,
+) -> Result<CompactorOutput, CompactorError> {
+    executor::register_current_runtime_for_io();
 
-        let table_schema = db_schema
-            .get_table_schema(table_name)
-            .ok_or_else(|| CompactorError::MissingSchema)?;
+    let db_schema = args.db_schema;
 
-        let records = self
-            .record_stream(table_name, &mut sort_keys, paths, table_schema)
-            .await?;
+    let table_schema = db_schema
+        .get_table_schema(args.table_name.as_ref())
+        .ok_or_else(|| CompactorError::MissingSchema)?;
 
-        let mut series_writer = SeriesWriter::new(
-            Arc::new(table_schema.clone()),
-            Arc::clone(&self.object_store),
-            limit,
-            sort_keys.clone(),
-            records,
-            Arc::clone(&self.compactor_id),
-            host,
-            generation,
-            self.compaction_seq,
-            database_name,
-            table_name,
-            index_columns,
-        );
+    let mut sort_keys = args.sort_keys;
 
-        loop {
-            // If there is nothing left exit the loop
-            let Some(batch) = series_writer.next_batch().await? else {
-                break;
-            };
-            series_writer.push_batch(batch).await?;
-        }
+    let records = record_stream(
+        args.table_name.as_ref(),
+        &mut sort_keys,
+        args.paths,
+        table_schema,
+        Arc::clone(&object_store),
+        object_store_url.clone(),
+        exec,
+    )
+    .await?;
 
-        series_writer.finish().await
+    let mut series_writer = SeriesWriter::new(
+        Arc::new(table_schema.clone()),
+        object_store,
+        args.limit,
+        sort_keys,
+        records,
+        args.compactor_id,
+        args.generation,
+        args.compaction_sequence_number,
+        Arc::clone(&db_schema.name),
+        args.table_name,
+        args.index_columns,
+    );
+
+    loop {
+        // If there is nothing left exit the loop
+        let Some(batch) = series_writer.next_batch().await? else {
+            break;
+        };
+        series_writer.push_batch(batch).await?;
     }
 
-    /// Get a stream of `RecordBatch` to process after being compacted and deduped for that table
-    async fn record_stream(
-        &self,
-        table_name: &str,
-        sort_keys: &mut Vec<String>,
-        paths: Vec<ObjPath>,
-        table_schema: &Schema,
-    ) -> Result<SendableRecordBatchStream, CompactorError> {
-        let time = TIME_COLUMN_NAME.into();
-        if !sort_keys.contains(&time) {
-            sort_keys.push(time);
-        }
+    series_writer.finish().await
+}
 
-        let sort_key = SortKey::from_columns(sort_keys.iter().map(String::as_str));
+/// Get a stream of `RecordBatch` formed from a set of input paths that get merged and deduplicated
+/// into a single stream.
+async fn record_stream(
+    table_name: &str,
+    sort_keys: &mut Vec<String>,
+    paths: Vec<ObjPath>,
+    table_schema: &Schema,
+    object_store: Arc<dyn ObjectStore>,
+    object_store_url: ObjectStoreUrl,
+    exec: Arc<Executor>,
+) -> Result<SendableRecordBatchStream, CompactorError> {
+    let time = TIME_COLUMN_NAME.into();
+    if !sort_keys.contains(&time) {
+        sort_keys.push(time);
+    }
+    println!("sort_keys: {:?}", sort_keys);
 
-        // We need to use the same partition id for every file if we want the reorg plan to not only
-        // sort, but to dedupe data. We use the same PartitionKey for every file to accomplish this.
-        // This is a concept for IOx and the query planner can be clever about deduping data if data
-        // is in separate partitions. Mainly that it won't due to assuming that different partitions
-        // will have non overlapping data.
-        let partition_id = data_types::TransitionPartitionId::Deterministic(PartitionHashId::new(
+    let sort_key = SortKey::from_columns(sort_keys.iter().map(String::as_str));
+    println!("sort_key: {:?}", sort_key);
+
+    // We need to use the same partition id for every file if we want the reorg plan to not only
+    // sort, but to dedupe data. We use the same PartitionKey for every file to accomplish this.
+    // This is a concept for IOx and the query planner can be clever about deduping data if data
+    // is in separate partitions. Mainly that it won't due to assuming that different partitions
+    // will have non overlapping data.
+    let partition_id = data_types::TransitionPartitionId::Deterministic(PartitionHashId::new(
+        TableId::new(0),
+        &PartitionKey::from("synthetic-key"),
+    ));
+
+    let mut chunks = Vec::new();
+    for (id, location) in paths.iter().enumerate() {
+        let meta = object_store
+            .get(location)
+            .await
+            .map_err(CompactorError::FailedGet)?
+            .meta;
+        let parquet_exec = ParquetExecInput {
+            object_store_url: object_store_url.clone(),
+            object_meta: ObjectMeta {
+                location: location.clone(),
+                last_modified: meta.last_modified,
+                size: meta.size,
+                e_tag: meta.e_tag,
+                version: meta.version,
+            },
+            object_store: Arc::clone(&object_store),
+        };
+
+        let chunk_stats = create_chunk_statistics(None, table_schema, None, &NoColumnRanges);
+
+        let parquet_chunk: Arc<dyn QueryChunk> = Arc::new(ParquetChunk {
+            partition_id: partition_id.clone(),
+            schema: table_schema.clone(),
+            stats: Arc::new(chunk_stats),
+            sort_key: Some(sort_key.clone()),
+            id: ChunkId::new_id(id as u128),
+            chunk_order: ChunkOrder::new(id as i64),
+            parquet_exec,
+        });
+
+        chunks.push(parquet_chunk);
+    }
+
+    // Create the plan and execute it over all of the ParquetChunks
+    let reorg = ReorgPlanner::new();
+    let plan = reorg
+        .compact_plan(
             TableId::new(0),
-            &PartitionKey::from("synthetic-key"),
-        ));
-
-        let mut chunks = Vec::new();
-        for (id, location) in paths.iter().enumerate() {
-            let meta = self
-                .object_store
-                .get(location)
-                .await
-                .map_err(CompactorError::FailedGet)?
-                .meta;
-            let parquet_exec = ParquetExecInput {
-                object_store_url: self.object_store_url.clone(),
-                object_meta: ObjectMeta {
-                    location: location.clone(),
-                    last_modified: meta.last_modified,
-                    size: meta.size,
-                    e_tag: meta.e_tag,
-                    version: meta.version,
-                },
-                object_store: Arc::clone(&self.object_store),
-            };
-
-            let chunk_stats = create_chunk_statistics(None, table_schema, None, &NoColumnRanges);
-
-            let parquet_chunk: Arc<dyn QueryChunk> = Arc::new(ParquetChunk {
-                partition_id: partition_id.clone(),
-                schema: table_schema.clone(),
-                stats: Arc::new(chunk_stats),
-                sort_key: Some(sort_key.clone()),
-                id: ChunkId::new_id(id as u128),
-                chunk_order: ChunkOrder::new(id as i64),
-                parquet_exec,
-            });
-
-            chunks.push(parquet_chunk);
-        }
-
-        // Create the plan and execute it over all of the ParquetChunks
-        let reorg = ReorgPlanner::new();
-        let plan = reorg
-            .compact_plan(
-                TableId::new(0),
-                table_name.into(),
-                table_schema,
-                chunks,
-                sort_key,
-            )
-            .map_err(CompactorError::ReorgError)?;
-        self.executor
-            .new_context()
-            .inner()
-            .execute_logical_plan(plan)
-            .await
-            .map_err(CompactorError::FailedLogicalPlan)?
-            .execute_stream()
-            .await
-            .map_err(CompactorError::RecordStream)
-    }
+            table_name.into(),
+            table_schema,
+            chunks,
+            sort_key,
+        )
+        .map_err(CompactorError::ReorgError)?;
+    exec.new_context()
+        .inner()
+        .execute_logical_plan(plan)
+        .await
+        .map_err(CompactorError::FailedLogicalPlan)?
+        .execute_stream()
+        .await
+        .map_err(CompactorError::RecordStream)
 }
 
 /// Handles writing RecordBatches to a file in the object store
 /// ensuring each series is written to the same file
-struct SeriesWriter<'compactor> {
+struct SeriesWriter {
     object_store: Arc<dyn ObjectStore>,
     /// the target size of each output file
     limit: usize,
@@ -377,16 +400,14 @@ struct SeriesWriter<'compactor> {
     file_metadata: Vec<ParquetFile>,
     /// The ID of the compactor
     compactor_id: Arc<str>,
-    /// Host this compaction is being done for
-    host: Arc<str>,
     /// What generation the data is being compacted into
-    generation: u64,
+    generation: GenerationLevel,
     /// Which compaction sequence we are currently on
-    compaction_seq: u64,
+    compaction_seq: CompactionSequenceNumber,
     /// The name of the database we are doing a compaction cycle for
-    db_name: &'compactor str,
+    db_name: Arc<str>,
     /// The name of the table we are doing a compaction cycle for
-    table_name: &'compactor str,
+    table_name: Arc<str>,
     /// The current file id to use for this file we are compacting into
     current_file_id: ParquetFileId,
     /// What time we started the compaction cycle at
@@ -401,7 +422,7 @@ struct SeriesWriter<'compactor> {
     max_time: i64,
 }
 
-impl<'compactor> SeriesWriter<'compactor> {
+impl SeriesWriter {
     /// Create a new `SeriesWriter` which maintains all of the state for writing out series for
     /// compactions
     #[allow(clippy::too_many_arguments)]
@@ -412,11 +433,10 @@ impl<'compactor> SeriesWriter<'compactor> {
         sort_keys: Vec<String>,
         stream: SendableRecordBatchStream,
         compactor_id: Arc<str>,
-        host: Arc<str>,
-        generation: u64,
-        compaction_seq: u64,
-        db_name: &'compactor str,
-        table_name: &'compactor str,
+        generation: GenerationLevel,
+        compaction_seq: CompactionSequenceNumber,
+        db_name: Arc<str>,
+        table_name: Arc<str>,
         index_columns: Vec<String>,
     ) -> Self {
         Self {
@@ -429,7 +449,6 @@ impl<'compactor> SeriesWriter<'compactor> {
             output_paths: Vec::new(),
             file_metadata: Vec::new(),
             compactor_id,
-            host,
             generation,
             compaction_seq,
             db_name,
@@ -588,7 +607,7 @@ impl<'compactor> SeriesWriter<'compactor> {
             None => {
                 self.current_file_id = ParquetFileId::new();
                 let path = ObjPath::from(format!(
-                    "{}/c/{}/{}/{}/{}-{}-{}/{}-{}/f/{}.{}.{}.parquet",
+                    "{}/c/{}/{}/{}/{}-{}-{}/{}-{}/f/{}.{}.parquet",
                     self.compactor_id,
                     self.db_name,
                     self.table_name,
@@ -598,9 +617,8 @@ impl<'compactor> SeriesWriter<'compactor> {
                     self.compaction_time.day(),
                     self.compaction_time.hour(),
                     self.compaction_time.minute(),
-                    self.compaction_seq,
+                    self.compaction_seq.as_u64(),
                     self.current_file_id.as_u64(),
-                    self.host
                 ));
                 let obj_store_multipart = self
                     .object_store
