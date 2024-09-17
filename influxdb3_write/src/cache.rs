@@ -15,7 +15,7 @@ use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::task;
 
-type MetaData = RwLock<HashMap<String, HashMap<String, HashMap<String, ParquetFile>>>>;
+type MetaData = RwLock<HashMap<Arc<str>, HashMap<Arc<str>, HashMap<String, ParquetFile>>>>;
 
 #[derive(Debug)]
 pub struct ParquetCache {
@@ -52,8 +52,8 @@ impl ParquetCache {
     // before letting other tasks access the data
     pub async fn persist_parquet_file(
         &self,
-        db_name: &str,
-        table_name: &str,
+        db_name: Arc<str>,
+        table_name: Arc<str>,
         min_time: i64,
         max_time: i64,
         record_batches: SendableRecordBatchStream,
@@ -91,9 +91,9 @@ impl ParquetCache {
         };
 
         meta_data_lock
-            .entry(db_name.into())
+            .entry(db_name)
             .and_modify(|db| {
-                db.entry(table_name.into())
+                db.entry(table_name.clone())
                     .and_modify(|files| {
                         files.insert(path.clone(), create_parquet_file());
                     })
@@ -101,7 +101,7 @@ impl ParquetCache {
             })
             .or_insert_with(|| {
                 HashMap::from([(
-                    table_name.into(),
+                    table_name.clone(),
                     HashMap::from([(path.clone(), create_parquet_file())]),
                 )])
             });
@@ -205,7 +205,7 @@ mod tests {
         let stream = stream_builder.build();
 
         cache
-            .persist_parquet_file("test_db", "test_table", 1, 5, stream, None)
+            .persist_parquet_file("test_db".into(), "test_table".into(), 1, 5, stream, None)
             .await?;
 
         let tables = cache.get_parquet_files("test_db", "test_table");
@@ -236,7 +236,7 @@ mod tests {
         let stream = stream_builder.build();
 
         cache
-            .persist_parquet_file("test_db", "test_table", 1, 5, stream, None)
+            .persist_parquet_file("test_db".into(), "test_table".into(), 1, 5, stream, None)
             .await?;
 
         let tables = cache.get_parquet_files("test_db", "test_table");
@@ -255,7 +255,14 @@ mod tests {
         let stream = stream_builder.build();
 
         cache
-            .persist_parquet_file("test_db", "test_table", 6, 10, stream, Some(path.clone()))
+            .persist_parquet_file(
+                "test_db".into(),
+                "test_table".into(),
+                6,
+                10,
+                stream,
+                Some(path.clone()),
+            )
             .await?;
 
         let new_bytes = cache.load_parquet_file(path).await?;
@@ -283,7 +290,7 @@ mod tests {
         let stream = stream_builder.build();
 
         cache
-            .persist_parquet_file("test_db", "test_table", 1, 5, stream, None)
+            .persist_parquet_file("test_db".into(), "test_table".into(), 1, 5, stream, None)
             .await?;
 
         let tables = cache.get_parquet_files("test_db", "test_table");
@@ -302,7 +309,7 @@ mod tests {
         let stream = stream_builder.build();
 
         cache
-            .persist_parquet_file("test_db", "test_table", 6, 10, stream, None)
+            .persist_parquet_file("test_db".into(), "test_table".into(), 6, 10, stream, None)
             .await?;
 
         let tables = cache.get_parquet_files("test_db", "test_table");
@@ -327,7 +334,7 @@ mod tests {
         stream_builder.tx().send(Ok(batch.clone())).await.unwrap();
         let stream = stream_builder.build();
         cache
-            .persist_parquet_file("test_db", "test_table", 1, 5, stream, None)
+            .persist_parquet_file("test_db".into(), "test_table".into(), 1, 5, stream, None)
             .await?;
         let tables = cache.get_parquet_files("test_db", "test_table");
         assert_eq!(tables.len(), 1);
@@ -336,7 +343,7 @@ mod tests {
         stream_builder.tx().send(Ok(batch.clone())).await.unwrap();
         let stream = stream_builder.build();
         cache
-            .persist_parquet_file("test_db_2", "test_table", 1, 5, stream, None)
+            .persist_parquet_file("test_db_2".into(), "test_table".into(), 1, 5, stream, None)
             .await?;
         let tables = cache.get_parquet_files("test_db_2", "test_table");
         assert_eq!(tables.len(), 1);
@@ -345,7 +352,7 @@ mod tests {
         stream_builder.tx().send(Ok(batch.clone())).await.unwrap();
         let stream = stream_builder.build();
         cache
-            .persist_parquet_file("test_db_3", "test_table", 1, 5, stream, None)
+            .persist_parquet_file("test_db_3".into(), "test_table".into(), 1, 5, stream, None)
             .await?;
         let tables = cache.get_parquet_files("test_db_3", "test_table");
         assert_eq!(tables.len(), 1);
@@ -379,7 +386,7 @@ mod tests {
         let stream = stream_builder.build();
 
         cache
-            .persist_parquet_file("test_db", "test_table", 1, 5, stream, None)
+            .persist_parquet_file("test_db".into(), "test_table".into(), 1, 5, stream, None)
             .await?;
 
         let tables = cache.get_parquet_files("test_db", "test_table");

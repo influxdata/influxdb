@@ -580,6 +580,7 @@ impl TableProvider for QueryTable {
         provider.scan(ctx, projection, &filters, limit).await
     }
 }
+
 #[cfg(test)]
 mod tests {
     use std::{num::NonZeroUsize, sync::Arc, time::Duration};
@@ -595,8 +596,8 @@ mod tests {
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        cache::ParquetCache, last_cache::LastCacheProvider, persister::Persister,
-        write_buffer::WriteBufferImpl, WriteBuffer,
+        last_cache::LastCacheProvider, persister::Persister, write_buffer::WriteBufferImpl,
+        WriteBuffer,
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
@@ -635,12 +636,10 @@ mod tests {
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
         let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
-        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
         let persister = Arc::new(Persister::new(
             Arc::clone(&object_store),
             "test_host",
             mem_pool,
-            parquet_cache,
         ));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let executor = make_exec(object_store);

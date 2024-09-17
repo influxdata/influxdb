@@ -148,12 +148,14 @@ impl WriteBufferImpl {
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
             persisted_snapshots,
         ));
+        let parquet_cache = Arc::new(ParquetCache::new(&persister.mem_pool));
         let queryable_buffer = Arc::new(QueryableBuffer::new(
             executor,
             Arc::clone(&catalog),
             Arc::clone(&persister),
             Arc::clone(&last_cache),
             Arc::clone(&persisted_files),
+            Arc::clone(&parquet_cache),
         ));
 
         // create the wal instance, which will replay into the queryable buffer and start
@@ -170,7 +172,7 @@ impl WriteBufferImpl {
 
         Ok(Self {
             catalog,
-            parquet_cache: Arc::new(ParquetCache::new(&persister.mem_pool)),
+            parquet_cache,
             persister,
             wal_config,
             wal,
@@ -378,8 +380,8 @@ impl WriteBufferImpl {
 
     pub async fn cache_parquet(
         &self,
-        db_name: &str,
-        table_name: &str,
+        db_name: Arc<str>,
+        table_name: Arc<str>,
         min_time: i64,
         max_time: i64,
         records: SendableRecordBatchStream,
@@ -392,8 +394,8 @@ impl WriteBufferImpl {
 
     pub async fn update_parquet(
         &self,
-        db_name: &str,
-        table_name: &str,
+        db_name: Arc<str>,
+        table_name: Arc<str>,
         min_time: i64,
         max_time: i64,
         path: ObjPath,
@@ -646,12 +648,10 @@ mod tests {
     async fn writes_data_to_wal_and_is_queryable() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
-        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
         let persister = Arc::new(Persister::new(
             Arc::clone(&object_store),
             "test_host",
             mem_pool,
-            parquet_cache,
         ));
         let host_id = Arc::from("dummy-host-id");
         let (last_cache, catalog) = persister
@@ -1688,12 +1688,10 @@ mod tests {
         wal_config: WalConfig,
     ) -> (WriteBufferImpl, IOxSessionContext) {
         let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
-        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
         let persister = Arc::new(Persister::new(
             Arc::clone(&object_store),
             "test_host",
             mem_pool,
-            parquet_cache,
         ));
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
         let host_id = Arc::from("dummy-host-id");

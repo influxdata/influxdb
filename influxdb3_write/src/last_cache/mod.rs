@@ -1566,7 +1566,6 @@ mod tests {
     use std::{cmp::Ordering, collections::BTreeMap, sync::Arc, time::Duration};
 
     use crate::{
-        cache::ParquetCache,
         last_cache::{KeyValue, LastCacheProvider, Predicate, DEFAULT_CACHE_TTL},
         persister::Persister,
         write_buffer::WriteBufferImpl,
@@ -1584,13 +1583,7 @@ mod tests {
     async fn setup_write_buffer() -> WriteBufferImpl {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
-        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
-        let persister = Arc::new(Persister::new(
-            obj_store,
-            "test_host",
-            mem_pool,
-            parquet_cache,
-        ));
+        let persister = Arc::new(Persister::new(obj_store, "test_host", mem_pool));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let host_id = Arc::from("dummy-host-id");
         let instance_id = Arc::from("dummy-instance-id");

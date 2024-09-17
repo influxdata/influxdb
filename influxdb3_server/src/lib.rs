@@ -230,7 +230,6 @@ mod tests {
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::WalConfig;
-    use influxdb3_write::cache::ParquetCache;
     use influxdb3_write::last_cache::LastCacheProvider;
     use influxdb3_write::persister::Persister;
     use influxdb3_write::WriteBuffer;
@@ -761,12 +760,10 @@ mod tests {
             DedicatedExecutor::new_testing(),
         ));
         let mem_pool: Arc<dyn MemoryPool> = Arc::new(UnboundedMemoryPool::default());
-        let parquet_cache = Arc::new(ParquetCache::new(&mem_pool));
         let persister = Arc::new(Persister::new(
             Arc::clone(&object_store),
             "test_host",
             mem_pool,
-            parquet_cache,
         ));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
         let dummy_host_id = Arc::from("dummy-host-id");

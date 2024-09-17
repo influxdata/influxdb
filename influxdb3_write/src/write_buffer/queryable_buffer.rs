@@ -1,15 +1,13 @@
+use crate::cache::ParquetCache;
 use crate::chunk::BufferChunk;
 use crate::last_cache::LastCacheProvider;
 use crate::paths::ParquetFilePath;
-use crate::persister::Persister;
+use crate::persister::{PersistJob, Persister};
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
 use crate::{ParquetFile, ParquetFileId, PersistedSnapshot};
-use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
-use data_types::{
-    ChunkId, ChunkOrder, PartitionKey, TableId, TimestampMinMax, TransitionPartitionId,
-};
+use data_types::{ChunkId, ChunkOrder, PartitionKey, TableId, TransitionPartitionId};
 use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::logical_expr::Expr;
@@ -25,7 +23,6 @@ use observability_deps::tracing::{error, info};
 use parking_lot::RwLock;
 use parquet::format::FileMetaData;
 use schema::sort::SortKey;
-use schema::Schema;
 use std::any::Any;
 use std::sync::Arc;
 use std::time::Duration;
@@ -40,6 +37,7 @@ pub struct QueryableBuffer {
     persister: Arc<Persister>,
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<RwLock<BufferState>>,
+    parquet_cache: Arc<ParquetCache>,
     /// Sends a notification to this watch channel whenever a snapshot info is persisted
     persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshot>>,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
@@ -52,6 +50,7 @@ impl QueryableBuffer {
         persister: Arc<Persister>,
         last_cache_provider: Arc<LastCacheProvider>,
         persisted_files: Arc<PersistedFiles>,
+        parquet_cache: Arc<ParquetCache>,
     ) -> Self {
         let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
         let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
@@ -65,6 +64,7 @@ impl QueryableBuffer {
             buffer,
             persisted_snapshot_notify_rx,
             persisted_snapshot_notify_tx,
+            parquet_cache,
         }
     }
 
@@ -186,6 +186,7 @@ impl QueryableBuffer {
         let buffer = Arc::clone(&self.buffer);
         let catalog = Arc::clone(&self.catalog);
         let notify_snapshot_tx = self.persisted_snapshot_notify_tx.clone();
+        let parquet_cache = Arc::clone(&self.parquet_cache);
 
         tokio::spawn(async move {
             // persist the catalog if it has been updated
@@ -235,9 +236,14 @@ impl QueryableBuffer {
                 let min_time = persist_job.timestamp_min_max.min;
                 let max_time = persist_job.timestamp_min_max.max;
 
-                let (size_bytes, meta) =
-                    sort_dedupe_persist(persist_job, Arc::clone(&persister), Arc::clone(&executor))
-                        .await;
+                let (size_bytes, meta) = sort_dedupe_persist(
+                    persist_job,
+                    Arc::clone(&persister),
+                    Arc::clone(&parquet_cache),
+                    Arc::clone(&executor),
+                )
+                .await;
+
                 persisted_snapshot.add_parquet_file(
                     database_name,
                     table_name,
@@ -411,25 +417,13 @@ impl BufferState {
     }
 }
 
-#[derive(Debug)]
-struct PersistJob {
-    database_name: Arc<str>,
-    table_name: Arc<str>,
-    chunk_time: i64,
-    path: ParquetFilePath,
-    batch: RecordBatch,
-    schema: Schema,
-    timestamp_min_max: TimestampMinMax,
-    sort_key: SortKey,
-}
-
-async fn sort_dedupe_persist(
+/// Dedupe and sort using the COMPACT query built into iox_query
+pub async fn sort_dedupe_persist(
     persist_job: PersistJob,
     persister: Arc<Persister>,
+    parquet_cache: Arc<ParquetCache>,
     executor: Arc<Executor>,
 ) -> (u64, FileMetaData) {
-    // Dedupe and sort using the COMPACT query built into
-    // iox_query
     let row_count = persist_job.batch.num_rows();
     info!(
         "Persisting {} rows for db {} and table {} and chunk {} to file {}",
@@ -465,18 +459,24 @@ async fn sort_dedupe_persist(
     let logical_plan = ReorgPlanner::new()
         .compact_plan(
             TableId::new(0),
-            persist_job.table_name,
+            persist_job.table_name.clone(),
             &persist_job.schema,
             chunks,
             persist_job.sort_key,
         )
-        .unwrap();
+        .expect("create re-org logical plan");
 
     // Build physical plan
-    let physical_plan = ctx.create_physical_plan(&logical_plan).await.unwrap();
+    let physical_plan = ctx
+        .create_physical_plan(&logical_plan)
+        .await
+        .expect("create physical dedupe plan");
 
     // Execute the plan and return compacted record batches
-    let data = ctx.collect(physical_plan).await.unwrap();
+    let data = ctx
+        .collect(physical_plan)
+        .await
+        .expect("collect deduped data");
 
     // keep attempting to persist forever. If we can't reach the object store, we'll stop accepting
     // writes elsewhere in the system, so we need to keep trying to persist.
@@ -489,6 +489,19 @@ async fn sort_dedupe_persist(
         {
             Ok((size_bytes, meta)) => {
                 info!("Persisted parquet file: {}", persist_job.path.to_string());
+                let batch_stream = stream_from_batches(persist_job.schema.as_arrow(), data.clone());
+                parquet_cache
+                    .persist_parquet_file(
+                        persist_job.database_name,
+                        persist_job.table_name,
+                        persist_job.timestamp_min_max.min,
+                        persist_job.timestamp_min_max.max,
+                        batch_stream,
+                        Some(persist_job.path.clone_inner()),
+                    )
+                    .await
+                    .expect("cache the persisted parquet file");
+
                 return (size_bytes, meta);
             }
             Err(e) => {

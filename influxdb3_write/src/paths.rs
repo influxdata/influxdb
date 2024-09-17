@@ -84,6 +84,10 @@ impl ParquetFilePath {
         ));
         Self(path)
     }
+
+    pub fn clone_inner(&self) -> ObjPath {
+        self.0.clone()
+    }
 }
 
 impl Deref for ParquetFilePath {
