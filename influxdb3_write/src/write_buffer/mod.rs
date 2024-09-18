@@ -614,6 +614,8 @@ impl WriteBuffer for WriteBufferImpl {}
 #[cfg(test)]
 #[allow(clippy::await_holding_lock)]
 mod tests {
+    use std::ops::Range;
+
     use super::*;
     use crate::paths::{CatalogFilePath, SnapshotInfoFilePath};
     use crate::persister::Persister;
@@ -623,7 +625,9 @@ mod tests {
     use bytes::Bytes;
     use datafusion::execution::memory_pool::{MemoryPool, UnboundedMemoryPool};
     use datafusion_util::config::register_iox_object_store;
+    use futures_util::stream::BoxStream;
     use futures_util::StreamExt;
+    use hashbrown::HashMap;
     use influxdb3_catalog::catalog::SequenceNumber;
     use influxdb3_id::DbId;
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
@@ -631,7 +635,11 @@ mod tests {
     use iox_time::{MockProvider, Time};
     use object_store::local::LocalFileSystem;
     use object_store::memory::InMemory;
-    use object_store::{ObjectStore, PutPayload};
+    use object_store::{
+        GetOptions, GetResult, ListResult, MultipartUpload, ObjectStore, PutMultipartOpts,
+        PutOptions, PutPayload, PutResult,
+    };
+    use parking_lot::RwLock;
 
     #[test]
     fn parse_lp_into_buffer() {
@@ -1661,6 +1669,91 @@ mod tests {
         assert_eq!(DbId::next_id().as_u32(), 1);
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn cached_parquet_chunks_override_persisted() {
+        let obj_store = Arc::new(TestObjectStore::default());
+        let (wbuf, ctx) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store) as _,
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+
+        let db_name = "foo";
+        let tbl_name = "bar";
+
+        do_writes(
+            db_name,
+            &wbuf,
+            &[
+                TestWrite {
+                    lp: format!("{tbl_name},t1=a f1=true"),
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},t1=b f1=false"),
+                    time_seconds: 2,
+                },
+                TestWrite {
+                    lp: format!("{tbl_name},t1=c f1=true,f2=42"),
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        verify_snapshot_count(1, &wbuf.persister).await;
+
+        // There should be no parquet files being gotten from at this point, because we haven't
+        // even made any queries yet:
+        let counts = obj_store.get_counts();
+        println!("get counts: {counts:#?}");
+        assert!(counts
+            .iter()
+            .all(|(path, _)| !path.to_string().ends_with(".parquet")),);
+
+        // The same goes for get_range requets:
+        let counts = obj_store.get_range_counts();
+        println!("get_range counts: {counts:#?}");
+        assert!(counts
+            .iter()
+            .all(|(path, _)| !path.to_string().ends_with(".parquet")),);
+
+        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-------+------+----+----------------------+",
+                "| f1    | f2   | t1 | time                 |",
+                "+-------+------+----+----------------------+",
+                "| false |      | b  | 1970-01-01T00:00:02Z |",
+                "| true  |      | a  | 1970-01-01T00:00:01Z |",
+                "| true  | 42.0 | c  | 1970-01-01T00:00:03Z |",
+                "+-------+------+----+----------------------+",
+            ],
+            &batches
+        );
+
+        let counts = obj_store.get_counts();
+        println!("get counts: {counts:#?}");
+        // There still should be no parquet files gotten yet, as the cache should have overridden
+        // any get request to the object store:
+        assert!(counts
+            .iter()
+            .all(|(path, _)| !path.to_string().ends_with(".parquet")),);
+        // However, now there are requests being made through get_range, presumably during schema
+        // inference on the parquet files by datafusion:
+        let counts = obj_store.get_range_counts();
+        println!("get_range counts: {counts:#?}");
+        assert!(counts
+            .iter()
+            .any(|(path, count)| path.to_string().ends_with(".parquet") && *count == 3));
+    }
+
     struct TestWrite<LP> {
         lp: LP,
         time_seconds: i64,
@@ -1785,5 +1878,112 @@ mod tests {
             batches.extend(chunk);
         }
         batches
+    }
+
+    type RequestCounter = Arc<RwLock<HashMap<ObjPath, usize>>>;
+
+    #[derive(Debug, Default)]
+    struct TestObjectStore {
+        inner: InMemory,
+        get: RequestCounter,
+        get_range: RequestCounter,
+    }
+
+    impl TestObjectStore {
+        fn get_counts(&self) -> Vec<(ObjPath, usize)> {
+            self.get
+                .read()
+                .iter()
+                .map(|(k, v)| (k.clone(), *v))
+                .collect()
+        }
+
+        fn get_range_counts(&self) -> Vec<(ObjPath, usize)> {
+            self.get_range
+                .read()
+                .iter()
+                .map(|(k, v)| (k.clone(), *v))
+                .collect()
+        }
+    }
+
+    impl std::fmt::Display for TestObjectStore {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.inner)
+        }
+    }
+
+    #[async_trait]
+    impl ObjectStore for TestObjectStore {
+        async fn put_opts(
+            &self,
+            location: &ObjPath,
+            payload: PutPayload,
+            opts: PutOptions,
+        ) -> object_store::Result<PutResult> {
+            self.inner.put_opts(location, payload, opts).await
+        }
+
+        async fn put_multipart_opts(
+            &self,
+            location: &ObjPath,
+            opts: PutMultipartOpts,
+        ) -> object_store::Result<Box<dyn MultipartUpload>> {
+            self.inner.put_multipart_opts(location, opts).await
+        }
+
+        async fn get(&self, location: &ObjPath) -> object_store::Result<GetResult> {
+            let result = self.get_opts(location, GetOptions::default()).await;
+            *self.get.write().entry(location.clone()).or_default() += 1;
+            result
+        }
+
+        async fn get_range(
+            &self,
+            location: &ObjPath,
+            range: Range<usize>,
+        ) -> object_store::Result<Bytes> {
+            let result = self.inner.get_range(location, range).await;
+            *self.get_range.write().entry(location.clone()).or_default() += 1;
+            result
+        }
+
+        async fn get_opts(
+            &self,
+            location: &ObjPath,
+            options: GetOptions,
+        ) -> object_store::Result<GetResult> {
+            self.inner.get_opts(location, options).await
+        }
+
+        async fn delete(&self, location: &ObjPath) -> object_store::Result<()> {
+            self.inner.delete(location).await
+        }
+
+        fn list(
+            &self,
+            prefix: Option<&ObjPath>,
+        ) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+            self.inner.list(prefix)
+        }
+
+        async fn list_with_delimiter(
+            &self,
+            prefix: Option<&ObjPath>,
+        ) -> object_store::Result<ListResult> {
+            self.inner.list_with_delimiter(prefix).await
+        }
+
+        async fn copy(&self, from: &ObjPath, to: &ObjPath) -> object_store::Result<()> {
+            self.inner.copy(from, to).await
+        }
+
+        async fn copy_if_not_exists(
+            &self,
+            from: &ObjPath,
+            to: &ObjPath,
+        ) -> object_store::Result<()> {
+            self.inner.copy_if_not_exists(from, to).await
+        }
     }
 }
