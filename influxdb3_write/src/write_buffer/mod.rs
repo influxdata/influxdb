@@ -615,7 +615,6 @@ mod tests {
     use object_store::local::LocalFileSystem;
     use object_store::memory::InMemory;
     use object_store::{ObjectStore, PutPayload};
-    use parking_lot::{Mutex, MutexGuard};
 
     #[test]
     fn parse_lp_into_buffer() {
@@ -750,7 +749,6 @@ mod tests {
 
     #[tokio::test]
     async fn last_cache_create_and_delete_is_durable() {
-        let lock = lock();
         let (wbuf, _ctx) = setup(
             Time::from_timestamp_nanos(0),
             Arc::new(InMemory::new()),
@@ -762,7 +760,6 @@ mod tests {
             },
         )
         .await;
-        drop(lock);
         let db_name = "db";
         let tbl_name = "table";
         let cache_name = "cache";
@@ -913,7 +910,6 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn returns_chunks_across_parquet_and_buffered_data() {
-        let lock = lock();
         let (write_buffer, session_context) = setup(
             Time::from_timestamp_nanos(0),
             Arc::new(InMemory::new()),
@@ -925,7 +921,6 @@ mod tests {
             },
         )
         .await;
-        drop(lock);
 
         let _ = write_buffer
             .write_lp(
@@ -1114,7 +1109,6 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn catalog_snapshots_only_if_updated() {
-        let lock = lock();
         let (write_buffer, _ctx) = setup(
             Time::from_timestamp_nanos(0),
             Arc::new(InMemory::new()),
@@ -1126,7 +1120,6 @@ mod tests {
             },
         )
         .await;
-        drop(lock);
 
         let db_name = "foo";
         // do three writes to force a snapshot
@@ -1204,7 +1197,6 @@ mod tests {
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
 
-        let lock = lock();
         // create a snapshot file that will be loaded on initialization of the write buffer:
         // Set NEXT_FILE_ID to a non zero number for the snapshot
         NEXT_FILE_ID.store(500, Ordering::SeqCst);
@@ -1244,7 +1236,6 @@ mod tests {
 
         // Assert that loading the snapshots sets NEXT_FILE_ID to the correct id number
         assert_eq!(NEXT_FILE_ID.load(Ordering::SeqCst), 500);
-        drop(lock);
 
         // there should be one snapshot already, i.e., the one we created above:
         verify_snapshot_count(1, &wbuf.persister).await;
@@ -1720,21 +1711,5 @@ mod tests {
             batches.extend(chunk);
         }
         batches
-    }
-
-    /// Lock for the NEXT_FILE_ID data which is set during some of these tests.
-    /// We need to have exclusive access to it to test that it works when loading
-    /// from a snapshot. We lock in most of the calls to setup in this test suite
-    /// where it would cause problems. If running under `cargo-nextest`, return a
-    /// different mutex guard as it does not have this problem due to running
-    /// each test in it's own process
-    fn lock() -> MutexGuard<'static, ()> {
-        static FILE_ID_LOCK: Mutex<()> = Mutex::new(());
-        static DUMMY_LOCK: Mutex<()> = Mutex::new(());
-        if std::env::var("NEXTEST").unwrap_or("0".into()) == "1" {
-            DUMMY_LOCK.lock()
-        } else {
-            FILE_ID_LOCK.lock()
-        }
     }
 }
