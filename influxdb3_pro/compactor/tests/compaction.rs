@@ -10,8 +10,8 @@ use arrow::util::pretty::pretty_format_batches;
 use arrow_schema::SchemaRef;
 use data_types::NamespaceName;
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_pro_compactor::CompactorOutput;
-use influxdb3_pro_compactor::{Compactor, CompactorConfig};
+use influxdb3_pro_compactor::{compact_files, CompactFilesArgs, CompactorOutput};
+use influxdb3_pro_data_layout::{CompactionSequenceNumber, GenerationLevel};
 use influxdb3_wal::WalConfig;
 use influxdb3_write::last_cache::LastCacheProvider;
 use influxdb3_write::persister::Persister;
@@ -110,33 +110,26 @@ async fn five_files_multiple_series_same_schema() {
     let path4 = test_writer.write("test/batch/4", batch4).await;
     let path5 = test_writer.write("test/batch/5", batch5).await;
 
-    // Create our new Compactor and compact the above files
-    let (_persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
-        tokio::sync::watch::channel(None);
-    let compactor = Compactor::new(
-        CompactorConfig::test(),
-        Arc::clone(&write_buffer.catalog()),
-        Arc::clone(&persister.object_store()),
-        make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
-        persisted_snapshot_notify_rx,
-    );
+    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
+    let args = CompactFilesArgs {
+        compactor_id: "compactor_1".into(),
+        compaction_sequence_number: CompactionSequenceNumber::new(1),
+        db_schema,
+        table_name: "test_table".into(),
+        sort_keys: vec!["id".into()],
+        paths: vec![path1, path2, path3, path4, path5],
+        limit: 2,
+        generation: GenerationLevel::two(),
+        index_columns: vec!["id".into(), "field".into()],
+        object_store: persister.object_store(),
+        object_store_url: persister.object_store_url().clone(),
+        exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+    };
     let CompactorOutput {
         output_paths,
         file_index,
         ..
-    } = compactor
-        .compact_files(
-            "test_db",
-            "test_table",
-            vec!["id".into()],
-            vec![path1, path2, path3, path4, path5],
-            2,
-            "us-east-1".into(),
-            0,
-            vec!["id".into(), "field".into()],
-        )
-        .await
-        .unwrap();
+    } = compact_files(args).await.unwrap();
 
     // Expect series to be split evenly across the files, no series should be
     // split across files
@@ -317,35 +310,26 @@ async fn two_files_two_series_and_same_schema() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
-    // Create our new Compactor and compact the above files
-    let (_persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
-        tokio::sync::watch::channel(None);
-    let compactor = Compactor::new(
-        CompactorConfig::test(),
-        Arc::clone(&write_buffer.catalog()),
-        Arc::clone(&persister.object_store()),
-        make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
-        persisted_snapshot_notify_rx,
-    );
+    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
+    let args = CompactFilesArgs {
+        compactor_id: "compactor_1".into(),
+        compaction_sequence_number: CompactionSequenceNumber::new(1),
+        db_schema,
+        table_name: "test_table".into(),
+        sort_keys: vec!["id".into(), "host".into()],
+        paths: vec![path2, path1],
+        limit: 2,
+        generation: GenerationLevel::two(),
+        index_columns: vec!["id".into(), "host".into(), "field".into()],
+        object_store: persister.object_store(),
+        object_store_url: persister.object_store_url().clone(),
+        exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+    };
     let CompactorOutput {
         output_paths,
         file_index,
         ..
-    } = compactor
-        .compact_files(
-            "test_db",
-            "test_table",
-            // These are our tags and field will just be an array we don't sort on
-            vec!["id".into(), "host".into()],
-            // Make sure this works out of order
-            vec![path2, path1],
-            2,
-            "us-east-1".into(),
-            0,
-            vec!["id".into(), "host".into(), "field".into()],
-        )
-        .await
-        .unwrap();
+    } = compact_files(args).await.unwrap();
 
     // Verify contents.
     let file_contents = files_to_string(&obj_store, &output_paths).await;
@@ -469,36 +453,26 @@ async fn two_files_same_series_and_schema() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
-    // Create our new Compactor and compact the above files
-    let (_persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
-        tokio::sync::watch::channel(None);
-    let compactor = Compactor::new(
-        CompactorConfig::test(),
-        Arc::clone(&write_buffer.catalog()),
-        Arc::clone(&persister.object_store()),
-        make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
-        persisted_snapshot_notify_rx,
-    );
-
+    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
+    let args = CompactFilesArgs {
+        compactor_id: "compactor_1".into(),
+        compaction_sequence_number: CompactionSequenceNumber::new(1),
+        db_schema,
+        table_name: "test_table".into(),
+        sort_keys: vec!["id".into(), "host".into()],
+        paths: vec![path1, path2],
+        limit: 2,
+        generation: GenerationLevel::two(),
+        index_columns: vec!["id".into(), "host".into(), "field".into()],
+        object_store: persister.object_store(),
+        object_store_url: persister.object_store_url().clone(),
+        exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+    };
     let CompactorOutput {
         output_paths,
         file_index,
         ..
-    } = compactor
-        .compact_files(
-            "test_db",
-            "test_table",
-            // These are our tags and field will just be an array we don't sort on
-            vec!["id".into(), "host".into()],
-            // Check that order matters for determining which data to use for field
-            vec![path1, path2],
-            2,
-            "us-east-1".into(),
-            0,
-            vec!["id".into(), "host".into(), "field".into()],
-        )
-        .await
-        .unwrap();
+    } = compact_files(args).await.unwrap();
 
     // Read those files into memory to be checked for validity
     //
@@ -624,40 +598,31 @@ async fn two_files_similar_series_and_compatible_schema() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
-    // Create our new Compactor and compact the above files
-    let (_persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
-        tokio::sync::watch::channel(None);
-    let compactor = Compactor::new(
-        CompactorConfig::test(),
-        Arc::clone(&write_buffer.catalog()),
-        Arc::clone(&persister.object_store()),
-        make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
-        persisted_snapshot_notify_rx,
-    );
-
+    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
+    let args = CompactFilesArgs {
+        compactor_id: "compactor_1".into(),
+        compaction_sequence_number: CompactionSequenceNumber::new(1),
+        db_schema,
+        table_name: "test_table".into(),
+        sort_keys: vec!["id".into(), "host".into(), "extra_tag".into()],
+        paths: vec![path1, path2],
+        limit: 2,
+        generation: GenerationLevel::two(),
+        index_columns: vec![
+            "id".into(),
+            "host".into(),
+            "field".into(),
+            "extra_tag".into(),
+        ],
+        object_store: persister.object_store(),
+        object_store_url: persister.object_store_url().clone(),
+        exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+    };
     let CompactorOutput {
         output_paths,
         file_index,
         ..
-    } = compactor
-        .compact_files(
-            "test_db",
-            "test_table",
-            // These are our tags and field will just be an array we don't sort on
-            vec!["id".into(), "host".into(), "extra_tag".into()],
-            vec![path1, path2],
-            2,
-            "us-east-1".into(),
-            0,
-            vec![
-                "id".into(),
-                "host".into(),
-                "field".into(),
-                "extra_tag".into(),
-            ],
-        )
-        .await
-        .unwrap();
+    } = compact_files(args).await.unwrap();
 
     // Read those files into memory to be checked for validity
     //
@@ -785,36 +750,26 @@ async fn deduplication_of_data() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
-    // Create our new Compactor and compact the above files
-    let (_persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
-        tokio::sync::watch::channel(None);
-    let compactor = Compactor::new(
-        CompactorConfig::test(),
-        Arc::clone(&write_buffer.catalog()),
-        Arc::clone(&persister.object_store()),
-        make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
-        persisted_snapshot_notify_rx,
-    );
-
+    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
+    let args = CompactFilesArgs {
+        compactor_id: "compactor_1".into(),
+        compaction_sequence_number: CompactionSequenceNumber::new(1),
+        db_schema,
+        table_name: "test_table".into(),
+        sort_keys: vec!["id".into(), "host".into()],
+        paths: vec![path2, path1],
+        limit: 2,
+        generation: GenerationLevel::two(),
+        index_columns: vec!["id".into(), "host".into(), "field".into()],
+        object_store: persister.object_store(),
+        object_store_url: persister.object_store_url().clone(),
+        exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+    };
     let CompactorOutput {
         output_paths,
         file_index,
         ..
-    } = compactor
-        .compact_files(
-            "test_db",
-            "test_table",
-            // These are our tags and field will just be an array we don't sort on
-            vec!["id".into(), "host".into()],
-            // Make sure this works out of order
-            vec![path2, path1],
-            2,
-            "us-east-1".into(),
-            0,
-            vec!["id".into(), "host".into(), "field".into()],
-        )
-        .await
-        .unwrap();
+    } = compact_files(args).await.unwrap();
 
     // Read those files into memory to be checked for validity
     let file_contents = files_to_string(&obj_store, &output_paths).await;
@@ -932,38 +887,28 @@ async fn compactor_casting() {
 
     let path1 = test_writer.write("test/batch/1", batch1).await;
 
-    // Create our new Compactor and compact the above files
-    let (_persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
-        tokio::sync::watch::channel(None);
-    let compactor = Compactor::new(
-        CompactorConfig::test(),
-        Arc::clone(&write_buffer.catalog()),
-        Arc::clone(&persister.object_store()),
-        make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
-        persisted_snapshot_notify_rx,
-    );
-
-    let CompactorOutput { file_index, .. } = compactor
-        .compact_files(
-            "test_db",
-            "test_table",
-            // These are our tags and field will just be an array we don't sort on
-            ["a", "b", "c", "d", "e", "f", "g", "h", "i"]
-                .into_iter()
-                .map(ToString::to_string)
-                .collect(),
-            // Make sure this works out of order
-            vec![path1],
-            1000,
-            "us-east-1".into(),
-            0,
-            ["a", "b", "c", "d", "e", "f", "g", "h", "i", "time"]
-                .into_iter()
-                .map(ToString::to_string)
-                .collect(),
-        )
-        .await
-        .unwrap();
+    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
+    let args = CompactFilesArgs {
+        compactor_id: "compactor_1".into(),
+        compaction_sequence_number: CompactionSequenceNumber::new(1),
+        db_schema,
+        table_name: "test_table".into(),
+        sort_keys: ["a", "b", "c", "d", "e", "f", "g", "h", "i"]
+            .into_iter()
+            .map(ToString::to_string)
+            .collect(),
+        paths: vec![path1],
+        limit: 2,
+        generation: GenerationLevel::two(),
+        index_columns: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "time"]
+            .into_iter()
+            .map(ToString::to_string)
+            .collect(),
+        object_store: persister.object_store(),
+        object_store_url: persister.object_store_url().clone(),
+        exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+    };
+    let CompactorOutput { file_index, .. } = compact_files(args).await.unwrap();
 
     // Index Assertions
     // b=\"foo\",c=1.0,d=2,e=true f=3i,g=4.0,h=false,i=\"bar\" 100\n",
