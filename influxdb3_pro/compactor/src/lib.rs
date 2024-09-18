@@ -237,6 +237,9 @@ pub struct CompactFilesArgs {
     pub limit: usize,
     pub generation: GenerationLevel,
     pub index_columns: Vec<String>,
+    pub object_store: Arc<dyn ObjectStore>,
+    pub object_store_url: ObjectStoreUrl,
+    pub exec: Arc<Executor>,
 }
 
 /// Compact `paths` together into one or more parquet files
@@ -244,25 +247,35 @@ pub struct CompactFilesArgs {
 /// The limit is the maximum number of rows that can be in a single file.
 /// This number can be exceeded if a single series is larger than the limit
 pub async fn compact_files(
-    args: CompactFilesArgs,
-    object_store: Arc<dyn ObjectStore>,
-    object_store_url: ObjectStoreUrl,
-    exec: Arc<Executor>,
+    CompactFilesArgs {
+        compactor_id,
+        compaction_sequence_number,
+        db_schema,
+        table_name,
+        sort_keys,
+        paths,
+        limit,
+        generation,
+        index_columns,
+        object_store,
+        object_store_url,
+        exec,
+    }: CompactFilesArgs,
 ) -> Result<CompactorOutput, CompactorError> {
     executor::register_current_runtime_for_io();
 
-    let db_schema = args.db_schema;
+    let db_schema = db_schema;
 
     let table_schema = db_schema
-        .get_table_schema(args.table_name.as_ref())
+        .get_table_schema(table_name.as_ref())
         .ok_or_else(|| CompactorError::MissingSchema)?;
 
-    let mut sort_keys = args.sort_keys;
+    let mut sort_keys = sort_keys;
 
     let records = record_stream(
-        args.table_name.as_ref(),
+        table_name.as_ref(),
         &mut sort_keys,
-        args.paths,
+        paths,
         table_schema,
         Arc::clone(&object_store),
         object_store_url.clone(),
@@ -273,15 +286,15 @@ pub async fn compact_files(
     let mut series_writer = SeriesWriter::new(
         Arc::new(table_schema.clone()),
         object_store,
-        args.limit,
+        limit,
         sort_keys,
         records,
-        args.compactor_id,
-        args.generation,
-        args.compaction_sequence_number,
+        compactor_id,
+        generation,
+        compaction_sequence_number,
         Arc::clone(&db_schema.name),
-        args.table_name,
-        args.index_columns,
+        table_name,
+        index_columns,
     );
 
     loop {
@@ -310,10 +323,8 @@ async fn record_stream(
     if !sort_keys.contains(&time) {
         sort_keys.push(time);
     }
-    println!("sort_keys: {:?}", sort_keys);
 
     let sort_key = SortKey::from_columns(sort_keys.iter().map(String::as_str));
-    println!("sort_key: {:?}", sort_key);
 
     // We need to use the same partition id for every file if we want the reorg plan to not only
     // sort, but to dedupe data. We use the same PartitionKey for every file to accomplish this.

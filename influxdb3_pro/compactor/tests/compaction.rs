@@ -121,19 +121,15 @@ async fn five_files_multiple_series_same_schema() {
         limit: 2,
         generation: GenerationLevel::two(),
         index_columns: vec!["id".into(), "field".into()],
+        object_store: persister.object_store(),
+        object_store_url: persister.object_store_url().clone(),
+        exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     };
     let CompactorOutput {
         output_paths,
         file_index,
         ..
-    } = compact_files(
-        args,
-        persister.object_store(),
-        persister.object_store_url().clone(),
-        make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
-    )
-    .await
-    .unwrap();
+    } = compact_files(args).await.unwrap();
 
     // Expect series to be split evenly across the files, no series should be
     // split across files
@@ -325,19 +321,15 @@ async fn two_files_two_series_and_same_schema() {
         limit: 2,
         generation: GenerationLevel::two(),
         index_columns: vec!["id".into(), "host".into(), "field".into()],
+        object_store: persister.object_store(),
+        object_store_url: persister.object_store_url().clone(),
+        exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     };
     let CompactorOutput {
         output_paths,
         file_index,
         ..
-    } = compact_files(
-        args,
-        persister.object_store(),
-        persister.object_store_url().clone(),
-        make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
-    )
-    .await
-    .unwrap();
+    } = compact_files(args).await.unwrap();
 
     // Verify contents.
     let file_contents = files_to_string(&obj_store, &output_paths).await;
@@ -472,19 +464,15 @@ async fn two_files_same_series_and_schema() {
         limit: 2,
         generation: GenerationLevel::two(),
         index_columns: vec!["id".into(), "host".into(), "field".into()],
+        object_store: persister.object_store(),
+        object_store_url: persister.object_store_url().clone(),
+        exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     };
     let CompactorOutput {
         output_paths,
         file_index,
         ..
-    } = compact_files(
-        args,
-        persister.object_store(),
-        persister.object_store_url().clone(),
-        make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
-    )
-    .await
-    .unwrap();
+    } = compact_files(args).await.unwrap();
 
     // Read those files into memory to be checked for validity
     //
@@ -626,19 +614,15 @@ async fn two_files_similar_series_and_compatible_schema() {
             "field".into(),
             "extra_tag".into(),
         ],
+        object_store: persister.object_store(),
+        object_store_url: persister.object_store_url().clone(),
+        exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     };
     let CompactorOutput {
         output_paths,
         file_index,
         ..
-    } = compact_files(
-        args,
-        persister.object_store(),
-        persister.object_store_url().clone(),
-        make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
-    )
-    .await
-    .unwrap();
+    } = compact_files(args).await.unwrap();
 
     // Read those files into memory to be checked for validity
     //
@@ -777,19 +761,15 @@ async fn deduplication_of_data() {
         limit: 2,
         generation: GenerationLevel::two(),
         index_columns: vec!["id".into(), "host".into(), "field".into()],
+        object_store: persister.object_store(),
+        object_store_url: persister.object_store_url().clone(),
+        exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     };
     let CompactorOutput {
         output_paths,
         file_index,
         ..
-    } = compact_files(
-        args,
-        persister.object_store(),
-        persister.object_store_url().clone(),
-        make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
-    )
-    .await
-    .unwrap();
+    } = compact_files(args).await.unwrap();
 
     // Read those files into memory to be checked for validity
     let file_contents = files_to_string(&obj_store, &output_paths).await;
@@ -924,15 +904,11 @@ async fn compactor_casting() {
             .into_iter()
             .map(ToString::to_string)
             .collect(),
+        object_store: persister.object_store(),
+        object_store_url: persister.object_store_url().clone(),
+        exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
     };
-    let CompactorOutput { file_index, .. } = compact_files(
-        args,
-        persister.object_store(),
-        persister.object_store_url().clone(),
-        make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
-    )
-    .await
-    .unwrap();
+    let CompactorOutput { file_index, .. } = compact_files(args).await.unwrap();
 
     // Index Assertions
     // b=\"foo\",c=1.0,d=2,e=true f=3i,g=4.0,h=false,i=\"bar\" 100\n",
