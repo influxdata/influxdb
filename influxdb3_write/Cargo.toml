@@ -55,3 +55,4 @@ insta.workspace = true
 metric.workspace = true
 pretty_assertions.workspace = true
 test_helpers.workspace = true
+test-log.workspace = true

@@ -645,11 +645,8 @@ mod tests {
     async fn writes_data_to_wal_and_is_queryable() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let host_id = Arc::from("dummy-host-id");
-        let (last_cache, catalog) = persister
-            .load_last_cache_and_catalog(host_id)
-            .await
-            .unwrap();
+        let catalog = persister.load_or_create_catalog().await.unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let write_buffer = WriteBufferImpl::new(
@@ -722,12 +719,9 @@ mod tests {
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
         assert_batches_eq!(&expected, &actual);
 
-        let host_id = Arc::from("dummy-host-id");
         // now load a new buffer from object storage
-        let (last_cache, catalog) = persister
-            .load_last_cache_and_catalog(host_id)
-            .await
-            .unwrap();
+        let catalog = persister.load_or_create_catalog().await.unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::new(catalog),
@@ -781,13 +775,9 @@ mod tests {
             .await
             .unwrap();
 
-        let host_id = Arc::from("dummy-host-id");
         // load a new write buffer to ensure its durable
-        let (last_cache, catalog) = wbuf
-            .persister
-            .load_last_cache_and_catalog(host_id)
-            .await
-            .unwrap();
+        let catalog = wbuf.persister.load_or_create_catalog().await.unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
             Arc::new(catalog),
@@ -822,13 +812,9 @@ mod tests {
         .await
         .unwrap();
 
-        let host_id = Arc::from("dummy-host-id");
         // and do another replay and verification
-        let (last_cache, catalog) = wbuf
-            .persister
-            .load_last_cache_and_catalog(host_id)
-            .await
-            .unwrap();
+        let catalog = wbuf.persister.load_or_create_catalog().await.unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
             Arc::new(catalog),
@@ -882,13 +868,9 @@ mod tests {
             .await
             .unwrap();
 
-        let host_id = Arc::from("dummy-host-id");
         // do another reload and verify it's gone
-        let (last_cache, catalog) = wbuf
-            .persister
-            .load_last_cache_and_catalog(host_id)
-            .await
-            .unwrap();
+        let catalog = wbuf.persister.load_or_create_catalog().await.unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
             Arc::new(catalog),
@@ -1037,14 +1019,13 @@ mod tests {
 
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
         assert_batches_sorted_eq!(&expected, &actual);
-
-        let host_id = Arc::from("dummy-host-id");
         // and now replay in a new write buffer and attempt to write
-        let (last_cache, catalog) = write_buffer
+        let catalog = write_buffer
             .persister
-            .load_last_cache_and_catalog(host_id)
+            .load_or_create_catalog()
             .await
             .unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&write_buffer.persister),
             Arc::new(catalog),
@@ -1150,7 +1131,7 @@ mod tests {
         )
         .await;
 
-        verify_catalog_count(1, write_buffer.persister.object_store()).await;
+        verify_catalog_count(2, write_buffer.persister.object_store()).await;
         verify_snapshot_count(1, &write_buffer.persister).await;
 
         // only another two writes are needed to trigger a snapshot, because there is still one
@@ -1172,7 +1153,7 @@ mod tests {
         .await;
 
         // verify the catalog didn't get persisted, but a snapshot did
-        verify_catalog_count(1, write_buffer.persister.object_store()).await;
+        verify_catalog_count(2, write_buffer.persister.object_store()).await;
         verify_snapshot_count(2, &write_buffer.persister).await;
 
         // and finally, do two more, with a catalog update, forcing persistence
@@ -1192,7 +1173,7 @@ mod tests {
         )
         .await;
 
-        verify_catalog_count(2, write_buffer.persister.object_store()).await;
+        verify_catalog_count(3, write_buffer.persister.object_store()).await;
         verify_snapshot_count(3, &write_buffer.persister).await;
     }
 
@@ -1248,8 +1229,8 @@ mod tests {
 
         // there should be one snapshot already, i.e., the one we created above:
         verify_snapshot_count(1, &wbuf.persister).await;
-        // there aren't any catalogs yet:
-        verify_catalog_count(0, object_store.clone()).await;
+        // there is only one initial catalog so far:
+        verify_catalog_count(1, object_store.clone()).await;
 
         // do three writes to force a new snapshot
         wbuf.write_lp(
@@ -1288,7 +1269,7 @@ mod tests {
             wbuf.wal.last_snapshot_sequence_number().await
         );
         // There should be a catalog now, since the above writes updated the catalog
-        verify_catalog_count(1, object_store.clone()).await;
+        verify_catalog_count(2, object_store.clone()).await;
         // Check the catalog sequence number in the latest snapshot is correct:
         let persisted_snapshot_bytes = object_store
             .get(&SnapshotInfoFilePath::new(
@@ -1681,11 +1662,8 @@ mod tests {
     ) -> (WriteBufferImpl, IOxSessionContext) {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
-        let host_id = Arc::from("dummy-host-id");
-        let (last_cache, catalog) = persister
-            .load_last_cache_and_catalog(host_id)
-            .await
-            .unwrap();
+        let catalog = persister.load_or_create_catalog().await.unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::new(catalog),
