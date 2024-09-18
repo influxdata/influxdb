@@ -13,6 +13,9 @@ influxdb-line-protocol.workspace = true
 observability_deps.workspace = true
 schema.workspace =  true
 
+# Local Crates
+influxdb3_id = { path = "../influxdb3_id" }
+
 # crates.io dependencies
 async-trait.workspace = true
 bytes.workspace = true

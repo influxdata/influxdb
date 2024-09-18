@@ -5,6 +5,7 @@ expression: catalog_json
 {
   "databases": {
     "db": {
+      "id": 0,
       "name": "db",
       "tables": {
         "table": {

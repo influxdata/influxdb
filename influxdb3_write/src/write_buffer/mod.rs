@@ -137,6 +137,11 @@ impl WriteBufferImpl {
         let last_snapshot_sequence_number = persisted_snapshots
             .first()
             .map(|s| s.snapshot_sequence_number);
+        // Set the next db id to use when adding a new database
+        persisted_snapshots
+            .first()
+            .map(|s| s.next_db_id.set_next_id())
+            .unwrap_or(());
         // Set the next file id to use when persisting ParquetFiles
         NEXT_FILE_ID.store(
             persisted_snapshots
@@ -555,6 +560,7 @@ impl LastCacheManager for WriteBufferImpl {
             self.catalog.add_last_cache(db_name, tbl_name, info.clone());
             let add_cache_catalog_batch = WalOp::Catalog(CatalogBatch {
                 time_ns: self.time_provider.now().timestamp_nanos(),
+                database_id: db_schema.id,
                 database_name: Arc::clone(&db_schema.name),
                 ops: vec![CreateLastCache(info.clone())],
             });
@@ -582,6 +588,7 @@ impl LastCacheManager for WriteBufferImpl {
         self.wal
             .write_ops(vec![WalOp::Catalog(CatalogBatch {
                 time_ns: self.time_provider.now().timestamp_nanos(),
+                database_id: catalog.db_schema(db_name).expect("db exists").id,
                 database_name: db_name.into(),
                 ops: vec![CatalogOp::DeleteLastCache(LastCacheDelete {
                     table: tbl_name.into(),
@@ -609,13 +616,13 @@ mod tests {
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
     use influxdb3_catalog::catalog::SequenceNumber;
+    use influxdb3_id::DbId;
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
     use object_store::local::LocalFileSystem;
     use object_store::memory::InMemory;
     use object_store::{ObjectStore, PutPayload};
-    use parking_lot::{Mutex, MutexGuard};
 
     #[test]
     fn parse_lp_into_buffer() {
@@ -744,7 +751,6 @@ mod tests {
 
     #[tokio::test]
     async fn last_cache_create_and_delete_is_durable() {
-        let lock = lock();
         let (wbuf, _ctx) = setup(
             Time::from_timestamp_nanos(0),
             Arc::new(InMemory::new()),
@@ -756,7 +762,6 @@ mod tests {
             },
         )
         .await;
-        drop(lock);
         let db_name = "db";
         let tbl_name = "table";
         let cache_name = "cache";
@@ -833,9 +838,9 @@ mod tests {
 
         let catalog_json = catalog_to_json(&wbuf.catalog);
         insta::assert_json_snapshot!(
-            "catalog-after-last-cache-create-and-new-field",
-            catalog_json,
-            { ".instance_id" => "[uuid]" }
+           "catalog-after-last-cache-create-and-new-field",
+           catalog_json,
+           { ".instance_id" => "[uuid]" }
         );
 
         // write a new data point to fill the cache
@@ -895,7 +900,6 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn returns_chunks_across_parquet_and_buffered_data() {
-        let lock = lock();
         let (write_buffer, session_context) = setup(
             Time::from_timestamp_nanos(0),
             Arc::new(InMemory::new()),
@@ -907,7 +911,6 @@ mod tests {
             },
         )
         .await;
-        drop(lock);
 
         let _ = write_buffer
             .write_lp(
@@ -1095,7 +1098,6 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn catalog_snapshots_only_if_updated() {
-        let lock = lock();
         let (write_buffer, _ctx) = setup(
             Time::from_timestamp_nanos(0),
             Arc::new(InMemory::new()),
@@ -1107,7 +1109,6 @@ mod tests {
             },
         )
         .await;
-        drop(lock);
 
         let db_name = "foo";
         // do three writes to force a snapshot
@@ -1185,7 +1186,6 @@ mod tests {
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
 
-        let lock = lock();
         // create a snapshot file that will be loaded on initialization of the write buffer:
         // Set NEXT_FILE_ID to a non zero number for the snapshot
         NEXT_FILE_ID.store(500, Ordering::SeqCst);
@@ -1225,7 +1225,6 @@ mod tests {
 
         // Assert that loading the snapshots sets NEXT_FILE_ID to the correct id number
         assert_eq!(NEXT_FILE_ID.load(Ordering::SeqCst), 500);
-        drop(lock);
 
         // there should be one snapshot already, i.e., the one we created above:
         verify_snapshot_count(1, &wbuf.persister).await;
@@ -1579,6 +1578,75 @@ mod tests {
         assert!(snapshot.is_some(), "watcher should be notified of snapshot");
     }
 
+    #[tokio::test]
+    async fn test_db_id_is_persisted_and_updated() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let (wbuf, _) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+        let db_name = "coffee_shop";
+        let tbl_name = "menu";
+
+        // do some writes to get a snapshot:
+        do_writes(
+            db_name,
+            &wbuf,
+            &[
+                TestWrite {
+                    lp: format!("{tbl_name},name=espresso price=2.50"),
+                    time_seconds: 1,
+                },
+                // This write is way out in the future, so as to be outside the normal
+                // range for a snapshot:
+                TestWrite {
+                    lp: format!("{tbl_name},name=americano price=3.00"),
+                    time_seconds: 20_000,
+                },
+                // This write will trigger the snapshot:
+                TestWrite {
+                    lp: format!("{tbl_name},name=latte price=4.50"),
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        // Wait for snapshot to be created:
+        verify_snapshot_count(1, &wbuf.persister).await;
+
+        // Now drop the write buffer, and create a new one that replays:
+        drop(wbuf);
+
+        // Set DbId to a large number to make sure it is properly set on replay
+        // and assert that it's what we expect it to be before we replay
+        dbg!(DbId::next_id());
+        DbId::from(10_000).set_next_id();
+        assert_eq!(DbId::next_id().as_u32(), 10_000);
+        dbg!(DbId::next_id());
+        let (_wbuf, _) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+        dbg!(DbId::next_id());
+
+        assert_eq!(DbId::next_id().as_u32(), 1);
+    }
+
     struct TestWrite<LP> {
         lp: LP,
         time_seconds: i64,
@@ -1698,21 +1766,5 @@ mod tests {
             batches.extend(chunk);
         }
         batches
-    }
-
-    /// Lock for the NEXT_FILE_ID data which is set during some of these tests.
-    /// We need to have exclusive access to it to test that it works when loading
-    /// from a snapshot. We lock in most of the calls to setup in this test suite
-    /// where it would cause problems. If running under `cargo-nextest`, return a
-    /// different mutex guard as it does not have this problem due to running
-    /// each test in it's own process
-    fn lock() -> MutexGuard<'static, ()> {
-        static FILE_ID_LOCK: Mutex<()> = Mutex::new(());
-        static DUMMY_LOCK: Mutex<()> = Mutex::new(());
-        if std::env::var("NEXTEST").unwrap_or("0".into()) == "1" {
-            DUMMY_LOCK.lock()
-        } else {
-            FILE_ID_LOCK.lock()
-        }
     }
 }

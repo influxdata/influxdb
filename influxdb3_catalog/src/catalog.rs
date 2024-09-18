@@ -1,6 +1,7 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
 use crate::catalog::Error::TableNotFound;
+use influxdb3_id::DbId;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, FieldAdditions, LastCacheDefinition, LastCacheDelete,
 };
@@ -149,7 +150,7 @@ impl Catalog {
                 }
 
                 info!("return new db {}", db_name);
-                let db = Arc::new(DatabaseSchema::new(db_name.into()));
+                let db = Arc::new(DatabaseSchema::new(DbId::new(), db_name.into()));
                 inner
                     .databases
                     .insert(Arc::clone(&db.name), Arc::clone(&db));
@@ -333,6 +334,7 @@ impl InnerCatalog {
 #[serde_with::serde_as]
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct DatabaseSchema {
+    pub id: DbId,
     pub name: Arc<str>,
     /// The database is a map of tables
     #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
@@ -340,8 +342,9 @@ pub struct DatabaseSchema {
 }
 
 impl DatabaseSchema {
-    pub fn new(name: Arc<str>) -> Self {
+    pub fn new(id: DbId, name: Arc<str>) -> Self {
         Self {
+            id,
             name,
             tables: BTreeMap::new(),
         }
@@ -440,6 +443,7 @@ impl DatabaseSchema {
             }
 
             Ok(Some(Self {
+                id: self.id,
                 name: Arc::clone(&self.name),
                 tables: updated_or_new_tables,
             }))
@@ -447,7 +451,10 @@ impl DatabaseSchema {
     }
 
     pub fn new_from_batch(catalog_batch: &CatalogBatch) -> Result<Self> {
-        let db_schema = Self::new(Arc::clone(&catalog_batch.database_name));
+        let db_schema = Self::new(
+            catalog_batch.database_id,
+            Arc::clone(&catalog_batch.database_name),
+        );
         let new_db = db_schema
             .new_if_updated_from_batch(catalog_batch)?
             .expect("database must be new");
@@ -745,6 +752,7 @@ mod tests {
         let cloned_instance_id = Arc::clone(&instance_id);
         let catalog = Catalog::new(host_id, cloned_instance_id);
         let mut database = DatabaseSchema {
+            id: DbId::from(0),
             name: "test_db".into(),
             tables: BTreeMap::new(),
         };
@@ -813,10 +821,12 @@ mod tests {
             let json = r#"{
                 "databases": {
                     "db1": {
+                        "id": 0,
                         "name": "db1",
                         "tables": {}
                     },
                     "db1": {
+                        "id": 0,
                         "name": "db1",
                         "tables": {}
                     }
@@ -881,6 +891,7 @@ mod tests {
     #[test]
     fn add_columns_updates_schema() {
         let mut database = DatabaseSchema {
+            id: DbId::from(0),
             name: "test".into(),
             tables: BTreeMap::new(),
         };
@@ -915,6 +926,7 @@ mod tests {
         let instance_id = Arc::from("instance-id");
         let catalog = Catalog::new(host_id, instance_id);
         let mut database = DatabaseSchema {
+            id: DbId::from(0),
             name: "test_db".into(),
             tables: BTreeMap::new(),
         };
@@ -959,6 +971,7 @@ mod tests {
         let instance_id = Arc::from("instance-id");
         let catalog = Catalog::new(host_id, instance_id);
         let mut database = DatabaseSchema {
+            id: DbId::from(0),
             name: "test_db".into(),
             tables: BTreeMap::new(),
         };

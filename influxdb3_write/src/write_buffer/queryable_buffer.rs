@@ -144,6 +144,7 @@ impl QueryableBuffer {
             let mut buffer = self.buffer.write();
 
             let mut persisting_chunks = vec![];
+            let catalog = Arc::clone(&buffer.catalog);
             for (database_name, table_map) in buffer.db_to_table.iter_mut() {
                 for (table_name, table_buffer) in table_map.iter_mut() {
                     let snapshot_chunks = table_buffer.snapshot(snapshot_details.end_time_marker);
@@ -155,6 +156,11 @@ impl QueryableBuffer {
                             chunk_time: chunk.chunk_time,
                             path: ParquetFilePath::new_with_chunk_time(
                                 database_name.as_ref(),
+                                catalog
+                                    .db_schema(database_name)
+                                    .expect("db exists")
+                                    .id
+                                    .as_u32(),
                                 table_name.as_ref(),
                                 chunk.chunk_time,
                                 write.wal_file_number,
