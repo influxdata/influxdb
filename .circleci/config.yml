@@ -188,8 +188,8 @@ jobs:
       - checkout
       - rust_components
       - run:
-          name: cargo nextest run --workspace
-          command: cargo nextest run --workspace
+          name: cargo nextest
+          command: TEST_LOG=1 RUST_LOG=info RUST_LOG_SPAN_EVENTS=full RUST_BACKTRACE=1 cargo nextest run --workspace --failure-output immediate-final --no-fail-fast
 
   # Build a dev binary.
   #
