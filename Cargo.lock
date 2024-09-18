@@ -7095,7 +7095,7 @@ dependencies = [
  "reqwest 0.12.7",
  "ring",
  "rustls 0.21.12",
- "rustls 0.23.12",
+ "rustls 0.23.13",
  "serde",
  "serde_json",
  "sha2",
