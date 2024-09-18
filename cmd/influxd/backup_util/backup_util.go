@@ -8,8 +8,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
-	"strings"
 	"sync/atomic"
 
 	internal "github.com/influxdata/influxdb/cmd/influxd/backup_util/internal"
@@ -219,10 +219,12 @@ func (w *CountingWriter) BytesWritten() int64 {
 	return atomic.LoadInt64(&w.Total)
 }
 
-// retentionAndShardFromPath will take the shard relative path and split it into the
-// retention policy name and shard ID. The first part of the path should be the database name.
+var separatorRegexp = regexp.MustCompile(`[/\\]`)
+
+// DBRetentionAndShardFromPath will take the shard relative path and split it into the
+// database name, retention policy name and shard ID. The first part of the path should be the database name.
 func DBRetentionAndShardFromPath(path string) (db, retention, shard string, err error) {
-	a := strings.Split(path, string(filepath.Separator))
+	a := separatorRegexp.Split(path, -1)
 	if len(a) != 3 {
 		return "", "", "", fmt.Errorf("expected database, retention policy, and shard id in path: %s", path)
 	}
