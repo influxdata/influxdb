@@ -2,7 +2,6 @@
 //! storage.
 
 use crate::last_cache;
-use crate::last_cache::LastCacheProvider;
 use crate::paths::CatalogFilePath;
 use crate::paths::ParquetFilePath;
 use crate::paths::SnapshotInfoFilePath;
@@ -26,6 +25,7 @@ use influxdb3_catalog::catalog::InnerCatalog;
 use influxdb3_wal::WalFileSequenceNumber;
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
+use observability_deps::tracing::info;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
@@ -120,25 +120,23 @@ impl Persister {
         &self.host_identifier_prefix
     }
 
-    /// Loads the most recently persisted catalog from object storage, and uses it to initialize
-    /// a [`LastCacheProvider`].
-    ///
-    /// This is intended to be used on server start.
-    pub async fn load_last_cache_and_catalog(
-        &self,
-        host_id: Arc<str>,
-    ) -> Result<(LastCacheProvider, Catalog)> {
-        match self.load_catalog().await? {
-            Some(c) => Ok((
-                LastCacheProvider::new_from_catalog(&c.catalog)?,
-                Catalog::from_inner(c.catalog),
-            )),
+    /// Try loading the catalog, if there is no catalog generate new
+    /// instance id and create a new catalog and persist it immediately
+    pub async fn load_or_create_catalog(&self) -> Result<Catalog> {
+        let catalog = match self.load_catalog().await? {
+            Some(c) => Catalog::from_inner(c.catalog),
             None => {
                 let uuid = Uuid::new_v4().to_string();
                 let instance_id = Arc::from(uuid.as_str());
-                Ok((LastCacheProvider::new(), Catalog::new(host_id, instance_id)))
+                info!(instance_id = ?instance_id, "Catalog not found, creating new instance id");
+                let new_catalog =
+                    Catalog::new(Arc::from(self.host_identifier_prefix.as_str()), instance_id);
+                self.persist_catalog(WalFileSequenceNumber::new(0), &new_catalog)
+                    .await?;
+                new_catalog
             }
-        }
+        };
+        Ok(catalog)
     }
 
     /// Loads the most recently persisted catalog from object storage.
@@ -273,7 +271,7 @@ impl Persister {
     pub async fn persist_catalog(
         &self,
         wal_file_sequence_number: WalFileSequenceNumber,
-        catalog: Catalog,
+        catalog: &Catalog,
     ) -> Result<()> {
         let catalog_path = CatalogFilePath::new(
             self.host_identifier_prefix.as_str(),
@@ -420,6 +418,8 @@ mod tests {
     use influxdb3_catalog::catalog::SequenceNumber;
     use influxdb3_wal::SnapshotSequenceNumber;
     use object_store::memory::InMemory;
+    use observability_deps::tracing::info;
+    use pretty_assertions::assert_eq;
     use {
         arrow::array::Int32Array, arrow::datatypes::DataType, arrow::datatypes::Field,
         arrow::datatypes::Schema, chrono::Utc,
@@ -438,7 +438,7 @@ mod tests {
         let _ = catalog.db_or_create("my_db");
 
         persister
-            .persist_catalog(WalFileSequenceNumber::new(0), catalog)
+            .persist_catalog(WalFileSequenceNumber::new(0), &catalog)
             .await
             .unwrap();
     }
@@ -454,7 +454,7 @@ mod tests {
         let _ = catalog.db_or_create("my_db");
 
         persister
-            .persist_catalog(WalFileSequenceNumber::new(0), catalog)
+            .persist_catalog(WalFileSequenceNumber::new(0), &catalog)
             .await
             .unwrap();
 
@@ -462,7 +462,7 @@ mod tests {
         let _ = catalog.db_or_create("my_second_db");
 
         persister
-            .persist_catalog(WalFileSequenceNumber::new(1), catalog)
+            .persist_catalog(WalFileSequenceNumber::new(1), &catalog)
             .await
             .unwrap();
 
@@ -725,5 +725,49 @@ mod tests {
         // Assert that we have a file of bytes > 0
         assert!(!bytes.is_empty());
         assert_eq!(bytes.len() as u64, bytes_written);
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn load_or_create_catalog_new_catalog() {
+        let local_disk =
+            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+        info!(local_disk = ?local_disk, "Using local disk");
+        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let _ = persister.load_or_create_catalog().await.unwrap();
+        let persisted_catalog = persister.load_catalog().await.unwrap().unwrap();
+        assert_eq!(
+            persisted_catalog.wal_file_sequence_number,
+            WalFileSequenceNumber::new(0)
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn load_or_create_catalog_existing_catalog() {
+        // write raw json to catalog
+        let catalog_json = r#"
+            {
+              "databases": {},
+              "sequence": 0,
+              "host_id": "test_host",
+              "instance_id": "24b1e1bf-b301-4101-affa-e3d668fe7d20"
+            }
+        "#;
+        let local_disk =
+            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
+        info!(local_disk = ?local_disk, "Using local disk");
+
+        let catalog_path = CatalogFilePath::new("test_host", WalFileSequenceNumber::new(0));
+        let _ = local_disk
+            .put(&catalog_path, catalog_json.into())
+            .await
+            .unwrap();
+
+        // read json as catalog
+        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let catalog = persister.load_or_create_catalog().await.unwrap();
+        assert_eq!(
+            &*catalog.instance_id(),
+            "24b1e1bf-b301-4101-affa-e3d668fe7d20"
+        );
     }
 }

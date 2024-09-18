@@ -2828,6 +2828,7 @@ dependencies = [
  "serde_with",
  "sha2",
  "snap",
+ "test-log",
  "test_helpers",
  "thiserror",
  "tokio",

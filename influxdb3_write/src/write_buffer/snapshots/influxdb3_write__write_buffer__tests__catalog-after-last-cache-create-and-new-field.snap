@@ -57,7 +57,7 @@ expression: catalog_json
       }
     }
   },
-  "host_id": "dummy-host-id",
+  "host_id": "test_host",
   "instance_id": "[uuid]",
   "sequence": 3
 }

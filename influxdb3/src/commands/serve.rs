@@ -15,7 +15,9 @@ use influxdb3_server::{
     CommonServerState,
 };
 use influxdb3_wal::{Gen1Duration, WalConfig};
-use influxdb3_write::{persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer};
+use influxdb3_write::{
+    last_cache::LastCacheProvider, persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer,
+};
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
 use object_store::DynObjectStore;
@@ -66,6 +68,9 @@ pub enum Error {
 
     #[error("failed to initialize from persisted catalog: {0}")]
     InitializePersistedCatalog(#[source] influxdb3_write::persister::Error),
+
+    #[error("failed to initialize last cache: {0}")]
+    InitializeLastCache(#[source] influxdb3_write::last_cache::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -258,7 +263,6 @@ pub async fn command(config: Config) -> Result<()> {
 
     let parquet_store =
         ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-    let host_id = Arc::from(config.host_identifier_prefix.as_str());
 
     let mut tokio_datafusion_config = config.tokio_datafusion_config;
     tokio_datafusion_config.num_threads = tokio_datafusion_config
@@ -313,10 +317,15 @@ pub async fn command(config: Config) -> Result<()> {
     };
 
     let time_provider = Arc::new(SystemProvider::new());
-    let (last_cache, catalog) = persister
-        .load_last_cache_and_catalog(host_id)
+    let catalog = persister
+        .load_or_create_catalog()
         .await
         .map_err(Error::InitializePersistedCatalog)?;
+
+    let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner())
+        .map_err(Error::InitializeLastCache)?;
+
+    info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
     let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
