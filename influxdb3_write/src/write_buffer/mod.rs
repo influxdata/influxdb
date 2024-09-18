@@ -23,6 +23,7 @@ use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use hashbrown::HashSet;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_wal::object_store::WalObjectStore;
 use influxdb3_wal::CatalogOp::CreateLastCache;
@@ -311,20 +312,7 @@ impl WriteBufferImpl {
         let parquet_files = self.persisted_files.get_files(database_name, table_name);
 
         let mut chunk_order = chunks.len() as i64;
-
-        for parquet_file in parquet_files {
-            let parquet_chunk = parquet_chunk_from_file(
-                &parquet_file,
-                &table_schema,
-                self.persister.object_store_url().clone(),
-                self.persister.object_store(),
-                chunk_order,
-            );
-
-            chunk_order += 1;
-
-            chunks.push(Arc::new(parquet_chunk));
-        }
+        let mut cached_paths = HashSet::new();
 
         // Get any cached files and add them to the query
         // This is mostly the same as above, but we change the object store to
@@ -333,7 +321,7 @@ impl WriteBufferImpl {
             .parquet_cache
             .get_parquet_files(database_name, table_name)
         {
-            let partition_key = data_types::PartitionKey::from(parquet_file.path.clone());
+            let partition_key = data_types::PartitionKey::from(parquet_file.chunk_time.to_string());
             let partition_id = data_types::partition::TransitionPartitionId::new(
                 data_types::TableId::new(0),
                 &partition_key,
@@ -369,6 +357,24 @@ impl WriteBufferImpl {
                 chunk_order: ChunkOrder::new(chunk_order),
                 parquet_exec,
             };
+
+            chunk_order += 1;
+
+            cached_paths.insert(parquet_file.path);
+            chunks.push(Arc::new(parquet_chunk));
+        }
+
+        for parquet_file in parquet_files {
+            if cached_paths.contains(&parquet_file.path) {
+                continue;
+            }
+            let parquet_chunk = parquet_chunk_from_file(
+                &parquet_file,
+                &table_schema,
+                self.persister.object_store_url().clone(),
+                self.persister.object_store(),
+                chunk_order,
+            );
 
             chunk_order += 1;
 
@@ -756,7 +762,7 @@ mod tests {
         assert_batches_eq!(&expected, &actual);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn last_cache_create_and_delete_is_durable() {
         let lock = lock();
         let (wbuf, _ctx) = setup(
@@ -873,11 +879,11 @@ mod tests {
 
         // Fetch record batches from the last cache directly:
         let expected = [
-            "+----+------+----+----------------------+",
-            "| t1 | f1   | f2 | time                 |",
-            "+----+------+----+----------------------+",
-            "| a  | true | 53 | 1970-01-01T00:00:40Z |",
-            "+----+------+----+----------------------+",
+            "+----+------+----------------------+----+",
+            "| t1 | f1   | time                 | f2 |",
+            "+----+------+----------------------+----+",
+            "| a  | true | 1970-01-01T00:00:40Z | 53 |",
+            "+----+------+----------------------+----+",
         ];
         let actual = wbuf
             .last_cache_provider()
@@ -1206,7 +1212,7 @@ mod tests {
 
     /// Check that when a WriteBuffer is initialized with existing snapshot files, that newly
     /// generated snapshot files use the next sequence number.
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn new_snapshots_use_correct_sequence() {
         // set up a local file system object store:
         let object_store: Arc<dyn ObjectStore> =
@@ -1324,7 +1330,7 @@ mod tests {
     /// This is the reproducer for [#25277][see]
     ///
     /// [see]: https://github.com/influxdata/influxdb/issues/25277
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn writes_not_dropped_on_snapshot() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let (wbuf, _) = setup(
@@ -1396,7 +1402,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn writes_not_dropped_on_larger_snapshot_size() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let (wbuf, _) = setup(
@@ -1482,7 +1488,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn writes_not_dropped_with_future_writes() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let (wbuf, _) = setup(
@@ -1557,7 +1563,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn notifies_watchers_of_snapshot() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let (wbuf, _) = setup(

@@ -677,7 +677,7 @@ mod tests {
         (write_buffer, query_executor, time_provider)
     }
 
-    #[test_log::test(tokio::test)]
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 1))]
     async fn system_parquet_files_success() {
         let (write_buffer, query_executor, time_provider) = setup().await;
         // Perform some writes to multiple tables
