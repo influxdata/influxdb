@@ -2580,6 +2580,7 @@ dependencies = [
  "influxdb3_client",
  "influxdb3_process",
  "influxdb3_server",
+ "influxdb3_telemetry",
  "influxdb3_wal",
  "influxdb3_write",
  "influxdb_iox_client",
@@ -2766,6 +2767,21 @@ dependencies = [
  "tracker",
  "unicode-segmentation",
  "urlencoding 1.3.3",
+]
+
+[[package]]
+name = "influxdb3_telemetry"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "futures-util",
+ "observability_deps",
+ "parking_lot",
+ "reqwest 0.11.27",
+ "serde",
+ "serde_json",
+ "test-log",
+ "tokio",
 ]
 
 [[package]]
