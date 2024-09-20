@@ -16,7 +16,8 @@ use influxdb3_server::{
 };
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
-    last_cache::LastCacheProvider, persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer,
+    last_cache::LastCacheProvider, parquet_cache::create_cached_obj_store_and_oracle,
+    persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer,
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
@@ -258,6 +259,8 @@ pub async fn command(config: Config) -> Result<()> {
 
     let object_store: Arc<DynObjectStore> =
         make_object_store(&config.object_store_config).map_err(Error::ObjectStoreParsing)?;
+    // TODO(trevor): make this configurable/optional:
+    let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(object_store);
 
     let trace_exporter = config.tracing_config.build()?;
 
@@ -334,6 +337,7 @@ pub async fn command(config: Config) -> Result<()> {
             Arc::<SystemProvider>::clone(&time_provider),
             Arc::clone(&exec),
             wal_config,
+            parquet_cache,
         )
         .await
         .map_err(|e| Error::WriteBufferInit(e.into()))?,

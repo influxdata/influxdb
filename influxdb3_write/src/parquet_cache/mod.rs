@@ -1,7 +1,6 @@
 //! An in-memory cache of Parquet files that are persisted to object storage
 use std::{fmt::Debug, ops::Range, sync::Arc};
 
-use anyhow::Context;
 use async_trait::async_trait;
 use bytes::Bytes;
 use dashmap::DashMap;
@@ -12,20 +11,42 @@ use object_store::{
     ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
     Result as ObjectStoreResult,
 };
-use object_store_mem_cache::object_store_helpers::any_options_set;
 use observability_deps::tracing::{error, info};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::{
+    mpsc::{channel, Receiver, Sender},
+    oneshot,
+};
 
-pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
+pub struct CacheRequest {
+    path: Path,
+    notifier: oneshot::Sender<()>,
+}
 
-pub enum CacheRequest {
-    Get(Path),
+impl CacheRequest {
+    pub fn create(path: Path) -> (Self, oneshot::Receiver<()>) {
+        let (notifier, receiver) = oneshot::channel();
+        (Self { path, notifier }, receiver)
+    }
 }
 
 /// An interface for interacting with a Parquet Cache by registering [`CacheRequest`]s to it.
-#[async_trait]
-pub trait ParquetCache {
-    async fn register(&self, cache_request: CacheRequest) -> Result<()>;
+pub trait ParquetCache: Send + Sync + Debug {
+    fn register(&self, cache_request: CacheRequest);
+}
+
+#[derive(Debug, Clone)]
+pub struct MemCacheOracle {
+    cache_request_tx: Sender<CacheRequest>,
+}
+
+pub fn create_cached_obj_store_and_oracle(
+    object_store: Arc<dyn ObjectStore>,
+) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCache>) {
+    let m = MemCachedObjectStore::new(object_store);
+    let o = m.oracle();
+    let m: Arc<dyn ObjectStore> = Arc::clone(&m) as _;
+    let o: Arc<dyn ParquetCache> = Arc::new(o);
+    (m, o)
 }
 
 #[derive(Debug)]
@@ -43,7 +64,7 @@ pub struct MemCachedObjectStore {
     cache_request_tx: Sender<CacheRequest>,
 }
 
-const CACHE_REQUEST_BUFFER_SIZE: usize = usize::MAX;
+const CACHE_REQUEST_BUFFER_SIZE: usize = 1_000_000;
 
 impl MemCachedObjectStore {
     pub fn new(inner: Arc<dyn ObjectStore>) -> Arc<Self> {
@@ -55,6 +76,12 @@ impl MemCachedObjectStore {
         });
         background_cache_request_handler(Arc::clone(&mem_cached_obj_store), cache_request_rx);
         mem_cached_obj_store
+    }
+
+    pub fn oracle(&self) -> MemCacheOracle {
+        MemCacheOracle {
+            cache_request_tx: self.cache_request_tx.clone(),
+        }
     }
 }
 
@@ -116,13 +143,9 @@ impl ObjectStore for MemCachedObjectStore {
     }
 
     async fn get_opts(&self, location: &Path, options: GetOptions) -> ObjectStoreResult<GetResult> {
-        // Note(trevor): this could probably be supported if we need it via the ObjectMeta
-        // stored in the cache. For now this is conservative:
-        if any_options_set(&options) {
-            self.inner.get_opts(location, options).await
-        } else {
-            self.get(location).await
-        }
+        // NOTE(trevor): this could probably be supported through the cache if we need it via the
+        // ObjectMeta stored in the cache. For now this is conservative:
+        self.inner.get_opts(location, options).await
     }
 
     async fn get_range(&self, location: &Path, range: Range<usize>) -> ObjectStoreResult<Bytes> {
@@ -231,14 +254,14 @@ impl ObjectStore for MemCachedObjectStore {
     }
 }
 
-#[async_trait]
-impl ParquetCache for MemCachedObjectStore {
-    async fn register(&self, request: CacheRequest) -> Result<()> {
-        self.cache_request_tx
-            .send(request)
-            .await
-            .context("failed to send cache request")
-            .map_err(Into::into)
+impl ParquetCache for MemCacheOracle {
+    fn register(&self, request: CacheRequest) {
+        let tx = self.cache_request_tx.clone();
+        tokio::spawn(async move {
+            if let Err(error) = tx.send(request).await {
+                error!(%error, "error registering cache request");
+            };
+        });
     }
 }
 
@@ -247,30 +270,27 @@ fn background_cache_request_handler(
     mut rx: Receiver<CacheRequest>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        while let Some(cache_request) = rx.recv().await {
-            match cache_request {
-                CacheRequest::Get(path) => {
-                    if cache.cache.contains_key(&path) {
-                        // Since we treat parquet files on object storage as immutible, we never
-                        // need to update:
-                        continue;
-                    }
-                    match cache.inner.get(&path).await {
-                        Ok(result) => {
-                            let meta = result.meta.clone();
-                            match result.bytes().await {
-                                Ok(data) => {
-                                    cache.cache.insert(path, CacheValue { data, meta });
-                                }
-                                Err(error) => {
-                                    error!(%error, "failed to retrieve payload from object store get result");
-                                }
-                            }
+        while let Some(CacheRequest { path, notifier }) = rx.recv().await {
+            if cache.cache.contains_key(&path) {
+                // Since we treat parquet files on object storage as immutible, we never
+                // need to update:
+                continue;
+            }
+            match cache.inner.get(&path).await {
+                Ok(result) => {
+                    let meta = result.meta.clone();
+                    match result.bytes().await {
+                        Ok(data) => {
+                            cache.cache.insert(path, CacheValue { data, meta });
                         }
                         Err(error) => {
-                            error!(%error, "failed to fulfill cache request with object store")
+                            error!(%error, "failed to retrieve payload from object store get result");
                         }
                     }
+                    let _ = notifier.send(());
+                }
+                Err(error) => {
+                    error!(%error, "failed to fulfill cache request with object store")
                 }
             }
         }
