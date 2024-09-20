@@ -92,7 +92,7 @@ mod tests {
         Field, FieldData, Row, TableChunk, TableChunks, WalFileSequenceNumber, WalOp, WriteBatch,
     };
     use hashbrown::HashMap;
-    use influxdb3_id::DbId;
+    use influxdb3_id::{DbId, TableId};
     use std::sync::Arc;
 
     #[test]
@@ -119,7 +119,7 @@ mod tests {
         };
         let table_name: Arc<str> = "table2".into();
         let mut table_chunks = HashMap::new();
-        table_chunks.insert(table_name, chunks);
+        table_chunks.insert((table_name, TableId::from(0)), chunks);
 
         let contents = WalContents {
             min_timestamp_ns: 0,

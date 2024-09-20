@@ -9,6 +9,7 @@ expression: catalog
       "name": "test_db",
       "tables": {
         "test_table_1": {
+          "table_id": 0,
           "name": "test",
           "cols": {
             "field": {

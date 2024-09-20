@@ -613,7 +613,7 @@ mod tests {
         Field, FieldData, Gen1Duration, Row, SnapshotSequenceNumber, TableChunk, TableChunks,
     };
     use async_trait::async_trait;
-    use influxdb3_id::DbId;
+    use influxdb3_id::{DbId, TableId};
     use object_store::memory::InMemory;
     use std::any::Any;
     use tokio::sync::oneshot::Receiver;
@@ -644,7 +644,7 @@ mod tests {
             database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
             table_chunks: HashMap::from([(
-                Arc::clone(&table_name),
+                (Arc::clone(&table_name), TableId::from(0)),
                 TableChunks {
                     min_time: 1,
                     max_time: 3,
@@ -692,7 +692,7 @@ mod tests {
             database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
             table_chunks: HashMap::from([(
-                Arc::clone(&table_name),
+                (Arc::clone(&table_name), TableId::from(1)),
                 TableChunks {
                     min_time: 12,
                     max_time: 12,
@@ -731,42 +731,56 @@ mod tests {
             ops: vec![WalOp::Write(WriteBatch {
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
-                table_chunks: HashMap::from([(
-                    "table1".into(),
-                    TableChunks {
-                        min_time: 1,
-                        max_time: 12,
-                        chunk_time_to_chunk: HashMap::from([(
-                            0,
-                            TableChunk {
-                                rows: vec![
-                                    Row {
-                                        time: 1,
-                                        fields: vec![
-                                            Field {
-                                                name: "f1".into(),
-                                                value: FieldData::Integer(1),
-                                            },
-                                            Field {
-                                                name: "time".into(),
-                                                value: FieldData::Timestamp(1),
-                                            },
-                                        ],
-                                    },
-                                    Row {
-                                        time: 3,
-                                        fields: vec![
-                                            Field {
-                                                name: "f1".into(),
-                                                value: FieldData::Integer(2),
-                                            },
-                                            Field {
-                                                name: "time".into(),
-                                                value: FieldData::Timestamp(3),
-                                            },
-                                        ],
-                                    },
-                                    Row {
+                table_chunks: HashMap::from([
+                    (
+                        ("table1".into(), TableId::from(0)),
+                        TableChunks {
+                            min_time: 1,
+                            max_time: 3,
+                            chunk_time_to_chunk: HashMap::from([(
+                                0,
+                                TableChunk {
+                                    rows: vec![
+                                        Row {
+                                            time: 1,
+                                            fields: vec![
+                                                Field {
+                                                    name: "f1".into(),
+                                                    value: FieldData::Integer(1),
+                                                },
+                                                Field {
+                                                    name: "time".into(),
+                                                    value: FieldData::Timestamp(1),
+                                                },
+                                            ],
+                                        },
+                                        Row {
+                                            time: 3,
+                                            fields: vec![
+                                                Field {
+                                                    name: "f1".into(),
+                                                    value: FieldData::Integer(2),
+                                                },
+                                                Field {
+                                                    name: "time".into(),
+                                                    value: FieldData::Timestamp(3),
+                                                },
+                                            ],
+                                        },
+                                    ],
+                                },
+                            )]),
+                        },
+                    ),
+                    (
+                        ("table1".into(), TableId::from(1)),
+                        TableChunks {
+                            min_time: 12,
+                            max_time: 12,
+                            chunk_time_to_chunk: HashMap::from([(
+                                0,
+                                TableChunk {
+                                    rows: vec![Row {
                                         time: 12,
                                         fields: vec![
                                             Field {
@@ -778,12 +792,12 @@ mod tests {
                                                 value: FieldData::Timestamp(62_000000000),
                                             },
                                         ],
-                                    },
-                                ],
-                            },
-                        )]),
-                    },
-                )]),
+                                    }],
+                                },
+                            )]),
+                        },
+                    ),
+                ]),
                 min_time_ns: 1,
                 max_time_ns: 62_000000000,
             })],
@@ -802,7 +816,7 @@ mod tests {
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: HashMap::from([(
-                    "table1".into(),
+                    ("table1".into(), TableId::from(1)),
                     TableChunks {
                         min_time: 12,
                         max_time: 12,
@@ -862,7 +876,7 @@ mod tests {
 
         {
             let notified_writes = replay_notifier.notified_writes.lock();
-            assert_eq!(
+            pretty_assertions::assert_eq!(
                 *notified_writes,
                 vec![file_1_contents.clone(), file_2_contents.clone()]
             );
@@ -874,7 +888,7 @@ mod tests {
             database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
             table_chunks: HashMap::from([(
-                Arc::clone(&table_name),
+                (Arc::clone(&table_name), TableId::from(0)),
                 TableChunks {
                     min_time: 26,
                     max_time: 26,
@@ -934,7 +948,7 @@ mod tests {
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: HashMap::from([(
-                    "table1".into(),
+                    ("table1".into(), TableId::from(0)),
                     TableChunks {
                         min_time: 26,
                         max_time: 26,

@@ -1,5 +1,6 @@
 use crate::catalog::TableDefinition;
 use arrow::datatypes::DataType as ArrowDataType;
+use influxdb3_id::TableId;
 use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
 use schema::{InfluxColumnType, SchemaBuilder};
 use serde::{Deserialize, Serialize};
@@ -33,6 +34,7 @@ impl<'de> Deserialize<'de> for TableDefinition {
 #[serde_with::serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 struct TableSnapshot<'a> {
+    table_id: TableId,
     name: &'a str,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     key: Option<Vec<&'a str>>,
@@ -147,6 +149,7 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
         let keys = def.schema().series_key();
         let last_caches = def.last_caches.values().map(Into::into).collect();
         Self {
+            table_id: def.table_id,
             name: def.name.as_ref(),
             cols,
             key: keys,
@@ -207,6 +210,7 @@ impl<'a> From<&'a ArrowDataType> for DataType<'a> {
 impl<'a> From<TableSnapshot<'a>> for TableDefinition {
     fn from(snap: TableSnapshot<'a>) -> Self {
         let name = snap.name.into();
+        let table_id = snap.table_id;
         let mut b = SchemaBuilder::new();
         b.measurement(snap.name.to_string());
         if let Some(keys) = snap.key {
@@ -234,6 +238,7 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
             .collect();
 
         Self {
+            table_id,
             name,
             schema,
             last_caches,

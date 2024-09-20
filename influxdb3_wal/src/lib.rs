@@ -11,13 +11,18 @@ use crate::snapshot_tracker::SnapshotInfo;
 use async_trait::async_trait;
 use data_types::Timestamp;
 use hashbrown::HashMap;
-use influxdb3_id::DbId;
+use influxdb3_id::{DbId, TableId};
 use influxdb_line_protocol::v3::SeriesValue;
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
 use observability_deps::tracing::error;
 use schema::{InfluxColumnType, InfluxFieldType};
-use serde::{Deserialize, Serialize};
+use serde::de;
+use serde::de::MapAccess;
+use serde::de::Visitor;
+use serde::ser::SerializeStruct;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fmt;
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -424,20 +429,124 @@ pub struct LastCacheDelete {
     pub name: String,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct WriteBatch {
     pub database_id: DbId,
     pub database_name: Arc<str>,
-    pub table_chunks: HashMap<Arc<str>, TableChunks>,
+    pub table_chunks: HashMap<(Arc<str>, TableId), TableChunks>,
     pub min_time_ns: i64,
     pub max_time_ns: i64,
+}
+
+impl Serialize for WriteBatch {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("WriteBatch", 5)?;
+        state.serialize_field("database_id", &self.database_id)?;
+        state.serialize_field("database_name", &self.database_name)?;
+        state.serialize_field("min_time_ns", &self.min_time_ns)?;
+        state.serialize_field("max_time_ns", &self.max_time_ns)?;
+        state.serialize_field(
+            "table_chunks",
+            &self
+                .table_chunks
+                .iter()
+                .map(|((table_name, table_id), value)| {
+                    (format!("{table_name}//{}", table_id.as_u32()), value)
+                })
+                .collect::<HashMap<String, &TableChunks>>(),
+        )?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for WriteBatch {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct WriteBatchVisitor;
+        impl<'de> Visitor<'de> for WriteBatchVisitor {
+            type Value = WriteBatch;
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("struct WriteBatch")
+            }
+            fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut database_id = None;
+                let mut database_name = None;
+                let mut table_chunks = None;
+                let mut min_time_ns = None;
+                let mut max_time_ns = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        "database_id" => database_id = Some(DbId::from(map.next_value::<u32>()?)),
+                        "database_name" => database_name = Some(map.next_value::<&str>()?.into()),
+                        "min_time_ns" => min_time_ns = Some(map.next_value::<i64>()?),
+                        "max_time_ns" => max_time_ns = Some(map.next_value::<i64>()?),
+                        "table_chunks" => {
+                            table_chunks = Some(
+                                map.next_value::<HashMap<String, TableChunks>>()?
+                                    .into_iter()
+                                    .map(|(key, value)| {
+                                        let mut keys = key.split("//");
+
+                                        (
+                                            (
+                                                keys.next().unwrap().into(),
+                                                TableId::from(
+                                                    keys.next().unwrap().parse::<u32>().unwrap(),
+                                                ),
+                                            ),
+                                            value,
+                                        )
+                                    })
+                                    .collect(),
+                            )
+                        }
+                        field => return Err(de::Error::unknown_field(field, &FIELDS)),
+                    }
+                }
+                let database_id =
+                    database_id.ok_or_else(|| de::Error::missing_field("database_id"))?;
+                let database_name =
+                    database_name.ok_or_else(|| de::Error::missing_field("database_name"))?;
+                let table_chunks =
+                    table_chunks.ok_or_else(|| de::Error::missing_field("table_chunks"))?;
+                let min_time_ns =
+                    min_time_ns.ok_or_else(|| de::Error::missing_field("min_time_ns"))?;
+                let max_time_ns =
+                    max_time_ns.ok_or_else(|| de::Error::missing_field("max_time_ns"))?;
+                Ok(WriteBatch {
+                    database_id,
+                    database_name,
+                    table_chunks,
+                    min_time_ns,
+                    max_time_ns,
+                })
+            }
+        }
+
+        const FIELDS: [&str; 5] = [
+            "database_id",
+            "database_name",
+            "min_time_ns",
+            "max_time_ns",
+            "table_chunks",
+        ];
+        deserializer.deserialize_struct("WriteBatch", &FIELDS, WriteBatchVisitor)
+    }
 }
 
 impl WriteBatch {
     pub fn new(
         database_id: DbId,
         database_name: Arc<str>,
-        table_chunks: HashMap<Arc<str>, TableChunks>,
+        table_chunks: HashMap<(Arc<str>, TableId), TableChunks>,
     ) -> Self {
         // find the min and max times across the table chunks
         let (min_time_ns, max_time_ns) = table_chunks.values().fold(
@@ -461,15 +570,15 @@ impl WriteBatch {
 
     pub fn add_write_batch(
         &mut self,
-        new_table_chunks: HashMap<Arc<str>, TableChunks>,
+        new_table_chunks: HashMap<(Arc<str>, TableId), TableChunks>,
         min_time_ns: i64,
         max_time_ns: i64,
     ) {
         self.min_time_ns = self.min_time_ns.min(min_time_ns);
         self.max_time_ns = self.max_time_ns.max(max_time_ns);
 
-        for (table_name, new_chunks) in new_table_chunks {
-            let chunks = self.table_chunks.entry(table_name).or_default();
+        for (table, new_chunks) in new_table_chunks {
+            let chunks = self.table_chunks.entry(table).or_default();
             for (chunk_time, new_chunk) in new_chunks.chunk_time_to_chunk {
                 let chunk = chunks.chunk_time_to_chunk.entry(chunk_time).or_default();
                 for r in &new_chunk.rows {

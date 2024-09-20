@@ -416,7 +416,7 @@ mod tests {
     use super::*;
     use crate::ParquetFileId;
     use influxdb3_catalog::catalog::SequenceNumber;
-    use influxdb3_id::DbId;
+    use influxdb3_id::{DbId, TableId};
     use influxdb3_wal::SnapshotSequenceNumber;
     use object_store::memory::InMemory;
     use observability_deps::tracing::info;
@@ -490,6 +490,7 @@ mod tests {
             host_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(0),
+            next_table_id: TableId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: SequenceNumber::new(0),
@@ -512,6 +513,7 @@ mod tests {
             host_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(0),
+            next_table_id: TableId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: SequenceNumber::default(),
@@ -525,6 +527,7 @@ mod tests {
             host_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(1),
             next_db_id: DbId::from(0),
+            next_table_id: TableId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(1),
             wal_file_sequence_number: WalFileSequenceNumber::new(1),
             catalog_sequence_number: SequenceNumber::default(),
@@ -538,6 +541,7 @@ mod tests {
             host_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(2),
             next_db_id: DbId::from(0),
+            next_table_id: TableId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(2),
             wal_file_sequence_number: WalFileSequenceNumber::new(2),
             catalog_sequence_number: SequenceNumber::default(),
@@ -572,6 +576,7 @@ mod tests {
             host_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(0),
+            next_table_id: TableId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: SequenceNumber::default(),
@@ -599,6 +604,7 @@ mod tests {
                 host_id: "test_host".to_string(),
                 next_file_id: ParquetFileId::from(id),
                 next_db_id: DbId::from(0),
+                next_table_id: TableId::from(0),
                 snapshot_sequence_number: SnapshotSequenceNumber::new(id),
                 wal_file_sequence_number: WalFileSequenceNumber::new(id),
                 catalog_sequence_number: SequenceNumber::new(id as u32),
@@ -717,6 +723,7 @@ mod tests {
             "db_one",
             0,
             "table_one",
+            0,
             Utc::now(),
             WalFileSequenceNumber::new(1),
         );

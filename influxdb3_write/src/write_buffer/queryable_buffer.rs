@@ -150,18 +150,20 @@ impl QueryableBuffer {
                     let snapshot_chunks = table_buffer.snapshot(snapshot_details.end_time_marker);
 
                     for chunk in snapshot_chunks {
+                        let db_schema = catalog.db_schema(database_name).expect("db exists");
                         let persist_job = PersistJob {
                             database_name: Arc::clone(database_name),
                             table_name: Arc::clone(table_name),
                             chunk_time: chunk.chunk_time,
                             path: ParquetFilePath::new_with_chunk_time(
                                 database_name.as_ref(),
-                                catalog
-                                    .db_schema(database_name)
-                                    .expect("db exists")
-                                    .id
-                                    .as_u32(),
+                                db_schema.id.as_u32(),
                                 table_name.as_ref(),
+                                db_schema
+                                    .get_table(table_name)
+                                    .expect("table exists")
+                                    .table_id
+                                    .as_u32(),
                                 chunk.chunk_time,
                                 write.wal_file_number,
                             ),
@@ -393,7 +395,7 @@ impl BufferState {
             .entry(write_batch.database_name)
             .or_default();
 
-        for (table_name, table_chunks) in write_batch.table_chunks {
+        for ((table_name, _table_id), table_chunks) in write_batch.table_chunks {
             let table_buffer = database_buffer
                 .entry_ref(table_name.as_ref())
                 .or_insert_with(|| {

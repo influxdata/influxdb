@@ -48,7 +48,8 @@ expression: catalog_json
               "vals": null
             }
           ],
-          "name": "table"
+          "name": "table",
+          "table_id": 1
         }
       }
     }

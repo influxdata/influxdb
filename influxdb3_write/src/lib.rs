@@ -18,6 +18,7 @@ use datafusion::error::DataFusionError;
 use datafusion::prelude::Expr;
 use influxdb3_catalog::catalog::{self, SequenceNumber};
 use influxdb3_id::DbId;
+use influxdb3_id::TableId;
 use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -168,6 +169,8 @@ pub struct PersistedSnapshot {
     pub next_file_id: ParquetFileId,
     /// The next db id to be used with databases when the snapshot is loaded
     pub next_db_id: DbId,
+    /// The next table id to be used with databases when the snapshot is loaded
+    pub next_table_id: TableId,
     /// The snapshot sequence number associated with this snapshot
     pub snapshot_sequence_number: SnapshotSequenceNumber,
     /// The wal file sequence number that triggered this snapshot
@@ -198,6 +201,7 @@ impl PersistedSnapshot {
             host_id,
             next_file_id: ParquetFileId::current(),
             next_db_id: DbId::next_id(),
+            next_table_id: TableId::next_id(),
             snapshot_sequence_number,
             wal_file_sequence_number,
             catalog_sequence_number,

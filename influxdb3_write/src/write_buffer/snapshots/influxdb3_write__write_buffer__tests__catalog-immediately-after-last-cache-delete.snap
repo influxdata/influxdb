@@ -41,7 +41,8 @@ expression: catalog_json
               }
             }
           },
-          "name": "table"
+          "name": "table",
+          "table_id": 1
         }
       }
     }

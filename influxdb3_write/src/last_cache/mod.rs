@@ -431,7 +431,7 @@ impl LastCacheProvider {
                         if db_cache.is_empty() {
                             continue;
                         }
-                        for (tbl_name, tbl_chunks) in &batch.table_chunks {
+                        for ((tbl_name, _table_id), tbl_chunks) in &batch.table_chunks {
                             if let Some(tbl_cache) = db_cache.get_mut(tbl_name.as_ref()) {
                                 for (_, last_cache) in tbl_cache.iter_mut() {
                                     for chunk in tbl_chunks.chunk_time_to_chunk.values() {

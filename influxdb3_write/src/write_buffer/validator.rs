@@ -7,6 +7,7 @@ use influxdb3_catalog::catalog::{
     influx_column_type_from_field_value, Catalog, DatabaseSchema, TableDefinition,
 };
 
+use influxdb3_id::TableId;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDataType, FieldDefinition,
     Gen1Duration, Row, TableChunks, WriteBatch,
@@ -352,12 +353,16 @@ fn validate_v3_line<'a>(
             });
         }
 
-        let table = TableDefinition::new(Arc::clone(&table_name), columns, Some(key.clone()))
-            .map_err(|e| WriteLineError {
-                original_line: raw_line.to_string(),
-                line_number: line_number + 1,
-                error_message: e.to_string(),
-            })?;
+        let table = dbg!(TableDefinition::new(
+            Arc::clone(&table_name),
+            columns,
+            Some(key.clone())
+        ))
+        .map_err(|e| WriteLineError {
+            original_line: raw_line.to_string(),
+            line_number: line_number + 1,
+            error_message: e.to_string(),
+        })?;
 
         let table_definition_op = CatalogOp::CreateTable(influxdb3_wal::TableDefinition {
             database_name: Arc::clone(&db_schema.name),
@@ -503,22 +508,6 @@ fn validate_v1_line<'a>(
             field_definitions: fields,
             key: None,
         }));
-
-        let table = TableDefinition::new(
-            Arc::clone(&table_name),
-            columns,
-            Option::<Vec<String>>::None,
-        )
-        .unwrap();
-
-        assert!(
-            db_schema
-                .to_mut()
-                .tables
-                .insert(table_name, table)
-                .is_none(),
-            "attempted to overwrite existing table"
-        );
     }
 
     Ok((line, catalog_op))
@@ -570,6 +559,7 @@ impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
                 .unwrap_or(0);
 
             convert_v3_parsed_line(
+                &self.state.catalog.db_schema,
                 line,
                 &mut table_chunks,
                 ingest_time,
@@ -596,8 +586,9 @@ impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
 }
 
 fn convert_v3_parsed_line(
+    db_schema: &DatabaseSchema,
     line: v3::ParsedLine<'_>,
-    table_chunk_map: &mut HashMap<Arc<str>, TableChunks>,
+    table_chunk_map: &mut HashMap<(Arc<str>, TableId), TableChunks>,
     ingest_time: Time,
     gen1_duration: Gen1Duration,
     precision: Precision,
@@ -637,7 +628,13 @@ fn convert_v3_parsed_line(
     // Add the row into the correct chunk in the table
     let chunk_time = gen1_duration.chunk_time_for_timestamp(Timestamp::new(time_value_nanos));
     let table_name: Arc<str> = line.series.measurement.to_string().into();
-    let table_chunks = table_chunk_map.entry(Arc::clone(&table_name)).or_default();
+    let table_id = db_schema
+        .get_table(&table_name)
+        .map(|t| t.table_id)
+        .unwrap_or_else(|| TableId::from(0));
+    let table_chunks = table_chunk_map
+        .entry((Arc::clone(&table_name), table_id))
+        .or_default();
     table_chunks.push_row(
         chunk_time,
         Row {
@@ -670,6 +667,7 @@ impl<'lp> WriteValidator<LinesParsed<'lp, ParsedLine<'lp>>> {
             tag_count += line.series.tag_set.as_ref().map(|t| t.len()).unwrap_or(0);
 
             convert_v1_parsed_line(
+                &self.state.catalog.db_schema,
                 line,
                 &mut table_chunks,
                 ingest_time,
@@ -696,8 +694,9 @@ impl<'lp> WriteValidator<LinesParsed<'lp, ParsedLine<'lp>>> {
 }
 
 fn convert_v1_parsed_line(
+    db_schema: &DatabaseSchema,
     line: ParsedLine<'_>,
-    table_chunk_map: &mut HashMap<Arc<str>, TableChunks>,
+    table_chunk_map: &mut HashMap<(Arc<str>, TableId), TableChunks>,
     ingest_time: Time,
     gen1_duration: Gen1Duration,
     precision: Precision,
@@ -747,7 +746,11 @@ fn convert_v1_parsed_line(
     });
 
     let table_name: Arc<str> = line.series.measurement.to_string().into();
-    let table_chunks = table_chunk_map.entry(table_name).or_default();
+    let table_id = db_schema
+        .get_table(&table_name)
+        .map(|table| table.table_id)
+        .unwrap_or_else(|| TableId::from(0));
+    let table_chunks = table_chunk_map.entry((table_name, table_id)).or_default();
     table_chunks.push_row(
         chunk_time,
         Row {
@@ -782,6 +785,7 @@ mod tests {
 
     use crate::{catalog::Catalog, write_buffer::Error, Precision};
     use data_types::NamespaceName;
+    use influxdb3_id::TableId;
     use influxdb3_wal::Gen1Duration;
     use iox_time::Time;
 
@@ -807,7 +811,11 @@ mod tests {
         assert!(result.errors.is_empty());
 
         assert_eq!(result.valid_data.database_name.as_ref(), namespace.as_str());
-        let batch = result.valid_data.table_chunks.get("cpu").unwrap();
+        let batch = result
+            .valid_data
+            .table_chunks
+            .get(&("cpu".into(), TableId::from(0)))
+            .unwrap();
         assert_eq!(batch.row_count(), 1);
 
         Ok(())

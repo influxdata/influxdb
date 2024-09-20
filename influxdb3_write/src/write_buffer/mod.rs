@@ -142,6 +142,11 @@ impl WriteBufferImpl {
             .first()
             .map(|s| s.next_db_id.set_next_id())
             .unwrap_or(());
+        // Set the next table id to use when adding a new database
+        persisted_snapshots
+            .first()
+            .map(|s| s.next_table_id.set_next_id())
+            .unwrap_or(());
         // Set the next file id to use when persisting ParquetFiles
         NEXT_FILE_ID.store(
             persisted_snapshots
@@ -616,7 +621,7 @@ mod tests {
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
     use influxdb3_catalog::catalog::SequenceNumber;
-    use influxdb3_id::DbId;
+    use influxdb3_id::{DbId, TableId};
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
@@ -1579,7 +1584,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_db_id_is_persisted_and_updated() {
+    async fn test_db_id_and_table_id_is_persisted_and_updated() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let (wbuf, _) = setup(
             Time::from_timestamp_nanos(0),
@@ -1592,6 +1597,11 @@ mod tests {
             },
         )
         .await;
+
+        // Make sure the next id is 0 for each of these
+        assert_eq!(DbId::next_id().as_u32(), 0);
+        assert_eq!(TableId::next_id().as_u32(), 0);
+
         let db_name = "coffee_shop";
         let tbl_name = "menu";
 
@@ -1622,15 +1632,20 @@ mod tests {
         // Wait for snapshot to be created:
         verify_snapshot_count(1, &wbuf.persister).await;
 
+        // Make sure the next id is 1 for each of these
+        assert_eq!(DbId::next_id().as_u32(), 1);
+        assert_eq!(TableId::next_id().as_u32(), 1);
+
         // Now drop the write buffer, and create a new one that replays:
         drop(wbuf);
 
-        // Set DbId to a large number to make sure it is properly set on replay
-        // and assert that it's what we expect it to be before we replay
-        dbg!(DbId::next_id());
+        // Set DbId and TableId to a large number to make sure it is properly
+        // set on replay and assert that it's what we expect it to be before we
+        // replay
         DbId::from(10_000).set_next_id();
+        TableId::from(10_000).set_next_id();
         assert_eq!(DbId::next_id().as_u32(), 10_000);
-        dbg!(DbId::next_id());
+        assert_eq!(TableId::next_id().as_u32(), 10_000);
         let (_wbuf, _) = setup(
             Time::from_timestamp_nanos(0),
             Arc::clone(&obj_store),
@@ -1642,9 +1657,9 @@ mod tests {
             },
         )
         .await;
-        dbg!(DbId::next_id());
 
         assert_eq!(DbId::next_id().as_u32(), 1);
+        assert_eq!(TableId::next_id().as_u32(), 1);
     }
 
     struct TestWrite<LP> {

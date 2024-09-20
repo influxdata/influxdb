@@ -30,5 +30,8 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 
+[dev-dependencies]
+pretty_assertions.workspace = true
+
 [lints]
 workspace = true

@@ -1,7 +1,7 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
 use crate::catalog::Error::TableNotFound;
-use influxdb3_id::DbId;
+use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, FieldAdditions, LastCacheDefinition, LastCacheDelete,
 };
@@ -484,6 +484,7 @@ impl DatabaseSchema {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TableDefinition {
+    pub table_id: TableId,
     pub name: Arc<str>,
     pub schema: Schema,
     pub last_caches: BTreeMap<String, LastCacheDefinition>,
@@ -519,6 +520,7 @@ impl TableDefinition {
         let schema = schema_builder.build().unwrap();
 
         Ok(Self {
+            table_id: TableId::new(),
             name,
             schema,
             last_caches: BTreeMap::new(),
@@ -843,10 +845,12 @@ mod tests {
                         "name": "db1",
                         "tables": {
                             "tbl1": {
+                                "table_id": 0,
                                 "name": "tbl1",
                                 "cols": {}
                             },
                             "tbl1": {
+                                "table_id": 0,
                                 "name": "tbl1",
                                 "cols": {}
                             }
