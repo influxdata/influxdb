@@ -2796,6 +2796,7 @@ dependencies = [
 name = "influxdb3_write"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arrow",
  "arrow_util",
  "async-trait",
@@ -2804,9 +2805,11 @@ dependencies = [
  "chrono",
  "crc32fast",
  "crossbeam-channel",
+ "dashmap",
  "data_types",
  "datafusion",
  "datafusion_util",
+ "futures",
  "futures-util",
  "hashbrown 0.14.5",
  "hex",

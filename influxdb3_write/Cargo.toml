@@ -24,6 +24,7 @@ influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 
 # crates.io dependencies
+anyhow.workspace = true
 arrow.workspace = true
 async-trait.workspace = true
 byteorder.workspace  = true
@@ -31,7 +32,9 @@ bytes.workspace = true
 chrono.workspace  = true
 crc32fast.workspace  = true
 crossbeam-channel.workspace  = true
+dashmap.workspace = true
 datafusion.workspace = true
+futures.workspace = true
 futures-util.workspace = true
 hashbrown.workspace = true
 hex.workspace = true
