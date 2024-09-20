@@ -11,6 +11,7 @@ members = [
     "influxdb3_wal",
     "influxdb3_write",
     "iox_query_influxql_rewrite",
+    "influxdb3_telemetry",
 ]
 default-members = ["influxdb3"]
 
