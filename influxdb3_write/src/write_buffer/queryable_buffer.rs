@@ -1,6 +1,6 @@
 use crate::chunk::BufferChunk;
 use crate::last_cache::LastCacheProvider;
-use crate::parquet_cache::{CacheRequest, ParquetCache};
+use crate::parquet_cache::{CacheRequest, ParquetCacheOracle};
 use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
@@ -42,7 +42,7 @@ pub struct QueryableBuffer {
     persister: Arc<Persister>,
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<RwLock<BufferState>>,
-    parquet_cache: Arc<dyn ParquetCache>,
+    parquet_cache: Arc<dyn ParquetCacheOracle>,
     /// Sends a notification to this watch channel whenever a snapshot info is persisted
     persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshot>>,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
@@ -55,7 +55,7 @@ impl QueryableBuffer {
         persister: Arc<Persister>,
         last_cache_provider: Arc<LastCacheProvider>,
         persisted_files: Arc<PersistedFiles>,
-        parquet_cache: Arc<dyn ParquetCache>,
+        parquet_cache: Arc<dyn ParquetCacheOracle>,
     ) -> Self {
         let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
         let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
@@ -453,7 +453,7 @@ async fn sort_dedupe_persist(
     persist_job: PersistJob,
     persister: Arc<Persister>,
     executor: Arc<Executor>,
-    parquet_cache: Arc<dyn ParquetCache>,
+    parquet_cache: Arc<dyn ParquetCacheOracle>,
 ) -> (u64, FileMetaData, oneshot::Receiver<()>) {
     // Dedupe and sort using the COMPACT query built into
     // iox_query

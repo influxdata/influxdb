@@ -7,7 +7,7 @@ pub(crate) mod validator;
 
 use crate::chunk::ParquetChunk;
 use crate::last_cache::{self, CreateCacheArguments, LastCacheProvider};
-use crate::parquet_cache::ParquetCache;
+use crate::parquet_cache::ParquetCacheOracle;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
@@ -108,7 +108,7 @@ pub struct WriteBufferImpl {
     // NOTE(trevor): the parquet cache interface may be used to register other cache
     // requests from the write buffer, e.g., during query...
     #[allow(dead_code)]
-    parquet_cache: Arc<dyn ParquetCache>,
+    parquet_cache: Arc<dyn ParquetCacheOracle>,
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<QueryableBuffer>,
     wal_config: WalConfig,
@@ -128,7 +128,7 @@ impl WriteBufferImpl {
         time_provider: Arc<dyn TimeProvider>,
         executor: Arc<iox_query::exec::Executor>,
         wal_config: WalConfig,
-        parquet_cache: Arc<dyn ParquetCache>,
+        parquet_cache: Arc<dyn ParquetCacheOracle>,
     ) -> Result<Self> {
         // load snapshots and replay the wal into the in memory buffer
         let persisted_snapshots = persister

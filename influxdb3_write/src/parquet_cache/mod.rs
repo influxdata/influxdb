@@ -30,7 +30,7 @@ impl CacheRequest {
 }
 
 /// An interface for interacting with a Parquet Cache by registering [`CacheRequest`]s to it.
-pub trait ParquetCache: Send + Sync + Debug {
+pub trait ParquetCacheOracle: Send + Sync + Debug {
     fn register(&self, cache_request: CacheRequest);
 }
 
@@ -41,12 +41,12 @@ pub struct MemCacheOracle {
 
 pub fn create_cached_obj_store_and_oracle(
     object_store: Arc<dyn ObjectStore>,
-) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCache>) {
-    let m = MemCachedObjectStore::new(object_store);
-    let o = m.oracle();
-    let m: Arc<dyn ObjectStore> = Arc::clone(&m) as _;
-    let o: Arc<dyn ParquetCache> = Arc::new(o);
-    (m, o)
+) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
+    let store = MemCachedObjectStore::new(object_store);
+    let oracle = store.oracle();
+    let store: Arc<dyn ObjectStore> = Arc::clone(&store) as _;
+    let oracle: Arc<dyn ParquetCacheOracle> = Arc::new(oracle);
+    (store, oracle)
 }
 
 #[derive(Debug)]
@@ -55,12 +55,29 @@ struct CacheValue {
     meta: ObjectMeta,
 }
 
+#[derive(Debug)]
+enum CacheEntry {
+    Fetching,
+    Success(Arc<CacheValue>),
+    Failed,
+}
+
+impl CacheEntry {
+    fn is_fetching(&self) -> bool {
+        matches!(self, CacheEntry::Fetching)
+    }
+
+    fn is_success(&self) -> bool {
+        matches!(self, CacheEntry::Success(_))
+    }
+}
+
 const STORE_NAME: &str = "mem_cached_object_store";
 
 #[derive(Debug)]
 pub struct MemCachedObjectStore {
     inner: Arc<dyn ObjectStore>,
-    cache: Arc<DashMap<Path, CacheValue>>,
+    cache: Arc<DashMap<Path, CacheEntry>>,
     cache_request_tx: Sender<CacheRequest>,
 }
 
@@ -82,6 +99,13 @@ impl MemCachedObjectStore {
         MemCacheOracle {
             cache_request_tx: self.cache_request_tx.clone(),
         }
+    }
+
+    fn get_cache_value(&self, path: &Path) -> Option<Arc<CacheValue>> {
+        self.cache.get(path).and_then(|entry| match entry.value() {
+            CacheEntry::Success(v) => Some(Arc::clone(v)),
+            CacheEntry::Fetching | CacheEntry::Failed => None,
+        })
     }
 }
 
@@ -128,7 +152,7 @@ impl ObjectStore for MemCachedObjectStore {
     /// Get an object from the object store. If this object is cached, then it will not make a request
     /// to the inner object store.
     async fn get(&self, location: &Path) -> ObjectStoreResult<GetResult> {
-        if let Some(v) = self.cache.get(location) {
+        if let Some(v) = self.get_cache_value(location) {
             Ok(GetResult {
                 payload: GetResultPayload::Stream(
                     futures::stream::iter([Ok(v.data.clone())]).boxed(),
@@ -164,7 +188,7 @@ impl ObjectStore for MemCachedObjectStore {
         location: &Path,
         ranges: &[Range<usize>],
     ) -> ObjectStoreResult<Vec<Bytes>> {
-        if let Some(v) = self.cache.get(location) {
+        if let Some(v) = self.get_cache_value(location) {
             ranges
                 .iter()
                 .map(|range| {
@@ -198,7 +222,7 @@ impl ObjectStore for MemCachedObjectStore {
     }
 
     async fn head(&self, location: &Path) -> ObjectStoreResult<ObjectMeta> {
-        if let Some(v) = self.cache.get(location) {
+        if let Some(v) = self.get_cache_value(location) {
             Ok(v.meta.clone())
         } else {
             self.inner.head(location).await
@@ -254,7 +278,7 @@ impl ObjectStore for MemCachedObjectStore {
     }
 }
 
-impl ParquetCache for MemCacheOracle {
+impl ParquetCacheOracle for MemCacheOracle {
     fn register(&self, request: CacheRequest) {
         let tx = self.cache_request_tx.clone();
         tokio::spawn(async move {
@@ -271,28 +295,39 @@ fn background_cache_request_handler(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         while let Some(CacheRequest { path, notifier }) = rx.recv().await {
-            if cache.cache.contains_key(&path) {
-                // Since we treat parquet files on object storage as immutible, we never
-                // need to update:
+            if cache
+                .cache
+                .get(&path)
+                .is_some_and(|entry| entry.is_fetching() || entry.is_success())
+            {
                 continue;
             }
-            match cache.inner.get(&path).await {
-                Ok(result) => {
-                    let meta = result.meta.clone();
-                    match result.bytes().await {
-                        Ok(data) => {
-                            cache.cache.insert(path, CacheValue { data, meta });
-                        }
-                        Err(error) => {
-                            error!(%error, "failed to retrieve payload from object store get result");
+            cache.cache.insert(path.clone(), CacheEntry::Fetching);
+            let cache_captured = Arc::clone(&cache);
+            tokio::spawn(async move {
+                match cache_captured.inner.get(&path).await {
+                    Ok(result) => {
+                        let meta = result.meta.clone();
+                        match result.bytes().await {
+                            Ok(data) => {
+                                cache_captured.cache.insert(
+                                    path,
+                                    CacheEntry::Success(Arc::new(CacheValue { data, meta })),
+                                );
+                            }
+                            Err(error) => {
+                                error!(%error, "failed to retrieve payload from object store get result");
+                                cache_captured.cache.insert(path, CacheEntry::Failed);
+                            }
                         }
                     }
-                    let _ = notifier.send(());
+                    Err(error) => {
+                        error!(%error, "failed to fulfill cache request with object store");
+                        cache_captured.cache.insert(path, CacheEntry::Failed);
+                    }
                 }
-                Err(error) => {
-                    error!(%error, "failed to fulfill cache request with object store")
-                }
-            }
+                let _ = notifier.send(());
+            });
         }
         info!("cache request handler closed");
     })
