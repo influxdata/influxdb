@@ -2,7 +2,7 @@
 
 use clap_blocks::{
     memory_size::MemorySize,
-    object_store::{make_object_store, ObjectStoreConfig},
+    object_store::{make_object_store, ObjectStoreConfig, ObjectStoreType},
     socket_addr::SocketAddr,
     tokio::TokioDatafusionConfig,
 };
@@ -14,6 +14,7 @@ use influxdb3_server::{
     auth::AllOrNothingAuthorizer, builder::ServerBuilder, query_executor::QueryExecutorImpl, serve,
     CommonServerState,
 };
+use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
     last_cache::LastCacheProvider, parquet_cache::create_cached_obj_store_and_oracle,
@@ -329,8 +330,11 @@ pub async fn command(config: Config) -> Result<()> {
 
     let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner())
         .map_err(Error::InitializeLastCache)?;
-
     info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
+
+    let _telemetry_store =
+        setup_telemetry_store(&config.object_store_config, catalog.instance_id(), num_cpus).await;
+
     let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
@@ -376,6 +380,31 @@ pub async fn command(config: Config) -> Result<()> {
     serve(server, frontend_shutdown).await?;
 
     Ok(())
+}
+
+async fn setup_telemetry_store(
+    object_store_config: &ObjectStoreConfig,
+    instance_id: Arc<str>,
+    num_cpus: usize,
+) -> Arc<TelemetryStore> {
+    let os = std::env::consts::OS;
+    let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
+    let influxdb_pkg_name = env!("CARGO_PKG_NAME");
+    // Following should show influxdb3-0.1.0
+    let influx_version = format!("{}-{}", influxdb_pkg_name, influxdb_pkg_version);
+    let obj_store_type = object_store_config
+        .object_store
+        .unwrap_or(ObjectStoreType::Memory);
+    let storage_type = obj_store_type.as_str();
+
+    TelemetryStore::new(
+        instance_id,
+        Arc::from(os),
+        Arc::from(influx_version),
+        Arc::from(storage_type),
+        num_cpus,
+    )
+    .await
 }
 
 fn parse_datafusion_config(
