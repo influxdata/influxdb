@@ -498,10 +498,27 @@ mod tests {
         ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
     };
     use parking_lot::RwLock;
+    use pretty_assertions::assert_eq;
 
     use crate::parquet_cache::{
         create_cached_obj_store_and_oracle, test_cached_obj_store_and_oracle, CacheRequest,
     };
+
+    macro_rules! assert_payload_at_equals {
+        ($store:ident, $expected:ident, $path:ident) => {
+            assert_eq!(
+                $expected,
+                $store
+                    .get(&$path)
+                    .await
+                    .unwrap()
+                    .bytes()
+                    .await
+                    .unwrap()
+                    .to_byte_slice()
+            )
+        };
+    }
 
     #[tokio::test]
     async fn hit_cache_instead_of_object_store() {
@@ -518,17 +535,7 @@ mod tests {
             .unwrap();
 
         // GET the payload from the object store before caching:
-        assert_eq!(
-            payload,
-            cached_store
-                .get(&path)
-                .await
-                .unwrap()
-                .bytes()
-                .await
-                .unwrap()
-                .to_byte_slice()
-        );
+        assert_payload_at_equals!(cached_store, payload, path);
         assert_eq!(1, inner_store.total_get_request_count());
         assert_eq!(1, inner_store.get_request_count(&path));
 
@@ -544,17 +551,7 @@ mod tests {
         assert_eq!(2, inner_store.get_request_count(&path));
 
         // get the payload from the outer store again:
-        assert_eq!(
-            payload,
-            cached_store
-                .get(&path)
-                .await
-                .unwrap()
-                .bytes()
-                .await
-                .unwrap()
-                .to_byte_slice()
-        );
+        assert_payload_at_equals!(cached_store, payload, path);
 
         // should hit the cache this time, so the inner store should not have been hit, and counts
         // should therefore be same as previous:
@@ -563,91 +560,97 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cache_evicts_when_full() {
+    async fn cache_evicts_lru_when_full() {
         let inner_store = Arc::new(TestObjectStore::new(Arc::new(InMemory::new())));
         let cache_capacity_bytes = 32;
         let (cached_store, oracle) =
             create_cached_obj_store_and_oracle(Arc::clone(&inner_store) as _, cache_capacity_bytes);
         // PUT an entry into the store:
-        let path = Path::from("0.parquet"); // 9 bytes for path
-        let payload = b"Commander Spock"; // 15 bytes for payload
+        let path_1 = Path::from("0.parquet"); // 9 bytes for path
+        let payload_1 = b"Janeway"; // 7 bytes for payload
         cached_store
-            .put(&path, PutPayload::from_static(payload))
+            .put(&path_1, PutPayload::from_static(payload_1))
             .await
             .unwrap();
 
         // cache the entry and wait for it to complete:
-        let (cache_request, notifier_rx) = CacheRequest::create(path.clone());
+        let (cache_request, notifier_rx) = CacheRequest::create(path_1.clone());
         oracle.register(cache_request);
         let _ = notifier_rx.await;
         // there will have been one get request made by the cache oracle:
         assert_eq!(1, inner_store.total_get_request_count());
-        assert_eq!(1, inner_store.get_request_count(&path));
+        assert_eq!(1, inner_store.get_request_count(&path_1));
 
-        // GET the entry to check its there and was retrieved from cache:
-        assert_eq!(
-            payload,
-            cached_store
-                .get(&path)
-                .await
-                .unwrap()
-                .bytes()
-                .await
-                .unwrap()
-                .to_byte_slice()
-        );
-        // request counts to inner store remain unchanged:
+        // GET the entry to check its there and was retrieved from cache, i.e., that the request
+        // counts do not change:
+        assert_payload_at_equals!(cached_store, payload_1, path_1);
         assert_eq!(1, inner_store.total_get_request_count());
-        assert_eq!(1, inner_store.get_request_count(&path));
+        assert_eq!(1, inner_store.get_request_count(&path_1));
 
-        // PUT another entry into the store, this combined with the previous entry's size will be
-        // greater than the cache's capacity (32 bytes), so will cause spock to be evicted:
+        // PUT a second entry into the store:
         let path_2 = Path::from("1.parquet"); // 9 bytes for path
-        let payload_2 = b"Lieutenant Tuvok"; // 16 bytes for payload
+        let payload_2 = b"Paris"; // 5 bytes for payload
         cached_store
             .put(&path_2, PutPayload::from_static(payload_2))
             .await
             .unwrap();
 
-        // cache the second entry and wait for it to complete:
+        // cache the second entry and wait for it to complete, this will not evict the first entry
+        // as both can fit in the cache whose capacity is 32 bytes:
         let (cache_request, notifier_rx) = CacheRequest::create(path_2.clone());
         oracle.register(cache_request);
         let _ = notifier_rx.await;
         // will have another request for the second path to the inner store, by the oracle:
         assert_eq!(2, inner_store.total_get_request_count());
+        assert_eq!(1, inner_store.get_request_count(&path_1));
         assert_eq!(1, inner_store.get_request_count(&path_2));
 
-        // GET the first entry and assert that it was retrieved from the store, i.e., becayse its
-        // entry was evicted from the cache:
-        assert_eq!(
-            payload,
-            cached_store
-                .get(&path)
-                .await
-                .unwrap()
-                .bytes()
-                .await
-                .unwrap()
-                .to_byte_slice()
-        );
-        assert_eq!(3, inner_store.total_get_request_count());
-        assert_eq!(2, inner_store.get_request_count(&path));
-
-        // GET the second entry and assert that it was retrieved from the cache, i.e., the number
-        // of total requests to the cache does not change from the previous check:
-        assert_eq!(
-            payload_2,
-            cached_store
-                .get(&path_2)
-                .await
-                .unwrap()
-                .bytes()
-                .await
-                .unwrap()
-                .to_byte_slice()
-        );
-        assert_eq!(3, inner_store.total_get_request_count());
+        // GET the second entry and assert that it was retrieved from the cache, i.e., that the
+        // request counts do not change:
+        assert_payload_at_equals!(cached_store, payload_2, path_2);
+        assert_eq!(2, inner_store.total_get_request_count());
+        assert_eq!(1, inner_store.get_request_count(&path_1));
         assert_eq!(1, inner_store.get_request_count(&path_2));
+
+        // GET the first entry again and assert that it was retrieved from the cache as before. This
+        // will also update the LRU so that the first entry (janeway) was used more recently than the
+        // second entry (paris):
+        assert_payload_at_equals!(cached_store, payload_1, path_1);
+        assert_eq!(2, inner_store.total_get_request_count());
+        assert_eq!(1, inner_store.get_request_count(&path_1));
+
+        // PUT a third entry into the store:
+        let path_3 = Path::from("2.parquet"); // 9 bytes for the path
+        let payload_3 = b"Neelix"; // 6 bytes for the payload
+        cached_store
+            .put(&path_3, PutPayload::from_static(payload_3))
+            .await
+            .unwrap();
+        // cache the third entry and wait for it to complete, this will evict paris from the cache
+        // as the LRU entry:
+        let (cache_request, notifier_rx) = CacheRequest::create(path_3.clone());
+        oracle.register(cache_request);
+        let _ = notifier_rx.await;
+        // will now have another request for the third path to the inner store, by the oracle:
+        assert_eq!(3, inner_store.total_get_request_count());
+        assert_eq!(1, inner_store.get_request_count(&path_1));
+        assert_eq!(1, inner_store.get_request_count(&path_2));
+        assert_eq!(1, inner_store.get_request_count(&path_3));
+
+        // GET the new entry from the strore, and check that it was served by the cache:
+        assert_payload_at_equals!(cached_store, payload_3, path_3);
+        assert_eq!(3, inner_store.total_get_request_count());
+        assert_eq!(1, inner_store.get_request_count(&path_1));
+        assert_eq!(1, inner_store.get_request_count(&path_2));
+        assert_eq!(1, inner_store.get_request_count(&path_3));
+
+        // GET paris from the cached store, this will not be served by the cache, because paris was
+        // evicted by neelix:
+        assert_payload_at_equals!(cached_store, payload_2, path_2);
+        assert_eq!(4, inner_store.total_get_request_count());
+        assert_eq!(1, inner_store.get_request_count(&path_1));
+        assert_eq!(2, inner_store.get_request_count(&path_2));
+        assert_eq!(1, inner_store.get_request_count(&path_3));
     }
 
     type RequestCounter = RwLock<HashMap<Path, usize>>;
