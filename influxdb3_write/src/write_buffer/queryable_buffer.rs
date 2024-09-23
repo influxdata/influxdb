@@ -248,14 +248,14 @@ impl QueryableBuffer {
                 let min_time = persist_job.timestamp_min_max.min;
                 let max_time = persist_job.timestamp_min_max.max;
 
-                let (size_bytes, meta, notify) = sort_dedupe_persist(
+                let (size_bytes, meta, cache_notifier) = sort_dedupe_persist(
                     persist_job,
                     Arc::clone(&persister),
                     Arc::clone(&executor),
                     Arc::clone(&parquet_cache),
                 )
                 .await;
-                cache_notifiers.push(notify);
+                cache_notifiers.push(cache_notifier);
                 persisted_snapshot.add_parquet_file(
                     database_name,
                     table_name,
@@ -516,10 +516,10 @@ async fn sort_dedupe_persist(
         {
             Ok((size_bytes, meta)) => {
                 info!("Persisted parquet file: {}", persist_job.path.to_string());
-                let (cache_request, notify_receiver) =
+                let (cache_request, cache_notify_rx) =
                     CacheRequest::create(Path::from(persist_job.path.to_string()));
                 parquet_cache.register(cache_request);
-                return (size_bytes, meta, notify_receiver);
+                return (size_bytes, meta, cache_notify_rx);
             }
             Err(e) => {
                 error!(
