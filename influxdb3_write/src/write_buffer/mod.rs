@@ -525,7 +525,7 @@ impl WriteBuffer for WriteBufferImpl {}
 #[allow(clippy::await_holding_lock)]
 mod tests {
     use super::*;
-    use crate::parquet_cache::create_cached_obj_store_and_oracle;
+    use crate::parquet_cache::test_cached_obj_store_and_oracle;
     use crate::paths::{CatalogFilePath, SnapshotInfoFilePath};
     use crate::persister::Persister;
     use crate::PersistedSnapshot;
@@ -570,7 +570,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn writes_data_to_wal_and_is_queryable() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(object_store);
+        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(object_store);
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let catalog = persister.load_or_create_catalog().await.unwrap();
         let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
@@ -1655,7 +1655,7 @@ mod tests {
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
     ) -> (WriteBufferImpl, IOxSessionContext) {
-        let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(object_store);
+        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(object_store);
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
         let catalog = persister.load_or_create_catalog().await.unwrap();

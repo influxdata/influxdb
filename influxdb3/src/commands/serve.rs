@@ -260,7 +260,9 @@ pub async fn command(config: Config) -> Result<()> {
     let object_store: Arc<DynObjectStore> =
         make_object_store(&config.object_store_config).map_err(Error::ObjectStoreParsing)?;
     // TODO(trevor): make this configurable/optional:
-    let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(object_store);
+    let cache_capacity = 1024 * 1024 * 1024;
+    let (object_store, parquet_cache) =
+        create_cached_obj_store_and_oracle(object_store, cache_capacity);
 
     let trace_exporter = config.tracing_config.build()?;
 

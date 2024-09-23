@@ -591,7 +591,7 @@ mod tests {
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        last_cache::LastCacheProvider, parquet_cache::create_cached_obj_store_and_oracle,
+        last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer,
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
@@ -630,7 +630,7 @@ mod tests {
         // Set up QueryExecutor
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
-        let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(object_store);
+        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(object_store);
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let executor = make_exec(Arc::clone(&object_store));
