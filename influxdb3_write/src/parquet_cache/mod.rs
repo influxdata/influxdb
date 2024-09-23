@@ -332,3 +332,228 @@ fn background_cache_request_handler(
         info!("cache request handler closed");
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{ops::Range, sync::Arc};
+
+    use arrow::datatypes::ToByteSlice;
+    use async_trait::async_trait;
+    use bytes::Bytes;
+    use dashmap::DashMap;
+    use futures::stream::BoxStream;
+    use object_store::{
+        memory::InMemory, path::Path, GetOptions, GetResult, ListResult, MultipartUpload,
+        ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
+    };
+
+    use crate::parquet_cache::{create_cached_obj_store_and_oracle, CacheRequest};
+
+    #[tokio::test]
+    async fn successful_cache_hit() {
+        // set up the inner test object store and then wrap it with the mem cached store:
+        let inner_store = Arc::new(TestObjectStore::new(Arc::new(InMemory::new())));
+        let (cached_store, oracle) =
+            create_cached_obj_store_and_oracle(Arc::clone(&inner_store) as _);
+        // PUT a paylaod into the object store through the outer mem cached store:
+        let path = Path::from("0.parquet");
+        let payload = b"hello world";
+        cached_store
+            .put(&path, PutPayload::from_static(payload))
+            .await
+            .unwrap();
+
+        // GET the payload from the object store before caching:
+        assert_eq!(
+            payload,
+            cached_store
+                .get(&path)
+                .await
+                .unwrap()
+                .bytes()
+                .await
+                .unwrap()
+                .to_byte_slice()
+        );
+        assert_eq!(1, inner_store.total_get_request_count());
+        assert_eq!(1, inner_store.get_request_count(&path));
+
+        // cache the entry:
+        let (cache_request, notifier_rx) = CacheRequest::create(path.clone());
+        oracle.register(cache_request);
+
+        // wait for cache notify:
+        let _ = notifier_rx.await;
+
+        // another request to inner store should have been made:
+        assert_eq!(2, inner_store.total_get_request_count());
+        assert_eq!(2, inner_store.get_request_count(&path));
+
+        // get the payload from the outer store again:
+        assert_eq!(
+            payload,
+            cached_store
+                .get(&path)
+                .await
+                .unwrap()
+                .bytes()
+                .await
+                .unwrap()
+                .to_byte_slice()
+        );
+
+        // should hit the cache this time, so the inner store should not have been hit, and counts
+        // should therefore be same as previous:
+        assert_eq!(2, inner_store.total_get_request_count());
+        assert_eq!(2, inner_store.get_request_count(&path));
+    }
+
+    type RequestCounter = DashMap<Path, usize>;
+
+    #[derive(Debug)]
+    struct TestObjectStore {
+        inner: Arc<dyn ObjectStore>,
+        get: RequestCounter,
+    }
+
+    impl TestObjectStore {
+        fn new(inner: Arc<dyn ObjectStore>) -> Self {
+            Self {
+                inner,
+                get: Default::default(),
+            }
+        }
+
+        fn total_get_request_count(&self) -> usize {
+            self.get.iter().map(|r| *r.value()).sum()
+        }
+
+        fn get_request_count(&self, path: &Path) -> usize {
+            self.get.get(path).map(|r| *r.value()).unwrap_or(0)
+        }
+    }
+
+    impl std::fmt::Display for TestObjectStore {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "TestObjectStore({})", self.inner)
+        }
+    }
+
+    /// [`MemCachedObjectStore`] implements most [`ObjectStore`] methods as a pass-through, since
+    /// caching is decided externally. The exception is `delete`, which will have the entry removed
+    /// from the cache if the delete to the object store was successful.
+    ///
+    /// GET-style methods will first check the cache for the object at the given path, before forwarding
+    /// to the inner [`ObjectStore`]. They do not, however, populate the cache after data has been fetched
+    /// from the inner store.
+    #[async_trait]
+    impl ObjectStore for TestObjectStore {
+        async fn put(&self, location: &Path, bytes: PutPayload) -> object_store::Result<PutResult> {
+            self.inner.put(location, bytes).await
+        }
+
+        async fn put_opts(
+            &self,
+            location: &Path,
+            bytes: PutPayload,
+            opts: PutOptions,
+        ) -> object_store::Result<PutResult> {
+            self.inner.put_opts(location, bytes, opts).await
+        }
+
+        async fn put_multipart(
+            &self,
+            location: &Path,
+        ) -> object_store::Result<Box<dyn MultipartUpload>> {
+            self.inner.put_multipart(location).await
+        }
+
+        async fn put_multipart_opts(
+            &self,
+            location: &Path,
+            opts: PutMultipartOpts,
+        ) -> object_store::Result<Box<dyn MultipartUpload>> {
+            self.inner.put_multipart_opts(location, opts).await
+        }
+
+        async fn get(&self, location: &Path) -> object_store::Result<GetResult> {
+            *self.get.entry(location.clone()).or_insert(0) += 1;
+            self.inner.get(location).await
+        }
+
+        async fn get_opts(
+            &self,
+            location: &Path,
+            options: GetOptions,
+        ) -> object_store::Result<GetResult> {
+            self.inner.get_opts(location, options).await
+        }
+
+        async fn get_range(
+            &self,
+            location: &Path,
+            range: Range<usize>,
+        ) -> object_store::Result<Bytes> {
+            self.inner.get_range(location, range).await
+        }
+
+        async fn get_ranges(
+            &self,
+            location: &Path,
+            ranges: &[Range<usize>],
+        ) -> object_store::Result<Vec<Bytes>> {
+            self.inner.get_ranges(location, ranges).await
+        }
+
+        async fn head(&self, location: &Path) -> object_store::Result<ObjectMeta> {
+            self.inner.head(location).await
+        }
+
+        /// Delete an object on object store, but also remove it from the cache.
+        async fn delete(&self, location: &Path) -> object_store::Result<()> {
+            self.inner.delete(location).await
+        }
+
+        fn delete_stream<'a>(
+            &'a self,
+            locations: BoxStream<'a, object_store::Result<Path>>,
+        ) -> BoxStream<'a, object_store::Result<Path>> {
+            self.inner.delete_stream(locations)
+        }
+
+        fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+            self.inner.list(prefix)
+        }
+
+        fn list_with_offset(
+            &self,
+            prefix: Option<&Path>,
+            offset: &Path,
+        ) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+            self.inner.list_with_offset(prefix, offset)
+        }
+
+        async fn list_with_delimiter(
+            &self,
+            prefix: Option<&Path>,
+        ) -> object_store::Result<ListResult> {
+            self.inner.list_with_delimiter(prefix).await
+        }
+
+        async fn copy(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+            self.inner.copy(from, to).await
+        }
+
+        async fn rename(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+            self.inner.rename(from, to).await
+        }
+
+        async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+            self.inner.copy_if_not_exists(from, to).await
+        }
+
+        async fn rename_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+            self.inner.rename_if_not_exists(from, to).await
+        }
+    }
+}
