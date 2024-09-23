@@ -19,12 +19,18 @@ use tokio::sync::{
     oneshot, Mutex,
 };
 
+/// A request to fetch an item at the given `path` from an object store
+///
+/// Contains a notifier to notify the caller that registers the cache request when the item
+/// has been cached successfully (or if the cache request failed in some way)
 pub struct CacheRequest {
     path: Path,
     notifier: oneshot::Sender<()>,
 }
 
 impl CacheRequest {
+    /// Create a new [`CacheRequest`] along with a receiver to catch the notify message when
+    /// the cache request has been fulfilled.
     pub fn create(path: Path) -> (Self, oneshot::Receiver<()>) {
         let (notifier, receiver) = oneshot::channel();
         (Self { path, notifier }, receiver)
@@ -33,18 +39,27 @@ impl CacheRequest {
 
 /// An interface for interacting with a Parquet Cache by registering [`CacheRequest`]s to it.
 pub trait ParquetCacheOracle: Send + Sync + Debug {
+    /// Register a cache request with the oracle
     fn register(&self, cache_request: CacheRequest);
 }
 
+/// Concrete implementation of the [`ParquetCacheOracle`]
+///
+/// This implementation sends all requests registered to be cached.
 #[derive(Debug, Clone)]
 pub struct MemCacheOracle {
     cache_request_tx: Sender<CacheRequest>,
 }
 
+// TODO(trevor): make this configurable with reasonable default
 const CACHE_REQUEST_BUFFER_SIZE: usize = 1_000_000;
 
 impl MemCacheOracle {
     /// Create a new [`MemCacheOracle`]
+    ///
+    /// This spawns two background tasks:
+    /// * one to handle registered [`CacheRequest`]s
+    /// * one to prune deleted and un-needed cache entries on an interval
     // TODO(trevor): this should be more configurable, e.g., channel size, prune interval
     fn new(mem_cached_store: Arc<MemCachedObjectStore>) -> Self {
         let (cache_request_tx, cache_request_rx) = channel(CACHE_REQUEST_BUFFER_SIZE);
@@ -54,6 +69,19 @@ impl MemCacheOracle {
     }
 }
 
+impl ParquetCacheOracle for MemCacheOracle {
+    fn register(&self, request: CacheRequest) {
+        let tx = self.cache_request_tx.clone();
+        tokio::spawn(async move {
+            if let Err(error) = tx.send(request).await {
+                error!(%error, "error registering cache request");
+            };
+        });
+    }
+}
+
+/// Helper function for creation of a [`MemCachedObjectStore`] and [`MemCacheOracle`]
+/// that returns them as their `Arc<dyn _>` equivalent.
 pub fn create_cached_obj_store_and_oracle(
     object_store: Arc<dyn ObjectStore>,
     cache_capacity: usize,
@@ -63,13 +91,14 @@ pub fn create_cached_obj_store_and_oracle(
     (store, oracle)
 }
 
-/// Create a test cached objet store with a cache capacity of 1GB
+/// Create a test cached object store with a cache capacity of 1GB
 pub fn test_cached_obj_store_and_oracle(
     object_store: Arc<dyn ObjectStore>,
 ) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
     create_cached_obj_store_and_oracle(object_store, 1024 * 1024 * 1024)
 }
 
+/// An entry in the cache, containing the actual bytes as well as object store metadata
 #[derive(Debug)]
 struct CacheValue {
     data: Bytes,
@@ -77,22 +106,30 @@ struct CacheValue {
 }
 
 impl CacheValue {
+    /// Get the size of the cache value's memory footprint in bytes
     fn size(&self) -> usize {
         // TODO(trevor): could also calculate the size of the metadata...
         self.data.len()
     }
 }
 
+/// The state of a cache entry
 #[derive(Debug)]
 enum CacheEntry {
+    /// The cache entry is being fetched from object store
     Fetching,
+    /// The cache entry was successfully fetched and is stored in the cache as a [`CacheValue`]
     Success(Arc<CacheValue>),
+    /// The request to the object store failed
     Failed,
+    /// The cache entry was deleted
     Deleted,
+    /// The object is too large for the cache
     TooLarge,
 }
 
 impl CacheEntry {
+    /// Get the size of thje cache entry in bytes
     fn size(&self) -> usize {
         match self {
             CacheEntry::Fetching => 0,
@@ -116,6 +153,8 @@ impl CacheEntry {
     }
 }
 
+/// Implements the [`WeightScale`] trait to determine a [`CacheEntry`]'s size on insertion to
+/// the cache
 #[derive(Debug)]
 struct CacheEntryScale;
 
@@ -125,15 +164,29 @@ impl WeightScale<Path, CacheEntry> for CacheEntryScale {
     }
 }
 
+/// Placeholder name for formatting datafusion errors
 const STORE_NAME: &str = "mem_cached_object_store";
 
+/// An object store with an associated cache that can serve GET-style requests using the cache
+///
+/// The least-recently used (LRU) entries will be evicted when new entries are inserted, if the
+/// new entry would exceed the cache's memory capacity
 #[derive(Debug)]
 pub struct MemCachedObjectStore {
+    /// An inner object store for which items will be cached
     inner: Arc<dyn ObjectStore>,
+    /// A weighted LRU cache for storing the objects associated with a given path in memory
+    // NOTE(trevor): this uses a mutex as the CLruCache type needs &mut self for its get method, so
+    // we always need an exclusive lock on the cache. If this creates a performance bottleneck then
+    // we will need to look for alternatives.
+    //
+    // A Tokio mutex is used to prevent blocking the thread while waiting for a lock, and so that
+    // the lock can be held accross await points.
     cache: Arc<Mutex<CLruCache<Path, CacheEntry, RandomState, CacheEntryScale>>>,
 }
 
 impl MemCachedObjectStore {
+    /// Create a new [`MemCachedObjectStore`] with the given memory capacity
     fn new(inner: Arc<dyn ObjectStore>, memory_capacity: usize) -> Self {
         let cache = CLruCache::with_config(
             CLruCacheConfig::new(NonZeroUsize::new(memory_capacity).unwrap())
@@ -145,6 +198,10 @@ impl MemCachedObjectStore {
         }
     }
 
+    /// Get an entry in the cache if it contains a successful fetch result, or `None` otherwise
+    ///
+    /// This requires `&mut self` as the underlying method on the cache requires a mutable reference
+    /// in order to update the recency of the entry in the cache
     async fn get_cache_value(&self, path: &Path) -> Option<Arc<CacheValue>> {
         self.cache
             .lock()
@@ -159,6 +216,8 @@ impl MemCachedObjectStore {
             })
     }
 
+    /// Set the state of a cache entry to `Deleted`, since we cannot remove elements from the
+    /// cache directly.
     async fn delete_cache_value(&self, path: &Path) {
         let _ = self
             .cache
@@ -337,23 +396,21 @@ impl ObjectStore for MemCachedObjectStore {
     }
 }
 
-impl ParquetCacheOracle for MemCacheOracle {
-    fn register(&self, request: CacheRequest) {
-        let tx = self.cache_request_tx.clone();
-        tokio::spawn(async move {
-            if let Err(error) = tx.send(request).await {
-                error!(%error, "error registering cache request");
-            };
-        });
-    }
-}
-
+/// Handle [`CacheRequest`]s in a background task
+///
+/// This waits on the given `Receiver` for new cache requests to be registered, i.e., via the oracle.
+/// If a cache request is received for an entry that has not already been fetched successfully, or
+/// one that is in the process of being fetched, then this will spin a separate background task to
+/// fetch the object from object store and update the cache. This is so that cache requests can be
+/// handled in parallel.
 fn background_cache_request_handler(
     mem_store: Arc<MemCachedObjectStore>,
     mut rx: Receiver<CacheRequest>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         while let Some(CacheRequest { path, notifier }) = rx.recv().await {
+            // Check that the cache does not already contain an entry for the provide path, or that
+            // it is not already in the process of fetching the given path:
             let mut cache_lock = mem_store.cache.lock().await;
             if cache_lock
                 .get(&path)
@@ -361,7 +418,9 @@ fn background_cache_request_handler(
             {
                 continue;
             }
+            // Put a `Fetching` state in the entry to prevent concurrent requests to the same path:
             let _ = cache_lock.put_with_weight(path.clone(), CacheEntry::Fetching);
+            // Drop the lock before spawning the task below
             drop(cache_lock);
             let mem_store_captured = Arc::clone(&mem_store);
             tokio::spawn(async move {
@@ -393,7 +452,8 @@ fn background_cache_request_handler(
                     }
                 };
                 // If an entry would not fit in the cache at all, the put_with_weight method returns
-                // it as an Err from above, so we need to clear the `Fetching` entry:
+                // it as an Err from above, and we would not have cleared the `Fetching` entry, so
+                // we need to do that here:
                 if let Err((k, _)) = cache_insertion_result {
                     mem_store_captured
                         .cache
@@ -402,6 +462,7 @@ fn background_cache_request_handler(
                         .put_with_weight(k, CacheEntry::TooLarge)
                         .expect("cache capacity is too small");
                 }
+                // notify that the cache request has been fulfilled:
                 let _ = notifier.send(());
             });
         }
@@ -409,6 +470,8 @@ fn background_cache_request_handler(
     })
 }
 
+/// A background task for pruning un-needed entries in the cache
+// TODO(trevor): the interval could be configurable
 fn background_cache_pruner(mem_store: Arc<MemCachedObjectStore>) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_secs(60));
