@@ -39,13 +39,21 @@ pub struct MemCacheOracle {
     cache_request_tx: Sender<CacheRequest>,
 }
 
+const CACHE_REQUEST_BUFFER_SIZE: usize = 1_000_000;
+
+impl MemCacheOracle {
+    fn new(mem_cached_store: Arc<MemCachedObjectStore>) -> Self {
+        let (cache_request_tx, cache_request_rx) = channel(CACHE_REQUEST_BUFFER_SIZE);
+        background_cache_request_handler(Arc::clone(&mem_cached_store), cache_request_rx);
+        Self { cache_request_tx }
+    }
+}
+
 pub fn create_cached_obj_store_and_oracle(
     object_store: Arc<dyn ObjectStore>,
 ) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
-    let store = MemCachedObjectStore::new(object_store);
-    let oracle = store.oracle();
-    let store: Arc<dyn ObjectStore> = Arc::clone(&store) as _;
-    let oracle: Arc<dyn ParquetCacheOracle> = Arc::new(oracle);
+    let store = Arc::new(MemCachedObjectStore::new(object_store));
+    let oracle = Arc::new(MemCacheOracle::new(Arc::clone(&store)));
     (store, oracle)
 }
 
@@ -78,26 +86,13 @@ const STORE_NAME: &str = "mem_cached_object_store";
 pub struct MemCachedObjectStore {
     inner: Arc<dyn ObjectStore>,
     cache: Arc<DashMap<Path, CacheEntry>>,
-    cache_request_tx: Sender<CacheRequest>,
 }
 
-const CACHE_REQUEST_BUFFER_SIZE: usize = 1_000_000;
-
 impl MemCachedObjectStore {
-    pub fn new(inner: Arc<dyn ObjectStore>) -> Arc<Self> {
-        let (cache_request_tx, cache_request_rx) = channel(CACHE_REQUEST_BUFFER_SIZE);
-        let mem_cached_obj_store = Arc::new(Self {
+    fn new(inner: Arc<dyn ObjectStore>) -> Self {
+        Self {
             inner,
             cache: Arc::new(DashMap::new()),
-            cache_request_tx,
-        });
-        background_cache_request_handler(Arc::clone(&mem_cached_obj_store), cache_request_rx);
-        mem_cached_obj_store
-    }
-
-    pub fn oracle(&self) -> MemCacheOracle {
-        MemCacheOracle {
-            cache_request_tx: self.cache_request_tx.clone(),
         }
     }
 
