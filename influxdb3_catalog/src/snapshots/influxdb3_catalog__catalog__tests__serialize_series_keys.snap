@@ -18,11 +18,13 @@ expression: catalog
           ],
           "cols": {
             "field": {
+              "column_id": 0,
               "type": "str",
               "influx_type": "field",
               "nullable": true
             },
             "tag_1": {
+              "column_id": 1,
               "type": {
                 "dict": [
                   "i32",
@@ -33,6 +35,7 @@ expression: catalog
               "nullable": false
             },
             "tag_2": {
+              "column_id": 2,
               "type": {
                 "dict": [
                   "i32",
@@ -43,6 +46,7 @@ expression: catalog
               "nullable": false
             },
             "tag_3": {
+              "column_id": 3,
               "type": {
                 "dict": [
                   "i32",
@@ -53,6 +57,7 @@ expression: catalog
               "nullable": false
             },
             "time": {
+              "column_id": 4,
               "type": {
                 "time": [
                   "ns",

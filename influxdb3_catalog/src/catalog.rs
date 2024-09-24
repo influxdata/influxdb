@@ -1080,11 +1080,13 @@ mod tests {
                                 "table_name": "tbl1",
                                 "cols": {
                                     "col1": {
+                                        "column_id": 0,
                                         "type": "i64",
                                         "influx_type": "field",
                                         "nullable": true
                                     },
                                     "col1": {
+                                        "column_id": 0,
                                         "type": "u64",
                                         "influx_type": "field",
                                         "nullable": true

@@ -13,26 +13,31 @@ expression: catalog
           "table_name": "test_table_1",
           "cols": {
             "bool_field": {
+              "column_id": 0,
               "type": "bool",
               "influx_type": "field",
               "nullable": true
             },
             "f64_field": {
+              "column_id": 1,
               "type": "f64",
               "influx_type": "field",
               "nullable": true
             },
             "i64_field": {
+              "column_id": 2,
               "type": "i64",
               "influx_type": "field",
               "nullable": true
             },
             "string_field": {
+              "column_id": 3,
               "type": "str",
               "influx_type": "field",
               "nullable": true
             },
             "tag_1": {
+              "column_id": 4,
               "type": {
                 "dict": [
                   "i32",
@@ -43,6 +48,7 @@ expression: catalog
               "nullable": true
             },
             "tag_2": {
+              "column_id": 5,
               "type": {
                 "dict": [
                   "i32",
@@ -53,6 +59,7 @@ expression: catalog
               "nullable": true
             },
             "tag_3": {
+              "column_id": 6,
               "type": {
                 "dict": [
                   "i32",
@@ -63,6 +70,7 @@ expression: catalog
               "nullable": true
             },
             "time": {
+              "column_id": 7,
               "type": {
                 "time": [
                   "ns",
@@ -73,6 +81,7 @@ expression: catalog
               "nullable": false
             },
             "u64_field": {
+              "column_id": 8,
               "type": "u64",
               "influx_type": "field",
               "nullable": true
@@ -84,26 +93,31 @@ expression: catalog
           "table_name": "test_table_2",
           "cols": {
             "bool_field": {
+              "column_id": 0,
               "type": "bool",
               "influx_type": "field",
               "nullable": true
             },
             "f64_field": {
+              "column_id": 1,
               "type": "f64",
               "influx_type": "field",
               "nullable": true
             },
             "i64_field": {
+              "column_id": 2,
               "type": "i64",
               "influx_type": "field",
               "nullable": true
             },
             "string_field": {
+              "column_id": 3,
               "type": "str",
               "influx_type": "field",
               "nullable": true
             },
             "tag_1": {
+              "column_id": 4,
               "type": {
                 "dict": [
                   "i32",
@@ -114,6 +128,7 @@ expression: catalog
               "nullable": true
             },
             "tag_2": {
+              "column_id": 5,
               "type": {
                 "dict": [
                   "i32",
@@ -124,6 +139,7 @@ expression: catalog
               "nullable": true
             },
             "tag_3": {
+              "column_id": 6,
               "type": {
                 "dict": [
                   "i32",
@@ -134,6 +150,7 @@ expression: catalog
               "nullable": true
             },
             "time": {
+              "column_id": 7,
               "type": {
                 "time": [
                   "ns",
@@ -144,6 +161,7 @@ expression: catalog
               "nullable": false
             },
             "u64_field": {
+              "column_id": 8,
               "type": "u64",
               "influx_type": "field",
               "nullable": true

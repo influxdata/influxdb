@@ -1,5 +1,6 @@
 use crate::catalog::TableDefinition;
 use arrow::datatypes::DataType as ArrowDataType;
+use influxdb3_id::ColumnId;
 use influxdb3_id::TableId;
 use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
 use schema::{InfluxColumnType, SchemaBuilder};
@@ -121,6 +122,8 @@ impl From<InfluxColumnType> for InfluxType {
 /// The inner column definition for a [`TableSnapshot`]
 #[derive(Debug, Serialize, Deserialize)]
 struct ColumnDefinition<'a> {
+    /// The id of the column
+    column_id: ColumnId,
     /// The column's data type
     #[serde(borrow)]
     r#type: DataType<'a>,
@@ -135,10 +138,12 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
         let cols = def
             .schema()
             .iter()
-            .map(|(col_type, f)| {
+            .enumerate()
+            .map(|(id, (col_type, f))| {
                 (
                     f.name().as_str(),
                     ColumnDefinition {
+                        column_id: ColumnId::new(id as u16),
                         r#type: f.data_type().into(),
                         influx_type: col_type.into(),
                         nullable: f.is_nullable(),
