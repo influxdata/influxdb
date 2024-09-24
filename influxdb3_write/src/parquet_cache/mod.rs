@@ -409,6 +409,8 @@ fn background_cache_request_handler(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         while let Some(CacheRequest { path, notifier }) = rx.recv().await {
+            // clone the path before acquiring the lock:
+            let path_cloned = path.clone();
             // Check that the cache does not already contain an entry for the provide path, or that
             // it is not already in the process of fetching the given path:
             let mut cache_lock = mem_store.cache.lock().await;
@@ -419,7 +421,7 @@ fn background_cache_request_handler(
                 continue;
             }
             // Put a `Fetching` state in the entry to prevent concurrent requests to the same path:
-            let _ = cache_lock.put_with_weight(path.clone(), CacheEntry::Fetching);
+            let _ = cache_lock.put_with_weight(path_cloned, CacheEntry::Fetching);
             // Drop the lock before spawning the task below
             drop(cache_lock);
             let mem_store_captured = Arc::clone(&mem_store);
