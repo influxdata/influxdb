@@ -14,7 +14,11 @@ futures.workspace = true
 futures-util.workspace = true
 reqwest.workspace = true
 parking_lot.workspace = true
+sysinfo.workspace = true
+num.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 test-log.workspace = true
+proptest.workspace = true
 

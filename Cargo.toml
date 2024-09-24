@@ -84,6 +84,7 @@ pretty_assertions = "1.4.0"
 prost = "0.12.6"
 prost-build = "0.12.6"
 prost-types = "0.12.6"
+proptest = { version = "1", default-features = false, features = ["std"] }
 rand = "0.8.5"
 reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls", "stream", "json"] }
 secrecy = "0.8.0"
@@ -110,6 +111,7 @@ unicode-segmentation = "1.11.0"
 url = "2.5.0"
 urlencoding = "1.1"
 uuid = { version = "1", features = ["v4"] }
+num = { version = "0.4.3" }
 
 # Core.git crates we depend on
 arrow_util = { git = "https://github.com/influxdata/influxdb3_core", rev = "1eaa4ed5ea147bc24db98d9686e457c124dfd5b7"}
