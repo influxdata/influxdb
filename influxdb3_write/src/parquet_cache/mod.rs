@@ -1,13 +1,20 @@
 //! An in-memory cache of Parquet files that are persisted to object storage
 use std::{
-    fmt::Debug, hash::RandomState, num::NonZeroUsize, ops::Range, sync::Arc, time::Duration,
+    fmt::Debug,
+    ops::Range,
+    sync::{
+        atomic::{AtomicI8, AtomicU8, AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Duration,
 };
 
+use anyhow::bail;
 use async_trait::async_trait;
 use bytes::Bytes;
-use clru::{CLruCache, CLruCacheConfig, WeightScale};
 use futures::{StreamExt, TryStreamExt};
 use futures_util::stream::BoxStream;
+use indexmap::{map::Entry, IndexMap};
 use object_store::{
     path::Path, Error, GetOptions, GetResult, GetResultPayload, ListResult, MultipartUpload,
     ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
@@ -16,7 +23,7 @@ use object_store::{
 use observability_deps::tracing::{error, info};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
-    oneshot, Mutex,
+    oneshot, watch, RwLock,
 };
 
 /// A request to fetch an item at the given `path` from an object store
@@ -108,59 +115,208 @@ struct CacheValue {
 impl CacheValue {
     /// Get the size of the cache value's memory footprint in bytes
     fn size(&self) -> usize {
-        // TODO(trevor): could also calculate the size of the metadata...
-        self.data.len()
+        let Self { data, meta } = self;
+        let ObjectMeta {
+            location,
+            last_modified: _,
+            size: _,
+            e_tag,
+            version,
+        } = meta;
+
+        data.len()
+            + location.as_ref().len()
+            + e_tag.as_ref().map(|s| s.capacity()).unwrap_or_default()
+            + version.as_ref().map(|s| s.capacity()).unwrap_or_default()
+    }
+}
+
+#[derive(Debug)]
+struct CacheEntry {
+    state: CacheEntryState,
+    /// A counter for tracking how many times this entry has been hit.
+    ///
+    /// When first created in the `Fetching` state, this will be set to -1, which will prevent
+    /// the fetching entry from being evicted by a prune operation
+    hits: AtomicI8,
+}
+
+impl CacheEntry {
+    /// Increment the used counter for this entry unless it is already at the maximum value
+    fn increment_hits(&self) {
+        let _ = self
+            .hits
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |x| {
+                if x == i8::MAX {
+                    None
+                } else {
+                    Some(x + 1)
+                }
+            });
+    }
+
+    /// Get the approximate memory footprint of this entry in bytes
+    fn size(&self) -> usize {
+        self.state.size() + std::mem::size_of::<AtomicU8>()
     }
 }
 
 /// The state of a cache entry
 #[derive(Debug)]
-enum CacheEntry {
+enum CacheEntryState {
     /// The cache entry is being fetched from object store
-    Fetching,
+    ///
+    /// This holds a [`watch::Sender`] that is used to notify requests made to get this entry
+    /// while it is being fetched by the cache oracle.
+    Fetching(watch::Sender<Option<Arc<CacheValue>>>),
     /// The cache entry was successfully fetched and is stored in the cache as a [`CacheValue`]
     Success(Arc<CacheValue>),
-    /// The request to the object store failed
-    Failed,
-    /// The cache entry was deleted
-    Deleted,
-    /// The object is too large for the cache
-    TooLarge,
 }
 
-impl CacheEntry {
-    /// Get the size of thje cache entry in bytes
+impl CacheEntryState {
+    /// Get the approximate size of the cache entry in bytes
     fn size(&self) -> usize {
         match self {
-            CacheEntry::Fetching => 0,
-            CacheEntry::Success(v) => v.size(),
-            CacheEntry::Failed => 0,
-            CacheEntry::Deleted => 0,
-            CacheEntry::TooLarge => 0,
+            CacheEntryState::Fetching(tx) => std::mem::size_of_val(tx),
+            CacheEntryState::Success(v) => v.size(),
+        }
+    }
+}
+
+/// A cache for storing objects from object storage by their [`Path`]
+#[derive(Debug)]
+struct Cache {
+    /// The maximum amount of memory this cache should occupy
+    capacity: usize,
+    /// The current amount of memory being used by the cache
+    used: AtomicUsize,
+    /// The maximum amount of memory to free during a prune operation
+    max_free_amount: usize,
+    /// The map storing cache entries
+    ///
+    /// This uses [`IndexMap`] to preserve insertion order, such that, when iterating over the map
+    /// to prune entries, older entries are removed before newer entries
+    map: RwLock<IndexMap<Path, CacheEntry>>,
+}
+
+impl Cache {
+    /// Create a new cache with a given capacity and max free percentage
+    ///
+    /// The cache's `max_free_amount` will be calculated using the provided values
+    fn new(capacity: usize, max_free_percentage: f64) -> Self {
+        Self {
+            capacity,
+            used: AtomicUsize::new(0),
+            max_free_amount: (capacity as f64 * max_free_percentage).floor() as usize,
+            map: RwLock::new(IndexMap::new()),
         }
     }
 
-    fn is_fetching(&self) -> bool {
-        matches!(self, CacheEntry::Fetching)
+    /// Get an entry in the cache or `None` if there is not an entry
+    ///
+    /// If the entry is in `Fetching` state, then this will await the etry having been fetched.
+    async fn get(&self, path: &Path) -> Option<Arc<CacheValue>> {
+        let map = self.map.read().await;
+        let entry = map.get(path)?;
+        match &entry.state {
+            CacheEntryState::Fetching(tx) => {
+                let mut rx = tx.subscribe();
+                // TODO(trevor): is it possible that the sender has sent the result at this point?
+                // if so we need to check the rx first and maybe use more sophisticated state than
+                // an Option in the watch channel type.
+                rx.changed().await.ok()?;
+                let v = rx.borrow_and_update().clone();
+                v
+            }
+            CacheEntryState::Success(v) => {
+                entry.increment_hits();
+                Some(Arc::clone(v))
+            }
+        }
     }
 
-    fn is_success(&self) -> bool {
-        matches!(self, CacheEntry::Success(_))
+    /// Check if an entry in the cache is in process of being fetched or if it was already fetched
+    /// successfully
+    async fn path_already_fetched(&self, path: &Path) -> bool {
+        self.map.read().await.get(path).is_some()
     }
 
-    fn keep(&self) -> bool {
-        self.is_fetching() || self.is_success()
+    /// Insert a `Fetching` entry to the cache with a watcher
+    async fn set_fetching(&self, path: &Path) {
+        let (tx, _) = watch::channel(None);
+        let entry = CacheEntry {
+            state: CacheEntryState::Fetching(tx),
+            hits: AtomicI8::new(-1),
+        };
+        let additional = entry.size();
+        self.map.write().await.insert(path.clone(), entry);
+        self.used.fetch_add(additional, Ordering::SeqCst);
     }
-}
 
-/// Implements the [`WeightScale`] trait to determine a [`CacheEntry`]'s size on insertion to
-/// the cache
-#[derive(Debug)]
-struct CacheEntryScale;
+    /// Update a `Fetching` entry to a `Success` entry in the cache
+    async fn set_success(&self, path: &Path, value: CacheValue) -> Result<(), anyhow::Error> {
+        match self.map.write().await.entry(path.clone()) {
+            Entry::Occupied(mut o) => {
+                let entry = o.get_mut();
+                let tx = match &entry.state {
+                    CacheEntryState::Fetching(tx) => tx.clone(),
+                    _ => bail!("attempted to set success state on a non-fetching cache entry"),
+                };
+                let cache_value = Arc::new(value);
+                entry.state = CacheEntryState::Success(Arc::clone(&cache_value));
+                entry.hits.store(1, Ordering::SeqCst);
+                // TODO(trevor): what if size is greater than cache capacity?
+                let additional = entry.size();
+                self.used.fetch_add(additional, Ordering::SeqCst);
+                let _ = tx.send(Some(cache_value));
+                Ok(())
+            }
+            Entry::Vacant(_) => bail!("attempted to set success state on an empty cache entry"),
+        }
+    }
 
-impl WeightScale<Path, CacheEntry> for CacheEntryScale {
-    fn weight(&self, key: &Path, value: &CacheEntry) -> usize {
-        key.as_ref().len() + value.size()
+    /// Remove an entry from the cache, as well as its associated size from the used capacity
+    async fn remove(&self, path: &Path) {
+        let Some(entry) = self.map.write().await.shift_remove(path) else {
+            return;
+        };
+        self.used.fetch_sub(entry.state.size(), Ordering::SeqCst);
+    }
+
+    /// A cache should be pruned if it is using all of its memory capacity
+    fn should_prune(&self) -> bool {
+        let used = self.used.load(Ordering::SeqCst);
+        used >= self.capacity
+    }
+
+    /// Prune unused entries from the cache until the `max_freed_amount` has been pruned
+    ///
+    /// Entries that have been used will have their used counts decremented
+    async fn prune(&self) {
+        let mut freed = 0;
+        self.map.write().await.retain(|_, entry| {
+            if freed >= self.max_free_amount {
+                return true;
+            }
+            let hits = entry.hits.load(Ordering::SeqCst);
+            match hits.cmp(&0) {
+                std::cmp::Ordering::Less => {
+                    // entries that are < 0 are fetching, so we keep those
+                    true
+                }
+                std::cmp::Ordering::Equal => {
+                    // prune entries that have not been hit
+                    freed += entry.state.size();
+                    false
+                }
+                std::cmp::Ordering::Greater => {
+                    // decrement this entry's hit count for subsequent prunes
+                    entry.hits.fetch_sub(1, Ordering::SeqCst);
+                    true
+                }
+            }
+        });
+        self.used.fetch_sub(freed, Ordering::SeqCst);
     }
 }
 
@@ -175,55 +331,16 @@ const STORE_NAME: &str = "mem_cached_object_store";
 pub struct MemCachedObjectStore {
     /// An inner object store for which items will be cached
     inner: Arc<dyn ObjectStore>,
-    /// A weighted LRU cache for storing the objects associated with a given path in memory
-    // NOTE(trevor): this uses a mutex as the CLruCache type needs &mut self for its get method, so
-    // we always need an exclusive lock on the cache. If this creates a performance bottleneck then
-    // we will need to look for alternatives.
-    //
-    // A Tokio mutex is used to prevent blocking the thread while waiting for a lock, and so that
-    // the lock can be held accross await points.
-    cache: Arc<Mutex<CLruCache<Path, CacheEntry, RandomState, CacheEntryScale>>>,
+    cache: Arc<Cache>,
 }
 
 impl MemCachedObjectStore {
     /// Create a new [`MemCachedObjectStore`] with the given memory capacity
     fn new(inner: Arc<dyn ObjectStore>, memory_capacity: usize) -> Self {
-        let cache = CLruCache::with_config(
-            CLruCacheConfig::new(NonZeroUsize::new(memory_capacity).unwrap())
-                .with_scale(CacheEntryScale),
-        );
         Self {
             inner,
-            cache: Arc::new(Mutex::new(cache)),
+            cache: Arc::new(Cache::new(memory_capacity, 0.1)),
         }
-    }
-
-    /// Get an entry in the cache if it contains a successful fetch result, or `None` otherwise
-    ///
-    /// This requires `&mut self` as the underlying method on the cache requires a mutable reference
-    /// in order to update the recency of the entry in the cache
-    async fn get_cache_value(&self, path: &Path) -> Option<Arc<CacheValue>> {
-        self.cache
-            .lock()
-            .await
-            .get(path)
-            .and_then(|entry| match entry {
-                CacheEntry::Fetching
-                | CacheEntry::Failed
-                | CacheEntry::Deleted
-                | CacheEntry::TooLarge => None,
-                CacheEntry::Success(v) => Some(Arc::clone(v)),
-            })
-    }
-
-    /// Set the state of a cache entry to `Deleted`, since we cannot remove elements from the
-    /// cache directly.
-    async fn delete_cache_value(&self, path: &Path) {
-        let _ = self
-            .cache
-            .lock()
-            .await
-            .put_with_weight(path.clone(), CacheEntry::Deleted);
     }
 }
 
@@ -270,7 +387,7 @@ impl ObjectStore for MemCachedObjectStore {
     /// Get an object from the object store. If this object is cached, then it will not make a request
     /// to the inner object store.
     async fn get(&self, location: &Path) -> ObjectStoreResult<GetResult> {
-        if let Some(v) = self.get_cache_value(location).await {
+        if let Some(v) = self.cache.get(location).await {
             Ok(GetResult {
                 payload: GetResultPayload::Stream(
                     futures::stream::iter([Ok(v.data.clone())]).boxed(),
@@ -306,7 +423,7 @@ impl ObjectStore for MemCachedObjectStore {
         location: &Path,
         ranges: &[Range<usize>],
     ) -> ObjectStoreResult<Vec<Bytes>> {
-        if let Some(v) = self.get_cache_value(location).await {
+        if let Some(v) = self.cache.get(location).await {
             ranges
                 .iter()
                 .map(|range| {
@@ -340,7 +457,7 @@ impl ObjectStore for MemCachedObjectStore {
     }
 
     async fn head(&self, location: &Path) -> ObjectStoreResult<ObjectMeta> {
-        if let Some(v) = self.get_cache_value(location).await {
+        if let Some(v) = self.cache.get(location).await {
             Ok(v.meta.clone())
         } else {
             self.inner.head(location).await
@@ -350,7 +467,7 @@ impl ObjectStore for MemCachedObjectStore {
     /// Delete an object on object store, but also remove it from the cache.
     async fn delete(&self, location: &Path) -> ObjectStoreResult<()> {
         let result = self.inner.delete(location).await?;
-        self.delete_cache_value(location).await;
+        self.cache.remove(location).await;
         Ok(result)
     }
 
@@ -409,61 +526,40 @@ fn background_cache_request_handler(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         while let Some(CacheRequest { path, notifier }) = rx.recv().await {
-            // clone the path before acquiring the lock:
-            let path_cloned = path.clone();
-            // Check that the cache does not already contain an entry for the provide path, or that
-            // it is not already in the process of fetching the given path:
-            let mut cache_lock = mem_store.cache.lock().await;
-            if cache_lock
-                .get(&path)
-                .is_some_and(|entry| entry.is_fetching() || entry.is_success())
-            {
+            // We assume that objects on object store are immutable, so we can skip objects that
+            // we have already fetched:
+            if mem_store.cache.path_already_fetched(&path).await {
                 continue;
             }
             // Put a `Fetching` state in the entry to prevent concurrent requests to the same path:
-            let _ = cache_lock.put_with_weight(path_cloned, CacheEntry::Fetching);
-            // Drop the lock before spawning the task below
-            drop(cache_lock);
+            mem_store.cache.set_fetching(&path).await;
             let mem_store_captured = Arc::clone(&mem_store);
             tokio::spawn(async move {
-                let cache_insertion_result = match mem_store_captured.inner.get(&path).await {
+                match mem_store_captured.inner.get(&path).await {
                     Ok(result) => {
                         let meta = result.meta.clone();
                         match result.bytes().await {
-                            Ok(data) => mem_store_captured.cache.lock().await.put_with_weight(
-                                path,
-                                CacheEntry::Success(Arc::new(CacheValue { data, meta })),
-                            ),
+                            Ok(data) => {
+                                if let Err(error) = mem_store_captured
+                                    .cache
+                                    .set_success(&path, CacheValue { data, meta })
+                                    .await
+                                {
+                                    error!(%error, "failed to set the success state on the cache");
+                                    mem_store_captured.cache.remove(&path).await;
+                                };
+                            }
                             Err(error) => {
                                 error!(%error, "failed to retrieve payload from object store get result");
-                                mem_store_captured
-                                    .cache
-                                    .lock()
-                                    .await
-                                    .put_with_weight(path, CacheEntry::Failed)
+                                mem_store_captured.cache.remove(&path).await;
                             }
                         }
                     }
                     Err(error) => {
                         error!(%error, "failed to fulfill cache request with object store");
-                        mem_store_captured
-                            .cache
-                            .lock()
-                            .await
-                            .put_with_weight(path, CacheEntry::Failed)
+                        mem_store_captured.cache.remove(&path).await;
                     }
                 };
-                // If an entry would not fit in the cache at all, the put_with_weight method returns
-                // it as an Err from above, and we would not have cleared the `Fetching` entry, so
-                // we need to do that here:
-                if let Err((k, _)) = cache_insertion_result {
-                    mem_store_captured
-                        .cache
-                        .lock()
-                        .await
-                        .put_with_weight(k, CacheEntry::TooLarge)
-                        .expect("cache capacity is too small");
-                }
                 // notify that the cache request has been fulfilled:
                 let _ = notifier.send(());
             });
@@ -476,19 +572,21 @@ fn background_cache_request_handler(
 // TODO(trevor): the interval could be configurable
 fn background_cache_pruner(mem_store: Arc<MemCachedObjectStore>) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        let mut interval = tokio::time::interval(Duration::from_millis(10));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             interval.tick().await;
 
-            mem_store.cache.lock().await.retain(|_, entry| entry.keep());
+            if mem_store.cache.should_prune() {
+                mem_store.cache.prune().await;
+            }
         }
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{ops::Range, sync::Arc};
+    use std::{ops::Range, sync::Arc, time::Duration};
 
     use arrow::datatypes::ToByteSlice;
     use async_trait::async_trait;
@@ -564,12 +662,13 @@ mod tests {
     #[tokio::test]
     async fn cache_evicts_lru_when_full() {
         let inner_store = Arc::new(TestObjectStore::new(Arc::new(InMemory::new())));
-        let cache_capacity_bytes = 32;
+        // this is a magic number that will make it so the third entry exceeds the cache capacity:
+        let cache_capacity_bytes = 72;
         let (cached_store, oracle) =
             create_cached_obj_store_and_oracle(Arc::clone(&inner_store) as _, cache_capacity_bytes);
         // PUT an entry into the store:
-        let path_1 = Path::from("0.parquet"); // 9 bytes for path
-        let payload_1 = b"Janeway"; // 7 bytes for payload
+        let path_1 = Path::from("0.parquet");
+        let payload_1 = b"Janeway";
         cached_store
             .put(&path_1, PutPayload::from_static(payload_1))
             .await
@@ -590,15 +689,15 @@ mod tests {
         assert_eq!(1, inner_store.get_request_count(&path_1));
 
         // PUT a second entry into the store:
-        let path_2 = Path::from("1.parquet"); // 9 bytes for path
-        let payload_2 = b"Paris"; // 5 bytes for payload
+        let path_2 = Path::from("1.parquet");
+        let payload_2 = b"Paris";
         cached_store
             .put(&path_2, PutPayload::from_static(payload_2))
             .await
             .unwrap();
 
         // cache the second entry and wait for it to complete, this will not evict the first entry
-        // as both can fit in the cache whose capacity is 32 bytes:
+        // as both can fit in the cache:
         let (cache_request, notifier_rx) = CacheRequest::create(path_2.clone());
         oracle.register(cache_request);
         let _ = notifier_rx.await;
@@ -615,21 +714,21 @@ mod tests {
         assert_eq!(1, inner_store.get_request_count(&path_2));
 
         // GET the first entry again and assert that it was retrieved from the cache as before. This
-        // will also update the LRU so that the first entry (janeway) was used more recently than the
-        // second entry (paris):
+        // will also update the hit count so that the first entry (janeway) was used more recently
+        // than the second entry (paris):
         assert_payload_at_equals!(cached_store, payload_1, path_1);
         assert_eq!(2, inner_store.total_get_request_count());
         assert_eq!(1, inner_store.get_request_count(&path_1));
 
         // PUT a third entry into the store:
-        let path_3 = Path::from("2.parquet"); // 9 bytes for the path
-        let payload_3 = b"Neelix"; // 6 bytes for the payload
+        let path_3 = Path::from("2.parquet");
+        let payload_3 = b"Neelix";
         cached_store
             .put(&path_3, PutPayload::from_static(payload_3))
             .await
             .unwrap();
-        // cache the third entry and wait for it to complete, this will evict paris from the cache
-        // as the LRU entry:
+        // cache the third entry and wait for it to complete, this will push the cache past its
+        // capacity:
         let (cache_request, notifier_rx) = CacheRequest::create(path_3.clone());
         oracle.register(cache_request);
         let _ = notifier_rx.await;
@@ -648,6 +747,7 @@ mod tests {
 
         // GET paris from the cached store, this will not be served by the cache, because paris was
         // evicted by neelix:
+        tokio::time::sleep(Duration::from_millis(100)).await;
         assert_payload_at_equals!(cached_store, payload_2, path_2);
         assert_eq!(4, inner_store.total_get_request_count());
         assert_eq!(1, inner_store.get_request_count(&path_1));
