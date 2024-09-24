@@ -5,9 +5,9 @@ pub mod queryable_buffer;
 mod table_buffer;
 pub(crate) mod validator;
 
-use crate::cache::ParquetCache;
 use crate::chunk::ParquetChunk;
 use crate::last_cache::{self, CreateCacheArguments, LastCacheProvider};
+use crate::parquet_cache::ParquetCacheOracle;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
@@ -22,7 +22,6 @@ use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
-use datafusion::physical_plan::SendableRecordBatchStream;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_wal::object_store::WalObjectStore;
 use influxdb3_wal::CatalogOp::CreateLastCache;
@@ -106,7 +105,10 @@ pub struct WriteRequest<'a> {
 pub struct WriteBufferImpl {
     catalog: Arc<Catalog>,
     persister: Arc<Persister>,
-    parquet_cache: Arc<ParquetCache>,
+    // NOTE(trevor): the parquet cache interface may be used to register other cache
+    // requests from the write buffer, e.g., during query...
+    #[allow(dead_code)]
+    parquet_cache: Arc<dyn ParquetCacheOracle>,
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<QueryableBuffer>,
     wal_config: WalConfig,
@@ -126,6 +128,7 @@ impl WriteBufferImpl {
         time_provider: Arc<dyn TimeProvider>,
         executor: Arc<iox_query::exec::Executor>,
         wal_config: WalConfig,
+        parquet_cache: Arc<dyn ParquetCacheOracle>,
     ) -> Result<Self> {
         // load snapshots and replay the wal into the in memory buffer
         let persisted_snapshots = persister
@@ -159,6 +162,7 @@ impl WriteBufferImpl {
             Arc::clone(&persister),
             Arc::clone(&last_cache),
             Arc::clone(&persisted_files),
+            Arc::clone(&parquet_cache),
         ));
 
         // create the wal instance, which will replay into the queryable buffer and start
@@ -175,7 +179,7 @@ impl WriteBufferImpl {
 
         Ok(Self {
             catalog,
-            parquet_cache: Arc::new(ParquetCache::new(&persister.mem_pool)),
+            parquet_cache,
             persister,
             wal_config,
             wal,
@@ -329,93 +333,7 @@ impl WriteBufferImpl {
             chunks.push(Arc::new(parquet_chunk));
         }
 
-        // Get any cached files and add them to the query
-        // This is mostly the same as above, but we change the object store to
-        // point to the in memory cache
-        for parquet_file in self
-            .parquet_cache
-            .get_parquet_files(database_name, table_name)
-        {
-            let partition_key = data_types::PartitionKey::from(parquet_file.path.clone());
-            let partition_id = data_types::partition::TransitionPartitionId::new(
-                data_types::TableId::new(0),
-                &partition_key,
-            );
-
-            let chunk_stats = create_chunk_statistics(
-                Some(parquet_file.row_count as usize),
-                &table_schema,
-                Some(parquet_file.timestamp_min_max()),
-                &NoColumnRanges,
-            );
-
-            let location = ObjPath::from(parquet_file.path.clone());
-
-            let parquet_exec = ParquetExecInput {
-                object_store_url: self.persister.object_store_url().clone(),
-                object_meta: ObjectMeta {
-                    location,
-                    last_modified: Default::default(),
-                    size: parquet_file.size_bytes as usize,
-                    e_tag: None,
-                    version: None,
-                },
-                object_store: Arc::clone(&self.parquet_cache.object_store()),
-            };
-
-            let parquet_chunk = ParquetChunk {
-                schema: table_schema.clone(),
-                stats: Arc::new(chunk_stats),
-                partition_id,
-                sort_key: None,
-                id: ChunkId::new(),
-                chunk_order: ChunkOrder::new(chunk_order),
-                parquet_exec,
-            };
-
-            chunk_order += 1;
-
-            chunks.push(Arc::new(parquet_chunk));
-        }
-
         Ok(chunks)
-    }
-
-    pub async fn cache_parquet(
-        &self,
-        db_name: &str,
-        table_name: &str,
-        min_time: i64,
-        max_time: i64,
-        records: SendableRecordBatchStream,
-    ) -> Result<(), Error> {
-        Ok(self
-            .parquet_cache
-            .persist_parquet_file(db_name, table_name, min_time, max_time, records, None)
-            .await?)
-    }
-
-    pub async fn update_parquet(
-        &self,
-        db_name: &str,
-        table_name: &str,
-        min_time: i64,
-        max_time: i64,
-        path: ObjPath,
-        records: SendableRecordBatchStream,
-    ) -> Result<(), Error> {
-        Ok(self
-            .parquet_cache
-            .persist_parquet_file(db_name, table_name, min_time, max_time, records, Some(path))
-            .await?)
-    }
-
-    pub async fn remove_parquet(&self, path: ObjPath) -> Result<(), Error> {
-        Ok(self.parquet_cache.remove_parquet_file(path).await?)
-    }
-
-    pub async fn purge_cache(&self) -> Result<(), Error> {
-        Ok(self.parquet_cache.purge_cache().await?)
     }
 }
 
@@ -607,6 +525,7 @@ impl WriteBuffer for WriteBufferImpl {}
 #[allow(clippy::await_holding_lock)]
 mod tests {
     use super::*;
+    use crate::parquet_cache::test_cached_obj_store_and_oracle;
     use crate::paths::{CatalogFilePath, SnapshotInfoFilePath};
     use crate::persister::Persister;
     use crate::PersistedSnapshot;
@@ -651,6 +570,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn writes_data_to_wal_and_is_queryable() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(object_store);
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let catalog = persister.load_or_create_catalog().await.unwrap();
         let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
@@ -663,6 +583,7 @@ mod tests {
             Arc::clone(&time_provider),
             crate::test_help::make_exec(),
             WalConfig::test_config(),
+            Arc::clone(&parquet_cache),
         )
         .await
         .unwrap();
@@ -741,6 +662,7 @@ mod tests {
                 flush_interval: Duration::from_millis(50),
                 snapshot_size: 100,
             },
+            Arc::clone(&parquet_cache),
         )
         .await
         .unwrap();
@@ -751,9 +673,10 @@ mod tests {
 
     #[tokio::test]
     async fn last_cache_create_and_delete_is_durable() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let (wbuf, _ctx) = setup(
             Time::from_timestamp_nanos(0),
-            Arc::new(InMemory::new()),
+            Arc::clone(&obj_store),
             WalConfig {
                 gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
@@ -795,6 +718,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
             },
+            Arc::clone(&wbuf.parquet_cache),
         )
         .await
         .unwrap();
@@ -832,6 +756,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
             },
+            Arc::clone(&wbuf.parquet_cache),
         )
         .await
         .unwrap();
@@ -888,6 +813,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
             },
+            Arc::clone(&wbuf.parquet_cache),
         )
         .await
         .unwrap();
@@ -1041,6 +967,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
             },
+            Arc::clone(&write_buffer.parquet_cache),
         )
         .await
         .unwrap();
@@ -1728,6 +1655,7 @@ mod tests {
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
     ) -> (WriteBufferImpl, IOxSessionContext) {
+        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(object_store);
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
         let catalog = persister.load_or_create_catalog().await.unwrap();
@@ -1739,6 +1667,7 @@ mod tests {
             Arc::clone(&time_provider),
             crate::test_help::make_exec(),
             wal_config,
+            parquet_cache,
         )
         .await
         .unwrap();

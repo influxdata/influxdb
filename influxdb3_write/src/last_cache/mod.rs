@@ -1567,6 +1567,7 @@ mod tests {
 
     use crate::{
         last_cache::{KeyValue, LastCacheProvider, Predicate, DEFAULT_CACHE_TTL},
+        parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister,
         write_buffer::WriteBufferImpl,
         Bufferer, LastCacheManager, Precision,
@@ -1582,6 +1583,7 @@ mod tests {
 
     async fn setup_write_buffer() -> WriteBufferImpl {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let (obj_store, parquet_cache) = test_cached_obj_store_and_oracle(obj_store);
         let persister = Arc::new(Persister::new(obj_store, "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let host_id = Arc::from("dummy-host-id");
@@ -1593,6 +1595,7 @@ mod tests {
             time_provider,
             crate::test_help::make_exec(),
             WalConfig::test_config(),
+            parquet_cache,
         )
         .await
         .unwrap()

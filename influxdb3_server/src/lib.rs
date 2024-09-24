@@ -230,6 +230,7 @@ mod tests {
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::WalConfig;
     use influxdb3_write::last_cache::LastCacheProvider;
+    use influxdb3_write::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_write::persister::Persister;
     use influxdb3_write::WriteBuffer;
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
@@ -744,6 +745,7 @@ mod tests {
         let common_state =
             crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser).unwrap();
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
+        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(object_store);
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
         let exec = Arc::new(Executor::new_with_config_and_executor(
@@ -771,6 +773,7 @@ mod tests {
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&exec),
                 WalConfig::test_config(),
+                parquet_cache,
             )
             .await
             .unwrap(),

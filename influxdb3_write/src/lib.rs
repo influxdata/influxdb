@@ -7,6 +7,7 @@
 pub mod cache;
 pub mod chunk;
 pub mod last_cache;
+pub mod parquet_cache;
 pub mod paths;
 pub mod persister;
 pub mod write_buffer;
