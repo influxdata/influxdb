@@ -3,7 +3,7 @@ use std::{
     fmt::Debug,
     ops::Range,
     sync::{
-        atomic::{AtomicI8, AtomicU8, AtomicUsize, Ordering},
+        atomic::{AtomicI8, AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -20,7 +20,7 @@ use object_store::{
     ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
     Result as ObjectStoreResult,
 };
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{error, info, warn};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     oneshot, watch, RwLock,
@@ -157,7 +157,7 @@ impl CacheEntry {
 
     /// Get the approximate memory footprint of this entry in bytes
     fn size(&self) -> usize {
-        self.state.size() + std::mem::size_of::<AtomicU8>()
+        self.state.size() + std::mem::size_of::<AtomicI8>()
     }
 }
 
@@ -195,7 +195,8 @@ struct Cache {
     /// The map storing cache entries
     ///
     /// This uses [`IndexMap`] to preserve insertion order, such that, when iterating over the map
-    /// to prune entries, older entries are removed before newer entries
+    /// to prune entries, iteration occurs in the order that entries were inserted. This will have
+    /// older entries removed before newer entries
     map: RwLock<IndexMap<Path, CacheEntry>>,
 }
 
@@ -264,10 +265,13 @@ impl Cache {
                 };
                 let cache_value = Arc::new(value);
                 entry.state = CacheEntryState::Success(Arc::clone(&cache_value));
-                entry.hits.store(1, Ordering::SeqCst);
+                let watch_count = tx.receiver_count().min((i8::MAX - 1) as usize);
+                entry.hits.store((watch_count + 1) as i8, Ordering::SeqCst);
                 // TODO(trevor): what if size is greater than cache capacity?
                 let additional = entry.size();
                 self.used.fetch_add(additional, Ordering::SeqCst);
+                // notify any watching requests that tried to get this entry while it was
+                // fetching:
                 let _ = tx.send(Some(cache_value));
                 Ok(())
             }
@@ -276,6 +280,9 @@ impl Cache {
     }
 
     /// Remove an entry from the cache, as well as its associated size from the used capacity
+    ///
+    /// This operation has *O(N)* time complexity since the underlying index map needs to have
+    /// its elements removed with their order preserved.
     async fn remove(&self, path: &Path) {
         let Some(entry) = self.map.write().await.shift_remove(path) else {
             return;
@@ -336,6 +343,7 @@ pub struct MemCachedObjectStore {
 
 impl MemCachedObjectStore {
     /// Create a new [`MemCachedObjectStore`] with the given memory capacity
+    // TODO(trevor): configurable free percentage, which is hard-coded at 10% right now
     fn new(inner: Arc<dyn ObjectStore>, memory_capacity: usize) -> Self {
         Self {
             inner,
@@ -545,8 +553,11 @@ fn background_cache_request_handler(
                                     .set_success(&path, CacheValue { data, meta })
                                     .await
                                 {
-                                    error!(%error, "failed to set the success state on the cache");
-                                    mem_store_captured.cache.remove(&path).await;
+                                    // NOTE(trevor): this would be an error if A) it tried to insert on an already
+                                    // successful entry, or B) it tried to insert on an empty entry, in either case
+                                    // we do not need to remove the entry to clear the fetching state, as in the
+                                    // other failure modes below...
+                                    warn!(%error, "failed to set the success state on the cache");
                                 };
                             }
                             Err(error) => {
@@ -745,9 +756,11 @@ mod tests {
         assert_eq!(1, inner_store.get_request_count(&path_2));
         assert_eq!(1, inner_store.get_request_count(&path_3));
 
+        // allow some time for pruning:
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
         // GET paris from the cached store, this will not be served by the cache, because paris was
         // evicted by neelix:
-        tokio::time::sleep(Duration::from_millis(100)).await;
         assert_payload_at_equals!(cached_store, payload_2, path_2);
         assert_eq!(4, inner_store.total_get_request_count());
         assert_eq!(1, inner_store.get_request_count(&path_1));
