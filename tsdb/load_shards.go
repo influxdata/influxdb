@@ -2,10 +2,6 @@ package tsdb
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/pkg/limiter"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,6 +9,11 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/pkg/limiter"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // res holds the result from opening each shard in a goroutine
