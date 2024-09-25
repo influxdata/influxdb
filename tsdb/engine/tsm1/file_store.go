@@ -635,7 +635,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 					// be left untouched, and the vm.max_map_count be raised.
 					f.logger.Error("Cannot read TSM file, system limit for vm.max_map_count may be too low",
 						zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(err))
-					readerC <- &res{r: df, err: fmt.Errorf("cannot read file %s, system limit for vm.max_map_count may be too low: %v", file.Name(), err)}
+					readerC <- &res{r: df, err: fmt.Errorf("cannot read file %s, system limit for vm.max_map_count may be too low: %w", file.Name(), err)}
 					return
 				} else {
 					// If the file is corrupt, rename it and
@@ -643,10 +643,10 @@ func (f *FileStore) Open(ctx context.Context) error {
 					f.logger.Error("Cannot read corrupt tsm file, renaming", zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(err))
 					if e := os.Rename(file.Name(), file.Name()+"."+BadTSMFileExtension); e != nil {
 						f.logger.Error("Cannot rename corrupt tsm file", zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(e))
-						readerC <- &res{r: df, err: fmt.Errorf("cannot rename corrupt file %s: %v", file.Name(), e)}
+						readerC <- &res{r: df, err: fmt.Errorf("cannot rename corrupt file %s: %w", file.Name(), e)}
 						return
 					}
-					readerC <- &res{r: df, err: fmt.Errorf("cannot read corrupt file %s: %v", file.Name(), err)}
+					readerC <- &res{r: df, err: fmt.Errorf("cannot read corrupt file %s: %w", file.Name(), err)}
 					return
 				}
 			}
