@@ -801,9 +801,9 @@ fn validate_auth_header(header: HeaderValue) -> Result<Vec<u8>, AuthorizationErr
     // Split the header value into two parts
     let mut header = header.to_str()?.split(' ');
 
-    // Check that the header is the 'Bearer' auth scheme
-    let bearer = header.next().ok_or(AuthorizationError::MalformedRequest)?;
-    if bearer != "Bearer" {
+    // Check that the header is the 'Bearer' or 'Token' auth scheme
+    let auth_scheme = header.next().ok_or(AuthorizationError::MalformedRequest)?;
+    if auth_scheme != "Bearer" && auth_scheme != "Token" {
         return Err(AuthorizationError::MalformedRequest);
     }
 
