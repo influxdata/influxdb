@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use num::Float;
 use observability_deps::tracing::{debug, warn};
 use serde::Serialize;
 
@@ -71,15 +72,15 @@ struct TelemetryStoreInner {
     storage_type: Arc<str>,
     cores: usize,
 
-    cpu_utilization_percent_min: f64,
-    cpu_utilization_percent_max: f64,
-    cpu_utilization_percent_avg: f64,
+    cpu_utilization_percent_min: f32,
+    cpu_utilization_percent_max: f32,
+    cpu_utilization_percent_avg: f32,
 
     memory_used_mb_min: u64,
     memory_used_mb_max: u64,
     memory_used_mb_avg: u64,
 
-    num_samples_cpu_mem: u64,
+    num_samples_cpu_mem: usize,
 }
 
 impl TelemetryStoreInner {
@@ -169,8 +170,7 @@ impl TelemetryStoreInner {
         Some(())
     }
 
-    fn add_cpu_utilization(&mut self, value: f32) -> Option<()> {
-        let cpu_used: f64 = value.into();
+    fn add_cpu_utilization(&mut self, cpu_used: f32) -> Option<()> {
         let (min, max, avg) = if self.num_samples_cpu_mem == 0 {
             (cpu_used, cpu_used, cpu_used)
         } else {
@@ -189,8 +189,9 @@ impl TelemetryStoreInner {
     }
 }
 
-fn to_2_decimal_places(avg: f64) -> f64 {
-    (avg * 100.0).round() / 100.0
+fn to_2_decimal_places<T: Float>(avg: T) -> T {
+    let hundred_float = num::cast(100.0).unwrap();
+    (avg * hundred_float).round() / hundred_float
 }
 
 #[derive(Serialize, Debug)]
@@ -202,9 +203,9 @@ pub(crate) struct TelemetryPayload {
     pub cores: usize,
     pub product_type: &'static str,
     // cpu
-    pub cpu_utilization_percent_min: f64,
-    pub cpu_utilization_percent_max: f64,
-    pub cpu_utilization_percent_avg: f64,
+    pub cpu_utilization_percent_min: f32,
+    pub cpu_utilization_percent_max: f32,
+    pub cpu_utilization_percent_avg: f32,
     // mem
     pub memory_used_mb_min: u64,
     pub memory_used_mb_max: u64,

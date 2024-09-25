@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use observability_deps::tracing::{debug, error};
+use observability_deps::tracing::debug;
 
 use crate::store::{TelemetryPayload, TelemetryStore};
 use crate::{Result, TelemetryError};
@@ -45,7 +45,9 @@ pub(crate) async fn send_telemetry_in_background(
             interval.tick().await;
             let telemetry = store.snapshot();
             if let Err(e) = telem_sender.try_sending(&telemetry).await {
-                error!(error = ?e, "Cannot send telemetry");
+                // TODO: change to error! - until endpoint is decided keep
+                //       this as debug log
+                debug!(error = ?e, "Cannot send telemetry");
             }
             // if we tried sending and failed, we currently still reset the
             // metrics, it is ok to miss few samples
