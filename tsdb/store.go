@@ -53,12 +53,6 @@ const SeriesFileDirectory = "_series"
 // databaseState keeps track of the state of a database.
 type databaseState struct{ indexTypes map[string]int }
 
-// res holds the result from opening each shard in a goroutine
-type res struct {
-	s   *Shard
-	err error
-}
-
 // addIndexType records that the database has a shard with the given index type.
 func (d *databaseState) addIndexType(indexType string) {
 	if d.indexTypes == nil {

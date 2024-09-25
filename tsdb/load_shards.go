@@ -15,7 +15,13 @@ import (
 	"time"
 )
 
-type ShardContext struct {
+// res holds the result from opening each shard in a goroutine
+type res struct {
+	s   *Shard
+	err error
+}
+
+type shardLoadingContext struct {
 	db    os.DirEntry
 	rp    os.DirEntry
 	sh    os.DirEntry
@@ -34,7 +40,7 @@ func (s *Store) loadShards() error {
 	}
 
 	if s.startupProgressMetrics != nil {
-		err := s.traverseShardsAndProcess(func(ctx *ShardContext) error {
+		err := s.traverseShardsAndProcess(func(ctx *shardLoadingContext) error {
 			s.startupProgressMetrics.AddShard()
 			return nil
 		}, dbDirs, shardCtx)
@@ -43,7 +49,7 @@ func (s *Store) loadShards() error {
 		}
 	}
 
-	err = s.traverseShardsAndProcess(func(ctx *ShardContext) error {
+	err = s.traverseShardsAndProcess(func(ctx *shardLoadingContext) error {
 		err := s.loadShard(ctx)
 		if err != nil {
 			return err
@@ -58,7 +64,7 @@ func (s *Store) loadShards() error {
 	return nil
 }
 
-func (s *Store) enableShards(ctx *ShardContext) error {
+func (s *Store) enableShards(ctx *shardLoadingContext) error {
 	go func() {
 		ctx.wg.Wait()
 		close(ctx.resC)
@@ -100,7 +106,7 @@ func (s *Store) enableShards(ctx *ShardContext) error {
 	return nil
 }
 
-func (s *Store) setupShardLoader() (error, *ShardContext, []os.DirEntry) {
+func (s *Store) setupShardLoader() (error, *shardLoadingContext, []os.DirEntry) {
 	// Limit the number of concurrent TSM files to be opened to the number of cores.
 	s.EngineOptions.OpenLimiter = limiter.NewFixed(runtime.GOMAXPROCS(0))
 
@@ -158,7 +164,7 @@ func (s *Store) setupShardLoader() (error, *ShardContext, []os.DirEntry) {
 		return err, nil, nil
 	}
 
-	return nil, &ShardContext{
+	return nil, &shardLoadingContext{
 		log:  log,
 		t:    t,
 		resC: resC,
@@ -212,7 +218,7 @@ func (s *Store) getShards(rpDir os.DirEntry, dbDir os.DirEntry, log *zap.Logger)
 	return shardDirs, nil
 }
 
-func (s *Store) traverseShardsAndProcess(fn func(ctx *ShardContext) error, dbDirs []os.DirEntry, sharedContext *ShardContext) error {
+func (s *Store) traverseShardsAndProcess(fn func(ctx *shardLoadingContext) error, dbDirs []os.DirEntry, sharedContext *shardLoadingContext) error {
 	for _, db := range dbDirs {
 		rpDirs, err := s.getRetentionPolicyDirs(db, sharedContext.log)
 		if err != nil {
@@ -248,7 +254,7 @@ func (s *Store) traverseShardsAndProcess(fn func(ctx *ShardContext) error, dbDir
 					continue
 				}
 
-				ctx := &ShardContext{
+				ctx := &shardLoadingContext{
 					db:    db,
 					rp:    rp,
 					sh:    sh,
@@ -270,7 +276,7 @@ func (s *Store) traverseShardsAndProcess(fn func(ctx *ShardContext) error, dbDir
 	return nil
 }
 
-func (s *Store) loadShard(opts *ShardContext) error {
+func (s *Store) loadShard(opts *shardLoadingContext) error {
 	opts.wg.Add(1)
 
 	go func(db, rp, sh string) {
@@ -343,7 +349,7 @@ func (s *Store) loadShard(opts *ShardContext) error {
 	return nil
 }
 
-func (s *Store) loadAllShardsById(opts *ShardContext, shardIds []uint64) error {
+func (s *Store) loadAllShardsById(opts *shardLoadingContext, shardIds []uint64) error {
 	shardID, err := strconv.ParseUint(opts.sh.Name(), 10, 64)
 	if err != nil {
 		return err
