@@ -42,7 +42,7 @@ impl CpuAndMemorySampler {
     }
 }
 
-pub(crate) async fn sample_cpu_and_memory(
+pub(crate) async fn sample_metrics(
     store: Arc<TelemetryStore>,
     duration_secs: Duration,
 ) -> tokio::task::JoinHandle<()> {
@@ -57,6 +57,7 @@ pub(crate) async fn sample_cpu_and_memory(
             interval.tick().await;
             if let Ok((cpu_used, memory_used)) = sampler.get_cpu_and_mem_used() {
                 store.add_cpu_and_memory(cpu_used, memory_used);
+                store.rollup_events();
             }
         }
     })
