@@ -32,7 +32,6 @@ use influxdb3_pro_data_layout::{
 };
 use influxdb3_pro_index::FileIndex;
 use influxdb3_write::chunk::ParquetChunk;
-use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
 use influxdb3_write::ParquetFileId;
 use influxdb3_write::{ParquetFile, PersistedSnapshot};
 use iox_query::chunk_statistics::create_chunk_statistics;
@@ -47,7 +46,7 @@ use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use object_store::PutPayload;
 use object_store::PutResult;
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{debug, error, info};
 use parquet::arrow::async_writer::AsyncFileWriter;
 use parquet::arrow::AsyncArrowWriter;
 use parquet::errors::ParquetError;
@@ -157,6 +156,7 @@ impl Compactor {
         compactor_config: CompactorConfig,
         catalog: Arc<Catalog>,
         object_store: Arc<dyn ObjectStore>,
+        object_store_url: ObjectStoreUrl,
         executor: Arc<Executor>,
         persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
     ) -> Self {
@@ -173,7 +173,7 @@ impl Compactor {
             compacted_data,
             catalog,
             object_store,
-            object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
+            object_store_url,
             executor,
             persisted_snapshot_notify_rx,
             snapshot_tracker,
@@ -181,10 +181,15 @@ impl Compactor {
     }
 
     pub async fn compact(self) {
+        info!(
+            "starting compaction loop for hosts {:?}",
+            self.snapshot_tracker.hosts()
+        );
         let mut persisted_snapshot_notify_rx = self.persisted_snapshot_notify_rx.clone();
 
         loop {
-            if persisted_snapshot_notify_rx.changed().await.is_err() {
+            if let Err(e) = persisted_snapshot_notify_rx.changed().await {
+                error!("Failed to wait for new snapshot: {}", e);
                 break;
             }
 
@@ -193,7 +198,7 @@ impl Compactor {
                 None => continue,
             };
 
-            info!(
+            debug!(
                 "Received new snapshot for compaction {} from {}",
                 snapshot.snapshot_sequence_number.as_u64(),
                 snapshot.host_id
@@ -212,9 +217,12 @@ impl Compactor {
                     Arc::clone(&self.object_store),
                 );
 
+                drop(compacted_data);
+
                 let _compaction_summary = runner::run_snapshot_plan(
                     snapshot_plan,
                     Arc::clone(&self.compactor_id),
+                    Arc::clone(&self.compacted_data),
                     Arc::clone(&self.catalog),
                     Arc::clone(&self.object_store),
                     self.object_store_url.clone(),
@@ -262,15 +270,12 @@ pub async fn compact_files(
         exec,
     }: CompactFilesArgs,
 ) -> Result<CompactorOutput, CompactorError> {
-    executor::register_current_runtime_for_io();
-
     let mut dedupe_key: Vec<_> = table_schema
         .tags_iter()
         .map(|t| t.name().as_ref())
         .collect();
     dedupe_key.push(TIME_COLUMN_NAME);
     let dedupe_key = SortKey::from_columns(dedupe_key);
-    println!("dedupe_key: {:?}", dedupe_key);
 
     let records = record_stream(
         table_name.as_ref(),

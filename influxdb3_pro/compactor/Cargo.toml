@@ -44,6 +44,7 @@ metric.workspace = true
 test_helpers.workspace = true
 pretty_assertions.workspace = true
 influxdb3_wal = { path = "../../influxdb3_wal" }
+serde_json.workspace = true
 
 [lints]
 workspace = true

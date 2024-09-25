@@ -8,6 +8,9 @@ use clap_blocks::{
     tokio::TokioDatafusionConfig,
 };
 use datafusion_util::config::register_iox_object_store;
+use futures::future::join_all;
+use futures::future::FutureExt;
+use futures::TryFutureExt;
 use influxdb3_pro_buffer::{
     modes::read_write::ReadWriteArgs, replica::ReplicationConfig, WriteBufferPro,
 };
@@ -32,7 +35,6 @@ use std::collections::HashMap;
 use std::{num::NonZeroUsize, path::Path, sync::Arc};
 use thiserror::Error;
 use tokio::net::TcpListener;
-use tokio::task;
 use tokio_util::sync::CancellationToken;
 use trace_exporters::TracingConfig;
 use trace_http::ctx::TraceHeaderParser;
@@ -73,6 +75,9 @@ pub enum Error {
 
     #[error("failed to initialize from persisted catalog: {0}")]
     InitializePersistedCatalog(#[source] influxdb3_write::persister::Error),
+
+    #[error("Failed to execute job: {0}")]
+    Job(#[source] executor::JobError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -389,15 +394,6 @@ pub async fn command(config: Config) -> Result<()> {
         10,
         config.query_log_size,
     ));
-    let compactor = compactor_config.map(|config| {
-        Compactor::new(
-            config,
-            Arc::clone(&write_buffer.catalog()),
-            Arc::clone(&persister.object_store()),
-            Arc::clone(&exec),
-            write_buffer.watch_persisted_snapshots(),
-        )
-    });
 
     let listener = TcpListener::bind(*config.http_bind_address)
         .await
@@ -405,10 +401,10 @@ pub async fn command(config: Config) -> Result<()> {
 
     let builder = ServerBuilder::new(common_state)
         .max_request_size(config.max_http_request_size)
-        .write_buffer(write_buffer)
+        .write_buffer(Arc::clone(&write_buffer))
         .query_executor(query_executor)
         .time_provider(time_provider)
-        .persister(persister)
+        .persister(Arc::clone(&persister))
         .tcp_listener(listener);
 
     let server = if let Some(token) = config.bearer_token.map(hex::decode).transpose()? {
@@ -418,10 +414,41 @@ pub async fn command(config: Config) -> Result<()> {
     } else {
         builder.build()
     };
-    if let Some(compactor) = compactor {
-        task::spawn(compactor.compact());
+
+    let mut futures = Vec::new();
+    if let Some(config) = compactor_config {
+        let compactor = Compactor::new(
+            config,
+            Arc::clone(&write_buffer.catalog()),
+            Arc::clone(&object_store),
+            persister.object_store_url().clone(),
+            Arc::clone(&exec),
+            write_buffer.watch_persisted_snapshots(),
+        );
+
+        // Run the compactor code on the DataFusion executor
+
+        // Note that unlike tokio::spawn, if the handle to the task is
+        // dropped, the task is cancelled, so it must be retained until the end
+        let t = exec
+            .executor()
+            .spawn(compactor.compact())
+            .map_err(Error::Job);
+
+        futures.push(t.boxed());
     }
-    serve(server, frontend_shutdown).await?;
+
+    futures.push(
+        serve(server, frontend_shutdown)
+            .map_err(Error::from)
+            .boxed(),
+    );
+
+    // Wait for all futures to complete, and if any failed return the first error
+    let results = join_all(futures).await;
+    for result in results {
+        result?;
+    }
 
     Ok(())
 }

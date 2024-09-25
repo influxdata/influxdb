@@ -9,6 +9,7 @@ use arrow::record_batch::RecordBatch;
 use arrow::util::pretty::pretty_format_batches;
 use arrow_schema::SchemaRef;
 use data_types::NamespaceName;
+use executor::register_current_runtime_for_io;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_pro_compactor::{compact_files, CompactFilesArgs, CompactorOutput};
 use influxdb3_pro_data_layout::{CompactionSequenceNumber, GenerationLevel};
@@ -951,7 +952,7 @@ fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
         Arc::clone(&object_store),
         StorageId::from("test_exec_storage"),
     );
-    Arc::new(Executor::new_with_config_and_executor(
+    let exec = Arc::new(Executor::new_with_config_and_executor(
         ExecutorConfig {
             target_query_partitions: NonZeroUsize::new(1).unwrap(),
             object_stores: [&parquet_store]
@@ -963,7 +964,11 @@ fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
             mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
         },
         DedicatedExecutor::new_testing(),
-    ))
+    ));
+
+    register_current_runtime_for_io();
+
+    exec
 }
 
 /// Creates batches for testing from a given schema
