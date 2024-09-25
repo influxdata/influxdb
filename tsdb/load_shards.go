@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -346,22 +345,6 @@ func (s *Store) loadShard(opts *shardLoadingContext) error {
 			s.startupProgressMetrics.CompletedShard()
 		}
 	}(opts.db.Name(), opts.rp.Name(), opts.sh.Name())
-
-	return nil
-}
-
-func (s *Store) loadAllShardsById(opts *shardLoadingContext, shardIds []uint64) error {
-	shardID, err := strconv.ParseUint(opts.sh.Name(), 10, 64)
-	if err != nil {
-		return err
-	}
-
-	if slices.Contains(shardIds, shardID) {
-		err := s.loadShard(opts)
-		if err != nil {
-			return err
-		}
-	}
 
 	return nil
 }
