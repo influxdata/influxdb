@@ -155,44 +155,38 @@ func TestStore_StartupShardProgress(t *testing.T) {
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
-		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
-			t.Fatal(err)
-		} else if sh := s.Shard(1); sh == nil {
-			t.Fatalf("expected shard")
-		}
+		require.NoError(t, s.CreateShard("db0", "rp0", 1, true))
+		sh := s.Shard(1)
+		require.NotNil(t, sh)
 
 		// Create another shard and verify that it exists.
-		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
-			t.Fatal(err)
-		} else if sh := s.Shard(2); sh == nil {
-			t.Fatalf("expected shard")
-		}
+		require.NoError(t, s.CreateShard("db0", "rp0", 2, true))
+		sh = s.Shard(2)
+		require.NotNil(t, sh)
 
 		msl := &mockStartupLogger{}
 
 		// Reopen shard and recheck.
-		if err := s.ReopenWithStartupMetrics(msl); err != nil {
-			t.Fatal(err)
-		} else if sh := s.Shard(1); sh == nil {
-			t.Fatalf("expected shard(1)")
-		} else if sh = s.Shard(2); sh == nil {
-			t.Fatalf("expected shard(2)")
-		}
+		require.NoError(t, s.ReopenWithStartupMetrics(msl))
+		sh = s.Shard(1)
+		require.NotNil(t, sh)
 
-		if msl.getShardsAdded() != 2 {
-			t.Fatalf("expected 2 shards added, got %d", msl.getShardsAdded())
-		}
+		// Create another shard and verify that it exists.
+		require.NoError(t, s.CreateShard("db0", "rp0", 2, true))
+		sh = s.Shard(2)
+		require.NotNil(t, sh)
 
-		if msl.getShardsCompleted() != 2 {
-			t.Fatalf("expected 2 shards completed, got %d", msl.getShardsCompleted())
-		}
+		// There is a failed shard that gets added as well
+		require.Equal(t, uint64(3), msl.getShardsAdded())
+		require.Equal(t, uint64(3), msl.getShardsCompleted())
 
 		// Equality check to make sure shards are always added prior to
 		// completion being called.
-		reflect.DeepEqual(msl.shardTracker, []string{
+		require.Equal(t, msl.shardTracker, []string{
 			"shard-add",
 			"shard-add",
 			"shard-add",
+			"shard-complete",
 			"shard-complete",
 			"shard-complete",
 		})

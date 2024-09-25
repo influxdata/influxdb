@@ -67,7 +67,6 @@ type BuildInfo struct {
 
 type StartupProgress interface {
 	AddShard()
-	RemoveShardFromCount()
 	CompletedShard()
 }
 

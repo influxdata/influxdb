@@ -34,9 +34,68 @@ type shardLoadingContext struct {
 }
 
 func (s *Store) loadShards() error {
-	err, shardCtx, dbDirs := s.setupShardLoader()
+	// Limit the number of concurrent TSM files to be opened to the number of cores.
+	s.EngineOptions.OpenLimiter = limiter.NewFixed(runtime.GOMAXPROCS(0))
+
+	// Setup a shared limiter for compactions
+	lim := s.EngineOptions.Config.MaxConcurrentCompactions
+	if lim == 0 {
+		lim = runtime.GOMAXPROCS(0) / 2 // Default to 50% of cores for compactions
+
+		if lim < 1 {
+			lim = 1
+		}
+	}
+
+	// Don't allow more compactions to run than cores.
+	if lim > runtime.GOMAXPROCS(0) {
+		lim = runtime.GOMAXPROCS(0)
+	}
+
+	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
+
+	compactionSettings := []zapcore.Field{zap.Int("max_concurrent_compactions", lim)}
+	throughput := int(s.EngineOptions.Config.CompactThroughput)
+	throughputBurst := int(s.EngineOptions.Config.CompactThroughputBurst)
+	if throughput > 0 {
+		if throughputBurst < throughput {
+			throughputBurst = throughput
+		}
+
+		compactionSettings = append(
+			compactionSettings,
+			zap.Int("throughput_bytes_per_second", throughput),
+			zap.Int("throughput_bytes_per_second_burst", throughputBurst),
+		)
+		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(throughput, throughputBurst)
+	} else {
+		compactionSettings = append(
+			compactionSettings,
+			zap.String("throughput_bytes_per_second", "unlimited"),
+			zap.String("throughput_bytes_per_second_burst", "unlimited"),
+		)
+	}
+
+	s.Logger.Info("Compaction settings", compactionSettings...)
+
+	log, logEnd := logger.NewOperation(s.Logger, "Open store", "tsdb_open")
+	defer logEnd()
+
+	var shardLoaderWg sync.WaitGroup
+	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
+	resC := make(chan *res)
+
+	// Determine how many shards we need to open by checking the store path.
+	dbDirs, err := os.ReadDir(s.path)
 	if err != nil {
 		return err
+	}
+
+	shardCtx := &shardLoadingContext{
+		log:  log,
+		t:    t,
+		resC: resC,
+		wg:   &shardLoaderWg,
 	}
 
 	if s.startupProgressMetrics != nil {
@@ -104,72 +163,6 @@ func (s *Store) enableShards(ctx *shardLoadingContext) error {
 	}
 
 	return nil
-}
-
-func (s *Store) setupShardLoader() (error, *shardLoadingContext, []os.DirEntry) {
-	// Limit the number of concurrent TSM files to be opened to the number of cores.
-	s.EngineOptions.OpenLimiter = limiter.NewFixed(runtime.GOMAXPROCS(0))
-
-	// Setup a shared limiter for compactions
-	lim := s.EngineOptions.Config.MaxConcurrentCompactions
-	if lim == 0 {
-		lim = runtime.GOMAXPROCS(0) / 2 // Default to 50% of cores for compactions
-
-		if lim < 1 {
-			lim = 1
-		}
-	}
-
-	// Don't allow more compactions to run than cores.
-	if lim > runtime.GOMAXPROCS(0) {
-		lim = runtime.GOMAXPROCS(0)
-	}
-
-	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
-
-	compactionSettings := []zapcore.Field{zap.Int("max_concurrent_compactions", lim)}
-	throughput := int(s.EngineOptions.Config.CompactThroughput)
-	throughputBurst := int(s.EngineOptions.Config.CompactThroughputBurst)
-	if throughput > 0 {
-		if throughputBurst < throughput {
-			throughputBurst = throughput
-		}
-
-		compactionSettings = append(
-			compactionSettings,
-			zap.Int("throughput_bytes_per_second", throughput),
-			zap.Int("throughput_bytes_per_second_burst", throughputBurst),
-		)
-		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(throughput, throughputBurst)
-	} else {
-		compactionSettings = append(
-			compactionSettings,
-			zap.String("throughput_bytes_per_second", "unlimited"),
-			zap.String("throughput_bytes_per_second_burst", "unlimited"),
-		)
-	}
-
-	s.Logger.Info("Compaction settings", compactionSettings...)
-
-	log, logEnd := logger.NewOperation(s.Logger, "Open store", "tsdb_open")
-	defer logEnd()
-
-	var shardLoaderWg sync.WaitGroup
-	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
-	resC := make(chan *res)
-
-	// Determine how many shards we need to open by checking the store path.
-	dbDirs, err := os.ReadDir(s.path)
-	if err != nil {
-		return err, nil, nil
-	}
-
-	return nil, &shardLoadingContext{
-		log:  log,
-		t:    t,
-		resC: resC,
-		wg:   &shardLoaderWg,
-	}, dbDirs
 }
 
 func (s *Store) getRetentionPolicyDirs(db os.DirEntry, log *zap.Logger) ([]os.DirEntry, error) {
@@ -295,7 +288,7 @@ func (s *Store) loadShard(opts *shardLoadingContext) error {
 			opts.log.Info("invalid shard ID found at path", zap.String("path", path))
 			opts.resC <- &res{err: fmt.Errorf("%s is not a valid ID. Skipping shard.", sh)}
 			if s.startupProgressMetrics != nil {
-				s.startupProgressMetrics.RemoveShardFromCount()
+				s.startupProgressMetrics.CompletedShard()
 			}
 			return
 		}
@@ -304,7 +297,7 @@ func (s *Store) loadShard(opts *shardLoadingContext) error {
 			opts.log.Info("skipping shard", zap.String("path", path), logger.Shard(shardID))
 			opts.resC <- &res{}
 			if s.startupProgressMetrics != nil {
-				s.startupProgressMetrics.RemoveShardFromCount()
+				s.startupProgressMetrics.CompletedShard()
 			}
 			return
 		}
@@ -334,7 +327,7 @@ func (s *Store) loadShard(opts *shardLoadingContext) error {
 			opts.log.Error("Failed to open shard", logger.Shard(shardID), zap.Error(err))
 			opts.resC <- &res{err: fmt.Errorf("failed to open shard: %d: %w", shardID, err)}
 			if s.startupProgressMetrics != nil {
-				s.startupProgressMetrics.RemoveShardFromCount()
+				s.startupProgressMetrics.CompletedShard()
 			}
 			return
 		}

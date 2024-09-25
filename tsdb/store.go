@@ -136,7 +136,6 @@ type Store struct {
 
 	startupProgressMetrics interface {
 		AddShard()
-		RemoveShardFromCount()
 		CompletedShard()
 	}
 
@@ -174,7 +173,6 @@ func (s *Store) WithLogger(log *zap.Logger) {
 
 func (s *Store) WithStartupMetrics(sp interface {
 	AddShard()
-	RemoveShardFromCount()
 	CompletedShard()
 }) {
 	s.startupProgressMetrics = sp

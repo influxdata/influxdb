@@ -23,13 +23,6 @@ func (s *StartupProgressLogger) AddShard() {
 	s.shardsTotal.Add(1)
 }
 
-func (s *StartupProgressLogger) RemoveShardFromCount() {
-	if s.shardsTotal.Load() > 0 {
-		old, newUint := s.shardsTotal.Load(), s.shardsTotal.Load()-1
-		s.shardsTotal.CompareAndSwap(old, newUint)
-	}
-}
-
 func (s *StartupProgressLogger) CompletedShard() {
 	shardsCompleted := s.shardsCompleted.Add(1)
 	totalShards := s.shardsTotal.Load()
