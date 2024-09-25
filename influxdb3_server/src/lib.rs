@@ -745,7 +745,9 @@ mod tests {
         let common_state =
             crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser).unwrap();
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
-        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(object_store);
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
+        let (object_store, parquet_cache) =
+            test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider) as _);
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
         let exec = Arc::new(Executor::new_with_config_and_executor(
@@ -761,7 +763,6 @@ mod tests {
             DedicatedExecutor::new_testing(),
         ));
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
         let dummy_host_id = Arc::from("dummy-host-id");
         let instance_id = Arc::from("dummy-instance-id");
 

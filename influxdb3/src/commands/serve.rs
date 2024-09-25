@@ -259,10 +259,15 @@ pub async fn command(config: Config) -> Result<()> {
 
     let object_store: Arc<DynObjectStore> =
         make_object_store(&config.object_store_config).map_err(Error::ObjectStoreParsing)?;
+    let time_provider = Arc::new(SystemProvider::new());
+
     // TODO(trevor): make this configurable/optional:
     let cache_capacity = 1024 * 1024 * 1024;
-    let (object_store, parquet_cache) =
-        create_cached_obj_store_and_oracle(object_store, cache_capacity);
+    let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
+        object_store,
+        Arc::clone(&time_provider) as _,
+        cache_capacity,
+    );
 
     let trace_exporter = config.tracing_config.build()?;
 
@@ -321,7 +326,6 @@ pub async fn command(config: Config) -> Result<()> {
         snapshot_size: config.wal_snapshot_size,
     };
 
-    let time_provider = Arc::new(SystemProvider::new());
     let catalog = persister
         .load_or_create_catalog()
         .await

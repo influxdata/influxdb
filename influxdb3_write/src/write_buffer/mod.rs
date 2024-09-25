@@ -570,12 +570,13 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn writes_data_to_wal_and_is_queryable() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(object_store);
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let (object_store, parquet_cache) =
+            test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider));
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let catalog = persister.load_or_create_catalog().await.unwrap();
         let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
-        let time_provider: Arc<dyn TimeProvider> =
-            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::new(catalog),
@@ -1655,9 +1656,10 @@ mod tests {
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
     ) -> (WriteBufferImpl, IOxSessionContext) {
-        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(object_store);
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
+        let (object_store, parquet_cache) =
+            test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider));
+        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let catalog = persister.load_or_create_catalog().await.unwrap();
         let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
         let wbuf = WriteBufferImpl::new(

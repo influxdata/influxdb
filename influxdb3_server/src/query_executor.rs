@@ -630,9 +630,10 @@ mod tests {
         // Set up QueryExecutor
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
-        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(object_store);
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let (object_store, parquet_cache) =
+            test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider) as _);
+        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let executor = make_exec(Arc::clone(&object_store));
         let host_id = Arc::from("dummy-host-id");
         let instance_id = Arc::from("instance-id");

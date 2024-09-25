@@ -1,9 +1,11 @@
 //! An in-memory cache of Parquet files that are persisted to object storage
 use std::{
+    cmp::Reverse,
+    collections::BinaryHeap,
     fmt::Debug,
     ops::Range,
     sync::{
-        atomic::{AtomicI32, AtomicUsize, Ordering},
+        atomic::{AtomicI32, AtomicI64, AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -14,7 +16,8 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt};
 use futures_util::stream::BoxStream;
-use indexmap::{map::Entry, IndexMap};
+use hashbrown::{hash_map::Entry, HashMap};
+use iox_time::TimeProvider;
 use object_store::{
     path::Path, Error, GetOptions, GetResult, GetResultPayload, ListResult, MultipartUpload,
     ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
@@ -91,9 +94,14 @@ impl ParquetCacheOracle for MemCacheOracle {
 /// that returns them as their `Arc<dyn _>` equivalent.
 pub fn create_cached_obj_store_and_oracle(
     object_store: Arc<dyn ObjectStore>,
+    time_provider: Arc<dyn TimeProvider>,
     cache_capacity: usize,
 ) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
-    let store = Arc::new(MemCachedObjectStore::new(object_store, cache_capacity));
+    let store = Arc::new(MemCachedObjectStore::new(
+        object_store,
+        cache_capacity,
+        time_provider,
+    ));
     let oracle = Arc::new(MemCacheOracle::new(Arc::clone(&store)));
     (store, oracle)
 }
@@ -101,8 +109,9 @@ pub fn create_cached_obj_store_and_oracle(
 /// Create a test cached object store with a cache capacity of 1GB
 pub fn test_cached_obj_store_and_oracle(
     object_store: Arc<dyn ObjectStore>,
+    time_provider: Arc<dyn TimeProvider>,
 ) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
-    create_cached_obj_store_and_oracle(object_store, 1024 * 1024 * 1024)
+    create_cached_obj_store_and_oracle(object_store, time_provider, 1024 * 1024 * 1024)
 }
 
 /// An entry in the cache, containing the actual bytes as well as object store metadata
@@ -134,30 +143,17 @@ impl CacheValue {
 #[derive(Debug)]
 struct CacheEntry {
     state: CacheEntryState,
-    /// A counter for tracking how many times this entry has been hit.
-    ///
-    /// When first created in the `Fetching` state, this will be set to -1, which will prevent
-    /// the fetching entry from being evicted by a prune operation
-    hits: AtomicI32,
+    hit_time: AtomicI64,
 }
 
 impl CacheEntry {
-    /// Increment the used counter for this entry unless it is already at the maximum value
-    fn increment_hits(&self) {
-        let _ = self
-            .hits
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |x| {
-                if x == i32::MAX {
-                    None
-                } else {
-                    Some(x + 1)
-                }
-            });
-    }
-
     /// Get the approximate memory footprint of this entry in bytes
     fn size(&self) -> usize {
         self.state.size() + std::mem::size_of::<AtomicI32>()
+    }
+
+    fn is_fetching(&self) -> bool {
+        matches!(self.state, CacheEntryState::Fetching(_))
     }
 }
 
@@ -201,19 +197,21 @@ struct Cache {
     /// This uses [`IndexMap`] to preserve insertion order, such that, when iterating over the map
     /// to prune entries, iteration occurs in the order that entries were inserted. This will have
     /// older entries removed before newer entries
-    map: RwLock<IndexMap<Path, CacheEntry>>,
+    map: RwLock<HashMap<Path, CacheEntry>>,
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 impl Cache {
     /// Create a new cache with a given capacity and max free percentage
     ///
     /// The cache's `max_free_amount` will be calculated using the provided values
-    fn new(capacity: usize, max_free_percentage: f64) -> Self {
+    fn new(capacity: usize, max_free_percent: f64, time_provider: Arc<dyn TimeProvider>) -> Self {
         Self {
             capacity,
             used: AtomicUsize::new(0),
-            max_free_amount: (capacity as f64 * max_free_percentage).floor() as usize,
-            map: RwLock::new(IndexMap::new()),
+            max_free_amount: (capacity as f64 * max_free_percent).floor() as usize,
+            map: RwLock::new(HashMap::new()),
+            time_provider,
         }
     }
 
@@ -234,7 +232,9 @@ impl Cache {
                 v
             }
             CacheEntryState::Success(v) => {
-                entry.increment_hits();
+                entry
+                    .hit_time
+                    .store(self.time_provider.now().timestamp_nanos(), Ordering::SeqCst);
                 Some(Arc::clone(v))
             }
         }
@@ -251,7 +251,7 @@ impl Cache {
         let (tx, _) = watch::channel(None);
         let entry = CacheEntry {
             state: CacheEntryState::Fetching(tx),
-            hits: AtomicI32::new(-1),
+            hit_time: AtomicI64::new(self.time_provider.now().timestamp_nanos()),
         };
         let additional = entry.size();
         self.map.write().await.insert(path.clone(), entry);
@@ -269,8 +269,9 @@ impl Cache {
                 };
                 let cache_value = Arc::new(value);
                 entry.state = CacheEntryState::Success(Arc::clone(&cache_value));
-                let watch_count = tx.receiver_count().min((i8::MAX - 1) as usize);
-                entry.hits.store((watch_count + 1) as i32, Ordering::SeqCst);
+                entry
+                    .hit_time
+                    .store(self.time_provider.now().timestamp_nanos(), Ordering::SeqCst);
                 // TODO(trevor): what if size is greater than cache capacity?
                 let additional = entry.size();
                 self.used.fetch_add(additional, Ordering::SeqCst);
@@ -284,11 +285,8 @@ impl Cache {
     }
 
     /// Remove an entry from the cache, as well as its associated size from the used capacity
-    ///
-    /// This operation has *O(N)* time complexity since the underlying index map needs to have
-    /// its elements removed with their order preserved.
     async fn remove(&self, path: &Path) {
-        let Some(entry) = self.map.write().await.shift_remove(path) else {
+        let Some(entry) = self.map.write().await.remove(path) else {
             return;
         };
         self.used.fetch_sub(entry.state.size(), Ordering::SeqCst);
@@ -300,46 +298,63 @@ impl Cache {
         used >= self.capacity
     }
 
-    /// Prune least frequently hit entries from the cache stopping once the `max_freed_amount` has
+    /// Prune least recently hit entries from the cache stopping once the `max_freed_amount` has
     /// been pruned.
-    ///
-    /// Entries that  are not pruned will have their hit count decremented, while entries with a
-    /// negative hit count will be skipped since those are entries that are in the process of being
-    /// fetched.
-    ///
-    /// This performs two passes over the cache's inner map:
-    /// 1. to check for the lowest hit count
-    /// 2. to do the actual pruning
-    ///
-    /// Since the inner map is an [`IndexMap`], the order of iteration during pruning will follow
-    /// the insertion order to the map, and therefore will prune "older" entries before "newer" ones.
     async fn prune(&self) {
         let mut map = self.map.write().await;
-        let lowest_hit_count = map
-            .iter()
-            .map(|(_, entry)| entry.hits.load(Ordering::Relaxed))
-            .filter(|hits| *hits >= 0)
-            .min()
-            .unwrap_or(0);
+        let mut time_heap = BinaryHeap::new();
+        for (_, entry) in map.iter() {
+            let hit_time = entry.hit_time.load(Ordering::Relaxed);
+            let size = entry.size();
+            time_heap.push(Reverse(PruneHeapItem { hit_time, size }));
+        }
         let mut freed = 0;
+        let mut cut_off_time = i64::MAX;
+        while let Some(Reverse(PruneHeapItem { hit_time, size })) = time_heap.pop() {
+            freed += size;
+            if freed >= self.max_free_amount {
+                cut_off_time = hit_time;
+                break;
+            }
+        }
+        // reset freed so we calculate actual amount freed during retain:
+        freed = 0;
         map.retain(|_, entry| {
-            let hits = entry.hits.load(Ordering::Relaxed);
-            if hits < 0 {
-                // entries that are < 0 are fetching, so we keep those
+            let hit_time = entry.hit_time.load(Ordering::Relaxed);
+            if entry.is_fetching() || hit_time > cut_off_time {
+                // keep entries that are still fetching or that were hit after the cut-off:
                 true
-            } else if hits <= lowest_hit_count && freed < self.max_free_amount {
-                // prune entries that have been hit the least, unless we have already freed our
-                // max free amount:
-                freed += entry.state.size();
-                false
             } else {
-                // decrement this entry's hit count for subsequent prunes by the lowest hit count
-                // this will act as a reset while preserving the hit count ranking accross entries
-                entry.hits.fetch_sub(lowest_hit_count, Ordering::Relaxed);
-                true
+                // drop the rest:
+                freed += entry.size();
+                false
             }
         });
-        self.used.fetch_sub(freed, Ordering::SeqCst);
+        self.used.fetch_sub(freed, Ordering::Relaxed);
+    }
+}
+
+#[derive(Debug, Eq)]
+struct PruneHeapItem {
+    hit_time: i64,
+    size: usize,
+}
+
+impl PartialEq for PruneHeapItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.hit_time.eq(&other.hit_time)
+    }
+}
+
+impl PartialOrd for PruneHeapItem {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.hit_time.cmp(&other.hit_time))
+    }
+}
+
+impl Ord for PruneHeapItem {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.hit_time.cmp(&other.hit_time)
     }
 }
 
@@ -360,10 +375,14 @@ pub struct MemCachedObjectStore {
 impl MemCachedObjectStore {
     /// Create a new [`MemCachedObjectStore`] with the given memory capacity
     // TODO(trevor): configurable free percentage, which is hard-coded at 10% right now
-    fn new(inner: Arc<dyn ObjectStore>, memory_capacity: usize) -> Self {
+    fn new(
+        inner: Arc<dyn ObjectStore>,
+        memory_capacity: usize,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Self {
         Self {
             inner,
-            cache: Arc::new(Cache::new(memory_capacity, 0.1)),
+            cache: Arc::new(Cache::new(memory_capacity, 0.1, time_provider)),
         }
     }
 }
@@ -620,6 +639,7 @@ mod tests {
     use bytes::Bytes;
     use futures::stream::BoxStream;
     use hashbrown::HashMap;
+    use iox_time::{MockProvider, Time, TimeProvider};
     use object_store::{
         memory::InMemory, path::Path, GetOptions, GetResult, ListResult, MultipartUpload,
         ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
@@ -651,8 +671,12 @@ mod tests {
     async fn hit_cache_instead_of_object_store() {
         // set up the inner test object store and then wrap it with the mem cached store:
         let inner_store = Arc::new(TestObjectStore::new(Arc::new(InMemory::new())));
-        let (cached_store, oracle) =
-            test_cached_obj_store_and_oracle(Arc::clone(&inner_store) as _);
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let (cached_store, oracle) = test_cached_obj_store_and_oracle(
+            Arc::clone(&inner_store) as _,
+            Arc::clone(&time_provider),
+        );
         // PUT a paylaod into the object store through the outer mem cached store:
         let path = Path::from("0.parquet");
         let payload = b"hello world";
@@ -689,10 +713,14 @@ mod tests {
     #[tokio::test]
     async fn cache_evicts_lru_when_full() {
         let inner_store = Arc::new(TestObjectStore::new(Arc::new(InMemory::new())));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // this is a magic number that will make it so the third entry exceeds the cache capacity:
         let cache_capacity_bytes = 72;
-        let (cached_store, oracle) =
-            create_cached_obj_store_and_oracle(Arc::clone(&inner_store) as _, cache_capacity_bytes);
+        let (cached_store, oracle) = create_cached_obj_store_and_oracle(
+            Arc::clone(&inner_store) as _,
+            Arc::clone(&time_provider) as _,
+            cache_capacity_bytes,
+        );
         // PUT an entry into the store:
         let path_1 = Path::from("0.parquet");
         let payload_1 = b"Janeway";
@@ -709,6 +737,9 @@ mod tests {
         assert_eq!(1, inner_store.total_get_request_count());
         assert_eq!(1, inner_store.get_request_count(&path_1));
 
+        // update time:
+        time_provider.set(Time::from_timestamp_nanos(1));
+
         // GET the entry to check its there and was retrieved from cache, i.e., that the request
         // counts do not change:
         assert_payload_at_equals!(cached_store, payload_1, path_1);
@@ -723,6 +754,9 @@ mod tests {
             .await
             .unwrap();
 
+        // update time:
+        time_provider.set(Time::from_timestamp_nanos(2));
+
         // cache the second entry and wait for it to complete, this will not evict the first entry
         // as both can fit in the cache:
         let (cache_request, notifier_rx) = CacheRequest::create(path_2.clone());
@@ -733,12 +767,18 @@ mod tests {
         assert_eq!(1, inner_store.get_request_count(&path_1));
         assert_eq!(1, inner_store.get_request_count(&path_2));
 
+        // update time:
+        time_provider.set(Time::from_timestamp_nanos(3));
+
         // GET the second entry and assert that it was retrieved from the cache, i.e., that the
         // request counts do not change:
         assert_payload_at_equals!(cached_store, payload_2, path_2);
         assert_eq!(2, inner_store.total_get_request_count());
         assert_eq!(1, inner_store.get_request_count(&path_1));
         assert_eq!(1, inner_store.get_request_count(&path_2));
+
+        // update time:
+        time_provider.set(Time::from_timestamp_nanos(4));
 
         // GET the first entry again and assert that it was retrieved from the cache as before. This
         // will also update the hit count so that the first entry (janeway) was used more recently
@@ -754,6 +794,10 @@ mod tests {
             .put(&path_3, PutPayload::from_static(payload_3))
             .await
             .unwrap();
+
+        // update time:
+        time_provider.set(Time::from_timestamp_nanos(5));
+
         // cache the third entry and wait for it to complete, this will push the cache past its
         // capacity:
         let (cache_request, notifier_rx) = CacheRequest::create(path_3.clone());
@@ -764,6 +808,9 @@ mod tests {
         assert_eq!(1, inner_store.get_request_count(&path_1));
         assert_eq!(1, inner_store.get_request_count(&path_2));
         assert_eq!(1, inner_store.get_request_count(&path_3));
+
+        // update time:
+        time_provider.set(Time::from_timestamp_nanos(6));
 
         // GET the new entry from the strore, and check that it was served by the cache:
         assert_payload_at_equals!(cached_store, payload_3, path_3);
@@ -777,7 +824,6 @@ mod tests {
 
         // GET paris from the cached store, this will not be served by the cache, because paris was
         // evicted by neelix:
-        tokio::time::sleep(Duration::from_millis(100)).await;
         assert_payload_at_equals!(cached_store, payload_2, path_2);
         assert_eq!(4, inner_store.total_get_request_count());
         assert_eq!(1, inner_store.get_request_count(&path_1));
