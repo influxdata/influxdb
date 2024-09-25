@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -175,10 +174,6 @@ func TestStore_StartupShardProgress(t *testing.T) {
 		require.NoError(t, s.CreateShard("db0", "rp0", 2, true))
 		sh = s.Shard(2)
 		require.NotNil(t, sh)
-
-		// There is a failed shard that gets added as well
-		require.Equal(t, uint64(3), msl.getShardsAdded())
-		require.Equal(t, uint64(3), msl.getShardsCompleted())
 
 		// Equality check to make sure shards are always added prior to
 		// completion being called.
@@ -2828,35 +2823,18 @@ func dirExists(path string) bool {
 }
 
 type mockStartupLogger struct {
-	shardTracker          []string
-	mu                    sync.Mutex
-	shardsCompletedCalled atomic.Uint64
-	shardsAddedCalled     atomic.Uint64
+	shardTracker []string
+	mu           sync.Mutex
 }
 
 func (m *mockStartupLogger) AddShard() {
 	m.mu.Lock()
 	m.shardTracker = append(m.shardTracker, fmt.Sprintf("shard-add"))
 	m.mu.Unlock()
-	m.shardsAddedCalled.Add(1)
 }
+
 func (m *mockStartupLogger) CompletedShard() {
 	m.mu.Lock()
 	m.shardTracker = append(m.shardTracker, fmt.Sprintf("shard-complete"))
 	m.mu.Unlock()
-	m.shardsCompletedCalled.Add(1)
-}
-func (m *mockStartupLogger) RemoveShardFromCount() {
-	if m.shardsAddedCalled.Load() > 0 {
-		old, newUint := m.shardsAddedCalled.Load(), m.shardsAddedCalled.Load()-1
-		m.shardsAddedCalled.CompareAndSwap(old, newUint)
-	}
-}
-
-func (m *mockStartupLogger) getShardsAdded() uint64 {
-	return m.shardsAddedCalled.Load()
-}
-
-func (m *mockStartupLogger) getShardsCompleted() uint64 {
-	return m.shardsCompletedCalled.Load()
 }
