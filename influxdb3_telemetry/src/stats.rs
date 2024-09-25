@@ -4,7 +4,7 @@ pub(crate) fn stats<T: Num + Copy + NumCast + PartialOrd>(
     current_min: T,
     current_max: T,
     current_avg: T,
-    current_num_samples: u64,
+    current_num_samples: usize,
     new_value: T,
 ) -> Option<(T, T, T)> {
     let min = min(current_min, new_value);
@@ -18,7 +18,7 @@ pub(crate) fn stats<T: Num + Copy + NumCast + PartialOrd>(
 /// is fine as we don't really need it to be a precise average.
 /// For example, memory consumed measured in MB can be rounded as u64
 pub(crate) fn avg<T: Num + Copy + NumCast>(
-    current_num_samples: u64,
+    current_num_samples: usize,
     current_avg: T,
     new_value: T,
 ) -> Option<T> {
@@ -90,14 +90,14 @@ mod tests {
 
     #[test_log::test(test)]
     fn avg_float_test_max() {
-        let avg_floats = avg(u64::MAX, 2.0, 4.0);
+        let avg_floats = avg(usize::MAX, 2.0, 4.0);
         info!(avg = ?avg_floats, "average float");
         assert_eq!(None, avg_floats);
     }
 
     #[test_log::test(test)]
     fn avg_num_test_max() {
-        let avg_nums = avg(u64::MAX, 2, 4);
+        let avg_nums = avg(usize::MAX, 2, 4);
         assert_eq!(None, avg_nums);
     }
 
@@ -116,7 +116,7 @@ mod tests {
             min in 0u64..10000,
             max in 0u64..10000,
             curr_avg in 0u64..10000,
-            num_samples in 0u64..10000,
+            num_samples in 0usize..10000,
             new_value in 0u64..100000,
         ) {
             stats(min, max, curr_avg, num_samples, new_value);
@@ -127,7 +127,7 @@ mod tests {
             min in 0.0f32..10000.0,
             max in 0.0f32..10000.0,
             curr_avg in 0.0f32..10000.0,
-            num_samples in 0u64..10000,
+            num_samples in 0usize..10000,
             new_value in 0.0f32..100000.0,
         ) {
             stats(min, max, curr_avg, num_samples, new_value);
@@ -138,7 +138,7 @@ mod tests {
             min in 0.0f64..10000.0,
             max in 0.0f64..10000.0,
             curr_avg in 0.0f64..10000.0,
-            num_samples in 0u64..10000,
+            num_samples in 0usize..10000,
             new_value in 0.0f64..100000.0,
         ) {
             stats(min, max, curr_avg, num_samples, new_value);
