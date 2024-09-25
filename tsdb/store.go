@@ -54,6 +54,12 @@ const SeriesFileDirectory = "_series"
 // databaseState keeps track of the state of a database.
 type databaseState struct{ indexTypes map[string]int }
 
+// res holds the result from opening each shard in a goroutine
+type res struct {
+	s   *Shard
+	err error
+}
+
 // addIndexType records that the database has a shard with the given index type.
 func (d *databaseState) addIndexType(indexType string) {
 	if d.indexTypes == nil {
@@ -135,6 +141,12 @@ type Store struct {
 	baseLogger *zap.Logger
 	Logger     *zap.Logger
 
+	startupProgressMetrics interface {
+		AddShard()
+		RemoveShardFromCount()
+		CompletedShard()
+	}
+
 	closing chan struct{}
 	wg      sync.WaitGroup
 	opened  bool
@@ -165,6 +177,14 @@ func (s *Store) WithLogger(log *zap.Logger) {
 	for _, sh := range s.shards {
 		sh.WithLogger(s.baseLogger)
 	}
+}
+
+func (s *Store) WithStartupMetrics(sp interface {
+	AddShard()
+	RemoveShardFromCount()
+	CompletedShard()
+}) {
+	s.startupProgressMetrics = sp
 }
 
 // Statistics returns statistics for period monitoring.
@@ -310,12 +330,6 @@ func (s *Store) Open() error {
 }
 
 func (s *Store) loadShards() error {
-	// res holds the result from opening each shard in a goroutine
-	type res struct {
-		s   *Shard
-		err error
-	}
-
 	// Limit the number of concurrent TSM files to be opened to the number of cores.
 	s.EngineOptions.OpenLimiter = limiter.NewFixed(runtime.GOMAXPROCS(0))
 
@@ -363,9 +377,9 @@ func (s *Store) loadShards() error {
 	log, logEnd := logger.NewOperation(s.Logger, "Open store", "tsdb_open")
 	defer logEnd()
 
+	var shardLoaderWg sync.WaitGroup
 	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
 	resC := make(chan *res)
-	var n int
 
 	// Determine how many shards we need to open by checking the store path.
 	dbDirs, err := os.ReadDir(s.path)
@@ -373,126 +387,37 @@ func (s *Store) loadShards() error {
 		return err
 	}
 
-	for _, db := range dbDirs {
-		dbPath := filepath.Join(s.path, db.Name())
-		if !db.IsDir() {
-			log.Info("Skipping database dir", zap.String("name", db.Name()), zap.String("reason", "not a directory"))
-			continue
-		}
+	shardCtx := &ShardContext{
+		resC: resC,
+		wg:   &shardLoaderWg,
+		t:    t,
+		log:  log,
+	}
 
-		if s.EngineOptions.DatabaseFilter != nil && !s.EngineOptions.DatabaseFilter(db.Name()) {
-			log.Info("Skipping database dir", logger.Database(db.Name()), zap.String("reason", "failed database filter"))
-			continue
-		}
-
-		// Load series file.
-		sfile, err := s.openSeriesFile(db.Name())
+	if s.startupProgressMetrics != nil {
+		err := s.traverseShardsAndProcess(func(ctx *ShardContext) error {
+			s.startupProgressMetrics.AddShard()
+			return nil
+		}, dbDirs, shardCtx)
 		if err != nil {
 			return err
-		}
-
-		// Retrieve database index.
-		idx, err := s.createIndexIfNotExists(db.Name())
-		if err != nil {
-			return err
-		}
-
-		// Load each retention policy within the database directory.
-		rpDirs, err := os.ReadDir(dbPath)
-		if err != nil {
-			return err
-		}
-
-		for _, rp := range rpDirs {
-			rpPath := filepath.Join(s.path, db.Name(), rp.Name())
-			if !rp.IsDir() {
-				log.Info("Skipping retention policy dir", zap.String("name", rp.Name()), zap.String("reason", "not a directory"))
-				continue
-			}
-
-			// The .series directory is not a retention policy.
-			if rp.Name() == SeriesFileDirectory {
-				continue
-			}
-
-			if s.EngineOptions.RetentionPolicyFilter != nil && !s.EngineOptions.RetentionPolicyFilter(db.Name(), rp.Name()) {
-				log.Info("Skipping retention policy dir", logger.RetentionPolicy(rp.Name()), zap.String("reason", "failed retention policy filter"))
-				continue
-			}
-
-			shardDirs, err := os.ReadDir(rpPath)
-			if err != nil {
-				return err
-			}
-
-			for _, sh := range shardDirs {
-				// Series file should not be in a retention policy but skip just in case.
-				if sh.Name() == SeriesFileDirectory {
-					log.Warn("Skipping series file in retention policy dir", zap.String("path", filepath.Join(s.path, db.Name(), rp.Name())))
-					continue
-				}
-
-				n++
-				go func(db, rp, sh string) {
-					t.Take()
-					defer t.Release()
-
-					start := time.Now()
-					path := filepath.Join(s.path, db, rp, sh)
-					walPath := filepath.Join(s.EngineOptions.Config.WALDir, db, rp, sh)
-
-					// Shard file names are numeric shardIDs
-					shardID, err := strconv.ParseUint(sh, 10, 64)
-					if err != nil {
-						log.Info("invalid shard ID found at path", zap.String("path", path))
-						resC <- &res{err: fmt.Errorf("%s is not a valid ID. Skipping shard.", sh)}
-						return
-					}
-
-					if s.EngineOptions.ShardFilter != nil && !s.EngineOptions.ShardFilter(db, rp, shardID) {
-						log.Info("skipping shard", zap.String("path", path), logger.Shard(shardID))
-						resC <- &res{}
-						return
-					}
-
-					// Copy options and assign shared index.
-					opt := s.EngineOptions
-					opt.InmemIndex = idx
-
-					// Provide an implementation of the ShardIDSets
-					opt.SeriesIDSets = shardSet{store: s, db: db}
-
-					// Existing shards should continue to use inmem index.
-					if _, err := os.Stat(filepath.Join(path, "index")); os.IsNotExist(err) {
-						opt.IndexVersion = InmemIndexName
-					}
-
-					// Open engine.
-					shard := NewShard(shardID, path, walPath, sfile, opt)
-
-					// Disable compactions, writes and queries until all shards are loaded
-					shard.EnableOnOpen = false
-					shard.CompactionDisabled = s.EngineOptions.CompactionDisabled
-					shard.WithLogger(s.baseLogger)
-
-					err = s.OpenShard(shard, false)
-					if err != nil {
-						log.Error("Failed to open shard", logger.Shard(shardID), zap.Error(err))
-						resC <- &res{err: fmt.Errorf("failed to open shard: %d: %w", shardID, err)}
-						return
-					}
-
-					resC <- &res{s: shard}
-					log.Info("Opened shard", zap.String("index_version", shard.IndexType()), zap.String("path", path), zap.Duration("duration", time.Since(start)))
-				}(db.Name(), rp.Name(), sh.Name())
-			}
 		}
 	}
 
-	// Gather results of opening shards concurrently, keeping track of how
-	// many databases we are managing.
-	for i := 0; i < n; i++ {
-		res := <-resC
+	err = s.traverseShardsAndProcess(func(ctx *ShardContext) error {
+		err := s.loadAllShards(ctx)
+		if err != nil {
+			return err
+		}
+		return nil
+	}, dbDirs, shardCtx)
+
+	go func() {
+		shardLoaderWg.Wait()
+		close(resC)
+	}()
+
+	for res := range resC {
 		if res.s == nil || res.err != nil {
 			continue
 		}
@@ -503,7 +428,6 @@ func (s *Store) loadShards() error {
 		}
 		s.databases[res.s.database].addIndexType(res.s.IndexType())
 	}
-	close(resC)
 
 	// Check if any databases are running multiple index types.
 	for db, state := range s.databases {
@@ -2365,5 +2289,194 @@ func (s shardSet) ForEach(f func(ids *SeriesIDSet)) error {
 
 		f(idx.SeriesIDSet())
 	}
+	return nil
+}
+
+func (s *Store) getRetentionPolicyDirs(db os.DirEntry, log *zap.Logger) ([]os.DirEntry, error) {
+	dbPath := filepath.Join(s.path, db.Name())
+	if !db.IsDir() {
+		log.Info("Skipping database dir", zap.String("name", db.Name()), zap.String("reason", "not a directory"))
+		return nil, nil
+	}
+
+	if s.EngineOptions.DatabaseFilter != nil && !s.EngineOptions.DatabaseFilter(db.Name()) {
+		log.Info("Skipping database dir", logger.Database(db.Name()), zap.String("reason", "failed database filter"))
+		return nil, nil
+	}
+
+	// Load each retention policy within the database directory.
+	rpDirs, err := os.ReadDir(dbPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return rpDirs, nil
+}
+
+func (s *Store) getShards(rpDir os.DirEntry, dbDir os.DirEntry, log *zap.Logger) ([]os.DirEntry, error) {
+	rpPath := filepath.Join(s.path, dbDir.Name(), rpDir.Name())
+	if !rpDir.IsDir() {
+		log.Info("Skipping retention policy dir", zap.String("name", rpDir.Name()), zap.String("reason", "not a directory"))
+		return nil, nil
+	}
+
+	// The .series directory is not a retention policy.
+	if rpDir.Name() == SeriesFileDirectory {
+		return nil, nil
+	}
+
+	if s.EngineOptions.RetentionPolicyFilter != nil && !s.EngineOptions.RetentionPolicyFilter(dbDir.Name(), rpDir.Name()) {
+		log.Info("Skipping retention policy dir", logger.RetentionPolicy(rpDir.Name()), zap.String("reason", "failed retention policy filter"))
+		return nil, nil
+	}
+
+	shardDirs, err := os.ReadDir(rpPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return shardDirs, nil
+}
+
+type ShardContext struct {
+	db    os.DirEntry
+	rp    os.DirEntry
+	sh    os.DirEntry
+	sFile *SeriesFile
+	resC  chan *res
+	idx   interface{}
+	t     limiter.Fixed
+	wg    *sync.WaitGroup
+	log   *zap.Logger
+}
+
+func (s *Store) traverseShardsAndProcess(fn func(ctx *ShardContext) error, dbDirs []os.DirEntry, sharedContext *ShardContext) error {
+	for _, db := range dbDirs {
+		rpDirs, err := s.getRetentionPolicyDirs(db, sharedContext.log)
+		if err != nil {
+			return err
+		} else if rpDirs == nil {
+			continue
+		}
+
+		// Load series file.
+		sfile, err := s.openSeriesFile(db.Name())
+		if err != nil {
+			return err
+		}
+
+		// Retrieve database index.
+		idx, err := s.createIndexIfNotExists(db.Name())
+		if err != nil {
+			return err
+		}
+
+		for _, rp := range rpDirs {
+			shardDirs, err := s.getShards(rp, db, sharedContext.log)
+			if err != nil {
+				return err
+			} else if shardDirs == nil {
+				continue
+			}
+
+			for _, sh := range shardDirs {
+				// Series file should not be in a retention policy but skip just in case.
+				if sh.Name() == SeriesFileDirectory {
+					sharedContext.log.Warn("Skipping series file in retention policy dir", zap.String("path", filepath.Join(s.path, db.Name(), rp.Name())))
+					continue
+				}
+
+				ctx := &ShardContext{
+					db:    db,
+					rp:    rp,
+					sh:    sh,
+					wg:    sharedContext.wg,
+					sFile: sfile,
+					idx:   idx,
+					resC:  sharedContext.resC,
+					t:     sharedContext.t,
+					log:   sharedContext.log,
+				}
+
+				if err := fn(ctx); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Store) loadAllShards(opts *ShardContext) error {
+	opts.wg.Add(1)
+
+	go func(db, rp, sh string) {
+		defer opts.wg.Done()
+
+		opts.t.Take()
+		defer opts.t.Release()
+
+		start := time.Now()
+		path := filepath.Join(s.path, db, rp, sh)
+		walPath := filepath.Join(s.EngineOptions.Config.WALDir, db, rp, sh)
+
+		// Shard file names are numeric shardIDs
+		shardID, err := strconv.ParseUint(sh, 10, 64)
+		if err != nil {
+			opts.log.Info("invalid shard ID found at path", zap.String("path", path))
+			opts.resC <- &res{err: fmt.Errorf("%s is not a valid ID. Skipping shard.", sh)}
+			if s.startupProgressMetrics != nil {
+				s.startupProgressMetrics.RemoveShardFromCount()
+			}
+			return
+		}
+
+		if s.EngineOptions.ShardFilter != nil && !s.EngineOptions.ShardFilter(db, rp, shardID) {
+			opts.log.Info("skipping shard", zap.String("path", path), logger.Shard(shardID))
+			opts.resC <- &res{}
+			if s.startupProgressMetrics != nil {
+				s.startupProgressMetrics.RemoveShardFromCount()
+			}
+			return
+		}
+
+		// Copy options and assign shared index.
+		opt := s.EngineOptions
+		opt.InmemIndex = opts.idx
+
+		// Provide an implementation of the ShardIDSets
+		opt.SeriesIDSets = shardSet{store: s, db: db}
+
+		// Existing shards should continue to use inmem index.
+		if _, err := os.Stat(filepath.Join(path, "index")); os.IsNotExist(err) {
+			opt.IndexVersion = InmemIndexName
+		}
+
+		// Open engine.
+		shard := NewShard(shardID, path, walPath, opts.sFile, opt)
+
+		// Disable compactions, writes and queries until all shards are loaded
+		shard.EnableOnOpen = false
+		shard.CompactionDisabled = s.EngineOptions.CompactionDisabled
+		shard.WithLogger(s.baseLogger)
+
+		err = s.OpenShard(shard, false)
+		if err != nil {
+			opts.log.Error("Failed to open shard", logger.Shard(shardID), zap.Error(err))
+			opts.resC <- &res{err: fmt.Errorf("failed to open shard: %d: %w", shardID, err)}
+			if s.startupProgressMetrics != nil {
+				s.startupProgressMetrics.RemoveShardFromCount()
+			}
+			return
+		}
+
+		opts.resC <- &res{s: shard}
+		opts.log.Info("Opened shard", zap.String("index_version", shard.IndexType()), zap.String("path", path), zap.Duration("duration", time.Since(start)))
+		if s.startupProgressMetrics != nil {
+			s.startupProgressMetrics.CompletedShard()
+		}
+	}(opts.db.Name(), opts.rp.Name(), opts.sh.Name())
+
 	return nil
 }

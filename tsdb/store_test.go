@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -137,6 +138,64 @@ func TestStore_CreateShard(t *testing.T) {
 		} else if sh = s.Shard(2); sh == nil {
 			t.Fatalf("expected shard(2)")
 		}
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(index) })
+	}
+}
+
+// Ensure the store can create a new shard.
+func TestStore_StartupShardProgress(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) {
+		fmt.Println(index)
+		s := MustOpenStore(index)
+		defer s.Close()
+
+		// Create a new shard and verify that it exists.
+		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
+			t.Fatal(err)
+		} else if sh := s.Shard(1); sh == nil {
+			t.Fatalf("expected shard")
+		}
+
+		// Create another shard and verify that it exists.
+		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
+			t.Fatal(err)
+		} else if sh := s.Shard(2); sh == nil {
+			t.Fatalf("expected shard")
+		}
+
+		msl := &mockStartupLogger{}
+
+		// Reopen shard and recheck.
+		if err := s.ReopenWithStartupMetrics(msl); err != nil {
+			t.Fatal(err)
+		} else if sh := s.Shard(1); sh == nil {
+			t.Fatalf("expected shard(1)")
+		} else if sh = s.Shard(2); sh == nil {
+			t.Fatalf("expected shard(2)")
+		}
+
+		if msl.getShardsAdded() != 2 {
+			t.Fatalf("expected 2 shards added, got %d", msl.getShardsAdded())
+		}
+
+		if msl.getShardsCompleted() != 2 {
+			t.Fatalf("expected 2 shards completed, got %d", msl.getShardsCompleted())
+		}
+
+		// Equality check to make sure shards are always added prior to
+		// completion being called.
+		reflect.DeepEqual(msl.shardTracker, []string{
+			"shard-add",
+			"shard-add",
+			"shard-add",
+			"shard-complete",
+			"shard-complete",
+		})
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
@@ -2682,6 +2741,25 @@ func (s *Store) Reopen() error {
 	return s.Store.Open()
 }
 
+// Reopen closes and reopens the store as a new store.
+func (s *Store) ReopenWithStartupMetrics(msl *mockStartupLogger) error {
+	if err := s.Store.Close(); err != nil {
+		return err
+	}
+
+	s.Store = tsdb.NewStore(s.Path())
+	s.EngineOptions.IndexVersion = s.index
+	s.EngineOptions.Config.WALDir = filepath.Join(s.Path(), "wal")
+	s.EngineOptions.Config.TraceLoggingEnabled = true
+
+	s.WithStartupMetrics(msl)
+
+	if testing.Verbose() {
+		s.WithLogger(logger.New(os.Stdout))
+	}
+	return s.Store.Open()
+}
+
 // Close closes the store and removes the underlying data.
 func (s *Store) Close() error {
 	defer os.RemoveAll(s.Path())
@@ -2753,4 +2831,38 @@ func dirExists(path string) bool {
 		return true
 	}
 	return !os.IsNotExist(err)
+}
+
+type mockStartupLogger struct {
+	shardTracker          []string
+	mu                    sync.Mutex
+	shardsCompletedCalled atomic.Uint64
+	shardsAddedCalled     atomic.Uint64
+}
+
+func (m *mockStartupLogger) AddShard() {
+	m.mu.Lock()
+	m.shardTracker = append(m.shardTracker, fmt.Sprintf("shard-add"))
+	m.mu.Unlock()
+	m.shardsAddedCalled.Add(1)
+}
+func (m *mockStartupLogger) CompletedShard() {
+	m.mu.Lock()
+	m.shardTracker = append(m.shardTracker, fmt.Sprintf("shard-complete"))
+	m.mu.Unlock()
+	m.shardsCompletedCalled.Add(1)
+}
+func (m *mockStartupLogger) RemoveShardFromCount() {
+	if m.shardsAddedCalled.Load() > 0 {
+		old, newUint := m.shardsAddedCalled.Load(), m.shardsAddedCalled.Load()-1
+		m.shardsAddedCalled.CompareAndSwap(old, newUint)
+	}
+}
+
+func (m *mockStartupLogger) getShardsAdded() uint64 {
+	return m.shardsAddedCalled.Load()
+}
+
+func (m *mockStartupLogger) getShardsCompleted() uint64 {
+	return m.shardsCompletedCalled.Load()
 }
