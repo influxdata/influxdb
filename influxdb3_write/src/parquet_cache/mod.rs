@@ -14,19 +14,24 @@ use anyhow::bail;
 use async_trait::async_trait;
 use bytes::Bytes;
 use dashmap::{DashMap, Entry};
-use futures::{StreamExt, TryStreamExt};
-use futures_util::stream::BoxStream;
+use futures::{
+    future::{BoxFuture, Shared},
+    stream::BoxStream,
+    FutureExt, StreamExt, TryStreamExt,
+};
 use iox_time::TimeProvider;
 use object_store::{
     path::Path, Error, GetOptions, GetResult, GetResultPayload, ListResult, MultipartUpload,
     ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
-    Result as ObjectStoreResult,
 };
 use observability_deps::tracing::{error, info, warn};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
-    oneshot, watch,
+    oneshot,
 };
+
+type SharedCacheValueFuture = Shared<BoxFuture<'static, Result<Arc<CacheValue>, DynError>>>;
+type DynError = Arc<dyn std::error::Error + Send + Sync>;
 
 /// A request to fetch an item at the given `path` from an object store
 ///
@@ -142,6 +147,13 @@ impl CacheValue {
             + e_tag.as_ref().map(|s| s.capacity()).unwrap_or_default()
             + version.as_ref().map(|s| s.capacity()).unwrap_or_default()
     }
+
+    async fn fetch(store: Arc<dyn ObjectStore>, path: Path) -> object_store::Result<Self> {
+        let res = store.get(&path).await?;
+        let meta = res.meta.clone();
+        let data = res.bytes().await?;
+        Ok(Self { data, meta })
+    }
 }
 
 #[derive(Debug)]
@@ -159,16 +171,17 @@ impl CacheEntry {
     fn is_fetching(&self) -> bool {
         matches!(self.state, CacheEntryState::Fetching(_))
     }
+
+    fn is_success(&self) -> bool {
+        matches!(self.state, CacheEntryState::Success(_))
+    }
 }
 
 /// The state of a cache entry
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum CacheEntryState {
     /// The cache entry is being fetched from object store
-    ///
-    /// This holds a [`watch::Sender`] that is used to notify requests made to get this entry
-    /// while it is being fetched by the cache oracle.
-    Fetching(watch::Sender<Option<Arc<CacheValue>>>),
+    Fetching(SharedCacheValueFuture),
     /// The cache entry was successfully fetched and is stored in the cache as a [`CacheValue`]
     Success(Arc<CacheValue>),
 }
@@ -177,8 +190,18 @@ impl CacheEntryState {
     /// Get the approximate size of the cache entry in bytes
     fn size(&self) -> usize {
         match self {
-            CacheEntryState::Fetching(tx) => std::mem::size_of_val(tx),
+            CacheEntryState::Fetching(_) => 0,
             CacheEntryState::Success(v) => v.size(),
+        }
+    }
+
+    async fn value(self) -> object_store::Result<Arc<CacheValue>> {
+        match self {
+            CacheEntryState::Fetching(fut) => fut.await.map_err(|e| Error::Generic {
+                store: STORE_NAME,
+                source: Box::new(e),
+            }),
+            CacheEntryState::Success(v) => Ok(v),
         }
     }
 }
@@ -216,27 +239,14 @@ impl Cache {
     }
 
     /// Get an entry in the cache or `None` if there is not an entry
-    ///
-    /// If the entry is in `Fetching` state, then this will await the etry having been fetched.
-    async fn get(&self, path: &Path) -> Option<Arc<CacheValue>> {
+    fn get(&self, path: &Path) -> Option<CacheEntryState> {
         let entry = self.map.get(path)?;
-        match &entry.state {
-            CacheEntryState::Fetching(tx) => {
-                let mut rx = tx.subscribe();
-                // TODO(trevor): is it possible that the sender has sent the result at this point?
-                // if so we need to check the rx first and maybe use more sophisticated state than
-                // an Option in the watch channel type.
-                rx.changed().await.ok()?;
-                let v = rx.borrow_and_update().clone();
-                v
-            }
-            CacheEntryState::Success(v) => {
-                entry
-                    .hit_time
-                    .store(self.time_provider.now().timestamp_nanos(), Ordering::SeqCst);
-                Some(Arc::clone(v))
-            }
+        if entry.is_success() {
+            entry
+                .hit_time
+                .store(self.time_provider.now().timestamp_nanos(), Ordering::SeqCst);
         }
+        Some(entry.state.clone())
     }
 
     /// Check if an entry in the cache is in process of being fetched or if it was already fetched
@@ -246,10 +256,9 @@ impl Cache {
     }
 
     /// Insert a `Fetching` entry to the cache with a watcher
-    fn set_fetching(&self, path: &Path) {
-        let (tx, _) = watch::channel(None);
+    fn set_fetching(&self, path: &Path, fut: SharedCacheValueFuture) {
         let entry = CacheEntry {
-            state: CacheEntryState::Fetching(tx),
+            state: CacheEntryState::Fetching(fut),
             hit_time: AtomicI64::new(self.time_provider.now().timestamp_nanos()),
         };
         let additional = entry.size();
@@ -258,25 +267,20 @@ impl Cache {
     }
 
     /// Update a `Fetching` entry to a `Success` entry in the cache
-    fn set_success(&self, path: &Path, value: CacheValue) -> Result<(), anyhow::Error> {
+    fn set_success(&self, path: &Path, value: Arc<CacheValue>) -> Result<(), anyhow::Error> {
         match self.map.entry(path.clone()) {
             Entry::Occupied(mut o) => {
                 let entry = o.get_mut();
-                let tx = match &entry.state {
-                    CacheEntryState::Fetching(tx) => tx.clone(),
-                    _ => bail!("attempted to set success state on a non-fetching cache entry"),
-                };
-                let cache_value = Arc::new(value);
-                entry.state = CacheEntryState::Success(Arc::clone(&cache_value));
+                if !entry.is_fetching() {
+                    bail!("attempted to store value in non-fetching cache entry");
+                }
+                entry.state = CacheEntryState::Success(value);
                 entry
                     .hit_time
                     .store(self.time_provider.now().timestamp_nanos(), Ordering::SeqCst);
                 // TODO(trevor): what if size is greater than cache capacity?
                 let additional = entry.size();
                 self.used.fetch_add(additional, Ordering::SeqCst);
-                // notify any watching requests that tried to get this entry while it was
-                // fetching:
-                let _ = tx.send(Some(cache_value));
                 Ok(())
             }
             Entry::Vacant(_) => bail!("attempted to set success state on an empty cache entry"),
@@ -291,21 +295,19 @@ impl Cache {
         self.used.fetch_sub(entry.state.size(), Ordering::SeqCst);
     }
 
-    /// A cache should be pruned if it is using all of its memory capacity
-    fn should_prune(&self) -> bool {
-        let used = self.used.load(Ordering::SeqCst);
-        used >= self.capacity
-    }
-
     /// Prune least recently hit entries from the cache
     fn prune(&self) {
+        let used = self.used.load(Ordering::SeqCst);
+        if used < self.capacity {
+            return;
+        }
         let n_to_prune = (self.map.len() as f64 * self.prune_percent).floor() as usize;
         // use a BinaryHeap to determine the cut-off time, at which, entries that were
         // last hit before that time will be pruned:
         let mut time_heap = BinaryHeap::with_capacity(n_to_prune);
 
         for map_ref in self.map.iter() {
-            let hit_time = map_ref.value().hit_time.load(Ordering::Relaxed);
+            let hit_time = map_ref.value().hit_time.load(Ordering::SeqCst);
             if time_heap.len() < n_to_prune {
                 // if the heap isn't full yet, throw this time on:
                 time_heap.push(hit_time);
@@ -323,7 +325,7 @@ impl Cache {
         // drop entries with hit times before the cut-off:
         let cutoff_time = *time_heap.peek().unwrap();
         self.map.retain(|_, entry| {
-            let hit_time = entry.hit_time.load(Ordering::Relaxed);
+            let hit_time = entry.hit_time.load(Ordering::SeqCst);
             if entry.is_fetching() || hit_time > cutoff_time {
                 // keep entries that are still fetching or that were hit after the cut-off:
                 true
@@ -334,7 +336,7 @@ impl Cache {
             }
         });
         // update used mem size with freed amount:
-        self.used.fetch_sub(freed, Ordering::Relaxed);
+        self.used.fetch_sub(freed, Ordering::SeqCst);
     }
 }
 
@@ -383,7 +385,7 @@ impl std::fmt::Display for MemCachedObjectStore {
 /// from the inner store.
 #[async_trait]
 impl ObjectStore for MemCachedObjectStore {
-    async fn put(&self, location: &Path, bytes: PutPayload) -> ObjectStoreResult<PutResult> {
+    async fn put(&self, location: &Path, bytes: PutPayload) -> object_store::Result<PutResult> {
         self.inner.put(location, bytes).await
     }
 
@@ -392,11 +394,14 @@ impl ObjectStore for MemCachedObjectStore {
         location: &Path,
         bytes: PutPayload,
         opts: PutOptions,
-    ) -> ObjectStoreResult<PutResult> {
+    ) -> object_store::Result<PutResult> {
         self.inner.put_opts(location, bytes, opts).await
     }
 
-    async fn put_multipart(&self, location: &Path) -> ObjectStoreResult<Box<dyn MultipartUpload>> {
+    async fn put_multipart(
+        &self,
+        location: &Path,
+    ) -> object_store::Result<Box<dyn MultipartUpload>> {
         self.inner.put_multipart(location).await
     }
 
@@ -404,14 +409,15 @@ impl ObjectStore for MemCachedObjectStore {
         &self,
         location: &Path,
         opts: PutMultipartOpts,
-    ) -> ObjectStoreResult<Box<dyn MultipartUpload>> {
+    ) -> object_store::Result<Box<dyn MultipartUpload>> {
         self.inner.put_multipart_opts(location, opts).await
     }
 
     /// Get an object from the object store. If this object is cached, then it will not make a request
     /// to the inner object store.
-    async fn get(&self, location: &Path) -> ObjectStoreResult<GetResult> {
-        if let Some(v) = self.cache.get(location).await {
+    async fn get(&self, location: &Path) -> object_store::Result<GetResult> {
+        if let Some(state) = self.cache.get(location) {
+            let v = state.value().await?;
             Ok(GetResult {
                 payload: GetResultPayload::Stream(
                     futures::stream::iter([Ok(v.data.clone())]).boxed(),
@@ -425,13 +431,17 @@ impl ObjectStore for MemCachedObjectStore {
         }
     }
 
-    async fn get_opts(&self, location: &Path, options: GetOptions) -> ObjectStoreResult<GetResult> {
+    async fn get_opts(
+        &self,
+        location: &Path,
+        options: GetOptions,
+    ) -> object_store::Result<GetResult> {
         // NOTE(trevor): this could probably be supported through the cache if we need it via the
         // ObjectMeta stored in the cache. For now this is conservative:
         self.inner.get_opts(location, options).await
     }
 
-    async fn get_range(&self, location: &Path, range: Range<usize>) -> ObjectStoreResult<Bytes> {
+    async fn get_range(&self, location: &Path, range: Range<usize>) -> object_store::Result<Bytes> {
         Ok(self
             .get_ranges(location, &[range])
             .await?
@@ -446,8 +456,9 @@ impl ObjectStore for MemCachedObjectStore {
         &self,
         location: &Path,
         ranges: &[Range<usize>],
-    ) -> ObjectStoreResult<Vec<Bytes>> {
-        if let Some(v) = self.cache.get(location).await {
+    ) -> object_store::Result<Vec<Bytes>> {
+        if let Some(state) = self.cache.get(location) {
+            let v = state.value().await?;
             ranges
                 .iter()
                 .map(|range| {
@@ -480,8 +491,9 @@ impl ObjectStore for MemCachedObjectStore {
         }
     }
 
-    async fn head(&self, location: &Path) -> ObjectStoreResult<ObjectMeta> {
-        if let Some(v) = self.cache.get(location).await {
+    async fn head(&self, location: &Path) -> object_store::Result<ObjectMeta> {
+        if let Some(state) = self.cache.get(location) {
+            let v = state.value().await?;
             Ok(v.meta.clone())
         } else {
             self.inner.head(location).await
@@ -489,7 +501,7 @@ impl ObjectStore for MemCachedObjectStore {
     }
 
     /// Delete an object on object store, but also remove it from the cache.
-    async fn delete(&self, location: &Path) -> ObjectStoreResult<()> {
+    async fn delete(&self, location: &Path) -> object_store::Result<()> {
         let result = self.inner.delete(location).await?;
         self.cache.remove(location);
         Ok(result)
@@ -497,14 +509,14 @@ impl ObjectStore for MemCachedObjectStore {
 
     fn delete_stream<'a>(
         &'a self,
-        locations: BoxStream<'a, ObjectStoreResult<Path>>,
-    ) -> BoxStream<'a, ObjectStoreResult<Path>> {
+        locations: BoxStream<'a, object_store::Result<Path>>,
+    ) -> BoxStream<'a, object_store::Result<Path>> {
         locations
             .and_then(|_| futures::future::err(Error::NotImplemented))
             .boxed()
     }
 
-    fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, ObjectStoreResult<ObjectMeta>> {
+    fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
         self.inner.list(prefix)
     }
 
@@ -512,27 +524,27 @@ impl ObjectStore for MemCachedObjectStore {
         &self,
         prefix: Option<&Path>,
         offset: &Path,
-    ) -> BoxStream<'_, ObjectStoreResult<ObjectMeta>> {
+    ) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
         self.inner.list_with_offset(prefix, offset)
     }
 
-    async fn list_with_delimiter(&self, prefix: Option<&Path>) -> ObjectStoreResult<ListResult> {
+    async fn list_with_delimiter(&self, prefix: Option<&Path>) -> object_store::Result<ListResult> {
         self.inner.list_with_delimiter(prefix).await
     }
 
-    async fn copy(&self, from: &Path, to: &Path) -> ObjectStoreResult<()> {
+    async fn copy(&self, from: &Path, to: &Path) -> object_store::Result<()> {
         self.inner.copy(from, to).await
     }
 
-    async fn rename(&self, from: &Path, to: &Path) -> ObjectStoreResult<()> {
+    async fn rename(&self, from: &Path, to: &Path) -> object_store::Result<()> {
         self.inner.rename(from, to).await
     }
 
-    async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> ObjectStoreResult<()> {
+    async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
         self.inner.copy_if_not_exists(from, to).await
     }
 
-    async fn rename_if_not_exists(&self, from: &Path, to: &Path) -> ObjectStoreResult<()> {
+    async fn rename_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
         self.inner.rename_if_not_exists(from, to).await
     }
 }
@@ -555,31 +567,29 @@ fn background_cache_request_handler(
             if mem_store.cache.path_already_fetched(&path) {
                 continue;
             }
+            let path_cloned = path.clone();
+            let store_cloned = Arc::clone(&mem_store.inner);
+            let fut = async move {
+                CacheValue::fetch(store_cloned, path_cloned)
+                    .await
+                    .map(Arc::new)
+                    .map_err(|e| Arc::new(e) as _)
+            }
+            .boxed()
+            .shared();
             // Put a `Fetching` state in the entry to prevent concurrent requests to the same path:
-            mem_store.cache.set_fetching(&path);
+            mem_store.cache.set_fetching(&path, fut.clone());
             let mem_store_captured = Arc::clone(&mem_store);
             tokio::spawn(async move {
-                match mem_store_captured.inner.get(&path).await {
-                    Ok(result) => {
-                        let meta = result.meta.clone();
-                        match result.bytes().await {
-                            Ok(data) => {
-                                if let Err(error) = mem_store_captured
-                                    .cache
-                                    .set_success(&path, CacheValue { data, meta })
-                                {
-                                    // NOTE(trevor): this would be an error if A) it tried to insert on an already
-                                    // successful entry, or B) it tried to insert on an empty entry, in either case
-                                    // we do not need to remove the entry to clear the fetching state, as in the
-                                    // other failure modes below...
-                                    warn!(%error, "failed to set the success state on the cache");
-                                };
-                            }
-                            Err(error) => {
-                                error!(%error, "failed to retrieve payload from object store get result");
-                                mem_store_captured.cache.remove(&path);
-                            }
-                        }
+                match fut.await {
+                    Ok(value) => {
+                        if let Err(error) = mem_store_captured.cache.set_success(&path, value) {
+                            // NOTE(trevor): this would be an error if A) it tried to insert on an already
+                            // successful entry, or B) it tried to insert on an empty entry, in either case
+                            // we do not need to remove the entry to clear the fetching state, as in the
+                            // other failure modes below...
+                            warn!(%error, "failed to set the success state on the cache");
+                        };
                     }
                     Err(error) => {
                         error!(%error, "failed to fulfill cache request with object store");
@@ -602,10 +612,7 @@ fn background_cache_pruner(mem_store: Arc<MemCachedObjectStore>) -> tokio::task:
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             interval.tick().await;
-
-            if mem_store.cache.should_prune() {
-                mem_store.cache.prune();
-            }
+            mem_store.cache.prune();
         }
     })
 }
@@ -695,7 +702,7 @@ mod tests {
         let inner_store = Arc::new(TestObjectStore::new(Arc::new(InMemory::new())));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // this is a magic number that will make it so the third entry exceeds the cache capacity:
-        let cache_capacity_bytes = 72;
+        let cache_capacity_bytes = 60;
         let (cached_store, oracle) = create_cached_obj_store_and_oracle(
             Arc::clone(&inner_store) as _,
             Arc::clone(&time_provider) as _,
