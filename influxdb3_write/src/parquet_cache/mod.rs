@@ -125,14 +125,17 @@ struct CacheValue {
 impl CacheValue {
     /// Get the size of the cache value's memory footprint in bytes
     fn size(&self) -> usize {
-        let Self { data, meta } = self;
-        let ObjectMeta {
-            location,
-            last_modified: _,
-            size: _,
-            e_tag,
-            version,
-        } = meta;
+        let Self {
+            data,
+            meta:
+                ObjectMeta {
+                    location,
+                    last_modified: _,
+                    size: _,
+                    e_tag,
+                    version,
+                },
+        } = self;
 
         data.len()
             + location.as_ref().len()
