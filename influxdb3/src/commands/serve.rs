@@ -267,6 +267,7 @@ pub async fn command(config: Config) -> Result<()> {
         object_store,
         Arc::clone(&time_provider) as _,
         cache_capacity,
+        0.1,
     );
 
     let trace_exporter = config.tracing_config.build()?;

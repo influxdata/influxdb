@@ -1,6 +1,5 @@
 //! An in-memory cache of Parquet files that are persisted to object storage
 use std::{
-    cmp::Reverse,
     collections::BinaryHeap,
     fmt::Debug,
     ops::Range,
@@ -96,11 +95,13 @@ pub fn create_cached_obj_store_and_oracle(
     object_store: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
     cache_capacity: usize,
+    prune_percent: f64,
 ) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
     let store = Arc::new(MemCachedObjectStore::new(
         object_store,
         cache_capacity,
         time_provider,
+        prune_percent,
     ));
     let oracle = Arc::new(MemCacheOracle::new(Arc::clone(&store)));
     (store, oracle)
@@ -111,7 +112,7 @@ pub fn test_cached_obj_store_and_oracle(
     object_store: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
 ) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
-    create_cached_obj_store_and_oracle(object_store, time_provider, 1024 * 1024 * 1024)
+    create_cached_obj_store_and_oracle(object_store, time_provider, 1024 * 1024 * 1024, 0.1)
 }
 
 /// An entry in the cache, containing the actual bytes as well as object store metadata
@@ -190,13 +191,9 @@ struct Cache {
     capacity: usize,
     /// The current amount of memory being used by the cache
     used: AtomicUsize,
-    /// The maximum amount of memory to free during a prune operation
-    max_free_amount: usize,
+    /// What percentage of the total number ofo cache entries will be pruned during a pruning operation
+    prune_percent: f64,
     /// The map storing cache entries
-    ///
-    /// This uses [`IndexMap`] to preserve insertion order, such that, when iterating over the map
-    /// to prune entries, iteration occurs in the order that entries were inserted. This will have
-    /// older entries removed before newer entries
     map: RwLock<HashMap<Path, CacheEntry>>,
     time_provider: Arc<dyn TimeProvider>,
 }
@@ -205,11 +202,11 @@ impl Cache {
     /// Create a new cache with a given capacity and max free percentage
     ///
     /// The cache's `max_free_amount` will be calculated using the provided values
-    fn new(capacity: usize, max_free_percent: f64, time_provider: Arc<dyn TimeProvider>) -> Self {
+    fn new(capacity: usize, prune_percent: f64, time_provider: Arc<dyn TimeProvider>) -> Self {
         Self {
             capacity,
             used: AtomicUsize::new(0),
-            max_free_amount: (capacity as f64 * max_free_percent).floor() as usize,
+            prune_percent,
             map: RwLock::new(HashMap::new()),
             time_provider,
         }
@@ -298,30 +295,31 @@ impl Cache {
         used >= self.capacity
     }
 
-    /// Prune least recently hit entries from the cache stopping once the `max_freed_amount` has
-    /// been pruned.
+    /// Prune least recently hit entries from the cache
     async fn prune(&self) {
         let mut map = self.map.write().await;
-        let mut time_heap = BinaryHeap::new();
+        let n_to_prune = (map.len() as f64 * self.prune_percent).floor() as usize;
+        let mut time_heap = BinaryHeap::with_capacity(n_to_prune);
+
         for (_, entry) in map.iter() {
             let hit_time = entry.hit_time.load(Ordering::Relaxed);
-            let size = entry.size();
-            time_heap.push(Reverse(PruneHeapItem { hit_time, size }));
-        }
-        let mut freed = 0;
-        let mut cut_off_time = i64::MAX;
-        while let Some(Reverse(PruneHeapItem { hit_time, size })) = time_heap.pop() {
-            freed += size;
-            if freed >= self.max_free_amount {
-                cut_off_time = hit_time;
-                break;
+            if time_heap.len() < n_to_prune {
+                time_heap.push(hit_time);
+            } else {
+                if hit_time < *time_heap.peek().unwrap() {
+                    time_heap.pop();
+                    time_heap.push(hit_time);
+                }
             }
         }
-        // reset freed so we calculate actual amount freed during retain:
-        freed = 0;
+
+        // track the total size of entries that get freed:
+        let mut freed = 0;
+        // drop entries with hit times before the cut-off:
+        let cutoff_time = *time_heap.peek().unwrap();
         map.retain(|_, entry| {
             let hit_time = entry.hit_time.load(Ordering::Relaxed);
-            if entry.is_fetching() || hit_time > cut_off_time {
+            if entry.is_fetching() || hit_time > cutoff_time {
                 // keep entries that are still fetching or that were hit after the cut-off:
                 true
             } else {
@@ -330,31 +328,8 @@ impl Cache {
                 false
             }
         });
+        // update used mem size with freed amount:
         self.used.fetch_sub(freed, Ordering::Relaxed);
-    }
-}
-
-#[derive(Debug, Eq)]
-struct PruneHeapItem {
-    hit_time: i64,
-    size: usize,
-}
-
-impl PartialEq for PruneHeapItem {
-    fn eq(&self, other: &Self) -> bool {
-        self.hit_time.eq(&other.hit_time)
-    }
-}
-
-impl PartialOrd for PruneHeapItem {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.hit_time.cmp(&other.hit_time))
-    }
-}
-
-impl Ord for PruneHeapItem {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.hit_time.cmp(&other.hit_time)
     }
 }
 
@@ -379,10 +354,11 @@ impl MemCachedObjectStore {
         inner: Arc<dyn ObjectStore>,
         memory_capacity: usize,
         time_provider: Arc<dyn TimeProvider>,
+        prune_percent: f64,
     ) -> Self {
         Self {
             inner,
-            cache: Arc::new(Cache::new(memory_capacity, 0.1, time_provider)),
+            cache: Arc::new(Cache::new(memory_capacity, prune_percent, time_provider)),
         }
     }
 }
@@ -720,6 +696,7 @@ mod tests {
             Arc::clone(&inner_store) as _,
             Arc::clone(&time_provider) as _,
             cache_capacity_bytes,
+            0.4,
         );
         // PUT an entry into the store:
         let path_1 = Path::from("0.parquet");
