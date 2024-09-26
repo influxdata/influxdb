@@ -9,6 +9,7 @@ use arrow::record_batch::RecordBatch;
 use arrow::util::pretty::pretty_format_batches;
 use arrow_schema::SchemaRef;
 use data_types::NamespaceName;
+use executor::register_current_runtime_for_io;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_pro_compactor::{compact_files, CompactFilesArgs, CompactorOutput};
 use influxdb3_pro_data_layout::{CompactionSequenceNumber, GenerationLevel};
@@ -111,12 +112,15 @@ async fn five_files_multiple_series_same_schema() {
     let path5 = test_writer.write("test/batch/5", batch5).await;
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
+    let db_name = Arc::clone(&db_schema.name);
+    let table_schema = db_schema.get_table_schema("test_table").unwrap();
+
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
         compaction_sequence_number: CompactionSequenceNumber::new(1),
-        db_schema,
+        db_name,
         table_name: "test_table".into(),
-        sort_keys: vec!["id".into()],
+        table_schema: table_schema.clone(),
         paths: vec![path1, path2, path3, path4, path5],
         limit: 2,
         generation: GenerationLevel::two(),
@@ -311,12 +315,15 @@ async fn two_files_two_series_and_same_schema() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
+    let db_name = Arc::clone(&db_schema.name);
+    let table_schema = db_schema.get_table_schema("test_table").unwrap();
+
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
         compaction_sequence_number: CompactionSequenceNumber::new(1),
-        db_schema,
+        db_name,
         table_name: "test_table".into(),
-        sort_keys: vec!["id".into(), "host".into()],
+        table_schema: table_schema.clone(),
         paths: vec![path2, path1],
         limit: 2,
         generation: GenerationLevel::two(),
@@ -454,12 +461,15 @@ async fn two_files_same_series_and_schema() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
+    let db_name = Arc::clone(&db_schema.name);
+    let table_schema = db_schema.get_table_schema("test_table").unwrap();
+
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
         compaction_sequence_number: CompactionSequenceNumber::new(1),
-        db_schema,
+        db_name,
         table_name: "test_table".into(),
-        sort_keys: vec!["id".into(), "host".into()],
+        table_schema: table_schema.clone(),
         paths: vec![path1, path2],
         limit: 2,
         generation: GenerationLevel::two(),
@@ -599,12 +609,15 @@ async fn two_files_similar_series_and_compatible_schema() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
+    let db_name = Arc::clone(&db_schema.name);
+    let table_schema = db_schema.get_table_schema("test_table").unwrap();
+
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
         compaction_sequence_number: CompactionSequenceNumber::new(1),
-        db_schema,
+        db_name,
         table_name: "test_table".into(),
-        sort_keys: vec!["id".into(), "host".into(), "extra_tag".into()],
+        table_schema: table_schema.clone(),
         paths: vec![path1, path2],
         limit: 2,
         generation: GenerationLevel::two(),
@@ -751,12 +764,15 @@ async fn deduplication_of_data() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
+    let db_name = Arc::clone(&db_schema.name);
+    let table_schema = db_schema.get_table_schema("test_table").unwrap();
+
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
         compaction_sequence_number: CompactionSequenceNumber::new(1),
-        db_schema,
+        db_name,
         table_name: "test_table".into(),
-        sort_keys: vec!["id".into(), "host".into()],
+        table_schema: table_schema.clone(),
         paths: vec![path2, path1],
         limit: 2,
         generation: GenerationLevel::two(),
@@ -888,15 +904,15 @@ async fn compactor_casting() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
+    let db_name = Arc::clone(&db_schema.name);
+    let table_schema = db_schema.get_table_schema("test_table").unwrap();
+
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
         compaction_sequence_number: CompactionSequenceNumber::new(1),
-        db_schema,
+        db_name,
         table_name: "test_table".into(),
-        sort_keys: ["a", "b", "c", "d", "e", "f", "g", "h", "i"]
-            .into_iter()
-            .map(ToString::to_string)
-            .collect(),
+        table_schema: table_schema.clone(),
         paths: vec![path1],
         limit: 2,
         generation: GenerationLevel::two(),
@@ -936,7 +952,7 @@ fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
         Arc::clone(&object_store),
         StorageId::from("test_exec_storage"),
     );
-    Arc::new(Executor::new_with_config_and_executor(
+    let exec = Arc::new(Executor::new_with_config_and_executor(
         ExecutorConfig {
             target_query_partitions: NonZeroUsize::new(1).unwrap(),
             object_stores: [&parquet_store]
@@ -948,7 +964,11 @@ fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
             mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
         },
         DedicatedExecutor::new_testing(),
-    ))
+    ));
+
+    register_current_runtime_for_io();
+
+    exec
 }
 
 /// Creates batches for testing from a given schema

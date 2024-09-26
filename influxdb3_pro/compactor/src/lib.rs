@@ -26,13 +26,12 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::SendableRecordBatchStream;
 use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TIME_COLUMN_NAME};
+use influxdb3_catalog::catalog::{Catalog, TIME_COLUMN_NAME};
 use influxdb3_pro_data_layout::{
     CompactedData, CompactionConfig, CompactionSequenceNumber, GenerationLevel,
 };
 use influxdb3_pro_index::FileIndex;
 use influxdb3_write::chunk::ParquetChunk;
-use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
 use influxdb3_write::ParquetFileId;
 use influxdb3_write::{ParquetFile, PersistedSnapshot};
 use iox_query::chunk_statistics::create_chunk_statistics;
@@ -47,7 +46,7 @@ use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use object_store::PutPayload;
 use object_store::PutResult;
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{debug, error, info};
 use parquet::arrow::async_writer::AsyncFileWriter;
 use parquet::arrow::AsyncArrowWriter;
 use parquet::errors::ParquetError;
@@ -157,6 +156,7 @@ impl Compactor {
         compactor_config: CompactorConfig,
         catalog: Arc<Catalog>,
         object_store: Arc<dyn ObjectStore>,
+        object_store_url: ObjectStoreUrl,
         executor: Arc<Executor>,
         persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
     ) -> Self {
@@ -173,7 +173,7 @@ impl Compactor {
             compacted_data,
             catalog,
             object_store,
-            object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
+            object_store_url,
             executor,
             persisted_snapshot_notify_rx,
             snapshot_tracker,
@@ -181,10 +181,15 @@ impl Compactor {
     }
 
     pub async fn compact(self) {
+        info!(
+            "starting compaction loop for hosts {:?}",
+            self.snapshot_tracker.hosts()
+        );
         let mut persisted_snapshot_notify_rx = self.persisted_snapshot_notify_rx.clone();
 
         loop {
-            if persisted_snapshot_notify_rx.changed().await.is_err() {
+            if let Err(e) = persisted_snapshot_notify_rx.changed().await {
+                error!("Failed to wait for new snapshot: {}", e);
                 break;
             }
 
@@ -193,7 +198,7 @@ impl Compactor {
                 None => continue,
             };
 
-            info!(
+            debug!(
                 "Received new snapshot for compaction {} from {}",
                 snapshot.snapshot_sequence_number.as_u64(),
                 snapshot.host_id
@@ -212,9 +217,12 @@ impl Compactor {
                     Arc::clone(&self.object_store),
                 );
 
+                drop(compacted_data);
+
                 let _compaction_summary = runner::run_snapshot_plan(
                     snapshot_plan,
                     Arc::clone(&self.compactor_id),
+                    Arc::clone(&self.compacted_data),
                     Arc::clone(&self.catalog),
                     Arc::clone(&self.object_store),
                     self.object_store_url.clone(),
@@ -230,9 +238,9 @@ impl Compactor {
 pub struct CompactFilesArgs {
     pub compactor_id: Arc<str>,
     pub compaction_sequence_number: CompactionSequenceNumber,
-    pub db_schema: Arc<DatabaseSchema>,
+    pub db_name: Arc<str>,
     pub table_name: Arc<str>,
-    pub sort_keys: Vec<String>,
+    pub table_schema: Schema,
     pub paths: Vec<ObjPath>,
     pub limit: usize,
     pub generation: GenerationLevel,
@@ -250,9 +258,9 @@ pub async fn compact_files(
     CompactFilesArgs {
         compactor_id,
         compaction_sequence_number,
-        db_schema,
+        db_name,
         table_name,
-        sort_keys,
+        table_schema,
         paths,
         limit,
         generation,
@@ -262,23 +270,16 @@ pub async fn compact_files(
         exec,
     }: CompactFilesArgs,
 ) -> Result<CompactorOutput, CompactorError> {
-    executor::register_current_runtime_for_io();
-
-    let db_schema = db_schema;
-
-    let table_schema = db_schema
-        .get_table_schema(table_name.as_ref())
-        .ok_or_else(|| CompactorError::MissingSchema)?;
-
-    let mut sort_keys = sort_keys;
+    let dedupe_key: Vec<_> = table_schema.primary_key();
+    let dedupe_key = SortKey::from_columns(dedupe_key);
 
     let records = record_stream(
         table_name.as_ref(),
-        &mut sort_keys,
+        dedupe_key,
         paths,
-        table_schema,
+        &table_schema,
         Arc::clone(&object_store),
-        object_store_url.clone(),
+        object_store_url,
         exec,
     )
     .await?;
@@ -287,12 +288,11 @@ pub async fn compact_files(
         Arc::new(table_schema.clone()),
         object_store,
         limit,
-        sort_keys,
         records,
         compactor_id,
         generation,
         compaction_sequence_number,
-        Arc::clone(&db_schema.name),
+        db_name,
         table_name,
         index_columns,
     );
@@ -312,20 +312,13 @@ pub async fn compact_files(
 /// into a single stream.
 async fn record_stream(
     table_name: &str,
-    sort_keys: &mut Vec<String>,
+    sort_key: SortKey,
     paths: Vec<ObjPath>,
     table_schema: &Schema,
     object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
 ) -> Result<SendableRecordBatchStream, CompactorError> {
-    let time = TIME_COLUMN_NAME.into();
-    if !sort_keys.contains(&time) {
-        sort_keys.push(time);
-    }
-
-    let sort_key = SortKey::from_columns(sort_keys.iter().map(String::as_str));
-
     // We need to use the same partition id for every file if we want the reorg plan to not only
     // sort, but to dedupe data. We use the same PartitionKey for every file to accomplish this.
     // This is a concept for IOx and the query planner can be clever about deduping data if data
@@ -403,8 +396,8 @@ struct SeriesWriter {
     writer: Option<AsyncArrowWriter<AsyncMultiPart>>,
     /// Used to get the next `RecordBatch` to process
     record_batches: RecordBatchHolder,
-    /// Tags to sort all of the record batches by
-    sort_keys: Vec<String>,
+    /// Series key (e.g. tags) to separate data out by
+    series_key: Vec<String>,
     /// Files we have created
     output_paths: Vec<ObjPath>,
     /// Metadata for the files we have created
@@ -441,7 +434,6 @@ impl SeriesWriter {
         table_schema: Arc<Schema>,
         object_store: Arc<dyn ObjectStore>,
         limit: usize,
-        sort_keys: Vec<String>,
         stream: SendableRecordBatchStream,
         compactor_id: Arc<str>,
         generation: GenerationLevel,
@@ -450,13 +442,21 @@ impl SeriesWriter {
         table_name: Arc<str>,
         index_columns: Vec<String>,
     ) -> Self {
+        let mut series_key = table_schema
+            .primary_key()
+            .iter()
+            .map(|f| f.to_string())
+            .collect::<Vec<_>>();
+
+        // get rid of time column
+        series_key.pop();
+
         Self {
-            record_batches: RecordBatchHolder::new(stream, Arc::clone(&table_schema)),
+            record_batches: RecordBatchHolder::new(stream, table_schema),
             object_store,
             limit,
             last_batch: None,
             writer: None,
-            sort_keys,
             output_paths: Vec::new(),
             file_metadata: Vec::new(),
             compactor_id,
@@ -470,6 +470,7 @@ impl SeriesWriter {
             file_index: FileIndex::new(),
             min_time: i64::MAX,
             max_time: i64::MIN,
+            series_key,
         }
     }
 
@@ -527,7 +528,7 @@ impl SeriesWriter {
             let last_batch_slice = last_batch.slice(last_batch.num_rows() - 1, 1);
             let batch_slice = batch.slice(0, 1);
             for key in self
-                .sort_keys
+                .series_key
                 .iter()
                 .filter(|name| name != &TIME_COLUMN_NAME)
             {
@@ -652,13 +653,10 @@ impl SeriesWriter {
 
     /// Find where the series are in the record batch
     fn partition_by_series(&self, batch: &RecordBatch) -> Result<Partitions, CompactorError> {
-        assert_eq!(self.sort_keys.last(), Some(&TIME_COLUMN_NAME.into()));
-
-        // We want to partition on everything except time
+        // We want to partition by the series key columns in the batch
         let columns = self
-            .sort_keys
+            .series_key
             .iter()
-            .filter(|name| name != &TIME_COLUMN_NAME)
             .map(|name| {
                 Ok(Arc::clone(batch.column_by_name(name).ok_or_else(|| {
                     CompactorError::MissingColumnName(name.clone())

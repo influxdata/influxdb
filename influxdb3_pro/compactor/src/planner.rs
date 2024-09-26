@@ -80,6 +80,15 @@ impl SnapshotTracker {
         }
     }
 
+    pub(crate) fn hosts(&self) -> Vec<String> {
+        self.state
+            .lock()
+            .host_snapshot_markers
+            .keys()
+            .cloned()
+            .collect()
+    }
+
     pub(crate) fn add_snapshot(&self, snapshot: &PersistedSnapshot) -> Result<()> {
         let mut state = self.state.lock();
 
@@ -155,10 +164,13 @@ impl SnapshotTracker {
 
         let (host_snapshot_markers, gen1_files) = state.reset();
 
-        let mut compaction_plans = Vec::new();
+        let mut compaction_plans = HashMap::new();
         let mut generation_map = HashMap::new();
 
         for (db, tables) in gen1_files {
+            let table_plans: &mut Vec<CompactionPlan> =
+                compaction_plans.entry(Arc::clone(&db)).or_default();
+
             for (table, mut gen1_files) in tables {
                 // if this table has been compacted before, get its generations
                 let generations = compacted_data.get_generations(
@@ -176,7 +188,7 @@ impl SnapshotTracker {
                     Arc::clone(&table),
                     &gen1_files,
                 );
-                compaction_plans.push(plan);
+                table_plans.push(plan);
                 for g in gen1_files {
                     generation_map.insert(g.id(), g);
                 }
@@ -192,14 +204,13 @@ impl SnapshotTracker {
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub(crate) struct SnapshotAdvancePlan {
     /// Map of host to snapshot marker and snapshot count
-    host_snapshot_markers: HashMap<String, HostSnapshotCounter>,
+    pub(crate) host_snapshot_markers: HashMap<String, HostSnapshotCounter>,
     /// The compaction plans that must be run to advance the snapshot summary beyond these snapshots
-    compaction_plans: Vec<CompactionPlan>,
+    pub(crate) compaction_plans: HashMap<Arc<str>, Vec<CompactionPlan>>,
     /// Map of `GenerationId` to the `Generation`
-    generations: HashMap<GenerationId, Arc<dyn Generation>>,
+    pub(crate) generations: HashMap<GenerationId, Arc<dyn Generation>>,
 }
 
 /// Creates a plan to do a gen1 compaction on the newest gen1 files. If no gen1 compaction is
@@ -289,41 +300,47 @@ fn create_next_gen_plan(
     None
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
-enum CompactionPlan {
+pub(crate) enum CompactionPlan {
     LeftoverOnly(LeftoverPlan),
     Compaction(NextCompactionPlan),
+}
+
+impl CompactionPlan {
+    pub(crate) fn table_name(&self) -> &str {
+        match self {
+            Self::LeftoverOnly(plan) => &plan.table_name,
+            Self::Compaction(plan) => &plan.table_name,
+        }
+    }
 }
 
 /// This plan is what gets created when the only compaction to be done is with gen1 files
 /// that overlap with older generations (3+) or there aren't enough gen1 files to compact into a larger gen2 generation. In that case, we'll want to just update the
 /// `CompactionDetail` for the table with this information so that the historical compaction
 /// can be run later. For now, we want to advance the snapshot trackers of the upstream gen1 hosts.
-#[allow(dead_code)]
 #[derive(Debug)]
-struct LeftoverPlan {
-    db_name: Arc<str>,
-    table_name: Arc<str>,
-    leftover_ids: Vec<GenerationId>,
+pub(crate) struct LeftoverPlan {
+    pub(crate) db_name: Arc<str>,
+    pub(crate) table_name: Arc<str>,
+    pub(crate) leftover_ids: Vec<GenerationId>,
 }
 
 /// When the planner gets called to plan a compaction on a table, this contains all the detail
 /// to run whatever the next highest priority compaction is. The returned information from that
 /// compaction combined with the leftover_ids will give us enough detail to write a new
 /// `CompactionDetail` file for the table.
-#[allow(dead_code)]
 #[derive(Debug)]
-struct NextCompactionPlan {
-    db_name: Arc<str>,
-    table_name: Arc<str>,
-    output_level: GenerationLevel,
-    output_id: GenerationId,
-    output_gen_time: i64,
+pub(crate) struct NextCompactionPlan {
+    pub db_name: Arc<str>,
+    pub table_name: Arc<str>,
+    pub output_level: GenerationLevel,
+    pub output_id: GenerationId,
+    pub output_gen_time: i64,
     /// The input generations from both gen1 and existing generations for this compaction
-    input_ids: Vec<GenerationId>,
+    pub input_ids: Vec<GenerationId>,
     /// The ids for the gen1 files that will be left over after this compaction plan runs
-    leftover_ids: Vec<GenerationId>,
+    pub leftover_ids: Vec<GenerationId>,
 }
 
 #[cfg(test)]

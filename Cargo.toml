@@ -147,6 +147,9 @@ trogging = { git = "https://github.com/influxdata/influxdb3_core", rev = "1d5011
 # NB: Because optional is not allowed here, this is always included in the build even though it
 #     can be feature gated
 licensing = { git = "ssh://git@github.com/influxdata/influxdb3_core_internal.git", rev = "625821b2021d5d890d03c0c26e12d9c91adb0d43", default-features = false }
+# If git fails for you, you can checkout the relevant code and use the local path
+#licensing = { path = "/Users/andrewlamb/Software/influxdb3_core_internal/licensing",  default-features = false }
+
 
 [workspace.lints.rust]
 missing_copy_implementations = "deny"

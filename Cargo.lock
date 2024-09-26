@@ -2573,6 +2573,7 @@ dependencies = [
  "console-subscriber",
  "datafusion_util",
  "dotenvy",
+ "executor",
  "futures",
  "hashbrown 0.14.5",
  "hex",
@@ -2749,6 +2750,7 @@ dependencies = [
  "parquet_file",
  "pretty_assertions",
  "schema",
+ "serde_json",
  "test_helpers",
  "thiserror",
  "tokio",
@@ -2759,14 +2761,17 @@ name = "influxdb3_pro_data_layout"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "chrono",
  "hashbrown 0.14.5",
  "influxdb3_wal",
  "influxdb3_write",
  "object_store",
+ "observability_deps",
  "serde",
  "serde_json",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -7095,7 +7100,7 @@ dependencies = [
  "reqwest 0.12.7",
  "ring",
  "rustls 0.21.12",
- "rustls 0.23.12",
+ "rustls 0.23.13",
  "serde",
  "serde_json",
  "sha2",

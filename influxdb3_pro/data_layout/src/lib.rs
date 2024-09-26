@@ -2,6 +2,8 @@
 //! persisted files that Pro has compacted into later generations, the snapshots of those
 //! generations, and file indexes.
 
+pub mod persist;
+
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use hashbrown::HashMap;
@@ -34,13 +36,13 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct CompactionSummary {
     /// The compaction sequence number that created this summary.
     pub compaction_sequence_number: CompactionSequenceNumber,
-    /// The next `ParquetFileId` that that should be used if this server is restarted and
-    /// reads state off object store to then start doing compactions.
-    pub next_file_id: ParquetFileId,
+    /// The last `ParquetFileId` that was used. This will be used to initialize the
+    /// `ParquetFileId` on startup to ensure that we don't reuse file ids.
+    pub last_file_id: ParquetFileId,
     /// The last `SnapshotSequenceNumber` for each host that is getting compacted.
     pub snapshot_markers: Vec<HostSnapshotMarker>,
     /// The paths to the compaction details for each table.
-    pub compaction_details: Vec<CompactionDetailPath>,
+    pub compaction_details: Vec<CompactionDetailRef>,
 }
 
 /// The last snapshot sequence number for each host that is getting compacted.
@@ -242,11 +244,11 @@ impl Display for GenerationLevel {
 /// included, which will include the details in the `CompactionDetail`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct YoungGeneration {
-    id: GenerationId,
-    compaction_sequence_number: CompactionSequenceNumber,
-    level: GenerationLevel,
-    start_time: i64,
-    files: Vec<Arc<ParquetFile>>,
+    pub id: GenerationId,
+    pub compaction_sequence_number: CompactionSequenceNumber,
+    pub level: GenerationLevel,
+    pub start_time: i64,
+    pub files: Vec<Arc<ParquetFile>>,
 }
 
 #[async_trait]
@@ -277,7 +279,7 @@ impl Generation for YoungGeneration {
 /// We do this because older generations could potentially have thousands of individual files.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OldGeneration {
-    id: GenerationId,
+    pub id: GenerationId,
     compaction_sequence_number: CompactionSequenceNumber,
     level: GenerationLevel,
     start_time: i64,
@@ -286,8 +288,8 @@ pub struct OldGeneration {
 /// A wrapper for a single gen1 file from the original persistence.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Gen1 {
-    id: GenerationId,
-    file: Arc<ParquetFile>,
+    pub id: GenerationId,
+    pub file: Arc<ParquetFile>,
 }
 
 impl Gen1 {
@@ -357,16 +359,30 @@ impl From<u64> for GenerationId {
     }
 }
 
+pub static NEXT_COMPACTION_SEQUENCE_NUMBER: AtomicU64 = AtomicU64::new(0);
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompactionSequenceNumber(u64);
 
 impl CompactionSequenceNumber {
-    pub fn new(value: u64) -> Self {
-        Self(value)
+    pub fn new(v: u64) -> Self {
+        Self(v)
+    }
+
+    pub fn initialize(last_value: u64) {
+        NEXT_COMPACTION_SEQUENCE_NUMBER.store(last_value, Ordering::SeqCst);
     }
 
     pub fn as_u64(&self) -> u64 {
         self.0
+    }
+
+    pub fn next() -> Self {
+        Self(NEXT_COMPACTION_SEQUENCE_NUMBER.fetch_add(1, Ordering::SeqCst))
+    }
+
+    pub fn current() -> Self {
+        Self(NEXT_COMPACTION_SEQUENCE_NUMBER.load(Ordering::SeqCst))
     }
 }
 
@@ -409,6 +425,7 @@ impl Generation for OldGenWrapper {
 #[derive(Debug)]
 pub struct CompactedData {
     pub compactor_id: Arc<str>,
+    pub last_compaction_summary: Option<CompactionSummary>,
     pub databases: HashMap<Arc<str>, CompactedDatabase>,
 }
 
@@ -416,6 +433,7 @@ impl CompactedData {
     pub fn new(compactor_id: Arc<str>) -> Self {
         Self {
             compactor_id,
+            last_compaction_summary: None,
             databases: HashMap::new(),
         }
     }
@@ -447,6 +465,27 @@ pub struct CompactedDatabase {
 #[derive(Debug)]
 pub struct CompactedTable {
     compacton_detail: Arc<CompactionDetail>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompactionSummaryPath(ObjPath);
+
+impl CompactionSummaryPath {
+    pub fn new(compactor_id: &str, compaction_sequence_number: CompactionSequenceNumber) -> Self {
+        Self(ObjPath::from(format!(
+            "{}/cs/{}.json",
+            compactor_id, compaction_sequence_number.0
+        )))
+    }
+}
+
+/// Reference kept in the `CompactionSummary` that gives details on where the compaction detail
+/// is for a given database and table.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompactionDetailRef {
+    pub db_name: Arc<str>,
+    pub table_name: Arc<str>,
+    pub path: CompactionDetailPath,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
