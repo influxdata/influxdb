@@ -2821,6 +2821,7 @@ dependencies = [
  "chrono",
  "crc32fast",
  "crossbeam-channel",
+ "dashmap",
  "data_types",
  "datafusion",
  "datafusion_util",

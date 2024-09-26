@@ -13,9 +13,9 @@ use std::{
 use anyhow::bail;
 use async_trait::async_trait;
 use bytes::Bytes;
+use dashmap::{DashMap, Entry};
 use futures::{StreamExt, TryStreamExt};
 use futures_util::stream::BoxStream;
-use hashbrown::{hash_map::Entry, HashMap};
 use iox_time::TimeProvider;
 use object_store::{
     path::Path, Error, GetOptions, GetResult, GetResultPayload, ListResult, MultipartUpload,
@@ -25,7 +25,7 @@ use object_store::{
 use observability_deps::tracing::{error, info, warn};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
-    oneshot, watch, RwLock,
+    oneshot, watch,
 };
 
 /// A request to fetch an item at the given `path` from an object store
@@ -194,7 +194,7 @@ struct Cache {
     /// What percentage of the total number ofo cache entries will be pruned during a pruning operation
     prune_percent: f64,
     /// The map storing cache entries
-    map: RwLock<HashMap<Path, CacheEntry>>,
+    map: DashMap<Path, CacheEntry>,
     time_provider: Arc<dyn TimeProvider>,
 }
 
@@ -207,7 +207,7 @@ impl Cache {
             capacity,
             used: AtomicUsize::new(0),
             prune_percent,
-            map: RwLock::new(HashMap::new()),
+            map: DashMap::new(),
             time_provider,
         }
     }
@@ -216,8 +216,7 @@ impl Cache {
     ///
     /// If the entry is in `Fetching` state, then this will await the etry having been fetched.
     async fn get(&self, path: &Path) -> Option<Arc<CacheValue>> {
-        let map = self.map.read().await;
-        let entry = map.get(path)?;
+        let entry = self.map.get(path)?;
         match &entry.state {
             CacheEntryState::Fetching(tx) => {
                 let mut rx = tx.subscribe();
@@ -239,25 +238,25 @@ impl Cache {
 
     /// Check if an entry in the cache is in process of being fetched or if it was already fetched
     /// successfully
-    async fn path_already_fetched(&self, path: &Path) -> bool {
-        self.map.read().await.get(path).is_some()
+    fn path_already_fetched(&self, path: &Path) -> bool {
+        self.map.get(path).is_some()
     }
 
     /// Insert a `Fetching` entry to the cache with a watcher
-    async fn set_fetching(&self, path: &Path) {
+    fn set_fetching(&self, path: &Path) {
         let (tx, _) = watch::channel(None);
         let entry = CacheEntry {
             state: CacheEntryState::Fetching(tx),
             hit_time: AtomicI64::new(self.time_provider.now().timestamp_nanos()),
         };
         let additional = entry.size();
-        self.map.write().await.insert(path.clone(), entry);
+        self.map.insert(path.clone(), entry);
         self.used.fetch_add(additional, Ordering::SeqCst);
     }
 
     /// Update a `Fetching` entry to a `Success` entry in the cache
-    async fn set_success(&self, path: &Path, value: CacheValue) -> Result<(), anyhow::Error> {
-        match self.map.write().await.entry(path.clone()) {
+    fn set_success(&self, path: &Path, value: CacheValue) -> Result<(), anyhow::Error> {
+        match self.map.entry(path.clone()) {
             Entry::Occupied(mut o) => {
                 let entry = o.get_mut();
                 let tx = match &entry.state {
@@ -282,8 +281,8 @@ impl Cache {
     }
 
     /// Remove an entry from the cache, as well as its associated size from the used capacity
-    async fn remove(&self, path: &Path) {
-        let Some(entry) = self.map.write().await.remove(path) else {
+    fn remove(&self, path: &Path) {
+        let Some((_, entry)) = self.map.remove(path) else {
             return;
         };
         self.used.fetch_sub(entry.state.size(), Ordering::SeqCst);
@@ -296,20 +295,23 @@ impl Cache {
     }
 
     /// Prune least recently hit entries from the cache
-    async fn prune(&self) {
-        let mut map = self.map.write().await;
-        let n_to_prune = (map.len() as f64 * self.prune_percent).floor() as usize;
+    fn prune(&self) {
+        let n_to_prune = (self.map.len() as f64 * self.prune_percent).floor() as usize;
+        // use a BinaryHeap to determine the cut-off time, at which, entries that were
+        // last hit before that time will be pruned:
         let mut time_heap = BinaryHeap::with_capacity(n_to_prune);
 
-        for (_, entry) in map.iter() {
-            let hit_time = entry.hit_time.load(Ordering::Relaxed);
+        for map_ref in self.map.iter() {
+            let hit_time = map_ref.value().hit_time.load(Ordering::Relaxed);
             if time_heap.len() < n_to_prune {
+                // if the heap isn't full yet, throw this time on:
                 time_heap.push(hit_time);
-            } else {
-                if hit_time < *time_heap.peek().unwrap() {
-                    time_heap.pop();
-                    time_heap.push(hit_time);
-                }
+            } else if hit_time < *time_heap.peek().unwrap() {
+                // otherwise, the heap is at its capacity, so only push if the hit_time
+                // in question is older than the top of the heap (after pop'ing the top
+                // of the heap to make room)
+                time_heap.pop();
+                time_heap.push(hit_time);
             }
         }
 
@@ -317,7 +319,7 @@ impl Cache {
         let mut freed = 0;
         // drop entries with hit times before the cut-off:
         let cutoff_time = *time_heap.peek().unwrap();
-        map.retain(|_, entry| {
+        self.map.retain(|_, entry| {
             let hit_time = entry.hit_time.load(Ordering::Relaxed);
             if entry.is_fetching() || hit_time > cutoff_time {
                 // keep entries that are still fetching or that were hit after the cut-off:
@@ -486,7 +488,7 @@ impl ObjectStore for MemCachedObjectStore {
     /// Delete an object on object store, but also remove it from the cache.
     async fn delete(&self, location: &Path) -> ObjectStoreResult<()> {
         let result = self.inner.delete(location).await?;
-        self.cache.remove(location).await;
+        self.cache.remove(location);
         Ok(result)
     }
 
@@ -547,11 +549,11 @@ fn background_cache_request_handler(
         while let Some(CacheRequest { path, notifier }) = rx.recv().await {
             // We assume that objects on object store are immutable, so we can skip objects that
             // we have already fetched:
-            if mem_store.cache.path_already_fetched(&path).await {
+            if mem_store.cache.path_already_fetched(&path) {
                 continue;
             }
             // Put a `Fetching` state in the entry to prevent concurrent requests to the same path:
-            mem_store.cache.set_fetching(&path).await;
+            mem_store.cache.set_fetching(&path);
             let mem_store_captured = Arc::clone(&mem_store);
             tokio::spawn(async move {
                 match mem_store_captured.inner.get(&path).await {
@@ -562,7 +564,6 @@ fn background_cache_request_handler(
                                 if let Err(error) = mem_store_captured
                                     .cache
                                     .set_success(&path, CacheValue { data, meta })
-                                    .await
                                 {
                                     // NOTE(trevor): this would be an error if A) it tried to insert on an already
                                     // successful entry, or B) it tried to insert on an empty entry, in either case
@@ -573,13 +574,13 @@ fn background_cache_request_handler(
                             }
                             Err(error) => {
                                 error!(%error, "failed to retrieve payload from object store get result");
-                                mem_store_captured.cache.remove(&path).await;
+                                mem_store_captured.cache.remove(&path);
                             }
                         }
                     }
                     Err(error) => {
                         error!(%error, "failed to fulfill cache request with object store");
-                        mem_store_captured.cache.remove(&path).await;
+                        mem_store_captured.cache.remove(&path);
                     }
                 };
                 // notify that the cache request has been fulfilled:
@@ -600,7 +601,7 @@ fn background_cache_pruner(mem_store: Arc<MemCachedObjectStore>) -> tokio::task:
             interval.tick().await;
 
             if mem_store.cache.should_prune() {
-                mem_store.cache.prune().await;
+                mem_store.cache.prune();
             }
         }
     })
