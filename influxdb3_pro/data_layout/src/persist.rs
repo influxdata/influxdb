@@ -1,6 +1,9 @@
 //! Functions for persisting and loading data from the comapcted data layout.
 
-use crate::{CompactionDetail, CompactionDetailPath, CompactionDetailRef, CompactionSummary};
+use crate::{
+    CompactionDetail, CompactionDetailPath, CompactionDetailRef, CompactionSummary,
+    CompactionSummaryPath,
+};
 use bytes::Bytes;
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
@@ -84,19 +87,17 @@ pub async fn persist_compaction_summary(
     compaction_summary: &CompactionSummary,
     object_store: Arc<dyn ObjectStore>,
 ) -> Result<()> {
-    let path = ObjPath::from(format!(
-        "{}/cs/{}.json",
-        compactor_id, compaction_summary.compaction_sequence_number.0
-    ));
+    let path =
+        CompactionSummaryPath::new(compactor_id, compaction_summary.compaction_sequence_number);
     let data = serde_json::to_vec(compaction_summary)?;
 
     // loop until we persist it
     loop {
-        match object_store.put(&path, data.clone().into()).await {
+        match object_store.put(&path.0, data.clone().into()).await {
             Ok(_) => {
                 debug!(
                     "Successfully wrote compaction summary to object store at path {}",
-                    path
+                    path.0
                 );
                 break;
             }

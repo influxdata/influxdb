@@ -467,6 +467,18 @@ pub struct CompactedTable {
     compacton_detail: Arc<CompactionDetail>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompactionSummaryPath(ObjPath);
+
+impl CompactionSummaryPath {
+    pub fn new(compactor_id: &str, compaction_sequence_number: CompactionSequenceNumber) -> Self {
+        Self(ObjPath::from(format!(
+            "{}/cs/{}.json",
+            compactor_id, compaction_sequence_number.0
+        )))
+    }
+}
+
 /// Reference kept in the `CompactionSummary` that gives details on where the compaction detail
 /// is for a given database and table.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

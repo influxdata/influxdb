@@ -204,7 +204,6 @@ impl SnapshotTracker {
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub(crate) struct SnapshotAdvancePlan {
     /// Map of host to snapshot marker and snapshot count
     pub(crate) host_snapshot_markers: HashMap<String, HostSnapshotCounter>,
@@ -301,7 +300,6 @@ fn create_next_gen_plan(
     None
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) enum CompactionPlan {
     LeftoverOnly(LeftoverPlan),
@@ -309,14 +307,6 @@ pub(crate) enum CompactionPlan {
 }
 
 impl CompactionPlan {
-    #[allow(dead_code)]
-    pub(crate) fn db_name(&self) -> &str {
-        match self {
-            Self::LeftoverOnly(plan) => &plan.db_name,
-            Self::Compaction(plan) => &plan.db_name,
-        }
-    }
-
     pub(crate) fn table_name(&self) -> &str {
         match self {
             Self::LeftoverOnly(plan) => &plan.table_name,
@@ -329,7 +319,6 @@ impl CompactionPlan {
 /// that overlap with older generations (3+) or there aren't enough gen1 files to compact into a larger gen2 generation. In that case, we'll want to just update the
 /// `CompactionDetail` for the table with this information so that the historical compaction
 /// can be run later. For now, we want to advance the snapshot trackers of the upstream gen1 hosts.
-#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct LeftoverPlan {
     pub(crate) db_name: Arc<str>,
@@ -341,7 +330,6 @@ pub(crate) struct LeftoverPlan {
 /// to run whatever the next highest priority compaction is. The returned information from that
 /// compaction combined with the leftover_ids will give us enough detail to write a new
 /// `CompactionDetail` file for the table.
-#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct NextCompactionPlan {
     pub db_name: Arc<str>,

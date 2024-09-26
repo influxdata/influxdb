@@ -270,11 +270,7 @@ pub async fn compact_files(
         exec,
     }: CompactFilesArgs,
 ) -> Result<CompactorOutput, CompactorError> {
-    let mut dedupe_key: Vec<_> = table_schema
-        .tags_iter()
-        .map(|t| t.name().as_ref())
-        .collect();
-    dedupe_key.push(TIME_COLUMN_NAME);
+    let dedupe_key: Vec<_> = table_schema.primary_key();
     let dedupe_key = SortKey::from_columns(dedupe_key);
 
     let records = record_stream(
@@ -446,10 +442,14 @@ impl SeriesWriter {
         table_name: Arc<str>,
         index_columns: Vec<String>,
     ) -> Self {
-        let series_key = table_schema
-            .tags_iter()
-            .map(|f| f.name().to_string())
+        let mut series_key = table_schema
+            .primary_key()
+            .iter()
+            .map(|f| f.to_string())
             .collect::<Vec<_>>();
+
+        // get rid of time column
+        series_key.pop();
 
         Self {
             record_batches: RecordBatchHolder::new(stream, table_schema),

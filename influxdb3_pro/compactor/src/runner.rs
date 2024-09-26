@@ -102,30 +102,27 @@ pub(crate) async fn run_snapshot_plan(
     );
 
     for (db_name, table_plans) in snapshot_advance_plan.compaction_plans {
-        let db_schema = match catalog.db_schema(db_name.as_ref()) {
-            Some(db_schema) => db_schema,
-            None => {
-                // this is a bug, but we can't panic here because it would cause the compactor to stop.
-                // we'll just skip this table and log an error.
-                error!("Database schema not found for db_name: {}", db_name);
-                continue;
-            }
+        let Some(db_schema) = catalog.db_schema(db_name.as_ref()) else {
+            // this is a bug, but we can't panic here because it would cause the compactor to stop.
+            // we'll just skip this table and log an error.
+            error!(
+                "Database schema not found for db_name: {} while running compaction cycle",
+                db_name
+            );
+            continue;
         };
 
         for plan in table_plans {
             let table_name = plan.table_name();
 
-            let table_definition = match db_schema.get_table(table_name) {
-                Some(table_schema) => table_schema,
-                None => {
-                    // this is a bug, but we can't panic here because it would cause the compactor to stop.
-                    // we'll just skip this table and log an error.
-                    error!(
-                        "Table definition not found for table_name: {} in db: {}",
-                        table_name, db_schema.name
-                    );
-                    continue;
-                }
+            let Some(table_definition) = db_schema.get_table(table_name) else {
+                // this is a bug, but we can't panic here because it would cause the compactor to stop.
+                // we'll just skip this table and log an error.
+                error!(
+                    "Table definition not found for table_name: {} in db: {} while running compaction cycle",
+                    table_name, db_schema.name
+                );
+                continue;
             };
 
             let last_compaction_detail = if let Some(path) = last_compaction_detail_map
@@ -167,8 +164,7 @@ pub(crate) async fn run_snapshot_plan(
         &compaction_summary,
         Arc::clone(&object_store),
     )
-    .await
-    .expect("failed to write compaction summary");
+    .await?;
 
     Ok(compaction_summary)
 }
@@ -190,10 +186,9 @@ async fn run_plan_and_write_detail(
 
     // separate out the young and old generations. These will be cleaned up from the compaction and
     // carried into the new detail.
-    let (mut young_generations, mut old_generations) = match last_compaction_detail {
-        Some(last_detail) => (last_detail.young_generations, last_detail.old_generations),
-        None => (vec![], vec![]),
-    };
+    let (mut young_generations, mut old_generations) = last_compaction_detail
+        .map(|last_detail| (last_detail.young_generations, last_detail.old_generations))
+        .unwrap_or_default();
 
     let detail = match plan {
         CompactionPlan::Compaction(plan) => {
