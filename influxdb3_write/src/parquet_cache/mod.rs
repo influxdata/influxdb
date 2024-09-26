@@ -30,7 +30,10 @@ use tokio::sync::{
     oneshot,
 };
 
+/// Shared future type for cache values that are being fetched
 type SharedCacheValueFuture = Shared<BoxFuture<'static, Result<Arc<CacheValue>, DynError>>>;
+
+/// Dynamic error type that can be cloned
 type DynError = Arc<dyn std::error::Error + Send + Sync>;
 
 /// A request to fetch an item at the given `path` from an object store
@@ -120,7 +123,7 @@ pub fn test_cached_obj_store_and_oracle(
     create_cached_obj_store_and_oracle(object_store, time_provider, 1024 * 1024 * 1024, 0.1)
 }
 
-/// An entry in the cache, containing the actual bytes as well as object store metadata
+/// An value in the cache, containing the actual bytes as well as object store metadata
 #[derive(Debug)]
 struct CacheValue {
     data: Bytes,
@@ -148,6 +151,7 @@ impl CacheValue {
             + version.as_ref().map(|s| s.capacity()).unwrap_or_default()
     }
 
+    /// Fetch the value from an object store
     async fn fetch(store: Arc<dyn ObjectStore>, path: Path) -> object_store::Result<Self> {
         let res = store.get(&path).await?;
         let meta = res.meta.clone();
@@ -156,9 +160,11 @@ impl CacheValue {
     }
 }
 
+/// Holds the state and hit time for an entry in the cache
 #[derive(Debug)]
 struct CacheEntry {
     state: CacheEntryState,
+    /// The nano-second timestamp of when this value was last hit
     hit_time: AtomicI64,
 }
 
@@ -178,6 +184,9 @@ impl CacheEntry {
 }
 
 /// The state of a cache entry
+///
+/// This implements `Clone` so that a reference to the entry in the `Cache` does not need to be
+/// held for long.
 #[derive(Debug, Clone)]
 enum CacheEntryState {
     /// The cache entry is being fetched from object store
@@ -195,6 +204,9 @@ impl CacheEntryState {
         }
     }
 
+    /// Get the value in this state, or wait for it if it is still fetching
+    ///
+    /// This takes `self` as it is meant to be used on an entry's state that has been cloned.
     async fn value(self) -> object_store::Result<Arc<CacheValue>> {
         match self {
             CacheEntryState::Fetching(fut) => fut.await.map_err(|e| Error::Generic {
@@ -208,26 +220,25 @@ impl CacheEntryState {
 
 /// A cache for storing objects from object storage by their [`Path`]
 ///
-/// This acts as a Least-Frequently-Used (LFU) cache that allows for concurrent reads. See the
+/// This acts as a Least-Recently-Used (LRU) cache that allows for concurrent reads. See the
 /// [`Cache::prune`] method for implementation of how the cache entries are pruned. Pruning must
 /// be invoked externally, e.g., on an interval.
 #[derive(Debug)]
 struct Cache {
-    /// The maximum amount of memory this cache should occupy
+    /// The maximum amount of memory this cache should occupy in bytes
     capacity: usize,
-    /// The current amount of memory being used by the cache
+    /// The current amount of memory being used by the cache in bytes
     used: AtomicUsize,
-    /// What percentage of the total number ofo cache entries will be pruned during a pruning operation
+    /// What percentage of the total number of cache entries will be pruned during a pruning operation
     prune_percent: f64,
     /// The map storing cache entries
     map: DashMap<Path, CacheEntry>,
+    /// Provides timestamps for updating the hit time of each cache entry
     time_provider: Arc<dyn TimeProvider>,
 }
 
 impl Cache {
-    /// Create a new cache with a given capacity and max free percentage
-    ///
-    /// The cache's `max_free_amount` will be calculated using the provided values
+    /// Create a new cache with a given capacity and max prune percent
     fn new(capacity: usize, prune_percent: f64, time_provider: Arc<dyn TimeProvider>) -> Self {
         Self {
             capacity,
@@ -239,6 +250,9 @@ impl Cache {
     }
 
     /// Get an entry in the cache or `None` if there is not an entry
+    ///
+    /// This updates the hit time of the entry and returns a cloned copy of the entry state so that
+    /// the reference into the map is dropped
     fn get(&self, path: &Path) -> Option<CacheEntryState> {
         let entry = self.map.get(path)?;
         if entry.is_success() {
@@ -251,11 +265,14 @@ impl Cache {
 
     /// Check if an entry in the cache is in process of being fetched or if it was already fetched
     /// successfully
+    ///
+    /// This does not update the hit time of the entry
     fn path_already_fetched(&self, path: &Path) -> bool {
         self.map.get(path).is_some()
     }
 
-    /// Insert a `Fetching` entry to the cache with a watcher
+    /// Insert a `Fetching` entry to the cache along with the shared future for polling the value
+    /// being fetched
     fn set_fetching(&self, path: &Path, fut: SharedCacheValueFuture) {
         let entry = CacheEntry {
             state: CacheEntryState::Fetching(fut),
@@ -296,6 +313,8 @@ impl Cache {
     }
 
     /// Prune least recently hit entries from the cache
+    ///
+    /// This is a no-op if the `used` amount on the cache is not >= its `capacity`
     fn prune(&self) {
         let used = self.used.load(Ordering::SeqCst);
         if used < self.capacity {
@@ -344,9 +363,6 @@ impl Cache {
 const STORE_NAME: &str = "mem_cached_object_store";
 
 /// An object store with an associated cache that can serve GET-style requests using the cache
-///
-/// The least-recently used (LRU) entries will be evicted when new entries are inserted, if the
-/// new entry would exceed the cache's memory capacity
 #[derive(Debug)]
 pub struct MemCachedObjectStore {
     /// An inner object store for which items will be cached
@@ -355,8 +371,7 @@ pub struct MemCachedObjectStore {
 }
 
 impl MemCachedObjectStore {
-    /// Create a new [`MemCachedObjectStore`] with the given memory capacity
-    // TODO(trevor): configurable free percentage, which is hard-coded at 10% right now
+    /// Create a new [`MemCachedObjectStore`]
     fn new(
         inner: Arc<dyn ObjectStore>,
         memory_capacity: usize,
@@ -567,6 +582,7 @@ fn background_cache_request_handler(
             if mem_store.cache.path_already_fetched(&path) {
                 continue;
             }
+            // Create a future that will go and fetch the cache value from the store:
             let path_cloned = path.clone();
             let store_cloned = Arc::clone(&mem_store.inner);
             let fut = async move {
@@ -586,7 +602,7 @@ fn background_cache_request_handler(
                         if let Err(error) = mem_store_captured.cache.set_success(&path, value) {
                             // NOTE(trevor): this would be an error if A) it tried to insert on an already
                             // successful entry, or B) it tried to insert on an empty entry, in either case
-                            // we do not need to remove the entry to clear the fetching state, as in the
+                            // we do not need to remove the entry to clear a fetching state, as in the
                             // other failure modes below...
                             warn!(%error, "failed to set the success state on the cache");
                         };
