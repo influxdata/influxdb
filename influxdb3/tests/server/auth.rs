@@ -57,6 +57,19 @@ async fn auth() {
     );
     assert_eq!(
         client
+            .post(&write_lp_url)
+            .query(&write_lp_params)
+            .body("cpu,host=a val=1i 123")
+            // support both Bearer and Token auth schemes
+            .header("Authorization", format!("Token {TOKEN}"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        client
             .get(&query_sql_url)
             .query(&query_sql_params)
             .bearer_auth(TOKEN)
