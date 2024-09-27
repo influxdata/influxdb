@@ -233,6 +233,7 @@ mod tests {
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_id::{DbId, TableId};
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
     use influxdb3_write::last_cache::LastCacheProvider;
@@ -628,7 +629,9 @@ mod tests {
         let start_time = 0;
         let (url, shutdown, wbuf) = setup_server(start_time).await;
         let db_name = "foo";
+        let db_id = DbId::from(0);
         let tbl_name = "cpu";
+        let tbl_id = TableId::from(0);
 
         // Write to generate a db/table in the catalog:
         let resp = write_lp(
@@ -643,7 +646,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
 
         // Create the last cache:
-        wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+        wbuf.create_last_cache(db_id, tbl_id, None, None, None, None, None)
             .await
             .expect("create last cache");
 
@@ -769,11 +772,12 @@ mod tests {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let dummy_host_id = Arc::from("dummy-host-id");
         let instance_id = Arc::from("dummy-instance-id");
+        let catalog = Arc::new(Catalog::new(dummy_host_id, instance_id));
         let write_buffer_impl = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
-                Arc::new(Catalog::new(dummy_host_id, instance_id)),
-                Arc::new(LastCacheProvider::new()),
+                Arc::clone(&catalog),
+                Arc::new(LastCacheProvider::new(catalog)),
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&exec),
                 WalConfig::test_config(),

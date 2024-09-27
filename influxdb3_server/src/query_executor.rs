@@ -304,12 +304,12 @@ impl QueryDatabase for QueryExecutorImpl {
     ) -> Result<Option<Arc<dyn QueryNamespace>>, DataFusionError> {
         let _span_recorder = SpanRecorder::new(span);
 
-        let db_schema = self.catalog.db_schema(name).ok_or_else(|| {
+        let db_id = self.catalog.db_name_to_id(name.into()).ok_or_else(|| {
             DataFusionError::External(Box::new(Error::DatabaseNotFound {
                 db_name: name.into(),
             }))
         })?;
-
+        let db_schema = self.catalog.db_schema(&db_id).expect("database exists");
         Ok(Some(Arc::new(Database::new(
             db_schema,
             Arc::clone(&self.write_buffer),
@@ -350,7 +350,7 @@ impl Database {
         query_log: Arc<QueryLog>,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
-            Arc::clone(&db_schema.name),
+            db_schema.id,
             Arc::clone(&query_log),
             Arc::clone(&write_buffer),
         ));
@@ -376,10 +376,15 @@ impl Database {
     }
 
     async fn query_table(&self, table_name: &str) -> Option<Arc<QueryTable>> {
-        self.db_schema.get_table_schema(table_name).map(|schema| {
+        let table_name = table_name.into();
+        let table_id = self
+            .write_buffer
+            .catalog()
+            .table_name_to_id(self.db_schema.id, Arc::clone(&table_name))?;
+        self.db_schema.get_table_schema(table_id).map(|schema| {
             Arc::new(QueryTable {
                 db_schema: Arc::clone(&self.db_schema),
-                name: table_name.into(),
+                table_name,
                 schema: schema.clone(),
                 write_buffer: Arc::clone(&self.write_buffer),
             })
@@ -449,7 +454,7 @@ impl QueryNamespace for Database {
         ctx.inner().register_udtf(
             LAST_CACHE_UDTF_NAME,
             Arc::new(LastCacheFunction::new(
-                self.db_schema.name.to_string(),
+                self.db_schema.id,
                 self.write_buffer.last_cache_provider(),
             )),
         );
@@ -502,19 +507,25 @@ impl SchemaProvider for Database {
             .collect()
     }
 
-    async fn table(&self, name: &str) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {
-        Ok(self.query_table(name).await.map(|qt| qt as _))
+    async fn table(
+        &self,
+        table_name: &str,
+    ) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {
+        Ok(self.query_table(table_name).await.map(|qt| qt as _))
     }
 
     fn table_exist(&self, name: &str) -> bool {
-        self.db_schema.table_exists(name)
+        self.write_buffer
+            .catalog()
+            .table_name_to_id(self.db_schema.id, name.into())
+            .is_some()
     }
 }
 
 #[derive(Debug)]
 pub struct QueryTable {
     db_schema: Arc<DatabaseSchema>,
-    name: Arc<str>,
+    table_name: Arc<str>,
     schema: Schema,
     write_buffer: Arc<dyn WriteBuffer>,
 }
@@ -529,7 +540,7 @@ impl QueryTable {
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         self.write_buffer.get_table_chunks(
             &self.db_schema.name,
-            self.name.as_ref(),
+            &self.table_name,
             filters,
             projection,
             ctx,
@@ -572,7 +583,7 @@ impl TableProvider for QueryTable {
             ?limit,
             "QueryTable as TableProvider::scan"
         );
-        let mut builder = ProviderBuilder::new(Arc::clone(&self.name), self.schema.clone());
+        let mut builder = ProviderBuilder::new(Arc::clone(&self.table_name), self.schema.clone());
 
         let chunks = self.chunks(ctx, projection, &filters, limit)?;
         for chunk in chunks {
@@ -645,11 +656,12 @@ mod tests {
         let executor = make_exec(Arc::clone(&object_store));
         let host_id = Arc::from("dummy-host-id");
         let instance_id = Arc::from("instance-id");
-        let write_buffer_impl = Arc::new(
+        let catalog = Arc::new(Catalog::new(host_id, instance_id));
+        let write_buffer = Arc::new(
             WriteBufferImpl::new(
                 Arc::clone(&persister),
-                Arc::new(Catalog::new(host_id, instance_id)),
-                Arc::new(LastCacheProvider::new()),
+                Arc::clone(&catalog),
+                Arc::new(LastCacheProvider::new(catalog)),
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&executor),
                 WalConfig {
@@ -665,9 +677,9 @@ mod tests {
         );
 
         let dummy_telem_store = TelemetryStore::new_without_background_runners(Arc::clone(
-            &write_buffer_impl.persisted_files(),
+            &write_buffer.persisted_files(),
         ));
-        let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
+        let write_buffer: Arc<dyn WriteBuffer> = write_buffer;
         let metrics = Arc::new(Registry::new());
         let df_config = Arc::new(Default::default());
         let query_executor = QueryExecutorImpl::new(

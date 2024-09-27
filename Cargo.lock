@@ -662,6 +662,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
+name = "bimap"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "230c5f1ca6a325a32553f8640d31ac9b49f2411e901e427570154868b46da4f7"
+
+[[package]]
 name = "bit-set"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2621,6 +2627,7 @@ name = "influxdb3_catalog"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "bimap",
  "influxdb-line-protocol",
  "influxdb3_id",
  "influxdb3_wal",
@@ -2824,6 +2831,7 @@ dependencies = [
  "schema",
  "serde",
  "serde_json",
+ "serde_with",
  "thiserror",
  "tokio",
 ]
@@ -2836,6 +2844,7 @@ dependencies = [
  "arrow",
  "arrow_util",
  "async-trait",
+ "bimap",
  "byteorder",
  "bytes",
  "chrono",

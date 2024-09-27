@@ -425,7 +425,7 @@ pub async fn command(config: Config) -> Result<()> {
             .map_err(Error::InitializePersistedCatalog)?,
     );
 
-    let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner())
+    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
         .map_err(Error::InitializeLastCache)?;
     info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
 

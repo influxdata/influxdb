@@ -3,13 +3,14 @@ source: influxdb3_catalog/src/catalog.rs
 expression: catalog
 ---
 {
-  "databases": {
-    "test_db": {
+  "databases": [
+    {
       "id": 0,
       "name": "test_db",
-      "tables": {
-        "test_table_1": {
-          "name": "test",
+      "tables": [
+        {
+          "table_id": 0,
+          "table_name": "test",
           "cols": {
             "field": {
               "type": "str",
@@ -59,6 +60,7 @@ expression: catalog
           },
           "last_caches": [
             {
+              "table_id": 0,
               "table": "test",
               "name": "test_table_last_cache",
               "keys": [
@@ -73,10 +75,12 @@ expression: catalog
             }
           ]
         }
-      }
+      ]
     }
-  },
+  ],
   "sequence": 0,
   "host_id": "dummy-host-id",
-  "instance_id": "instance-id"
+  "instance_id": "instance-id",
+  "db_map": [],
+  "table_map": []
 }

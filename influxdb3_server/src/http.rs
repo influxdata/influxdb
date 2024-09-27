@@ -692,11 +692,21 @@ where
             ttl,
         } = self.read_body_json(req).await?;
 
+        let db_id = self
+            .write_buffer
+            .catalog()
+            .db_name_to_id(db.as_str().into())
+            .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
+        let table_id = self
+            .write_buffer
+            .catalog()
+            .table_name_to_id(db_id, table.as_str().into())
+            .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
         match self
             .write_buffer
             .create_last_cache(
-                &db,
-                &table,
+                db_id,
+                table_id,
                 name.as_deref(),
                 count,
                 ttl.map(Duration::from_secs),
@@ -730,8 +740,18 @@ where
             self.read_body_json(req).await?
         };
 
+        let db_id = self
+            .write_buffer
+            .catalog()
+            .db_name_to_id(db.into())
+            .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
+        let table_id = self
+            .write_buffer
+            .catalog()
+            .table_name_to_id(db_id, table.into())
+            .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
         self.write_buffer
-            .delete_last_cache(&db, &table, &name)
+            .delete_last_cache(db_id, table_id, &name)
             .await?;
 
         Ok(Response::builder()

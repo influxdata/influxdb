@@ -30,6 +30,7 @@ arrow.workspace = true
 async-trait.workspace = true
 byteorder.workspace  = true
 bytes.workspace = true
+bimap.workspace = true
 chrono.workspace  = true
 crc32fast.workspace  = true
 crossbeam-channel.workspace  = true

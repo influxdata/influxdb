@@ -4,20 +4,21 @@ use arrow::array::{GenericListBuilder, StringBuilder};
 use arrow_array::{ArrayRef, RecordBatch, StringArray, UInt64Array};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use datafusion::{error::DataFusionError, logical_expr::Expr};
+use influxdb3_id::DbId;
 use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
 use influxdb3_write::last_cache::LastCacheProvider;
 use iox_system_tables::IoxSystemTable;
 
 pub(super) struct LastCachesTable {
-    db_name: Arc<str>,
+    db_id: DbId,
     schema: SchemaRef,
     provider: Arc<LastCacheProvider>,
 }
 
 impl LastCachesTable {
-    pub(super) fn new(db_name: Arc<str>, provider: Arc<LastCacheProvider>) -> Self {
+    pub(super) fn new(db_id: DbId, provider: Arc<LastCacheProvider>) -> Self {
         Self {
-            db_name,
+            db_id,
             schema: last_caches_schema(),
             provider,
         }
@@ -55,7 +56,7 @@ impl IoxSystemTable for LastCachesTable {
         _filters: Option<Vec<Expr>>,
         _limit: Option<usize>,
     ) -> Result<RecordBatch, DataFusionError> {
-        let caches = self.provider.get_last_caches_for_db(&self.db_name);
+        let caches = self.provider.get_last_caches_for_db(self.db_id);
         from_last_cache_definitions(self.schema(), &caches)
     }
 }

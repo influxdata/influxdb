@@ -613,7 +613,7 @@ mod tests {
         Field, FieldData, Gen1Duration, Row, SnapshotSequenceNumber, TableChunk, TableChunks,
     };
     use async_trait::async_trait;
-    use influxdb3_id::DbId;
+    use influxdb3_id::{DbId, TableId};
     use object_store::memory::InMemory;
     use std::any::Any;
     use tokio::sync::oneshot::Receiver;
@@ -638,13 +638,12 @@ mod tests {
         );
 
         let db_name: Arc<str> = "db1".into();
-        let table_name: Arc<str> = "table1".into();
 
         let op1 = WalOp::Write(WriteBatch {
             database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
             table_chunks: HashMap::from([(
-                Arc::clone(&table_name),
+                TableId::from(0),
                 TableChunks {
                     min_time: 1,
                     max_time: 3,
@@ -692,7 +691,7 @@ mod tests {
             database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
             table_chunks: HashMap::from([(
-                Arc::clone(&table_name),
+                TableId::from(0),
                 TableChunks {
                     min_time: 12,
                     max_time: 12,
@@ -732,7 +731,7 @@ mod tests {
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: HashMap::from([(
-                    "table1".into(),
+                    TableId::from(0),
                     TableChunks {
                         min_time: 1,
                         max_time: 12,
@@ -802,7 +801,7 @@ mod tests {
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: HashMap::from([(
-                    "table1".into(),
+                    TableId::from(0),
                     TableChunks {
                         min_time: 12,
                         max_time: 12,
@@ -874,7 +873,7 @@ mod tests {
             database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
             table_chunks: HashMap::from([(
-                Arc::clone(&table_name),
+                TableId::from(0),
                 TableChunks {
                     min_time: 26,
                     max_time: 26,
@@ -934,7 +933,7 @@ mod tests {
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: HashMap::from([(
-                    "table1".into(),
+                    TableId::from(0),
                     TableChunks {
                         min_time: 26,
                         max_time: 26,

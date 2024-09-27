@@ -1,9 +1,10 @@
 use serde::Deserialize;
 use serde::Serialize;
+use std::fmt::Display;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 
-#[derive(Debug, Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Serialize, Deserialize, Hash)]
 pub struct DbId(u32);
 
 static NEXT_DB_ID: AtomicU32 = AtomicU32::new(0);
@@ -37,8 +38,13 @@ impl From<u32> for DbId {
         Self(value)
     }
 }
+impl Display for DbId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
-#[derive(Debug, Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Serialize, Deserialize, Hash)]
 pub struct TableId(u32);
 
 static NEXT_TABLE_ID: AtomicU32 = AtomicU32::new(0);
@@ -73,7 +79,13 @@ impl From<u32> for TableId {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Serialize, Deserialize)]
+impl Display for TableId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Serialize, Deserialize, Hash)]
 pub struct ColumnId(u16);
 
 impl ColumnId {
@@ -92,5 +104,11 @@ impl ColumnId {
 impl From<u16> for ColumnId {
     fn from(value: u16) -> Self {
         Self(value)
+    }
+}
+
+impl Display for ColumnId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
