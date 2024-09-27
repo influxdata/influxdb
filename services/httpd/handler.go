@@ -1017,7 +1017,7 @@ func (h *Handler) serveDeleteV2(w http.ResponseWriter, r *http.Request, user met
 			case influxql.EQ:
 				tag, ok := e.LHS.(*influxql.VarRef)
 				if ok && tag.Val == measurement {
-					srcs = append(srcs, &influxql.Measurement{Name: e.RHS.String()})
+					srcs = append(srcs, &influxql.Measurement{Name: strings.Trim(e.RHS.String(), `"`)})
 					return true, nil
 				}
 			// Not permitted in V2 API DELETE predicates

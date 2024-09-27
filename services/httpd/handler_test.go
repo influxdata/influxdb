@@ -1715,6 +1715,7 @@ func TestHandler_Write_V2_Precision(t *testing.T) {
 }
 
 func TestHandler_Delete_V2(t *testing.T) {
+	var errUnexpectedMeasurement = errors.New("unexpected measurement")
 	type test struct {
 		url    string
 		body   httpd.DeleteBody
@@ -1742,7 +1743,7 @@ func TestHandler_Delete_V2(t *testing.T) {
 		},
 		&test{
 			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
-			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T22:56:06Z", Predicate: "_measurement='baz' AND t1=tagOne"},
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T22:56:06Z", Predicate: "_measurement=\"mymeasure\" AND t1=tagOne"},
 			status: http.StatusOK,
 			errMsg: ``,
 		},
@@ -1784,8 +1785,25 @@ func TestHandler_Delete_V2(t *testing.T) {
 		},
 		&test{
 			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T18:56:06Z", Predicate: `_measurement = mymeasure AND "tag0" = "value1"`},
+			status: http.StatusOK,
+		},
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
 			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T18:56:06Z", Predicate: `_measurement = "mymeasure" AND "tag0" = "value1" AND tag1 = value3`},
 			status: http.StatusOK,
+		},
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T18:56:06Z", Predicate: `_measurement = "bad_measurement" AND "tag0" = "value1" AND tag1 = value3`},
+			status: http.StatusBadRequest,
+			errMsg: "delete - database: \"mydb\", retention policy: \"myrp\", start: \"2022-03-23T18:56:06Z\", stop: \"2022-03-23T20:56:06Z\", predicate: \"_measurement = \\\"bad_measurement\\\" AND \\\"tag0\\\" = \\\"value1\\\" AND tag1 = value3\", error: unexpected measurement",
+		},
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T18:56:06Z", Predicate: `_measurement = bad_measurement AND "tag0" = "value1" AND tag1 = value3`},
+			status: http.StatusBadRequest,
+			errMsg: "delete - database: \"mydb\", retention policy: \"myrp\", start: \"2022-03-23T18:56:06Z\", stop: \"2022-03-23T20:56:06Z\", predicate: \"_measurement = bad_measurement AND \\\"tag0\\\" = \\\"value1\\\" AND tag1 = value3\", error: unexpected measurement",
 		},
 		&test{
 			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
@@ -1796,7 +1814,14 @@ func TestHandler_Delete_V2(t *testing.T) {
 	}
 
 	h := NewHandler(false)
-	h.Store.DeleteFn = func(database string, sources []influxql.Source, condition influxql.Expr) error { return nil }
+	h.Store.DeleteFn = func(database string, sources []influxql.Source, condition influxql.Expr) error {
+		if len(sources) > 0 {
+			if m, ok := sources[0].(*influxql.Measurement); ok && m.Name != "mymeasure" {
+				return errUnexpectedMeasurement
+			}
+		}
+		return nil
+	}
 	h.MetaClient = &internal.MetaClientMock{
 		DatabaseFn: func(name string) *meta.DatabaseInfo {
 			if name == "mydb" {
