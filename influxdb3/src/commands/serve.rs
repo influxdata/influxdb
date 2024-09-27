@@ -261,13 +261,14 @@ pub async fn command(config: Config) -> Result<()> {
         make_object_store(&config.object_store_config).map_err(Error::ObjectStoreParsing)?;
     let time_provider = Arc::new(SystemProvider::new());
 
-    // TODO(trevor): make this configurable/optional:
+    // TODO(trevor): make the cache capacity and prune percent configurable/optional:
     let cache_capacity = 1024 * 1024 * 1024;
+    let prune_percent = 0.1;
     let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
         object_store,
         Arc::clone(&time_provider) as _,
         cache_capacity,
-        0.1,
+        prune_percent,
     );
 
     let trace_exporter = config.tracing_config.build()?;

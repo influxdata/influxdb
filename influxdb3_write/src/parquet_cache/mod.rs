@@ -4,7 +4,7 @@ use std::{
     fmt::Debug,
     ops::Range,
     sync::{
-        atomic::{AtomicI32, AtomicI64, AtomicUsize, Ordering},
+        atomic::{AtomicI64, AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -123,7 +123,7 @@ pub fn test_cached_obj_store_and_oracle(
     create_cached_obj_store_and_oracle(object_store, time_provider, 1024 * 1024 * 1024, 0.1)
 }
 
-/// An value in the cache, containing the actual bytes as well as object store metadata
+/// A value in the cache, containing the actual bytes as well as object store metadata
 #[derive(Debug)]
 struct CacheValue {
     data: Bytes,
@@ -171,7 +171,7 @@ struct CacheEntry {
 impl CacheEntry {
     /// Get the approximate memory footprint of this entry in bytes
     fn size(&self) -> usize {
-        self.state.size() + std::mem::size_of::<AtomicI32>()
+        self.state.size() + std::mem::size_of::<AtomicI64>()
     }
 
     fn is_fetching(&self) -> bool {
@@ -220,8 +220,8 @@ impl CacheEntryState {
 
 /// A cache for storing objects from object storage by their [`Path`]
 ///
-/// This acts as a Least-Recently-Used (LRU) cache that allows for concurrent reads. See the
-/// [`Cache::prune`] method for implementation of how the cache entries are pruned. Pruning must
+/// This acts as a Least-Recently-Used (LRU) cache that allows for concurrent reads and writes. See
+/// the [`Cache::prune`] method for implementation of how the cache entries are pruned. Pruning must
 /// be invoked externally, e.g., on an interval.
 #[derive(Debug)]
 struct Cache {
@@ -238,7 +238,7 @@ struct Cache {
 }
 
 impl Cache {
-    /// Create a new cache with a given capacity and max prune percent
+    /// Create a new cache with a given capacity and prune percent
     fn new(capacity: usize, prune_percent: f64, time_provider: Arc<dyn TimeProvider>) -> Self {
         Self {
             capacity,
@@ -255,7 +255,6 @@ impl Cache {
     /// the reference into the map is dropped
     fn get(&self, path: &Path) -> Option<CacheEntryState> {
         let entry = self.map.get(path)?;
-        println!("getting entry: {:?}", entry.value());
         if entry.is_success() {
             entry
                 .hit_time
@@ -290,6 +289,9 @@ impl Cache {
             Entry::Occupied(mut o) => {
                 let entry = o.get_mut();
                 if !entry.is_fetching() {
+                    // NOTE(trevor): the only other state is Success, so bailing here just
+                    // means that we leave the entry alone, and since objects in the store are
+                    // treated as immutable, this should be okay.
                     bail!("attempted to store value in non-fetching cache entry");
                 }
                 entry.state = CacheEntryState::Success(value);
@@ -750,13 +752,14 @@ mod tests {
     async fn cache_evicts_lru_when_full() {
         let inner_store = Arc::new(TestObjectStore::new(Arc::new(InMemory::new())));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        // this is a magic number that will make it so the third entry exceeds the cache capacity:
+        // these are magic numbers that will make it so the third entry exceeds the cache capacity:
         let cache_capacity_bytes = 60;
+        let cache_prune_percent = 0.4;
         let (cached_store, oracle) = create_cached_obj_store_and_oracle(
             Arc::clone(&inner_store) as _,
             Arc::clone(&time_provider) as _,
             cache_capacity_bytes,
-            0.4,
+            cache_prune_percent,
         );
         // PUT an entry into the store:
         let path_1 = Path::from("0.parquet");
@@ -903,11 +906,8 @@ mod tests {
         // after we have started a get request below, such that the get request below hits
         // the cache while the entry is still "fetching" state:
         let h = tokio::spawn(async move {
-            println!("tell the store to keep going");
             to_store_notify.notify_one();
-            println!("wait for cache request to fulfill");
             let _ = notifier_rx.await;
-            println!("wait for cache request to fulfill... done");
         });
 
         // make the request to the store, which hits the cache in the "fetching" state
@@ -998,11 +998,8 @@ mod tests {
         async fn get(&self, location: &Path) -> object_store::Result<GetResult> {
             *self.get.write().entry(location.clone()).or_insert(0) += 1;
             if let Some((inbound, outbound)) = &self.notifies {
-                println!("send notify that we are in the middle of request");
                 outbound.notify_one();
-                println!("wait on notify to continue");
                 inbound.notified().await;
-                println!("wait on notify to continue... done");
             }
             self.inner.get(location).await
         }
