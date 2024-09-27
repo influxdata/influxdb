@@ -4,7 +4,6 @@
 //! data into parquet files that are persisted to object storage. A snapshot file is written that contains the
 //! metadata of the parquet files that were written in that snapshot.
 
-pub mod cache;
 pub mod chunk;
 pub mod last_cache;
 pub mod parquet_cache;
