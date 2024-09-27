@@ -967,12 +967,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "clru"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cbd0f76e066e64fdc5631e3bb46381254deab9ef1158292f27c8c57e3bf3fe59"
-
-[[package]]
 name = "colorchoice"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2822,15 +2816,16 @@ dependencies = [
 name = "influxdb3_write"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arrow",
  "arrow_util",
  "async-trait",
  "byteorder",
  "bytes",
  "chrono",
- "clru",
  "crc32fast",
  "crossbeam-channel",
+ "dashmap",
  "data_types",
  "datafusion",
  "datafusion_util",

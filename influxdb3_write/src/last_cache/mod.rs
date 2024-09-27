@@ -1579,13 +1579,15 @@ mod tests {
     use influxdb3_id::DbId;
     use influxdb3_wal::{LastCacheDefinition, WalConfig};
     use insta::assert_json_snapshot;
-    use iox_time::{MockProvider, Time};
+    use iox_time::{MockProvider, Time, TimeProvider};
 
     async fn setup_write_buffer() -> WriteBufferImpl {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let (obj_store, parquet_cache) = test_cached_obj_store_and_oracle(obj_store);
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let (obj_store, parquet_cache) =
+            test_cached_obj_store_and_oracle(obj_store, Arc::clone(&time_provider));
         let persister = Arc::new(Persister::new(obj_store, "test_host"));
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let host_id = Arc::from("dummy-host-id");
         let instance_id = Arc::from("dummy-instance-id");
         WriteBufferImpl::new(
