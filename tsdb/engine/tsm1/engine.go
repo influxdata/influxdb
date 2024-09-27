@@ -1675,6 +1675,9 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	// would delete it from the index.
 	minKey := seriesKeys[0]
 
+	// Ensure seriesKeys slice is correctly read and written concurrently in the Apply func.
+	var seriesKeysLock sync.RWMutex
+
 	// Apply runs this func concurrently.  The seriesKeys slice is mutated concurrently
 	// by different goroutines setting positions to nil.
 	if err := e.FileStore.Apply(func(r TSMFile) error {
@@ -1691,6 +1694,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			seriesKey, _ := SeriesAndFieldFromCompositeKey(indexKey)
 
 			// Skip over any deleted keys that are less than our tsm key
+			seriesKeysLock.RLock()
 			cmp := bytes.Compare(seriesKeys[j], seriesKey)
 			for j < len(seriesKeys) && cmp < 0 {
 				j++
@@ -1699,10 +1703,13 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 				}
 				cmp = bytes.Compare(seriesKeys[j], seriesKey)
 			}
+			seriesKeysLock.RUnlock()
 
 			// We've found a matching key, cross it out so we do not remove it from the index.
 			if j < len(seriesKeys) && cmp == 0 {
+				seriesKeysLock.Lock()
 				seriesKeys[j] = emptyBytes
+				seriesKeysLock.Unlock()
 				j++
 			}
 		}
