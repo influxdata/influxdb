@@ -324,39 +324,70 @@ impl Cache {
         let n_to_prune = (self.map.len() as f64 * self.prune_percent).floor() as usize;
         // use a BinaryHeap to determine the cut-off time, at which, entries that were
         // last hit before that time will be pruned:
-        let mut time_heap = BinaryHeap::with_capacity(n_to_prune);
+        let mut prune_heap = BinaryHeap::with_capacity(n_to_prune);
 
         for map_ref in self.map.iter() {
             let hit_time = map_ref.value().hit_time.load(Ordering::SeqCst);
-            if time_heap.len() < n_to_prune {
-                // if the heap isn't full yet, throw this time on:
-                time_heap.push(hit_time);
-            } else if hit_time < *time_heap.peek().unwrap() {
+            let size = map_ref.value().size();
+            let path = map_ref.key().as_ref();
+            if prune_heap.len() < n_to_prune {
+                // if the heap isn't full yet, throw this item on:
+                prune_heap.push(PruneHeapItem {
+                    hit_time,
+                    path_ref: path.into(),
+                    size,
+                });
+            } else if hit_time < prune_heap.peek().map(|item| item.hit_time).unwrap() {
                 // otherwise, the heap is at its capacity, so only push if the hit_time
                 // in question is older than the top of the heap (after pop'ing the top
                 // of the heap to make room)
-                time_heap.pop();
-                time_heap.push(hit_time);
+                prune_heap.pop();
+                prune_heap.push(PruneHeapItem {
+                    path_ref: path.into(),
+                    hit_time,
+                    size,
+                });
             }
         }
 
         // track the total size of entries that get freed:
         let mut freed = 0;
         // drop entries with hit times before the cut-off:
-        let cutoff_time = *time_heap.peek().unwrap();
-        self.map.retain(|_, entry| {
-            let hit_time = entry.hit_time.load(Ordering::SeqCst);
-            if entry.is_fetching() || hit_time > cutoff_time {
-                // keep entries that are still fetching or that were hit after the cut-off:
-                true
-            } else {
-                // drop the rest:
-                freed += entry.size();
-                false
-            }
-        });
+        for item in prune_heap {
+            self.map.remove(&Path::from(item.path_ref.as_ref()));
+            freed += item.size;
+        }
         // update used mem size with freed amount:
         self.used.fetch_sub(freed, Ordering::SeqCst);
+    }
+}
+
+/// An item that stores what is needed for pruning [`CacheEntry`]s
+#[derive(Debug, Eq)]
+struct PruneHeapItem {
+    /// Reference to the entry's `Path` key
+    path_ref: Arc<str>,
+    /// Entry's hit time for comparison and heap insertion
+    hit_time: i64,
+    /// Entry size used to calculate the amount of memory freed after a prune
+    size: usize,
+}
+
+impl PartialEq for PruneHeapItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.hit_time.eq(&other.hit_time)
+    }
+}
+
+impl PartialOrd for PruneHeapItem {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.hit_time.cmp(&other.hit_time))
+    }
+}
+
+impl Ord for PruneHeapItem {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.hit_time.cmp(&other.hit_time)
     }
 }
 
