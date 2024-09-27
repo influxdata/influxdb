@@ -255,6 +255,7 @@ impl Cache {
     /// the reference into the map is dropped
     fn get(&self, path: &Path) -> Option<CacheEntryState> {
         let entry = self.map.get(path)?;
+        println!("getting entry: {:?}", entry.value());
         if entry.is_success() {
             entry
                 .hit_time
@@ -649,6 +650,7 @@ mod tests {
     };
     use parking_lot::RwLock;
     use pretty_assertions::assert_eq;
+    use tokio::sync::Notify;
 
     use crate::parquet_cache::{
         create_cached_obj_store_and_oracle, test_cached_obj_store_and_oracle, CacheRequest,
@@ -835,12 +837,72 @@ mod tests {
         assert_eq!(1, inner_store.get_request_count(&path_3));
     }
 
+    #[tokio::test]
+    async fn cache_hit_while_fetching() {
+        // Create a test store with a barrier:
+        let to_store_notify = Arc::new(Notify::new());
+        let from_store_notify = Arc::new(Notify::new());
+        let inner_store = Arc::new(
+            TestObjectStore::new(Arc::new(InMemory::new()))
+                .with_notifies(Arc::clone(&to_store_notify), Arc::clone(&from_store_notify)),
+        );
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let (cached_store, oracle) = test_cached_obj_store_and_oracle(
+            Arc::clone(&inner_store) as _,
+            Arc::clone(&time_provider) as _,
+        );
+
+        // PUT an entry into the store:
+        let path = Path::from("0.parquet");
+        let payload = b"Picard";
+        cached_store
+            .put(&path, PutPayload::from_static(payload))
+            .await
+            .unwrap();
+
+        // cache the entry, but don't wait on it until below in spawned task:
+        let (cache_request, notifier_rx) = CacheRequest::create(path.clone());
+        oracle.register(cache_request);
+
+        // we are in the middle of a get request, i.e., the cache entry is "fetching"
+        // once this call to notified wakes:
+        let _ = from_store_notify.notified().await;
+
+        // spawn a thread to wake the in-flight get request initiated by the cache oracle
+        // after we have started a get request below, such that the get request below hits
+        // the cache while the entry is still "fetching" state:
+        let h = tokio::spawn(async move {
+            println!("tell the store to keep going");
+            to_store_notify.notify_one();
+            println!("wait for cache request to fulfill");
+            let _ = notifier_rx.await;
+            println!("wait for cache request to fulfill... done");
+        });
+
+        // make the request to the store, which hits the cache in the "fetching" state
+        // since we haven't made the call to notify the store to continue yet:
+        assert_payload_at_equals!(cached_store, payload, path);
+
+        // drive the task to completion to ensure that the cache request has been fulfilled:
+        h.await.unwrap();
+
+        // there should only have been one request made, i.e., from the cache oracle:
+        assert_eq!(1, inner_store.total_get_request_count());
+        assert_eq!(1, inner_store.get_request_count(&path));
+
+        // make another request to the store, to be sure that it is in the cache:
+        assert_payload_at_equals!(cached_store, payload, path);
+        assert_eq!(1, inner_store.total_get_request_count());
+        assert_eq!(1, inner_store.get_request_count(&path));
+    }
+
     type RequestCounter = RwLock<HashMap<Path, usize>>;
 
     #[derive(Debug)]
     struct TestObjectStore {
         inner: Arc<dyn ObjectStore>,
         get: RequestCounter,
+        notifies: Option<(Arc<Notify>, Arc<Notify>)>,
     }
 
     impl TestObjectStore {
@@ -848,7 +910,13 @@ mod tests {
             Self {
                 inner,
                 get: Default::default(),
+                notifies: None,
             }
+        }
+
+        fn with_notifies(mut self, inbound: Arc<Notify>, outbound: Arc<Notify>) -> Self {
+            self.notifies = Some((inbound, outbound));
+            self
         }
 
         fn total_get_request_count(&self) -> usize {
@@ -866,13 +934,6 @@ mod tests {
         }
     }
 
-    /// [`MemCachedObjectStore`] implements most [`ObjectStore`] methods as a pass-through, since
-    /// caching is decided externally. The exception is `delete`, which will have the entry removed
-    /// from the cache if the delete to the object store was successful.
-    ///
-    /// GET-style methods will first check the cache for the object at the given path, before forwarding
-    /// to the inner [`ObjectStore`]. They do not, however, populate the cache after data has been fetched
-    /// from the inner store.
     #[async_trait]
     impl ObjectStore for TestObjectStore {
         async fn put(&self, location: &Path, bytes: PutPayload) -> object_store::Result<PutResult> {
@@ -905,6 +966,13 @@ mod tests {
 
         async fn get(&self, location: &Path) -> object_store::Result<GetResult> {
             *self.get.write().entry(location.clone()).or_insert(0) += 1;
+            if let Some((inbound, outbound)) = &self.notifies {
+                println!("send notify that we are in the middle of request");
+                outbound.notify_one();
+                println!("wait on notify to continue");
+                inbound.notified().await;
+                println!("wait on notify to continue... done");
+            }
             self.inner.get(location).await
         }
 
