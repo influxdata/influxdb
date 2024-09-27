@@ -668,7 +668,7 @@ fn background_cache_pruner(mem_store: Arc<MemCachedObjectStore>) -> tokio::task:
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::{ops::Range, sync::Arc, time::Duration};
 
     use arrow::datatypes::ToByteSlice;
@@ -930,17 +930,19 @@ mod tests {
     type RequestCounter = RwLock<HashMap<Path, usize>>;
 
     #[derive(Debug)]
-    struct TestObjectStore {
+    pub(crate) struct TestObjectStore {
         inner: Arc<dyn ObjectStore>,
         get: RequestCounter,
+        get_range: RequestCounter,
         notifies: Option<(Arc<Notify>, Arc<Notify>)>,
     }
 
     impl TestObjectStore {
-        fn new(inner: Arc<dyn ObjectStore>) -> Self {
+        pub(crate) fn new(inner: Arc<dyn ObjectStore>) -> Self {
             Self {
                 inner,
                 get: Default::default(),
+                get_range: Default::default(),
                 notifies: None,
             }
         }
@@ -950,12 +952,16 @@ mod tests {
             self
         }
 
-        fn total_get_request_count(&self) -> usize {
+        pub(crate) fn total_get_request_count(&self) -> usize {
             self.get.read().iter().map(|(_, size)| size).sum()
         }
 
-        fn get_request_count(&self, path: &Path) -> usize {
+        pub(crate) fn get_request_count(&self, path: &Path) -> usize {
             self.get.read().get(path).copied().unwrap_or(0)
+        }
+
+        pub(crate) fn get_range_request_count(&self, path: &Path) -> usize {
+            self.get_range.read().get(path).copied().unwrap_or(0)
         }
     }
 
@@ -1017,6 +1023,7 @@ mod tests {
             location: &Path,
             range: Range<usize>,
         ) -> object_store::Result<Bytes> {
+            *self.get_range.write().entry(location.clone()).or_insert(0) += 1;
             self.inner.get_range(location, range).await
         }
 
