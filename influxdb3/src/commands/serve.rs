@@ -349,7 +349,7 @@ pub async fn command(config: Config) -> Result<()> {
             Arc::<SystemProvider>::clone(&time_provider),
             Arc::clone(&exec),
             wal_config,
-            parquet_cache,
+            Some(parquet_cache),
         )
         .await
         .map_err(|e| Error::WriteBufferInit(e.into()))?,

@@ -774,7 +774,7 @@ mod tests {
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&exec),
                 WalConfig::test_config(),
-                parquet_cache,
+                Some(parquet_cache),
             )
             .await
             .unwrap(),

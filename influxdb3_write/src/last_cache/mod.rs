@@ -1597,7 +1597,7 @@ mod tests {
             time_provider,
             crate::test_help::make_exec(),
             WalConfig::test_config(),
-            parquet_cache,
+            Some(parquet_cache),
         )
         .await
         .unwrap()

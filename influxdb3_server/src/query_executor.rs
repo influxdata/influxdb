@@ -650,7 +650,7 @@ mod tests {
                     flush_interval: Duration::from_millis(10),
                     snapshot_size: 1,
                 },
-                parquet_cache,
+                Some(parquet_cache),
             )
             .await
             .unwrap(),

@@ -108,7 +108,7 @@ pub struct WriteBufferImpl {
     // NOTE(trevor): the parquet cache interface may be used to register other cache
     // requests from the write buffer, e.g., during query...
     #[allow(dead_code)]
-    parquet_cache: Arc<dyn ParquetCacheOracle>,
+    parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<QueryableBuffer>,
     wal_config: WalConfig,
@@ -128,7 +128,7 @@ impl WriteBufferImpl {
         time_provider: Arc<dyn TimeProvider>,
         executor: Arc<iox_query::exec::Executor>,
         wal_config: WalConfig,
-        parquet_cache: Arc<dyn ParquetCacheOracle>,
+        parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     ) -> Result<Self> {
         // load snapshots and replay the wal into the in memory buffer
         let persisted_snapshots = persister
@@ -162,7 +162,7 @@ impl WriteBufferImpl {
             Arc::clone(&persister),
             Arc::clone(&last_cache),
             Arc::clone(&persisted_files),
-            Arc::clone(&parquet_cache),
+            parquet_cache.clone(),
         ));
 
         // create the wal instance, which will replay into the queryable buffer and start
@@ -585,7 +585,7 @@ mod tests {
             Arc::clone(&time_provider),
             crate::test_help::make_exec(),
             WalConfig::test_config(),
-            Arc::clone(&parquet_cache),
+            Some(Arc::clone(&parquet_cache)),
         )
         .await
         .unwrap();
@@ -664,7 +664,7 @@ mod tests {
                 flush_interval: Duration::from_millis(50),
                 snapshot_size: 100,
             },
-            Arc::clone(&parquet_cache),
+            Some(Arc::clone(&parquet_cache)),
         )
         .await
         .unwrap();
@@ -720,7 +720,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
             },
-            Arc::clone(&wbuf.parquet_cache),
+            wbuf.parquet_cache.clone(),
         )
         .await
         .unwrap();
@@ -758,7 +758,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
             },
-            Arc::clone(&wbuf.parquet_cache),
+            wbuf.parquet_cache.clone(),
         )
         .await
         .unwrap();
@@ -815,7 +815,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
             },
-            Arc::clone(&wbuf.parquet_cache),
+            wbuf.parquet_cache.clone(),
         )
         .await
         .unwrap();
@@ -969,7 +969,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
             },
-            Arc::clone(&write_buffer.parquet_cache),
+            write_buffer.parquet_cache.clone(),
         )
         .await
         .unwrap();
@@ -1769,7 +1769,7 @@ mod tests {
             Arc::clone(&time_provider),
             crate::test_help::make_exec(),
             wal_config,
-            parquet_cache,
+            Some(parquet_cache),
         )
         .await
         .unwrap();
