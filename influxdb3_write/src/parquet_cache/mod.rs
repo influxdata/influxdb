@@ -933,7 +933,10 @@ pub(crate) mod tests {
     pub(crate) struct TestObjectStore {
         inner: Arc<dyn ObjectStore>,
         get: RequestCounter,
+        get_opts: RequestCounter,
         get_range: RequestCounter,
+        get_ranges: RequestCounter,
+        head: RequestCounter,
         notifies: Option<(Arc<Notify>, Arc<Notify>)>,
     }
 
@@ -942,7 +945,10 @@ pub(crate) mod tests {
             Self {
                 inner,
                 get: Default::default(),
+                get_opts: Default::default(),
                 get_range: Default::default(),
+                get_ranges: Default::default(),
+                head: Default::default(),
                 notifies: None,
             }
         }
@@ -960,8 +966,20 @@ pub(crate) mod tests {
             self.get.read().get(path).copied().unwrap_or(0)
         }
 
+        pub(crate) fn get_opts_request_count(&self, path: &Path) -> usize {
+            self.get_opts.read().get(path).copied().unwrap_or(0)
+        }
+
         pub(crate) fn get_range_request_count(&self, path: &Path) -> usize {
             self.get_range.read().get(path).copied().unwrap_or(0)
+        }
+
+        pub(crate) fn get_ranges_request_count(&self, path: &Path) -> usize {
+            self.get_ranges.read().get(path).copied().unwrap_or(0)
+        }
+
+        pub(crate) fn head_request_count(&self, path: &Path) -> usize {
+            self.head.read().get(path).copied().unwrap_or(0)
         }
     }
 
@@ -1015,6 +1033,7 @@ pub(crate) mod tests {
             location: &Path,
             options: GetOptions,
         ) -> object_store::Result<GetResult> {
+            *self.get_opts.write().entry(location.clone()).or_insert(0) += 1;
             self.inner.get_opts(location, options).await
         }
 
@@ -1032,10 +1051,12 @@ pub(crate) mod tests {
             location: &Path,
             ranges: &[Range<usize>],
         ) -> object_store::Result<Vec<Bytes>> {
+            *self.get_ranges.write().entry(location.clone()).or_insert(0) += 1;
             self.inner.get_ranges(location, ranges).await
         }
 
         async fn head(&self, location: &Path) -> object_store::Result<ObjectMeta> {
+            *self.head.write().entry(location.clone()).or_insert(0) += 1;
             self.inner.head(location).await
         }
 
