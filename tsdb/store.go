@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strconv"
 	"sync"
@@ -135,6 +135,11 @@ type Store struct {
 	baseLogger *zap.Logger
 	Logger     *zap.Logger
 
+	startupProgressMetrics interface {
+		AddShard()
+		CompletedShard()
+	}
+
 	closing chan struct{}
 	wg      sync.WaitGroup
 	opened  bool
@@ -165,6 +170,13 @@ func (s *Store) WithLogger(log *zap.Logger) {
 	for _, sh := range s.shards {
 		sh.WithLogger(s.baseLogger)
 	}
+}
+
+func (s *Store) WithStartupMetrics(sp interface {
+	AddShard()
+	CompletedShard()
+}) {
+	s.startupProgressMetrics = sp
 }
 
 // Statistics returns statistics for period monitoring.
@@ -309,226 +321,6 @@ func (s *Store) Open() error {
 	return nil
 }
 
-func (s *Store) loadShards() error {
-	// res holds the result from opening each shard in a goroutine
-	type res struct {
-		s   *Shard
-		err error
-	}
-
-	// Limit the number of concurrent TSM files to be opened to the number of cores.
-	s.EngineOptions.OpenLimiter = limiter.NewFixed(runtime.GOMAXPROCS(0))
-
-	// Setup a shared limiter for compactions
-	lim := s.EngineOptions.Config.MaxConcurrentCompactions
-	if lim == 0 {
-		lim = runtime.GOMAXPROCS(0) / 2 // Default to 50% of cores for compactions
-
-		if lim < 1 {
-			lim = 1
-		}
-	}
-
-	// Don't allow more compactions to run than cores.
-	if lim > runtime.GOMAXPROCS(0) {
-		lim = runtime.GOMAXPROCS(0)
-	}
-
-	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
-
-	compactionSettings := []zapcore.Field{zap.Int("max_concurrent_compactions", lim)}
-	throughput := int(s.EngineOptions.Config.CompactThroughput)
-	throughputBurst := int(s.EngineOptions.Config.CompactThroughputBurst)
-	if throughput > 0 {
-		if throughputBurst < throughput {
-			throughputBurst = throughput
-		}
-
-		compactionSettings = append(
-			compactionSettings,
-			zap.Int("throughput_bytes_per_second", throughput),
-			zap.Int("throughput_bytes_per_second_burst", throughputBurst),
-		)
-		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(throughput, throughputBurst)
-	} else {
-		compactionSettings = append(
-			compactionSettings,
-			zap.String("throughput_bytes_per_second", "unlimited"),
-			zap.String("throughput_bytes_per_second_burst", "unlimited"),
-		)
-	}
-
-	s.Logger.Info("Compaction settings", compactionSettings...)
-
-	log, logEnd := logger.NewOperation(s.Logger, "Open store", "tsdb_open")
-	defer logEnd()
-
-	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
-	resC := make(chan *res)
-	var n int
-
-	// Determine how many shards we need to open by checking the store path.
-	dbDirs, err := os.ReadDir(s.path)
-	if err != nil {
-		return err
-	}
-
-	for _, db := range dbDirs {
-		dbPath := filepath.Join(s.path, db.Name())
-		if !db.IsDir() {
-			log.Info("Skipping database dir", zap.String("name", db.Name()), zap.String("reason", "not a directory"))
-			continue
-		}
-
-		if s.EngineOptions.DatabaseFilter != nil && !s.EngineOptions.DatabaseFilter(db.Name()) {
-			log.Info("Skipping database dir", logger.Database(db.Name()), zap.String("reason", "failed database filter"))
-			continue
-		}
-
-		// Load series file.
-		sfile, err := s.openSeriesFile(db.Name())
-		if err != nil {
-			return err
-		}
-
-		// Retrieve database index.
-		idx, err := s.createIndexIfNotExists(db.Name())
-		if err != nil {
-			return err
-		}
-
-		// Load each retention policy within the database directory.
-		rpDirs, err := os.ReadDir(dbPath)
-		if err != nil {
-			return err
-		}
-
-		for _, rp := range rpDirs {
-			rpPath := filepath.Join(s.path, db.Name(), rp.Name())
-			if !rp.IsDir() {
-				log.Info("Skipping retention policy dir", zap.String("name", rp.Name()), zap.String("reason", "not a directory"))
-				continue
-			}
-
-			// The .series directory is not a retention policy.
-			if rp.Name() == SeriesFileDirectory {
-				continue
-			}
-
-			if s.EngineOptions.RetentionPolicyFilter != nil && !s.EngineOptions.RetentionPolicyFilter(db.Name(), rp.Name()) {
-				log.Info("Skipping retention policy dir", logger.RetentionPolicy(rp.Name()), zap.String("reason", "failed retention policy filter"))
-				continue
-			}
-
-			shardDirs, err := os.ReadDir(rpPath)
-			if err != nil {
-				return err
-			}
-
-			for _, sh := range shardDirs {
-				// Series file should not be in a retention policy but skip just in case.
-				if sh.Name() == SeriesFileDirectory {
-					log.Warn("Skipping series file in retention policy dir", zap.String("path", filepath.Join(s.path, db.Name(), rp.Name())))
-					continue
-				}
-
-				n++
-				go func(db, rp, sh string) {
-					t.Take()
-					defer t.Release()
-
-					start := time.Now()
-					path := filepath.Join(s.path, db, rp, sh)
-					walPath := filepath.Join(s.EngineOptions.Config.WALDir, db, rp, sh)
-
-					// Shard file names are numeric shardIDs
-					shardID, err := strconv.ParseUint(sh, 10, 64)
-					if err != nil {
-						log.Info("invalid shard ID found at path", zap.String("path", path))
-						resC <- &res{err: fmt.Errorf("%s is not a valid ID. Skipping shard.", sh)}
-						return
-					}
-
-					if s.EngineOptions.ShardFilter != nil && !s.EngineOptions.ShardFilter(db, rp, shardID) {
-						log.Info("skipping shard", zap.String("path", path), logger.Shard(shardID))
-						resC <- &res{}
-						return
-					}
-
-					// Copy options and assign shared index.
-					opt := s.EngineOptions
-					opt.InmemIndex = idx
-
-					// Provide an implementation of the ShardIDSets
-					opt.SeriesIDSets = shardSet{store: s, db: db}
-
-					// Existing shards should continue to use inmem index.
-					if _, err := os.Stat(filepath.Join(path, "index")); os.IsNotExist(err) {
-						opt.IndexVersion = InmemIndexName
-					}
-
-					// Open engine.
-					shard := NewShard(shardID, path, walPath, sfile, opt)
-
-					// Disable compactions, writes and queries until all shards are loaded
-					shard.EnableOnOpen = false
-					shard.CompactionDisabled = s.EngineOptions.CompactionDisabled
-					shard.WithLogger(s.baseLogger)
-
-					err = s.OpenShard(shard, false)
-					if err != nil {
-						log.Error("Failed to open shard", logger.Shard(shardID), zap.Error(err))
-						resC <- &res{err: fmt.Errorf("failed to open shard: %d: %w", shardID, err)}
-						return
-					}
-
-					resC <- &res{s: shard}
-					log.Info("Opened shard", zap.String("index_version", shard.IndexType()), zap.String("path", path), zap.Duration("duration", time.Since(start)))
-				}(db.Name(), rp.Name(), sh.Name())
-			}
-		}
-	}
-
-	// Gather results of opening shards concurrently, keeping track of how
-	// many databases we are managing.
-	for i := 0; i < n; i++ {
-		res := <-resC
-		if res.s == nil || res.err != nil {
-			continue
-		}
-		s.shards[res.s.id] = res.s
-		s.epochs[res.s.id] = newEpochTracker()
-		if _, ok := s.databases[res.s.database]; !ok {
-			s.databases[res.s.database] = new(databaseState)
-		}
-		s.databases[res.s.database].addIndexType(res.s.IndexType())
-	}
-	close(resC)
-
-	// Check if any databases are running multiple index types.
-	for db, state := range s.databases {
-		if state.hasMultipleIndexTypes() {
-			var fields []zapcore.Field
-			for idx, cnt := range state.indexTypes {
-				fields = append(fields, zap.Int(fmt.Sprintf("%s_count", idx), cnt))
-			}
-			s.Logger.Warn("Mixed shard index types", append(fields, logger.Database(db))...)
-		}
-	}
-
-	// Enable all shards
-	for _, sh := range s.shards {
-		sh.SetEnabled(true)
-		if isIdle, _ := sh.IsIdle(); isIdle {
-			if err := sh.Free(); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
 // Close closes the store and all associated shards. After calling Close accessing
 // shards through the Store will result in ErrStoreClosed being returned.
 func (s *Store) Close() error {
@@ -631,6 +423,18 @@ func (s *Store) Shard(id uint64) *Shard {
 		return nil
 	}
 	return sh
+}
+
+func (s *Store) ClearBadShardList() map[uint64]error {
+	badShards := maps.Clone(s.badShards.shardErrors)
+	clear(s.badShards.shardErrors)
+
+	return badShards
+}
+
+// GetBadShardList is exposed as a method for test purposes
+func (s *Store) GetBadShardList() map[uint64]error {
+	return s.badShards.shardErrors
 }
 
 type ErrPreviousShardFail struct {
