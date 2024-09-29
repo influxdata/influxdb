@@ -1,12 +1,11 @@
 //! Planner contains logic for organizing compaction within a table and creating compaction plans.
 
 use hashbrown::HashMap;
+use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::{
-    CompactedData, CompactionConfig, Gen1, Generation, GenerationId, GenerationLevel,
-    HostSnapshotMarker,
+    CompactionConfig, Generation, GenerationId, GenerationLevel, HostSnapshotMarker,
 };
-use influxdb3_write::PersistedSnapshot;
-use object_store::ObjectStore;
+use influxdb3_write::{ParquetFile, PersistedSnapshot};
 use observability_deps::tracing::warn;
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
@@ -57,7 +56,7 @@ impl TrackerState {
     }
 }
 
-type DatabaseToTables = HashMap<Arc<str>, HashMap<Arc<str>, Vec<Arc<dyn Generation>>>>;
+type DatabaseToTables = HashMap<Arc<str>, HashMap<Arc<str>, Vec<ParquetFile>>>;
 
 #[derive(Debug, Default)]
 pub(crate) struct HostSnapshotCounter {
@@ -102,10 +101,12 @@ impl SnapshotTracker {
             marker.snapshot_sequence_number = marker
                 .snapshot_sequence_number
                 .max(snapshot.snapshot_sequence_number);
+            marker.next_file_id = marker.next_file_id.max(snapshot.next_file_id);
         } else {
             counter.marker = Some(HostSnapshotMarker {
                 host_id: snapshot.host_id.clone(),
                 snapshot_sequence_number: snapshot.snapshot_sequence_number,
+                next_file_id: snapshot.next_file_id,
             });
         }
 
@@ -118,10 +119,7 @@ impl SnapshotTracker {
                     .or_default()
                     .entry(Arc::clone(table))
                     .or_default();
-                let mut gen1_files: Vec<Arc<dyn Generation>> = gen1_files
-                    .iter()
-                    .map(|f| Arc::new(Gen1::new(Arc::new(f.clone()))) as _)
-                    .collect();
+                let mut gen1_files: Vec<_> = gen1_files.to_vec();
                 files.append(&mut gen1_files);
             }
         }
@@ -154,51 +152,54 @@ impl SnapshotTracker {
     /// Generate compaction plans based on the tracker and the existing compacted state. Once
     /// all of these plans have been run and the resulting compaction detail files have been written,
     /// we can write a compaction summary that contains all the details.
-    pub(crate) fn to_plan_and_reset(
-        &self,
-        compaction_config: &CompactionConfig,
-        compacted_data: &CompactedData,
-        object_store: Arc<dyn ObjectStore>,
-    ) -> SnapshotAdvancePlan {
+    pub(crate) fn to_plan_and_reset(&self, compacted_data: &CompactedData) -> SnapshotAdvancePlan {
         let mut state = self.state.lock();
 
         let (host_snapshot_markers, gen1_files) = state.reset();
 
         let mut compaction_plans = HashMap::new();
-        let mut generation_map = HashMap::new();
 
         for (db, tables) in gen1_files {
             let table_plans: &mut Vec<CompactionPlan> =
                 compaction_plans.entry(Arc::clone(&db)).or_default();
 
-            for (table, mut gen1_files) in tables {
+            for (table, gen1_files) in tables {
+                // find the min time of the oldest gen1 file
+                let min_time = gen1_files
+                    .iter()
+                    .map(|f| f.chunk_time)
+                    .min()
+                    .expect("gen1 files should have a min time");
+                let min_time_secs = min_time / 1_000_000_000;
+
                 // if this table has been compacted before, get its generations
-                let generations = compacted_data.get_generations(
+                let mut generations = compacted_data.get_generations_newer_than(
                     db.as_ref(),
                     table.as_ref(),
-                    Arc::clone(&object_store),
+                    min_time_secs,
                 );
-                if let Some(mut generations) = generations {
-                    gen1_files.append(&mut generations);
+
+                // add the gen1 files to the compacted data structure
+                for f in gen1_files {
+                    let gen1 = compacted_data.add_gen1_file_to_map(Arc::new(f));
+                    generations.push(gen1.generation());
                 }
 
+                generations.sort();
+
                 let plan = create_gen1_plan(
-                    compaction_config,
+                    &compacted_data.compaction_config,
                     Arc::clone(&db),
                     Arc::clone(&table),
-                    &gen1_files,
+                    &generations,
                 );
                 table_plans.push(plan);
-                for g in gen1_files {
-                    generation_map.insert(g.id(), g);
-                }
             }
         }
 
         SnapshotAdvancePlan {
             host_snapshot_markers,
             compaction_plans,
-            generations: generation_map,
         }
     }
 }
@@ -209,8 +210,6 @@ pub(crate) struct SnapshotAdvancePlan {
     pub(crate) host_snapshot_markers: HashMap<String, HostSnapshotCounter>,
     /// The compaction plans that must be run to advance the snapshot summary beyond these snapshots
     pub(crate) compaction_plans: HashMap<Arc<str>, Vec<CompactionPlan>>,
-    /// Map of `GenerationId` to the `Generation`
-    pub(crate) generations: HashMap<GenerationId, Arc<dyn Generation>>,
 }
 
 /// Creates a plan to do a gen1 compaction on the newest gen1 files. If no gen1 compaction is
@@ -221,54 +220,61 @@ fn create_gen1_plan(
     compaction_config: &CompactionConfig,
     db_name: Arc<str>,
     table_name: Arc<str>,
-    generations: &[Arc<dyn Generation>],
+    generations: &[Generation],
 ) -> CompactionPlan {
     // grab a slice of the leading gen1
     let leading_gen1 = generations
         .iter()
-        .take_while(|g| g.level().is_under_two())
+        .take_while(|g| g.level.is_under_two())
         .collect::<Vec<_>>();
     // if there are fewer than 2 gen1 files, we're not going to be compacting
     if leading_gen1.len() < 2 {
-        let leftover_ids = generations
+        let leftover_gen1_ids = generations
             .iter()
-            .filter(|g| g.level().is_under_two())
-            .map(|g| g.id())
+            .filter(|g| g.level.is_under_two())
+            .map(|g| g.id)
             .collect::<Vec<_>>();
         return CompactionPlan::LeftoverOnly(LeftoverPlan {
             db_name,
             table_name,
-            leftover_ids,
+            leftover_gen1_ids,
         });
     }
 
     let mut new_block_times_to_gens = BTreeMap::new();
     for gen in leading_gen1 {
         let level_start_time =
-            compaction_config.generation_start_time(GenerationLevel::two(), gen.start_time_secs());
+            compaction_config.generation_start_time(GenerationLevel::two(), gen.start_time_secs);
         let gens = new_block_times_to_gens
             .entry(level_start_time)
             .or_insert_with(Vec::new);
         gens.push(gen);
     }
 
+    let gen2_duration = compaction_config.generation_duration(GenerationLevel::two());
+
     // build a plan to compact the newest generation group with at least 2
     for (gen_time, gens) in new_block_times_to_gens.into_iter().rev() {
         if gens.len() >= 2 {
-            let mut input_ids = gens.iter().map(|g| g.id()).collect::<Vec<_>>();
+            let mut input_ids = gens.iter().map(|g| g.id).collect::<Vec<_>>();
             input_ids.sort();
             let mut leftover_ids = generations
                 .iter()
-                .filter(|g| g.level().is_under_two() && !input_ids.contains(&g.id()))
-                .map(|g| g.id())
+                .filter(|g| g.level.is_under_two() && !input_ids.contains(&g.id))
+                .map(|g| g.id)
                 .collect::<Vec<_>>();
             leftover_ids.sort();
             let compaction_plan = CompactionPlan::Compaction(NextCompactionPlan {
                 db_name,
                 table_name,
-                output_level: GenerationLevel::two(),
-                output_id: GenerationId::new(),
-                output_gen_time: gen_time,
+                output_generation: Generation {
+                    id: GenerationId::new(),
+                    level: GenerationLevel::two(),
+                    start_time_secs: gen_time,
+                    max_time: gen2_duration
+                        .map(|d| (gen_time + d.as_secs() as i64) * 1_000_000_000)
+                        .unwrap_or_else(|| gen_time * 1_000_000_000),
+                },
                 input_ids,
                 leftover_ids,
             });
@@ -277,27 +283,16 @@ fn create_gen1_plan(
         }
     }
 
-    let leftover_ids = generations
+    let leftover_gen1_ids = generations
         .iter()
-        .filter(|g| g.level().is_under_two())
-        .map(|g| g.id())
+        .filter(|g| g.level.is_under_two())
+        .map(|g| g.id)
         .collect::<Vec<_>>();
     CompactionPlan::LeftoverOnly(LeftoverPlan {
         db_name,
         table_name,
-        leftover_ids,
+        leftover_gen1_ids,
     })
-}
-
-/// Creates a compaction plan for whatever the next compaction is that should be run. If the
-/// table is fully compacted, None will be returned.
-#[allow(dead_code)]
-fn create_next_gen_plan(
-    _db_name: Arc<str>,
-    _table_name: Arc<str>,
-    _generations: &[Arc<dyn Generation>],
-) -> Option<CompactionPlan> {
-    None
 }
 
 #[derive(Debug)]
@@ -307,6 +302,13 @@ pub(crate) enum CompactionPlan {
 }
 
 impl CompactionPlan {
+    pub(crate) fn db_name(&self) -> &str {
+        match self {
+            Self::LeftoverOnly(plan) => &plan.db_name,
+            Self::Compaction(plan) => &plan.db_name,
+        }
+    }
+
     pub(crate) fn table_name(&self) -> &str {
         match self {
             Self::LeftoverOnly(plan) => &plan.table_name,
@@ -323,7 +325,7 @@ impl CompactionPlan {
 pub(crate) struct LeftoverPlan {
     pub(crate) db_name: Arc<str>,
     pub(crate) table_name: Arc<str>,
-    pub(crate) leftover_ids: Vec<GenerationId>,
+    pub(crate) leftover_gen1_ids: Vec<GenerationId>,
 }
 
 /// When the planner gets called to plan a compaction on a table, this contains all the detail
@@ -334,10 +336,9 @@ pub(crate) struct LeftoverPlan {
 pub(crate) struct NextCompactionPlan {
     pub db_name: Arc<str>,
     pub table_name: Arc<str>,
-    pub output_level: GenerationLevel,
-    pub output_id: GenerationId,
-    pub output_gen_time: i64,
-    /// The input generations from both gen1 and existing generations for this compaction
+    pub output_generation: Generation,
+    /// The input generations for this compaction. Could be empty if there are only gen1 files
+    /// getting compacted.
     pub input_ids: Vec<GenerationId>,
     /// The ids for the gen1 files that will be left over after this compaction plan runs
     pub leftover_ids: Vec<GenerationId>,
@@ -347,7 +348,6 @@ pub(crate) struct NextCompactionPlan {
 mod tests {
     use super::*;
     use influxdb3_pro_data_layout::{gen_time_string, gen_time_string_to_start_time_secs};
-    use influxdb3_write::ParquetFile;
 
     #[test]
     fn gen1_plans() {
@@ -409,38 +409,36 @@ mod tests {
             let gens: Vec<_> = tc
                 .input
                 .iter()
-                .map(|(id, level, time)| {
-                    Arc::new(TestGen {
-                        start_time: gen_time_string_to_start_time_secs(time).unwrap(),
-                        id: GenerationId::from(*id),
-                        level: GenerationLevel::new(*level),
-                    }) as Arc<dyn Generation>
+                .map(|(id, level, time)| Generation {
+                    id: GenerationId::from(*id),
+                    level: GenerationLevel::new(*level),
+                    start_time_secs: gen_time_string_to_start_time_secs(time).unwrap(),
+                    max_time: 0,
                 })
                 .collect();
             let plan = create_gen1_plan(&compaction_config, "db".into(), "table".into(), &gens);
             match plan {
                 CompactionPlan::Compaction(NextCompactionPlan {
-                    output_level,
-                    output_gen_time,
+                    output_generation,
                     input_ids,
                     leftover_ids,
                     ..
                 }) => {
                     assert_eq!(
-                        output_level,
+                        output_generation.level,
                         GenerationLevel::new(tc.output_level),
                         "{}: expected level {} but got {}",
                         tc.description,
                         tc.output_level,
-                        output_level
+                        output_generation.level,
                     );
                     assert_eq!(
-                        output_gen_time,
+                        output_generation.start_time_secs,
                         gen_time_string_to_start_time_secs(tc.output_time).unwrap(),
                         "{}: expected gen time {} but got {}",
                         tc.description,
                         tc.output_time,
-                        gen_time_string(output_gen_time)
+                        gen_time_string(output_generation.start_time_secs)
                     );
                     let ids_to_compact = input_ids.iter().map(|g| g.as_u64()).collect::<Vec<_>>();
                     assert_eq!(
@@ -493,18 +491,22 @@ mod tests {
             let gens: Vec<_> = tc
                 .input
                 .iter()
-                .map(|(id, level, time)| {
-                    Arc::new(TestGen {
-                        start_time: gen_time_string_to_start_time_secs(time).unwrap(),
-                        id: GenerationId::from(*id),
-                        level: GenerationLevel::new(*level),
-                    }) as Arc<dyn Generation>
+                .map(|(id, level, time)| Generation {
+                    id: GenerationId::from(*id),
+                    level: GenerationLevel::new(*level),
+                    start_time_secs: gen_time_string_to_start_time_secs(time).unwrap(),
+                    max_time: 0,
                 })
                 .collect();
             let plan = create_gen1_plan(&compaction_config, "db".into(), "table".into(), &gens);
             match plan {
-                CompactionPlan::LeftoverOnly(LeftoverPlan { leftover_ids, .. }) => {
-                    let leftover_ids = leftover_ids.iter().map(|g| g.as_u64()).collect::<Vec<_>>();
+                CompactionPlan::LeftoverOnly(LeftoverPlan {
+                    leftover_gen1_ids, ..
+                }) => {
+                    let leftover_ids = leftover_gen1_ids
+                        .iter()
+                        .map(|g| g.as_u64())
+                        .collect::<Vec<_>>();
                     assert_eq!(
                         tc.leftover_ids, leftover_ids,
                         "{}: expected leftover ids {:?} but got {:?}",
@@ -516,35 +518,6 @@ mod tests {
                     tc.description
                 ),
             }
-        }
-    }
-
-    struct TestGen {
-        start_time: i64,
-        id: GenerationId,
-        level: GenerationLevel,
-    }
-
-    #[async_trait::async_trait]
-    impl Generation for TestGen {
-        fn id(&self) -> GenerationId {
-            self.id
-        }
-
-        fn start_time_secs(&self) -> i64 {
-            self.start_time
-        }
-
-        fn gen_path(&self) -> String {
-            "some_path".to_string()
-        }
-
-        fn level(&self) -> GenerationLevel {
-            self.level
-        }
-
-        async fn files(&self) -> Vec<Arc<ParquetFile>> {
-            todo!()
         }
     }
 }

@@ -12,10 +12,6 @@ use arrow_schema::ArrowError;
 use arrow_schema::DataType;
 use arrow_util::util::ensure_schema;
 use bytes::Bytes;
-use chrono::DateTime;
-use chrono::Datelike;
-use chrono::Timelike;
-use chrono::Utc;
 use data_types::ChunkId;
 use data_types::ChunkOrder;
 use data_types::PartitionHashId;
@@ -27,9 +23,8 @@ use datafusion::execution::SendableRecordBatchStream;
 use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
 use influxdb3_catalog::catalog::{Catalog, TIME_COLUMN_NAME};
-use influxdb3_pro_data_layout::{
-    CompactedData, CompactionConfig, CompactionSequenceNumber, GenerationLevel,
-};
+use influxdb3_pro_data_layout::compacted_data::CompactedData;
+use influxdb3_pro_data_layout::{CompactedFilePath, CompactionConfig, Generation};
 use influxdb3_pro_index::FileIndex;
 use influxdb3_write::chunk::ParquetChunk;
 use influxdb3_write::ParquetFileId;
@@ -59,9 +54,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
-use std::time::SystemTime;
 use tokio::sync::watch::Receiver;
-use tokio::sync::Mutex;
 
 pub mod planner;
 mod runner;
@@ -113,11 +106,8 @@ pub struct CompactorOutput {
 
 #[derive(Debug)]
 pub struct Compactor {
-    compactor_id: Arc<str>,
-    compaction_config: CompactionConfig,
-    compacted_data: Arc<Mutex<CompactedData>>,
+    compacted_data: Arc<CompactedData>,
     catalog: Arc<Catalog>,
-    object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     executor: Arc<Executor>,
     /// New snapshots for gen1 files will come through this channel
@@ -152,32 +142,31 @@ impl CompactorConfig {
 }
 
 impl Compactor {
-    pub fn new(
+    pub async fn new(
         compactor_config: CompactorConfig,
         catalog: Arc<Catalog>,
         object_store: Arc<dyn ObjectStore>,
         object_store_url: ObjectStoreUrl,
         executor: Arc<Executor>,
         persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
-    ) -> Self {
+    ) -> Result<Self, influxdb3_pro_data_layout::compacted_data::Error> {
         let snapshot_tracker = SnapshotTracker::new(compactor_config.compaction_hosts);
 
-        // TODO: load this from object store
-        let compacted_data = Arc::new(Mutex::new(CompactedData::new(Arc::clone(
+        let compacted_data = CompactedData::load_compacted_data(
             &compactor_config.compactor_id,
-        ))));
+            compactor_config.compaction_config,
+            object_store,
+        )
+        .await?;
 
-        Self {
-            compactor_id: compactor_config.compactor_id,
-            compaction_config: compactor_config.compaction_config,
+        Ok(Self {
             compacted_data,
             catalog,
-            object_store,
             object_store_url,
             executor,
             persisted_snapshot_notify_rx,
             snapshot_tracker,
-        }
+        })
     }
 
     pub async fn compact(self) {
@@ -209,22 +198,14 @@ impl Compactor {
             }
 
             if self.snapshot_tracker.should_compact() {
-                let compacted_data = self.compacted_data.lock().await;
-
-                let snapshot_plan = self.snapshot_tracker.to_plan_and_reset(
-                    &self.compaction_config,
-                    &compacted_data,
-                    Arc::clone(&self.object_store),
-                );
-
-                drop(compacted_data);
+                let snapshot_plan = self
+                    .snapshot_tracker
+                    .to_plan_and_reset(&self.compacted_data);
 
                 let _compaction_summary = runner::run_snapshot_plan(
                     snapshot_plan,
-                    Arc::clone(&self.compactor_id),
                     Arc::clone(&self.compacted_data),
                     Arc::clone(&self.catalog),
-                    Arc::clone(&self.object_store),
                     self.object_store_url.clone(),
                     Arc::clone(&self.executor),
                 )
@@ -237,13 +218,11 @@ impl Compactor {
 #[derive(Debug)]
 pub struct CompactFilesArgs {
     pub compactor_id: Arc<str>,
-    pub compaction_sequence_number: CompactionSequenceNumber,
-    pub db_name: Arc<str>,
     pub table_name: Arc<str>,
     pub table_schema: Schema,
     pub paths: Vec<ObjPath>,
     pub limit: usize,
-    pub generation: GenerationLevel,
+    pub generation: Generation,
     pub index_columns: Vec<String>,
     pub object_store: Arc<dyn ObjectStore>,
     pub object_store_url: ObjectStoreUrl,
@@ -257,8 +236,6 @@ pub struct CompactFilesArgs {
 pub async fn compact_files(
     CompactFilesArgs {
         compactor_id,
-        compaction_sequence_number,
-        db_name,
         table_name,
         table_schema,
         paths,
@@ -291,9 +268,6 @@ pub async fn compact_files(
         records,
         compactor_id,
         generation,
-        compaction_sequence_number,
-        db_name,
-        table_name,
         index_columns,
     );
 
@@ -405,17 +379,9 @@ struct SeriesWriter {
     /// The ID of the compactor
     compactor_id: Arc<str>,
     /// What generation the data is being compacted into
-    generation: GenerationLevel,
-    /// Which compaction sequence we are currently on
-    compaction_seq: CompactionSequenceNumber,
-    /// The name of the database we are doing a compaction cycle for
-    db_name: Arc<str>,
-    /// The name of the table we are doing a compaction cycle for
-    table_name: Arc<str>,
+    generation: Generation,
     /// The current file id to use for this file we are compacting into
     current_file_id: ParquetFileId,
-    /// What time we started the compaction cycle at
-    compaction_time: DateTime<Utc>,
     /// What columns we are indexing on for the `FileIndex`
     index_columns: Vec<Arc<str>>,
     /// The `FileIndex` for this table that we are compacting
@@ -436,10 +402,7 @@ impl SeriesWriter {
         limit: usize,
         stream: SendableRecordBatchStream,
         compactor_id: Arc<str>,
-        generation: GenerationLevel,
-        compaction_seq: CompactionSequenceNumber,
-        db_name: Arc<str>,
-        table_name: Arc<str>,
+        generation: Generation,
         index_columns: Vec<String>,
     ) -> Self {
         let mut series_key = table_schema
@@ -461,11 +424,7 @@ impl SeriesWriter {
             file_metadata: Vec::new(),
             compactor_id,
             generation,
-            compaction_seq,
-            db_name,
-            table_name,
             current_file_id: ParquetFileId::new(),
-            compaction_time: SystemTime::now().into(),
             index_columns: index_columns.into_iter().map(Into::into).collect(),
             file_index: FileIndex::new(),
             min_time: i64::MAX,
@@ -618,23 +577,14 @@ impl SeriesWriter {
             Some(writer) => Ok(writer),
             None => {
                 self.current_file_id = ParquetFileId::new();
-                let path = ObjPath::from(format!(
-                    "{}/c/{}/{}/{}/{}-{}-{}/{}-{}/f/{}.{}.parquet",
-                    self.compactor_id,
-                    self.db_name,
-                    self.table_name,
-                    self.generation,
-                    self.compaction_time.year(),
-                    self.compaction_time.month(),
-                    self.compaction_time.day(),
-                    self.compaction_time.hour(),
-                    self.compaction_time.minute(),
-                    self.compaction_seq.as_u64(),
-                    self.current_file_id.as_u64(),
-                ));
+                let path = CompactedFilePath::new(
+                    &self.compactor_id,
+                    self.generation.id,
+                    self.current_file_id,
+                );
                 let obj_store_multipart = self
                     .object_store
-                    .put_multipart(&path)
+                    .put_multipart(path.as_object_store_path())
                     .await
                     .map_err(CompactorError::FailedPut)?;
                 let writer = AsyncArrowWriter::try_new(
@@ -643,7 +593,7 @@ impl SeriesWriter {
                     None,
                 )
                 .map_err(CompactorError::NewArrowWriter)?;
-                self.output_paths.push(path.clone());
+                self.output_paths.push(path.as_object_store_path().clone());
                 self.min_time = i64::MAX;
                 self.max_time = i64::MIN;
                 Ok(writer)
@@ -688,10 +638,9 @@ impl SeriesWriter {
             )
             .map_err(CompactorError::CastError)?;
             let downcasted = as_largestring_array(&casted);
-            for string in downcasted.iter().map(|s| s.unwrap_or("null")) {
-                let value: Arc<str> = string.into();
+            for value in downcasted.iter().map(|s| s.unwrap_or("null")) {
                 self.file_index
-                    .insert(Arc::clone(column_name), value, &self.current_file_id);
+                    .insert(column_name.as_ref(), value, &self.current_file_id);
             }
         }
         Ok(())

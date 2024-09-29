@@ -2584,6 +2584,7 @@ dependencies = [
  "influxdb3_pro_buffer",
  "influxdb3_pro_clap_blocks",
  "influxdb3_pro_compactor",
+ "influxdb3_pro_data_layout",
  "influxdb3_process",
  "influxdb3_server",
  "influxdb3_wal",
@@ -2763,23 +2764,29 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
+ "futures-util",
  "hashbrown 0.14.5",
+ "influxdb3_pro_index",
  "influxdb3_wal",
  "influxdb3_write",
  "object_store",
  "observability_deps",
+ "parking_lot",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
+ "xxhash-rust",
 ]
 
 [[package]]
 name = "influxdb3_pro_index"
 version = "0.1.0"
 dependencies = [
+ "hashbrown 0.14.5",
  "influxdb3_write",
  "object_store",
+ "serde",
 ]
 
 [[package]]
@@ -7144,6 +7151,12 @@ dependencies = [
  "xz2",
  "zeroize",
 ]
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a5cbf750400958819fb6178eaa83bee5cd9c29a26a40cc241df8c70fdd46984"
 
 [[package]]
 name = "xz2"

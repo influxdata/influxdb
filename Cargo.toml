@@ -107,6 +107,7 @@ unicode-segmentation = "1.11.0"
 url = "2.5.0"
 urlencoding = "1.1"
 uuid = { version = "1", features = ["v4"] }
+xxhash-rust = { version = "0.8", features = ["xxh32"] }
 
 # Core.git crates we depend on
 arrow_util = { git = "https://github.com/influxdata/influxdb3_core", rev = "1d5011bde4c343890bb58aa77415b20cb900a4a8"}
