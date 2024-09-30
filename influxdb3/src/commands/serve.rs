@@ -218,11 +218,11 @@ pub struct Config {
     #[clap(long = "host-id", env = "INFLUXDB3_HOST_IDENTIFIER_PREFIX", action)]
     pub host_identifier_prefix: String,
 
-    /// The size of the in-memory Parquet cache in bytes.
+    /// The size of the in-memory Parquet cache in megabytes (MB).
     #[clap(
-        long = "parquet-mem-cache-size",
-        env = "INFLUXDB3_PARQUET_MEM_CACHE_SIZE",
-        default_value_t = 1024 * 1024 * 1024,
+        long = "parquet-mem-cache-size-mb",
+        env = "INFLUXDB3_PARQUET_MEM_CACHE_SIZE_MB",
+        default_value = "1000",
         action
     )]
     pub parquet_mem_cache_size: usize,
@@ -239,15 +239,17 @@ pub struct Config {
     pub parquet_mem_cache_prune_percentage: PrunePercent,
 
     /// The interval on which to check if the in-memory Parquet cache needs to be pruned.
+    ///
+    /// Enter as a human-readable time, e.g., "1s", "100ms", "1m", etc.
     #[clap(
         long = "parquet-mem-cache-prune-interval",
         env = "INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_INTERVAL",
-        default_value = "10ms",
+        default_value = "1s",
         action
     )]
     pub parquet_mem_cache_prune_interval: humantime::Duration,
 
-    /// Disable the in-memory Parquet cache.
+    /// Disable the in-memory Parquet cache. By default, the cache is enabled.
     #[clap(
         long = "disable-parquet-mem-cache",
         env = "INFLUXDB3_DISABLE_PARQUET_MEM_CACHE",
@@ -328,7 +330,7 @@ pub async fn command(config: Config) -> Result<()> {
         let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
             object_store,
             Arc::clone(&time_provider) as _,
-            config.parquet_mem_cache_size,
+            config.parquet_mem_cache_size * 1_000,
             config.parquet_mem_cache_prune_percentage.into(),
             config.parquet_mem_cache_prune_interval.into(),
         );
