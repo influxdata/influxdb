@@ -77,11 +77,10 @@ impl MemCacheOracle {
     /// This spawns two background tasks:
     /// * one to handle registered [`CacheRequest`]s
     /// * one to prune deleted and un-needed cache entries on an interval
-    // TODO(trevor): this should be more configurable, e.g., channel size, prune interval
-    fn new(mem_cached_store: Arc<MemCachedObjectStore>) -> Self {
+    fn new(mem_cached_store: Arc<MemCachedObjectStore>, prune_interval: Duration) -> Self {
         let (cache_request_tx, cache_request_rx) = channel(CACHE_REQUEST_BUFFER_SIZE);
         background_cache_request_handler(Arc::clone(&mem_cached_store), cache_request_rx);
-        background_cache_pruner(mem_cached_store);
+        background_cache_pruner(mem_cached_store, prune_interval);
         Self { cache_request_tx }
     }
 }
@@ -104,6 +103,7 @@ pub fn create_cached_obj_store_and_oracle(
     time_provider: Arc<dyn TimeProvider>,
     cache_capacity: usize,
     prune_percent: f64,
+    prune_interval: Duration,
 ) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
     let store = Arc::new(MemCachedObjectStore::new(
         object_store,
@@ -111,7 +111,7 @@ pub fn create_cached_obj_store_and_oracle(
         time_provider,
         prune_percent,
     ));
-    let oracle = Arc::new(MemCacheOracle::new(Arc::clone(&store)));
+    let oracle = Arc::new(MemCacheOracle::new(Arc::clone(&store), prune_interval));
     (store, oracle)
 }
 
@@ -120,7 +120,13 @@ pub fn test_cached_obj_store_and_oracle(
     object_store: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
 ) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
-    create_cached_obj_store_and_oracle(object_store, time_provider, 1024 * 1024 * 1024, 0.1)
+    create_cached_obj_store_and_oracle(
+        object_store,
+        time_provider,
+        1024 * 1024 * 1024,
+        0.1,
+        Duration::from_millis(10),
+    )
 }
 
 /// A value in the cache, containing the actual bytes as well as object store metadata
@@ -655,10 +661,12 @@ fn background_cache_request_handler(
 }
 
 /// A background task for pruning un-needed entries in the cache
-// TODO(trevor): the interval could be configurable
-fn background_cache_pruner(mem_store: Arc<MemCachedObjectStore>) -> tokio::task::JoinHandle<()> {
+fn background_cache_pruner(
+    mem_store: Arc<MemCachedObjectStore>,
+    interval_duration: Duration,
+) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_millis(10));
+        let mut interval = tokio::time::interval(interval_duration);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             interval.tick().await;
@@ -755,11 +763,13 @@ pub(crate) mod tests {
         // these are magic numbers that will make it so the third entry exceeds the cache capacity:
         let cache_capacity_bytes = 60;
         let cache_prune_percent = 0.4;
+        let cache_prune_interval = Duration::from_millis(10);
         let (cached_store, oracle) = create_cached_obj_store_and_oracle(
             Arc::clone(&inner_store) as _,
             Arc::clone(&time_provider) as _,
             cache_capacity_bytes,
             cache_prune_percent,
+            cache_prune_interval,
         );
         // PUT an entry into the store:
         let path_1 = Path::from("0.parquet");

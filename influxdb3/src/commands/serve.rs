@@ -1,5 +1,6 @@
 //! Entrypoint for InfluxDB 3.0 Edge Server
 
+use anyhow::{bail, Context};
 use clap_blocks::{
     memory_size::MemorySize,
     object_store::{make_object_store, ObjectStoreConfig, ObjectStoreType},
@@ -22,11 +23,11 @@ use influxdb3_write::{
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
-use object_store::DynObjectStore;
+use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, str::FromStr};
 use std::{num::NonZeroUsize, sync::Arc};
 use thiserror::Error;
 use tokio::net::TcpListener;
@@ -216,6 +217,67 @@ pub struct Config {
     /// for any hosts that share the same object store configuration, i.e., the same bucket.
     #[clap(long = "host-id", env = "INFLUXDB3_HOST_IDENTIFIER_PREFIX", action)]
     pub host_identifier_prefix: String,
+
+    /// The size of the in-memory Parquet cache in bytes.
+    #[clap(
+        long = "parquet-mem-cache-size",
+        env = "INFLUXDB3_PARQUET_MEM_CACHE_SIZE",
+        default_value_t = 1024 * 1024 * 1024,
+        action
+    )]
+    pub parquet_mem_cache_size: usize,
+
+    /// The percentage of entries to prune during a prune operation on the in-memory Parquet cache.
+    ///
+    /// This must be a number between 0 and 1.
+    #[clap(
+        long = "parquet-mem-cache-prune-percentage",
+        env = "INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_PERCENTAGE",
+        default_value = "0.1",
+        action
+    )]
+    pub parquet_mem_cache_prune_percentage: PrunePercent,
+
+    /// The interval on which to check if the in-memory Parquet cache needs to be pruned.
+    #[clap(
+        long = "parquet-mem-cache-prune-interval",
+        env = "INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_INTERVAL",
+        default_value = "10ms",
+        action
+    )]
+    pub parquet_mem_cache_prune_interval: humantime::Duration,
+
+    /// Disable the in-memory Parquet cache.
+    #[clap(
+        long = "disable-parquet-mem-cache",
+        env = "INFLUXDB3_DISABLE_PARQUET_MEM_CACHE",
+        default_value_t = false,
+        action
+    )]
+    pub disable_parquet_mem_cache: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PrunePercent(f64);
+
+impl From<PrunePercent> for f64 {
+    fn from(value: PrunePercent) -> Self {
+        value.0
+    }
+}
+
+impl FromStr for PrunePercent {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::prelude::v1::Result<Self, Self::Err> {
+        let p = s
+            .parse::<f64>()
+            .context("failed to parse prune percent as f64")?;
+        if p <= 0.0 || p >= 1.0 {
+            bail!("prune percent must be between 0 and 1");
+        }
+        Ok(Self(p))
+    }
 }
 
 /// If `p` does not exist, try to create it as a directory.
@@ -258,19 +320,22 @@ pub async fn command(config: Config) -> Result<()> {
     // Construct a token to trigger clean shutdown
     let frontend_shutdown = CancellationToken::new();
 
-    let object_store: Arc<DynObjectStore> =
+    let object_store: Arc<dyn ObjectStore> =
         make_object_store(&config.object_store_config).map_err(Error::ObjectStoreParsing)?;
     let time_provider = Arc::new(SystemProvider::new());
 
-    // TODO(trevor): make the cache capacity and prune percent configurable/optional:
-    let cache_capacity = 1024 * 1024 * 1024;
-    let prune_percent = 0.1;
-    let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
-        object_store,
-        Arc::clone(&time_provider) as _,
-        cache_capacity,
-        prune_percent,
-    );
+    let (object_store, parquet_cache) = if !config.disable_parquet_mem_cache {
+        let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
+            object_store,
+            Arc::clone(&time_provider) as _,
+            config.parquet_mem_cache_size,
+            config.parquet_mem_cache_prune_percentage.into(),
+            config.parquet_mem_cache_prune_interval.into(),
+        );
+        (object_store, Some(parquet_cache))
+    } else {
+        (object_store, None)
+    };
 
     let trace_exporter = config.tracing_config.build()?;
 
@@ -349,7 +414,7 @@ pub async fn command(config: Config) -> Result<()> {
             Arc::<SystemProvider>::clone(&time_provider),
             Arc::clone(&exec),
             wal_config,
-            Some(parquet_cache),
+            parquet_cache,
         )
         .await
         .map_err(|e| Error::WriteBufferInit(e.into()))?,
