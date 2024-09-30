@@ -11,6 +11,7 @@ use crate::{
 use hashbrown::HashMap;
 use influxdb3_write::{ParquetFile, NEXT_FILE_ID};
 use object_store::ObjectStore;
+use observability_deps::tracing::info;
 use parking_lot::RwLock;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -122,8 +123,8 @@ impl CompactedData {
             last_compaction_sequence_number: compaction_summary.compaction_sequence_number,
         };
 
-        println!(
-            "loaded compaction_sequence_number: {:?}",
+        info!(
+            "loaded compaction_sequence_number from summary: {:?}",
             compaction_summary.compaction_sequence_number
         );
 
@@ -268,7 +269,6 @@ impl CompactedData {
         let mut data = self.data.write();
         let next = data.last_compaction_sequence_number.next();
         data.last_compaction_sequence_number = next;
-        println!("next_compaction_sequence_number: {:?}", next);
         next
     }
 

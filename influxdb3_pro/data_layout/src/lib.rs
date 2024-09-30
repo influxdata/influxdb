@@ -53,7 +53,7 @@ pub struct HostSnapshotMarker {
     /// the host prefix this snapshot tracker is for
     pub host_id: String,
     /// the last snapshot sequence number we compacted for this host. All < than this will have
-    /// been comapcted.
+    /// been compacted.
     pub snapshot_sequence_number: SnapshotSequenceNumber,
     /// The next file id this host would use after this last snapshot. Any file ids < than this
     /// will have been compacted.
@@ -475,8 +475,8 @@ impl GenerationDetailPath {
         Self(ObjPath::from(format!(
             "{}/c/{}/{}/{}/{}.json",
             compactor_id,
-            &hash[0..1],
-            &hash[2..4],
+            &hash[0..=1],
+            &hash[2..=4],
             &hash[5..],
             generation_id.0,
         )))
@@ -494,8 +494,8 @@ impl CompactedFilePath {
         Self(ObjPath::from(format!(
             "{}/c/{}/{}/{}/{}.parquet",
             compactor_id,
-            &hash[0..1],
-            &hash[2..4],
+            &hash[0..=1],
+            &hash[2..=4],
             &hash[5..],
             file_id.as_u64(),
         )))
