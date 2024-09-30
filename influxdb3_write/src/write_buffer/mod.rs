@@ -108,7 +108,7 @@ pub struct WriteBufferImpl {
     // NOTE(trevor): the parquet cache interface may be used to register other cache
     // requests from the write buffer, e.g., during query...
     #[allow(dead_code)]
-    parquet_cache: Arc<dyn ParquetCacheOracle>,
+    parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<QueryableBuffer>,
     wal_config: WalConfig,
@@ -128,7 +128,7 @@ impl WriteBufferImpl {
         time_provider: Arc<dyn TimeProvider>,
         executor: Arc<iox_query::exec::Executor>,
         wal_config: WalConfig,
-        parquet_cache: Arc<dyn ParquetCacheOracle>,
+        parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     ) -> Result<Self> {
         // load snapshots and replay the wal into the in memory buffer
         let persisted_snapshots = persister
@@ -162,7 +162,7 @@ impl WriteBufferImpl {
             Arc::clone(&persister),
             Arc::clone(&last_cache),
             Arc::clone(&persisted_files),
-            Arc::clone(&parquet_cache),
+            parquet_cache.clone(),
         ));
 
         // create the wal instance, which will replay into the queryable buffer and start
@@ -526,6 +526,7 @@ impl WriteBuffer for WriteBufferImpl {}
 mod tests {
     use super::*;
     use crate::parquet_cache::test_cached_obj_store_and_oracle;
+    use crate::parquet_cache::tests::TestObjectStore;
     use crate::paths::{CatalogFilePath, SnapshotInfoFilePath};
     use crate::persister::Persister;
     use crate::PersistedSnapshot;
@@ -584,7 +585,7 @@ mod tests {
             Arc::clone(&time_provider),
             crate::test_help::make_exec(),
             WalConfig::test_config(),
-            Arc::clone(&parquet_cache),
+            Some(Arc::clone(&parquet_cache)),
         )
         .await
         .unwrap();
@@ -663,7 +664,7 @@ mod tests {
                 flush_interval: Duration::from_millis(50),
                 snapshot_size: 100,
             },
-            Arc::clone(&parquet_cache),
+            Some(Arc::clone(&parquet_cache)),
         )
         .await
         .unwrap();
@@ -719,7 +720,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
             },
-            Arc::clone(&wbuf.parquet_cache),
+            wbuf.parquet_cache.clone(),
         )
         .await
         .unwrap();
@@ -757,7 +758,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
             },
-            Arc::clone(&wbuf.parquet_cache),
+            wbuf.parquet_cache.clone(),
         )
         .await
         .unwrap();
@@ -814,7 +815,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
             },
-            Arc::clone(&wbuf.parquet_cache),
+            wbuf.parquet_cache.clone(),
         )
         .await
         .unwrap();
@@ -968,7 +969,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 2,
             },
-            Arc::clone(&write_buffer.parquet_cache),
+            write_buffer.parquet_cache.clone(),
         )
         .await
         .unwrap();
@@ -1575,6 +1576,215 @@ mod tests {
         assert_eq!(DbId::next_id().as_u32(), 1);
     }
 
+    #[tokio::test]
+    async fn test_parquet_cache() {
+        // set up a write buffer using a TestObjectStore so we can spy on requests that get
+        // through to the object store for parquet files:
+        let test_store = Arc::new(TestObjectStore::new(Arc::new(InMemory::new())));
+        let obj_store: Arc<dyn ObjectStore> = Arc::clone(&test_store) as _;
+        let (wbuf, ctx) = setup_cache_optional(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+            true,
+        )
+        .await;
+        let db_name = "my_corp";
+        let tbl_name = "temp";
+
+        // make some writes to generate a snapshot:
+        do_writes(
+            db_name,
+            &wbuf,
+            &[
+                TestWrite {
+                    lp: format!(
+                        "\
+                        {tbl_name},warehouse=us-east,room=01a,device=10001 reading=36\n\
+                        {tbl_name},warehouse=us-east,room=01b,device=10002 reading=29\n\
+                        {tbl_name},warehouse=us-east,room=02a,device=30003 reading=33\n\
+                        "
+                    ),
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: format!(
+                        "\
+                        {tbl_name},warehouse=us-east,room=01a,device=10001 reading=37\n\
+                        {tbl_name},warehouse=us-east,room=01b,device=10002 reading=28\n\
+                        {tbl_name},warehouse=us-east,room=02a,device=30003 reading=32\n\
+                        "
+                    ),
+                    time_seconds: 2,
+                },
+                // This write will trigger the snapshot:
+                TestWrite {
+                    lp: format!(
+                        "\
+                        {tbl_name},warehouse=us-east,room=01a,device=10001 reading=35\n\
+                        {tbl_name},warehouse=us-east,room=01b,device=10002 reading=24\n\
+                        {tbl_name},warehouse=us-east,room=02a,device=30003 reading=30\n\
+                        "
+                    ),
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        // Wait for snapshot to be created, once this is done, then the parquet has been persisted:
+        verify_snapshot_count(1, &wbuf.persister).await;
+
+        // get the path for the created parquet file:
+        let persisted_files = wbuf.persisted_files().get_files(db_name, tbl_name);
+        assert_eq!(1, persisted_files.len());
+        let path = ObjPath::from(persisted_files[0].path.as_str());
+
+        // check the number of requests to that path before making a query:
+        // there should be one get request, made by the cache oracle:
+        assert_eq!(1, test_store.get_request_count(&path));
+        assert_eq!(0, test_store.get_opts_request_count(&path));
+        assert_eq!(0, test_store.get_ranges_request_count(&path));
+        assert_eq!(0, test_store.get_range_request_count(&path));
+        assert_eq!(0, test_store.head_request_count(&path));
+
+        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        assert_batches_sorted_eq!(
+            [
+                "+--------+---------+------+----------------------+-----------+",
+                "| device | reading | room | time                 | warehouse |",
+                "+--------+---------+------+----------------------+-----------+",
+                "| 10001  | 35.0    | 01a  | 1970-01-01T00:00:03Z | us-east   |",
+                "| 10001  | 36.0    | 01a  | 1970-01-01T00:00:01Z | us-east   |",
+                "| 10001  | 37.0    | 01a  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 10002  | 24.0    | 01b  | 1970-01-01T00:00:03Z | us-east   |",
+                "| 10002  | 28.0    | 01b  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 10002  | 29.0    | 01b  | 1970-01-01T00:00:01Z | us-east   |",
+                "| 30003  | 30.0    | 02a  | 1970-01-01T00:00:03Z | us-east   |",
+                "| 30003  | 32.0    | 02a  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 30003  | 33.0    | 02a  | 1970-01-01T00:00:01Z | us-east   |",
+                "+--------+---------+------+----------------------+-----------+",
+            ],
+            &batches
+        );
+
+        // counts should not change, since requests for this parquet file hit the cache:
+        assert_eq!(1, test_store.get_request_count(&path));
+        assert_eq!(0, test_store.get_opts_request_count(&path));
+        assert_eq!(0, test_store.get_ranges_request_count(&path));
+        assert_eq!(0, test_store.get_range_request_count(&path));
+        assert_eq!(0, test_store.head_request_count(&path));
+    }
+    #[tokio::test]
+    async fn test_no_parquet_cache() {
+        // set up a write buffer using a TestObjectStore so we can spy on requests that get
+        // through to the object store for parquet files:
+        let test_store = Arc::new(TestObjectStore::new(Arc::new(InMemory::new())));
+        let obj_store: Arc<dyn ObjectStore> = Arc::clone(&test_store) as _;
+        let (wbuf, ctx) = setup_cache_optional(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+            false,
+        )
+        .await;
+        let db_name = "my_corp";
+        let tbl_name = "temp";
+
+        // make some writes to generate a snapshot:
+        do_writes(
+            db_name,
+            &wbuf,
+            &[
+                TestWrite {
+                    lp: format!(
+                        "\
+                        {tbl_name},warehouse=us-east,room=01a,device=10001 reading=36\n\
+                        {tbl_name},warehouse=us-east,room=01b,device=10002 reading=29\n\
+                        {tbl_name},warehouse=us-east,room=02a,device=30003 reading=33\n\
+                        "
+                    ),
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: format!(
+                        "\
+                        {tbl_name},warehouse=us-east,room=01a,device=10001 reading=37\n\
+                        {tbl_name},warehouse=us-east,room=01b,device=10002 reading=28\n\
+                        {tbl_name},warehouse=us-east,room=02a,device=30003 reading=32\n\
+                        "
+                    ),
+                    time_seconds: 2,
+                },
+                // This write will trigger the snapshot:
+                TestWrite {
+                    lp: format!(
+                        "\
+                        {tbl_name},warehouse=us-east,room=01a,device=10001 reading=35\n\
+                        {tbl_name},warehouse=us-east,room=01b,device=10002 reading=24\n\
+                        {tbl_name},warehouse=us-east,room=02a,device=30003 reading=30\n\
+                        "
+                    ),
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        // Wait for snapshot to be created, once this is done, then the parquet has been persisted:
+        verify_snapshot_count(1, &wbuf.persister).await;
+
+        // get the path for the created parquet file:
+        let persisted_files = wbuf.persisted_files().get_files(db_name, tbl_name);
+        assert_eq!(1, persisted_files.len());
+        let path = ObjPath::from(persisted_files[0].path.as_str());
+
+        // check the number of requests to that path before making a query:
+        // there should be no get or get_range requests since nothing has asked for this file yet:
+        assert_eq!(0, test_store.get_request_count(&path));
+        assert_eq!(0, test_store.get_opts_request_count(&path));
+        assert_eq!(0, test_store.get_ranges_request_count(&path));
+        assert_eq!(0, test_store.get_range_request_count(&path));
+        assert_eq!(0, test_store.head_request_count(&path));
+
+        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        assert_batches_sorted_eq!(
+            [
+                "+--------+---------+------+----------------------+-----------+",
+                "| device | reading | room | time                 | warehouse |",
+                "+--------+---------+------+----------------------+-----------+",
+                "| 10001  | 35.0    | 01a  | 1970-01-01T00:00:03Z | us-east   |",
+                "| 10001  | 36.0    | 01a  | 1970-01-01T00:00:01Z | us-east   |",
+                "| 10001  | 37.0    | 01a  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 10002  | 24.0    | 01b  | 1970-01-01T00:00:03Z | us-east   |",
+                "| 10002  | 28.0    | 01b  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 10002  | 29.0    | 01b  | 1970-01-01T00:00:01Z | us-east   |",
+                "| 30003  | 30.0    | 02a  | 1970-01-01T00:00:03Z | us-east   |",
+                "| 30003  | 32.0    | 02a  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 30003  | 33.0    | 02a  | 1970-01-01T00:00:01Z | us-east   |",
+                "+--------+---------+------+----------------------+-----------+",
+            ],
+            &batches
+        );
+
+        // counts should change, since requests for this parquet file were made with no cache:
+        assert_eq!(0, test_store.get_request_count(&path));
+        assert_eq!(0, test_store.get_opts_request_count(&path));
+        assert_eq!(1, test_store.get_ranges_request_count(&path));
+        assert_eq!(2, test_store.get_range_request_count(&path));
+        assert_eq!(0, test_store.head_request_count(&path));
+    }
+
     struct TestWrite<LP> {
         lp: LP,
         time_seconds: i64,
@@ -1656,9 +1866,23 @@ mod tests {
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
     ) -> (WriteBufferImpl, IOxSessionContext) {
+        setup_cache_optional(start, object_store, wal_config, true).await
+    }
+
+    async fn setup_cache_optional(
+        start: Time,
+        object_store: Arc<dyn ObjectStore>,
+        wal_config: WalConfig,
+        use_cache: bool,
+    ) -> (WriteBufferImpl, IOxSessionContext) {
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
-        let (object_store, parquet_cache) =
-            test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider));
+        let (object_store, parquet_cache) = if use_cache {
+            let (object_store, parquet_cache) =
+                test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider));
+            (object_store, Some(parquet_cache))
+        } else {
+            (object_store, None)
+        };
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let catalog = persister.load_or_create_catalog().await.unwrap();
         let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();

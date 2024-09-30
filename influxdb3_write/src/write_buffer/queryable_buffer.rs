@@ -42,7 +42,7 @@ pub struct QueryableBuffer {
     persister: Arc<Persister>,
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<RwLock<BufferState>>,
-    parquet_cache: Arc<dyn ParquetCacheOracle>,
+    parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     /// Sends a notification to this watch channel whenever a snapshot info is persisted
     persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshot>>,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
@@ -55,7 +55,7 @@ impl QueryableBuffer {
         persister: Arc<Persister>,
         last_cache_provider: Arc<LastCacheProvider>,
         persisted_files: Arc<PersistedFiles>,
-        parquet_cache: Arc<dyn ParquetCacheOracle>,
+        parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     ) -> Self {
         let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
         let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
@@ -197,7 +197,7 @@ impl QueryableBuffer {
         let buffer = Arc::clone(&self.buffer);
         let catalog = Arc::clone(&self.catalog);
         let notify_snapshot_tx = self.persisted_snapshot_notify_tx.clone();
-        let parquet_cache = Arc::clone(&self.parquet_cache);
+        let parquet_cache = self.parquet_cache.clone();
 
         tokio::spawn(async move {
             // persist the catalog if it has been updated
@@ -252,7 +252,7 @@ impl QueryableBuffer {
                     persist_job,
                     Arc::clone(&persister),
                     Arc::clone(&executor),
-                    Arc::clone(&parquet_cache),
+                    parquet_cache.clone(),
                 )
                 .await;
                 cache_notifiers.push(cache_notifier);
@@ -292,8 +292,8 @@ impl QueryableBuffer {
             // on a background task to ensure that the cache has been populated before we clear
             // the buffer
             tokio::spawn(async move {
-                // wait on the cache updates to complete:
-                for notifier in cache_notifiers {
+                // wait on the cache updates to complete if there is a cache:
+                for notifier in cache_notifiers.into_iter().flatten() {
                     let _ = notifier.await;
                 }
                 let mut buffer = buffer.write();
@@ -453,8 +453,8 @@ async fn sort_dedupe_persist(
     persist_job: PersistJob,
     persister: Arc<Persister>,
     executor: Arc<Executor>,
-    parquet_cache: Arc<dyn ParquetCacheOracle>,
-) -> (u64, FileMetaData, oneshot::Receiver<()>) {
+    parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+) -> (u64, FileMetaData, Option<oneshot::Receiver<()>>) {
     // Dedupe and sort using the COMPACT query built into
     // iox_query
     let row_count = persist_job.batch.num_rows();
@@ -516,10 +516,14 @@ async fn sort_dedupe_persist(
         {
             Ok((size_bytes, meta)) => {
                 info!("Persisted parquet file: {}", persist_job.path.to_string());
-                let (cache_request, cache_notify_rx) =
-                    CacheRequest::create(Path::from(persist_job.path.to_string()));
-                parquet_cache.register(cache_request);
-                return (size_bytes, meta, cache_notify_rx);
+                if let Some(pq) = parquet_cache {
+                    let (cache_request, cache_notify_rx) =
+                        CacheRequest::create(Path::from(persist_job.path.to_string()));
+                    pq.register(cache_request);
+                    return (size_bytes, meta, Some(cache_notify_rx));
+                } else {
+                    return (size_bytes, meta, None);
+                }
             }
             Err(e) => {
                 error!(
