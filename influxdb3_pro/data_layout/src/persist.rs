@@ -1,10 +1,11 @@
 //! Functions for persisting and loading data from the comapcted data layout.
 
 use crate::{
-    CompactionDetail, CompactionDetailPath, CompactionDetailRef, CompactionSummary,
-    CompactionSummaryPath,
+    CompactionDetail, CompactionDetailPath, CompactionSummary, CompactionSummaryPath,
+    GenerationDetail, GenerationDetailPath, GenerationId,
 };
 use bytes::Bytes;
+use futures_util::stream::StreamExt;
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, error, warn};
@@ -13,8 +14,11 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum CompactedDataPersistenceError {
-    #[error("Error serializing compaction detail: {0}")]
+    #[error("serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
+
+    #[error("object store error: {0}")]
+    ObjectStoreError(#[from] object_store::Error),
 }
 
 /// Result type for functions in this module.
@@ -26,7 +30,7 @@ pub async fn persist_compaction_detail(
     table_name: Arc<str>,
     compaction_detail: &CompactionDetail,
     object_store: Arc<dyn ObjectStore>,
-) -> Result<CompactionDetailRef> {
+) -> Result<CompactionDetailPath> {
     let path = CompactionDetailPath::new(
         compactor_id,
         db_name.as_ref(),
@@ -52,15 +56,11 @@ pub async fn persist_compaction_detail(
         }
     }
 
-    Ok(CompactionDetailRef {
-        db_name,
-        table_name,
-        path,
-    })
+    Ok(path)
 }
 
 pub async fn get_compaction_detail(
-    compaction_detail_path: CompactionDetailPath,
+    compaction_detail_path: &CompactionDetailPath,
     object_store: Arc<dyn ObjectStore>,
 ) -> Option<CompactionDetail> {
     let bytes = get_bytes_at_path(&compaction_detail_path.0, object_store).await?;
@@ -76,6 +76,58 @@ pub async fn get_compaction_detail(
             error!(
                 "Error deserializing compaction detail at path {}: {}",
                 compaction_detail_path.0, e
+            );
+            None
+        }
+    }
+}
+
+pub async fn persist_generation_detail(
+    compactor_id: &str,
+    generation_id: GenerationId,
+    generation_detail: &GenerationDetail,
+    object_store: Arc<dyn ObjectStore>,
+) -> Result<()> {
+    let path = GenerationDetailPath::new(compactor_id, generation_id);
+    let data = serde_json::to_vec(generation_detail)?;
+
+    // loop until we persist it
+    loop {
+        match object_store.put(&path.0, data.clone().into()).await {
+            Ok(_) => {
+                debug!(
+                    "Successfully wrote generation detail to object store at path {}",
+                    path.0
+                );
+                break;
+            }
+            Err(e) => {
+                error!("Error writing generation detail to object store: {}", e);
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn get_generation_detail(
+    generation_detail_path: &GenerationDetailPath,
+    object_store: Arc<dyn ObjectStore>,
+) -> Option<GenerationDetail> {
+    let bytes = get_bytes_at_path(&generation_detail_path.0, object_store).await?;
+    match serde_json::from_slice(&bytes) {
+        Ok(detail) => {
+            debug!(
+                "Successfully deserialized generation detail at path {}",
+                generation_detail_path.0
+            );
+            Some(detail)
+        }
+        Err(e) => {
+            error!(
+                "Error deserializing generation detail at path {}: {}",
+                generation_detail_path.0, e
             );
             None
         }
@@ -109,6 +161,29 @@ pub async fn persist_compaction_summary(
     }
 
     Ok(())
+}
+
+pub async fn load_compaction_summary(
+    compactor_id: &str,
+    object_store: Arc<dyn ObjectStore>,
+) -> Result<Option<CompactionSummary>> {
+    // do a list to find the latest compaction summary
+    let compaction_summary_dir = ObjPath::from(format!("{compactor_id}/cs"));
+    let Some(first_entry) = object_store
+        .list(Some(&compaction_summary_dir))
+        .next()
+        .await
+    else {
+        return Ok(None);
+    };
+    let first_entry = first_entry?;
+
+    let bytes = get_bytes_at_path(&first_entry.location, object_store)
+        .await
+        .expect("compaction summary in list should always be present");
+    let compaction_summary: CompactionSummary = serde_json::from_slice(&bytes)?;
+
+    Ok(Some(compaction_summary))
 }
 
 /// Get the bytes at the given path from the object store. Will retry forever until it gets the bytes.

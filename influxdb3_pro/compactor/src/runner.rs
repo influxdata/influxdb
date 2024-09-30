@@ -3,23 +3,21 @@
 use crate::planner::{CompactionPlan, SnapshotAdvancePlan};
 use crate::{compact_files, CompactFilesArgs};
 use datafusion::execution::object_store::ObjectStoreUrl;
-use hashbrown::HashMap;
+use hashbrown::HashSet;
 use influxdb3_catalog::catalog::{Catalog, TableDefinition};
+use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::persist::{
-    get_compaction_detail, persist_compaction_detail, persist_compaction_summary,
+    persist_compaction_detail, persist_compaction_summary, persist_generation_detail,
 };
 use influxdb3_pro_data_layout::{
-    CompactedData, CompactionDetail, CompactionDetailPath, CompactionDetailRef,
-    CompactionSequenceNumber, CompactionSummary, Generation, GenerationId, HostSnapshotMarker,
-    YoungGeneration,
+    CompactionDetail, CompactionDetailPath, CompactionSequenceNumber, CompactionSummary, Gen1File,
+    GenerationDetail, GenerationId, HostSnapshotMarker,
 };
 use influxdb3_write::ParquetFileId;
 use iox_query::exec::Executor;
 use object_store::path::Path as ObjPath;
-use object_store::ObjectStore;
 use observability_deps::tracing::{debug, error};
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum CompactRunnerError {
@@ -35,71 +33,51 @@ pub(crate) type Result<T, E = CompactRunnerError> = std::result::Result<T, E>;
 /// we go and then writing the `CompactionSummary` to object store and returning it at the end.
 pub(crate) async fn run_snapshot_plan(
     snapshot_advance_plan: SnapshotAdvancePlan,
-    compactor_id: Arc<str>,
-    compacted_data: Arc<Mutex<CompactedData>>,
+    compacted_data: Arc<CompactedData>,
     catalog: Arc<Catalog>,
-    object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
 ) -> Result<CompactionSummary> {
     debug!("Running snapshot advance plan: {:?}", snapshot_advance_plan);
-    let last_compaction_summary = compacted_data.lock().await.last_compaction_summary.clone();
-    let compaction_sequence_number = CompactionSequenceNumber::next();
+    let compaction_sequence_number = compacted_data.next_compaction_sequence_number();
 
-    let mut compaction_details = Vec::with_capacity(snapshot_advance_plan.compaction_plans.len());
-    let mut snapshot_markers = snapshot_advance_plan
+    let mut new_compaction_detail_paths =
+        Vec::with_capacity(snapshot_advance_plan.compaction_plans.len());
+    let mut new_snapshot_markers = snapshot_advance_plan
         .host_snapshot_markers
         .values()
         .filter_map(|hc| hc.marker.clone())
         .collect::<Vec<_>>();
 
-    let mut last_compaction_detail_map: HashMap<Arc<str>, HashMap<Arc<str>, CompactionDetailPath>> =
-        HashMap::new();
-
-    // pull over all details from the last compaction summary that won't be covered by this run.
-    if let Some(last_compaction_summary) = last_compaction_summary {
-        // it's possible for some tables to not have a compaction ready or any new gen1 files.
-        // In that case, we need to copy over their compaction details from the previous summary.
-        for last_detail in last_compaction_summary.compaction_details {
-            // put it into the map, we'll look it up later
-            let db_table_map = last_compaction_detail_map
-                .entry(Arc::clone(&last_detail.db_name))
-                .or_default();
-            db_table_map.insert(
-                Arc::clone(&last_detail.table_name),
-                last_detail.path.clone(),
-            );
-
-            let has_compaction_plan = snapshot_advance_plan
-                .compaction_plans
-                .get(&last_detail.db_name)
-                .map(|table_plans| {
-                    table_plans
-                        .iter()
-                        .any(|plan| plan.table_name().eq(last_detail.table_name.as_ref()))
-                })
-                .unwrap_or(false);
-
-            if !has_compaction_plan {
-                compaction_details.push(last_detail);
+    // if there is an existing compaction summary, carry forward any compaction details that
+    // were not compacted in this cycle. Also carry forward any host snapshot markers that
+    // didn't have a snapshot in this cycle.
+    if let Some(last_summary) = compacted_data.get_last_summary() {
+        let mut was_compacted: HashSet<(&str, &str)> = HashSet::new();
+        for plans in snapshot_advance_plan.compaction_plans.values() {
+            for plan in plans {
+                was_compacted.insert((plan.db_name(), plan.table_name()));
             }
         }
 
-        // if there's a host snapshot marker for a host that didn't have a snapshot this time around, we need to copy it over.
-        for last_marker in last_compaction_summary.snapshot_markers {
-            if !snapshot_markers
+        for detail_path in last_summary.compaction_details.into_iter() {
+            let db_name = detail_path.db_name();
+            let table_name = detail_path.table_name();
+
+            if !was_compacted.contains(&(db_name.as_ref(), table_name.as_ref())) {
+                new_compaction_detail_paths.push(detail_path);
+            }
+        }
+
+        for marker in last_summary.snapshot_markers.into_iter() {
+            if !new_snapshot_markers
                 .iter()
-                .any(|marker| marker.host_id.eq(&last_marker.host_id))
+                .any(|m| m.host_id == marker.host_id)
             {
-                snapshot_markers.push(last_marker);
+                new_snapshot_markers.push(marker);
             }
         }
     }
-
-    debug!(
-        "Last compaction details copied over: {:?}",
-        last_compaction_detail_map
-    );
 
     for (db_name, table_plans) in snapshot_advance_plan.compaction_plans {
         let Some(db_schema) = catalog.db_schema(db_name.as_ref()) else {
@@ -125,46 +103,37 @@ pub(crate) async fn run_snapshot_plan(
                 continue;
             };
 
-            let last_compaction_detail = if let Some(path) = last_compaction_detail_map
-                .get(db_name.as_ref())
-                .and_then(|m| m.get(table_name))
-            {
-                get_compaction_detail(path.clone(), Arc::clone(&object_store)).await
-            } else {
-                None
-            };
-
-            let detail = run_plan_and_write_detail(
+            let compaction_detail_path = run_plan_and_write_detail(
                 plan,
-                last_compaction_detail,
-                snapshot_markers.clone(),
-                &snapshot_advance_plan.generations,
+                Arc::clone(&compacted_data),
+                new_snapshot_markers.clone(),
                 table_definition,
-                Arc::clone(&compactor_id),
                 compaction_sequence_number,
-                Arc::clone(&object_store),
                 object_store_url.clone(),
                 Arc::clone(&exec),
             )
             .await?;
 
-            compaction_details.push(detail);
+            new_compaction_detail_paths.push(compaction_detail_path);
         }
     }
 
     let compaction_summary = CompactionSummary {
         compaction_sequence_number,
         last_file_id: ParquetFileId::current(),
-        snapshot_markers,
-        compaction_details,
+        last_generation_id: GenerationId::current(),
+        snapshot_markers: new_snapshot_markers,
+        compaction_details: new_compaction_detail_paths,
     };
 
     persist_compaction_summary(
-        compactor_id.as_ref(),
+        compacted_data.compactor_id.as_ref(),
         &compaction_summary,
-        Arc::clone(&object_store),
+        Arc::clone(&compacted_data.object_store),
     )
     .await?;
+
+    compacted_data.set_last_summary(compaction_summary.clone());
 
     Ok(compaction_summary)
 }
@@ -172,25 +141,16 @@ pub(crate) async fn run_snapshot_plan(
 #[allow(clippy::too_many_arguments)]
 async fn run_plan_and_write_detail(
     plan: CompactionPlan,
-    last_compaction_detail: Option<CompactionDetail>,
+    compacted_data: Arc<CompactedData>,
     snapshot_markers: Vec<HostSnapshotMarker>,
-    gen_map: &HashMap<GenerationId, Arc<dyn Generation>>,
     table_definition: &TableDefinition,
-    compactor_id: Arc<str>,
     compaction_sequence_number: CompactionSequenceNumber,
-    object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
-) -> Result<CompactionDetailRef> {
+) -> Result<CompactionDetailPath> {
     debug!("Running compaction plan: {:?}", plan);
 
-    // separate out the young and old generations. These will be cleaned up from the compaction and
-    // carried into the new detail.
-    let (mut young_generations, mut old_generations) = last_compaction_detail
-        .map(|last_detail| (last_detail.young_generations, last_detail.old_generations))
-        .unwrap_or_default();
-
-    let detail = match plan {
+    let path = match plan {
         CompactionPlan::Compaction(plan) => {
             let index_columns = table_definition
                 .index_columns()
@@ -198,110 +158,151 @@ async fn run_plan_and_write_detail(
                 .map(|c| c.to_string())
                 .collect();
 
-            // remove any of the input ids from young, old, and leftover
-            young_generations.retain(|g| !plan.input_ids.contains(&g.id));
-            old_generations.retain(|g| !plan.input_ids.contains(&g.id));
-
-            // get the paths of all the files getting compacted
+            // get the paths of all the files getting compacted and the max time of the generation
             let mut paths = vec![];
-            for gen_id in plan.input_ids {
-                let gen_paths: Vec<_> = gen_map
-                    .get(&gen_id)
-                    .unwrap()
-                    .files()
-                    .await
+            let mut max_time = 0;
+            for gen_id in &plan.input_ids {
+                let gen_paths: Vec<_> = compacted_data
+                    .files_for_generation(*gen_id)
                     .iter()
-                    .map(|f| ObjPath::from(f.path.clone()))
+                    .map(|f| {
+                        max_time = max_time.max(f.max_time);
+                        ObjPath::from(f.path.as_ref())
+                    })
                     .collect();
                 paths.extend(gen_paths);
             }
 
+            // run the compaction
             let args = CompactFilesArgs {
-                compactor_id: Arc::clone(&compactor_id),
-                compaction_sequence_number,
-                db_name: Arc::clone(&plan.db_name),
+                compactor_id: Arc::clone(&compacted_data.compactor_id),
                 table_name: Arc::clone(&plan.table_name),
                 table_schema: table_definition.schema.clone(),
                 paths,
-                limit: 0,
-                generation: plan.output_level,
+                limit: compacted_data.compaction_config.per_file_row_limit,
+                generation: plan.output_generation,
                 index_columns,
-                object_store: Arc::clone(&object_store),
+                object_store: Arc::clone(&compacted_data.object_store),
                 object_store_url,
                 exec,
             };
 
             let compactor_output = compact_files(args).await.expect("compaction failed");
 
-            // TODO: if this generation is older, write the file details and add an old generation
-            young_generations.push(Arc::new(YoungGeneration {
-                id: plan.output_id,
-                compaction_sequence_number,
-                level: plan.output_level,
-                start_time: plan.output_gen_time,
+            // write the generation detail to object store
+            let generaton_detail = GenerationDetail {
+                id: plan.output_generation.id,
+                level: plan.output_generation.level,
+                start_time_s: plan.output_generation.start_time_secs,
+                max_time_ns: max_time,
                 files: compactor_output
                     .file_metadata
                     .into_iter()
                     .map(Arc::new)
-                    .collect::<Vec<_>>(),
-            }));
-
-            // TODO: write the file index
-
-            let mut leftover_gen1_files = Vec::with_capacity(plan.leftover_ids.len());
-
-            for id in plan.leftover_ids {
-                let gen = gen_map.get(&id).expect("generation should be in map");
-                let files = gen.files().await;
-                leftover_gen1_files.extend(files);
-            }
-
-            let compaction_detail = CompactionDetail {
-                sequence_number: compaction_sequence_number,
-                snapshot_markers,
-                young_generations,
-                old_generations,
-                leftover_gen1_files,
+                    .collect(),
+                file_index: compactor_output.file_index,
             };
 
-            persist_compaction_detail(
-                compactor_id.as_ref(),
+            persist_generation_detail(
+                compacted_data.compactor_id.as_ref(),
+                plan.output_generation.id,
+                &generaton_detail,
+                Arc::clone(&compacted_data.object_store),
+            )
+            .await?;
+
+            let leftover_gen1_files: Vec<_> = plan
+                .leftover_ids
+                .iter()
+                .flat_map(|id| {
+                    compacted_data
+                        .files_for_generation(*id)
+                        .into_iter()
+                        .map(|file| Gen1File { id: *id, file })
+                })
+                .collect();
+
+            let compaction_detail =
+                match compacted_data.get_last_compaction_detail(&plan.db_name, &plan.table_name) {
+                    Some(detail) => detail.new_from_compaction(
+                        compaction_sequence_number,
+                        &plan.input_ids,
+                        plan.output_generation,
+                        snapshot_markers,
+                        leftover_gen1_files,
+                    ),
+                    None => CompactionDetail {
+                        db_name: Arc::clone(&plan.db_name),
+                        table_name: Arc::clone(&plan.table_name),
+                        sequence_number: compaction_sequence_number,
+                        snapshot_markers,
+                        compacted_generations: vec![plan.output_generation],
+                        leftover_gen1_files,
+                    },
+                };
+
+            let path = persist_compaction_detail(
+                compacted_data.compactor_id.as_ref(),
                 plan.db_name,
                 plan.table_name,
                 &compaction_detail,
-                object_store,
+                Arc::clone(&compacted_data.object_store),
             )
-            .await
+            .await?;
+
+            compacted_data.update_compaction_detail_with_generation(
+                &plan.input_ids,
+                compaction_detail,
+                generaton_detail,
+            );
+
+            path
         }
-        CompactionPlan::LeftoverOnly(leftover_plan) => {
-            let mut leftover_gen1_files = Vec::with_capacity(leftover_plan.leftover_ids.len());
+        CompactionPlan::LeftoverOnly(plan) => {
+            let leftover_gen1_files: Vec<_> = plan
+                .leftover_gen1_ids
+                .iter()
+                .flat_map(|id| {
+                    compacted_data
+                        .files_for_generation(*id)
+                        .into_iter()
+                        .map(|file| Gen1File { id: *id, file })
+                })
+                .collect();
 
-            for id in leftover_plan.leftover_ids {
-                let gen = gen_map.get(&id).expect("generation should be in map");
-                let files = gen.files().await;
-                leftover_gen1_files.extend(files);
-            }
+            let compaction_detail =
+                match compacted_data.get_last_compaction_detail(&plan.db_name, &plan.table_name) {
+                    Some(detail) => detail.new_from_leftovers(
+                        compaction_sequence_number,
+                        snapshot_markers,
+                        leftover_gen1_files,
+                    ),
+                    None => CompactionDetail {
+                        db_name: Arc::clone(&plan.db_name),
+                        table_name: Arc::clone(&plan.table_name),
+                        sequence_number: compaction_sequence_number,
+                        snapshot_markers,
+                        compacted_generations: vec![],
+                        leftover_gen1_files,
+                    },
+                };
 
-            let compaction_detail = CompactionDetail {
-                sequence_number: compaction_sequence_number,
-                snapshot_markers,
-                young_generations,
-                old_generations,
-                leftover_gen1_files,
-            };
-
-            persist_compaction_detail(
-                compactor_id.as_ref(),
-                leftover_plan.db_name,
-                leftover_plan.table_name,
+            let path = persist_compaction_detail(
+                compacted_data.compactor_id.as_ref(),
+                plan.db_name,
+                plan.table_name,
                 &compaction_detail,
-                object_store,
+                Arc::clone(&compacted_data.object_store),
             )
-            .await
+            .await?;
+
+            compacted_data.update_compaction_detail(compaction_detail);
+
+            path
         }
     };
 
-    Ok(detail?)
+    Ok(path)
 }
 
 #[cfg(test)]
@@ -310,7 +311,10 @@ mod tests {
     use crate::planner::{HostSnapshotCounter, NextCompactionPlan};
     use arrow_util::assert_batches_eq;
     use executor::register_current_runtime_for_io;
-    use influxdb3_pro_data_layout::{Gen1, GenerationLevel};
+    use influxdb3_pro_data_layout::persist::{get_compaction_detail, get_generation_detail};
+    use influxdb3_pro_data_layout::{
+        CompactionConfig, Generation, GenerationDetailPath, GenerationLevel,
+    };
     use influxdb3_wal::{
         CatalogBatch, CatalogOp, DatabaseDefinition, Field, FieldData, FieldDataType,
         FieldDefinition, Row, SnapshotDetails, SnapshotSequenceNumber, TableChunk, TableChunks,
@@ -321,6 +325,7 @@ mod tests {
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::write_buffer::queryable_buffer::QueryableBuffer;
     use object_store::memory::InMemory;
+    use object_store::ObjectStore;
     use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
     #[tokio::test]
@@ -530,16 +535,21 @@ mod tests {
             .iter()
             .map(|f| Arc::new(f.clone()))
             .collect();
-        let generations: HashMap<GenerationId, Arc<dyn Generation>> = parquet_files
+
+        let compactor_id: Arc<str> = "test-compactor".into();
+        let compacted_data = Arc::new(CompactedData::new(
+            Arc::clone(&compactor_id),
+            CompactionConfig::default(),
+            Arc::clone(&obj_store) as _,
+        ));
+
+        // create gen1 genrations for the files and add them to the compacted data map
+        let input_ids = parquet_files
             .iter()
             .map(|f| {
-                let id = GenerationId::new();
-                let gen: Arc<dyn Generation> = Arc::new(Gen1 {
-                    id,
-                    file: Arc::clone(f),
-                });
+                let gen1_file = compacted_data.add_gen1_file_to_map(Arc::clone(f));
 
-                (id, gen)
+                gen1_file.id
             })
             .collect();
 
@@ -549,10 +559,13 @@ mod tests {
         let compaction_plan = CompactionPlan::Compaction(NextCompactionPlan {
             db_name: "test_db".into(),
             table_name: "test_table".into(),
-            output_level,
-            output_id,
-            output_gen_time: 0,
-            input_ids: generations.keys().cloned().collect(),
+            output_generation: Generation {
+                id: output_id,
+                level: output_level,
+                start_time_secs: 0,
+                max_time: 3,
+            },
+            input_ids,
             leftover_ids: vec![],
         });
         let snapshot_advance_plan = SnapshotAdvancePlan {
@@ -562,6 +575,7 @@ mod tests {
                     marker: Some(HostSnapshotMarker {
                         host_id: "test-host".to_string(),
                         snapshot_sequence_number: SnapshotSequenceNumber::new(2),
+                        next_file_id: ParquetFileId::current(),
                     }),
                     snapshot_count: 2,
                 },
@@ -571,17 +585,12 @@ mod tests {
             compaction_plans: vec![("test_db".into(), vec![compaction_plan])]
                 .into_iter()
                 .collect(),
-            generations,
         };
 
-        let compactor_id: Arc<str> = "test-compactor".into();
-        let compacted_data = Arc::new(Mutex::new(CompactedData::new(Arc::clone(&compactor_id))));
         let output = run_snapshot_plan(
             snapshot_advance_plan,
-            compactor_id,
-            compacted_data,
+            Arc::clone(&compacted_data),
             catalog,
-            Arc::clone(&obj_store) as _,
             persister.object_store_url().clone(),
             exec,
         )
@@ -592,7 +601,7 @@ mod tests {
 
         // ensure a compaction detail was written with the expected stuff
         let compaction_detail =
-            get_compaction_detail(detail.path.clone(), Arc::clone(&obj_store) as _)
+            get_compaction_detail(detail, Arc::clone(&compacted_data.object_store) as _)
                 .await
                 .unwrap();
         assert_eq!(
@@ -600,15 +609,27 @@ mod tests {
             output.compaction_sequence_number
         );
         assert_eq!(compaction_detail.snapshot_markers, output.snapshot_markers);
-        let young_gen = compaction_detail.young_generations.first().unwrap();
-        assert_eq!(young_gen.id, output_id);
-        assert_eq!(young_gen.level, output_level);
+        let new_gen = compaction_detail.compacted_generations.first().unwrap();
+        assert_eq!(new_gen.id, output_id);
+        assert_eq!(new_gen.level, output_level);
+
+        // make sure it was added to the map
+        let compacted_table = compacted_data
+            .get_last_compaction_detail("test_db", "test_table")
+            .unwrap();
+        assert_eq!(compacted_table.as_ref(), &compaction_detail);
 
         // read the parquet file and ensure that it has our three rows
-        let file_path = young_gen.files.first().unwrap().path.clone();
+        let file_path = compacted_data
+            .files_for_generation(output_id)
+            .first()
+            .unwrap()
+            .path
+            .clone();
         let file_path = ObjPath::from(file_path);
 
-        let parquet_file = obj_store
+        let parquet_file = compacted_data
+            .object_store
             .get(&file_path)
             .await
             .unwrap()
@@ -634,8 +655,11 @@ mod tests {
         );
 
         // ensure a compaction summary was written with the expected stuff
-        let summary = obj_store
-            .get(&ObjPath::from("test-compactor/cs/0.json"))
+        let summary = compacted_data
+            .object_store
+            .get(&ObjPath::from(
+                "test-compactor/cs/18446744073709551614.json",
+            ))
             .await
             .unwrap()
             .bytes()
@@ -643,5 +667,54 @@ mod tests {
             .unwrap();
         let summary = serde_json::from_slice::<CompactionSummary>(&summary).unwrap();
         assert_eq!(output, summary);
+
+        // ensure the compacted data structure was updated with everything
+        assert_eq!(compacted_data.get_last_summary().unwrap(), summary);
+        assert_eq!(
+            compacted_data
+                .get_last_compaction_detail("test_db", "test_table")
+                .unwrap()
+                .as_ref(),
+            &compaction_detail
+        );
+        assert_eq!(
+            compacted_data
+                .files_for_generation(output_id)
+                .first()
+                .unwrap()
+                .path,
+            file_path.to_string()
+        );
+
+        let generation_detail = compacted_data.get_generation_detail(output_id).unwrap();
+        let persisted_generation_detail = get_generation_detail(
+            &GenerationDetailPath::new(compactor_id.as_ref(), output_id),
+            Arc::clone(&compacted_data.object_store),
+        )
+        .await
+        .unwrap();
+        assert_eq!(generation_detail.as_ref(), &persisted_generation_detail);
+
+        assert_eq!(generation_detail.start_time_s, 0);
+        assert_eq!(generation_detail.max_time_ns, 2);
+        let files = compacted_data.files_for_generation(output_id);
+        assert_eq!(generation_detail.files, files);
+
+        // make sure the loader correctly picks everything up from object storage
+        let loaded_compacted_data = CompactedData::load_compacted_data(
+            compactor_id.as_ref(),
+            compacted_data.compaction_config.clone(),
+            Arc::clone(&obj_store) as _,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(loaded_compacted_data, compacted_data);
+
+        // ensure that the next compaction sequence number will be correct
+        assert_eq!(
+            compacted_data.next_compaction_sequence_number(),
+            CompactionSequenceNumber::new(2)
+        );
     }
 }

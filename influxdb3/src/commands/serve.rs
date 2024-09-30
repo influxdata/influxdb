@@ -78,6 +78,9 @@ pub enum Error {
 
     #[error("Failed to execute job: {0}")]
     Job(#[source] executor::JobError),
+
+    #[error("Failed to load compactor: {0}")]
+    Compactor(#[source] influxdb3_pro_data_layout::compacted_data::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -424,7 +427,9 @@ pub async fn command(config: Config) -> Result<()> {
             persister.object_store_url().clone(),
             Arc::clone(&exec),
             write_buffer.watch_persisted_snapshots(),
-        );
+        )
+        .await
+        .map_err(Error::Compactor)?;
 
         // Run the compactor code on the DataFusion executor
 
