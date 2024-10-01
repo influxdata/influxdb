@@ -55,12 +55,13 @@ impl ParquetFilePath {
     pub fn new(
         host_prefix: &str,
         db_name: &str,
+        db_id: u32,
         table_name: &str,
         date: DateTime<Utc>,
         wal_file_sequence_number: WalFileSequenceNumber,
     ) -> Self {
         let path = ObjPath::from(format!(
-            "{host_prefix}/dbs/{db_name}/{table_name}/{}/{}.{}",
+            "{host_prefix}/dbs/{db_name}-{db_id}/{table_name}/{}/{}.{}",
             date.format("%Y-%m-%d/%H-%M"),
             wal_file_sequence_number.as_u64(),
             PARQUET_FILE_EXTENSION
@@ -70,6 +71,7 @@ impl ParquetFilePath {
 
     pub fn new_with_chunk_time(
         db_name: &str,
+        db_id: u32,
         table_name: &str,
         chunk_time: i64,
         wal_file_sequence_number: WalFileSequenceNumber,
@@ -77,7 +79,7 @@ impl ParquetFilePath {
         // Convert the chunk time into a date time string for YYYY-MM-DDTHH-MM
         let date_time = DateTime::<Utc>::from_timestamp_nanos(chunk_time);
         let path = ObjPath::from(format!(
-            "dbs/{db_name}/{table_name}/{}/{:010}.{}",
+            "dbs/{db_name}-{db_id}/{table_name}/{}/{:010}.{}",
             date_time.format("%Y-%m-%d/%H-%M"),
             wal_file_sequence_number.as_u64(),
             PARQUET_FILE_EXTENSION
@@ -146,11 +148,12 @@ fn parquet_file_path_new() {
         *ParquetFilePath::new(
             "my_host",
             "my_db",
+            0,
             "my_table",
             Utc.with_ymd_and_hms(2038, 1, 19, 3, 14, 7).unwrap(),
             WalFileSequenceNumber::new(0),
         ),
-        ObjPath::from("my_host/dbs/my_db/my_table/2038-01-19/03-14/0.parquet")
+        ObjPath::from("my_host/dbs/my_db-0/my_table/2038-01-19/03-14/0.parquet")
     );
 }
 
@@ -160,13 +163,14 @@ fn parquet_file_percent_encoded() {
         ParquetFilePath::new(
             "my_host",
             "..",
+            0,
             "..",
             Utc.with_ymd_and_hms(2038, 1, 19, 3, 14, 7).unwrap(),
             WalFileSequenceNumber::new(0),
         )
         .as_ref()
         .as_ref(),
-        "my_host/dbs/%2E%2E/%2E%2E/2038-01-19/03-14/0.parquet"
+        "my_host/dbs/..-0/%2E%2E/2038-01-19/03-14/0.parquet"
     );
 }
 

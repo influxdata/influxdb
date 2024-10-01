@@ -1,11 +1,11 @@
 ---
 source: influxdb3_write/src/write_buffer/mod.rs
-assertion_line: 774
 expression: catalog_json
 ---
 {
   "databases": {
     "db": {
+      "id": 0,
       "name": "db",
       "tables": {
         "table": {
@@ -58,5 +58,7 @@ expression: catalog_json
       }
     }
   },
+  "host_id": "test_host",
+  "instance_id": "[uuid]",
   "sequence": 3
 }

@@ -1,6 +1,7 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
 use crate::catalog::Error::TableNotFound;
+use influxdb3_id::DbId;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, FieldAdditions, LastCacheDefinition, LastCacheDelete,
 };
@@ -97,12 +98,6 @@ pub struct Catalog {
     inner: RwLock<InnerCatalog>,
 }
 
-impl Default for Catalog {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl PartialEq for Catalog {
     fn eq(&self, other: &Self) -> bool {
         self.inner.read().eq(&other.inner.read())
@@ -126,9 +121,9 @@ impl Catalog {
     /// Limit for the number of tables across all DBs that InfluxDB Edge can have
     pub(crate) const NUM_TABLES_LIMIT: usize = 2000;
 
-    pub fn new() -> Self {
+    pub fn new(host_id: Arc<str>, instance_id: Arc<str>) -> Self {
         Self {
-            inner: RwLock::new(InnerCatalog::new()),
+            inner: RwLock::new(InnerCatalog::new(host_id, instance_id)),
         }
     }
 
@@ -155,7 +150,7 @@ impl Catalog {
                 }
 
                 info!("return new db {}", db_name);
-                let db = Arc::new(DatabaseSchema::new(db_name.into()));
+                let db = Arc::new(DatabaseSchema::new(DbId::new(), db_name.into()));
                 inner
                     .databases
                     .insert(Arc::clone(&db.name), Arc::clone(&db));
@@ -219,6 +214,14 @@ impl Catalog {
         inner.updated = true;
     }
 
+    pub fn instance_id(&self) -> Arc<str> {
+        Arc::clone(&self.inner.read().instance_id)
+    }
+
+    pub fn host_id(&self) -> Arc<str> {
+        Arc::clone(&self.inner.read().host_id)
+    }
+
     #[cfg(test)]
     pub fn db_exists(&self, db_name: &str) -> bool {
         self.inner.read().db_exists(db_name)
@@ -253,16 +256,22 @@ pub struct InnerCatalog {
     #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
     databases: HashMap<Arc<str>, Arc<DatabaseSchema>>,
     sequence: SequenceNumber,
+    /// The host_id is the prefix that is passed in when starting up (`host_identifier_prefix`)
+    host_id: Arc<str>,
+    /// The instance_id uniquely identifies the instance that generated the catalog
+    instance_id: Arc<str>,
     /// If true, the catalog has been updated since the last time it was serialized
     #[serde(skip)]
     updated: bool,
 }
 
 impl InnerCatalog {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(host_id: Arc<str>, instance_id: Arc<str>) -> Self {
         Self {
             databases: HashMap::new(),
             sequence: SequenceNumber::new(0),
+            host_id,
+            instance_id,
             updated: false,
         }
     }
@@ -325,6 +334,7 @@ impl InnerCatalog {
 #[serde_with::serde_as]
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct DatabaseSchema {
+    pub id: DbId,
     pub name: Arc<str>,
     /// The database is a map of tables
     #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
@@ -332,8 +342,9 @@ pub struct DatabaseSchema {
 }
 
 impl DatabaseSchema {
-    pub fn new(name: Arc<str>) -> Self {
+    pub fn new(id: DbId, name: Arc<str>) -> Self {
         Self {
+            id,
             name,
             tables: BTreeMap::new(),
         }
@@ -432,6 +443,7 @@ impl DatabaseSchema {
             }
 
             Ok(Some(Self {
+                id: self.id,
                 name: Arc::clone(&self.name),
                 tables: updated_or_new_tables,
             }))
@@ -439,7 +451,10 @@ impl DatabaseSchema {
     }
 
     pub fn new_from_batch(catalog_batch: &CatalogBatch) -> Result<Self> {
-        let db_schema = Self::new(Arc::clone(&catalog_batch.database_name));
+        let db_schema = Self::new(
+            catalog_batch.database_id,
+            Arc::clone(&catalog_batch.database_name),
+        );
         let new_db = db_schema
             .new_if_updated_from_batch(catalog_batch)?
             .expect("database must be new");
@@ -732,8 +747,12 @@ mod tests {
 
     #[test]
     fn catalog_serialization() {
-        let catalog = Catalog::new();
+        let host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("instance-id");
+        let cloned_instance_id = Arc::clone(&instance_id);
+        let catalog = Catalog::new(host_id, cloned_instance_id);
         let mut database = DatabaseSchema {
+            id: DbId::from(0),
             name: "test_db".into(),
             tables: BTreeMap::new(),
         };
@@ -792,6 +811,7 @@ mod tests {
         let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
         let deserialized = Catalog::from_inner(deserialized_inner);
         assert_eq!(catalog, deserialized);
+        assert_eq!(instance_id, deserialized.instance_id());
     }
 
     #[test]
@@ -801,10 +821,12 @@ mod tests {
             let json = r#"{
                 "databases": {
                     "db1": {
+                        "id": 0,
                         "name": "db1",
                         "tables": {}
                     },
                     "db1": {
+                        "id": 0,
                         "name": "db1",
                         "tables": {}
                     }
@@ -869,6 +891,7 @@ mod tests {
     #[test]
     fn add_columns_updates_schema() {
         let mut database = DatabaseSchema {
+            id: DbId::from(0),
             name: "test".into(),
             tables: BTreeMap::new(),
         };
@@ -899,8 +922,11 @@ mod tests {
 
     #[test]
     fn serialize_series_keys() {
-        let catalog = Catalog::new();
+        let host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("instance-id");
+        let catalog = Catalog::new(host_id, instance_id);
         let mut database = DatabaseSchema {
+            id: DbId::from(0),
             name: "test_db".into(),
             tables: BTreeMap::new(),
         };
@@ -941,8 +967,11 @@ mod tests {
 
     #[test]
     fn serialize_last_cache() {
-        let catalog = Catalog::new();
+        let host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("instance-id");
+        let catalog = Catalog::new(host_id, instance_id);
         let mut database = DatabaseSchema {
+            id: DbId::from(0),
             name: "test_db".into(),
             tables: BTreeMap::new(),
         };
@@ -984,5 +1013,16 @@ mod tests {
         let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
         let deserialized = Catalog::from_inner(deserialized_inner);
         assert_eq!(catalog, deserialized);
+    }
+
+    #[test]
+    fn catalog_instance_and_host_ids() {
+        let host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("dummy-instance-id");
+        let cloned_host_id = Arc::clone(&host_id);
+        let cloned_instance_id = Arc::clone(&instance_id);
+        let catalog = Catalog::new(cloned_host_id, cloned_instance_id);
+        assert_eq!(instance_id, catalog.instance_id());
+        assert_eq!(host_id, catalog.host_id());
     }
 }

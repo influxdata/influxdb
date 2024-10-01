@@ -510,6 +510,7 @@ impl WalBuffer {
                     self.database_to_write_batch
                         .entry(db_name)
                         .or_insert_with(|| WriteBatch {
+                            database_id: new_write_batch.database_id,
                             database_name: new_write_batch.database_name,
                             table_chunks: Default::default(),
                             min_time_ns: i64::MAX,
@@ -612,6 +613,7 @@ mod tests {
         Field, FieldData, Gen1Duration, Row, SnapshotSequenceNumber, TableChunk, TableChunks,
     };
     use async_trait::async_trait;
+    use influxdb3_id::DbId;
     use object_store::memory::InMemory;
     use std::any::Any;
     use tokio::sync::oneshot::Receiver;
@@ -639,6 +641,7 @@ mod tests {
         let table_name: Arc<str> = "table1".into();
 
         let op1 = WalOp::Write(WriteBatch {
+            database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
             table_chunks: HashMap::from([(
                 Arc::clone(&table_name),
@@ -686,6 +689,7 @@ mod tests {
         wal.buffer_op_unconfirmed(op1.clone()).await.unwrap();
 
         let op2 = WalOp::Write(WriteBatch {
+            database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
             table_chunks: HashMap::from([(
                 Arc::clone(&table_name),
@@ -725,6 +729,7 @@ mod tests {
             max_timestamp_ns: 62_000000000,
             wal_file_number: WalFileSequenceNumber(1),
             ops: vec![WalOp::Write(WriteBatch {
+                database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: HashMap::from([(
                     "table1".into(),
@@ -794,6 +799,7 @@ mod tests {
             max_timestamp_ns: 62000000000,
             wal_file_number: WalFileSequenceNumber(2),
             ops: vec![WalOp::Write(WriteBatch {
+                database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: HashMap::from([(
                     "table1".into(),
@@ -865,6 +871,7 @@ mod tests {
 
         // create wal file 3, which should trigger a snapshot
         let op3 = WalOp::Write(WriteBatch {
+            database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
             table_chunks: HashMap::from([(
                 Arc::clone(&table_name),
@@ -924,6 +931,7 @@ mod tests {
             max_timestamp_ns: 128_000000000,
             wal_file_number: WalFileSequenceNumber(3),
             ops: vec![WalOp::Write(WriteBatch {
+                database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: HashMap::from([(
                     "table1".into(),

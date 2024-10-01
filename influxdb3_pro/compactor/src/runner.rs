@@ -311,6 +311,7 @@ mod tests {
     use crate::planner::{HostSnapshotCounter, NextCompactionPlan};
     use arrow_util::assert_batches_eq;
     use executor::register_current_runtime_for_io;
+    use influxdb3_id::DbId;
     use influxdb3_pro_data_layout::persist::{get_compaction_detail, get_generation_detail};
     use influxdb3_pro_data_layout::{
         CompactionConfig, Generation, GenerationDetailPath, GenerationLevel,
@@ -336,7 +337,7 @@ mod tests {
             "test-host",
         ));
         let exec = Arc::new(Executor::new_testing());
-        let catalog = Arc::new(Catalog::new());
+        let catalog = Arc::new(Catalog::new("test-host".into(), "test-id".into()));
         let persisted_files = Arc::new(PersistedFiles::default());
 
         register_current_runtime_for_io();
@@ -347,13 +348,16 @@ mod tests {
             Arc::clone(&persister),
             Arc::new(LastCacheProvider::new()),
             Arc::clone(&persisted_files),
+            None,
         );
+        let database_id = DbId::new();
         let write1 = WalContents {
             min_timestamp_ns: 1,
             max_timestamp_ns: 1,
             wal_file_number: WalFileSequenceNumber::new(1),
             ops: vec![
                 WalOp::Catalog(CatalogBatch {
+                    database_id,
                     database_name: "test_db".into(),
                     time_ns: 0,
                     ops: vec![
@@ -382,6 +386,7 @@ mod tests {
                     ],
                 }),
                 WalOp::Write(WriteBatch {
+                    database_id,
                     database_name: "test_db".into(),
                     table_chunks: vec![(
                         "test_table".into(),
@@ -428,6 +433,7 @@ mod tests {
             max_timestamp_ns: 2,
             wal_file_number: WalFileSequenceNumber::new(2),
             ops: vec![WalOp::Write(WriteBatch {
+                database_id,
                 database_name: "test_db".into(),
                 table_chunks: vec![(
                     "test_table".into(),
@@ -481,6 +487,7 @@ mod tests {
             max_timestamp_ns: 3,
             wal_file_number: WalFileSequenceNumber::new(3),
             ops: vec![WalOp::Write(WriteBatch {
+                database_id,
                 database_name: "test_db".into(),
                 table_chunks: vec![(
                     "test_table".into(),

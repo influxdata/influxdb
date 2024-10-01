@@ -92,6 +92,7 @@ mod tests {
         Field, FieldData, Row, TableChunk, TableChunks, WalFileSequenceNumber, WalOp, WriteBatch,
     };
     use hashbrown::HashMap;
+    use influxdb3_id::DbId;
     use std::sync::Arc;
 
     #[test]
@@ -125,6 +126,7 @@ mod tests {
             max_timestamp_ns: 10,
             wal_file_number: WalFileSequenceNumber::new(1),
             ops: vec![WalOp::Write(WriteBatch {
+                database_id: DbId::from(0),
                 database_name: "foo".into(),
                 table_chunks,
                 min_time_ns: 0,

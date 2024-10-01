@@ -59,6 +59,7 @@ impl ReadWriteMode {
             time_provider,
             executor,
             wal_config,
+            None,
         )
         .await?;
 

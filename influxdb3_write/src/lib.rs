@@ -4,9 +4,9 @@
 //! data into parquet files that are persisted to object storage. A snapshot file is written that contains the
 //! metadata of the parquet files that were written in that snapshot.
 
-pub mod cache;
 pub mod chunk;
 pub mod last_cache;
+pub mod parquet_cache;
 pub mod paths;
 pub mod persister;
 pub mod write_buffer;
@@ -17,6 +17,7 @@ use datafusion::catalog::Session;
 use datafusion::error::DataFusionError;
 use datafusion::prelude::Expr;
 use influxdb3_catalog::catalog::{self, SequenceNumber};
+use influxdb3_id::DbId;
 use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -165,6 +166,8 @@ pub struct PersistedSnapshot {
     pub host_id: String,
     /// The next file id to be used with `ParquetFile`s when the snapshot is loaded
     pub next_file_id: ParquetFileId,
+    /// The next db id to be used with databases when the snapshot is loaded
+    pub next_db_id: DbId,
     /// The snapshot sequence number associated with this snapshot
     pub snapshot_sequence_number: SnapshotSequenceNumber,
     /// The wal file sequence number that triggered this snapshot
@@ -194,6 +197,7 @@ impl PersistedSnapshot {
         Self {
             host_id,
             next_file_id: ParquetFileId::current(),
+            next_db_id: DbId::next_id(),
             snapshot_sequence_number,
             wal_file_sequence_number,
             catalog_sequence_number,

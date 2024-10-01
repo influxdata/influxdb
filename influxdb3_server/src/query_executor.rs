@@ -591,8 +591,8 @@ mod tests {
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        last_cache::LastCacheProvider, persister::Persister, write_buffer::WriteBufferImpl,
-        WriteBuffer,
+        last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
+        persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer,
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
@@ -630,13 +630,17 @@ mod tests {
         // Set up QueryExecutor
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let executor = make_exec(object_store);
+        let (object_store, parquet_cache) =
+            test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider) as _);
+        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
+        let executor = make_exec(Arc::clone(&object_store));
+        let host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("instance-id");
         let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
             WriteBufferImpl::new(
                 Arc::clone(&persister),
-                Arc::new(Catalog::new()),
+                Arc::new(Catalog::new(host_id, instance_id)),
                 Arc::new(LastCacheProvider::new()),
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&executor),
@@ -646,6 +650,7 @@ mod tests {
                     flush_interval: Duration::from_millis(10),
                     snapshot_size: 1,
                 },
+                Some(parquet_cache),
             )
             .await
             .unwrap(),
@@ -702,29 +707,29 @@ mod tests {
 
         let test_cases = [
             TestCase {
-                query: "SELECT * FROM system.parquet_files WHERE table_name = 'cpu'",
+                query: "SELECT table_name, size_bytes, row_count, min_time, max_time FROM system.parquet_files WHERE table_name = 'cpu'",
                 expected: &[
-                    "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
-                    "| table_name | path                                                | size_bytes | row_count | min_time | max_time |",
-                    "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
-                    "| cpu        | dbs/test_db/cpu/1970-01-01/00-00/0000000003.parquet | 2142       | 2         | 0        | 10       |",
-                    "| cpu        | dbs/test_db/cpu/1970-01-01/00-00/0000000005.parquet | 2142       | 2         | 20       | 30       |",
-                    "| cpu        | dbs/test_db/cpu/1970-01-01/00-00/0000000007.parquet | 2142       | 2         | 40       | 50       |",
-                    "| cpu        | dbs/test_db/cpu/1970-01-01/00-00/0000000009.parquet | 2142       | 2         | 60       | 70       |",
-                    "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
+                    "+------------+------------+-----------+----------+----------+",
+                    "| table_name | size_bytes | row_count | min_time | max_time |",
+                    "+------------+------------+-----------+----------+----------+",
+                    "| cpu        | 2142       | 2         | 0        | 10       |",
+                    "| cpu        | 2142       | 2         | 20       | 30       |",
+                    "| cpu        | 2142       | 2         | 40       | 50       |",
+                    "| cpu        | 2142       | 2         | 60       | 70       |",
+                    "+------------+------------+-----------+----------+----------+",
                 ],
             },
             TestCase {
-                query: "SELECT * FROM system.parquet_files WHERE table_name = 'mem'",
+                query: "SELECT table_name, size_bytes, row_count, min_time, max_time FROM system.parquet_files WHERE table_name = 'mem'",
                 expected: &[
-                    "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
-                    "| table_name | path                                                | size_bytes | row_count | min_time | max_time |",
-                    "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
-                    "| mem        | dbs/test_db/mem/1970-01-01/00-00/0000000003.parquet | 2142       | 2         | 0        | 10       |",
-                    "| mem        | dbs/test_db/mem/1970-01-01/00-00/0000000005.parquet | 2142       | 2         | 20       | 30       |",
-                    "| mem        | dbs/test_db/mem/1970-01-01/00-00/0000000007.parquet | 2142       | 2         | 40       | 50       |",
-                    "| mem        | dbs/test_db/mem/1970-01-01/00-00/0000000009.parquet | 2142       | 2         | 60       | 70       |",
-                    "+------------+-----------------------------------------------------+------------+-----------+----------+----------+",
+                    "+------------+------------+-----------+----------+----------+",
+                    "| table_name | size_bytes | row_count | min_time | max_time |",
+                    "+------------+------------+-----------+----------+----------+",
+                    "| mem        | 2142       | 2         | 0        | 10       |",
+                    "| mem        | 2142       | 2         | 20       | 30       |",
+                    "| mem        | 2142       | 2         | 40       | 50       |",
+                    "| mem        | 2142       | 2         | 60       | 70       |",
+                    "+------------+------------+-----------+----------+----------+",
                 ],
             },
         ];
