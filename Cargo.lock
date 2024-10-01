@@ -2706,6 +2706,7 @@ dependencies = [
  "futures",
  "futures-util",
  "influxdb3_catalog",
+ "influxdb3_test_helpers",
  "influxdb3_wal",
  "influxdb3_write",
  "iox_query",

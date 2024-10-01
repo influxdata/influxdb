@@ -365,7 +365,7 @@ pub async fn command(config: Config) -> Result<()> {
         make_object_store(&config.object_store_config).map_err(Error::ObjectStoreParsing)?;
     let time_provider = Arc::new(SystemProvider::new());
 
-    let (object_store, _parquet_cache) = if !config.disable_parquet_mem_cache {
+    let (object_store, parquet_cache) = if !config.disable_parquet_mem_cache {
         let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
             object_store,
             Arc::clone(&time_provider) as _,
@@ -494,6 +494,7 @@ pub async fn command(config: Config) -> Result<()> {
                     Arc::clone(&object_store),
                     Arc::clone(&metrics),
                     replica_config,
+                    parquet_cache,
                 )
                 .await
                 .map_err(Error::WriteBufferInit)?,
@@ -509,6 +510,7 @@ pub async fn command(config: Config) -> Result<()> {
                 wal_config,
                 metric_registry: Arc::clone(&metrics),
                 replication_config: replica_config,
+                parquet_cache,
             })
             .await
             .map_err(Error::WriteBufferInit)?,

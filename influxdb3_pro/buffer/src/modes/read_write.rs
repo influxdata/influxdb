@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::replica::{Replicas, ReplicationConfig};
+use crate::replica::{CreateReplicasArgs, Replicas, ReplicationConfig};
 use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
@@ -8,6 +8,7 @@ use influxdb3_catalog::catalog::Catalog;
 use influxdb3_wal::{LastCacheDefinition, WalConfig};
 use influxdb3_write::{
     last_cache::LastCacheProvider,
+    parquet_cache::ParquetCacheOracle,
     persister::Persister,
     write_buffer::{self, WriteBufferImpl},
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
@@ -36,6 +37,7 @@ pub struct ReadWriteArgs {
     pub wal_config: WalConfig,
     pub metric_registry: Arc<Registry>,
     pub replication_config: Option<ReplicationConfig>,
+    pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
 }
 
 impl ReadWriteMode {
@@ -49,6 +51,7 @@ impl ReadWriteMode {
             wal_config,
             metric_registry,
             replication_config,
+            parquet_cache,
         }: ReadWriteArgs,
     ) -> Result<Self, anyhow::Error> {
         let object_store = persister.object_store();
@@ -81,17 +84,22 @@ impl ReadWriteMode {
             }
         });
 
-        let replicas = if let Some(config) = replication_config {
+        let replicas = if let Some(ReplicationConfig {
+            interval: replication_interval,
+            hosts,
+        }) = replication_config
+        {
             Some(
-                Replicas::new(
+                Replicas::new(CreateReplicasArgs {
                     catalog,
                     last_cache,
                     object_store,
                     metric_registry,
-                    config.interval,
-                    config.hosts,
+                    replication_interval,
+                    hosts,
                     persisted_snapshot_notify_tx,
-                )
+                    parquet_cache,
+                })
                 .await?,
             )
         } else {
