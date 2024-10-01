@@ -62,12 +62,12 @@ pub struct ProServeConfig {
     /// The first element in the list will be the duration of the first level of compaction (gen3).
     /// Each subsequent level will be a multiple of the previous level.
     ///
-    /// The default values of 2,4,6,5 when paired with the deafault gen2 duration of 20m will result
+    /// The default values of 3,4,6,5 when paired with the default gen2 duration of 20m will result
     /// in the following compaction levels: 20m (gen2), 1h (gen3), 4h (gen4), 24h (gen5), 5d (gen6).
     #[clap(
         long = "compaction-multipliers",
         env = "INFLUXDB3_PRO_COMPACTION_MULTIPLIERS",
-        default_value = "2,4,6,5",
+        default_value = "3,4,6,5",
         action
     )]
     pub compaction_multipliers: CompactionMultipliers,
