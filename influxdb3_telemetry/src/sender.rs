@@ -1,8 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
 use observability_deps::tracing::debug;
+use serde::Serialize;
 
-use crate::store::{TelemetryPayload, TelemetryStore};
+use crate::store::TelemetryStore;
 use crate::{Result, TelemetryError};
 
 pub(crate) struct TelemetrySender {
@@ -27,6 +28,40 @@ impl TelemetrySender {
         debug!("Successfully sent telemetry data to server");
         Ok(())
     }
+}
+
+#[derive(Serialize, Debug)]
+pub(crate) struct TelemetryPayload {
+    pub os: Arc<str>,
+    pub version: Arc<str>,
+    pub storage_type: Arc<str>,
+    pub instance_id: Arc<str>,
+    pub cores: usize,
+    pub product_type: &'static str,
+    // cpu
+    pub cpu_utilization_percent_min: f32,
+    pub cpu_utilization_percent_max: f32,
+    pub cpu_utilization_percent_avg: f32,
+    // mem
+    pub memory_used_mb_min: u64,
+    pub memory_used_mb_max: u64,
+    pub memory_used_mb_avg: u64,
+    // writes
+    pub write_requests_min: u64,
+    pub write_requests_max: u64,
+    pub write_requests_avg: u64,
+
+    pub write_lines_min: u64,
+    pub write_lines_max: u64,
+    pub write_lines_avg: u64,
+
+    pub write_mb_min: u64,
+    pub write_mb_max: u64,
+    pub write_mb_avg: u64,
+    // reads
+    pub query_requests_min: u64,
+    pub query_requests_max: u64,
+    pub query_requests_avg: u64,
 }
 
 pub(crate) async fn send_telemetry_in_background(

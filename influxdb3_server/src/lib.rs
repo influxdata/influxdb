@@ -28,6 +28,7 @@ use datafusion::execution::SendableRecordBatchStream;
 use hyper::server::conn::AddrIncoming;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
+use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::persister::Persister;
 use iox_query::QueryDatabase;
 use iox_query_params::StatementParams;
@@ -79,6 +80,7 @@ pub struct CommonServerState {
     metrics: Arc<metric::Registry>,
     trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
     trace_header_parser: TraceHeaderParser,
+    telemetry_store: Arc<TelemetryStore>,
 }
 
 impl CommonServerState {
@@ -86,11 +88,13 @@ impl CommonServerState {
         metrics: Arc<metric::Registry>,
         trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
         trace_header_parser: TraceHeaderParser,
+        telemetry_store: Arc<TelemetryStore>,
     ) -> Result<Self> {
         Ok(Self {
             metrics,
             trace_exporter,
             trace_header_parser,
+            telemetry_store,
         })
     }
 
@@ -178,6 +182,7 @@ where
         Arc::clone(&server.http.query_executor),
         Some(server.authorizer()),
     ));
+
     let rest_service = hyper::service::make_service_fn(|_| {
         let http_server = Arc::clone(&server.http);
         let service = service_fn(move |req: hyper::Request<hyper::Body>| {
@@ -228,6 +233,7 @@ mod tests {
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
     use influxdb3_write::last_cache::LastCacheProvider;
     use influxdb3_write::parquet_cache::test_cached_obj_store_and_oracle;
@@ -742,8 +748,14 @@ mod tests {
     async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn WriteBuffer>) {
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
-        let common_state =
-            crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser).unwrap();
+        let dummy_telem_store = TelemetryStore::new_without_background_runners();
+        let common_state = crate::CommonServerState::new(
+            Arc::clone(&metrics),
+            None,
+            trace_header_parser,
+            dummy_telem_store,
+        )
+        .unwrap();
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
         let (object_store, parquet_cache) =
@@ -765,6 +777,7 @@ mod tests {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let dummy_host_id = Arc::from("dummy-host-id");
         let instance_id = Arc::from("dummy-instance-id");
+        let telemetry_store = TelemetryStore::new_without_background_runners();
 
         let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
@@ -787,6 +800,7 @@ mod tests {
             Arc::new(HashMap::new()),
             10,
             10,
+            telemetry_store,
         );
 
         // bind to port 0 will assign a random available port:

@@ -404,8 +404,6 @@ pub async fn command(config: Config) -> Result<()> {
         )
         .with_jaeger_debug_name(config.tracing_config.traces_jaeger_debug_name);
 
-    let common_state =
-        CommonServerState::new(Arc::clone(&metrics), trace_exporter, trace_header_parser)?;
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
         config.host_identifier_prefix,
@@ -426,8 +424,15 @@ pub async fn command(config: Config) -> Result<()> {
         .map_err(Error::InitializeLastCache)?;
     info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
 
-    let _telemetry_store =
+    let telemetry_store =
         setup_telemetry_store(&config.object_store_config, catalog.instance_id(), num_cpus).await;
+
+    let common_state = CommonServerState::new(
+        Arc::clone(&metrics),
+        trace_exporter,
+        trace_header_parser,
+        Arc::clone(&telemetry_store),
+    )?;
 
     let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
         WriteBufferImpl::new(
@@ -450,6 +455,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::new(config.datafusion_config),
         10,
         config.query_log_size,
+        Arc::clone(&telemetry_store),
     ));
 
     let listener = TcpListener::bind(*config.http_bind_address)
