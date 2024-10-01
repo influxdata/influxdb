@@ -110,6 +110,7 @@ impl WriteValidator<WithCatalog> {
             None
         } else {
             let catalog_batch = CatalogBatch {
+                database_id: self.state.db_schema.id,
                 database_name: Arc::clone(&self.state.db_schema.name),
                 time_ns: self.state.time_now_ns,
                 ops: catalog_updates,
@@ -185,6 +186,7 @@ impl WriteValidator<WithCatalog> {
             None
         } else {
             let catalog_batch = CatalogBatch {
+                database_id: self.state.db_schema.id,
                 time_ns: self.state.time_now_ns,
                 database_name: Arc::clone(&self.state.db_schema.name),
                 ops: catalog_updates,
@@ -576,8 +578,11 @@ impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
             );
         }
 
-        let write_batch =
-            WriteBatch::new(Arc::clone(&self.state.catalog.db_schema.name), table_chunks);
+        let write_batch = WriteBatch::new(
+            self.state.catalog.db_schema.id,
+            Arc::clone(&self.state.catalog.db_schema.name),
+            table_chunks,
+        );
 
         ValidatedLines {
             line_count,
@@ -673,8 +678,11 @@ impl<'lp> WriteValidator<LinesParsed<'lp, ParsedLine<'lp>>> {
             );
         }
 
-        let write_batch =
-            WriteBatch::new(Arc::clone(&self.state.catalog.db_schema.name), table_chunks);
+        let write_batch = WriteBatch::new(
+            self.state.catalog.db_schema.id,
+            Arc::clone(&self.state.catalog.db_schema.name),
+            table_chunks,
+        );
 
         ValidatedLines {
             line_count,
@@ -781,8 +789,10 @@ mod tests {
 
     #[test]
     fn write_validator_v1() -> Result<(), Error> {
+        let host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("dummy-instance-id");
         let namespace = NamespaceName::new("test").unwrap();
-        let catalog = Arc::new(Catalog::new());
+        let catalog = Arc::new(Catalog::new(host_id, instance_id));
         let result = WriteValidator::initialize(namespace.clone(), catalog, 0)?
             .v1_parse_lines_and_update_schema("cpu,tag1=foo val1=\"bar\" 1234", false)?
             .convert_lines_to_buffer(

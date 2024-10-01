@@ -230,6 +230,7 @@ mod tests {
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::WalConfig;
     use influxdb3_write::last_cache::LastCacheProvider;
+    use influxdb3_write::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_write::persister::Persister;
     use influxdb3_write::WriteBuffer;
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
@@ -744,6 +745,9 @@ mod tests {
         let common_state =
             crate::CommonServerState::new(Arc::clone(&metrics), None, trace_header_parser).unwrap();
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
+        let (object_store, parquet_cache) =
+            test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider) as _);
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
         let exec = Arc::new(Executor::new_with_config_and_executor(
@@ -759,16 +763,18 @@ mod tests {
             DedicatedExecutor::new_testing(),
         ));
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
+        let dummy_host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("dummy-instance-id");
 
         let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
-                Arc::new(Catalog::new()),
+                Arc::new(Catalog::new(dummy_host_id, instance_id)),
                 Arc::new(LastCacheProvider::new()),
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&exec),
                 WalConfig::test_config(),
+                Some(parquet_cache),
             )
             .await
             .unwrap(),

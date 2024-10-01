@@ -1,9 +1,9 @@
 //! Entrypoint for InfluxDB 3.0 Edge Server
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use clap_blocks::{
     memory_size::MemorySize,
-    object_store::{make_object_store, ObjectStoreConfig},
+    object_store::{make_object_store, ObjectStoreConfig, ObjectStoreType},
     socket_addr::SocketAddr,
     tokio::TokioDatafusionConfig,
 };
@@ -23,16 +23,20 @@ use influxdb3_server::{
     auth::AllOrNothingAuthorizer, builder::ServerBuilder, query_executor::QueryExecutorImpl, serve,
     CommonServerState,
 };
+use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
-use influxdb3_write::{persister::Persister, WriteBuffer};
+use influxdb3_write::{
+    last_cache::LastCacheProvider, parquet_cache::create_cached_obj_store_and_oracle,
+    persister::Persister, WriteBuffer,
+};
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
-use object_store::DynObjectStore;
+use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
-use std::collections::HashMap;
-use std::{num::NonZeroUsize, path::Path, sync::Arc};
+use std::{collections::HashMap, path::Path, str::FromStr};
+use std::{num::NonZeroUsize, sync::Arc};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
@@ -81,6 +85,9 @@ pub enum Error {
 
     #[error("Failed to load compactor: {0}")]
     Compactor(#[source] influxdb3_pro_data_layout::compacted_data::Error),
+
+    #[error("failed to initialize last cache: {0}")]
+    InitializeLastCache(#[source] influxdb3_write::last_cache::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -227,6 +234,90 @@ pub struct Config {
 
     #[clap(flatten)]
     pub pro_config: influxdb3_pro_clap_blocks::serve::ProServeConfig,
+
+    /// The size of the in-memory Parquet cache in megabytes (MB).
+    #[clap(
+        long = "parquet-mem-cache-size-mb",
+        env = "INFLUXDB3_PARQUET_MEM_CACHE_SIZE_MB",
+        default_value = "1000",
+        action
+    )]
+    pub parquet_mem_cache_size: ParquetCacheSizeMb,
+
+    /// The percentage of entries to prune during a prune operation on the in-memory Parquet cache.
+    ///
+    /// This must be a number between 0 and 1.
+    #[clap(
+        long = "parquet-mem-cache-prune-percentage",
+        env = "INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_PERCENTAGE",
+        default_value = "0.1",
+        action
+    )]
+    pub parquet_mem_cache_prune_percentage: ParquetCachePrunePercent,
+
+    /// The interval on which to check if the in-memory Parquet cache needs to be pruned.
+    ///
+    /// Enter as a human-readable time, e.g., "1s", "100ms", "1m", etc.
+    #[clap(
+        long = "parquet-mem-cache-prune-interval",
+        env = "INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_INTERVAL",
+        default_value = "1s",
+        action
+    )]
+    pub parquet_mem_cache_prune_interval: humantime::Duration,
+
+    /// Disable the in-memory Parquet cache. By default, the cache is enabled.
+    #[clap(
+        long = "disable-parquet-mem-cache",
+        env = "INFLUXDB3_DISABLE_PARQUET_MEM_CACHE",
+        default_value_t = false,
+        action
+    )]
+    pub disable_parquet_mem_cache: bool,
+}
+
+/// Specified size of the Parquet cache in megabytes (MB)
+#[derive(Debug, Clone, Copy)]
+pub struct ParquetCacheSizeMb(usize);
+
+impl ParquetCacheSizeMb {
+    /// Express this cache size in terms of bytes (B)
+    fn as_num_bytes(&self) -> usize {
+        self.0 * 1_000 * 1_000
+    }
+}
+
+impl FromStr for ParquetCacheSizeMb {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::prelude::v1::Result<Self, Self::Err> {
+        s.parse()
+            .context("failed to parse parquet cache size value as an unsigned integer")
+            .map(Self)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ParquetCachePrunePercent(f64);
+
+impl From<ParquetCachePrunePercent> for f64 {
+    fn from(value: ParquetCachePrunePercent) -> Self {
+        value.0
+    }
+}
+
+impl FromStr for ParquetCachePrunePercent {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::prelude::v1::Result<Self, Self::Err> {
+        let p = s
+            .parse::<f64>()
+            .context("failed to parse prune percent as f64")?;
+        if p <= 0.0 || p >= 1.0 {
+            bail!("prune percent must be between 0 and 1");
+        }
+        Ok(Self(p))
+    }
 }
 
 /// If `p` does not exist, try to create it as a directory.
@@ -269,8 +360,22 @@ pub async fn command(config: Config) -> Result<()> {
     // Construct a token to trigger clean shutdown
     let frontend_shutdown = CancellationToken::new();
 
-    let object_store: Arc<DynObjectStore> =
+    let object_store: Arc<dyn ObjectStore> =
         make_object_store(&config.object_store_config).map_err(Error::ObjectStoreParsing)?;
+    let time_provider = Arc::new(SystemProvider::new());
+
+    let (object_store, _parquet_cache) = if !config.disable_parquet_mem_cache {
+        let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
+            object_store,
+            Arc::clone(&time_provider) as _,
+            config.parquet_mem_cache_size.as_num_bytes(),
+            config.parquet_mem_cache_prune_percentage.into(),
+            config.parquet_mem_cache_prune_interval.into(),
+        );
+        (object_store, Some(parquet_cache))
+    } else {
+        (object_store, None)
+    };
 
     let trace_exporter = config.tracing_config.build()?;
 
@@ -346,16 +451,25 @@ pub async fn command(config: Config) -> Result<()> {
     });
 
     let time_provider = Arc::new(SystemProvider::new());
-    let (last_cache, catalog) = persister
-        .load_last_cache_and_catalog()
+
+    let catalog = persister
+        .load_or_create_catalog()
         .await
         .map_err(Error::InitializePersistedCatalog)?;
+
+    let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner())
+        .map_err(Error::InitializeLastCache)?;
+
     let replica_config = config.pro_config.replicas.map(|replicas| {
         ReplicationConfig::new(
             config.pro_config.replication_interval.into(),
             replicas.into(),
         )
     });
+
+    let _telemetry_store =
+        setup_telemetry_store(&config.object_store_config, catalog.instance_id(), num_cpus).await;
+
     let write_buffer: Arc<dyn WriteBuffer> = match config.pro_config.mode {
         BufferMode::Read => {
             let replica_config = replica_config
@@ -456,6 +570,31 @@ pub async fn command(config: Config) -> Result<()> {
     }
 
     Ok(())
+}
+
+async fn setup_telemetry_store(
+    object_store_config: &ObjectStoreConfig,
+    instance_id: Arc<str>,
+    num_cpus: usize,
+) -> Arc<TelemetryStore> {
+    let os = std::env::consts::OS;
+    let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
+    let influxdb_pkg_name = env!("CARGO_PKG_NAME");
+    // Following should show influxdb3-0.1.0
+    let influx_version = format!("{}-{}", influxdb_pkg_name, influxdb_pkg_version);
+    let obj_store_type = object_store_config
+        .object_store
+        .unwrap_or(ObjectStoreType::Memory);
+    let storage_type = obj_store_type.as_str();
+
+    TelemetryStore::new(
+        instance_id,
+        Arc::from(os),
+        Arc::from(influx_version),
+        Arc::from(storage_type),
+        num_cpus,
+    )
+    .await
 }
 
 fn parse_datafusion_config(

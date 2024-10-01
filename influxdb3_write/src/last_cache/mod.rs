@@ -1567,6 +1567,7 @@ mod tests {
 
     use crate::{
         last_cache::{KeyValue, LastCacheProvider, Predicate, DEFAULT_CACHE_TTL},
+        parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister,
         write_buffer::WriteBufferImpl,
         Bufferer, LastCacheManager, Precision,
@@ -1575,21 +1576,28 @@ mod tests {
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::NamespaceName;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
+    use influxdb3_id::DbId;
     use influxdb3_wal::{LastCacheDefinition, WalConfig};
     use insta::assert_json_snapshot;
-    use iox_time::{MockProvider, Time};
+    use iox_time::{MockProvider, Time, TimeProvider};
 
     async fn setup_write_buffer() -> WriteBufferImpl {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let (obj_store, parquet_cache) =
+            test_cached_obj_store_and_oracle(obj_store, Arc::clone(&time_provider));
         let persister = Arc::new(Persister::new(obj_store, "test_host"));
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("dummy-instance-id");
         WriteBufferImpl::new(
             persister,
-            Arc::new(Catalog::new()),
+            Arc::new(Catalog::new(host_id, instance_id)),
             Arc::new(LastCacheProvider::new()),
             time_provider,
             crate::test_help::make_exec(),
             WalConfig::test_config(),
+            Some(parquet_cache),
         )
         .await
         .unwrap()
@@ -3057,6 +3065,7 @@ mod tests {
         // Set up a database in the catalog:
         let db_name = "test_db";
         let mut database = DatabaseSchema {
+            id: DbId::from(0),
             name: db_name.into(),
             tables: BTreeMap::new(),
         };
@@ -3131,7 +3140,9 @@ mod tests {
             .insert(Arc::clone(&table_def.name), table_def);
         // Create the catalog and clone its InnerCatalog (which is what the LastCacheProvider is
         // initialized from):
-        let mut catalog = Catalog::new();
+        let host_id = Arc::from("dummy-host-id");
+        let instance_id = Arc::from("dummy-instance-id");
+        let mut catalog = Catalog::new(host_id, instance_id);
         catalog.insert_database(database);
         let inner = catalog.clone_inner();
         // This is the function we are testing, which initializes the LastCacheProvider from the catalog:

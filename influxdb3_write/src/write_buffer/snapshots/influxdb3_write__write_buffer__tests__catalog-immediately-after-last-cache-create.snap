@@ -5,6 +5,7 @@ expression: catalog_json
 {
   "databases": {
     "db": {
+      "id": 0,
       "name": "db",
       "tables": {
         "table": {
@@ -52,5 +53,7 @@ expression: catalog_json
       }
     }
   },
+  "host_id": "test_host",
+  "instance_id": "[uuid]",
   "sequence": 2
 }

@@ -1,5 +1,6 @@
 use crate::chunk::BufferChunk;
 use crate::last_cache::LastCacheProvider;
+use crate::parquet_cache::{CacheRequest, ParquetCacheOracle};
 use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
@@ -21,6 +22,7 @@ use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::exec::Executor;
 use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
+use object_store::path::Path;
 use observability_deps::tracing::{error, info};
 use parking_lot::RwLock;
 use parquet::format::FileMetaData;
@@ -40,6 +42,7 @@ pub struct QueryableBuffer {
     persister: Arc<Persister>,
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<RwLock<BufferState>>,
+    parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     /// Sends a notification to this watch channel whenever a snapshot info is persisted
     persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshot>>,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
@@ -52,6 +55,7 @@ impl QueryableBuffer {
         persister: Arc<Persister>,
         last_cache_provider: Arc<LastCacheProvider>,
         persisted_files: Arc<PersistedFiles>,
+        parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     ) -> Self {
         let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
         let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
@@ -63,6 +67,7 @@ impl QueryableBuffer {
             persister,
             persisted_files,
             buffer,
+            parquet_cache,
             persisted_snapshot_notify_rx,
             persisted_snapshot_notify_tx,
         }
@@ -144,6 +149,7 @@ impl QueryableBuffer {
             let mut buffer = self.buffer.write();
 
             let mut persisting_chunks = vec![];
+            let catalog = Arc::clone(&buffer.catalog);
             for (database_name, table_map) in buffer.db_to_table.iter_mut() {
                 for (table_name, table_buffer) in table_map.iter_mut() {
                     let snapshot_chunks = table_buffer.snapshot(snapshot_details.end_time_marker);
@@ -155,6 +161,11 @@ impl QueryableBuffer {
                             chunk_time: chunk.chunk_time,
                             path: ParquetFilePath::new_with_chunk_time(
                                 database_name.as_ref(),
+                                catalog
+                                    .db_schema(database_name)
+                                    .expect("db exists")
+                                    .id
+                                    .as_u32(),
                                 table_name.as_ref(),
                                 chunk.chunk_time,
                                 write.wal_file_number,
@@ -186,6 +197,7 @@ impl QueryableBuffer {
         let buffer = Arc::clone(&self.buffer);
         let catalog = Arc::clone(&self.catalog);
         let notify_snapshot_tx = self.persisted_snapshot_notify_tx.clone();
+        let parquet_cache = self.parquet_cache.clone();
 
         tokio::spawn(async move {
             // persist the catalog if it has been updated
@@ -201,7 +213,7 @@ impl QueryableBuffer {
                 let sequence_number = inner_catalog.sequence_number();
 
                 match persister
-                    .persist_catalog(wal_file_number, Catalog::from_inner(inner_catalog))
+                    .persist_catalog(wal_file_number, &Catalog::from_inner(inner_catalog))
                     .await
                 {
                     Ok(_) => {
@@ -227,6 +239,7 @@ impl QueryableBuffer {
                 wal_file_number,
                 catalog.sequence_number(),
             );
+            let mut cache_notifiers = vec![];
             for persist_job in persist_jobs {
                 let path = persist_job.path.to_string();
                 let database_name = Arc::clone(&persist_job.database_name);
@@ -235,9 +248,14 @@ impl QueryableBuffer {
                 let min_time = persist_job.timestamp_min_max.min;
                 let max_time = persist_job.timestamp_min_max.max;
 
-                let (size_bytes, meta) =
-                    sort_dedupe_persist(persist_job, Arc::clone(&persister), Arc::clone(&executor))
-                        .await;
+                let (size_bytes, meta, cache_notifier) = sort_dedupe_persist(
+                    persist_job,
+                    Arc::clone(&persister),
+                    Arc::clone(&executor),
+                    parquet_cache.clone(),
+                )
+                .await;
+                cache_notifiers.push(cache_notifier);
                 persisted_snapshot.add_parquet_file(
                     database_name,
                     table_name,
@@ -270,15 +288,23 @@ impl QueryableBuffer {
                 }
             }
 
-            // clear out the write buffer and add all the persisted files to the persisted files list
-            let mut buffer = buffer.write();
-            for (_, table_map) in buffer.db_to_table.iter_mut() {
-                for (_, table_buffer) in table_map.iter_mut() {
-                    table_buffer.clear_snapshots();
+            // clear out the write buffer and add all the persisted files to the persisted files
+            // on a background task to ensure that the cache has been populated before we clear
+            // the buffer
+            tokio::spawn(async move {
+                // wait on the cache updates to complete if there is a cache:
+                for notifier in cache_notifiers.into_iter().flatten() {
+                    let _ = notifier.await;
                 }
-            }
+                let mut buffer = buffer.write();
+                for (_, table_map) in buffer.db_to_table.iter_mut() {
+                    for (_, table_buffer) in table_map.iter_mut() {
+                        table_buffer.clear_snapshots();
+                    }
+                }
 
-            persisted_files.add_persisted_snapshot_files(persisted_snapshot);
+                persisted_files.add_persisted_snapshot_files(persisted_snapshot);
+            });
 
             let _ = sender.send(snapshot_details);
         });
@@ -427,7 +453,8 @@ async fn sort_dedupe_persist(
     persist_job: PersistJob,
     persister: Arc<Persister>,
     executor: Arc<Executor>,
-) -> (u64, FileMetaData) {
+    parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+) -> (u64, FileMetaData, Option<oneshot::Receiver<()>>) {
     // Dedupe and sort using the COMPACT query built into
     // iox_query
     let row_count = persist_job.batch.num_rows();
@@ -489,7 +516,14 @@ async fn sort_dedupe_persist(
         {
             Ok((size_bytes, meta)) => {
                 info!("Persisted parquet file: {}", persist_job.path.to_string());
-                return (size_bytes, meta);
+                if let Some(pq) = parquet_cache {
+                    let (cache_request, cache_notify_rx) =
+                        CacheRequest::create(Path::from(persist_job.path.to_string()));
+                    pq.register(cache_request);
+                    return (size_bytes, meta, Some(cache_notify_rx));
+                } else {
+                    return (size_bytes, meta, None);
+                }
             }
             Err(e) => {
                 error!(

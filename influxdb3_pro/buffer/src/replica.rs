@@ -748,7 +748,7 @@ mod tests {
 
         // Spin up a set of replicated buffers:
         let replicas = Replicas::new(
-            Arc::new(Catalog::new()),
+            Arc::new(Catalog::new("replica-1".into(), "test-id-1".into())),
             Arc::new(LastCacheProvider::new()),
             Arc::clone(&obj_store),
             Arc::new(Registry::new()),
@@ -865,7 +865,7 @@ mod tests {
         let metric_registry = Arc::new(Registry::new());
         let replication_interval_ms = 50;
         Replicas::new(
-            Arc::new(Catalog::new()),
+            Arc::new(Catalog::new("replica-1".into(), "test-id-1".into())),
             Arc::new(LastCacheProvider::new()),
             Arc::clone(&obj_store),
             Arc::clone(&metric_registry),
@@ -973,7 +973,8 @@ mod tests {
         start_time: Time,
     ) -> WriteBufferImpl {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
-        let (last_cache, catalog) = persister.load_last_cache_and_catalog().await.unwrap();
+        let catalog = persister.load_or_create_catalog().await.unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
         WriteBufferImpl::new(
             Arc::clone(&persister),
@@ -982,6 +983,7 @@ mod tests {
             time_provider,
             make_exec(),
             wal_config,
+            None,
         )
         .await
         .unwrap()

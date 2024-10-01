@@ -1,0 +1,24 @@
+[package]
+name = "influxdb3_telemetry"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+observability_deps.workspace = true
+futures.workspace = true
+futures-util.workspace = true
+reqwest.workspace = true
+parking_lot.workspace = true
+sysinfo.workspace = true
+num.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+test-log.workspace = true
+proptest.workspace = true
+

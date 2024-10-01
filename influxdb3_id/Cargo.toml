@@ -1,0 +1,12 @@
+[package]
+name = "influxdb3_id"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+
+[lints]
+workspace = true

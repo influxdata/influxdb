@@ -38,18 +38,20 @@ async fn five_files_multiple_series_same_schema() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
 
+    let host_id = "test-host";
     let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
-        "test-host",
+        host_id,
     ));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(Catalog::new()),
+            Arc::new(Catalog::new(host_id.into(), "test-instance".into())),
             Arc::new(LastCacheProvider::new()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
+            None,
         )
         .await
         .unwrap(),
@@ -250,18 +252,20 @@ async fn two_files_two_series_and_same_schema() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
 
+    let host_id = "test-host";
     let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
-        "test-host",
+        host_id,
     ));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(Catalog::new()),
+            Arc::new(Catalog::new(host_id.into(), "test-instance".into())),
             Arc::new(LastCacheProvider::new()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
+            None,
         )
         .await
         .unwrap(),
@@ -393,18 +397,20 @@ async fn two_files_same_series_and_schema() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
 
+    let host_id = "test-host";
     let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
-        "test-host",
+        host_id,
     ));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(Catalog::new()),
+            Arc::new(Catalog::new(host_id.into(), "test-instance".into())),
             Arc::new(LastCacheProvider::new()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
+            None,
         )
         .await
         .unwrap(),
@@ -517,18 +523,20 @@ async fn two_files_same_series_and_schema() {
 async fn two_files_similar_series_and_compatible_schema() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
+    let host_id = "test-host";
     let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
-        "test-host",
+        host_id,
     ));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(Catalog::new()),
+            Arc::new(Catalog::new(host_id.into(), "test-instance".into())),
             Arc::new(LastCacheProvider::new()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
+            None,
         )
         .await
         .unwrap(),
@@ -687,18 +695,20 @@ async fn two_files_similar_series_and_compatible_schema() {
 async fn deduplication_of_data() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
+    let host_id = "test-host";
     let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
-        "test-host",
+        host_id,
     ));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(Catalog::new()),
+            Arc::new(Catalog::new(host_id.into(), "test-instance".into())),
             Arc::new(LastCacheProvider::new()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
+            None,
         )
         .await
         .unwrap(),
@@ -805,18 +815,20 @@ async fn deduplication_of_data() {
 async fn compactor_casting() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
+    let host_id = "test-host";
     let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
-        "test-host",
+        host_id,
     ));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(Catalog::new()),
+            Arc::new(Catalog::new(host_id.into(), "test-instance".into())),
             Arc::new(LastCacheProvider::new()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
+            None,
         )
         .await
         .unwrap(),
