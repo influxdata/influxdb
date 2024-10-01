@@ -225,7 +225,7 @@ pub struct Config {
         default_value = "1000",
         action
     )]
-    pub parquet_mem_cache_size: usize,
+    pub parquet_mem_cache_size: ParquetCacheSizeMb,
 
     /// The percentage of entries to prune during a prune operation on the in-memory Parquet cache.
     ///
@@ -236,7 +236,7 @@ pub struct Config {
         default_value = "0.1",
         action
     )]
-    pub parquet_mem_cache_prune_percentage: PrunePercent,
+    pub parquet_mem_cache_prune_percentage: ParquetCachePrunePercent,
 
     /// The interval on which to check if the in-memory Parquet cache needs to be pruned.
     ///
@@ -259,16 +259,37 @@ pub struct Config {
     pub disable_parquet_mem_cache: bool,
 }
 
+/// Specified size of the Parquet cache in megabytes (MB)
 #[derive(Debug, Clone, Copy)]
-pub struct PrunePercent(f64);
+pub struct ParquetCacheSizeMb(usize);
 
-impl From<PrunePercent> for f64 {
-    fn from(value: PrunePercent) -> Self {
+impl ParquetCacheSizeMb {
+    /// Express this cache size in terms of bytes (B)
+    fn as_num_bytes(&self) -> usize {
+        self.0 * 1_000 * 1_000
+    }
+}
+
+impl FromStr for ParquetCacheSizeMb {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::prelude::v1::Result<Self, Self::Err> {
+        s.parse()
+            .context("failed to parse parquet cache size value as an unsigned integer")
+            .map(Self)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ParquetCachePrunePercent(f64);
+
+impl From<ParquetCachePrunePercent> for f64 {
+    fn from(value: ParquetCachePrunePercent) -> Self {
         value.0
     }
 }
 
-impl FromStr for PrunePercent {
+impl FromStr for ParquetCachePrunePercent {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> std::prelude::v1::Result<Self, Self::Err> {
@@ -330,7 +351,7 @@ pub async fn command(config: Config) -> Result<()> {
         let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
             object_store,
             Arc::clone(&time_provider) as _,
-            config.parquet_mem_cache_size * 1_000,
+            config.parquet_mem_cache_size.as_num_bytes(),
             config.parquet_mem_cache_prune_percentage.into(),
             config.parquet_mem_cache_prune_interval.into(),
         );
