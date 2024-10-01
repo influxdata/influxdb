@@ -756,7 +756,7 @@ pub(crate) mod tests {
         assert_eq!(2, inner_store.get_request_count(&path));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn cache_evicts_lru_when_full() {
         let inner_store = Arc::new(TestObjectStore::new(Arc::new(InMemory::new())));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -870,7 +870,7 @@ pub(crate) mod tests {
         assert_eq!(1, inner_store.get_request_count(&path_3));
 
         // allow some time for pruning:
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
 
         // GET paris from the cached store, this will not be served by the cache, because paris was
         // evicted by neelix:
