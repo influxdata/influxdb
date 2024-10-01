@@ -16,6 +16,7 @@ use influxdb3_pro_buffer::{
 };
 use influxdb3_pro_clap_blocks::serve::BufferMode;
 use influxdb3_pro_compactor::{Compactor, CompactorConfig};
+use influxdb3_pro_data_layout::CompactionConfig;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
@@ -447,7 +448,13 @@ pub async fn command(config: Config) -> Result<()> {
             compaction_hosts.push(config.host_identifier_prefix.clone());
         }
 
-        CompactorConfig::new(compactor_id.into(), compaction_hosts)
+        let compaction_config = CompactionConfig::new(
+            &config.pro_config.compaction_multipliers.0,
+            config.pro_config.compaction_gen2_duration.into(),
+            config.pro_config.compaction_row_limit,
+        );
+
+        CompactorConfig::new(compactor_id.into(), compaction_hosts, compaction_config)
     });
 
     let time_provider = Arc::new(SystemProvider::new());

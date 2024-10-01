@@ -35,6 +35,42 @@ pub struct ProServeConfig {
     /// It should have exclusive write access to this prefix in object storage.
     #[clap(long = "compactor-id", env = "INFLUXDB3_PRO_COMPACTOR_ID", action)]
     pub compactor_id: Option<String>,
+
+    /// The limit to the number of rows per file that the compactor will write. This is a soft limit
+    /// and the compactor may write more rows than this limit.
+    #[clap(
+        long = "compaction-row-limit",
+        env = "INFLUXDB3_PRO_COMPACTION_ROW_LIMIT",
+        default_value = "1000000",
+        action
+    )]
+    pub compaction_row_limit: usize,
+
+    /// This is the duration of the first level of compaction (gen2). Later levels of compaction
+    /// will be multiples of this duration. This number should be equal to or greater than
+    /// the gen1 duration. The default is 20m, which is 2x the default gen1 duration of 10m.
+    #[clap(
+        long = "compaction-gen2-duration",
+        env = "INFLUXDB3_PRO_COMPACTION_GEN2_DURATION",
+        default_value = "20m",
+        action
+    )]
+    pub compaction_gen2_duration: humantime::Duration,
+
+    /// This comma-separated list of multiples specifies the duration of each level of compaction.
+    /// The number of elements in this list will also determine the number of levels of compaction.
+    /// The first element in the list will be the duration of the first level of compaction (gen3).
+    /// Each subsequent level will be a multiple of the previous level.
+    ///
+    /// The default values of 2,4,6,5 when paired with the deafault gen2 duration of 20m will result
+    /// in the following compaction levels: 20m (gen2), 1h (gen3), 4h (gen4), 24h (gen5), 5d (gen6).
+    #[clap(
+        long = "compaction-multipliers",
+        env = "INFLUXDB3_PRO_COMPACTION_MULTIPLIERS",
+        default_value = "2,4,6,5",
+        action
+    )]
+    pub compaction_multipliers: CompactionMultipliers,
 }
 
 /// Mode of operation for the InfluxDB Pro write buffer
@@ -83,5 +119,20 @@ impl FromStr for ReplicaList {
             bail!("list of replicas cannot be empty")
         }
         Ok(Self(replicas))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CompactionMultipliers(pub Vec<u8>);
+
+impl FromStr for CompactionMultipliers {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let multipliers: Result<Vec<u8>, _> = s.split(',').map(|s| s.trim().parse()).collect();
+        match multipliers {
+            Ok(multipliers) if !multipliers.is_empty() => Ok(Self(multipliers)),
+            _ => bail!("Invalid list of compaction multipliers"),
+        }
     }
 }

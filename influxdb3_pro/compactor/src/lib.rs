@@ -123,12 +123,15 @@ pub struct CompactorConfig {
 }
 
 impl CompactorConfig {
-    pub fn new(compactor_id: Arc<str>, compaction_hosts: Vec<String>) -> Self {
+    pub fn new(
+        compactor_id: Arc<str>,
+        compaction_hosts: Vec<String>,
+        compaction_config: CompactionConfig,
+    ) -> Self {
         Self {
             compactor_id,
             compaction_hosts,
-            // TODO: make this configurable
-            compaction_config: CompactionConfig::default(),
+            compaction_config,
         }
     }
 
