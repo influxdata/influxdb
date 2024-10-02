@@ -9,10 +9,11 @@ members = [
     "influxdb3_pro/*",
     "influxdb3_process",
     "influxdb3_server",
+    "influxdb3_telemetry",
+    "influxdb3_test_helpers",
     "influxdb3_wal",
     "influxdb3_write",
     "iox_query_influxql_rewrite",
-    "influxdb3_telemetry",
 ]
 default-members = ["influxdb3"]
 

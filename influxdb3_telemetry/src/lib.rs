@@ -1,4 +1,6 @@
-mod cpu_mem_sampler;
+mod bucket;
+mod metrics;
+mod sampler;
 mod sender;
 mod stats;
 pub mod store;

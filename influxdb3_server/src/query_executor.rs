@@ -19,6 +19,7 @@ use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::last_cache::LastCacheFunction;
 use influxdb3_write::WriteBuffer;
 use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
@@ -54,9 +55,11 @@ pub struct QueryExecutorImpl {
     datafusion_config: Arc<HashMap<String, String>>,
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
     query_log: Arc<QueryLog>,
+    telemetry_store: Arc<TelemetryStore>,
 }
 
 impl QueryExecutorImpl {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         catalog: Arc<Catalog>,
         write_buffer: Arc<dyn WriteBuffer>,
@@ -65,6 +68,7 @@ impl QueryExecutorImpl {
         datafusion_config: Arc<HashMap<String, String>>,
         concurrent_query_limit: usize,
         query_log_size: usize,
+        telemetry_store: Arc<TelemetryStore>,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
             &metrics,
@@ -83,6 +87,7 @@ impl QueryExecutorImpl {
             datafusion_config,
             query_execution_semaphore,
             query_log,
+            telemetry_store,
         }
     }
 }
@@ -146,6 +151,8 @@ impl QueryExecutor for QueryExecutorImpl {
         let token = token.permit();
 
         debug!("execute stream of query results");
+        self.telemetry_store.update_num_queries();
+
         match ctx.execute_stream(Arc::clone(&plan)).await {
             Ok(query_results) => {
                 token.success();
@@ -589,6 +596,7 @@ mod tests {
     use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
         last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
@@ -657,6 +665,7 @@ mod tests {
         );
         let metrics = Arc::new(Registry::new());
         let df_config = Arc::new(Default::default());
+        let dummy_telem_store = TelemetryStore::new_without_background_runners();
         let query_executor = QueryExecutorImpl::new(
             write_buffer.catalog(),
             Arc::clone(&write_buffer),
@@ -665,6 +674,7 @@ mod tests {
             df_config,
             10,
             10,
+            dummy_telem_store,
         );
 
         (write_buffer, query_executor, time_provider)

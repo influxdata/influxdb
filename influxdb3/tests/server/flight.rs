@@ -7,7 +7,7 @@ use test_helpers::assert_contains;
 use crate::collect_stream;
 use crate::TestServer;
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn flight() -> Result<(), influxdb3_client::Error> {
     let server = TestServer::spawn().await;
 

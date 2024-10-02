@@ -102,3 +102,4 @@ serde_json.workspace = true
 test_helpers.workspace = true
 tonic.workspace = true
 tower.workspace = true
+test-log.workspace = true

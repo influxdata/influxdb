@@ -1,0 +1,18 @@
+[package]
+name = "influxdb3_test_helpers"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+bytes.workspace = true
+futures.workspace = true
+hashbrown.workspace = true
+object_store.workspace = true
+parking_lot.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

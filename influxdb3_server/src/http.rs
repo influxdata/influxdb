@@ -420,6 +420,12 @@ where
                 .await?
         };
 
+        let num_lines = result.line_count;
+        let payload_size = body.len();
+        self.common_state
+            .telemetry_store
+            .add_write_metrics(num_lines, payload_size);
+
         if result.invalid_lines.is_empty() {
             Ok(Response::new(Body::empty()))
         } else {

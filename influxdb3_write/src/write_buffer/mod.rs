@@ -526,7 +526,6 @@ impl WriteBuffer for WriteBufferImpl {}
 mod tests {
     use super::*;
     use crate::parquet_cache::test_cached_obj_store_and_oracle;
-    use crate::parquet_cache::tests::TestObjectStore;
     use crate::paths::{CatalogFilePath, SnapshotInfoFilePath};
     use crate::persister::Persister;
     use crate::PersistedSnapshot;
@@ -537,6 +536,7 @@ mod tests {
     use futures_util::StreamExt;
     use influxdb3_catalog::catalog::SequenceNumber;
     use influxdb3_id::DbId;
+    use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
@@ -1580,7 +1580,7 @@ mod tests {
     async fn test_parquet_cache() {
         // set up a write buffer using a TestObjectStore so we can spy on requests that get
         // through to the object store for parquet files:
-        let test_store = Arc::new(TestObjectStore::new(Arc::new(InMemory::new())));
+        let test_store = Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
         let obj_store: Arc<dyn ObjectStore> = Arc::clone(&test_store) as _;
         let (wbuf, ctx) = setup_cache_optional(
             Time::from_timestamp_nanos(0),
@@ -1684,7 +1684,7 @@ mod tests {
     async fn test_no_parquet_cache() {
         // set up a write buffer using a TestObjectStore so we can spy on requests that get
         // through to the object store for parquet files:
-        let test_store = Arc::new(TestObjectStore::new(Arc::new(InMemory::new())));
+        let test_store = Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
         let obj_store: Arc<dyn ObjectStore> = Arc::clone(&test_store) as _;
         let (wbuf, ctx) = setup_cache_optional(
             Time::from_timestamp_nanos(0),
