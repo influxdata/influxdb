@@ -2791,6 +2791,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb3_test_helpers"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures",
+ "hashbrown 0.14.5",
+ "object_store",
+ "parking_lot",
+ "tokio",
+]
+
+[[package]]
 name = "influxdb3_wal"
 version = "0.1.0"
 dependencies = [
@@ -2839,6 +2852,7 @@ dependencies = [
  "influxdb-line-protocol",
  "influxdb3_catalog",
  "influxdb3_id",
+ "influxdb3_test_helpers",
  "influxdb3_wal",
  "insta",
  "iox_catalog",
