@@ -52,25 +52,10 @@ impl AsRef<ObjPath> for CatalogFilePath {
 pub struct ParquetFilePath(ObjPath);
 
 impl ParquetFilePath {
+    /// Generate a parquet file path using the given arguments. This will convert the provided
+    /// `chunk_time` into a date time string with format `'YYYY-MM-DDTHH-MM'`
     pub fn new(
         host_prefix: &str,
-        db_name: &str,
-        db_id: u32,
-        table_name: &str,
-        table_id: u32,
-        date: DateTime<Utc>,
-        wal_file_sequence_number: WalFileSequenceNumber,
-    ) -> Self {
-        let path = ObjPath::from(format!(
-            "{host_prefix}/dbs/{db_name}-{db_id}/{table_name}-{table_id}/{}/{}.{}",
-            date.format("%Y-%m-%d/%H-%M"),
-            wal_file_sequence_number.as_u64(),
-            PARQUET_FILE_EXTENSION
-        ));
-        Self(path)
-    }
-
-    pub fn new_with_chunk_time(
         db_name: &str,
         db_id: u32,
         table_name: &str,
@@ -78,13 +63,12 @@ impl ParquetFilePath {
         chunk_time: i64,
         wal_file_sequence_number: WalFileSequenceNumber,
     ) -> Self {
-        // Convert the chunk time into a date time string for YYYY-MM-DDTHH-MM
         let date_time = DateTime::<Utc>::from_timestamp_nanos(chunk_time);
         let path = ObjPath::from(format!(
-            "dbs/{db_name}-{db_id}/{table_name}-{table_id}/{}/{:010}.{}",
-            date_time.format("%Y-%m-%d/%H-%M"),
-            wal_file_sequence_number.as_u64(),
-            PARQUET_FILE_EXTENSION
+            "{host_prefix}/dbs/{db_name}-{db_id}/{table_name}-{table_id}/{date_string}/{wal_seq:010}.{ext}",
+            date_string = date_time.format("%Y-%m-%d/%H-%M"),
+            wal_seq = wal_file_sequence_number.as_u64(),
+            ext = PARQUET_FILE_EXTENSION
         ));
         Self(path)
     }
@@ -153,10 +137,13 @@ fn parquet_file_path_new() {
             0,
             "my_table",
             0,
-            Utc.with_ymd_and_hms(2038, 1, 19, 3, 14, 7).unwrap(),
-            WalFileSequenceNumber::new(0),
+            Utc.with_ymd_and_hms(2038, 1, 19, 3, 14, 7)
+                .unwrap()
+                .timestamp_nanos_opt()
+                .unwrap(),
+            WalFileSequenceNumber::new(1337),
         ),
-        ObjPath::from("my_host/dbs/my_db-0/my_table-0/2038-01-19/03-14/0.parquet")
+        ObjPath::from("my_host/dbs/my_db-0/my_table-0/2038-01-19/03-14/0000001337.parquet")
     );
 }
 
@@ -169,12 +156,15 @@ fn parquet_file_percent_encoded() {
             0,
             "..",
             0,
-            Utc.with_ymd_and_hms(2038, 1, 19, 3, 14, 7).unwrap(),
-            WalFileSequenceNumber::new(0),
+            Utc.with_ymd_and_hms(2038, 1, 19, 3, 14, 7)
+                .unwrap()
+                .timestamp_nanos_opt()
+                .unwrap(),
+            WalFileSequenceNumber::new(100),
         )
         .as_ref()
         .as_ref(),
-        "%2E%2E/dbs/..-0/..-0/2038-01-19/03-14/0.parquet"
+        "%2E%2E/dbs/..-0/..-0/2038-01-19/03-14/0000000100.parquet"
     );
 }
 
