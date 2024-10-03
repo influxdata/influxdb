@@ -217,6 +217,12 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 			mapping.Dropped = append(mapping.Dropped, p)
 			atomic.AddInt64(&w.stats.WriteDropped, 1)
 			continue
+		} else if ((rp.FutureWriteLimit > 0) && p.Time().After(time.Now().Add(rp.FutureWriteLimit))) ||
+			((rp.PastWriteLimit > 0) && p.Time().Before(time.Now().Add(-rp.PastWriteLimit))) {
+			// Point is too far in the future or too far in the past
+			mapping.Dropped = append(mapping.Dropped, p)
+			atomic.AddInt64(&w.stats.WriteDropped, 1)
+			continue
 		}
 
 		sh := sg.ShardFor(p)
@@ -354,13 +360,18 @@ func (w *PointsWriter) WritePointsPrivileged(writeCtx tsdb.WriteContext, databas
 		return err
 	}
 
-	// Write each shard in it's own goroutine and return as soon as one fails.
+	// Write each shard in its own goroutine and return as soon as one fails.
 	ch := make(chan error, len(shardMappings.Points))
 	for shardID, points := range shardMappings.Points {
 		go func(writeCtx tsdb.WriteContext, shard *meta.ShardInfo, database, retentionPolicy string, points []models.Point) {
 			err := w.writeToShard(writeCtx, shard, database, retentionPolicy, points)
 			if err == tsdb.ErrShardDeletion {
-				err = tsdb.PartialWriteError{Reason: fmt.Sprintf("shard %d is pending deletion", shard.ID), Dropped: len(points)}
+
+				err = tsdb.PartialWriteError{Reason: fmt.Sprintf("shard %d is pending deletion", shard.ID),
+					Dropped:         len(points),
+					Database:        database,
+					RetentionPolicy: retentionPolicy,
+				}
 			}
 			ch <- err
 		}(writeCtx, shardMappings.Shards[shardID], database, retentionPolicy, points)
@@ -375,7 +386,11 @@ func (w *PointsWriter) WritePointsPrivileged(writeCtx tsdb.WriteContext, databas
 	atomic.AddInt64(&w.stats.SubWriteOK, 1)
 
 	if err == nil && len(shardMappings.Dropped) > 0 {
-		err = tsdb.PartialWriteError{Reason: "points beyond retention policy", Dropped: len(shardMappings.Dropped)}
+		err = tsdb.PartialWriteError{Reason: "points beyond retention policy or outside permissible write window",
+			Dropped:         len(shardMappings.Dropped),
+			Database:        database,
+			RetentionPolicy: retentionPolicy,
+		}
 	}
 
 	for range shardMappings.Points {

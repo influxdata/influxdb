@@ -1082,6 +1082,8 @@ type RetentionPolicySpec struct {
 	ReplicaN           *int
 	Duration           *time.Duration
 	ShardGroupDuration time.Duration
+	FutureWriteLimit   *time.Duration
+	PastWriteLimit     *time.Duration
 }
 
 // NewRetentionPolicyInfo creates a new retention policy info from the specification.
@@ -1099,6 +1101,10 @@ func (s *RetentionPolicySpec) Matches(rpi *RetentionPolicyInfo) bool {
 	} else if s.Duration != nil && *s.Duration != rpi.Duration {
 		return false
 	} else if s.ReplicaN != nil && *s.ReplicaN != rpi.ReplicaN {
+		return false
+	} else if s.FutureWriteLimit != nil && *s.FutureWriteLimit != rpi.FutureWriteLimit {
+		return false
+	} else if s.PastWriteLimit != nil && *s.PastWriteLimit != rpi.PastWriteLimit {
 		return false
 	}
 
@@ -1124,6 +1130,12 @@ func (s *RetentionPolicySpec) marshal() *internal.RetentionPolicySpec {
 	if s.ReplicaN != nil {
 		pb.ReplicaN = proto.Uint32(uint32(*s.ReplicaN))
 	}
+	if s.FutureWriteLimit != nil {
+		pb.FutureWriteLimit = proto.Int64(int64(*s.FutureWriteLimit))
+	}
+	if s.PastWriteLimit != nil {
+		pb.PastWriteLimit = proto.Int64(int64(*s.PastWriteLimit))
+	}
 	return pb
 }
 
@@ -1142,6 +1154,14 @@ func (s *RetentionPolicySpec) unmarshal(pb *internal.RetentionPolicySpec) {
 	if pb.ReplicaN != nil {
 		replicaN := int(pb.GetReplicaN())
 		s.ReplicaN = &replicaN
+	}
+	if pb.FutureWriteLimit != nil {
+		futureWriteLimit := time.Duration(pb.GetFutureWriteLimit())
+		s.FutureWriteLimit = &futureWriteLimit
+	}
+	if pb.PastWriteLimit != nil {
+		pastWriteLimit := time.Duration(pb.GetPastWriteLimit())
+		s.PastWriteLimit = &pastWriteLimit
 	}
 }
 
@@ -1168,6 +1188,8 @@ type RetentionPolicyInfo struct {
 	ShardGroupDuration time.Duration
 	ShardGroups        []ShardGroupInfo
 	Subscriptions      []SubscriptionInfo
+	FutureWriteLimit   time.Duration
+	PastWriteLimit     time.Duration
 }
 
 // NewRetentionPolicyInfo returns a new instance of RetentionPolicyInfo
@@ -1193,6 +1215,8 @@ func (rpi *RetentionPolicyInfo) Apply(spec *RetentionPolicySpec) *RetentionPolic
 		ReplicaN:           rpi.ReplicaN,
 		Duration:           rpi.Duration,
 		ShardGroupDuration: rpi.ShardGroupDuration,
+		FutureWriteLimit:   rpi.FutureWriteLimit,
+		PastWriteLimit:     rpi.PastWriteLimit,
 	}
 	if spec.Name != "" {
 		rp.Name = spec.Name
@@ -1202,6 +1226,12 @@ func (rpi *RetentionPolicyInfo) Apply(spec *RetentionPolicySpec) *RetentionPolic
 	}
 	if spec.Duration != nil {
 		rp.Duration = *spec.Duration
+	}
+	if spec.FutureWriteLimit != nil {
+		rp.FutureWriteLimit = *spec.FutureWriteLimit
+	}
+	if spec.PastWriteLimit != nil {
+		rp.PastWriteLimit = *spec.PastWriteLimit
 	}
 	rp.ShardGroupDuration = normalisedShardDuration(spec.ShardGroupDuration, rp.Duration)
 	return rp

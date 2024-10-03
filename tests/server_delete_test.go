@@ -347,7 +347,7 @@ func mustDropCreate(s Server) {
 		panic(err)
 	}
 
-	if err := s.CreateDatabaseAndRetentionPolicy(db, NewRetentionPolicySpec(rp, 1, 0), true); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy(db, NewRetentionPolicySpec(rp, 1, 0, 0, 0), true); err != nil {
 		panic(err)
 	}
 }
