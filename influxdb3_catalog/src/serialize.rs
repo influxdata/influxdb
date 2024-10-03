@@ -1,5 +1,6 @@
 use crate::catalog::TableDefinition;
 use arrow::datatypes::DataType as ArrowDataType;
+use influxdb3_id::TableId;
 use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
 use schema::{InfluxColumnType, SchemaBuilder};
 use serde::{Deserialize, Serialize};
@@ -33,7 +34,8 @@ impl<'de> Deserialize<'de> for TableDefinition {
 #[serde_with::serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 struct TableSnapshot<'a> {
-    name: &'a str,
+    table_id: TableId,
+    table_name: &'a str,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     key: Option<Vec<&'a str>>,
     #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
@@ -147,7 +149,8 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
         let keys = def.schema().series_key();
         let last_caches = def.last_caches.values().map(Into::into).collect();
         Self {
-            name: def.name.as_ref(),
+            table_id: def.table_id,
+            table_name: def.table_name.as_ref(),
             cols,
             key: keys,
             last_caches,
@@ -206,9 +209,10 @@ impl<'a> From<&'a ArrowDataType> for DataType<'a> {
 
 impl<'a> From<TableSnapshot<'a>> for TableDefinition {
     fn from(snap: TableSnapshot<'a>) -> Self {
-        let name = snap.name.into();
+        let table_name = snap.table_name.into();
+        let table_id = snap.table_id;
         let mut b = SchemaBuilder::new();
-        b.measurement(snap.name.to_string());
+        b.measurement(snap.table_name.to_string());
         if let Some(keys) = snap.key {
             b.with_series_key(keys);
         }
@@ -234,7 +238,8 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
             .collect();
 
         Self {
-            name,
+            table_name,
+            table_id,
             schema,
             last_caches,
         }
@@ -262,6 +267,7 @@ impl<'a> From<DataType<'a>> for schema::InfluxFieldType {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct LastCacheSnapshot<'a> {
+    table_id: TableId,
     table: &'a str,
     name: &'a str,
     keys: Vec<&'a str>,
@@ -273,6 +279,7 @@ struct LastCacheSnapshot<'a> {
 impl<'a> From<&'a LastCacheDefinition> for LastCacheSnapshot<'a> {
     fn from(lcd: &'a LastCacheDefinition) -> Self {
         Self {
+            table_id: lcd.table_id,
             table: &lcd.table,
             name: &lcd.name,
             keys: lcd.key_columns.iter().map(|v| v.as_str()).collect(),
@@ -291,6 +298,7 @@ impl<'a> From<&'a LastCacheDefinition> for LastCacheSnapshot<'a> {
 impl<'a> From<LastCacheSnapshot<'a>> for LastCacheDefinition {
     fn from(snap: LastCacheSnapshot<'a>) -> Self {
         Self {
+            table_id: snap.table_id,
             table: snap.table.to_string(),
             name: snap.name.to_string(),
             key_columns: snap.keys.iter().map(|s| s.to_string()).collect(),

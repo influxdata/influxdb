@@ -8,15 +8,14 @@ use crate::write_buffer::table_buffer::TableBuffer;
 use crate::{ParquetFile, ParquetFileId, PersistedSnapshot};
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
-use data_types::{
-    ChunkId, ChunkOrder, PartitionKey, TableId, TimestampMinMax, TransitionPartitionId,
-};
+use data_types::{ChunkId, ChunkOrder, PartitionKey, TimestampMinMax, TransitionPartitionId};
 use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::exec::Executor;
@@ -81,20 +80,24 @@ impl QueryableBuffer {
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+        let table_id = self
+            .catalog
+            .table_name_to_id(db_schema.id, table_name.into())
+            .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
         let table = db_schema
             .tables
-            .get(table_name)
-            .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
+            .get(&table_id)
+            .expect("Checked table already exists");
 
         let schema = table.schema.clone();
         let arrow_schema = schema.as_arrow();
 
         let buffer = self.buffer.read();
 
-        let Some(db_buffer) = buffer.db_to_table.get(db_schema.name.as_ref()) else {
+        let Some(db_buffer) = buffer.db_to_table.get(&db_schema.id) else {
             return Ok(vec![]);
         };
-        let Some(table_buffer) = db_buffer.get(table_name) else {
+        let Some(table_buffer) = db_buffer.get(&table_id) else {
             return Ok(vec![]);
         };
 
@@ -115,7 +118,7 @@ impl QueryableBuffer {
                     schema: schema.clone(),
                     stats: Arc::new(chunk_stats),
                     partition_id: TransitionPartitionId::new(
-                        TableId::new(0),
+                        data_types::TableId::new(0),
                         &PartitionKey::from(gen_time.to_string()),
                     ),
                     sort_key: None,
@@ -150,23 +153,25 @@ impl QueryableBuffer {
 
             let mut persisting_chunks = vec![];
             let catalog = Arc::clone(&buffer.catalog);
-            for (database_name, table_map) in buffer.db_to_table.iter_mut() {
-                for (table_name, table_buffer) in table_map.iter_mut() {
+            for (database_id, table_map) in buffer.db_to_table.iter_mut() {
+                for (table_id, table_buffer) in table_map.iter_mut() {
                     let snapshot_chunks = table_buffer.snapshot(snapshot_details.end_time_marker);
 
                     for chunk in snapshot_chunks {
+                        let table_name = catalog
+                            .table_id_to_name(*database_id, *table_id)
+                            .expect("table exists");
+                        let db_name = catalog.db_id_to_name(*database_id).expect("db_exists");
                         let persist_job = PersistJob {
-                            database_name: Arc::clone(database_name),
-                            table_name: Arc::clone(table_name),
+                            database_id: *database_id,
+                            table_id: *table_id,
+                            table_name: Arc::clone(&table_name),
                             chunk_time: chunk.chunk_time,
                             path: ParquetFilePath::new_with_chunk_time(
-                                database_name.as_ref(),
-                                catalog
-                                    .db_schema(database_name)
-                                    .expect("db exists")
-                                    .id
-                                    .as_u32(),
+                                db_name.as_ref(),
+                                database_id.as_u32(),
                                 table_name.as_ref(),
+                                table_id.as_u32(),
                                 chunk.chunk_time,
                                 write.wal_file_number,
                             ),
@@ -242,8 +247,8 @@ impl QueryableBuffer {
             let mut cache_notifiers = vec![];
             for persist_job in persist_jobs {
                 let path = persist_job.path.to_string();
-                let database_name = Arc::clone(&persist_job.database_name);
-                let table_name = Arc::clone(&persist_job.table_name);
+                let database_id = persist_job.database_id;
+                let table_id = persist_job.table_id;
                 let chunk_time = persist_job.chunk_time;
                 let min_time = persist_job.timestamp_min_max.min;
                 let max_time = persist_job.timestamp_min_max.max;
@@ -257,8 +262,8 @@ impl QueryableBuffer {
                 .await;
                 cache_notifiers.push(cache_notifier);
                 persisted_snapshot.add_parquet_file(
-                    database_name,
-                    table_name,
+                    database_id,
+                    table_id,
                     ParquetFile {
                         id: ParquetFileId::new(),
                         path,
@@ -312,8 +317,8 @@ impl QueryableBuffer {
         receiver
     }
 
-    pub fn persisted_parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
-        self.persisted_files.get_files(db_name, table_name)
+    pub fn persisted_parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
+        self.persisted_files.get_files(db_id, table_id)
     }
 
     pub fn persisted_snapshot_notify_rx(
@@ -345,11 +350,11 @@ impl WalFileNotifier for QueryableBuffer {
 
 #[derive(Debug)]
 pub struct BufferState {
-    pub db_to_table: HashMap<Arc<str>, TableNameToBufferMap>,
+    pub db_to_table: HashMap<DbId, TableIdToBufferMap>,
     catalog: Arc<Catalog>,
 }
 
-type TableNameToBufferMap = HashMap<Arc<str>, TableBuffer>;
+type TableIdToBufferMap = HashMap<TableId, TableBuffer>;
 
 impl BufferState {
     pub fn new(catalog: Arc<Catalog>) -> Self {
@@ -370,17 +375,17 @@ impl BufferState {
 
                     let db_schema = self
                         .catalog
-                        .db_schema(&catalog_batch.database_name)
+                        .db_schema(&catalog_batch.database_id)
                         .expect("database should exist");
 
                     for op in catalog_batch.ops {
                         match op {
                             CatalogOp::CreateLastCache(definition) => {
                                 let table_schema = db_schema
-                                    .get_table_schema(&definition.table)
+                                    .get_table_schema(definition.table_id)
                                     .expect("table should exist");
                                 last_cache_provider.create_cache_from_definition(
-                                    db_schema.name.as_ref(),
+                                    db_schema.id,
                                     table_schema,
                                     &definition,
                                 );
@@ -388,8 +393,8 @@ impl BufferState {
                             CatalogOp::DeleteLastCache(cache) => {
                                 // we can ignore it if this doesn't exist for any reason
                                 let _ = last_cache_provider.delete_cache(
-                                    db_schema.name.as_ref(),
-                                    &cache.table,
+                                    db_schema.id,
+                                    cache.table_id,
                                     &cache.name,
                                 );
                             }
@@ -406,30 +411,23 @@ impl BufferState {
     fn add_write_batch(&mut self, write_batch: WriteBatch) {
         let db_schema = self
             .catalog
-            .db_schema(&write_batch.database_name)
+            .db_schema(&write_batch.database_id)
             .expect("database should exist");
-        let database_buffer = self
-            .db_to_table
-            .entry(write_batch.database_name)
-            .or_default();
+        let database_buffer = self.db_to_table.entry(write_batch.database_id).or_default();
 
-        for (table_name, table_chunks) in write_batch.table_chunks {
-            let table_buffer = database_buffer
-                .entry_ref(table_name.as_ref())
-                .or_insert_with(|| {
-                    let table_schema = db_schema
-                        .get_table(table_name.as_ref())
-                        .expect("table should exist");
-                    let sort_key = table_schema
-                        .schema
-                        .primary_key()
-                        .iter()
-                        .map(|c| c.to_string())
-                        .collect::<Vec<_>>();
-                    let index_columns = table_schema.index_columns();
+        for (table_id, table_chunks) in write_batch.table_chunks {
+            let table_buffer = database_buffer.entry(table_id).or_insert_with(|| {
+                let table_schema = db_schema.get_table(table_id).expect("table should exist");
+                let sort_key = table_schema
+                    .schema
+                    .primary_key()
+                    .iter()
+                    .map(|c| c.to_string())
+                    .collect::<Vec<_>>();
+                let index_columns = table_schema.index_columns();
 
-                    TableBuffer::new(&index_columns, SortKey::from(sort_key))
-                });
+                TableBuffer::new(&index_columns, SortKey::from(sort_key))
+            });
             for (chunk_time, chunk) in table_chunks.chunk_time_to_chunk {
                 table_buffer.buffer_chunk(chunk_time, chunk.rows);
             }
@@ -439,7 +437,8 @@ impl BufferState {
 
 #[derive(Debug)]
 struct PersistJob {
-    database_name: Arc<str>,
+    database_id: DbId,
+    table_id: TableId,
     table_name: Arc<str>,
     chunk_time: i64,
     path: ParquetFilePath,
@@ -459,10 +458,10 @@ async fn sort_dedupe_persist(
     // iox_query
     let row_count = persist_job.batch.num_rows();
     info!(
-        "Persisting {} rows for db {} and table {} and chunk {} to file {}",
+        "Persisting {} rows for db id {} and table id {} and chunk {} to file {}",
         row_count,
-        persist_job.database_name,
-        persist_job.table_name,
+        persist_job.database_id,
+        persist_job.table_id,
         persist_job.chunk_time,
         persist_job.path.to_string()
     );
@@ -479,7 +478,7 @@ async fn sort_dedupe_persist(
         schema: persist_job.schema.clone(),
         stats: Arc::new(chunk_stats),
         partition_id: TransitionPartitionId::new(
-            TableId::new(0),
+            data_types::TableId::new(0),
             &PartitionKey::from(format!("{}", persist_job.chunk_time)),
         ),
         sort_key: Some(persist_job.sort_key.clone()),
@@ -491,7 +490,7 @@ async fn sort_dedupe_persist(
 
     let logical_plan = ReorgPlanner::new()
         .compact_plan(
-            TableId::new(0),
+            data_types::TableId::new(0),
             persist_job.table_name,
             &persist_job.schema,
             chunks,

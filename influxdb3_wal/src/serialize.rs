@@ -92,8 +92,7 @@ mod tests {
         Field, FieldData, Row, TableChunk, TableChunks, WalFileSequenceNumber, WalOp, WriteBatch,
     };
     use hashbrown::HashMap;
-    use influxdb3_id::DbId;
-    use std::sync::Arc;
+    use influxdb3_id::{DbId, TableId};
 
     #[test]
     fn test_serialize_deserialize() {
@@ -117,9 +116,9 @@ mod tests {
             max_time: 10,
             chunk_time_to_chunk: [(1, chunk)].iter().cloned().collect(),
         };
-        let table_name: Arc<str> = "table2".into();
+        let table_id = TableId::from(2);
         let mut table_chunks = HashMap::new();
-        table_chunks.insert(table_name, chunks);
+        table_chunks.insert(table_id, chunks);
 
         let contents = WalContents {
             min_timestamp_ns: 0,

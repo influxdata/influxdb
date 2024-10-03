@@ -3,12 +3,12 @@ source: influxdb3_write/src/write_buffer/mod.rs
 expression: catalog_json
 ---
 {
-  "databases": {
-    "db": {
+  "databases": [
+    {
       "id": 0,
       "name": "db",
-      "tables": {
-        "table": {
+      "tables": [
+        {
           "cols": {
             "f1": {
               "influx_type": "field",
@@ -41,12 +41,26 @@ expression: catalog_json
               }
             }
           },
-          "name": "table"
+          "table_id": 0,
+          "table_name": "table"
         }
-      }
+      ]
     }
-  },
+  ],
+  "db_map": [
+    {
+      "db_id": 0,
+      "name": "db"
+    }
+  ],
   "host_id": "test_host",
   "instance_id": "[uuid]",
-  "sequence": 4
+  "sequence": 4,
+  "table_map": [
+    {
+      "db_id": 0,
+      "name": "table",
+      "table_id": 0
+    }
+  ]
 }

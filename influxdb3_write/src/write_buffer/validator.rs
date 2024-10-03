@@ -1,12 +1,15 @@
 use std::{borrow::Cow, sync::Arc};
 
 use crate::{write_buffer::Result, Precision, WriteLineError};
+use bimap::BiHashMap;
 use data_types::{NamespaceName, Timestamp};
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::{
     influx_column_type_from_field_value, Catalog, DatabaseSchema, TableDefinition,
 };
 
+use influxdb3_id::DbId;
+use influxdb3_id::TableId;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDataType, FieldDefinition,
     Gen1Duration, Row, TableChunks, WriteBatch,
@@ -86,8 +89,15 @@ impl WriteValidator<WithCatalog> {
                     line_number: line_idx + 1,
                     error_message: e.to_string(),
                 })
-                .and_then(|l| validate_v3_line(&mut schema, line_idx, l, lp_lines.peek().unwrap()))
-            {
+                .and_then(|l| {
+                    validate_v3_line(
+                        &self.state.catalog,
+                        &mut schema,
+                        line_idx,
+                        l,
+                        lp_lines.peek().unwrap(),
+                    )
+                }) {
                 Ok(line) => line,
                 Err(e) => {
                     if !accept_partial {
@@ -159,7 +169,7 @@ impl WriteValidator<WithCatalog> {
                     line_number: line_idx + 1,
                     error_message: e.to_string(),
                 })
-                .and_then(|l| validate_v1_line(&mut schema, line_idx, l))
+                .and_then(|l| validate_v1_line(&self.state.catalog, &mut schema, line_idx, l))
             {
                 Ok(line) => line,
                 Err(e) => {
@@ -216,6 +226,7 @@ impl WriteValidator<WithCatalog> {
 /// This errors if the write is being performed against a v1 table, i.e., one that does not have
 /// a series key.
 fn validate_v3_line<'a>(
+    catalog: &Catalog,
     db_schema: &mut Cow<'_, DatabaseSchema>,
     line_number: usize,
     line: v3::ParsedLine<'a>,
@@ -223,7 +234,11 @@ fn validate_v3_line<'a>(
 ) -> Result<(v3::ParsedLine<'a>, Option<CatalogOp>), WriteLineError> {
     let mut catalog_op = None;
     let table_name = line.series.measurement.as_str();
-    if let Some(table_def) = db_schema.get_table(table_name) {
+    if let Some(table_def) = catalog
+        .table_name_to_id(db_schema.id, table_name.into())
+        .and_then(|table_id| db_schema.get_table(table_id))
+    {
+        let table_id = table_def.table_id;
         if !table_def.is_v3() {
             return Err(WriteLineError {
                 original_line: raw_line.to_string(),
@@ -243,7 +258,7 @@ fn validate_v3_line<'a>(
                         error_message: format!(
                             "write to table {table_name} had the incorrect series key, \
                             expected: [{expected}], received: [{received}]",
-                            table_name = table_def.name,
+                            table_name = table_def.table_name,
                             expected = s.join(", "),
                             received = l.join(", "),
                         ),
@@ -258,7 +273,7 @@ fn validate_v3_line<'a>(
                         error_message: format!(
                             "write to table {table_name} was missing a series key, the series key \
                             contains [{key_members}]",
-                            table_name = table_def.name,
+                            table_name = table_def.table_name,
                             key_members = s.join(", "),
                         ),
                     });
@@ -303,7 +318,8 @@ fn validate_v3_line<'a>(
         // have been parsed and validated.
         if !columns.is_empty() {
             let database_name = Arc::clone(&db_schema.name);
-            let t = db_schema.to_mut().tables.get_mut(table_name).unwrap();
+            let database_id = db_schema.id;
+            let t = db_schema.to_mut().tables.get_mut(&table_id).unwrap();
 
             let mut fields = Vec::with_capacity(columns.len());
             for (name, influx_type) in &columns {
@@ -313,8 +329,10 @@ fn validate_v3_line<'a>(
                 });
             }
             catalog_op = Some(CatalogOp::AddFields(FieldAdditions {
+                database_id,
                 database_name,
-                table_name: Arc::clone(&t.name),
+                table_id: t.table_id,
+                table_name: Arc::clone(&t.table_name),
                 field_definitions: fields,
             }));
 
@@ -325,6 +343,7 @@ fn validate_v3_line<'a>(
             })?;
         }
     } else {
+        let table_id = TableId::new();
         let mut columns = Vec::new();
         let mut key = Vec::new();
         if let Some(series_key) = &line.series.series_key {
@@ -352,14 +371,21 @@ fn validate_v3_line<'a>(
             });
         }
 
-        let table = TableDefinition::new(Arc::clone(&table_name), columns, Some(key.clone()))
-            .map_err(|e| WriteLineError {
-                original_line: raw_line.to_string(),
-                line_number: line_number + 1,
-                error_message: e.to_string(),
-            })?;
+        let table = TableDefinition::new(
+            table_id,
+            Arc::clone(&table_name),
+            columns,
+            Some(key.clone()),
+        )
+        .map_err(|e| WriteLineError {
+            original_line: raw_line.to_string(),
+            line_number: line_number + 1,
+            error_message: e.to_string(),
+        })?;
 
         let table_definition_op = CatalogOp::CreateTable(influxdb3_wal::TableDefinition {
+            table_id,
+            database_id: db_schema.id,
             database_name: Arc::clone(&db_schema.name),
             table_name: Arc::clone(&table_name),
             field_definitions: fields,
@@ -367,12 +393,24 @@ fn validate_v3_line<'a>(
         });
         catalog_op = Some(table_definition_op);
 
+        // We have to add the mapping here or else each line might create a new
+        // table and table_id before the CatalogOp is applied
+        catalog
+            .inner()
+            .write()
+            .table_map
+            .entry(db_schema.id)
+            .and_modify(|map| {
+                map.insert(table_id, Arc::clone(&table_name));
+            })
+            .or_insert_with(|| {
+                let mut map = BiHashMap::new();
+                map.insert(table_id, Arc::clone(&table_name));
+                map
+            });
+
         assert!(
-            db_schema
-                .to_mut()
-                .tables
-                .insert(table_name, table)
-                .is_none(),
+            db_schema.to_mut().tables.insert(table_id, table).is_none(),
             "attempted to overwrite existing table"
         )
     }
@@ -388,13 +426,17 @@ fn validate_v3_line<'a>(
 /// An error will also be produced if the write, which is for the v1 data model, is targetting
 /// a v3 table.
 fn validate_v1_line<'a>(
+    catalog: &Catalog,
     db_schema: &mut Cow<'_, DatabaseSchema>,
     line_number: usize,
     line: ParsedLine<'a>,
 ) -> Result<(ParsedLine<'a>, Option<CatalogOp>), WriteLineError> {
     let mut catalog_op = None;
     let table_name = line.series.measurement.as_str();
-    if let Some(table_def) = db_schema.get_table(table_name) {
+    if let Some(table_def) = catalog
+        .table_name_to_id(db_schema.id, table_name.into())
+        .and_then(|table_id| db_schema.get_table(table_id))
+    {
         if table_def.is_v3() {
             return Err(WriteLineError {
                 original_line: line.to_string(),
@@ -443,7 +485,9 @@ fn validate_v1_line<'a>(
         // have been parsed and validated.
         if !columns.is_empty() {
             let database_name = Arc::clone(&db_schema.name);
-            let table_name = Arc::clone(&table_def.name);
+            let database_id = db_schema.id;
+            let table_name: Arc<str> = Arc::clone(&table_def.table_name);
+            let table_id = table_def.table_id;
 
             let mut fields = Vec::with_capacity(columns.len());
             for (name, influx_type) in &columns {
@@ -454,11 +498,7 @@ fn validate_v1_line<'a>(
             }
 
             // unwrap is safe due to the surrounding if let condition:
-            let t = db_schema
-                .to_mut()
-                .tables
-                .get_mut(table_name.as_ref())
-                .unwrap();
+            let t = db_schema.to_mut().tables.get_mut(&table_id).unwrap();
             t.add_columns(columns).map_err(|e| WriteLineError {
                 original_line: line.to_string(),
                 line_number: line_number + 1,
@@ -467,11 +507,14 @@ fn validate_v1_line<'a>(
 
             catalog_op = Some(CatalogOp::AddFields(FieldAdditions {
                 database_name,
+                database_id,
+                table_id,
                 table_name,
                 field_definitions: fields,
             }));
         }
     } else {
+        let table_id = TableId::new();
         // This is a new table, so build up its columns:
         let mut columns = Vec::new();
         if let Some(tag_set) = &line.series.tag_set {
@@ -498,13 +541,32 @@ fn validate_v1_line<'a>(
             });
         }
         catalog_op = Some(CatalogOp::CreateTable(influxdb3_wal::TableDefinition {
+            table_id,
+            database_id: db_schema.id,
             database_name: Arc::clone(&db_schema.name),
             table_name: Arc::clone(&table_name),
             field_definitions: fields,
             key: None,
         }));
 
+        // We have to add the mapping here or else each line might create a new
+        // table and table_id before the CatalogOp is applied
+        catalog
+            .inner()
+            .write()
+            .table_map
+            .entry(db_schema.id)
+            .and_modify(|map| {
+                map.insert(table_id, Arc::clone(&table_name));
+            })
+            .or_insert_with(|| {
+                let mut map = BiHashMap::new();
+                map.insert(table_id, Arc::clone(&table_name));
+                map
+            });
+
         let table = TableDefinition::new(
+            table_id,
             Arc::clone(&table_name),
             columns,
             Option::<Vec<String>>::None,
@@ -512,11 +574,7 @@ fn validate_v1_line<'a>(
         .unwrap();
 
         assert!(
-            db_schema
-                .to_mut()
-                .tables
-                .insert(table_name, table)
-                .is_none(),
+            db_schema.to_mut().tables.insert(table_id, table).is_none(),
             "attempted to overwrite existing table"
         );
     }
@@ -570,6 +628,8 @@ impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
                 .unwrap_or(0);
 
             convert_v3_parsed_line(
+                &self.state.catalog.catalog,
+                self.state.catalog.db_schema.id,
                 line,
                 &mut table_chunks,
                 ingest_time,
@@ -596,8 +656,10 @@ impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
 }
 
 fn convert_v3_parsed_line(
+    catalog: &Catalog,
+    db_id: DbId,
     line: v3::ParsedLine<'_>,
-    table_chunk_map: &mut HashMap<Arc<str>, TableChunks>,
+    table_chunk_map: &mut HashMap<TableId, TableChunks>,
     ingest_time: Time,
     gen1_duration: Gen1Duration,
     precision: Precision,
@@ -637,7 +699,10 @@ fn convert_v3_parsed_line(
     // Add the row into the correct chunk in the table
     let chunk_time = gen1_duration.chunk_time_for_timestamp(Timestamp::new(time_value_nanos));
     let table_name: Arc<str> = line.series.measurement.to_string().into();
-    let table_chunks = table_chunk_map.entry(Arc::clone(&table_name)).or_default();
+    let table_id = catalog
+        .table_name_to_id(db_id, Arc::clone(&table_name))
+        .expect("table should exist by this point");
+    let table_chunks = table_chunk_map.entry(table_id).or_default();
     table_chunks.push_row(
         chunk_time,
         Row {
@@ -670,6 +735,8 @@ impl<'lp> WriteValidator<LinesParsed<'lp, ParsedLine<'lp>>> {
             tag_count += line.series.tag_set.as_ref().map(|t| t.len()).unwrap_or(0);
 
             convert_v1_parsed_line(
+                &self.state.catalog.catalog,
+                self.state.catalog.db_schema.id,
                 line,
                 &mut table_chunks,
                 ingest_time,
@@ -696,8 +763,10 @@ impl<'lp> WriteValidator<LinesParsed<'lp, ParsedLine<'lp>>> {
 }
 
 fn convert_v1_parsed_line(
+    catalog: &Catalog,
+    db_id: DbId,
     line: ParsedLine<'_>,
-    table_chunk_map: &mut HashMap<Arc<str>, TableChunks>,
+    table_chunk_map: &mut HashMap<TableId, TableChunks>,
     ingest_time: Time,
     gen1_duration: Gen1Duration,
     precision: Precision,
@@ -747,7 +816,10 @@ fn convert_v1_parsed_line(
     });
 
     let table_name: Arc<str> = line.series.measurement.to_string().into();
-    let table_chunks = table_chunk_map.entry(table_name).or_default();
+    let table_id = catalog
+        .table_name_to_id(db_id, Arc::clone(&table_name))
+        .expect("table should exist by this point");
+    let table_chunks = table_chunk_map.entry(table_id).or_default();
     table_chunks.push_row(
         chunk_time,
         Row {
@@ -782,6 +854,7 @@ mod tests {
 
     use crate::{catalog::Catalog, write_buffer::Error, Precision};
     use data_types::NamespaceName;
+    use influxdb3_id::TableId;
     use influxdb3_wal::Gen1Duration;
     use iox_time::Time;
 
@@ -807,7 +880,12 @@ mod tests {
         assert!(result.errors.is_empty());
 
         assert_eq!(result.valid_data.database_name.as_ref(), namespace.as_str());
-        let batch = result.valid_data.table_chunks.get("cpu").unwrap();
+        // cpu table
+        let batch = result
+            .valid_data
+            .table_chunks
+            .get(&TableId::from(0))
+            .unwrap();
         assert_eq!(batch.row_count(), 1);
 
         Ok(())

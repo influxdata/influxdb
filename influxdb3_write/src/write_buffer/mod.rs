@@ -23,6 +23,7 @@ use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
 use influxdb3_catalog::catalog::Catalog;
+use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::object_store::WalObjectStore;
 use influxdb3_wal::CatalogOp::CreateLastCache;
 use influxdb3_wal::{
@@ -144,6 +145,11 @@ impl WriteBufferImpl {
         persisted_snapshots
             .first()
             .map(|s| s.next_db_id.set_next_id())
+            .unwrap_or(());
+        // Set the next table id to use when adding a new database
+        persisted_snapshots
+            .first()
+            .map(|s| s.next_table_id.set_next_id())
             .unwrap_or(());
         // Set the next file id to use when persisting ParquetFiles
         NEXT_FILE_ID.store(
@@ -292,21 +298,32 @@ impl WriteBufferImpl {
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let db_schema = self
+        let db_id = self
             .catalog
-            .db_schema(database_name)
+            .db_name_to_id(database_name.into())
             .ok_or_else(|| DataFusionError::Execution(format!("db {} not found", database_name)))?;
 
-        let table_schema = {
-            let table = db_schema.tables.get(table_name).ok_or_else(|| {
+        let db_schema = self
+            .catalog
+            .db_schema(&db_id)
+            .expect("Already checked db exists");
+
+        let table_id = self
+            .catalog
+            .table_name_to_id(db_id, table_name.into())
+            .ok_or_else(|| {
                 DataFusionError::Execution(format!(
                     "table {} not found in db {}",
                     table_name, database_name
                 ))
             })?;
 
-            table.schema.clone()
-        };
+        let table_schema = db_schema
+            .tables
+            .get(&table_id)
+            .expect("Already checked id exists")
+            .schema
+            .clone();
 
         let mut chunks = self.buffer.get_table_chunks(
             Arc::clone(&db_schema),
@@ -315,7 +332,7 @@ impl WriteBufferImpl {
             projection,
             ctx,
         )?;
-        let parquet_files = self.persisted_files.get_files(database_name, table_name);
+        let parquet_files = self.persisted_files.get_files(db_schema.id, table_id);
 
         let mut chunk_order = chunks.len() as i64;
 
@@ -412,8 +429,8 @@ impl Bufferer for WriteBufferImpl {
         self.catalog()
     }
 
-    fn parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
-        self.buffer.persisted_parquet_files(db_name, table_name)
+    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
+        self.buffer.persisted_parquet_files(db_id, table_id)
     }
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
@@ -448,8 +465,8 @@ impl LastCacheManager for WriteBufferImpl {
     #[allow(clippy::too_many_arguments)]
     async fn create_last_cache(
         &self,
-        db_name: &str,
-        tbl_name: &str,
+        db_id: DbId,
+        table_id: TableId,
         cache_name: Option<&str>,
         count: Option<usize>,
         ttl: Option<Duration>,
@@ -458,16 +475,21 @@ impl LastCacheManager for WriteBufferImpl {
     ) -> Result<Option<LastCacheDefinition>, Error> {
         let cache_name = cache_name.map(Into::into);
         let catalog = self.catalog();
-        let db_schema = catalog.db_schema(db_name).ok_or(Error::DbDoesNotExist)?;
+        let db_schema = catalog.db_schema(&db_id).ok_or(Error::DbDoesNotExist)?;
         let schema = db_schema
-            .get_table(tbl_name)
+            .get_table(table_id)
             .ok_or(Error::TableDoesNotExist)?
             .schema()
             .clone();
 
         if let Some(info) = self.last_cache.create_cache(CreateCacheArguments {
-            db_name: db_name.to_string(),
-            tbl_name: tbl_name.to_string(),
+            db_id,
+            db_name: catalog.db_id_to_name(db_id).expect("db exists").to_string(),
+            table_id,
+            table_name: catalog
+                .table_id_to_name(db_id, table_id)
+                .expect("table exists")
+                .to_string(),
             schema,
             cache_name,
             count,
@@ -475,7 +497,7 @@ impl LastCacheManager for WriteBufferImpl {
             key_columns,
             value_columns,
         })? {
-            self.catalog.add_last_cache(db_name, tbl_name, info.clone());
+            self.catalog.add_last_cache(db_id, table_id, info.clone());
             let add_cache_catalog_batch = WalOp::Catalog(CatalogBatch {
                 time_ns: self.time_provider.now().timestamp_nanos(),
                 database_id: db_schema.id,
@@ -492,24 +514,27 @@ impl LastCacheManager for WriteBufferImpl {
 
     async fn delete_last_cache(
         &self,
-        db_name: &str,
-        tbl_name: &str,
+        db_id: DbId,
+        tbl_id: TableId,
         cache_name: &str,
     ) -> crate::Result<(), self::Error> {
         let catalog = self.catalog();
-        self.last_cache
-            .delete_cache(db_name, tbl_name, cache_name)?;
-        catalog.delete_last_cache(db_name, tbl_name, cache_name);
+        self.last_cache.delete_cache(db_id, tbl_id, cache_name)?;
+        catalog.delete_last_cache(db_id, tbl_id, cache_name);
 
         // NOTE: if this fails then the cache will be gone from the running server, but will be
         // resurrected on server restart.
         self.wal
             .write_ops(vec![WalOp::Catalog(CatalogBatch {
                 time_ns: self.time_provider.now().timestamp_nanos(),
-                database_id: catalog.db_schema(db_name).expect("db exists").id,
-                database_name: db_name.into(),
+                database_id: db_id,
+                database_name: catalog.db_id_to_name(db_id).expect("database exists"),
                 ops: vec![CatalogOp::DeleteLastCache(LastCacheDelete {
-                    table: tbl_name.into(),
+                    table_id: tbl_id,
+                    table_name: catalog
+                        .table_id_to_name(db_id, tbl_id)
+                        .expect("table exists")
+                        .to_string(),
                     name: cache_name.into(),
                 })],
             })])
@@ -561,11 +586,13 @@ mod tests {
                 Precision::Nanosecond,
             );
 
-        let db = catalog.db_schema("foo").unwrap();
+        let db = catalog.db_schema(&DbId::from(0)).unwrap();
 
         assert_eq!(db.tables.len(), 2);
-        assert_eq!(db.tables.get("cpu").unwrap().num_columns(), 3);
-        assert_eq!(db.tables.get("foo").unwrap().num_columns(), 2);
+        // cpu table
+        assert_eq!(db.tables.get(&TableId::from(0)).unwrap().num_columns(), 3);
+        // foo table
+        assert_eq!(db.tables.get(&TableId::from(1)).unwrap().num_columns(), 2);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -576,11 +603,11 @@ mod tests {
         let (object_store, parquet_cache) =
             test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider));
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let catalog = persister.load_or_create_catalog().await.unwrap();
-        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
+        let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(catalog),
+            catalog,
             Arc::new(last_cache),
             Arc::clone(&time_provider),
             crate::test_help::make_exec(),
@@ -650,11 +677,11 @@ mod tests {
         assert_batches_eq!(&expected, &actual);
 
         // now load a new buffer from object storage
-        let catalog = persister.load_or_create_catalog().await.unwrap();
-        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
+        let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(catalog),
+            catalog,
             Arc::new(last_cache),
             Arc::clone(&time_provider),
             crate::test_help::make_exec(),
@@ -688,7 +715,9 @@ mod tests {
         )
         .await;
         let db_name = "db";
+        let db_id = DbId::from(0);
         let tbl_name = "table";
+        let tbl_id = TableId::from(0);
         let cache_name = "cache";
         // Write some data to the current segment and update the catalog:
         wbuf.write_lp(
@@ -701,16 +730,16 @@ mod tests {
         .await
         .unwrap();
         // Create a last cache:
-        wbuf.create_last_cache(db_name, tbl_name, Some(cache_name), None, None, None, None)
+        wbuf.create_last_cache(db_id, tbl_id, Some(cache_name), None, None, None, None)
             .await
             .unwrap();
 
         // load a new write buffer to ensure its durable
-        let catalog = wbuf.persister.load_or_create_catalog().await.unwrap();
-        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
+        let catalog = Arc::new(wbuf.persister.load_or_create_catalog().await.unwrap());
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
-            Arc::new(catalog),
+            catalog,
             Arc::new(last_cache),
             Arc::clone(&wbuf.time_provider),
             Arc::clone(&wbuf.buffer.executor),
@@ -744,11 +773,11 @@ mod tests {
         .unwrap();
 
         // and do another replay and verification
-        let catalog = wbuf.persister.load_or_create_catalog().await.unwrap();
-        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
+        let catalog = Arc::new(wbuf.persister.load_or_create_catalog().await.unwrap());
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
-            Arc::new(catalog),
+            catalog,
             Arc::new(last_cache),
             Arc::clone(&wbuf.time_provider),
             Arc::clone(&wbuf.buffer.executor),
@@ -791,21 +820,21 @@ mod tests {
         ];
         let actual = wbuf
             .last_cache_provider()
-            .get_cache_record_batches(db_name, tbl_name, None, &[])
+            .get_cache_record_batches(db_id, tbl_id, None, &[])
             .unwrap()
             .unwrap();
         assert_batches_eq!(&expected, &actual);
         // Delete the last cache:
-        wbuf.delete_last_cache(db_name, tbl_name, cache_name)
+        wbuf.delete_last_cache(db_id, tbl_id, cache_name)
             .await
             .unwrap();
 
         // do another reload and verify it's gone
-        let catalog = wbuf.persister.load_or_create_catalog().await.unwrap();
-        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
+        let catalog = Arc::new(wbuf.persister.load_or_create_catalog().await.unwrap());
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
-            Arc::new(catalog),
+            catalog,
             Arc::new(last_cache),
             Arc::clone(&wbuf.time_provider),
             Arc::clone(&wbuf.buffer.executor),
@@ -951,15 +980,17 @@ mod tests {
         let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
         assert_batches_sorted_eq!(&expected, &actual);
         // and now replay in a new write buffer and attempt to write
-        let catalog = write_buffer
-            .persister
-            .load_or_create_catalog()
-            .await
-            .unwrap();
-        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
+        let catalog = Arc::new(
+            write_buffer
+                .persister
+                .load_or_create_catalog()
+                .await
+                .unwrap(),
+        );
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&write_buffer.persister),
-            Arc::new(catalog),
+            catalog,
             Arc::new(last_cache),
             Arc::clone(&write_buffer.time_provider),
             Arc::clone(&write_buffer.buffer.executor),
@@ -1595,7 +1626,9 @@ mod tests {
         )
         .await;
         let db_name = "my_corp";
+        let db_id = DbId::from(0);
         let tbl_name = "temp";
+        let tbl_id = TableId::from(0);
 
         // make some writes to generate a snapshot:
         do_writes(
@@ -1641,7 +1674,7 @@ mod tests {
         verify_snapshot_count(1, &wbuf.persister).await;
 
         // get the path for the created parquet file:
-        let persisted_files = wbuf.persisted_files().get_files(db_name, tbl_name);
+        let persisted_files = wbuf.persisted_files().get_files(db_id, tbl_id);
         assert_eq!(1, persisted_files.len());
         let path = ObjPath::from(persisted_files[0].path.as_str());
 
@@ -1699,7 +1732,9 @@ mod tests {
         )
         .await;
         let db_name = "my_corp";
+        let db_id = DbId::from(0);
         let tbl_name = "temp";
+        let tbl_id = TableId::from(0);
 
         // make some writes to generate a snapshot:
         do_writes(
@@ -1745,7 +1780,7 @@ mod tests {
         verify_snapshot_count(1, &wbuf.persister).await;
 
         // get the path for the created parquet file:
-        let persisted_files = wbuf.persisted_files().get_files(db_name, tbl_name);
+        let persisted_files = wbuf.persisted_files().get_files(db_id, tbl_id);
         assert_eq!(1, persisted_files.len());
         let path = ObjPath::from(persisted_files[0].path.as_str());
 
@@ -1884,11 +1919,11 @@ mod tests {
             (object_store, None)
         };
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let catalog = persister.load_or_create_catalog().await.unwrap();
-        let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner()).unwrap();
+        let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(catalog),
+            catalog,
             Arc::new(last_cache),
             Arc::clone(&time_provider),
             crate::test_help::make_exec(),

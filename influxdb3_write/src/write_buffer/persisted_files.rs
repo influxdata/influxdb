@@ -4,11 +4,12 @@
 
 use crate::{ParquetFile, PersistedSnapshot};
 use hashbrown::HashMap;
+use influxdb3_id::DbId;
+use influxdb3_id::TableId;
 use parking_lot::RwLock;
-use std::sync::Arc;
 
-type DatabaseToTables = HashMap<Arc<str>, TableToFiles>;
-type TableToFiles = HashMap<Arc<str>, Vec<ParquetFile>>;
+type DatabaseToTables = HashMap<DbId, TableToFiles>;
+type TableToFiles = HashMap<TableId, Vec<ParquetFile>>;
 
 #[derive(Debug, Default)]
 pub struct PersistedFiles {
@@ -25,10 +26,10 @@ impl PersistedFiles {
     }
 
     /// Add a file to the list of persisted files
-    pub fn add_file(&self, db_name: &str, table_name: &str, file: ParquetFile) {
+    pub fn add_file(&self, db_id: DbId, table_id: TableId, file: ParquetFile) {
         let mut inner = self.inner.write();
-        let tables = inner.files.entry_ref(db_name).or_default();
-        let table_files = tables.entry_ref(table_name).or_default();
+        let tables = inner.files.entry(db_id).or_default();
+        let table_files = tables.entry(table_id).or_default();
         table_files.push(file);
     }
 
@@ -39,13 +40,13 @@ impl PersistedFiles {
     }
 
     /// Get the list of files for a given database and table, always return in descending order of min_time
-    pub fn get_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
+    pub fn get_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
         let mut files = {
             let inner = self.inner.read();
             inner
                 .files
-                .get(db_name)
-                .and_then(|tables| tables.get(table_name))
+                .get(&db_id)
+                .and_then(|tables| tables.get(&table_id))
                 .cloned()
                 .unwrap_or_default()
         };
@@ -121,21 +122,21 @@ fn as_mb(bytes: u64) -> f64 {
 fn update_persisted_files_with_snapshot(
     initial_load: bool,
     persisted_snapshot: PersistedSnapshot,
-    db_to_tables: &mut HashMap<Arc<str>, HashMap<Arc<str>, Vec<ParquetFile>>>,
+    db_to_tables: &mut HashMap<DbId, HashMap<TableId, Vec<ParquetFile>>>,
 ) -> u64 {
     let mut file_count = 0;
     persisted_snapshot
         .databases
         .into_iter()
-        .for_each(|(db_name, tables)| {
-            let db_tables: &mut HashMap<Arc<str>, Vec<ParquetFile>> =
-                db_to_tables.entry(db_name).or_default();
+        .for_each(|(db_id, tables)| {
+            let db_tables: &mut HashMap<TableId, Vec<ParquetFile>> =
+                db_to_tables.entry(db_id).or_default();
 
             tables
                 .tables
                 .into_iter()
-                .for_each(|(table_name, mut new_parquet_files)| {
-                    let table_files = db_tables.entry(table_name).or_default();
+                .for_each(|(table_id, mut new_parquet_files)| {
+                    let table_files = db_tables.entry(table_id).or_default();
                     if initial_load {
                         file_count += new_parquet_files.len() as u64;
                         table_files.append(&mut new_parquet_files);
@@ -202,10 +203,10 @@ mod tests {
             .last()
             .unwrap()
             .databases
-            .get("db-1")
+            .get(&DbId::from(0))
             .unwrap()
             .tables
-            .get("table-1")
+            .get(&TableId::from(0))
             .unwrap()
             .last()
             .cloned()
@@ -260,7 +261,7 @@ mod tests {
             // TODO: Check why `add_parquet_file` method does not check if file is
             //       already present. This is checked when trying to add a new PersistedSnapshot
             //       as part of snapshotting process.
-            new_snapshot.add_parquet_file(Arc::from("db-1"), Arc::from("table-1"), file);
+            new_snapshot.add_parquet_file(DbId::from(0), TableId::from(0), file);
         });
         new_snapshot
     }

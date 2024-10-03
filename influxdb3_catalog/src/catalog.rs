@@ -1,7 +1,8 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
 use crate::catalog::Error::TableNotFound;
-use influxdb3_id::DbId;
+use bimap::BiHashMap;
+use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, FieldAdditions, LastCacheDefinition, LastCacheDelete,
 };
@@ -138,7 +139,9 @@ impl Catalog {
     }
 
     pub fn db_or_create(&self, db_name: &str) -> Result<Arc<DatabaseSchema>> {
-        let db = self.inner.read().databases.get(db_name).cloned();
+        let db = self
+            .db_name_to_id(db_name.into())
+            .and_then(|db_id| self.inner.read().databases.get(&db_id).map(Arc::clone));
 
         let db = match db {
             Some(db) => db,
@@ -150,12 +153,13 @@ impl Catalog {
                 }
 
                 info!("return new db {}", db_name);
-                let db = Arc::new(DatabaseSchema::new(DbId::new(), db_name.into()));
-                inner
-                    .databases
-                    .insert(Arc::clone(&db.name), Arc::clone(&db));
+                let db_id = DbId::new();
+                let db_name = db_name.into();
+                let db = Arc::new(DatabaseSchema::new(db_id, Arc::clone(&db_name)));
+                inner.databases.insert(db.id, Arc::clone(&db));
                 inner.sequence = inner.sequence.next();
                 inner.updated = true;
+                inner.db_map.insert(db_id, db_name);
                 db
             }
         };
@@ -163,8 +167,42 @@ impl Catalog {
         Ok(db)
     }
 
-    pub fn db_schema(&self, name: &str) -> Option<Arc<DatabaseSchema>> {
-        self.inner.read().databases.get(name).cloned()
+    pub fn add_table_to_lookup(&self, db_id: DbId, table_id: TableId, name: Arc<str>) {
+        self.inner
+            .write()
+            .table_map
+            .entry(db_id)
+            .or_default()
+            .insert(table_id, name);
+    }
+
+    pub fn db_name_to_id(&self, db_name: Arc<str>) -> Option<DbId> {
+        self.inner.read().db_map.get_by_right(&db_name).copied()
+    }
+
+    pub fn db_id_to_name(&self, db_id: DbId) -> Option<Arc<str>> {
+        self.inner.read().db_map.get_by_left(&db_id).map(Arc::clone)
+    }
+
+    pub fn table_name_to_id(&self, db_id: DbId, table_name: Arc<str>) -> Option<TableId> {
+        self.inner
+            .read()
+            .table_map
+            .get(&db_id)
+            .and_then(|map| map.get_by_right(&table_name).copied())
+    }
+
+    pub fn table_id_to_name(&self, db_id: DbId, table_id: TableId) -> Option<Arc<str>> {
+        self.inner
+            .read()
+            .table_map
+            .get(&db_id)
+            .and_then(|map| map.get_by_left(&table_id))
+            .map(Arc::clone)
+    }
+
+    pub fn db_schema(&self, id: &DbId) -> Option<Arc<DatabaseSchema>> {
+        self.inner.read().databases.get(id).cloned()
     }
 
     pub fn sequence_number(&self) -> SequenceNumber {
@@ -179,37 +217,37 @@ impl Catalog {
         self.inner
             .read()
             .databases
-            .keys()
-            .map(|db| db.to_string())
+            .values()
+            .map(|db| db.name.to_string())
             .collect()
     }
 
-    pub fn add_last_cache(&self, db_name: &str, table_name: &str, last_cache: LastCacheDefinition) {
+    pub fn add_last_cache(&self, db_id: DbId, table_id: TableId, last_cache: LastCacheDefinition) {
         let mut inner = self.inner.write();
         let mut db = inner
             .databases
-            .get(db_name)
+            .get(&db_id)
             .expect("db should exist")
             .as_ref()
             .clone();
-        let table = db.tables.get_mut(table_name).expect("table should exist");
+        let table = db.tables.get_mut(&table_id).expect("table should exist");
         table.add_last_cache(last_cache);
-        inner.databases.insert(Arc::clone(&db.name), Arc::new(db));
+        inner.databases.insert(db_id, Arc::new(db));
         inner.sequence = inner.sequence.next();
         inner.updated = true;
     }
 
-    pub fn delete_last_cache(&self, db_name: &str, table_name: &str, name: &str) {
+    pub fn delete_last_cache(&self, db_id: DbId, table_id: TableId, name: &str) {
         let mut inner = self.inner.write();
         let mut db = inner
             .databases
-            .get(db_name)
+            .get(&db_id)
             .expect("db should exist")
             .as_ref()
             .clone();
-        let table = db.tables.get_mut(table_name).expect("table should exist");
+        let table = db.tables.get_mut(&table_id).expect("table should exist");
         table.remove_last_cache(name);
-        inner.databases.insert(Arc::clone(&db.name), Arc::new(db));
+        inner.databases.insert(db_id, Arc::new(db));
         inner.sequence = inner.sequence.next();
         inner.updated = true;
     }
@@ -223,13 +261,27 @@ impl Catalog {
     }
 
     #[cfg(test)]
-    pub fn db_exists(&self, db_name: &str) -> bool {
-        self.inner.read().db_exists(db_name)
+    pub fn db_exists(&self, db_id: DbId) -> bool {
+        self.inner.read().db_exists(db_id)
     }
 
     pub fn insert_database(&mut self, db: DatabaseSchema) {
         let mut inner = self.inner.write();
-        inner.databases.insert(Arc::clone(&db.name), Arc::new(db));
+        for (table_id, table_def) in db.tables.iter() {
+            inner
+                .table_map
+                .entry(db.id)
+                .and_modify(|map: &mut BiHashMap<TableId, Arc<str>>| {
+                    map.insert(*table_id, Arc::clone(&table_def.table_name));
+                })
+                .or_insert_with(|| {
+                    let mut map = BiHashMap::new();
+                    map.insert(*table_id, Arc::clone(&table_def.table_name));
+                    map
+                });
+        }
+        inner.db_map.insert(db.id, Arc::clone(&db.name));
+        inner.databases.insert(db.id, Arc::new(db));
         inner.sequence = inner.sequence.next();
         inner.updated = true;
     }
@@ -247,14 +299,18 @@ impl Catalog {
             inner.updated = false;
         }
     }
+
+    pub fn inner(&self) -> &RwLock<InnerCatalog> {
+        &self.inner
+    }
 }
 
 #[serde_with::serde_as]
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
 pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
-    #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
-    databases: HashMap<Arc<str>, Arc<DatabaseSchema>>,
+    #[serde_as(as = "DatabasesAsArray")]
+    databases: HashMap<DbId, Arc<DatabaseSchema>>,
     sequence: SequenceNumber,
     /// The host_id is the prefix that is passed in when starting up (`host_identifier_prefix`)
     host_id: Arc<str>,
@@ -263,6 +319,117 @@ pub struct InnerCatalog {
     /// If true, the catalog has been updated since the last time it was serialized
     #[serde(skip)]
     updated: bool,
+    #[serde_as(as = "DbMapAsArray")]
+    db_map: BiHashMap<DbId, Arc<str>>,
+    #[serde_as(as = "TableMapAsArray")]
+    pub table_map: HashMap<DbId, BiHashMap<TableId, Arc<str>>>,
+}
+
+serde_with::serde_conv!(
+    DbMapAsArray,
+    BiHashMap<DbId, Arc<str>>,
+    |map: &BiHashMap<DbId, Arc<str>>| {
+        map.iter().fold(Vec::new(), |mut acc, (id, name)| {
+            acc.push(DbMap {
+                db_id: *id,
+                name: Arc::clone(&name)
+            });
+            acc
+        })
+    },
+    |vec: Vec<DbMap>| -> Result<_, std::convert::Infallible> {
+        Ok(vec.into_iter().fold(BiHashMap::new(), |mut acc, db| {
+            acc.insert(db.db_id, db.name);
+            acc
+        }))
+    }
+);
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DbMap {
+    db_id: DbId,
+    name: Arc<str>,
+}
+
+serde_with::serde_conv!(
+    TableMapAsArray,
+    HashMap<DbId, BiHashMap<TableId, Arc<str>>>,
+    |map: &HashMap<DbId, BiHashMap<TableId, Arc<str>>>| {
+        map.iter().fold(Vec::new(), |mut acc, (db_id, table_map)| {
+            for (table_id, name) in table_map.iter() {
+                acc.push(TableMap {
+                    db_id: *db_id,
+                    table_id: *table_id,
+                    name: Arc::clone(&name)
+                });
+            }
+            acc
+        })
+    },
+    |vec: Vec<TableMap>| -> Result<_, std::convert::Infallible> {
+        let mut map = HashMap::new();
+        for item in vec {
+            map.entry(item.db_id)
+               .and_modify(|entry: &mut BiHashMap<TableId, Arc<str>>| {
+                   entry.insert(item.table_id, Arc::clone(&item.name));
+               })
+               .or_insert_with(||{
+                    let mut inner_map = BiHashMap::new();
+                    inner_map.insert(item.table_id, Arc::clone(&item.name));
+                    inner_map
+               });
+        }
+        Ok(map)
+    }
+);
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TableMap {
+    db_id: DbId,
+    table_id: TableId,
+    name: Arc<str>,
+}
+
+serde_with::serde_conv!(
+    DatabasesAsArray,
+    HashMap<DbId, Arc<DatabaseSchema>>,
+    |map: &HashMap<DbId, Arc<DatabaseSchema>>| {
+        map.values().fold(Vec::new(), |mut acc, db| {
+            acc.push(DatabasesSerialized {
+                id: db.id,
+                name: Arc::clone(&db.name),
+                tables: db.tables.values().cloned().collect(),
+            });
+            acc
+        })
+    },
+    |vec: Vec<DatabasesSerialized>| -> Result<_, String> {
+        vec.into_iter().fold(Ok(HashMap::new()), |acc, db| {
+            let mut acc = acc?;
+            if let Some(_) = acc.insert(db.id, Arc::new(DatabaseSchema {
+                id: db.id,
+                name: Arc::clone(&db.name),
+                tables: db.tables.into_iter().fold(Ok(BTreeMap::new()), |acc, table| {
+                    let mut acc = acc?;
+                    let table_name = Arc::clone(&table.table_name);
+                    if let Some(_) = acc.insert(table.table_id, table) {
+                        return Err(format!("found duplicate table: {}", table_name));
+                    }
+                    Ok(acc)
+                })?
+            })) {
+                return Err(format!("found duplicate db: {}", db.name));
+            }
+            Ok(acc)
+        })
+    }
+);
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
+struct DatabasesSerialized {
+    pub id: DbId,
+    pub name: Arc<str>,
+    pub tables: Vec<TableDefinition>,
 }
 
 impl InnerCatalog {
@@ -273,6 +440,8 @@ impl InnerCatalog {
             host_id,
             instance_id,
             updated: false,
+            db_map: BiHashMap::new(),
+            table_map: HashMap::new(),
         }
     }
 
@@ -289,7 +458,7 @@ impl InnerCatalog {
     pub fn apply_catalog_batch(&mut self, catalog_batch: &CatalogBatch) -> Result<()> {
         let table_count = self.table_count();
 
-        if let Some(db) = self.databases.get(catalog_batch.database_name.as_ref()) {
+        if let Some(db) = self.databases.get(&catalog_batch.database_id) {
             let existing_table_count = db.tables.len();
 
             if let Some(new_db) = db.new_if_updated_from_batch(catalog_batch)? {
@@ -297,11 +466,23 @@ impl InnerCatalog {
                 if table_count + new_table_count > Catalog::NUM_TABLES_LIMIT {
                     return Err(Error::TooManyTables);
                 }
-
-                self.databases
-                    .insert(Arc::clone(&new_db.name), Arc::new(new_db));
+                let new_db = Arc::new(new_db);
+                self.databases.insert(new_db.id, Arc::clone(&new_db));
                 self.sequence = self.sequence.next();
                 self.updated = true;
+                self.db_map.insert(new_db.id, Arc::clone(&new_db.name));
+                for (table_id, table_def) in new_db.tables.iter() {
+                    self.table_map
+                        .entry(new_db.id)
+                        .and_modify(|map| {
+                            map.insert(*table_id, Arc::clone(&table_def.table_name));
+                        })
+                        .or_insert_with(|| {
+                            let mut map = BiHashMap::new();
+                            map.insert(*table_id, Arc::clone(&table_def.table_name));
+                            map
+                        });
+                }
             }
         } else {
             if self.databases.len() >= Catalog::NUM_DBS_LIMIT {
@@ -313,10 +494,23 @@ impl InnerCatalog {
                 return Err(Error::TooManyTables);
             }
 
-            self.databases
-                .insert(Arc::clone(&new_db.name), Arc::new(new_db));
+            let new_db = Arc::new(new_db);
+            self.databases.insert(new_db.id, Arc::clone(&new_db));
             self.sequence = self.sequence.next();
             self.updated = true;
+            self.db_map.insert(new_db.id, Arc::clone(&new_db.name));
+            for (table_id, table_def) in new_db.tables.iter() {
+                self.table_map
+                    .entry(new_db.id)
+                    .and_modify(|map| {
+                        map.insert(*table_id, Arc::clone(&table_def.table_name));
+                    })
+                    .or_insert_with(|| {
+                        let mut map = BiHashMap::new();
+                        map.insert(*table_id, Arc::clone(&table_def.table_name));
+                        map
+                    });
+            }
         }
 
         Ok(())
@@ -326,8 +520,8 @@ impl InnerCatalog {
         self.databases.values()
     }
 
-    pub fn db_exists(&self, db_name: &str) -> bool {
-        self.databases.contains_key(db_name)
+    pub fn db_exists(&self, db_id: DbId) -> bool {
+        self.databases.contains_key(&db_id)
     }
 }
 
@@ -337,8 +531,7 @@ pub struct DatabaseSchema {
     pub id: DbId,
     pub name: Arc<str>,
     /// The database is a map of tables
-    #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
-    pub tables: BTreeMap<Arc<str>, TableDefinition>,
+    pub tables: BTreeMap<TableId, TableDefinition>,
 }
 
 impl DatabaseSchema {
@@ -361,28 +554,28 @@ impl DatabaseSchema {
                 CatalogOp::CreateDatabase(_) => (),
                 CatalogOp::CreateTable(table_definition) => {
                     let new_or_existing_table = updated_or_new_tables
-                        .get(table_definition.table_name.as_ref())
-                        .or_else(|| self.tables.get(table_definition.table_name.as_ref()));
+                        .get(&table_definition.table_id)
+                        .or_else(|| self.tables.get(&table_definition.table_id));
                     if let Some(existing_table) = new_or_existing_table {
                         if let Some(new_table) =
                             existing_table.new_if_definition_adds_new_fields(table_definition)?
                         {
-                            updated_or_new_tables.insert(Arc::clone(&new_table.name), new_table);
+                            updated_or_new_tables.insert(new_table.table_id, new_table);
                         }
                     } else {
                         let new_table = TableDefinition::new_from_op(table_definition);
-                        updated_or_new_tables.insert(Arc::clone(&new_table.name), new_table);
+                        updated_or_new_tables.insert(new_table.table_id, new_table);
                     }
                 }
                 CatalogOp::AddFields(field_additions) => {
                     let new_or_existing_table = updated_or_new_tables
-                        .get(field_additions.table_name.as_ref())
-                        .or_else(|| self.tables.get(field_additions.table_name.as_ref()));
+                        .get(&field_additions.table_id)
+                        .or_else(|| self.tables.get(&field_additions.table_id));
                     if let Some(existing_table) = new_or_existing_table {
                         if let Some(new_table) =
                             existing_table.new_if_field_additions_add_fields(field_additions)?
                         {
-                            updated_or_new_tables.insert(Arc::clone(&new_table.name), new_table);
+                            updated_or_new_tables.insert(new_table.table_id, new_table);
                         }
                     } else {
                         let fields = field_additions
@@ -391,17 +584,18 @@ impl DatabaseSchema {
                             .map(|f| (f.name.to_string(), f.data_type.into()))
                             .collect::<Vec<_>>();
                         let new_table = TableDefinition::new(
+                            field_additions.table_id,
                             Arc::clone(&field_additions.table_name),
                             fields,
                             SeriesKey::None,
                         )?;
-                        updated_or_new_tables.insert(Arc::clone(&new_table.name), new_table);
+                        updated_or_new_tables.insert(new_table.table_id, new_table);
                     }
                 }
                 CatalogOp::CreateLastCache(last_cache_definition) => {
                     let new_or_existing_table = updated_or_new_tables
-                        .get(last_cache_definition.table.as_str())
-                        .or_else(|| self.tables.get(last_cache_definition.table.as_str()));
+                        .get(&last_cache_definition.table_id)
+                        .or_else(|| self.tables.get(&last_cache_definition.table_id));
 
                     let table = new_or_existing_table.ok_or(TableNotFound {
                         db_name: self.name.to_string(),
@@ -411,23 +605,23 @@ impl DatabaseSchema {
                     if let Some(new_table) =
                         table.new_if_last_cache_definition_is_new(last_cache_definition)
                     {
-                        updated_or_new_tables.insert(Arc::clone(&new_table.name), new_table);
+                        updated_or_new_tables.insert(new_table.table_id, new_table);
                     }
                 }
                 CatalogOp::DeleteLastCache(last_cache_deletion) => {
                     let new_or_existing_table = updated_or_new_tables
-                        .get(last_cache_deletion.table.as_str())
-                        .or_else(|| self.tables.get(last_cache_deletion.table.as_str()));
+                        .get(&last_cache_deletion.table_id)
+                        .or_else(|| self.tables.get(&last_cache_deletion.table_id));
 
                     let table = new_or_existing_table.ok_or(TableNotFound {
                         db_name: self.name.to_string(),
-                        table_name: last_cache_deletion.table.clone(),
+                        table_name: last_cache_deletion.table_name.clone(),
                     })?;
 
                     if let Some(new_table) =
                         table.new_if_last_cache_deletes_existing(last_cache_deletion)
                     {
-                        updated_or_new_tables.insert(Arc::clone(&new_table.name), new_table);
+                        updated_or_new_tables.insert(new_table.table_id, new_table);
                     }
                 }
             }
@@ -436,9 +630,9 @@ impl DatabaseSchema {
         if updated_or_new_tables.is_empty() {
             Ok(None)
         } else {
-            for (n, t) in &self.tables {
-                if !updated_or_new_tables.contains_key(n) {
-                    updated_or_new_tables.insert(Arc::clone(n), t.clone());
+            for (table_id, table_def) in &self.tables {
+                if !updated_or_new_tables.contains_key(table_id) {
+                    updated_or_new_tables.insert(*table_id, table_def.clone());
                 }
             }
 
@@ -461,20 +655,27 @@ impl DatabaseSchema {
         Ok(new_db)
     }
 
-    pub fn get_table_schema(&self, table_name: &str) -> Option<&Schema> {
-        self.tables.get(table_name).map(|table| &table.schema)
+    pub fn get_table_schema(&self, table_id: TableId) -> Option<&Schema> {
+        self.tables.get(&table_id).map(|table| &table.schema)
     }
 
-    pub fn get_table(&self, table_name: &str) -> Option<&TableDefinition> {
-        self.tables.get(table_name)
+    pub fn get_table(&self, table_id: TableId) -> Option<&TableDefinition> {
+        self.tables.get(&table_id)
     }
 
-    pub fn table_names(&self) -> Vec<Arc<str>> {
+    pub fn table_ids(&self) -> Vec<TableId> {
         self.tables.keys().cloned().collect()
     }
 
-    pub fn table_exists(&self, table_name: &str) -> bool {
-        self.tables.contains_key(table_name)
+    pub fn table_names(&self) -> Vec<Arc<str>> {
+        self.tables
+            .values()
+            .map(|td| Arc::clone(&td.table_name))
+            .collect()
+    }
+
+    pub fn table_exists(&self, table_id: TableId) -> bool {
+        self.tables.contains_key(&table_id)
     }
 
     pub fn tables(&self) -> impl Iterator<Item = &TableDefinition> {
@@ -484,7 +685,8 @@ impl DatabaseSchema {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TableDefinition {
-    pub name: Arc<str>,
+    pub table_id: TableId,
+    pub table_name: Arc<str>,
     pub schema: Schema,
     pub last_caches: BTreeMap<String, LastCacheDefinition>,
 }
@@ -494,7 +696,8 @@ impl TableDefinition {
     ///
     /// Ensures the provided columns will be ordered before constructing the schema.
     pub fn new<CN: AsRef<str>>(
-        name: Arc<str>,
+        table_id: TableId,
+        table_name: Arc<str>,
         columns: impl AsRef<[(CN, InfluxColumnType)]>,
         series_key: Option<impl IntoIterator<Item: AsRef<str>>>,
     ) -> Result<Self> {
@@ -509,7 +712,7 @@ impl TableDefinition {
             ordered_columns.insert(name.as_ref(), column_type);
         }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.as_ref().len());
-        schema_builder.measurement(name.as_ref());
+        schema_builder.measurement(table_name.as_ref());
         if let Some(sk) = series_key {
             schema_builder.with_series_key(sk);
         }
@@ -519,7 +722,8 @@ impl TableDefinition {
         let schema = schema_builder.build().unwrap();
 
         Ok(Self {
-            name,
+            table_id,
+            table_name,
             schema,
             last_caches: BTreeMap::new(),
         })
@@ -532,6 +736,7 @@ impl TableDefinition {
             columns.push((field_def.name.as_ref(), field_def.data_type.into()));
         }
         Self::new(
+            table_definition.table_id,
             Arc::clone(&table_definition.table_name),
             columns,
             table_definition.key.clone(),
@@ -553,7 +758,7 @@ impl TableDefinition {
 
         if table_definition.key != existing_key {
             return Err(Error::SeriesKeyMismatch {
-                table_name: self.name.to_string(),
+                table_name: self.table_name.to_string(),
                 existing: existing_key.unwrap_or_default().join("/"),
                 attempted: table_definition.key.clone().unwrap_or_default().join("/"),
             });
@@ -565,7 +770,7 @@ impl TableDefinition {
             if let Some(existing_type) = self.schema.field_type_by_name(field_def.name.as_ref()) {
                 if existing_type != field_def.data_type.into() {
                     return Err(Error::FieldTypeMismatch {
-                        table_name: self.name.to_string(),
+                        table_name: self.table_name.to_string(),
                         column_name: field_def.name.to_string(),
                         existing: existing_type,
                         attempted: field_def.data_type.into(),
@@ -601,7 +806,7 @@ impl TableDefinition {
                 Some(existing_field_type) => {
                     if existing_field_type != field_type {
                         return Err(Error::FieldTypeMismatch {
-                            table_name: self.name.to_string(),
+                            table_name: self.table_name.to_string(),
                             column_name: c.name.to_string(),
                             existing: existing_field_type,
                             attempted: field_type,
@@ -759,8 +964,9 @@ mod tests {
         use InfluxColumnType::*;
         use InfluxFieldType::*;
         database.tables.insert(
-            "test_table_1".into(),
+            TableId::from(1),
             TableDefinition::new(
+                TableId::from(1),
                 "test_table_1".into(),
                 [
                     ("tag_1", Tag),
@@ -778,8 +984,9 @@ mod tests {
             .unwrap(),
         );
         database.tables.insert(
-            "test_table_2".into(),
+            TableId::from(2),
             TableDefinition::new(
+                TableId::from(2),
                 "test_table_2".into(),
                 [
                     ("tag_1", Tag),
@@ -800,7 +1007,7 @@ mod tests {
             .inner
             .write()
             .databases
-            .insert(Arc::clone(&database.name), Arc::new(database));
+            .insert(database.id, Arc::new(database));
 
         // Perform a snapshot test to check that the JSON serialized catalog does not change in an
         // undesired way when introducing features etc.
@@ -819,53 +1026,58 @@ mod tests {
         // Duplicate databases
         {
             let json = r#"{
-                "databases": {
-                    "db1": {
+                "databases": [
+                    {
                         "id": 0,
                         "name": "db1",
-                        "tables": {}
+                        "tables": []
                     },
-                    "db1": {
+                    {
                         "id": 0,
                         "name": "db1",
-                        "tables": {}
+                        "tables": []
                     }
-                }
+                ]
             }"#;
             let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
-            assert_contains!(err.to_string(), "found duplicate key");
+            assert_contains!(err.to_string(), "found duplicate db: db1");
         }
         // Duplicate tables
         {
             let json = r#"{
-                "databases": {
-                    "db1": {
+                "databases": [
+                    {
+                        "id": 0,
                         "name": "db1",
-                        "tables": {
-                            "tbl1": {
-                                "name": "tbl1",
+                        "tables": [
+                            {
+                                "table_id": 0,
+                                "table_name": "tbl1",
                                 "cols": {}
                             },
-                            "tbl1": {
-                                "name": "tbl1",
+                            {
+                                "table_id": 0,
+                                "table_name": "tbl1",
                                 "cols": {}
                             }
-                        }
+                        ]
                     }
-                }
+                ]
             }"#;
             let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
-            assert_contains!(err.to_string(), "found duplicate key");
+            assert_contains!(err.to_string(), "found duplicate table: tbl1");
         }
         // Duplicate columns
         {
             let json = r#"{
-                "databases": {
-                    "db1": {
+                "databases": [
+                    {
+                        "id": 0,
                         "name": "db1",
-                        "tables": {
-                            "tbl1": {
-                                "name": "tbl1",
+                        "tables": [
+                            {
+                                "table_id": 0,
+                                "table_name": "tbl1",
                                 "cols": {
                                     "col1": {
                                         "type": "i64",
@@ -879,9 +1091,9 @@ mod tests {
                                     }
                                 }
                             }
-                        }
+                        ]
                     }
-                }
+                ]
             }"#;
             let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
             assert_contains!(err.to_string(), "found duplicate key");
@@ -896,8 +1108,9 @@ mod tests {
             tables: BTreeMap::new(),
         };
         database.tables.insert(
-            "test".into(),
+            TableId::from(0),
             TableDefinition::new(
+                TableId::from(0),
                 "test".into(),
                 [(
                     "test".to_string(),
@@ -908,7 +1121,7 @@ mod tests {
             .unwrap(),
         );
 
-        let table = database.tables.get_mut("test").unwrap();
+        let table = database.tables.get_mut(&TableId::from(0)).unwrap();
         table
             .add_columns(vec![("test2".to_string(), InfluxColumnType::Tag)])
             .unwrap();
@@ -933,8 +1146,9 @@ mod tests {
         use InfluxColumnType::*;
         use InfluxFieldType::*;
         database.tables.insert(
-            "test_table_1".into(),
+            TableId::from(1),
             TableDefinition::new(
+                TableId::from(1),
                 "test_table_1".into(),
                 [
                     ("tag_1", Tag),
@@ -955,7 +1169,7 @@ mod tests {
             .inner
             .write()
             .databases
-            .insert(Arc::clone(&database.name), Arc::new(database));
+            .insert(database.id, Arc::new(database));
 
         assert_json_snapshot!(catalog);
 
@@ -978,6 +1192,7 @@ mod tests {
         use InfluxColumnType::*;
         use InfluxFieldType::*;
         let mut table_def = TableDefinition::new(
+            TableId::from(0),
             "test".into(),
             [
                 ("tag_1", Tag),
@@ -991,6 +1206,7 @@ mod tests {
         .unwrap();
         table_def.add_last_cache(
             LastCacheDefinition::new_with_explicit_value_columns(
+                TableId::from(0),
                 "test",
                 "test_table_last_cache",
                 ["tag_2", "tag_3"],
@@ -1000,12 +1216,12 @@ mod tests {
             )
             .unwrap(),
         );
-        database.tables.insert("test_table_1".into(), table_def);
+        database.tables.insert(TableId::from(0), table_def);
         catalog
             .inner
             .write()
             .databases
-            .insert(Arc::clone(&database.name), Arc::new(database));
+            .insert(database.id, Arc::new(database));
 
         assert_json_snapshot!(catalog);
 
