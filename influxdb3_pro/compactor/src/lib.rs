@@ -24,7 +24,7 @@ use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
 use influxdb3_catalog::catalog::{Catalog, TIME_COLUMN_NAME};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
-use influxdb3_pro_data_layout::{CompactedFilePath, CompactionConfig, Generation};
+use influxdb3_pro_data_layout::{CompactedFilePath, Generation};
 use influxdb3_pro_index::FileIndex;
 use influxdb3_write::chunk::ParquetChunk;
 use influxdb3_write::ParquetFileId;
@@ -115,52 +115,16 @@ pub struct Compactor {
     snapshot_tracker: SnapshotTracker,
 }
 
-#[derive(Debug)]
-pub struct CompactorConfig {
-    pub compactor_id: Arc<str>,
-    pub compaction_hosts: Vec<String>,
-    compaction_config: CompactionConfig,
-}
-
-impl CompactorConfig {
-    pub fn new(
-        compactor_id: Arc<str>,
-        compaction_hosts: Vec<String>,
-        compaction_config: CompactionConfig,
-    ) -> Self {
-        Self {
-            compactor_id,
-            compaction_hosts,
-            compaction_config,
-        }
-    }
-
-    pub fn test() -> Self {
-        Self {
-            compactor_id: Arc::from("compactor_1"),
-            compaction_hosts: vec![],
-            compaction_config: CompactionConfig::default(),
-        }
-    }
-}
-
 impl Compactor {
     pub async fn new(
-        compactor_config: CompactorConfig,
+        compaction_hosts: Vec<String>,
+        compacted_data: Arc<CompactedData>,
         catalog: Arc<Catalog>,
-        object_store: Arc<dyn ObjectStore>,
         object_store_url: ObjectStoreUrl,
         executor: Arc<Executor>,
         persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
     ) -> Result<Self, influxdb3_pro_data_layout::compacted_data::Error> {
-        let snapshot_tracker = SnapshotTracker::new(compactor_config.compaction_hosts);
-
-        let compacted_data = CompactedData::load_compacted_data(
-            &compactor_config.compactor_id,
-            compactor_config.compaction_config,
-            object_store,
-        )
-        .await?;
+        let snapshot_tracker = SnapshotTracker::new(compaction_hosts);
 
         Ok(Self {
             compacted_data,

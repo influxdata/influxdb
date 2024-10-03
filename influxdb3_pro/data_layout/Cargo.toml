@@ -18,6 +18,7 @@ influxdb3_write = { path = "../../influxdb3_write" }
 async-trait.workspace = true
 bytes.workspace = true
 chrono.workspace = true
+datafusion.workspace = true
 futures-util.workspace = true
 hashbrown.workspace = true
 object_store.workspace = true

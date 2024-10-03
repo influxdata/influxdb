@@ -6,8 +6,9 @@ use crate::persist::{
 };
 use crate::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
-    Generation, GenerationDetail, GenerationDetailPath, GenerationId,
+    Generation, GenerationDetail, GenerationDetailPath, GenerationId, HostSnapshotMarker,
 };
+use datafusion::logical_expr::Expr;
 use hashbrown::HashMap;
 use influxdb3_write::{ParquetFile, NEXT_FILE_ID};
 use object_store::ObjectStore;
@@ -304,6 +305,35 @@ impl CompactedData {
                     .map(|f| vec![Arc::clone(&f.file)])
                     .unwrap_or_default()
             })
+    }
+
+    /// Looks up the compaction detail and returns all the parquet files and host markers for the given table.
+    /// TODO: use filters and index to return only those files that match the filters.
+    pub fn get_parquet_files_and_host_markers(
+        &self,
+        db_name: &str,
+        table_name: &str,
+        _filters: &[Expr],
+    ) -> (Vec<Arc<ParquetFile>>, Vec<HostSnapshotMarker>) {
+        let data = self.data.read();
+        let compaction_detail = data
+            .databases
+            .get(db_name)
+            .and_then(|db| db.tables.get(table_name))
+            .cloned();
+
+        if let Some(compaction_detail) = compaction_detail {
+            let mut files = Vec::new();
+
+            for gen in &compaction_detail.compacted_generations {
+                let detail = data.generation_details.get(&gen.id).unwrap();
+                files.extend(detail.files.clone());
+            }
+
+            (files, compaction_detail.snapshot_markers.clone())
+        } else {
+            (Vec::new(), Vec::new())
+        }
     }
 }
 

@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
+use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::{
     last_cache::LastCacheProvider, parquet_cache::ParquetCacheOracle,
@@ -41,6 +42,7 @@ impl WriteBufferPro<NoMode> {
         metric_registry: Arc<Registry>,
         ReplicationConfig { interval, hosts }: ReplicationConfig,
         parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+        compacted_data: Option<Arc<CompactedData>>,
     ) -> Result<WriteBufferPro<ReadMode>, anyhow::Error> {
         let mode = ReadMode::new(
             catalog,
@@ -50,6 +52,7 @@ impl WriteBufferPro<NoMode> {
             interval,
             hosts,
             parquet_cache,
+            compacted_data,
         )
         .await?;
         Ok(WriteBufferPro { mode })

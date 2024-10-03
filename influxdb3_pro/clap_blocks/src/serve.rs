@@ -36,6 +36,18 @@ pub struct ProServeConfig {
     #[clap(long = "compactor-id", env = "INFLUXDB3_PRO_COMPACTOR_ID", action)]
     pub compactor_id: Option<String>,
 
+    /// This tells the server to run compactions. Only a single server should ever be running
+    /// compactions for a given compactor_id. All other servers can read from that compactor id
+    /// to pick up compacted files. This option is only applicable if a compactor-id is set.
+    /// Set this to false if you want to run a server that only reads from compacted data.
+    #[clap(
+        long = "run-compactions",
+        env = "INFLUXDB3_PRO_RUN_COMPACTIONS",
+        default_value = "true",
+        action
+    )]
+    pub run_compactions: bool,
+
     /// The limit to the number of rows per file that the compactor will write. This is a soft limit
     /// and the compactor may write more rows than this limit.
     #[clap(
