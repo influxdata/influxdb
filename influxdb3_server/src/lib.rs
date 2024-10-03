@@ -748,14 +748,6 @@ mod tests {
     async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn WriteBuffer>) {
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
-        let dummy_telem_store = TelemetryStore::new_without_background_runners();
-        let common_state = crate::CommonServerState::new(
-            Arc::clone(&metrics),
-            None,
-            trace_header_parser,
-            dummy_telem_store,
-        )
-        .unwrap();
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
         let (object_store, parquet_cache) =
@@ -777,9 +769,7 @@ mod tests {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let dummy_host_id = Arc::from("dummy-host-id");
         let instance_id = Arc::from("dummy-instance-id");
-        let telemetry_store = TelemetryStore::new_without_background_runners();
-
-        let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
+        let write_buffer_impl = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
                 Arc::new(Catalog::new(dummy_host_id, instance_id)),
@@ -792,6 +782,18 @@ mod tests {
             .await
             .unwrap(),
         );
+
+        let dummy_telem_store = TelemetryStore::new_without_background_runners(Arc::clone(
+            &write_buffer_impl.persisted_files(),
+        ));
+        let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
+        let common_state = crate::CommonServerState::new(
+            Arc::clone(&metrics),
+            None,
+            trace_header_parser,
+            Arc::clone(&dummy_telem_store),
+        )
+        .unwrap();
         let query_executor = crate::query_executor::QueryExecutorImpl::new(
             write_buffer.catalog(),
             Arc::clone(&write_buffer),
@@ -800,7 +802,7 @@ mod tests {
             Arc::new(HashMap::new()),
             10,
             10,
-            telemetry_store,
+            Arc::clone(&dummy_telem_store),
         );
 
         // bind to port 0 will assign a random available port:

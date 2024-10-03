@@ -18,8 +18,11 @@ use influxdb3_server::{
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
-    last_cache::LastCacheProvider, parquet_cache::create_cached_obj_store_and_oracle,
-    persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer,
+    last_cache::LastCacheProvider,
+    parquet_cache::create_cached_obj_store_and_oracle,
+    persister::Persister,
+    write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl},
+    WriteBuffer,
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
@@ -415,29 +418,21 @@ pub async fn command(config: Config) -> Result<()> {
         snapshot_size: config.wal_snapshot_size,
     };
 
-    let catalog = persister
-        .load_or_create_catalog()
-        .await
-        .map_err(Error::InitializePersistedCatalog)?;
+    let catalog = Arc::new(
+        persister
+            .load_or_create_catalog()
+            .await
+            .map_err(Error::InitializePersistedCatalog)?,
+    );
 
     let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner())
         .map_err(Error::InitializeLastCache)?;
     info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
 
-    let telemetry_store =
-        setup_telemetry_store(&config.object_store_config, catalog.instance_id(), num_cpus).await;
-
-    let common_state = CommonServerState::new(
-        Arc::clone(&metrics),
-        trace_exporter,
-        trace_header_parser,
-        Arc::clone(&telemetry_store),
-    )?;
-
-    let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
+    let write_buffer_impl = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(catalog),
+            Arc::clone(&catalog),
             Arc::new(last_cache),
             Arc::<SystemProvider>::clone(&time_provider),
             Arc::clone(&exec),
@@ -447,6 +442,24 @@ pub async fn command(config: Config) -> Result<()> {
         .await
         .map_err(|e| Error::WriteBufferInit(e.into()))?,
     );
+
+    let telemetry_store = setup_telemetry_store(
+        &config.object_store_config,
+        catalog.instance_id(),
+        num_cpus,
+        Arc::clone(&write_buffer_impl.persisted_files()),
+    )
+    .await;
+
+    let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
+
+    let common_state = CommonServerState::new(
+        Arc::clone(&metrics),
+        trace_exporter,
+        trace_header_parser,
+        Arc::clone(&telemetry_store),
+    )?;
+
     let query_executor = Arc::new(QueryExecutorImpl::new(
         write_buffer.catalog(),
         Arc::clone(&write_buffer),
@@ -486,6 +499,7 @@ async fn setup_telemetry_store(
     object_store_config: &ObjectStoreConfig,
     instance_id: Arc<str>,
     num_cpus: usize,
+    persisted_files: Arc<PersistedFiles>,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
     let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
@@ -503,6 +517,7 @@ async fn setup_telemetry_store(
         Arc::from(influx_version),
         Arc::from(storage_type),
         num_cpus,
+        persisted_files,
     )
     .await
 }

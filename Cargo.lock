@@ -2777,6 +2777,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "futures-util",
+ "influxdb3_write",
  "num",
  "observability_deps",
  "parking_lot",
