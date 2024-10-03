@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
 use num::Float;
 use observability_deps::tracing::{debug, warn};
 
@@ -15,6 +16,7 @@ use crate::{
 #[derive(Debug)]
 pub struct TelemetryStore {
     inner: parking_lot::Mutex<TelemetryStoreInner>,
+    persisted_files: Arc<PersistedFiles>,
 }
 
 const SAMPLER_INTERVAL_SECS: u64 = 60;
@@ -27,6 +29,7 @@ impl TelemetryStore {
         influx_version: Arc<str>,
         storage_type: Arc<str>,
         cores: usize,
+        persisted_files: Arc<PersistedFiles>,
     ) -> Arc<Self> {
         debug!(
             instance_id = ?instance_id,
@@ -39,6 +42,7 @@ impl TelemetryStore {
         let inner = TelemetryStoreInner::new(instance_id, os, influx_version, storage_type, cores);
         let store = Arc::new(TelemetryStore {
             inner: parking_lot::Mutex::new(inner),
+            persisted_files,
         });
 
         if !cfg!(test) {
@@ -52,7 +56,7 @@ impl TelemetryStore {
         store
     }
 
-    pub fn new_without_background_runners() -> Arc<Self> {
+    pub fn new_without_background_runners(persisted_files: Arc<PersistedFiles>) -> Arc<Self> {
         let instance_id = Arc::from("dummy-instance-id");
         let os = Arc::from("Linux");
         let influx_version = Arc::from("influxdb3-0.1.0");
@@ -61,6 +65,7 @@ impl TelemetryStore {
         let inner = TelemetryStoreInner::new(instance_id, os, influx_version, storage_type, cores);
         Arc::new(TelemetryStore {
             inner: parking_lot::Mutex::new(inner),
+            persisted_files,
         })
     }
 
@@ -100,7 +105,12 @@ impl TelemetryStore {
 
     pub(crate) fn snapshot(&self) -> TelemetryPayload {
         let inner_store = self.inner.lock();
-        inner_store.snapshot()
+        let (file_count, size_mb, row_count) = self.persisted_files.get_metrics();
+        let mut payload = inner_store.snapshot();
+        payload.parquet_file_count = file_count;
+        payload.parquet_file_size_mb = size_mb;
+        payload.parquet_row_count = row_count;
+        payload
     }
 }
 
@@ -194,6 +204,11 @@ impl TelemetryStoreInner {
             query_requests_min: self.reads.num_queries.min,
             query_requests_max: self.reads.num_queries.max,
             query_requests_avg: self.reads.num_queries.avg,
+
+            // hmmm. will be nice to pass persisted file in?
+            parquet_file_count: 0,
+            parquet_file_size_mb: 0.0,
+            parquet_row_count: 0,
         }
     }
 
@@ -265,13 +280,18 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn test_telemetry_store_cpu_mem() {
+        let persisted_snapshots = Vec::new();
         // create store
+        let persisted_files = Arc::from(PersistedFiles::new_from_persisted_snapshots(
+            persisted_snapshots,
+        ));
         let store: Arc<TelemetryStore> = TelemetryStore::new(
             Arc::from("some-instance-id"),
             Arc::from("Linux"),
             Arc::from("OSS-v3.0"),
             Arc::from("Memory"),
             10,
+            persisted_files,
         )
         .await;
         // check snapshot
@@ -301,6 +321,9 @@ mod tests {
         assert_eq!(expected_mem_in_mb, snapshot.memory_used_mb_min);
         assert_eq!(128, snapshot.memory_used_mb_max);
         assert_eq!(122, snapshot.memory_used_mb_avg);
+        assert_eq!(0, snapshot.parquet_file_count);
+        assert_eq!(0.0, snapshot.parquet_file_size_mb);
+        assert_eq!(0, snapshot.parquet_row_count);
 
         // add some writes
         store.add_write_metrics(100, 100);

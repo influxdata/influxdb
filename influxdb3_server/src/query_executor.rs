@@ -645,7 +645,7 @@ mod tests {
         let executor = make_exec(Arc::clone(&object_store));
         let host_id = Arc::from("dummy-host-id");
         let instance_id = Arc::from("instance-id");
-        let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
+        let write_buffer_impl = Arc::new(
             WriteBufferImpl::new(
                 Arc::clone(&persister),
                 Arc::new(Catalog::new(host_id, instance_id)),
@@ -663,9 +663,13 @@ mod tests {
             .await
             .unwrap(),
         );
+
+        let dummy_telem_store = TelemetryStore::new_without_background_runners(Arc::clone(
+            &write_buffer_impl.persisted_files(),
+        ));
+        let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let metrics = Arc::new(Registry::new());
         let df_config = Arc::new(Default::default());
-        let dummy_telem_store = TelemetryStore::new_without_background_runners();
         let query_executor = QueryExecutorImpl::new(
             write_buffer.catalog(),
             Arc::clone(&write_buffer),

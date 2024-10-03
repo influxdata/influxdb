@@ -62,6 +62,10 @@ pub(crate) struct TelemetryPayload {
     pub query_requests_min: u64,
     pub query_requests_max: u64,
     pub query_requests_avg: u64,
+    // parquet files
+    pub parquet_file_count: u64,
+    pub parquet_file_size_mb: f64,
+    pub parquet_row_count: u64,
 }
 
 pub(crate) async fn send_telemetry_in_background(
