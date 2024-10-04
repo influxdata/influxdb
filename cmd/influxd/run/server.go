@@ -65,6 +65,11 @@ type BuildInfo struct {
 	Time    string
 }
 
+type StartupProgress interface {
+	AddShard()
+	CompletedShard()
+}
+
 // Server represents a container for the metadata and storage data and services.
 // It is built using a Config and it manages the startup and shutdown of all
 // services in the proper order.
@@ -95,6 +100,8 @@ type Server struct {
 	SnapshotterService *snapshotter.Service
 
 	Monitor *monitor.Monitor
+
+	StartupProgressMetrics StartupProgress
 
 	// Server reporting and registration
 	reportingDisabled bool
@@ -277,6 +284,10 @@ func (s *Server) appendSnapshotterService() {
 func (s *Server) SetLogOutput(w io.Writer) {
 	s.Logger = logger.New(w)
 	s.MuxLogger = tcp.MuxLogger(w)
+}
+
+func (s *Server) SetStartupMetrics(sp StartupProgress) {
+	s.StartupProgressMetrics = sp
 }
 
 func (s *Server) appendMonitorService() {
@@ -465,6 +476,9 @@ func (s *Server) Open() error {
 		s.MetaClient.WithLogger(s.Logger)
 	}
 	s.TSDBStore.WithLogger(s.Logger)
+
+	s.TSDBStore.WithStartupMetrics(s.StartupProgressMetrics)
+
 	if s.config.Data.QueryLogEnabled {
 		s.QueryExecutor.WithLogger(s.Logger)
 	} else if s.config.Coordinator.LogQueriesAfter > 0 || s.config.Coordinator.LogTimedOutQueries {

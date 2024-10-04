@@ -153,6 +153,10 @@ func (cmd *Command) Run(args ...string) error {
 	s.Logger = cmd.Logger
 	s.CPUProfile = options.CPUProfile
 	s.MemProfile = options.MemProfile
+
+	sl := NewStartupProgressLogger(s.Logger)
+	s.SetStartupMetrics(sl)
+
 	if err := s.Open(); err != nil {
 		return fmt.Errorf("open server: %s", err)
 	}

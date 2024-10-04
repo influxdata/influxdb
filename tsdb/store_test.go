@@ -144,6 +144,54 @@ func TestStore_CreateShard(t *testing.T) {
 	}
 }
 
+// Ensure the store can create a new shard.
+func TestStore_StartupShardProgress(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) {
+		fmt.Println(index)
+		s := MustOpenStore(index)
+		defer s.Close()
+
+		// Create a new shard and verify that it exists.
+		require.NoError(t, s.CreateShard("db0", "rp0", 1, true))
+		sh := s.Shard(1)
+		require.NotNil(t, sh)
+
+		// Create another shard and verify that it exists.
+		require.NoError(t, s.CreateShard("db0", "rp0", 2, true))
+		sh = s.Shard(2)
+		require.NotNil(t, sh)
+
+		msl := &mockStartupLogger{}
+
+		// Reopen shard and recheck.
+		require.NoError(t, s.ReopenWithStartupMetrics(msl))
+		sh = s.Shard(1)
+		require.NotNil(t, sh)
+
+		// Create another shard and verify that it exists.
+		require.NoError(t, s.CreateShard("db0", "rp0", 2, true))
+		sh = s.Shard(2)
+		require.NotNil(t, sh)
+
+		// Equality check to make sure shards are always added prior to
+		// completion being called.
+		require.Equal(t, msl.shardTracker, []string{
+			"shard-add",
+			"shard-add",
+			"shard-add",
+			"shard-complete",
+			"shard-complete",
+			"shard-complete",
+		})
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(index) })
+	}
+}
+
 func TestStore_BadShard(t *testing.T) {
 	const errStr = "a shard open error"
 	indexes := tsdb.RegisteredIndexes()
@@ -2682,6 +2730,25 @@ func (s *Store) Reopen() error {
 	return s.Store.Open()
 }
 
+// Reopen closes and reopens the store as a new store.
+func (s *Store) ReopenWithStartupMetrics(msl *mockStartupLogger) error {
+	if err := s.Store.Close(); err != nil {
+		return err
+	}
+
+	s.Store = tsdb.NewStore(s.Path())
+	s.EngineOptions.IndexVersion = s.index
+	s.EngineOptions.Config.WALDir = filepath.Join(s.Path(), "wal")
+	s.EngineOptions.Config.TraceLoggingEnabled = true
+
+	s.WithStartupMetrics(msl)
+
+	if testing.Verbose() {
+		s.WithLogger(logger.New(os.Stdout))
+	}
+	return s.Store.Open()
+}
+
 // Close closes the store and removes the underlying data.
 func (s *Store) Close() error {
 	defer os.RemoveAll(s.Path())
@@ -2753,4 +2820,21 @@ func dirExists(path string) bool {
 		return true
 	}
 	return !os.IsNotExist(err)
+}
+
+type mockStartupLogger struct {
+	shardTracker []string
+	mu           sync.Mutex
+}
+
+func (m *mockStartupLogger) AddShard() {
+	m.mu.Lock()
+	m.shardTracker = append(m.shardTracker, fmt.Sprintf("shard-add"))
+	m.mu.Unlock()
+}
+
+func (m *mockStartupLogger) CompletedShard() {
+	m.mu.Lock()
+	m.shardTracker = append(m.shardTracker, fmt.Sprintf("shard-complete"))
+	m.mu.Unlock()
 }
