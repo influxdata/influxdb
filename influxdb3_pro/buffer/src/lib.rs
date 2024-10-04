@@ -6,9 +6,9 @@ use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::{
-    last_cache::LastCacheProvider, write_buffer::Result as WriteBufferResult, BufferedWriteRequest,
-    Bufferer, ChunkContainer, LastCacheManager, ParquetFile, PersistedSnapshot, Precision,
-    WriteBuffer,
+    last_cache::LastCacheProvider, parquet_cache::ParquetCacheOracle,
+    write_buffer::Result as WriteBufferResult, BufferedWriteRequest, Bufferer, ChunkContainer,
+    LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -39,15 +39,17 @@ impl WriteBufferPro<NoMode> {
         last_cache: Arc<LastCacheProvider>,
         object_store: Arc<dyn ObjectStore>,
         metric_registry: Arc<Registry>,
-        replication_config: ReplicationConfig,
+        ReplicationConfig { interval, hosts }: ReplicationConfig,
+        parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     ) -> Result<WriteBufferPro<ReadMode>, anyhow::Error> {
         let mode = ReadMode::new(
             catalog,
             last_cache,
             object_store,
             metric_registry,
-            replication_config.interval,
-            replication_config.hosts,
+            interval,
+            hosts,
+            parquet_cache,
         )
         .await?;
         Ok(WriteBufferPro { mode })

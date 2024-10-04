@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::replica::Replicas;
+use crate::replica::{CreateReplicasArgs, Replicas};
 use anyhow::Context;
 use async_trait::async_trait;
 use data_types::NamespaceName;
@@ -9,6 +9,7 @@ use influxdb3_catalog::catalog::Catalog;
 use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::{
     last_cache::LastCacheProvider,
+    parquet_cache::ParquetCacheOracle,
     write_buffer::{Error as WriteBufferError, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
@@ -34,13 +35,14 @@ impl ReadMode {
         metric_registry: Arc<Registry>,
         replication_interval: Duration,
         hosts: Vec<String>,
+        parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     ) -> Result<Self, anyhow::Error> {
         let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
             tokio::sync::watch::channel(None);
 
         Ok(Self {
             persisted_snapshot_notify_rx,
-            replicas: Replicas::new(
+            replicas: Replicas::new(CreateReplicasArgs {
                 catalog,
                 last_cache,
                 object_store,
@@ -48,7 +50,8 @@ impl ReadMode {
                 replication_interval,
                 hosts,
                 persisted_snapshot_notify_tx,
-            )
+                parquet_cache,
+            })
             .await
             .context("failed to initialize replicas")?,
         })
