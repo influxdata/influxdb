@@ -726,7 +726,7 @@ mod tests {
             0,
             "table_one",
             0,
-            Utc::now(),
+            Utc::now().timestamp_nanos_opt().unwrap(),
             WalFileSequenceNumber::new(1),
         );
         let (bytes_written, meta) = persister

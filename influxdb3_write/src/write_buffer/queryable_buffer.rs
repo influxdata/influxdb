@@ -167,7 +167,8 @@ impl QueryableBuffer {
                             table_id: *table_id,
                             table_name: Arc::clone(&table_name),
                             chunk_time: chunk.chunk_time,
-                            path: ParquetFilePath::new_with_chunk_time(
+                            path: ParquetFilePath::new(
+                                self.persister.host_identifier_prefix(),
                                 db_name.as_ref(),
                                 database_id.as_u32(),
                                 table_name.as_ref(),
