@@ -53,7 +53,7 @@ pub struct ParquetFilePath(ObjPath);
 
 impl ParquetFilePath {
     /// Generate a parquet file path using the given arguments. This will convert the provided
-    /// `chunk_time` into a date time string with format `'YYYY-MM-DDTHH-MM'`
+    /// `chunk_time` into a date time string with format `'YYYY-MM-DD/HH-MM'`
     pub fn new(
         host_prefix: &str,
         db_name: &str,
