@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/stretchr/testify/require"
 )
 
 // TODO(benbjohnson): Rewrite tests to use cluster_test.MetaClient.
@@ -20,7 +21,7 @@ import (
 // Ensures the points writer maps a single point to a single shard.
 func TestPointsWriter_MapShards_One(t *testing.T) {
 	ms := PointsWriterMetaClient{}
-	rp := NewRetentionPolicy("myp", time.Hour, 3)
+	rp := NewRetentionPolicy("myp", time.Now(), time.Hour, 3, 0, 0)
 
 	ms.NodeIDFn = func() uint64 { return 1 }
 	ms.RetentionPolicyFn = func(db, retentionPolicy string) (*meta.RetentionPolicyInfo, error) {
@@ -51,11 +52,78 @@ func TestPointsWriter_MapShards_One(t *testing.T) {
 	}
 }
 
+func TestPointsWriter_MapShards_WriteLimits(t *testing.T) {
+	ms := PointsWriterMetaClient{}
+	c := coordinator.NewPointsWriter()
+
+	MustParseDuration := func(s string) time.Duration {
+		d, err := time.ParseDuration(s)
+		require.NoError(t, err, "failed to parse duration: %q", s)
+		return d
+	}
+
+	pastWriteLimit := MustParseDuration("10m")
+	futureWriteLimit := MustParseDuration("15m")
+	rp := NewRetentionPolicy("myp", time.Now().Add(-time.Minute*45), 3*time.Hour, 3, futureWriteLimit, pastWriteLimit)
+
+	ms.NodeIDFn = func() uint64 { return 1 }
+	ms.RetentionPolicyFn = func(db, retentionPolicy string) (*meta.RetentionPolicyInfo, error) {
+		return rp, nil
+	}
+
+	ms.CreateShardGroupIfNotExistsFn = func(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
+		return &rp.ShardGroups[0], nil
+	}
+
+	c.MetaClient = ms
+
+	pr := &coordinator.WritePointsRequest{
+		Database:        "mydb",
+		RetentionPolicy: "myrp",
+	}
+
+	pr.AddPoint("cpu", 0.0, time.Now(), nil)
+	pr.AddPoint("cpu", 1.0, time.Now().Add(time.Second), nil)
+	pr.AddPoint("cpu", 2.0, time.Now().Add(time.Minute*30), nil)
+	pr.AddPoint("cpu", -1.0, time.Now().Add(-time.Minute*5), nil)
+	pr.AddPoint("cpu", -2.0, time.Now().Add(-time.Minute*20), nil)
+	var (
+		shardMappings *coordinator.ShardMapping
+		err           error
+	)
+	if shardMappings, err = c.MapShards(pr); err != nil {
+		t.Fatalf("unexpected an error: %v", err)
+	}
+
+	if exp := 1; len(shardMappings.Points) != exp {
+		t.Errorf("MapShards() len mismatch. got %v, exp %v", len(shardMappings.Points), exp)
+	}
+
+	p, ok := shardMappings.Points[1]
+	require.True(t, ok, "shard 1 not found")
+
+	values := []float64{0.0, 1.0, -1.0}
+	dropped := []float64{2.0, -2.0}
+	verify :=
+		func(p []models.Point, values []float64) {
+			require.Equal(t, len(values), len(p), "unexpected number of points")
+			for i, expV := range values {
+				f, err := p[i].Fields()
+				require.NoError(t, err, "error retrieving fields")
+				v, ok := f["value"]
+				require.True(t, ok, "\"value\" field not found")
+				require.Equal(t, expV, v, "unexpected value")
+			}
+		}
+	verify(p, values)
+	verify(shardMappings.Dropped, dropped)
+}
+
 // Ensures the points writer maps to a new shard group when the shard duration
 // is changed.
 func TestPointsWriter_MapShards_AlterShardDuration(t *testing.T) {
 	ms := PointsWriterMetaClient{}
-	rp := NewRetentionPolicy("myp", time.Hour, 3)
+	rp := NewRetentionPolicy("myp", time.Now(), time.Hour, 3, 0, 0)
 
 	ms.NodeIDFn = func() uint64 { return 1 }
 	ms.RetentionPolicyFn = func(db, retentionPolicy string) (*meta.RetentionPolicyInfo, error) {
@@ -133,7 +201,7 @@ func TestPointsWriter_MapShards_AlterShardDuration(t *testing.T) {
 // Ensures the points writer maps a multiple points across shard group boundaries.
 func TestPointsWriter_MapShards_Multiple(t *testing.T) {
 	ms := PointsWriterMetaClient{}
-	rp := NewRetentionPolicy("myp", time.Hour, 3)
+	rp := NewRetentionPolicy("myp", time.Now(), time.Hour, 3, 0, 0)
 	rp.ShardGroupDuration = time.Hour
 	AttachShardGroupInfo(rp, []meta.ShardOwner{
 		{NodeID: 1},
@@ -206,7 +274,7 @@ func TestPointsWriter_MapShards_Multiple(t *testing.T) {
 // Ensures the points writer does not map points beyond the retention policy.
 func TestPointsWriter_MapShards_Invalid(t *testing.T) {
 	ms := PointsWriterMetaClient{}
-	rp := NewRetentionPolicy("myp", time.Hour, 3)
+	rp := NewRetentionPolicy("myp", time.Now(), time.Hour, 3, 0, 0)
 
 	ms.RetentionPolicyFn = func(db, retentionPolicy string) (*meta.RetentionPolicyInfo, error) {
 		return rp, nil
@@ -563,7 +631,7 @@ func (f *fakeStore) CreateShard(database, retentionPolicy string, shardID uint64
 
 func NewPointsWriterMetaClient() *PointsWriterMetaClient {
 	ms := &PointsWriterMetaClient{}
-	rp := NewRetentionPolicy("myp", time.Hour, 3)
+	rp := NewRetentionPolicy("myp", time.Now(), time.Hour, 3, 0, 0)
 	AttachShardGroupInfo(rp, []meta.ShardOwner{
 		{NodeID: 1},
 		{NodeID: 2},
@@ -624,7 +692,7 @@ func (s Subscriber) Send(wr *coordinator.WritePointsRequest) {
 	s.SendFn(wr)
 }
 
-func NewRetentionPolicy(name string, duration time.Duration, nodeCount int) *meta.RetentionPolicyInfo {
+func NewRetentionPolicy(name string, start time.Time, duration time.Duration, nodeCount int, futureWriteLimit time.Duration, pastWriteLimit time.Duration) *meta.RetentionPolicyInfo {
 	shards := []meta.ShardInfo{}
 	owners := []meta.ShardOwner{}
 	for i := 1; i <= nodeCount; i++ {
@@ -637,7 +705,6 @@ func NewRetentionPolicy(name string, duration time.Duration, nodeCount int) *met
 		Owners: owners,
 	})
 
-	start := time.Now()
 	rp := &meta.RetentionPolicyInfo{
 		Name:               "myrp",
 		ReplicaN:           nodeCount,
@@ -651,6 +718,8 @@ func NewRetentionPolicy(name string, duration time.Duration, nodeCount int) *met
 				Shards:    shards,
 			},
 		},
+		FutureWriteLimit: futureWriteLimit,
+		PastWriteLimit:   pastWriteLimit,
 	}
 	return rp
 }
