@@ -113,12 +113,20 @@ func NewShardMapping(n int) *ShardMapping {
 }
 
 // MapPoint adds the point to the ShardMapping, associated with the given shardInfo.
-func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
+func (s *ShardMapping) MapPoint(rp *meta.RetentionPolicyInfo, shardInfo *meta.ShardInfo, p models.Point) (dropped bool) {
+	if (rp != nil) &&
+		(((rp.FutureWriteLimit > 0) && p.Time().After(time.Now().Add(rp.FutureWriteLimit))) ||
+			((rp.PastWriteLimit > 0) && p.Time().Before(time.Now().Add(-rp.PastWriteLimit)))) {
+		// Point is too far in the future or too far in the past
+		s.Dropped = append(s.Dropped, p)
+		return true
+	}
 	if cap(s.Points[shardInfo.ID]) < s.n {
 		s.Points[shardInfo.ID] = make([]models.Point, 0, s.n)
 	}
 	s.Points[shardInfo.ID] = append(s.Points[shardInfo.ID], p)
 	s.Shards[shardInfo.ID] = shardInfo
+	return false
 }
 
 // Open opens the communication channel with the point writer.
@@ -217,16 +225,12 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 			mapping.Dropped = append(mapping.Dropped, p)
 			atomic.AddInt64(&w.stats.WriteDropped, 1)
 			continue
-		} else if ((rp.FutureWriteLimit > 0) && p.Time().After(time.Now().Add(rp.FutureWriteLimit))) ||
-			((rp.PastWriteLimit > 0) && p.Time().Before(time.Now().Add(-rp.PastWriteLimit))) {
-			// Point is too far in the future or too far in the past
-			mapping.Dropped = append(mapping.Dropped, p)
-			atomic.AddInt64(&w.stats.WriteDropped, 1)
-			continue
 		}
 
 		sh := sg.ShardFor(p)
-		mapping.MapPoint(&sh, p)
+		if dropped := mapping.MapPoint(rp, &sh, p); dropped {
+			atomic.AddInt64(&w.stats.WriteDropped, 1)
+		}
 	}
 	return mapping, nil
 }

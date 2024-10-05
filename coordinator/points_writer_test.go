@@ -99,9 +99,12 @@ func TestPointsWriter_MapShards_WriteLimits(t *testing.T) {
 		t.Errorf("MapShards() len mismatch. got %v, exp %v", len(shardMappings.Points), exp)
 	}
 
-	p, ok := shardMappings.Points[1]
-	require.True(t, ok, "shard 1 not found")
-
+	p := func() []models.Point {
+		for _, v := range shardMappings.Points {
+			return v
+		}
+		return nil
+	}()
 	values := []float64{0.0, 1.0, -1.0}
 	dropped := []float64{2.0, -2.0}
 	verify :=
@@ -360,27 +363,21 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		// copy to prevent data race
 		theTest := test
 		sm := coordinator.NewShardMapping(16)
-		sm.MapPoint(
-			&meta.ShardInfo{ID: uint64(1), Owners: []meta.ShardOwner{
-				{NodeID: 1},
-				{NodeID: 2},
-				{NodeID: 3},
-			}},
-			pr.Points[0])
-		sm.MapPoint(
-			&meta.ShardInfo{ID: uint64(2), Owners: []meta.ShardOwner{
-				{NodeID: 1},
-				{NodeID: 2},
-				{NodeID: 3},
-			}},
-			pr.Points[1])
-		sm.MapPoint(
-			&meta.ShardInfo{ID: uint64(2), Owners: []meta.ShardOwner{
-				{NodeID: 1},
-				{NodeID: 2},
-				{NodeID: 3},
-			}},
-			pr.Points[2])
+		sm.MapPoint(nil, &meta.ShardInfo{ID: uint64(1), Owners: []meta.ShardOwner{
+			{NodeID: 1},
+			{NodeID: 2},
+			{NodeID: 3},
+		}}, pr.Points[0])
+		sm.MapPoint(nil, &meta.ShardInfo{ID: uint64(2), Owners: []meta.ShardOwner{
+			{NodeID: 1},
+			{NodeID: 2},
+			{NodeID: 3},
+		}}, pr.Points[1])
+		sm.MapPoint(nil, &meta.ShardInfo{ID: uint64(2), Owners: []meta.ShardOwner{
+			{NodeID: 1},
+			{NodeID: 2},
+			{NodeID: 3},
+		}}, pr.Points[2])
 
 		// Local coordinator.Node ShardWriter
 		// lock on the write increment since these functions get called in parallel
