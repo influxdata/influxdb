@@ -207,6 +207,8 @@ impl ChunkContainer for ReadWriteMode {
             .get_table_schema(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("Table {} not found", table_name)))?;
 
+        // first add in all the buffer chunks from primary and replicas. These chunks have the
+        // highest precedence set in chunk order
         let mut chunks = self.primary.get_buffer_chunks(
             Arc::clone(&db_schema),
             table_name,
@@ -215,78 +217,74 @@ impl ChunkContainer for ReadWriteMode {
             ctx,
         )?;
 
-        // get the persisted chunks from the primary, minus what has already been compacted
-        let files_and_markers =
+        if let Some(replicas) = &self.replicas {
+            chunks.extend(
+                replicas
+                    .get_buffer_chunks(database_name, table_name, filters)
+                    .map_err(|e| DataFusionError::Execution(e.to_string()))?,
+            );
+        }
+
+        // now add in the compacted chunks so that they have the lowest chunk order precedence and
+        // pull out the host markers to get gen1 chunks from primary and replicas
+        let host_markers =
             if let Some(compacted_data) = &self.compacted_data {
                 let (parquet_files, host_markers) = compacted_data
                     .get_parquet_files_and_host_markers(database_name, table_name, filters);
-                let next_non_compacted_parquet_file_id = host_markers.iter().find_map(|marker| {
-                    if marker.host_id != self.host_id.as_ref() {
-                        Some(marker.next_file_id)
-                    } else {
-                        None
-                    }
-                });
 
-                let gen1_persisted_chunks = self.primary.get_persisted_chunks(
-                    database_name,
-                    table_name,
-                    table_schema.clone(),
-                    filters,
-                    next_non_compacted_parquet_file_id,
-                    chunks.len() as i64,
+                chunks.extend(
+                    parquet_files
+                        .into_iter()
+                        .map(|file| {
+                            Arc::new(parquet_chunk_from_file(
+                                &file,
+                                table_schema,
+                                self.object_store_url.clone(),
+                                Arc::clone(&self.object_store),
+                                chunks.len() as i64,
+                            )) as Arc<dyn QueryChunk>
+                        })
+                        .collect::<Vec<_>>(),
                 );
-                chunks.extend(gen1_persisted_chunks);
 
-                Some((parquet_files, host_markers))
+                Some(host_markers)
             } else {
                 None
             };
 
-        // add the buffer chunks and the gen1 persisted chunks from the replicas
+        // now add in the gen1 chunks from primary
+        let next_non_compacted_parquet_file_id = host_markers.as_ref().and_then(|markers| {
+            markers.iter().find_map(|marker| {
+                if marker.host_id != self.host_id.as_ref() {
+                    Some(marker.next_file_id)
+                } else {
+                    None
+                }
+            })
+        });
+
+        let gen1_persisted_chunks = self.primary.get_persisted_chunks(
+            database_name,
+            table_name,
+            table_schema.clone(),
+            filters,
+            next_non_compacted_parquet_file_id,
+            chunks.len() as i64,
+        );
+        chunks.extend(gen1_persisted_chunks);
+
+        // finally, add the gen1 persisted chunks from the replicas
         if let Some(replicas) = &self.replicas {
-            let mut buffer_chunks = replicas
-                .get_buffer_chunks(database_name, table_name, filters)
-                .map_err(|e| DataFusionError::Execution(e.to_string()))?;
-
-            let gen1_persisted_chunks = if let Some((_, host_markers)) = &files_and_markers {
-                replicas.get_persisted_chunks(
-                    database_name,
-                    table_name,
-                    table_schema.clone(),
-                    filters,
-                    host_markers,
-                    buffer_chunks.len() as i64,
-                )
-            } else {
-                replicas.get_persisted_chunks(
-                    database_name,
-                    table_name,
-                    table_schema.clone(),
-                    filters,
-                    &[],
-                    buffer_chunks.len() as i64,
-                )
-            };
-            buffer_chunks.extend(gen1_persisted_chunks);
-        }
-
-        // and now add the compacted chunks
-        if let Some((parquet_files, _host_markers)) = files_and_markers {
-            chunks.extend(
-                parquet_files
-                    .into_iter()
-                    .map(|file| {
-                        Arc::new(parquet_chunk_from_file(
-                            &file,
-                            table_schema,
-                            self.object_store_url.clone(),
-                            Arc::clone(&self.object_store),
-                            chunks.len() as i64,
-                        )) as Arc<dyn QueryChunk>
-                    })
-                    .collect::<Vec<_>>(),
+            let host_markers = host_markers.unwrap_or_else(Vec::new);
+            let gen1_persisted_chunks = replicas.get_persisted_chunks(
+                database_name,
+                table_name,
+                table_schema.clone(),
+                filters,
+                &host_markers,
+                chunks.len() as i64,
             );
+            chunks.extend(gen1_persisted_chunks);
         }
 
         Ok(chunks)
