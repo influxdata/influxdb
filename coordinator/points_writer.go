@@ -229,6 +229,8 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 
 		sh := sg.ShardFor(p)
 		if dropped := mapping.MapPoint(rp, &sh, p); dropped {
+			// The point was dropped because it was outside the permissible
+			// write window.
 			atomic.AddInt64(&w.stats.WriteDropped, 1)
 		}
 	}

@@ -92,7 +92,7 @@ func TestPointsWriter_MapShards_WriteLimits(t *testing.T) {
 		err           error
 	)
 	if shardMappings, err = c.MapShards(pr); err != nil {
-		t.Fatalf("unexpected an error: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	if exp := 1; len(shardMappings.Points) != exp {
