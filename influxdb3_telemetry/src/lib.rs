@@ -20,3 +20,7 @@ pub enum TelemetryError {
 }
 
 pub type Result<T, E = TelemetryError> = std::result::Result<T, E>;
+
+pub trait ParquetMetrics: Send + Sync + std::fmt::Debug + 'static {
+    fn get_metrics(&self) -> (u64, f64, u64);
+}

@@ -6,6 +6,7 @@ use crate::{ParquetFile, PersistedSnapshot};
 use hashbrown::HashMap;
 use influxdb3_id::DbId;
 use influxdb3_id::TableId;
+use influxdb3_telemetry::ParquetMetrics;
 use parking_lot::RwLock;
 
 type DatabaseToTables = HashMap<DbId, TableToFiles>;
@@ -55,9 +56,11 @@ impl PersistedFiles {
 
         files
     }
+}
 
+impl ParquetMetrics for PersistedFiles {
     /// Get parquet file metrics, file count, row count and size in MB
-    pub fn get_metrics(&self) -> (u64, f64, u64) {
+    fn get_metrics(&self) -> (u64, f64, u64) {
         let inner = self.inner.read();
         (
             inner.parquet_files_count,

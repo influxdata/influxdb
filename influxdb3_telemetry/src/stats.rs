@@ -102,8 +102,7 @@ impl<T: Default + Num + Copy + NumCast + PartialOrd> Stats<T> {
 /// It calculates min/max/avg by using already calculated min/max/avg for
 /// possibly a higher resolution.
 ///
-/// For eg.
-///
+/// # Example
 /// Let's say we're looking at the stats for number of lines written.
 /// And we have 1st sample's minimum was 20 and the 3rd sample's
 /// minimum was 10. This means in the 1st sample for a whole minute
