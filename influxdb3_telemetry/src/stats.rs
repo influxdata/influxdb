@@ -7,7 +7,7 @@ use num::{Num, NumCast};
 /// then further aggregated (say 1 hour).
 ///
 /// For example the number of lines written per hour is collected as new
-/// write requests come in. However the bucket [`crate::bucket::EventsBucket`]
+/// write requests come in. However, the bucket [`crate::bucket::EventsBucket`]
 /// holds `lines` as [`crate::stats::Stats<u64>`], to hold min/max/avg lines
 /// written per minute. Then when taking samples per minute to calculate
 /// hourly aggregates, [`RollingStats<T>`] is used. To see how it is calculated
