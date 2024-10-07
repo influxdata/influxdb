@@ -30,6 +30,8 @@ impl TelemetrySender {
     }
 }
 
+/// This is the actual payload that is sent to the telemetry
+/// server
 #[derive(Serialize, Debug)]
 pub(crate) struct TelemetryPayload {
     pub os: Arc<str>,
@@ -68,6 +70,8 @@ pub(crate) struct TelemetryPayload {
     pub parquet_row_count: u64,
 }
 
+/// This function runs in the background and if any call fails
+/// there is no retrying mechanism and it is ok to lose few samples
 pub(crate) async fn send_telemetry_in_background(
     store: Arc<TelemetryStore>,
     duration_secs: Duration,

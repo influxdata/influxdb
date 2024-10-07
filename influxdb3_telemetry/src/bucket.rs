@@ -2,6 +2,10 @@ use observability_deps::tracing::debug;
 
 use crate::stats::Stats;
 
+/// This bucket holds all the event metrics like reads/writes. As
+/// new read or write comes in we update the stats for them. Then once
+/// a minute when a sample is taken these metrics are reset to collect
+/// the events again till next sample is taken.
 #[derive(Debug, Default)]
 pub(crate) struct EventsBucket {
     pub writes: PerMinuteWrites,

@@ -15,6 +15,8 @@ impl CpuAndMemorySampler {
         Self { system }
     }
 
+    /// This method picks the memory and cpu usage for this process using the
+    /// pid.
     pub fn get_cpu_and_mem_used(&mut self) -> Result<(f32, u64)> {
         let pid = sysinfo::get_current_pid().map_err(TelemetryError::CannotGetPid)?;
         self.system.refresh_pids_specifics(
