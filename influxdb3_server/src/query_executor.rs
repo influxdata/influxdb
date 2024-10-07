@@ -377,10 +377,7 @@ impl Database {
 
     async fn query_table(&self, table_name: &str) -> Option<Arc<QueryTable>> {
         let table_name = table_name.into();
-        let table_id = self
-            .write_buffer
-            .catalog()
-            .table_name_to_id(self.db_schema.id, Arc::clone(&table_name))?;
+        let table_id = self.db_schema.table_name_to_id(Arc::clone(&table_name))?;
         self.db_schema.get_table_schema(table_id).map(|schema| {
             Arc::new(QueryTable {
                 db_schema: Arc::clone(&self.db_schema),
@@ -515,10 +512,7 @@ impl SchemaProvider for Database {
     }
 
     fn table_exist(&self, name: &str) -> bool {
-        self.write_buffer
-            .catalog()
-            .table_name_to_id(self.db_schema.id, name.into())
-            .is_some()
+        self.db_schema.table_name_to_id(name.into()).is_some()
     }
 }
 

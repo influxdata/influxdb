@@ -136,12 +136,7 @@ impl LastCacheProvider {
                             .create_cache(CreateCacheArguments {
                                 db_id: db_schema.id,
                                 db_name: db_schema.name.to_string(),
-                                table_id: catalog
-                                    .table_name_to_id(
-                                        db_schema.id,
-                                        Arc::clone(&table_def.table_name)
-                                    )
-                                    .expect("table exists"),
+                                table_id: table_def.table_id,
                                 table_name: table_def.table_name.to_string(),
                                 schema: table_def.schema.clone(),
                                 cache_name: Some(cache_name.to_owned()),
@@ -205,7 +200,9 @@ impl LastCacheProvider {
                             lc.to_definition(
                                 *table_id,
                                 self.catalog
-                                    .table_id_to_name(db, *table_id)
+                                    .db_schema(&db)
+                                    .expect("db exists")
+                                    .table_id_to_name(*table_id)
                                     .expect("table exists")
                                     .to_string(),
                                 lc_name,
@@ -1609,6 +1606,7 @@ mod tests {
     };
     use ::object_store::{memory::InMemory, ObjectStore};
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
+    use bimap::BiHashMap;
     use data_types::NamespaceName;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
     use influxdb3_id::{DbId, TableId};
@@ -3126,6 +3124,12 @@ mod tests {
             id: DbId::from(0),
             name: db_name.into(),
             tables: BTreeMap::new(),
+            table_map: {
+                let mut map = BiHashMap::new();
+                map.insert(TableId::from(0), "test_table_1".into());
+                map.insert(TableId::from(1), "test_table_2".into());
+                map
+            },
         };
         let table_id = TableId::from(0);
         use schema::InfluxColumnType::*;
