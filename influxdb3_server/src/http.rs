@@ -700,7 +700,9 @@ where
         let table_id = self
             .write_buffer
             .catalog()
-            .table_name_to_id(db_id, table.as_str().into())
+            .db_schema(&db_id)
+            .expect("db should exist")
+            .table_name_to_id(table.as_str().into())
             .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
         match self
             .write_buffer
@@ -748,7 +750,9 @@ where
         let table_id = self
             .write_buffer
             .catalog()
-            .table_name_to_id(db_id, table.into())
+            .db_schema(&db_id)
+            .expect("db should exist")
+            .table_name_to_id(table.into())
             .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
         self.write_buffer
             .delete_last_cache(db_id, table_id, &name)

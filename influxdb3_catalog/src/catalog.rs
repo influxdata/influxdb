@@ -167,38 +167,12 @@ impl Catalog {
         Ok(db)
     }
 
-    pub fn add_table_to_lookup(&self, db_id: DbId, table_id: TableId, name: Arc<str>) {
-        self.inner
-            .write()
-            .table_map
-            .entry(db_id)
-            .or_default()
-            .insert(table_id, name);
-    }
-
     pub fn db_name_to_id(&self, db_name: Arc<str>) -> Option<DbId> {
         self.inner.read().db_map.get_by_right(&db_name).copied()
     }
 
     pub fn db_id_to_name(&self, db_id: DbId) -> Option<Arc<str>> {
         self.inner.read().db_map.get_by_left(&db_id).map(Arc::clone)
-    }
-
-    pub fn table_name_to_id(&self, db_id: DbId, table_name: Arc<str>) -> Option<TableId> {
-        self.inner
-            .read()
-            .table_map
-            .get(&db_id)
-            .and_then(|map| map.get_by_right(&table_name).copied())
-    }
-
-    pub fn table_id_to_name(&self, db_id: DbId, table_id: TableId) -> Option<Arc<str>> {
-        self.inner
-            .read()
-            .table_map
-            .get(&db_id)
-            .and_then(|map| map.get_by_left(&table_id))
-            .map(Arc::clone)
     }
 
     pub fn db_schema(&self, id: &DbId) -> Option<Arc<DatabaseSchema>> {
@@ -267,19 +241,6 @@ impl Catalog {
 
     pub fn insert_database(&mut self, db: DatabaseSchema) {
         let mut inner = self.inner.write();
-        for (table_id, table_def) in db.tables.iter() {
-            inner
-                .table_map
-                .entry(db.id)
-                .and_modify(|map: &mut BiHashMap<TableId, Arc<str>>| {
-                    map.insert(*table_id, Arc::clone(&table_def.table_name));
-                })
-                .or_insert_with(|| {
-                    let mut map = BiHashMap::new();
-                    map.insert(*table_id, Arc::clone(&table_def.table_name));
-                    map
-                });
-        }
         inner.db_map.insert(db.id, Arc::clone(&db.name));
         inner.databases.insert(db.id, Arc::new(db));
         inner.sequence = inner.sequence.next();
@@ -321,8 +282,6 @@ pub struct InnerCatalog {
     updated: bool,
     #[serde_as(as = "DbMapAsArray")]
     db_map: BiHashMap<DbId, Arc<str>>,
-    #[serde_as(as = "TableMapAsArray")]
-    pub table_map: HashMap<DbId, BiHashMap<TableId, Arc<str>>>,
 }
 
 serde_with::serde_conv!(
@@ -351,44 +310,32 @@ struct DbMap {
     name: Arc<str>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct TableMap {
+    table_id: TableId,
+    name: Arc<str>,
+}
+
 serde_with::serde_conv!(
     TableMapAsArray,
-    HashMap<DbId, BiHashMap<TableId, Arc<str>>>,
-    |map: &HashMap<DbId, BiHashMap<TableId, Arc<str>>>| {
-        map.iter().fold(Vec::new(), |mut acc, (db_id, table_map)| {
-            for (table_id, name) in table_map.iter() {
-                acc.push(TableMap {
-                    db_id: *db_id,
-                    table_id: *table_id,
-                    name: Arc::clone(&name)
-                });
-            }
+    BiHashMap<TableId, Arc<str>>,
+    |map: &BiHashMap<TableId, Arc<str>>| {
+        map.iter().fold(Vec::new(), |mut acc, (table_id, name)| {
+            acc.push(TableMap {
+                table_id: *table_id,
+                name: Arc::clone(&name)
+            });
             acc
         })
     },
     |vec: Vec<TableMap>| -> Result<_, std::convert::Infallible> {
-        let mut map = HashMap::new();
+        let mut map = BiHashMap::new();
         for item in vec {
-            map.entry(item.db_id)
-               .and_modify(|entry: &mut BiHashMap<TableId, Arc<str>>| {
-                   entry.insert(item.table_id, Arc::clone(&item.name));
-               })
-               .or_insert_with(||{
-                    let mut inner_map = BiHashMap::new();
-                    inner_map.insert(item.table_id, Arc::clone(&item.name));
-                    inner_map
-               });
+            map.insert(item.table_id, item.name);
         }
         Ok(map)
     }
 );
-
-#[derive(Debug, Serialize, Deserialize)]
-struct TableMap {
-    db_id: DbId,
-    table_id: TableId,
-    name: Arc<str>,
-}
 
 serde_with::serde_conv!(
     DatabasesAsArray,
@@ -406,17 +353,20 @@ serde_with::serde_conv!(
     |vec: Vec<DatabasesSerialized>| -> Result<_, String> {
         vec.into_iter().fold(Ok(HashMap::new()), |acc, db| {
             let mut acc = acc?;
+            let mut table_map = BiHashMap::new();
             if let Some(_) = acc.insert(db.id, Arc::new(DatabaseSchema {
                 id: db.id,
                 name: Arc::clone(&db.name),
                 tables: db.tables.into_iter().fold(Ok(BTreeMap::new()), |acc, table| {
                     let mut acc = acc?;
                     let table_name = Arc::clone(&table.table_name);
+                    table_map.insert(table.table_id, Arc::clone(&table_name));
                     if let Some(_) = acc.insert(table.table_id, table) {
                         return Err(format!("found duplicate table: {}", table_name));
                     }
                     Ok(acc)
-                })?
+                })?,
+                table_map
             })) {
                 return Err(format!("found duplicate db: {}", db.name));
             }
@@ -441,7 +391,6 @@ impl InnerCatalog {
             instance_id,
             updated: false,
             db_map: BiHashMap::new(),
-            table_map: HashMap::new(),
         }
     }
 
@@ -471,18 +420,6 @@ impl InnerCatalog {
                 self.sequence = self.sequence.next();
                 self.updated = true;
                 self.db_map.insert(new_db.id, Arc::clone(&new_db.name));
-                for (table_id, table_def) in new_db.tables.iter() {
-                    self.table_map
-                        .entry(new_db.id)
-                        .and_modify(|map| {
-                            map.insert(*table_id, Arc::clone(&table_def.table_name));
-                        })
-                        .or_insert_with(|| {
-                            let mut map = BiHashMap::new();
-                            map.insert(*table_id, Arc::clone(&table_def.table_name));
-                            map
-                        });
-                }
             }
         } else {
             if self.databases.len() >= Catalog::NUM_DBS_LIMIT {
@@ -499,18 +436,6 @@ impl InnerCatalog {
             self.sequence = self.sequence.next();
             self.updated = true;
             self.db_map.insert(new_db.id, Arc::clone(&new_db.name));
-            for (table_id, table_def) in new_db.tables.iter() {
-                self.table_map
-                    .entry(new_db.id)
-                    .and_modify(|map| {
-                        map.insert(*table_id, Arc::clone(&table_def.table_name));
-                    })
-                    .or_insert_with(|| {
-                        let mut map = BiHashMap::new();
-                        map.insert(*table_id, Arc::clone(&table_def.table_name));
-                        map
-                    });
-            }
         }
 
         Ok(())
@@ -532,6 +457,8 @@ pub struct DatabaseSchema {
     pub name: Arc<str>,
     /// The database is a map of tables
     pub tables: BTreeMap<TableId, TableDefinition>,
+    #[serde_as(as = "TableMapAsArray")]
+    pub table_map: BiHashMap<TableId, Arc<str>>,
 }
 
 impl DatabaseSchema {
@@ -540,6 +467,7 @@ impl DatabaseSchema {
             id,
             name,
             tables: BTreeMap::new(),
+            table_map: BiHashMap::new(),
         }
     }
 
@@ -636,10 +564,17 @@ impl DatabaseSchema {
                 }
             }
 
+            // With the final list of updated/new tables update the current mapping
+            let new_table_maps = updated_or_new_tables
+                .iter()
+                .map(|(table_id, table_def)| (*table_id, Arc::clone(&table_def.table_name)))
+                .collect();
+
             Ok(Some(Self {
                 id: self.id,
                 name: Arc::clone(&self.name),
                 tables: updated_or_new_tables,
+                table_map: new_table_maps,
             }))
         }
     }
@@ -680,6 +615,14 @@ impl DatabaseSchema {
 
     pub fn tables(&self) -> impl Iterator<Item = &TableDefinition> {
         self.tables.values()
+    }
+
+    pub fn table_name_to_id(&self, table_name: Arc<str>) -> Option<TableId> {
+        self.table_map.get_by_right(&table_name).copied()
+    }
+
+    pub fn table_id_to_name(&self, table_id: TableId) -> Option<Arc<str>> {
+        self.table_map.get_by_left(&table_id).map(Arc::clone)
     }
 }
 
@@ -960,6 +903,12 @@ mod tests {
             id: DbId::from(0),
             name: "test_db".into(),
             tables: BTreeMap::new(),
+            table_map: {
+                let mut map = BiHashMap::new();
+                map.insert(TableId::from(1), "test_table_1".into());
+                map.insert(TableId::from(2), "test_table_2".into());
+                map
+            },
         };
         use InfluxColumnType::*;
         use InfluxFieldType::*;
@@ -1106,6 +1055,7 @@ mod tests {
             id: DbId::from(0),
             name: "test".into(),
             tables: BTreeMap::new(),
+            table_map: BiHashMap::new(),
         };
         database.tables.insert(
             TableId::from(0),
@@ -1142,6 +1092,11 @@ mod tests {
             id: DbId::from(0),
             name: "test_db".into(),
             tables: BTreeMap::new(),
+            table_map: {
+                let mut map = BiHashMap::new();
+                map.insert(TableId::from(1), "test_table_1".into());
+                map
+            },
         };
         use InfluxColumnType::*;
         use InfluxFieldType::*;
@@ -1188,6 +1143,11 @@ mod tests {
             id: DbId::from(0),
             name: "test_db".into(),
             tables: BTreeMap::new(),
+            table_map: {
+                let mut map = BiHashMap::new();
+                map.insert(TableId::from(0), "test".into());
+                map
+            },
         };
         use InfluxColumnType::*;
         use InfluxFieldType::*;

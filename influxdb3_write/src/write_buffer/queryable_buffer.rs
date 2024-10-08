@@ -80,9 +80,8 @@ impl QueryableBuffer {
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let table_id = self
-            .catalog
-            .table_name_to_id(db_schema.id, table_name.into())
+        let table_id = db_schema
+            .table_name_to_id(table_name.into())
             .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
         let table = db_schema
             .tables
@@ -154,14 +153,13 @@ impl QueryableBuffer {
             let mut persisting_chunks = vec![];
             let catalog = Arc::clone(&buffer.catalog);
             for (database_id, table_map) in buffer.db_to_table.iter_mut() {
+                let db_schema = catalog.db_schema(database_id).expect("db exists");
                 for (table_id, table_buffer) in table_map.iter_mut() {
                     let snapshot_chunks = table_buffer.snapshot(snapshot_details.end_time_marker);
 
                     for chunk in snapshot_chunks {
-                        let table_name = catalog
-                            .table_id_to_name(*database_id, *table_id)
-                            .expect("table exists");
-                        let db_name = catalog.db_id_to_name(*database_id).expect("db_exists");
+                        let table_name =
+                            db_schema.table_id_to_name(*table_id).expect("table exists");
                         let persist_job = PersistJob {
                             database_id: *database_id,
                             table_id: *table_id,
@@ -169,7 +167,7 @@ impl QueryableBuffer {
                             chunk_time: chunk.chunk_time,
                             path: ParquetFilePath::new(
                                 self.persister.host_identifier_prefix(),
-                                db_name.as_ref(),
+                                db_schema.name.as_ref(),
                                 database_id.as_u32(),
                                 table_name.as_ref(),
                                 table_id.as_u32(),

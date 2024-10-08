@@ -1,7 +1,6 @@
 use std::{borrow::Cow, sync::Arc};
 
 use crate::{write_buffer::Result, Precision, WriteLineError};
-use bimap::BiHashMap;
 use data_types::{NamespaceName, Timestamp};
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::{
@@ -89,15 +88,8 @@ impl WriteValidator<WithCatalog> {
                     line_number: line_idx + 1,
                     error_message: e.to_string(),
                 })
-                .and_then(|l| {
-                    validate_v3_line(
-                        &self.state.catalog,
-                        &mut schema,
-                        line_idx,
-                        l,
-                        lp_lines.peek().unwrap(),
-                    )
-                }) {
+                .and_then(|l| validate_v3_line(&mut schema, line_idx, l, lp_lines.peek().unwrap()))
+            {
                 Ok(line) => line,
                 Err(e) => {
                     if !accept_partial {
@@ -169,7 +161,7 @@ impl WriteValidator<WithCatalog> {
                     line_number: line_idx + 1,
                     error_message: e.to_string(),
                 })
-                .and_then(|l| validate_v1_line(&self.state.catalog, &mut schema, line_idx, l))
+                .and_then(|l| validate_v1_line(&mut schema, line_idx, l))
             {
                 Ok(line) => line,
                 Err(e) => {
@@ -226,7 +218,6 @@ impl WriteValidator<WithCatalog> {
 /// This errors if the write is being performed against a v1 table, i.e., one that does not have
 /// a series key.
 fn validate_v3_line<'a>(
-    catalog: &Catalog,
     db_schema: &mut Cow<'_, DatabaseSchema>,
     line_number: usize,
     line: v3::ParsedLine<'a>,
@@ -234,8 +225,8 @@ fn validate_v3_line<'a>(
 ) -> Result<(v3::ParsedLine<'a>, Option<CatalogOp>), WriteLineError> {
     let mut catalog_op = None;
     let table_name = line.series.measurement.as_str();
-    if let Some(table_def) = catalog
-        .table_name_to_id(db_schema.id, table_name.into())
+    if let Some(table_def) = db_schema
+        .table_name_to_id(table_name.into())
         .and_then(|table_id| db_schema.get_table(table_id))
     {
         let table_id = table_def.table_id;
@@ -393,26 +384,11 @@ fn validate_v3_line<'a>(
         });
         catalog_op = Some(table_definition_op);
 
-        // We have to add the mapping here or else each line might create a new
-        // table and table_id before the CatalogOp is applied
-        catalog
-            .inner()
-            .write()
-            .table_map
-            .entry(db_schema.id)
-            .and_modify(|map| {
-                map.insert(table_id, Arc::clone(&table_name));
-            })
-            .or_insert_with(|| {
-                let mut map = BiHashMap::new();
-                map.insert(table_id, Arc::clone(&table_name));
-                map
-            });
-
         assert!(
             db_schema.to_mut().tables.insert(table_id, table).is_none(),
             "attempted to overwrite existing table"
-        )
+        );
+        db_schema.to_mut().table_map.insert(table_id, table_name);
     }
 
     Ok((line, catalog_op))
@@ -426,15 +402,14 @@ fn validate_v3_line<'a>(
 /// An error will also be produced if the write, which is for the v1 data model, is targetting
 /// a v3 table.
 fn validate_v1_line<'a>(
-    catalog: &Catalog,
     db_schema: &mut Cow<'_, DatabaseSchema>,
     line_number: usize,
     line: ParsedLine<'a>,
 ) -> Result<(ParsedLine<'a>, Option<CatalogOp>), WriteLineError> {
     let mut catalog_op = None;
     let table_name = line.series.measurement.as_str();
-    if let Some(table_def) = catalog
-        .table_name_to_id(db_schema.id, table_name.into())
+    if let Some(table_def) = db_schema
+        .table_name_to_id(table_name.into())
         .and_then(|table_id| db_schema.get_table(table_id))
     {
         if table_def.is_v3() {
@@ -549,22 +524,6 @@ fn validate_v1_line<'a>(
             key: None,
         }));
 
-        // We have to add the mapping here or else each line might create a new
-        // table and table_id before the CatalogOp is applied
-        catalog
-            .inner()
-            .write()
-            .table_map
-            .entry(db_schema.id)
-            .and_modify(|map| {
-                map.insert(table_id, Arc::clone(&table_name));
-            })
-            .or_insert_with(|| {
-                let mut map = BiHashMap::new();
-                map.insert(table_id, Arc::clone(&table_name));
-                map
-            });
-
         let table = TableDefinition::new(
             table_id,
             Arc::clone(&table_name),
@@ -577,6 +536,7 @@ fn validate_v1_line<'a>(
             db_schema.to_mut().tables.insert(table_id, table).is_none(),
             "attempted to overwrite existing table"
         );
+        db_schema.to_mut().table_map.insert(table_id, table_name);
     }
 
     Ok((line, catalog_op))
@@ -700,7 +660,9 @@ fn convert_v3_parsed_line(
     let chunk_time = gen1_duration.chunk_time_for_timestamp(Timestamp::new(time_value_nanos));
     let table_name: Arc<str> = line.series.measurement.to_string().into();
     let table_id = catalog
-        .table_name_to_id(db_id, Arc::clone(&table_name))
+        .db_schema(&db_id)
+        .expect("db should exist by this point")
+        .table_name_to_id(Arc::clone(&table_name))
         .expect("table should exist by this point");
     let table_chunks = table_chunk_map.entry(table_id).or_default();
     table_chunks.push_row(
@@ -817,7 +779,9 @@ fn convert_v1_parsed_line(
 
     let table_name: Arc<str> = line.series.measurement.to_string().into();
     let table_id = catalog
-        .table_name_to_id(db_id, Arc::clone(&table_name))
+        .db_schema(&db_id)
+        .expect("the database should exist by this point")
+        .table_name_to_id(Arc::clone(&table_name))
         .expect("table should exist by this point");
     let table_chunks = table_chunk_map.entry(table_id).or_default();
     table_chunks.push_row(

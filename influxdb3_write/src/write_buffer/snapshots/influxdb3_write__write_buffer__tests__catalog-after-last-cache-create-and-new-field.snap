@@ -68,12 +68,5 @@ expression: catalog_json
   ],
   "host_id": "test_host",
   "instance_id": "[uuid]",
-  "sequence": 3,
-  "table_map": [
-    {
-      "db_id": 0,
-      "name": "table",
-      "table_id": 0
-    }
-  ]
+  "sequence": 3
 }

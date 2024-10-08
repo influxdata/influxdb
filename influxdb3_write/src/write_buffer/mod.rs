@@ -308,9 +308,8 @@ impl WriteBufferImpl {
             .db_schema(&db_id)
             .expect("Already checked db exists");
 
-        let table_id = self
-            .catalog
-            .table_name_to_id(db_id, table_name.into())
+        let table_id = db_schema
+            .table_name_to_id(table_name.into())
             .ok_or_else(|| {
                 DataFusionError::Execution(format!(
                     "table {} not found in db {}",
@@ -484,10 +483,10 @@ impl LastCacheManager for WriteBufferImpl {
 
         if let Some(info) = self.last_cache.create_cache(CreateCacheArguments {
             db_id,
-            db_name: catalog.db_id_to_name(db_id).expect("db exists").to_string(),
+            db_name: db_schema.name.to_string(),
             table_id,
-            table_name: catalog
-                .table_id_to_name(db_id, table_id)
+            table_name: db_schema
+                .table_id_to_name(table_id)
                 .expect("table exists")
                 .to_string(),
             schema,
@@ -519,6 +518,7 @@ impl LastCacheManager for WriteBufferImpl {
         cache_name: &str,
     ) -> crate::Result<(), self::Error> {
         let catalog = self.catalog();
+        let db_schema = catalog.db_schema(&db_id).expect("db should exist");
         self.last_cache.delete_cache(db_id, tbl_id, cache_name)?;
         catalog.delete_last_cache(db_id, tbl_id, cache_name);
 
@@ -528,11 +528,11 @@ impl LastCacheManager for WriteBufferImpl {
             .write_ops(vec![WalOp::Catalog(CatalogBatch {
                 time_ns: self.time_provider.now().timestamp_nanos(),
                 database_id: db_id,
-                database_name: catalog.db_id_to_name(db_id).expect("database exists"),
+                database_name: Arc::clone(&db_schema.name),
                 ops: vec![CatalogOp::DeleteLastCache(LastCacheDelete {
                     table_id: tbl_id,
-                    table_name: catalog
-                        .table_id_to_name(db_id, tbl_id)
+                    table_name: db_schema
+                        .table_id_to_name(tbl_id)
                         .expect("table exists")
                         .to_string(),
                     name: cache_name.into(),

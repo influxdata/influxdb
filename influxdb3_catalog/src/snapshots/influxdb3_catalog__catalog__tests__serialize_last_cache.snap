@@ -81,6 +81,5 @@ expression: catalog
   "sequence": 0,
   "host_id": "dummy-host-id",
   "instance_id": "instance-id",
-  "db_map": [],
-  "table_map": []
+  "db_map": []
 }
