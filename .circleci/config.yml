@@ -124,6 +124,16 @@ jobs:
       - run:
           name: Yamllint
           command: yamllint --config-file .circleci/yamllint.yml --strict .
+  inclusivity:
+    docker:
+      - image: cimg/go:1.23
+    steps:
+      - checkout
+      - run:
+          name: Build and run inclusivity checker
+          command: |
+            go install github.com/get-woke/woke@v0.19.0
+            woke --exit-1-on-failure .
   cargo-audit:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -471,6 +481,8 @@ workflows:
       - fmt:
           <<: *any_filter
       - lint:
+          <<: *any_filter
+      - inclusivity:
           <<: *any_filter
       - cargo-audit:
           <<: *any_filter
