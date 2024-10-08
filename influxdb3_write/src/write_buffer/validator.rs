@@ -826,8 +826,8 @@ mod tests {
 
     #[test]
     fn write_validator_v1() -> Result<(), Error> {
-        let host_id = Arc::from("dummy-host-id");
-        let instance_id = Arc::from("dummy-instance-id");
+        let host_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("sample-instance-id");
         let namespace = NamespaceName::new("test").unwrap();
         let catalog = Arc::new(Catalog::new(host_id, instance_id));
         let result = WriteValidator::initialize(namespace.clone(), catalog, 0)?

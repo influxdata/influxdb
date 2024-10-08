@@ -651,7 +651,7 @@ mod tests {
             test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider) as _);
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let executor = make_exec(Arc::clone(&object_store));
-        let host_id = Arc::from("dummy-host-id");
+        let host_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
         let catalog = Arc::new(Catalog::new(host_id, instance_id));
         let write_buffer_impl = Arc::new(
@@ -674,7 +674,7 @@ mod tests {
         );
 
         let persisted_files: Arc<PersistedFiles> = Arc::clone(&write_buffer_impl.persisted_files());
-        let dummy_telem_store = TelemetryStore::new_without_background_runners(persisted_files);
+        let sample_telem_store = TelemetryStore::new_without_background_runners(persisted_files);
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let metrics = Arc::new(Registry::new());
         let df_config = Arc::new(Default::default());
@@ -686,7 +686,7 @@ mod tests {
             df_config,
             10,
             10,
-            dummy_telem_store,
+            sample_telem_store,
         );
 
         (write_buffer, query_executor, time_provider)

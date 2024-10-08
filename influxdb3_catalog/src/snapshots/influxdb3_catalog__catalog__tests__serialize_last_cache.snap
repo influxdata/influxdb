@@ -79,7 +79,7 @@ expression: catalog
     }
   ],
   "sequence": 0,
-  "host_id": "dummy-host-id",
+  "host_id": "sample-host-id",
   "instance_id": "instance-id",
   "db_map": []
 }

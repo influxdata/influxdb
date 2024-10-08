@@ -772,9 +772,9 @@ mod tests {
             DedicatedExecutor::new_testing(),
         ));
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let dummy_host_id = Arc::from("dummy-host-id");
-        let instance_id = Arc::from("dummy-instance-id");
-        let catalog = Arc::new(Catalog::new(dummy_host_id, instance_id));
+        let sample_host_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("sample-instance-id");
+        let catalog = Arc::new(Catalog::new(sample_host_id, instance_id));
         let write_buffer_impl = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
@@ -791,14 +791,14 @@ mod tests {
 
         let parquet_metrics_provider: Arc<PersistedFiles> =
             Arc::clone(&write_buffer_impl.persisted_files());
-        let dummy_telem_store =
+        let sample_telem_store =
             TelemetryStore::new_without_background_runners(parquet_metrics_provider);
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let common_state = crate::CommonServerState::new(
             Arc::clone(&metrics),
             None,
             trace_header_parser,
-            Arc::clone(&dummy_telem_store),
+            Arc::clone(&sample_telem_store),
         )
         .unwrap();
         let query_executor = crate::query_executor::QueryExecutorImpl::new(
@@ -809,7 +809,7 @@ mod tests {
             Arc::new(HashMap::new()),
             10,
             10,
-            Arc::clone(&dummy_telem_store),
+            Arc::clone(&sample_telem_store),
         );
 
         // bind to port 0 will assign a random available port:
