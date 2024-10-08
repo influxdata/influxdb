@@ -1,5 +1,17 @@
 use num::{Num, NumCast};
 
+/// This type is responsible for calculating stats in a rolling fashion.
+/// By rolling, it means that there is already some stats calculated
+/// which needs to be further aggregated. This is commonly the case when
+/// the sampling is done at a higher precision interval (say 1 minute) and
+/// then further aggregated (say 1 hour).
+///
+/// For example the number of lines written per hour is collected as new
+/// write requests come in. However, the bucket [`crate::bucket::EventsBucket`]
+/// holds `lines` as [`crate::stats::Stats<u64>`], to hold min/max/avg lines
+/// written per minute. Then when taking samples per minute to calculate
+/// hourly aggregates, [`RollingStats<T>`] is used. To see how it is calculated
+/// see the [`RollingStats<T>::update`] method
 #[derive(Debug, Default)]
 pub(crate) struct RollingStats<T> {
     pub min: T,
@@ -13,6 +25,12 @@ impl<T: Default + Num + Copy + NumCast + PartialOrd> RollingStats<T> {
         RollingStats::default()
     }
 
+    /// Update the rolling stats [`Self::min`]/[`Self::max`]/[`Self::avg`] using
+    /// reference to an higher precision stats that is passed in. This is usually a
+    /// per minute interval stats. One thing to note here is the [`Self::num_samples`]
+    /// is updated locally here to calculate the rolling average for usually
+    /// an hour for a metric. Refer to [`crate::metrics::Writes`] or
+    /// [`crate::metrics::Queries`] to see how it is used
     pub fn update(&mut self, higher_precision_stats: &Stats<T>) -> Option<()> {
         if self.num_samples == 0 {
             self.min = higher_precision_stats.min;
@@ -41,6 +59,8 @@ impl<T: Default + Num + Copy + NumCast + PartialOrd> RollingStats<T> {
     }
 }
 
+/// This is basic stats to keep a tab on min/max/avg for a specific
+/// metric
 #[derive(Debug, Default)]
 pub(crate) struct Stats<T> {
     pub min: T,
@@ -54,6 +74,8 @@ impl<T: Default + Num + Copy + NumCast + PartialOrd> Stats<T> {
         Stats::default()
     }
 
+    /// Update the [`Self::min`]/[`Self::max`]/[`Self::avg`] from a
+    /// new value that is sampled.
     pub fn update(&mut self, new_val: T) -> Option<()> {
         if self.num_samples == 0 {
             self.min = new_val;
@@ -75,6 +97,22 @@ impl<T: Default + Num + Copy + NumCast + PartialOrd> Stats<T> {
     }
 }
 
+/// Generic function to calculate min/max/avg from another set of stats.
+/// This function works for all types of numbers (unsigned/signed/floats).
+/// It calculates min/max/avg by using already calculated min/max/avg for
+/// possibly a higher resolution.
+///
+/// For eg.
+///
+/// Let's say we're looking at the stats for number of lines written.
+/// And we have 1st sample's minimum was 20 and the 3rd sample's
+/// minimum was 10. This means in the 1st sample for a whole minute
+/// 20 was the minimum number of lines written in a single request and in
+/// the 3rd sample (3rd minute) 10 is the minimum number of lines written
+/// in a single request. These are already stats at per minute interval, when we
+/// calculate the minimum number of lines for the whole hour we compare the samples
+/// taken at per minute interval for whole hour. In this case 10 will be the new
+/// minimum for the whole hour.
 fn rollup_stats<T: Num + Copy + NumCast + PartialOrd>(
     current_min: T,
     current_max: T,
@@ -91,6 +129,10 @@ fn rollup_stats<T: Num + Copy + NumCast + PartialOrd>(
     Some((min, max, avg))
 }
 
+/// Generic function to calculate min/max/avg from a new sampled value.
+/// This function works for all types of numbers (unsigned/signed/floats).
+/// One thing to note here is the average function, it is an incremental average
+/// to avoid holding all the samples in memory.
 fn stats<T: Num + Copy + NumCast + PartialOrd>(
     current_min: T,
     current_max: T,

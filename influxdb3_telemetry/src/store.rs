@@ -11,8 +11,18 @@ use crate::{
     sender::{send_telemetry_in_background, TelemetryPayload},
 };
 
-/// This store is responsible for holding all the stats which
-/// will be sent in the background to the server.
+/// This store is responsible for holding all the stats which will be sent in the background
+/// to the server. There are primarily 4 different types of data held in the store:
+///   - static info (like instance ids, OS etc): These are passed in to create telemetry store.
+///   - hourly samples (like parquet file metrics): These are sampled at the point of creating
+///     payload before sending to the server.
+///   - rates (cpu/mem): These are sampled every minute but these are regular time
+///     series data. These metrics are backed by [`crate::stats::Stats<T>`] type.
+///   - events (reads/writes): These are just raw events and in order to convert it into a
+///     time series, it is collected in a bucket first and then sampled at per minute interval.
+///     These metrics are usually backed by [`crate::stats::RollingStats<T>`] type.
+///     There are couple of metrics like number of writes/reads that is backed by just
+///     [`crate::stats::Stats<T>`] type as they are just counters for per minute
 #[derive(Debug)]
 pub struct TelemetryStore {
     inner: parking_lot::Mutex<TelemetryStoreInner>,
@@ -151,14 +161,10 @@ impl TelemetryStoreInner {
             influx_version,
             storage_type,
             cores,
-            // cpu
             cpu: Cpu::default(),
-            // mem
             memory: Memory::default(),
             per_minute_events_bucket: EventsBucket::new(),
-            // writes
             writes: Writes::default(),
-            // reads
             reads: Queries::default(),
         }
     }
